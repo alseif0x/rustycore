@@ -262,7 +262,8 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.instances.represented_explored_zones_like_cpp = blocks;
+            self.instances
+                .replace_represented_explored_zones_for_test_like_cpp(blocks);
         }
         if let Some(update) = canonical {
             self.core.send_player_values_update_like_cpp(&update);
@@ -533,14 +534,7 @@ impl crate::session::LifecycleCx<'_> {
         rows: impl IntoIterator<Item = (u32, u64)>,
     ) {
         self.instances
-            .represented_instance_reset_times_like_cpp
-            .clear();
-        for (instance_id, release_time) in rows {
-            self.instances
-                .represented_instance_reset_times_like_cpp
-                .entry(instance_id)
-                .or_insert(release_time);
-        }
+            .replace_represented_instance_reset_times_for_test_like_cpp(rows);
     }
 
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {

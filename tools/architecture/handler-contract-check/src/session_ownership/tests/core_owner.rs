@@ -570,6 +570,8 @@ fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
     for (role, package) in [
         (PackageRole::WorldSpell, "wow-world-spell"),
         (PackageRole::WorldInteraction, "wow-world-interaction"),
+        (PackageRole::WorldInstances, "wow-world-instances"),
+        (PackageRole::WorldVisibility, "wow-world-visibility"),
     ] {
         let baseline = baseline_with_world_domain(
             role,
@@ -599,7 +601,12 @@ fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
 
 #[test]
 fn world_spell_and_interaction_cannot_define_or_impl_the_core_owner() {
-    for role in [PackageRole::WorldSpell, PackageRole::WorldInteraction] {
+    for role in [
+        PackageRole::WorldSpell,
+        PackageRole::WorldInteraction,
+        PackageRole::WorldInstances,
+        PackageRole::WorldVisibility,
+    ] {
         let error = baseline_with_world_domain(role, "pub struct SessionCore;")
             .expect_err("domain packages cannot define SessionCore");
         assert!(error.contains(role.package_name()), "{error}");
@@ -621,6 +628,8 @@ fn world_session_remains_owned_by_world_across_all_extracted_packages() {
         PackageRole::WorldSocial,
         PackageRole::WorldSpell,
         PackageRole::WorldInteraction,
+        PackageRole::WorldInstances,
+        PackageRole::WorldVisibility,
     ] {
         let error = baseline_with_world_domain(role, "pub struct WorldSession;")
             .expect_err("an extracted package cannot define WorldSession");
@@ -667,6 +676,20 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         WORLD_INTERACTION_CRATE_ROOT,
     )
     .expect("the actual WorldInteraction root and its declared modules are loadable");
+    let instances = repository_units(
+        &repository_root,
+        PackageRole::WorldInstances,
+        WORLD_INSTANCES_PACKAGE_ROOT,
+        WORLD_INSTANCES_CRATE_ROOT,
+    )
+    .expect("the actual WorldInstances root and its declared modules are loadable");
+    let visibility = repository_units(
+        &repository_root,
+        PackageRole::WorldVisibility,
+        WORLD_VISIBILITY_PACKAGE_ROOT,
+        WORLD_VISIBILITY_CRATE_ROOT,
+    )
+    .expect("the actual WorldVisibility root and its declared modules are loadable");
 
     assert!(spell.iter().all(|unit| unit.role == PackageRole::WorldSpell));
     assert!(spell.iter().any(|unit| unit.logical_module_path == "crate"));
@@ -683,6 +706,28 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         .iter()
         .any(|unit| unit.logical_module_path == "crate::session"));
     assert!(interaction
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(instances
+        .iter()
+        .all(|unit| unit.role == PackageRole::WorldInstances));
+    assert!(instances.iter().any(|unit| unit.logical_module_path == "crate"));
+    assert!(instances
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::map_key"));
+    assert!(instances
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(visibility
+        .iter()
+        .all(|unit| unit.role == PackageRole::WorldVisibility));
+    assert!(visibility
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate"));
+    assert!(visibility
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::object_updates"));
+    assert!(visibility
         .iter()
         .any(|unit| unit.logical_module_path == "crate::state"));
 }

@@ -813,6 +813,9 @@ El scanner incorpora `WorldSpell`/`WorldInteraction`, sus mounts reales y ocho
 regresiones escritas, sin modificar las 416 anteriores ni regenerar baselines.
 **NO VALIDADO:** no se ejecutó Cargo, formato, suites o inventarios para el
 conjunto Spell/Interaction. No hay nueva evidencia de producción ni publicación.
+El checkpoint local `24c42d87d` guarda este cierre de ambos dominios, los cuatro
+tests trasladados y la integración del scanner. Su estado sigue siendo
+**NO VALIDADO**; no sustituye la aceptación pendiente del macro.
 
 El censo siguiente encuentra ocho impls de `InstanceState` y tres de
 `VisibilityState`, incluidos los aliases en handlers. El bloque de respec en
@@ -822,9 +825,86 @@ Core/NPC y usa un helper que devuelve `canonical_map_manager.is_some()`.
 En F4 debe conservarse como helper privado del handler World, con el mismo
 préstamo Core, constantes, ramas y resultado, al retirar el impl del estado;
 no añadir esa responsabilidad al crate de instancias ni alterar la admisión.
-Los siete bloques de instancia restantes y los tres de visibilidad conservan
-su cierre pendiente de revisión antes de implementarlos. No es evidencia de
-paridad de respec ni inicio de F5.
+Los siete bloques de instancia restantes contienen 42 métodos; los tres de
+visibilidad contienen ocho. La preparación cerrada sobre `24c42d87d` incluye
+ocho campos y cuatro defaults de fixture para Instances, y ocho campos y dos
+defaults para Visibility. AdventureMapStartQuest conserva su DTO incondicional;
+solo su campo de fixture está gated. El token de lock acompaña a binding, y el
+plan de transportes de siete campos acompaña al publicador de visibilidad. Los
+builders y coordinadores World permanecen en su lugar.
+Anclas `a5f8da2eb`: `Player.cpp:19006,19016,19188,19195,20667`,
+`Map.cpp:1853–1869,1929–1947,2878–2896`, `MiscHandler.cpp:890,910,968,1061`,
+`AdventureMapHandler.cpp:24`, `Player.cpp:23337,25338–25381` y
+`Object.cpp:3722–3729`. Se conservan en F6 las diferencias heredadas de
+pending-bind en Session frente a Player, y el envío de transportes vacío que
+Rust omite. La implementación local de ambos cortes está cerrada, con un único
+dueño de las raíces y de los tres archivos de consumidores compartidos. Instances
+traslada 41 métodos: el predicado de presencia de MapManager, usado únicamente
+por respec, queda absorbido en la misma consulta Core del helper privado World.
+No se conserva un método huérfano ni se altera su resultado. Visibility traslada
+sus ocho métodos. Los 16 campos mantienen su orden de declaración y expresiones
+de construcción mediante constructores explícitos; los seis defaults de fixture
+también se conservan, con campos internos y accesos acotados para los consumidores.
+El token de lock tiene un único proveedor en Instances y una fachada World para
+su wrapper y tests originales. El plan de transportes y los tres helpers puros
+de publicación tienen un único proveedor en Visibility; sus consumidores World
+conservan las fachadas necesarias, sin acceso mutable al conjunto de transportes.
+Se retira la fachada de fixture Visibility sin consumidores. No se traslada el
+test del token, que usa Session y los stores de admisión.
+
+La revisión por fuente compara los cuerpos trasladados y los helpers, y conserva
+el clear/first-entry-wins de reset times, el take de pending bind antes del await
+y las fences de generación/incarnation. En los 35 archivos de tests World
+modificados se conservan los nombres y orden de sus 486 funciones y las 2.008
+invocaciones de aserción; ese recuento léxico no ejecuta los casos ni prueba sus
+resultados. Instances usa nueve dependencias internas y ninguna externa;
+Visibility usa cuatro internas y tracing. El scanner reconoce las dos raíces,
+sus mounts y procedencia, extendiendo los casos de dominio existentes sin retirar
+las 424 regresiones anteriores ni regenerar baselines.
+**NO VALIDADO:** no se ejecutó Cargo, formato, suites o inventarios para este
+conjunto. No hay nueva evidencia de producción, paridad de respec, publicación
+ni inicio de F5; queda pendiente la aceptación del macro completo.
+
+Preparación Loot sobre `24c42d87d`: el corte contiene 17 impls del estado y
+76 métodos, incluidos los 26 de `session/loot/operations.rs`, con 18 campos
+y sus expresiones originales de construcción. El cierre de los métodos puros
+incluye `RepresentedLootRollState`, el evento de criterios de fixture, el
+snapshot de criatura, `LootStoreRandomProperties`, la selección ponderada y
+el builder compartido de `LootItemData`. Cada tipo/helper tendrá un proveedor;
+los consumidores del shell conservarán fachadas donde sean necesarias. Las
+autoridades, leases, scope/stamps y votos ya proceden de `wow-loot`, y los
+comandos/identidad del roll de Core: no copiarlos ni introducir una arista World.
+Hay dos solicitudes remotas async en el corte, master-loot y almacenamiento
+del ganador; ambas conservan el canal acotado de una respuesta, `try_send`,
+timeout de 250 ms, resultado de fallo y lifetime del claim. La identidad del
+roll conserva su distinción respecto de GUID, allocation y generación.
+Los workers de persistencia, reconciliadores y coordinadores ligados a Session
+siguen en World para F5; el traslado de los impls no los arrastra por el nombre
+Loot. No alterar la reserva/transferencia del claim, COMMIT desconocido,
+quarantine, fanout ni orden de publicación. Anclas `a5f8da2eb`:
+`LootHandler.cpp:216–290`, `Player.cpp:8723–8751`,
+`Loot.cpp:277–399,454–510,575–614,695,758,915,995` e
+`ItemEnchantmentMgr.cpp:153–212`. C++ sitúa Loot/Roll en sus objetos/Map/Player;
+el cache y los rolls Rust en Session y sus rails async siguen siendo límites
+heredados para F6, no nueva paridad demostrada. Esta preparación no implementa
+Loot ni ejecuta aceptación; aún debe cerrarse su grafo completo de consumidores.
+
+El censo léxico acotado de los impls restantes, sobre el mismo `24c42d87d`,
+encuentra WorldEntities 19 bloques/70 métodos, Inventory 48/232 y Lifecycle
+33/145. Son entradas de preparación, no una prueba de cierre de dependencias
+ni de producción compilada. El único texto `WorldSession` en los bloques de
+Inventory es una atribución C++ en un comentario de modifiers; no un parámetro
+de sesión. Confirmar tipos, helpers, fixtures y consumidores antes de asignar
+cada corte. Lifecycle arrastra obligaciones de finalización, callbacks de
+rename, holders de pet load, puertos y fences: conservar su declaración/drop
+order, admisión, cancelación y resultado de COMMIT. Las solicitudes y efectos
+multidominio todavía ligados a Session conservan su dueño World para F5.
+Las anclas iniciales localizadas en `a5f8da2eb` son
+`Creature.cpp:333,353,696,2193`, `GameObject.cpp:2308,2501,3683,4053`,
+`Player.cpp:9615,9882,11010,11069,11220,19312–19338`,
+`WorldSession.cpp:162–188,544–709,908–949` y
+`CharacterHandler.cpp:1520–1614`. No extender esa lectura a una afirmación
+de paridad de los dominios completos ni modificar sus contratos por el censo.
 
 ### F5 — handlers y orquestación
 

@@ -73,14 +73,8 @@ fn create_map_player_context_missing_default_raid_metadata_falls_back_to_legacy_
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(249, wow_data::map::MAP_RAID);
 
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 15;
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_legacy_raid_difficulty_id_like_cpp = 4;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(15);
+    session.instances.set_fixture_legacy_raid_difficulty_for_test_like_cpp(4);
 
     let context = session
         .create_map_player_context_like_cpp(249, map_entry, player_guid)

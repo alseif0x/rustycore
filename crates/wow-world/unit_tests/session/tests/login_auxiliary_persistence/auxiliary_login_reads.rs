@@ -65,7 +65,7 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
         HashSet::from([9001, 9002])
     );
     assert_eq!(
-        session.instances.represented_instance_reset_times_like_cpp,
+        session.instances.represented_instance_reset_times_for_test_like_cpp(),
         BTreeMap::from([(0, 0), (10, 100)])
     );
     assert_eq!(
@@ -100,10 +100,7 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
-    session
-        .instances
-        .represented_instance_reset_times_like_cpp
-        .insert(8, 9);
+    session.instances.insert_represented_instance_reset_time_for_test_like_cpp(8, 9);
 
     assert!(
         session
@@ -122,9 +119,7 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
             .is_empty()
     );
     assert!(
-        session
-            .instances
-            .represented_instance_reset_times_like_cpp
+        session.instances.represented_instance_reset_times_for_test_like_cpp()
             .is_empty()
     );
 }
@@ -144,10 +139,7 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
-    session
-        .instances
-        .represented_instance_reset_times_like_cpp
-        .insert(8, 9);
+    session.instances.insert_represented_instance_reset_time_for_test_like_cpp(8, 9);
 
     assert!(
         session
@@ -166,9 +158,7 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
             .is_empty()
     );
     assert!(
-        session
-            .instances
-            .represented_instance_reset_times_like_cpp
+        session.instances.represented_instance_reset_times_for_test_like_cpp()
             .is_empty()
     );
 }
@@ -183,10 +173,7 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
-    session
-        .instances
-        .represented_instance_reset_times_like_cpp
-        .insert(8, 9);
+    session.instances.insert_represented_instance_reset_time_for_test_like_cpp(8, 9);
 
     assert!(
         session
@@ -205,9 +192,7 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
             .is_empty()
     );
     assert!(
-        session
-            .instances
-            .represented_instance_reset_times_like_cpp
+        session.instances.represented_instance_reset_times_for_test_like_cpp()
             .is_empty()
     );
 }

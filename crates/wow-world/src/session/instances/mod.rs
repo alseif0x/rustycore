@@ -8,5 +8,5 @@ mod difficulty;
 mod instance;
 mod map_key;
 mod map_resolution;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) mod test_fixtures;

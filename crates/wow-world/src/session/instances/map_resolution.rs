@@ -337,44 +337,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::InstanceState {
-    pub(crate) fn has_canonical_map_manager_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> bool {
-        hub.core.canonical_map_manager.is_some()
-    }
-
-    pub(in crate::session) fn canonical_map_has_seer_like_object_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        target: ObjectGuid,
-    ) -> bool {
-        if target.is_empty() {
-            return false;
-        }
-        let Some(key) = hub.core.current_canonical_player_map_key_like_cpp() else {
-            return false;
-        };
-        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-        manager
-            .find_map(key.map_id, key.instance_id)
-            .and_then(|managed| {
-                managed.map().with_world_object_by_kinds_like_cpp(
-                    target,
-                    wow_entities::represented_seer_kinds_like_cpp(),
-                    |_| (),
-                )
-            })
-            .is_some()
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/instances/map_resolution/f3_shims.rs"]
 mod f3_shims;

@@ -533,12 +533,12 @@ impl WorldSession {
         // before the next visibility read derives the seer from canonical
         // Player state.
         self.send_set_viewpoint_target_visibility_like_cpp(dynamic_object_guid);
-        self.visibility.last_observed_farsight_object_like_cpp = dynamic_object_guid;
+        self.visibility
+            .observe_farsight_object_like_cpp(dynamic_object_guid);
         #[cfg(test)]
         {
             self.visibility
-                .visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+                .set_represented_seer_guid_fixture_like_cpp(Some(dynamic_object_guid));
         }
         player_set_viewpoint.update_visibility_requested
     }

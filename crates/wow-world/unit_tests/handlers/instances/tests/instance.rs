@@ -429,7 +429,7 @@ fn send_pending_raid_lock_sets_pending_bind_like_cpp_for_stop_prompt() {
         ServerOpcodes::PendingRaidLock as u16
     );
     assert_eq!(
-        session.instances.pending_bind,
+        session.instances.represented_pending_bind_for_test_like_cpp(),
         Some(crate::session::RepresentedPendingBind {
             map_id: 0,
             instance_id: 77,
@@ -445,7 +445,7 @@ fn send_pending_raid_lock_warning_only_does_not_set_pending_bind_like_cpp() {
 
     session.send_pending_raid_lock_like_cpp(77, 0xA5, false, true);
 
-    assert!(session.instances.pending_bind.is_none());
+    assert!(session.instances.represented_pending_bind_for_test_like_cpp().is_none());
 }
 
 #[tokio::test]
@@ -458,20 +458,20 @@ async fn instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp
         InstanceLockPersistenceOutcomeLikeCpp::Committed,
     ));
     session.set_instance_lock_persistence_port_like_cpp(port.clone());
-    session.instances.pending_bind = Some(crate::session::RepresentedPendingBind {
+    session.instances.set_represented_pending_bind_for_test_like_cpp(Some(crate::session::RepresentedPendingBind {
         map_id: 631,
         instance_id: 9001,
         completed_mask: 0xA5,
         time_until_lock_ms: 60_000,
-    });
+    }));
 
     session
         .handle_instance_lock_response(WorldPacket::from_bytes(&[0x80]))
         .await;
 
-    assert!(session.instances.pending_bind.is_none());
+    assert!(session.instances.represented_pending_bind_for_test_like_cpp().is_none());
     assert_eq!(
-        session.instances.represented_confirmed_pending_binds,
+        session.instances.represented_confirmed_pending_binds_for_test_like_cpp(),
         vec![9001]
     );
     assert_eq!(
@@ -531,22 +531,20 @@ async fn pending_bind_commit_failure_keeps_mutation_but_publishes_nothing_like_c
         },
     ));
     session.set_instance_lock_persistence_port_like_cpp(port.clone());
-    session.instances.pending_bind = Some(crate::session::RepresentedPendingBind {
+    session.instances.set_represented_pending_bind_for_test_like_cpp(Some(crate::session::RepresentedPendingBind {
         map_id: 631,
         instance_id: 9001,
         completed_mask: 0xA5,
         time_until_lock_ms: 60_000,
-    });
+    }));
 
     session
         .handle_instance_lock_response(WorldPacket::from_bytes(&[0x80]))
         .await;
 
-    assert!(session.instances.pending_bind.is_none());
+    assert!(session.instances.represented_pending_bind_for_test_like_cpp().is_none());
     assert!(
-        session
-            .instances
-            .represented_confirmed_pending_binds
+        session.instances.represented_confirmed_pending_binds_for_test_like_cpp()
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -572,22 +570,20 @@ async fn instance_lock_response_accept_mismatched_instance_only_clears_pending_b
     let player_guid = ObjectGuid::create_player(1, 42);
     let mgr =
         install_pending_bind_instance_context_like_cpp(&mut session, player_guid, 631, 9001, 4, 10);
-    session.instances.pending_bind = Some(crate::session::RepresentedPendingBind {
+    session.instances.set_represented_pending_bind_for_test_like_cpp(Some(crate::session::RepresentedPendingBind {
         map_id: 631,
         instance_id: 9002,
         completed_mask: 0xA5,
         time_until_lock_ms: 60_000,
-    });
+    }));
 
     session
         .handle_instance_lock_response(WorldPacket::from_bytes(&[0x80]))
         .await;
 
-    assert!(session.instances.pending_bind.is_none());
+    assert!(session.instances.represented_pending_bind_for_test_like_cpp().is_none());
     assert!(
-        session
-            .instances
-            .represented_confirmed_pending_binds
+        session.instances.represented_confirmed_pending_binds_for_test_like_cpp()
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());

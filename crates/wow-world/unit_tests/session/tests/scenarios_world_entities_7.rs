@@ -251,7 +251,7 @@ async fn send_nearby_creatures_empty_map_source_without_world_db_clears_stale_li
             .contains(&stale_creature)
     );
     assert_eq!(
-        session.visibility.last_visibility_pos,
+        session.visibility.last_visibility_pos_like_cpp(),
         Some(player_position)
     );
     assert!(

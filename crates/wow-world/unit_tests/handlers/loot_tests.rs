@@ -235,14 +235,10 @@ fn transport_values_command_uses_visible_transport_membership_like_cpp() {
     assert!(send_rx.try_recv().is_err());
     session
         .visibility
-        .client_visible_transports_like_cpp
-        .insert(transport_guid);
+        .insert_client_visible_transport_like_cpp(transport_guid);
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert_eq!(send_rx.try_recv().unwrap(), vec![0x52, 0x26]);
-    session
-        .visibility
-        .client_visible_transports_like_cpp
-        .clear();
+    session.visibility.clear_client_visible_transports_like_cpp();
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert!(send_rx.try_recv().is_err());
 }

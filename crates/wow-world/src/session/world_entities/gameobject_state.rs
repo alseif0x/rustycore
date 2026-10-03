@@ -261,11 +261,12 @@ impl WorldSession {
             if !seen.insert(guid) || !self.core.client_visible_guids_like_cpp.contains(&guid) {
                 continue;
             }
-            if !self
-                .visibility
-                .represented_gameobject_visual_despawns_delivered_like_cpp
-                .insert((key.map_id, key.instance_id, update_generation, guid))
-            {
+            if !self.visibility.admit_gameobject_visual_despawn_delivery_like_cpp(
+                key.map_id,
+                key.instance_id,
+                update_generation,
+                guid,
+            ) {
                 continue;
             }
             {

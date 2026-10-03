@@ -12,6 +12,8 @@ use super::{
     UpdateBlock, UpdateObject, UpdateType,
 };
 
+pub(super) use wow_world_visibility::InitTransportsPlanLikeCpp;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(super) struct MapTransportCreateLikeCpp {
     pub(super) guid_low: u32,
@@ -145,17 +147,6 @@ pub(super) fn map_transport_create_block_like_cpp(
         parent_rotation: [0.0, 0.0, 0.0, 1.0],
     };
     UpdateObject::create_transport_block(create_data, now_ms)
-}
-
-#[derive(Default)]
-pub(super) struct InitTransportsPlanLikeCpp {
-    pub(super) own_transport: Option<(ObjectGuid, UpdateBlock)>,
-    pub(super) other_blocks: Vec<UpdateBlock>,
-    pub(super) other_visible_guids: Vec<ObjectGuid>,
-    pub(super) considered: usize,
-    pub(super) skipped_other_map: usize,
-    pub(super) skipped_missing_path: usize,
-    pub(super) skipped_phase: usize,
 }
 
 pub(crate) fn player_visibility_create_update_from_snapshot_like_cpp(

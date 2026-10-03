@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::trinity_sprintf_like_cpp;
-use super::{Arc, ObjectGuid, Position, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP};
+use super::{Arc, Position, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP};
 use super::{TRANSFER_ABORT_ERROR_LIKE_CPP, Team, WorldSession};
 use super::{is_player_meeting_condition_like_cpp, player_team_for_race_cpp};
 
@@ -49,27 +49,6 @@ pub struct PlayerGridLoadOutcomeLikeCpp {
 
 pub type PlayerGridLoadResolverLikeCpp =
     Arc<dyn Fn(u16, Option<u32>, Position) -> PlayerGridLoadOutcomeLikeCpp + Send + Sync>;
-
-pub(in crate::session) fn create_map_instance_lock_token_like_cpp(
-    owner_guid: ObjectGuid,
-    entries: &wow_instances::MapDb2Entries,
-    lock: &wow_instances::InstanceLock,
-) -> u64 {
-    fn mix(hash: &mut u64, value: u64) {
-        *hash ^= value;
-        *hash = hash.wrapping_mul(0x1000_0000_01b3);
-    }
-
-    let mut hash = 0xcbf2_9ce4_8422_2325;
-    mix(&mut hash, owner_guid.high_value() as u64);
-    mix(&mut hash, owner_guid.low_value() as u64);
-    mix(&mut hash, u64::from(entries.map_id));
-    mix(&mut hash, u64::from(entries.lock_id));
-    mix(&mut hash, u64::from(entries.difficulty_id));
-    mix(&mut hash, u64::from(lock.map_id));
-    mix(&mut hash, u64::from(lock.difficulty_id));
-    hash
-}
 
 pub(in crate::session) fn create_map_decision_difficulty_id_like_cpp(
     decision: &wow_map::CreateMapDecision,

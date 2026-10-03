@@ -80,7 +80,7 @@ impl WorldSession {
                     self.send_packet(&update);
                 },
             );
-            self.visibility.last_visibility_pos = Some(*position);
+            self.visibility.set_last_visibility_pos_like_cpp(*position);
             debug!(
                 "Sent {} map-owned creatures to account {} on map {}",
                 visible_guids.len(),
@@ -99,7 +99,7 @@ impl WorldSession {
                 self.core
                     .client_visible_guids_like_cpp
                     .retain(|guid| !guid.is_any_type_creature());
-                self.visibility.last_visibility_pos = Some(*position);
+                self.visibility.set_last_visibility_pos_like_cpp(*position);
                 warn!("No world database — skipping creature spawn");
                 return;
             }
@@ -139,7 +139,7 @@ impl WorldSession {
             self.core
                 .client_visible_guids_like_cpp
                 .retain(|guid| !guid.is_any_type_creature());
-            self.visibility.last_visibility_pos = Some(*position);
+            self.visibility.set_last_visibility_pos_like_cpp(*position);
             return;
         }
 
@@ -185,7 +185,7 @@ impl WorldSession {
             visible_guids.iter().copied(),
             || self.send_packet(&update),
         );
-        self.visibility.last_visibility_pos = Some(*position);
+        self.visibility.set_last_visibility_pos_like_cpp(*position);
         let mob_count = visible_guids
             .iter()
             .filter(|g| {
@@ -226,7 +226,9 @@ impl WorldSession {
             .quest_state
             .consume_movement_visibility_refresh_request_like_cpp();
 
-        if !forced_refresh && let Some(last) = self.visibility.last_visibility_pos {
+        if !forced_refresh
+            && let Some(last) = self.visibility.last_visibility_pos_like_cpp()
+        {
             let dx = pos.x - last.x;
             let dy = pos.y - last.y;
             if dx * dx + dy * dy < 50.0 * 50.0 {
@@ -547,8 +549,7 @@ impl WorldSession {
                 for transport in transports {
                     if !self
                         .visibility
-                        .client_visible_transports_like_cpp
-                        .contains(&transport.guid)
+                        .contains_client_visible_transport_like_cpp(&transport.guid)
                     {
                         update_blocks.push(UpdateObject::create_transport_block(
                             transport,
@@ -559,8 +560,7 @@ impl WorldSession {
                 }
                 let removed_transports: Vec<ObjectGuid> = self
                     .visibility
-                    .client_visible_transports_like_cpp
-                    .snapshot_like_cpp()
+                    .snapshot_client_visible_transports_like_cpp()
                     .into_iter()
                     .filter(|guid| !new_visible_transports.contains(guid))
                     .collect();
@@ -658,7 +658,7 @@ impl WorldSession {
             };
             if transports_visibility_available {
                 let transports_like_cpp =
-                    self.visibility.client_visible_transports_like_cpp.clone();
+                    self.visibility.client_visible_transports_like_cpp().clone();
                 transports_like_cpp.publish_transition_like_cpp(
                     |guid| new_visible_transports.contains(guid),
                     new_visible_transports.iter().copied(),
@@ -667,7 +667,7 @@ impl WorldSession {
             } else {
                 publish_visibility();
             }
-            self.visibility.last_visibility_pos = Some(pos);
+            self.visibility.set_last_visibility_pos_like_cpp(pos);
             debug!(
                 "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
                 pos.x,
@@ -783,7 +783,7 @@ impl WorldSession {
         {
             Ok(wow_persistence::VisibilitySpawnCatalogOutcomeLikeCpp::Loaded(rows)) => rows,
             _ => {
-                self.visibility.last_visibility_pos = Some(pos);
+                self.visibility.set_last_visibility_pos_like_cpp(pos);
                 return;
             }
         };
@@ -998,7 +998,7 @@ impl WorldSession {
             .extend(new_visible_gos.iter().copied());
 
         // ── Update position marker ──────────────────────────────────────
-        self.visibility.last_visibility_pos = Some(pos);
+        self.visibility.set_last_visibility_pos_like_cpp(pos);
         debug!(
             "Visibility updated at ({:.1}, {:.1}): {} creatures / {} GOs in range",
             pos.x,

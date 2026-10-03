@@ -22,10 +22,7 @@ fn canonical_current_expansion_raid_group_allows_entry_like_cpp() {
         80,
         0,
     ));
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,
@@ -81,10 +78,7 @@ fn canonical_old_expansion_raid_skips_raid_group_requirement_like_cpp() {
         80,
         0,
     ));
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,
@@ -119,10 +113,7 @@ fn canonical_game_master_bypasses_raid_group_requirement_like_cpp() {
         0,
     ));
     session.set_player_game_master_like_cpp(true);
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,

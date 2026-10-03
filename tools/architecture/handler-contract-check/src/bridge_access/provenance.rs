@@ -930,6 +930,8 @@ fn recognized_absolute_provenance(segments: &[String]) -> Option<Provenance> {
             | "wow_world_social"
             | "wow_world_spell"
             | "wow_world_interaction"
+            | "wow_world_instances"
+            | "wow_world_visibility"
     )
         || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
     {

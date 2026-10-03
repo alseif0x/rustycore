@@ -52,9 +52,7 @@ impl WorldSession {
         #[cfg(test)]
         let bootstrap_phase_shift = self
             .visibility
-            .visibility_test_fixture_like_cpp
-            .represented_player_phase_shift
-            .clone();
+            .represented_player_phase_shift_fixture_like_cpp();
         *player.unit_mut().world_mut().phase_shift_mut() = bootstrap_phase_shift;
         player.unit_mut().world_mut().object_mut().add_to_world();
         player.set_race_class_gender(
@@ -188,7 +186,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         player.set_explored_zones_blocks_like_cpp(
-            &self.instances.represented_explored_zones_like_cpp,
+            self.instances.represented_explored_zones_for_test_like_cpp(),
         );
         #[cfg(test)]
         {

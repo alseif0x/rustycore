@@ -93,7 +93,7 @@ impl WorldSession {
                 client_visible_guids_like_cpp: self.core.client_visible_guids_like_cpp.clone(),
                 client_visible_transports_like_cpp: self
                     .visibility
-                    .client_visible_transports_like_cpp
+                    .client_visible_transports_like_cpp()
                     .clone(),
                 advanced_combat_logging_enabled_like_cpp: Arc::clone(
                     &self.core.flags.advanced_combat_logging_enabled_like_cpp,

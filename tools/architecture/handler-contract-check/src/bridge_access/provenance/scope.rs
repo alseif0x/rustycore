@@ -24,6 +24,8 @@ pub(super) fn type_identity_package_for_external_root(root: &str) -> Option<&'st
         "wow_world_social" => Some("wow-world-social"),
         "wow_world_spell" => Some("wow-world-spell"),
         "wow_world_interaction" => Some("wow-world-interaction"),
+        "wow_world_instances" => Some("wow-world-instances"),
+        "wow_world_visibility" => Some("wow-world-visibility"),
         _ => None,
     }
 }

@@ -291,10 +291,7 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
         80,
         0,
     ));
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let mut requirement = access_requirement_like_cpp(631, 3);
     requirement.quest_done_a = 100;
@@ -346,10 +343,7 @@ fn canonical_access_requirement_quest_failed_text_sends_system_message_like_cpp(
         80,
         0,
     ));
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
         MapDifficultyEntry {

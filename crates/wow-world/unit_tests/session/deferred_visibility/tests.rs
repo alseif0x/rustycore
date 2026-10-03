@@ -121,7 +121,7 @@ impl Fixture {
                 .control_address(session.player_guid().unwrap())
                 .is_some()
         );
-        session.visibility.last_visibility_pos = Some(position);
+        session.visibility.set_last_visibility_pos_like_cpp(position);
         // Login setup is outside the action window tested below.
         while output.try_recv().is_ok() {}
         Self {
@@ -217,7 +217,7 @@ impl Fixture {
             "exactly one creature CREATE from deferred publication"
         );
         assert_eq!(
-            self.session.visibility.last_visibility_pos,
+            self.session.visibility.last_visibility_pos_like_cpp(),
             Some(self.position)
         );
     }
@@ -232,7 +232,7 @@ impl Fixture {
         );
         assert!(self.output.try_recv().is_err());
         assert_eq!(
-            self.session.visibility.last_visibility_pos,
+            self.session.visibility.last_visibility_pos_like_cpp(),
             Some(self.position)
         );
     }

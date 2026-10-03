@@ -210,12 +210,7 @@ pub(crate) struct RepresentedPushQuestToPartyOutcomeLikeCpp {
     pub receiver_fanout_unrepresented: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
-    pub quest_id: u32,
-    pub adventure_map_poi_id: u32,
-    pub player_condition_id: u32,
-}
+pub(crate) use wow_world_instances::RepresentedAdventureMapStartQuestLikeCpp;
 
 /// Represented outcome for the bounded post-template `HandleQuestConfirmAccept` gates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

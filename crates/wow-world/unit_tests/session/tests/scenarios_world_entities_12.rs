@@ -529,8 +529,7 @@ fn far_sight_enable_gameobject_viewpoint_keeps_previous_seer_like_cpp() {
     session.core.current_map_id = 571;
     session
         .visibility
-        .visibility_test_fixture_like_cpp
-        .represented_seer_guid_like_cpp = Some(previous_seer);
+        .set_represented_seer_guid_fixture_like_cpp(Some(previous_seer));
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
     add_canonical_test_gameobject(
         &canonical,

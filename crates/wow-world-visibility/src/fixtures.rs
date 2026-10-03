@@ -1,6 +1,9 @@
-//! Test-only represented visibility inputs owned by the Session fixture.
+//! Detached represented visibility inputs used only by fixtures.
 
-use super::super::{ObjectGuid, PhaseShift};
+#![cfg(any(test, feature = "test-fixtures"))]
+
+use wow_core::ObjectGuid;
+use wow_entities::PhaseShift;
 
 /// Detached equivalents of visibility state whose production authority belongs
 /// to the canonical map-owned Player.

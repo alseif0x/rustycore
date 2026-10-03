@@ -31,8 +31,10 @@
       "wow-world",
       "wow-world-core",
       "wow-world-interaction",
+      "wow-world-instances",
       "wow-world-social",
-      "wow-world-spell"
+      "wow-world-spell",
+      "wow-world-visibility"
     ],
     "adapter-platform": [
       "wow-config",
@@ -121,6 +123,17 @@
       "wow-packet",
       "wow-world-core"
     ],
+    "wow-world-instances": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-instances",
+      "wow-map",
+      "wow-packet",
+      "wow-social",
+      "wow-world-core"
+    ],
     "wow-world-social": [
       "wow-core",
       "wow-entities",
@@ -136,6 +149,12 @@
       "wow-map",
       "wow-packet",
       "wow-spell-acquisition",
+      "wow-world-core"
+    ],
+    "wow-world-visibility": [
+      "wow-core",
+      "wow-entities",
+      "wow-packet",
       "wow-world-core"
     ],
     "wow-conditions": [
@@ -454,9 +473,19 @@
         "normal": [],
         "build": []
       },
+      "wow-world-instances": {
+        "normal": [],
+        "build": []
+      },
       "wow-world-spell": {
         "normal": [
           "num-traits",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-visibility": {
+        "normal": [
           "tracing"
         ],
         "build": []

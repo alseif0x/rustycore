@@ -20,7 +20,6 @@ use super::HashMap;
 use super::NUM_ACCOUNT_DATA_TYPES;
 use super::ObjectGuid;
 use super::OwnedLootAuthority;
-use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 use super::PacketHandlerEntry;
 use super::PhaseShift;
 use super::PlayerCurrency;
@@ -43,15 +42,11 @@ use super::RepresentedVoidStorageItemLikeCpp;
 use super::SessionPersistencePortsLikeCpp;
 use super::VecDeque;
 #[cfg(test)]
-use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
-#[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(test)]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
-use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
 use super::{HomebindPersistenceJobLikeCpp, Instant, Item};
 use super::{PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
 #[cfg(test)]

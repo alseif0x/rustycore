@@ -21,14 +21,8 @@ pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckAction
 #[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckEventLikeCpp;
 
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
-    EnterArea(u32),
-    LeaveArea(u32),
-    EnterTopLevelArea(u32),
-    LeaveTopLevelArea(u32),
-}
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_instances::RepresentedAreaZoneCriteriaLikeCpp;
 
 pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckActionLikeCpp;
 

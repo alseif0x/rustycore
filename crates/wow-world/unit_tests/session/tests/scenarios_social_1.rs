@@ -662,10 +662,7 @@ fn canonical_access_requirement_min_level_rejects_before_raid_group_like_cpp() {
         79,
         0,
     ));
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,
@@ -753,10 +750,7 @@ fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp()
         0,
     ));
     member_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
-    member_session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    member_session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut member_session, 631, 3, 77, 2);
     let mut requirement = access_requirement_like_cpp(631, 3);
     requirement.completed_achievement = 9001;
@@ -816,10 +810,7 @@ fn canonical_current_expansion_raid_requires_raid_group_like_cpp() {
         80,
         0,
     ));
-    session
-        .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+    session.instances.set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,

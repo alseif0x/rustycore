@@ -75,17 +75,15 @@ impl WorldSession {
         let owner_ready = manager.player_residence_like_cpp(handle).is_some();
         drop(manager);
         #[cfg(test)]
-        if owner_ready
-            && !self
+        if owner_ready {
+            if let Some(rows) = self
                 .instances
-                .represented_instance_reset_times_like_cpp
-                .is_empty()
-        {
-            let rows =
-                std::mem::take(&mut self.instances.represented_instance_reset_times_like_cpp);
-            let _ = self.core.with_owned_player_mut_like_cpp(|player| {
-                player.replace_instance_reset_times_like_cpp(rows);
-            });
+                .take_nonempty_represented_instance_reset_times_for_test_like_cpp()
+            {
+                let _ = self.core.with_owned_player_mut_like_cpp(|player| {
+                    player.replace_instance_reset_times_like_cpp(rows);
+                });
+            }
         }
         owner_ready
     }

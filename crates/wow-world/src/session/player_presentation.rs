@@ -257,8 +257,7 @@ impl WorldSession {
             #[cfg(test)]
             if let Some(player_guid) = self.player_guid() {
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_seer_guid_like_cpp = Some(player_guid);
+                    .set_represented_seer_guid_fixture_like_cpp(Some(player_guid));
             }
             return;
         }
@@ -274,8 +273,7 @@ impl WorldSession {
             #[cfg(test)]
             {
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_seer_guid_like_cpp = Some(target);
+                    .set_represented_seer_guid_fixture_like_cpp(Some(target));
             }
         } else {
             debug!("CMSG_FAR_SIGHT enable target {:?} is not resoluble", target);

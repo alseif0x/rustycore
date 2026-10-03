@@ -26,11 +26,12 @@ impl WorldSession {
             if !seen.insert(guid) || !self.core.client_visible_guids_like_cpp.contains(&guid) {
                 continue;
             }
-            if !self
-                .visibility
-                .represented_capture_point_removed_delivered_like_cpp
-                .insert((map_id, instance_id, update_generation, guid))
-            {
+            if !self.visibility.admit_capture_point_removed_delivery_like_cpp(
+                map_id,
+                instance_id,
+                update_generation,
+                guid,
+            ) {
                 continue;
             }
             crate::session::hub_mut(self).send_represented_capture_point_removed_like_cpp(guid);

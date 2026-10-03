@@ -156,12 +156,11 @@ impl WorldSession {
         }
         if let Some(guid) = guid {
             self.core.account_state.recent_player_guid_low_like_cpp = guid.counter() as u64;
-            self.visibility.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            self.visibility.clear_observed_farsight_object_like_cpp();
             #[cfg(test)]
             {
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_seer_guid_like_cpp = Some(guid);
+                    .set_represented_seer_guid_fixture_like_cpp(Some(guid));
             }
         }
         if guid.is_none() {
@@ -173,10 +172,9 @@ impl WorldSession {
             #[cfg(test)]
             {
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_seer_guid_like_cpp = None;
+                    .set_represented_seer_guid_fixture_like_cpp(None);
             }
-            self.visibility.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            self.visibility.clear_observed_farsight_object_like_cpp();
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
             self.lifecycle.durable_loot_money_persistence_like_cpp =
@@ -213,10 +211,9 @@ impl WorldSession {
         #[cfg(test)]
         {
             self.visibility
-                .visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp = Some(controller.guid());
+                .set_represented_seer_guid_fixture_like_cpp(Some(controller.guid()));
         }
-        self.visibility.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+        self.visibility.clear_observed_farsight_object_like_cpp();
         #[cfg(test)]
         {
             self.core.player_bootstrap_attached_like_cpp = true;

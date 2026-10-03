@@ -598,9 +598,8 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
     session.core.current_map_id = 571;
     session
         .visibility
-        .visibility_test_fixture_like_cpp
-        .represented_seer_guid_like_cpp = Some(original_seer);
-    session.visibility.last_visibility_pos = Some(pos);
+        .set_represented_seer_guid_fixture_like_cpp(Some(original_seer));
+    session.visibility.set_last_visibility_pos_like_cpp(pos);
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_bit(true);
@@ -612,5 +611,5 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
         session.represented_seer_guid_like_cpp(),
         Some(original_seer)
     );
-    assert_eq!(session.visibility.last_visibility_pos, None);
+    assert_eq!(session.visibility.last_visibility_pos_like_cpp(), None);
 }

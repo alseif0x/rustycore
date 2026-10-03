@@ -32,6 +32,8 @@ pub(super) fn collect_units(
                         | PackageRole::WorldSocial
                         | PackageRole::WorldSpell
                         | PackageRole::WorldInteraction
+                        | PackageRole::WorldInstances
+                        | PackageRole::WorldVisibility
                         | PackageRole::Server
                 )
         })
@@ -246,6 +248,18 @@ pub(super) fn collect_repository_baseline_with_persistence(
         PackageRole::WorldInteraction,
         WORLD_INTERACTION_PACKAGE_ROOT,
         WORLD_INTERACTION_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldInstances,
+        WORLD_INSTANCES_PACKAGE_ROOT,
+        WORLD_INSTANCES_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldVisibility,
+        WORLD_VISIBILITY_PACKAGE_ROOT,
+        WORLD_VISIBILITY_CRATE_ROOT,
     )?);
     units.extend(repository_units(
         repository_root,

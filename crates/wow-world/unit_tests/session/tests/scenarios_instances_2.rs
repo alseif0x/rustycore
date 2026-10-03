@@ -511,7 +511,7 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
         );
     }
     assert_eq!(
-        session.visibility.last_visibility_pos,
+        session.visibility.last_visibility_pos_like_cpp(),
         Some(player_position)
     );
     let packet = send_rx
@@ -581,7 +581,9 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
         ),
     );
 
-    session.visibility.last_visibility_pos = Some(player_position);
+    session
+        .visibility
+        .set_last_visibility_pos_like_cpp(player_position);
     session.core.client_visible_guids_like_cpp.clear();
 
     session
@@ -596,7 +598,7 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
         "C++ SendInitialPacketsAfterAddToMap::UpdateVisibilityForPlayer rebuilds visibility after Map::AddPlayerToMap clears m_clientGUIDs"
     );
     assert_eq!(
-        session.visibility.last_visibility_pos,
+        session.visibility.last_visibility_pos_like_cpp(),
         Some(player_position)
     );
     let packets = drain_server_packet_bytes(&send_rx);
@@ -753,8 +755,7 @@ fn canonical_access_requirement_map_difficulty_message_sends_difficulty_abort_li
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_with_expansion_and_max_players_like_cpp(
         &mut session,
         631,
@@ -817,8 +818,7 @@ fn canonical_access_requirement_map_difficulty_condition_sends_condition_abort_l
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_map_difficulty_x_condition_store(Arc::new(
         wow_data::MapDifficultyXConditionStore::from_entries([
@@ -875,24 +875,22 @@ fn instance_count_prunes_expired_entries_like_cpp() {
     session.set_max_instances_per_hour_like_cpp(2);
     session
         .instances
-        .represented_instance_reset_times_like_cpp
-        .insert(1, 10);
+        .insert_represented_instance_reset_time_for_test_like_cpp(1, 10);
     session
         .instances
-        .represented_instance_reset_times_like_cpp
-        .insert(2, 5_000);
+        .insert_represented_instance_reset_time_for_test_like_cpp(2, 5_000);
 
     assert!(session.check_instance_count_at_like_cpp(3, 20));
     assert!(
         !session
             .instances
-            .represented_instance_reset_times_like_cpp
+            .represented_instance_reset_times_for_test_like_cpp()
             .contains_key(&1)
     );
     assert!(
         session
             .instances
-            .represented_instance_reset_times_like_cpp
+            .represented_instance_reset_times_for_test_like_cpp()
             .contains_key(&2)
     );
 }

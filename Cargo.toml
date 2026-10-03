@@ -17,8 +17,10 @@ members = [
     "crates/wow-world",
     "crates/wow-world-core",
     "crates/wow-world-interaction",
+    "crates/wow-world-instances",
     "crates/wow-world-social",
     "crates/wow-world-spell",
+    "crates/wow-world-visibility",
     "crates/wow-conditions",
     "crates/wow-progression",
     "crates/wow-spell-acquisition",
@@ -163,7 +165,9 @@ wow-proto = { path = "crates/wow-proto" }
 wow-world = { path = "crates/wow-world" }
 wow-world-core = { path = "crates/wow-world-core" }
 wow-world-interaction = { path = "crates/wow-world-interaction" }
+wow-world-instances = { path = "crates/wow-world-instances" }
 wow-world-spell = { path = "crates/wow-world-spell" }
+wow-world-visibility = { path = "crates/wow-world-visibility" }
 wow-conditions = { path = "crates/wow-conditions" }
 wow-progression = { path = "crates/wow-progression" }
 wow-spell-acquisition = { path = "crates/wow-spell-acquisition" }

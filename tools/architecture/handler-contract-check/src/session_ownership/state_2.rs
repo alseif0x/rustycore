@@ -363,9 +363,11 @@ fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
         .into_iter()
         .any(|root| module_is_or_below(module, root)),
         PackageRole::Social => module_is_or_below(module, SOCIAL_GROUP_MODULE),
-        PackageRole::WorldSocial | PackageRole::WorldSpell | PackageRole::WorldInteraction => {
-            false
-        }
+        PackageRole::WorldSocial
+        | PackageRole::WorldSpell
+        | PackageRole::WorldInteraction
+        | PackageRole::WorldInstances
+        | PackageRole::WorldVisibility => false,
         PackageRole::Server => false,
     }
 }
@@ -474,6 +476,8 @@ pub(super) fn collect_items(
                 | PackageRole::WorldSocial
                 | PackageRole::WorldSpell
                 | PackageRole::WorldInteraction
+                | PackageRole::WorldInstances
+                | PackageRole::WorldVisibility
         ) {
             match item {
                 Item::Struct(item_struct) if item_struct.ident == WORLD_SESSION_NAME => {

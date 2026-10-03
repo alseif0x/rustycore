@@ -70,7 +70,7 @@ impl WorldSession {
             let source_update = self.creature_loot_release_values_for_viewer_like_cpp(
                 creature_guid,
                 player_guid,
-                self.instances.pending_bind.is_some(),
+                self.instances.has_pending_bind_like_cpp(),
                 authority,
                 packet_update.clone(),
             );

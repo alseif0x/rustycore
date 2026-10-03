@@ -362,7 +362,7 @@ impl WorldSession {
         let viewer_update = self.creature_loot_release_values_for_viewer_like_cpp(
             command.creature_guid,
             viewer_guid,
-            self.instances.pending_bind.is_some(),
+            self.instances.has_pending_bind_like_cpp(),
             Some(expected_authority),
             command.unit_values_update,
         );

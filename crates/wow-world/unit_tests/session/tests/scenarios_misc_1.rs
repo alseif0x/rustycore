@@ -430,7 +430,9 @@ fn represented_player_condition_explored_uses_area_bit_blocks_like_cpp() {
 
     assert!(!session.represented_meets_player_condition_id_like_cpp(42));
 
-    session.instances.represented_explored_zones_like_cpp[1] = 2;
+    session
+        .instances
+        .set_represented_explored_zone_block_for_test_like_cpp(1, 2);
     assert!(session.represented_meets_player_condition_id_like_cpp(42));
     assert!(!session.represented_meets_player_condition_id_like_cpp(43));
 }

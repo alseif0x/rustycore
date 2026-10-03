@@ -12,13 +12,7 @@ pub(crate) enum RepresentedGameObjectSpellCaster {
     GameObject,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedPendingBind {
-    pub map_id: u32,
-    pub instance_id: u32,
-    pub completed_mask: u32,
-    pub time_until_lock_ms: u32,
-}
+pub(crate) use wow_world_instances::RepresentedPendingBind;
 
 pub(crate) type RepresentedHomebindLikeCpp = wow_entities::PlayerHomebindLikeCpp;
 

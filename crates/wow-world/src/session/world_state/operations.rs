@@ -167,7 +167,7 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.instances.represented_explored_zones_like_cpp);
+            return Some(*self.instances.represented_explored_zones_for_test_like_cpp());
         }
         canonical
     }
@@ -236,11 +236,13 @@ impl WorldSession {
         #[cfg(test)]
         {
             self.instances
-                .represented_area_zone_criteria_like_cpp
-                .push(RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area));
+                .record_represented_area_zone_criteria_for_test_like_cpp(
+                    RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area),
+                );
             self.instances
-                .represented_area_zone_criteria_like_cpp
-                .push(RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(old_area));
+                .record_represented_area_zone_criteria_for_test_like_cpp(
+                    RepresentedAreaZoneCriteriaLikeCpp::LeaveArea(old_area),
+                );
         }
         true
     }
@@ -344,12 +346,14 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.instances.represented_area_zone_criteria_like_cpp.push(
-                RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
-            );
-            self.instances.represented_area_zone_criteria_like_cpp.push(
-                RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(old_zone),
-            );
+            self.instances
+                .record_represented_area_zone_criteria_for_test_like_cpp(
+                    RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
+                );
+            self.instances
+                .record_represented_area_zone_criteria_for_test_like_cpp(
+                    RepresentedAreaZoneCriteriaLikeCpp::LeaveTopLevelArea(old_zone),
+                );
         }
         true
     }
@@ -404,8 +408,7 @@ impl WorldSession {
 
         #[cfg(test)]
         self.instances
-            .represented_reveal_world_map_overlay_criteria_like_cpp
-            .push(area_id);
+            .record_represented_reveal_world_map_overlay_criteria_for_test_like_cpp(area_id);
 
         if let Some(update) = self.core.mutate_canonical_player_like_cpp(|player| {
             player.add_explored_zones_like_cpp(offset, mask);
@@ -572,91 +575,6 @@ impl WorldSession {
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
         let (state, mut hub) = crate::session::split_instances_mut(self);
         state.set_player_zone_area_authority_complete_like_cpp(&mut hub, complete)
-    }
-}
-
-impl crate::session::state::InstanceState {
-    pub(crate) fn represented_is_tavern_area_trigger_like_cpp(
-        &self,
-        taverns: &TavernAreaTriggerStoreLikeCpp,
-        trigger_id: u32,
-    ) -> bool {
-        taverns.is_tavern_area_trigger_like_cpp(trigger_id)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_area_zone_criteria_like_cpp(
-        &self,
-    ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
-        &self.represented_area_zone_criteria_like_cpp
-    }
-
-    /// C++ `Player::AddExploredZones` loop for `CONFIG_START_ALL_EXPLORED` on first login.
-    pub(crate) fn apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
-    ) -> usize {
-        if !player_bootstrap.start_all_explored {
-            return 0;
-        }
-
-        let Some((applied, update)) = hub
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                let mut applied = 0usize;
-                for index in 0..wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP {
-                    if player.add_explored_zones_like_cpp(index, u64::MAX) {
-                        applied += 1;
-                    }
-                }
-
-                (applied > 0).then(|| (applied, player.values_update(true)))
-            })
-            .flatten()
-        else {
-            return 0;
-        };
-
-        #[cfg(test)]
-        if hub.core.player_handle_like_cpp.is_none() {
-            self.represented_explored_zones_like_cpp =
-                [u64::MAX; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
-        }
-        hub.core.send_player_values_update_like_cpp(&update);
-        applied
-    }
-
-    pub(crate) fn set_area_spirit_healer_guid_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        healer_guid: ObjectGuid,
-    ) -> bool {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .resurrection_state_mut_like_cpp()
-                    .area_spirit_healer_guid = healer_guid;
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || hub.core.player_handle_like_cpp.is_none() {
-            hub.fixtures.combat.area_spirit_healer_guid_like_cpp = healer_guid;
-        }
-        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn set_player_zone_area_authority_complete_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        complete: bool,
-    ) {
-        let _ = hub.set_player_zone_area_authority_like_cpp(complete);
-        if !complete {
-            hub.core
-                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
     }
 }
 

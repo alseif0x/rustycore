@@ -633,16 +633,14 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         self.instances
-            .represented_adventure_map_start_quest_requests_like_cpp
-            .push(request);
+            .record_represented_adventure_map_start_quest_for_test_like_cpp(request);
     }
     #[cfg(test)]
     pub(crate) fn represented_adventure_map_start_quest_requests_like_cpp(
         &self,
     ) -> &[RepresentedAdventureMapStartQuestLikeCpp] {
-        &self
-            .instances
-            .represented_adventure_map_start_quest_requests_like_cpp
+        self.instances
+            .represented_adventure_map_start_quest_requests_for_test_like_cpp()
     }
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
         &mut self,

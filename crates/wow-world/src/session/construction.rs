@@ -22,25 +22,18 @@ use crate::session::state::SessionWorldView;
 use crate::session::state::VisibilityState;
 use crate::session::state::WorldEntitiesState;
 
-#[cfg(test)]
-use super::BTreeMap;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 use super::ObjectGuid;
-use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 #[cfg(test)]
 use super::SeedableRng;
 #[cfg(test)]
 use super::StdRng;
-#[cfg(test)]
-use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 #[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(test)]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
-use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
 use super::{Arc, BTreeSet};
 use super::{DurableItemLootPersistenceTrackerLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp};
 use super::{HashMap, Instant};
@@ -216,24 +209,7 @@ impl WorldSession {
             },
             spell_state: SessionSpellState::new_like_cpp(),
             social: SessionSocialLimits::with_recruit_a_friend_limits_like_cpp(85, 4),
-            instances: InstanceState {
-                #[cfg(test)]
-                instance_test_fixture_like_cpp: InstanceTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                represented_adventure_map_start_quest_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_instance_reset_times_like_cpp: BTreeMap::new(),
-
-                #[cfg(test)]
-                represented_explored_zones_like_cpp: [0; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
-                #[cfg(test)]
-                represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_area_zone_criteria_like_cpp: Vec::new(),
-                pending_bind: None,
-                #[cfg(test)]
-                represented_confirmed_pending_binds: Vec::new(),
-            },
+            instances: InstanceState::new_like_cpp(),
             world_entities: WorldEntitiesState {
                 represented_creature_auras_like_cpp: Vec::new(),
 
@@ -250,21 +226,7 @@ impl WorldSession {
                 suppress_creature_movement_queued_at_or_before_like_cpp: None,
                 represented_gameobject_phase_shifts: std::collections::HashMap::new(),
             },
-            visibility: VisibilityState {
-                client_visible_transports_like_cpp: Default::default(),
-                #[cfg(test)]
-                visibility_test_fixture_like_cpp: VisibilityTestFixtureLikeCpp::default(),
-                last_observed_farsight_object_like_cpp: wow_core::ObjectGuid::EMPTY,
-                represented_dynamic_object_values_updates_delivered_like_cpp:
-                    std::collections::HashSet::new(),
-                represented_player_unit_values_updates_delivered_like_cpp:
-                    std::collections::HashSet::new(),
-                represented_gameobject_visual_despawns_delivered_like_cpp:
-                    std::collections::HashSet::new(),
-                represented_capture_point_removed_delivered_like_cpp:
-                    std::collections::HashSet::new(),
-                last_visibility_pos: None,
-            },
+            visibility: VisibilityState::new_like_cpp(),
             interaction: InteractionState::new_like_cpp(),
             quest_state: SessionQuestState {
                 min_quest_scaled_xp_ratio_like_cpp: 0,

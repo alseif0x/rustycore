@@ -258,7 +258,7 @@ impl crate::session::WorldSession {
             return;
         };
 
-        let Some(pending_bind) = self.instances.pending_bind.take() else {
+        let Some(pending_bind) = self.instances.take_pending_bind_like_cpp() else {
             info!(
                 account = self.core.account_id,
                 player_guid = ?self.player_guid(),
@@ -271,8 +271,9 @@ impl crate::session::WorldSession {
             if self.confirm_pending_bind_like_cpp(pending_bind).await {
                 #[cfg(test)]
                 self.instances
-                    .represented_confirmed_pending_binds
-                    .push(pending_bind.instance_id);
+                    .record_represented_confirmed_pending_bind_for_test_like_cpp(
+                        pending_bind.instance_id,
+                    );
             }
         } else {
             #[cfg(test)]
@@ -484,34 +485,6 @@ impl crate::session::WorldSession {
             remaining(old_expiry),
             remaining(new_expiry),
         ));
-    }
-}
-
-impl crate::session::InstanceState {
-    #[allow(dead_code)]
-    pub(crate) fn send_pending_raid_lock_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        instance_id: u32,
-        completed_mask: u32,
-        extending: bool,
-        warning_only: bool,
-    ) {
-        hub.core.send_packet(&PendingRaidLock {
-            time_until_lock: 60_000,
-            completed_mask,
-            extending,
-            warning_only,
-        });
-
-        if !warning_only {
-            self.pending_bind = Some(crate::session::RepresentedPendingBind {
-                map_id: u32::from(hub.core.player_map_id_like_cpp()),
-                instance_id,
-                completed_mask,
-                time_until_lock_ms: 60_000,
-            });
-        }
     }
 }
 
