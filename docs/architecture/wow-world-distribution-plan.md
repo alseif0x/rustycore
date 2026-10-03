@@ -2696,7 +2696,14 @@ una mutación de otra autoridad. Inventory/enchantment/operation contiene la
 operación completa de condición/socket/plan: lecturas actuales, remove antes de
 skill, mutación y reinserción. Los lectores seleccionados de item/slot conservan
 la proyección completa de runtime que usaban las fachadas originales. El handler
-CancelTempEnchantment y su registro siguen pendientes; no se ejecutaron checks.
+CancelTempEnchantment y su registro ya están escritos y conectados: context
+Inventory, host genérico, constructor World y fachada de compatibilidad. La
+entrada conserva opcode, LoggedIn, Inplace, nombre y warning de lectura; se retiró
+la entrada del collector World y la composición server usa el registro Inventory.
+La revisión del cuerpo conserva conversión/slot, GetPos y runtime actuales,
+enchantment no nulo y ambas mutaciones con sus resultados ignorados. Se preservan
+los casos World existentes; quedan los casos de registro/fallo solicitados y la
+aceptación completa. No se ejecutaron checks ni pruebas.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
