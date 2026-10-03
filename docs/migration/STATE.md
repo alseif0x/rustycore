@@ -5,7 +5,7 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
-## Latest Forever name operation — 2026-10-03 03:14 UTC, native QA pending
+## Latest Forever name operation — 2026-10-03 03:24 UTC, local/native validated
 
 The canonical authenticated registry now owns name availability. Immutable
 compiled target rules precede SQL reserved/collision reads; the normalized
@@ -21,9 +21,20 @@ Target binary passes 13 tests with `forever-name-regex`; the source-style oracle
 passes 11 cases and private probe tests pass nine. Initial target validation found
 a missing native archive link and an unsynchronized standalone Boost cache;
 both are repaired and the affected target tests pass with normal parallelism,
-including an eight-thread compilation/matching regression. Real-table startup,
-fresh native response observation and committed publication final are still
-pending. No character is saved; Create, nonempty enum and world entry remain open.
+including an eight-thread compilation/matching regression. Normal committed
+`4ff81a1c` build loads and compiles all actual target tables/SQL. Fresh native
+name queries receive exact `46001B`/8-byte sequence/results: default valid name
+returns `0` and the UI shows green; temporary source-supported MinPlayerName=10
+returns `99` for nine letters and the UI shows red/disables Finish. The client
+rejects triple letters locally without sending a request, not server evidence.
+Private paired captures match both layouts/sequences. No Finish/Create is sent
+in these checks. Temporary config is removed; orderly stop leaves online=0,
+Character count=0, realm offline/normal and World port closed. Restored BNet
+positive/negative V1/V2 smoke passes. Committed final passes physical limits
+(2344 files) and fails the same unchanged inherited hotspot/ownership debt;
+no baselines/ceilings change and full-final is not green. Publication retains
+only the previously authorized inherited-debt exception, not new failures.
+No character is saved; Create, nonempty enum and world entry remain open.
 The complete campaign's 600-second target is already exceeded, not reset for
 this slice. See the [native engine contract](../operations/forever-login.md#native-forever-name-engine).
 

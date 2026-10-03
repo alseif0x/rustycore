@@ -106,12 +106,71 @@ repair those findings; passing evidence retains default parallel tests plus
 the eight-thread/256-compilation regression. No test serialization or vendor
 header modification is used. Library code is unchanged by those native fixes.
 
-Actual-table startup, fresh native action/response and publication final have
-not yet been executed for this candidate. Creation, nonempty enumeration and
-initial world loading remain open. The complete campaign still starts at
-`2026-10-02 23:54:58 UTC`; its 600-second target is exceeded. Coding/error-repair
+### Name availability native acceptance — 2026-10-03
+
+Committed candidate `4ff81a1c399e8f76f296bef25f3bda2087dda103`, clean tree:
+normal build with the feature passes in **2m58s**, timing
+`20261003T031517367Z`. At **03:18 UTC**, all actual tables, overlays/removals,
+SQL reserved/default RBAC and all locale/global expressions load and compile.
+Startup retains esES 1057/2 and global 2559, appearance 116 indexes,
+availability 33 races, achievements 434, metadata 3052 and TactKey 522.
+
+Fresh native build-70170 sessions on the isolated ordinary account:
+
+| Action | Fresh server-side request/result | Observed native UI |
+| --- | --- | --- |
+| Normal nine-letter synthetic name, default minimum two | `440071`, 22 bytes (9/7 name/surname, unknown bits zero); `46001B`, 8 bytes, raw result **0** | Green name check; Finish enabled |
+| Triple-letter synthetic name | **No name request sent** | Local red rejection; not evidence of server result 107 |
+| Same valid-length client input, temporarily configured server minimum ten | `440071`, 22 bytes (9/7, unknown bits zero); `46001B`, 8 bytes, raw result **99** | Red name check; Finish disabled |
+
+The private capture opt-in records only one request/result pair per process;
+the normal binary is restarted sequentially for distinct observations. Both
+paired captures pass the independent integrated probe's exact header/build/
+opcode/length/sequence checks, without rendering names or sequence values.
+The probe deliberately keeps its own client-acceptance/creation flags false:
+native UI observation is separate evidence, not inferred from server send.
+No Finish/Create is sent in these checks. Live occupied-name, DB2/SQL-reserved
+rejection and real query-failure injection are **not** established by these
+native cases; those branches have scoped operation tests and source contracts.
+
+Private request/result SHA-256 evidence (files are not distributed):
+
+- Default request `b5c7ca774150e7c81bb13cfd1fc59b7f1082ef7f049f856defe1852aa9da0d3e`;
+  result `91cf19fee479ebda9d54b8c54cc73dfb94c657a3a4957fb9d999bb07b9fe1bf2`.
+- Minimum-ten request `71082b11d02962df903946e48e2e5943fedc91fdffa865611db75b7d9f957075`;
+  result `35ec855ad1687319ac29909b963049cfc984620155ae0de39e32d69120a5bf3c`.
+
+At **03:24 UTC**, SIGINT exits zero, the temporary private MinPlayerName line is
+removed and config remains mode 600. Guarded realm restoration affects exactly
+one fixture row (offline/normal 2/0); account online=0, persisted world key length
+40, Character count=0 and port18085 closed. BNet was not restarted or modified;
+restored positive/negative REST and V1/V2/offline-join smoke passes. Its new
+auth session key is 64 bytes, not a character-save claim. The original official
+client/account are untouched.
+
+Committed publication command:
+
+```bash
+./tools/validation-v2 final --base origin/forever --architecture --timings
+```
+
+**FAIL 1**, manifest
+`target/validation-v2/manifests/20261003T032416.991151Z-1817919-final.json`,
+head `4ff81a1c`, dirty=false; **03:24:16.990–03:25:07.000 UTC**, **50.009s**.
+Physical ratchet **PASS 2344**. Policy 21.947s and syntax ownership 27.705s fail
+the same inherited hotspot totals, taunt/insertion signatures and two legacy
+bridges. Implicated legacy paths and architecture tools remain byte-identical
+to `60384cb4`; no policy limits/baselines change. Cargo final stages are not
+reached; credit the explicitly executed scoped suites above, not a green final.
+The existing experimental publication exception is only for this unchanged
+inherited debt. New failures/growth are not waived.
+
+Creation, nonempty enumeration and initial world loading remain open. The
+complete campaign still starts at `2026-10-02 23:54:58 UTC`; at this final's end
+it totals **12609 seconds**, exceeding the 600-second target. Coding/error-repair
 time is not separately measured reliably; these runs are not a new ten-minute
-campaign. Final/live evidence will be recorded here after execution.
+campaign. Restored BNet smoke and documentation-delta checks occur after that
+final and remain additional campaign costs.
 
 ## Fixed fixture and evidence
 
