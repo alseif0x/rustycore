@@ -2262,10 +2262,11 @@ retirada canónica única y fallback NoHandle limitado al consumer World cfg(tes
 con recorrido de los 32 bits del effect-mask. World/aggro delega solo su rama
 apply=false al mismo provider; el cuerpo Aura completo continúa pendiente.
 Mount/control está escrito y su provider seleccionado ya existe como archivo.
-La revisión de integración detecta todavía la ausencia de mod/reexports de
-aura_removal en Core/canonical_access y Core/session; se asignó su conexión al
-implementador. Las fachadas que ya invocan el provider no son cierre compilable
-hasta resolver esa conexión y completar el remover. La comparación
+La ausencia de mod/reexports de aura_removal detectada en la revisión de
+integración se corrigió en Core/canonical_access y Core/session: ambos roles
+se exportan normalmente y los tres tipos fixture bajo cfg(any(test, feature
+= "test-fixtures")). Se verificó por fuente, sin compilación. Las fachadas
+no acreditan el cierre del remover completo. La comparación
 por fuente con HEAD de World/player_presentation, Core/movement/movement_publication,
 Core/movement/state y Core/spell_state/cast conserva presentación antes del cálculo,
 mutación canónica de altura, mirror limitado al consumidor World cfg(test), consumo
