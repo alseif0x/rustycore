@@ -1,5 +1,6 @@
 //! Build-70170 account-phase server, explicitly restricted to the disposable
 //! local target while character/world operations are being ported.
+mod appearance;
 mod bootstrap;
 mod character_capture;
 mod connection;

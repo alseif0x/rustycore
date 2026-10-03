@@ -1366,6 +1366,99 @@ Do not claim that the reference waits for both transactions, or silently hide a
 repair of that source behavior inside a compatibility refactor. The Forever
 creation implementation still needs an explicit commit/publication/recovery
 contract, including cancellation and unknown commit outcomes.
+
+##### Checked target appearance implementation — 2026-10-03 (local/native validated)
+
+The next delivery uses a private `wdc4::creation` numeric view, leaving legacy
+getters unchanged. Source anchors at `02245dcd`: **common/DataStores/**
+`DB2FileLoader.cpp:635-696,807-922`, `DB2Metadata.h` and `DB2LoadInfo.h` for
+the seven tables. Packed offsets use `PackedDataOffset * 8 + CompressionData`
+offset/width, not the first column-offset pair. Typed array strides, palette
+cardinality, full palette/common blobs, relationship overrides, extra-parent
+zero initialization, ordered materialized copies and `GetMaxId:955-977`'s
+declared maximum (including copy IDs) are checked. Unsupported
+widths/arrays and missing data fail rather than substituting numeric zero.
+ChrRaceXChrModel's race/sex are **byte** fields, not int32; Req race masks are
+two int32 cells, not one uncompressed int64. No strings/private names are
+included in this projection or its diagnostics.
+
+`wow-data::forever_appearance` consumes seven mandatory real DB2 baselines,
+official and custom SQL projections in that order, and final RecordRemoved
+statuses from the complete ordered metadata batch. The immutable catalog
+preserves `DB2Stores.cpp:1181-1249`: last model wins, options append, one last
+derived race per UnalteredVisualRaceID, choices grouped by option and required
+choices grouped by requirement/option. This is **not** a full typed DBQuery
+serializer for those tables. Startup fails on ambiguous duplicate batch IDs.
+
+The pure `wow-world::forever::appearance` creation validator follows
+`CharacterHandler.cpp:559-665`, `DBCEnums.h::ChrCustomizationReqFlag` and
+`RaceMask.h::GetRaceBit`, including Forever races 95/96 in the second mask
+word. It checks option/choice membership, uniqueness, class/race masks,
+source-unconditional achievement rejection, real item appearance ownership,
+creation's absent Player/quest state and all dependency groups (any selected
+choice per group). Missing requirement records do not invent restrictions.
+Invalid classes and unsorted/duplicate/zero options are rejected at its public
+input boundary; the target codec sorts the native pairs beforehand.
+
+The modern Create decoder retains name/surname privately, the target optional
+template/flags/unknown fields, source int32 season and sorted appearance pairs.
+It checks the complete remaining pair region before allocation and enforces
+`CharacterPackets.h:57-65`'s **250**-entry source capacity. No opcode handler,
+Create success or DB writes are enabled by this codec.
+
+The existing opt-in private native observer is production-linked to the
+startup effective catalog and validator. Empty item appearance ownership is
+only valid because the admitted-account loader currently rejects nonempty
+collections; this must be replaced by the real collection owner when that
+boundary is expanded. The observer reports only valid/count metadata and
+still does not admit or persist creation. Tests, actual-file/startup and fresh
+action acceptance below pass; none of these changes establish playable world
+entry or resolve the separate creation transaction/recovery contract.
+
+Initial scoped acceptance (`20261003T014802260Z`, 2m45s compilation) passed
+785 data, 364 database (two ignored), 777 packet, 35 persistence and 4058 world
+tests (one ignored). Target binary tests passed 3/3 (`20261003T015114132Z`,
+3m15s compilation), then normal build passed (`20261003T015459712Z`, 2m57s).
+Final source review identified the additional declared-maximum assertion above;
+its test and source-correct fixture maximum are added. Affected acceptance and
+normal installation are being repeated; the earlier run is not relabeled as
+testing that repair. Unchanged database/packet/persistence source retains its
+separate green evidence. Timing remains part of the campaign begun at
+2026-10-02 23:54:58Z, not a fresh ten-minute campaign. The 600-second target was
+already exceeded; no cache/coverage/architecture ceiling was removed.
+
+The repair's affected suites pass **786 data / 4058 world** (one ignored),
+`20261003T015836289Z`, 2m34s compilation. Unchanged packet/database/persistence
+and private-recorder test inputs retain their separately dated evidence above;
+no prior binary-test run is labeled as testing the new reader. The normal
+candidate is rebuilt (`20261003T020146289Z`, **35.64s**) and exercised:
+
+- Seven actual private DB2 files and all 14 official/custom SQL projection
+  queries load successfully; **116** effective race/gender option indexes.
+- Fresh strict native session accepts encrypted initialization and empty enum;
+  TactKey batches **48/36** IDs receive real Invalid replies (zero valid).
+- Human male warrior personalization is rendered. Fixture UI input and Finish
+  submit **440070 / 106 bytes / nine choices**. The normal product's opt-in
+  observer decodes/sorts the request and reports **valid=true** against the
+  effective catalog. No Create handler/success or Character writes occur.
+- Private mode-0600 capture `character-create-70170-20261003T0202Z.bin` is
+  122 bytes; SHA-256
+  `1be73d5769fd09512411fce05eff18a85d08984bd0b4ba1b6daa160bb59fe6f7`.
+  Read-only inspection confirms name/surname lengths 9/7, race/class 1/1,
+  sex 0, season 0, no template/duplicate options and unsorted wire pairs.
+  Names/choices/assets are not distributed.
+- SIGINT exits 0, Character count remains **0**, online=0/key length40,
+  exact realm restoration affects one row and World port closes. An initial
+  cleanup diagnostic used the obsolete `sessionkey` column and failed before
+  its UPDATE; corrected `session_key_bnet` diagnostic/restoration succeeds.
+  Restarted warn-level BNet's restored V1/V2 offline smoke passes, restoring
+  its 64-byte authentication key. Formatting and diff hygiene pass.
+
+At **02:05:02Z**, the full campaign from 23:54:58Z is **7804 seconds**; the
+ordinary 600-second performance target is not met. This additional phase starts
+at 01:48:02Z but does not reset that campaign. Repair/coding interleaves and has
+no separately reliable wall-clock total. Publication final is still pending.
+
 `Player.cpp:391-561::Create` and `20665-21078::SaveToDB` require more than a
 main Character insert: effective starting position/stats/models/skills/spells/
 items and all creation-linked saves. Source homebind INSERT is deferred to

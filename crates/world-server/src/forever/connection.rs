@@ -180,6 +180,7 @@ async fn admitted(
         );
         if let Some(capture) = &runtime.character_capture {
             capture.record(frame.opcode(), frame.payload()).await?;
+            super::appearance::observe(&runtime.appearance, frame.opcode(), frame.payload())?;
         }
         // Read-only request metadata before the canonical registry dispatch.
         // Never log record IDs or private TACT values here.

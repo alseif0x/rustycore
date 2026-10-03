@@ -22,6 +22,7 @@ use wow_core::ObjectGuid;
 
 use crate::WorldPacket;
 
+pub mod character_create;
 pub mod db_query;
 pub mod hotfix;
 
