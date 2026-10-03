@@ -2750,6 +2750,14 @@ declara Bank como contrato finito de package/module/host/facade; sus fixtures
 incluyen el nuevo módulo y negativos de owner/host/alias. La integración normal
 añade una aserción de entrada única y metadata sin regenerar el TSV. Revisión
 por fuente positiva; handoff y aceptación ejecutada siguen pendientes.
+El implementador entregó ChangeBankBagSlotFlag completo y congelado por fuente,
+sin dependencia ni consumidor pendiente identificado; corrigió también el
+conteo previo del registro Inventory de tres a cuatro. Sigue NO VALIDADO.
+La continuación Inventory asignada es ItemTextQuery completo: objeto íntegro
+actual, respuesta válida con texto o inválida, envío y registro único tipado.
+C++ QueryHandler.cpp:305–318 y Opcodes.cpp:550, SHA
+a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, fijan GetItemByGuid/Text y LoggedIn/Inplace;
+faltan traslado, consumidores y evidencia de esa siguiente operación.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
