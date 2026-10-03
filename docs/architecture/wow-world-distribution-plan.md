@@ -2944,6 +2944,16 @@ diferencia F6; el traslado no debe añadirla silenciosamente. GetItemCount(item,
 también exige contrastar el alcance de banco/trade antes de acreditar paridad.
 LootMgr.cpp:208::HaveQuestLootForPlayer delega al template específico del jugador.
 
+Revisión del traslado de loot de misión (2026-10-03, NO VALIDADO):
+Application/quest/loot_requirements.rs ya contiene la operación completa y sus
+predicados privados. Conserva conversión del item antes del snapshot de objetivos,
+store antes del snapshot de item-drop, iteración nativa y lectura completa de counts
+por drop coincidente. World/session/loot/operations.rs ya delega con roles
+seleccionados y cfg!(test) del consumidor. quest/mod.rs exporta la operación;
+en esta revisión falta su reexport en Application/lib.rs, solicitado al propietario
+de ese archivo. Este avance no cierra ActivateToQuest, diálogo ni refresh de visibilidad,
+ni acredita ejecución, bytes o paridad con los gates C++ pendientes.
+
 Proyección completa de ofertas escrita (2026-10-03, NO VALIDADO): App/trainer_purchase/
 projection contiene finish, wrapper resolution, snapshot fresco, metadata y el
 planificador existente; capacity solo se consulta tras un plan Deterministic.
