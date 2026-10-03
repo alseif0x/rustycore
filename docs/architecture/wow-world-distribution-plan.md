@@ -2959,9 +2959,9 @@ Application/quest/loot_requirements.rs ya contiene la operación completa y sus
 predicados privados. Conserva conversión del item antes del snapshot de objetivos,
 store antes del snapshot de item-drop, iteración nativa y lectura completa de counts
 por drop coincidente. World/session/loot/operations.rs ya delega con roles
-seleccionados y cfg!(test) del consumidor. quest/mod.rs exporta la operación;
-en esta revisión falta su reexport en Application/lib.rs, solicitado al propietario
-de ese archivo. Este avance no cierra ActivateToQuest, diálogo ni refresh de visibilidad,
+seleccionados y cfg!(test) del consumidor. quest/mod.rs y Application/lib.rs ya
+exportan la operación; se verificó la integración del reexport solicitado al
+propietario de ese archivo. Este avance no cierra ActivateToQuest, diálogo ni refresh de visibilidad,
 ni acredita ejecución, bytes o paridad con los gates C++ pendientes.
 
 Proyección completa de ofertas escrita (2026-10-03, NO VALIDADO): App/trainer_purchase/
