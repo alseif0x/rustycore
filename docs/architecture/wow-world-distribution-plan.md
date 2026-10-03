@@ -2603,8 +2603,14 @@ ofertas/fallback de precio, conteo, greeting y publicación del rol/paquete en
 su orden. Faltan los proveedores de ofertas y retirada completa de auras,
 constructor externo de stores seleccionados y fachada World. La referencia
 de locale apunta al mismo campo Core sin clone; no es un snapshot propio.
-La publicación debe reutilizar su cuerpo existente antes de declarar cerrada
-la familia. TrainerBuy continúa pendiente de coordinador completo.
+La publicación ya reutiliza publish_trainer_list_like_cpp después de greeting;
+el constructor seleccionado y la fachada World también están escritos. El
+provider App de ofertas ahora conserva la secuencia ID, filas completas de
+spells y skills, conversión de requisito, clasificación battle-pet, precio y
+preflight del original. Aún falta definir finish_trainer_offer_projection_like_cpp
+en el punto NeedsProjection, además de la retirada completa de FeignDeath.
+Estas conexiones no prueban compilación ni cierran la familia; TrainerBuy
+continúa pendiente de coordinador completo.
 
 Proveedor de precio de trainer (2026-10-03, NO VALIDADO): el nuevo método
 NpcInteractionAccess de faction_reactions.rs conserva los retornos Neutral por
@@ -2621,6 +2627,94 @@ la proyección antiguos siguen completos en World y mantienen consumidores en
 trainer, limit-category y meets-player-condition. Su retiro forma parte del
 mismo traslado; disponer del constructor App no demuestra una autoridad única
 ni autoriza cerrar condiciones. Se notificaron esos consumidores al dueño.
+
+Conexión del guardado canónico (2026-10-03, NO VALIDADO): World ya llama a
+`save_canonical_player_like_cpp` después de adquirir sus fences. La revisión
+confirma captura única, ACK canónico y tutorials dentro de App, retorno del
+indicador de Registry, liberación del owner y publicación Registry después.
+El camino World-test/no-handle mantiene su receipt fixture anterior. Los
+retornos de snapshot no disponible liberan money lock y admisión antes del
+drenaje. La coordinación de timer, transferencia, loot, reconciliación y
+drenaje sigue World; falta su traslado completo, mounts y aceptación.
+
+Contrato de drenaje verificado (2026-10-03, NO VALIDADO): el cuerpo actual de
+World/session/quest/objectives.rs:662–748 convierte currency/faction a object_id
+con fallback i32::MAX antes del primer await. Cada evento Currency ejecuta
+update_currency, HAVE y OBTAIN secuencialmente; Reputation ejecuta MIN, MAX e
+INCREASE. Se extrae un solo evento antes de cada secuencia y finish se llama
+únicamente al agotar normalmente la cola. La persistencia y sincronización
+Registry de cada update no se agrupan al final. El traslado completo a App
+está en implementación; esta inspección fija el contrato sin ejecutar pruebas.
+
+Primer cuerpo CanEquip completo (2026-10-03, NO VALIDADO): el placeholder ya
+está reemplazado por la operación App. La revisión detectó que omitía CanUnequip
+cuando no había offhand y reutilizaba el runtime offhand de un snapshot anterior
+para CanStore; el original consulta CanUnequip siempre y relee posición/runtime
+en su wrapper de almacenamiento. Se asignó restaurar esas consultas, además de
+corregir un argumento de referencia y el nombre STUNNED. El export Core del
+owner mutable de guardado ya está presente. No hay compilación de este cuerpo
+ni cierre del proveedor compartido de almacenamiento.
+
+Revisión de relecturas de offhand (2026-10-03, NO VALIDADO): CanUnequip ya se
+consulta siempre y su argumento proto conserva la referencia. La relectura de
+CanStore aún debe mantener la guarda del snapshot offhand previo y usar el
+provider de posición original; los accesos rápidos a un solo item no sustituyen
+la proyección runtime/clones de los helpers antiguos. Mainhand requiere la
+misma conservación. CanUnequip general pertenece a Inventory y debe tener un
+solo cuerpo seleccionado reutilizado por App, conservando bag/slot/swap para
+sus otros consumidores, en lugar de otro algoritmo exclusivo de offhand.
+
+CanUnequip general conectado (2026-10-03, NO VALIDADO): Inventory/equipment
+ya conserva ese cuerpo único en can_unequip_inventory_item_at_with_access_like_cpp;
+la entrada Hub delega y App pasa BAG_0/OFFHAND/swap=false. El contraste con el
+cuerpo de HEAD confirma posición y retorno temprano, snapshot, charm, snapshot
+BG con consulta Map condicionada, combate y selector final, conservando también
+los argumentos generales para bolsas y swaps. El provider de reputación de
+Inventory convierte standing a rank después de liberar el acceso al Player;
+no se fusiona con el provider de precio de trainer, cuyo orden es distinto.
+El implementador de valoración continúa activo; esta revisión de fuente no
+establece compilación, pruebas ni cierre de AvgTotal/condiciones.
+
+Conexiones World TrainerList y slot (2026-10-03, NO VALIDADO): TrainerList ya
+delega su operación a App y el catálogo seleccionado tiene constructor público.
+En la primera conexión faltaban ofertas y FeignDeath; el provider de ofertas
+ya está escrito, pero faltan su proyección final y FeignDeath. La entrega no
+está cerrada por esa fachada. El worker quedó idle tras escribirla y se
+reanudó con la unidad acotada de ofertas. Los exports de slot/MAX ya existen y
+World conserva su nombre de constante mediante reexport de la única autoridad
+App. El mount de las dos funciones de guardado ya está escrito en App/lib.rs;
+sus definiciones existen en player_save.rs, frente a la lectura desfasada que
+lo dejó pendiente.
+
+Primer proveedor compartido de almacenamiento (2026-10-03, NO VALIDADO): el
+cuerpo está escrito en inventory_valuation/direct_storage.rs y World ya tiene
+fachada para el plan completo. Conserva por fuente posiciones vacadas, overlays,
+templates, referencias de almacenamiento y consulta tardía de limit-category.
+Faltan su mount privado y correcciones de nombres de métodos del snapshot;
+se asignaron a sus dueños sin introducir callbacks de vuelta a World.
+El helper de dinero de Reward ya propaga ausencia de saldo al abort y conserva
+la aceptación/rechazo entero del delta de loot_money_durable_outcome original.
+No se reclama compilación ni aceptación de ninguno de esos proveedores.
+
+Conexión del plan compartido (2026-10-03, NO VALIDADO): direct_storage ya tiene
+su mount privado y los nombres originales de store/register bag del snapshot.
+CanEquip restaura la guarda del offhand previo y la consulta fresca de posición
+antes de almacenar; Inventory/quest_reward ya define el provider
+resolved_player_inventory_item_object_with_access_like_cpp mediante la
+proyección completa original y CanEquip lo llama. La hoja direct_storage usa
+imports explícitos, sin depender de imports del módulo padre. STUNNED también
+está corregido. Estas correcciones de fuente no sustituyen las pruebas pendientes ni demuestran
+cierre de los consumidores de almacenamiento o recompensas.
+
+Revisión de transición de reposo (2026-10-03, NO VALIDADO): Core XP ya instala
+el reposo canónico mediante una única with_owned_player_mut/mutate_rest_state;
+la sustitución del snapshot queda limitada al fixture sin handle. Queda pendiente
+el participante Rest acotado: las dos fachadas de test todavía construyen el
+contexto completo QuestReward/XP y llaman a un constructor privado de otro módulo.
+Además, FixtureTake con handle debe conservar bonus, modifier y setter
+incondicional del cuerpo original; no puede sustituirse por el orden del consumo
+normal de XP. Se asignó ese cierre al propietario de XP antes de declarar retirada
+la operación original. No se han ejecutado compilación ni pruebas.
 
 Revisión de condiciones de trainer (2026-10-03, NO VALIDADO): el nuevo cuerpo
 App conserva store, objeto jugador, proyección completa, snapshots Unit/Player
