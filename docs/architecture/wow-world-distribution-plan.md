@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `3fa2b7a07` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `1b550cefd` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `1b550cefd` (transporte de login en wow-world-lifecycle) se repitió el
+mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.632 passed / 0 failed / 1 ignored**; `wow-world-lifecycle --features test-fixtures`
+14/14; `wow-world-application` 52/52; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `3fa2b7a07` (localización de login en App) se repitió el mismo conjunto:
 `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3910,6 +3916,16 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- el soporte de transporte/creación de login
+  (`handlers/character/login_transport_support.rs`, 402 líneas: filas de transporte
+  persistidas, validación, bloque de creación de transporte, visibilidad de jugador,
+  create-blocks iniciales y posición de transporte) pasó a
+  `wow-world-lifecycle/src/login_transport.rs`; se añadieron las aristas
+  `wow-world-lifecycle → wow-movement` (los flags de nodo de taxi se toman de su definición
+  única y se proyectan a `i32` con cast) y `→ wow-world-visibility` (que ya era el dueño de
+  `InitTransportsPlanLikeCpp`). La fachada World reexporta ambos, y las constantes y tipos que
+  quedaron solo para pruebas (`PI`, el tipo de GO de transporte) se movieron a imports
+  `#[cfg(test)]` de `handlers/character/mod.rs`;
 - el soporte de localización de login de personaje
   (`handlers/character/login_support.rs`, 281 líneas: plantillas de worldstate, homebind,
   cementerio por raza, zona/área, `BindPointUpdate` y datos de battleground de login) pasó a
