@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `116cd5b2e` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `49269650c` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `49269650c` (tablas de disponibilidad y spoof en Core) se repitió el
+mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.687 passed / 0 failed / 1 ignored**; `wow-world-core` 223/223 + 1 doctest;
+`wow-world-application` 29/29; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `116cd5b2e` (tabla de disponibilidad en Core) se repitió el mismo
 conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3824,10 +3830,17 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   y llama. El módulo App todavía no tiene pruebas propias (la cobertura la aportan hoy las
   264 pruebas `handlers::loot` de `wow-world`, que ahora ejercitan el camino App).
 
-También salió de `wow-world` un dueño independiente de sesión completo: la tabla de
-disponibilidad de clases/razas (`session/character_availability.rs`, 165 líneas, sin estado
-de sesión) se movió a `wow-world-core/src/session/character_availability.rs` y World solo la
-importa. Es un corte P4b-style: elimina el archivo entero del crate superior.
+También salieron de `wow-world` dos dueños independientes de sesión completos:
+- la tabla de disponibilidad de clases/razas (`session/character_availability.rs`, 165
+  líneas, sin estado de sesión) pasó a
+  `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
+  crate superior y World solo lo importa;
+- la tabla `packet_spoof_max_packet_counter_allowed_like_cpp` (212 líneas, función asociada
+  sin `self`) pasó a `wow-world-core/src/session/admission.rs` como función libre; World la
+  llama por `wow_world_core::session::...` y sus 10 llamadas de prueba se actualizaron.
+  Como dependía de `MAX_QUEST_LOG_SIZE_LIKE_CPP` (definida en App, no accesible desde Core),
+  la constante se movió a `wow-world-core/src/session/gameplay_limits.rs` con ancla C++
+  `Quests/QuestDef.h:43` y App la reexporta, manteniendo una sola definición.
 
 **Límite de este método**: retirar duplicados ya convergidos no alcanza el objetivo de F5
 (20–40k líneas en `wow-world`, hoy ~128k). F5 exige el rediseño de registro descrito en
