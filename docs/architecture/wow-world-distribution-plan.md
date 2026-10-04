@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `1b550cefd` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `78447d971` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `78447d971` (reglas de plantilla de botín en wow-world-lifecycle) se
+repitió el mismo conjunto: `cargo check --workspace --all-targets` (pendiente de re-ejecutar al
+cierre de ronda), `wow-world --all-targets` (con y sin `test-fixtures`),
+`wow-world-lifecycle --all-targets --features test-fixtures` y
+`wow-world-application --all-targets` verdes; `cargo test -p wow-world --lib` **3.632 passed /
+0 failed / 1 ignored**; `wow-world-lifecycle --features test-fixtures` 14/14;
+`wow-world-application` 52/52; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `1b550cefd` (transporte de login en wow-world-lifecycle) se repitió el
 mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3916,6 +3924,14 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- las reglas de tirada de plantillas de botín (`handlers/spell/state.rs`, 336 líneas: modos
+  de botín, `LootTemplateFrame`, metadatos de addon de ítem, tiradas por fila plana/referencia/
+  grupo y transformación de regalo envuelto) pasaron a
+  `wow-world-lifecycle/src/loot_template_rules.rs`, el crate que ya definía
+  `LootTemplateRow`/`LootTemplateTable`; se añadió `rand` al manifiesto. La fachada World
+  reexporta el módulo y los tipos de plantilla que consumían `ops_1`/`ops_2`, y el helper de
+  prueba pasó de `#[cfg(test)]` a `#[cfg(any(test, feature = "test-fixtures"))]` para que la
+  suite de World lo siga viendo;
 - el soporte de transporte/creación de login
   (`handlers/character/login_transport_support.rs`, 402 líneas: filas de transporte
   persistidas, validación, bloque de creación de transporte, visibilidad de jugador,
