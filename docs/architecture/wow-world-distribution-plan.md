@@ -3800,7 +3800,12 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   `SendQuestGiverRequestItems` (no `SendQuestGiverOfferReward`), y el bloque de recompensas y
   los `status_flags`/`collect` provienen ya de los helpers compartidos en vez de construirse
   a mano con `collect` vacío y `0xFD` fijo. Quedan sin mover a App los seams acotados de
-  `CanRewardQuest`/`CanCompleteRepeatableQuest` y la publicación de paquetes de diálogo.
+  `CanRewardQuest`/`CanCompleteRepeatableQuest` y la publicación de paquetes de diálogo, y
+  persiste una diferencia de guarda no corregida: C++ solo rechaza cuando
+  `!CanSeeStartQuest(quest) && GetQuestStatus == QUEST_STATUS_NONE`, mientras el handler usa
+  `has_quest(quest_id)` (exige una entrada de estado), de modo que una quest visible pero no
+  aceptada no recibe el diálogo. Se deja explícita, sin cambiar el comportamiento en este
+  corte.
 - StorageMove/swap/child/offhand como executor completo, Save y compra Trainer conservan
   pendientes.
 - Sin `final`, arquitectura/self-test, inventario de persistencia, capturas ni live; por
