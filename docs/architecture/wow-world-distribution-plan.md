@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `49269650c` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `ffd67f97b` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `ffd67f97b` (phasing en Core) se repitió el mismo conjunto:
+`cargo check --workspace --all-targets`, `wow-world --all-targets` y
+`wow-world-application --all-targets` verdes (la primera invocación de `--workspace` agotó el
+límite por defecto de 600 s del harness y se repitió con límite ampliado: verde, 0 errores);
+`cargo test -p wow-world --lib` **3.664 passed / 0 failed / 1 ignored**;
+`wow-world-core` **246/246** + 1 doctest; `wow-world-application` 29/29; sin líneas de aviso
+nuevas.
 
 Sobre el checkpoint `49269650c` (tablas de disponibilidad y spoof en Core) se repitió el
 mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3835,6 +3843,12 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- el módulo de phasing independiente de sesión (`src/phasing.rs`, 720 líneas de fachadas
+  `PhasingHandler` sobre `WorldObject`/`PhaseShift`) pasó a `wow-world-core/src/phasing/`
+  (`mod.rs` + `visibility.rs`) y **sus 23 pruebas** se movieron con él a
+  `wow-world-core/unit_tests/phasing/`; World queda como `pub use wow_world_core::phasing::*`
+  y las rutas `crate::phasing::…` de los consumidores siguen resolviendo. Identidades de
+  prueba preservadas exactamente: `wow-world` 3.687 → 3.664 y `wow-world-core` 223 → 246;
 - la tabla `packet_spoof_max_packet_counter_allowed_like_cpp` (212 líneas, función asociada
   sin `self`) pasó a `wow-world-core/src/session/admission.rs` como función libre; World la
   llama por `wow_world_core::session::...` y sus 10 llamadas de prueba se actualizaron.
