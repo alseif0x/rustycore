@@ -3705,6 +3705,42 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
+### Estado F5 en curso — 2026-10-04, checkpoint `1d7478363` (NO VALIDADO)
+
+La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
+`wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
+constantes compartidas, atributos `cfg` colgantes, llaves huérfanas y préstamos), el estado
+verificado con el bucle de feedback del implementador (`CARGO_BUILD_JOBS=1`, target del
+worktree, `PROTOC` fijado, sin campaña de aceptación) es:
+
+- `cargo check --workspace --all-targets`: **verde**.
+- `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
+- `cargo test -p wow-world-application`: 29/29.
+
+RawEquip (F5) está conectado por fuente y validado de forma acotada:
+`RegistrySyncInputs` inerte en Core presta los vitals de Stats al final; `InventoryEquipCxLikeCpp`
+montado y exportado; sus tres escenarios (`raw_equip`) pasan. Se corrigieron además tres
+defectos de producción hallados al ejecutar las pruebas nuevas del WIP: el slot de
+recalculación de estadísticas de combate usaba constantes sin cualificar
+(`wow-world-inventory/src/storage.rs`), y `apply_offline`/`take_rested_xp` resolvían el
+fixture en vez del Player canónico por GUID (`session/catalogs/operations.rs`,
+`session/rest_progression.rs`).
+
+Barreras explícitas que siguen abiertas, sin declarar cierre:
+
+- **LootRelease**: `crates/wow-world-application/src/loot_release/` no está montado
+  (`mod loot_release;` ausente). Al montarlo faltan tres helpers nunca movidos desde World:
+  `represented_gameobject_can_autostore_loot_item_like_cpp`,
+  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp` (depende del proveedor
+  readonly de visibilidad de GO) y `represented_notify_loot_list_like_cpp`; su traslado exige
+  ampliar accesos de Core (grupo/registro, catálogos de GO, proveedor de condiciones).
+- El `QuestGameObjectVisibilityCx` readonly App que implementé (`quest/visibility/gameobject_flags.rs`,
+  completions en `quest/objectives.rs`) compila pero **no tiene consumidores cableados**.
+- StorageMove/swap/child/offhand como executor completo, Save, compra Trainer, refresh de
+  visibilidad y CompleteQuest conservan pendientes.
+- Sin `final`, arquitectura/self-test, inventario de persistencia, capturas ni live; por
+  tanto no hay aceptación de F5/F6 ni cierre de #1263.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
