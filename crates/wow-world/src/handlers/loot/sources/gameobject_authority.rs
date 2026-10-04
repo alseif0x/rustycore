@@ -126,24 +126,6 @@ impl WorldSession {
         Some(())
     }
 
-    pub(in crate::handlers::loot) fn canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        fallback_fully_looted: bool,
-    ) -> bool {
-        if self
-            .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
-            .is_some()
-        {
-            return crate::session::cx_loot(self)
-                .canonical_gameobject_is_fully_looted_like_cpp(gameobject_guid)
-                .unwrap_or(fallback_fully_looted);
-        }
-
-        fallback_fully_looted
-    }
-
     fn represented_gameobject_spell_lock_range_like_cpp(
         &self,
         lock_id: Option<u32>,

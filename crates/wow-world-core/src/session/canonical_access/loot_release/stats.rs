@@ -6,18 +6,13 @@ use crate::session::{PlayerStatsAccessLikeCpp, SessionCatalogs, SessionWorldConf
 use crate::session::StatsFixtureRefs;
 use super::LootReleaseOwnerAccessLikeCpp;
 
-/// Inert stats inputs, kept separate from the release's mutable Core borrow.
+/// Inert catalogs/config inputs, kept separate from the release's mutable Core
+/// borrow. The cfg(test) stats fixtures stay with the caller so one mutable
+/// fixture owner can serve the release's stats pass and its readonly
+/// projections without aliasing.
 pub struct LootReleaseStatsInputsLikeCpp<'a> {
     catalogs: &'a SessionCatalogs,
     config: &'a SessionWorldConfig,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    race: &'a u8,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    class: &'a u8,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    level: &'a u8,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixtures: StatsFixtureRefs<'a>,
 }
 
 impl<'a> LootReleaseStatsInputsLikeCpp<'a> {
@@ -33,41 +28,29 @@ impl<'a> LootReleaseStatsInputsLikeCpp<'a> {
         self.config
     }
 
-    pub fn new_like_cpp(
-        catalogs: &'a SessionCatalogs,
-        config: &'a SessionWorldConfig,
-        #[cfg(any(test, feature = "test-fixtures"))] race: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))] class: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))] level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))] fixtures: StatsFixtureRefs<'a>,
-    ) -> Self {
-        Self {
-            catalogs, config,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            race,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            class,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures,
-        }
+    pub fn new_like_cpp(catalogs: &'a SessionCatalogs, config: &'a SessionWorldConfig) -> Self {
+        Self { catalogs, config }
     }
 }
 
 impl LootReleaseOwnerAccessLikeCpp<'_> {
     pub fn stats_like_cpp<'a>(
-        &'a self, inputs: &'a mut LootReleaseStatsInputsLikeCpp<'_>,
+        &'a self,
+        inputs: &'a mut LootReleaseStatsInputsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] race: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] class: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] level: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: StatsFixtureRefs<'a>,
     ) -> PlayerStatsAccessLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.core.player_stats_access_with_fixture_refs_like_cpp(
-                inputs.catalogs, inputs.config, inputs.race, inputs.class,
-                inputs.level, inputs.fixtures.reborrow_like_cpp(),
+                inputs.catalogs, inputs.config, race, class, level, fixtures,
             )
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
+            let _ = &mut *inputs;
             self.core.player_stats_access_like_cpp(inputs.catalogs, inputs.config)
         }
     }

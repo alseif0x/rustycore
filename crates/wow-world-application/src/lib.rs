@@ -12,6 +12,7 @@ mod registry_sync;
 mod spell_acquisition;
 mod instances;
 mod loot_release;
+pub use loot_release::LootReleaseCxLikeCpp;
 mod stats;
 mod equipment_set_use;
 mod trainer_purchase;

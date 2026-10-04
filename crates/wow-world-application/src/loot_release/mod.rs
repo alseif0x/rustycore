@@ -42,8 +42,6 @@ mod creature;
 mod publication;
 mod authority;
 mod registry;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use registry::LootReleaseRegistryFixtureRefsLikeCpp;
 
 pub struct LootReleaseCxLikeCpp<'a> {
     owner: wow_world_core::session::LootReleaseOwnerAccessLikeCpp<'a>,
@@ -59,11 +57,9 @@ pub struct LootReleaseCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     spell_state: &'a wow_world_spell::SessionSpellState,
     #[cfg(any(test, feature = "test-fixtures"))]
-    fixtures: &'a wow_world_core::session::state::SessionFixtures,
+    fixtures: &'a mut wow_world_core::session::state::SessionFixtures,
     item_store: Option<&'a std::sync::Arc<wow_data::ItemStore>>,
     item_stats_store: Option<&'a std::sync::Arc<wow_data::ItemStatsStore>>,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    registry_fixtures: LootReleaseRegistryFixtureRefsLikeCpp<'a>,
 }
 
 impl<'a> LootReleaseCxLikeCpp<'a> {
@@ -82,17 +78,14 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         spell_state: &'a wow_world_spell::SessionSpellState,
         #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &'a wow_world_core::session::state::SessionFixtures,
+        fixtures: &'a mut wow_world_core::session::state::SessionFixtures,
         item_store: Option<&'a std::sync::Arc<wow_data::ItemStore>>,
         item_stats_store: Option<&'a std::sync::Arc<wow_data::ItemStatsStore>>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        registry_fixtures: LootReleaseRegistryFixtureRefsLikeCpp<'a>,
     ) -> Self {
         Self { owner, loot, world_entities, inventory, lifecycle, consumer_test, instances, stats_inputs, quest_state, social,
             #[cfg(any(test, feature = "test-fixtures"))] spell_state,
             #[cfg(any(test, feature = "test-fixtures"))] fixtures,
-            item_store, item_stats_store,
-            #[cfg(any(test, feature = "test-fixtures"))] registry_fixtures }
+            item_store, item_stats_store }
     }
 
     /// Shared hub view over the release context's disjoint borrows. The
@@ -104,7 +97,7 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
             catalogs: self.stats_inputs.catalogs_like_cpp(),
             config: self.stats_inputs.config_like_cpp(),
             #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures: self.fixtures,
+            fixtures: &*self.fixtures,
         }
     }
 
@@ -150,7 +143,34 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
 
     fn send_stat_update(&mut self) {
         let mut stats = crate::CharacterStatsApplicationCxLikeCpp::new(
-            self.owner.stats_like_cpp(&mut self.stats_inputs), self.inventory,
+            self.owner.stats_like_cpp(
+                &mut self.stats_inputs,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_race,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_class,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                wow_world_core::session::StatsFixtureRefs::new_like_cpp(
+                    wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
+                        &mut self.fixtures.combat.player_health_like_cpp,
+                        &mut self.fixtures.combat.player_max_health_like_cpp,
+                        &mut self.fixtures.combat.player_alive_like_cpp,
+                        &mut self.fixtures.combat.represented_player_powers_like_cpp[0],
+                        &mut self.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                        &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
+                    ),
+                    wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
+                        &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                        &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                        &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                        &self.fixtures.auras.visible_auras,
+                        &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                    ),
+                ),
+            ),
+            self.inventory,
             self.owner.publication_like_cpp(),
         );
         stats.send_stat_update_like_cpp();

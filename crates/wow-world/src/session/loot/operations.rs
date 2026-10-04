@@ -217,16 +217,6 @@ impl crate::session::LootCxRef<'_> {
 }
 
 impl crate::session::LootCx<'_> {
-    pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> Option<bool> {
-        self.world_entities
-            .mutate_canonical_gameobject_by_guid_like_cpp(&mut self.hub, guid, |gameobject| {
-                gameobject.is_fully_looted_like_cpp()
-            })
-    }
-
     pub fn set_group_loot_money_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,

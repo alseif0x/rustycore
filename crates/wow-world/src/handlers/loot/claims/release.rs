@@ -69,18 +69,40 @@ impl WorldSession {
         self.send_packet(&update);
     }
 
-    pub(crate) async fn do_loot_release_all_like_cpp(&mut self, player_guid: ObjectGuid) {
-        let mut active_owners: Vec<ObjectGuid> =
-            self.loot.active_loot_view_owners_snapshot_like_cpp();
-        if active_owners.is_empty() && !self.loot.active_loot_guid_like_cpp().is_empty() {
-            active_owners.push(self.loot.active_loot_guid_like_cpp());
-        }
-        active_owners.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
+    /// Build the application-owned release context from disjoint WorldSession
+    /// borrows. The context owns the mutable release participants; the fixture
+    /// bundle stays a single mutable owner so its stats pass and readonly
+    /// projections cannot alias.
+    pub(in crate::handlers::loot) fn loot_release_cx_like_cpp(
+        &mut self,
+    ) -> wow_world_application::LootReleaseCxLikeCpp<'_> {
+        wow_world_application::LootReleaseCxLikeCpp::new(
+            self.core.loot_release_owner_access_like_cpp(),
+            &mut self.loot,
+            &mut self.world_entities,
+            &mut self.inventory,
+            &mut self.lifecycle,
+            cfg!(test),
+            &self.instances,
+            wow_world_core::session::LootReleaseStatsInputsLikeCpp::new_like_cpp(
+                &self.catalogs,
+                &self.config,
+            ),
+            &self.quest_state,
+            &self.social,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.spell_state,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut self.fixtures,
+            self.catalogs.item_store(),
+            self.catalogs.item_stats_store(),
+        )
+    }
 
-        for owner_guid in active_owners {
-            self.do_loot_release_owner_like_cpp(owner_guid, player_guid)
-                .await;
-        }
+    pub(crate) async fn do_loot_release_all_like_cpp(&mut self, player_guid: ObjectGuid) {
+        self.loot_release_cx_like_cpp()
+            .release_all_like_cpp(player_guid)
+            .await;
     }
 
     pub(in crate::handlers::loot) async fn do_loot_release_owner_like_cpp(
@@ -88,367 +110,9 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        if !self.loot.has_active_loot_view_owner_like_cpp(owner_guid)
-            && !self.loot.is_active_loot_guid(owner_guid)
-        {
-            return false;
-        }
-
-        let authoritative_release = if let Some(authority) =
-            self.prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid)
-        {
-            if !self
-                .loot
-                .active_loot_view_authority_like_cpp(owner_guid)
-                .is_some_and(|opened| opened.shares_storage_like_cpp(&authority))
-            {
-                self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-                return true;
-            }
-            let Some(active_generation) = self
-                .loot
-                .active_loot_view_generation_like_cpp(owner_guid)
-                .copied()
-            else {
-                self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-                return true;
-            };
-            let Some(close) =
-                authority.close_viewer_if_generation_like_cpp(active_generation, player_guid)
-            else {
-                self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-                return true;
-            };
-            Some(AuthoritativeLootReleaseLikeCpp {
-                authority,
-                selected_generation: active_generation,
-                loot: close.snapshot.loot,
-                whole_object_fully_looted: close.whole_object_fully_looted,
-                whole_object_fully_skinned: close.whole_object_fully_skinned,
-                object_generation: close.object_generation,
-                lifecycle_revision: close.lifecycle_revision,
-                require_no_viewers: false,
-            })
-        } else {
-            None
-        };
-
-        if authoritative_release.is_none()
-            && (owner_guid.is_creature_or_vehicle() || owner_guid.is_game_object())
-            && !represented_local_loot_fixture_allowed_like_cpp()
-        {
-            self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-            return true;
-        }
-
-        // C++ `Loot::isLooted()` requires both zero gold and zero remaining
-        // player-visible item count.
-        let Some(loot) = authoritative_release
-            .as_ref()
-            .map(|release| &release.loot)
-            .or_else(|| self.loot.cached_loot_for_owner_like_cpp(owner_guid))
-        else {
-            return false;
-        };
-        let selected_pool_looted = loot_is_looted_like_cpp(loot);
-        let represented_loot_type = loot.loot_type;
-        let whole_object_fully_looted = if let Some(release) = authoritative_release.as_ref() {
-            release.whole_object_fully_looted
-        } else if owner_guid.is_game_object() {
-            self.canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
-                owner_guid,
-                player_guid,
-                selected_pool_looted,
-            )
-        } else if owner_guid.is_creature_or_vehicle() {
-            self.canonical_creature_fully_looted_after_represented_sync_like_cpp(
-                owner_guid,
-                player_guid,
-                selected_pool_looted,
-            )
-        } else {
-            selected_pool_looted
-        };
-
-        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
-            loot.players_looting.retain(|looter| *looter != player_guid);
-        }
-
-        // Acknowledge the release to the client.
-        let release = SLootRelease {
-            loot_obj: owner_guid,
-            owner: player_guid,
-        };
-        self.send_packet(&release);
-
-        if owner_guid.is_game_object() {
-            self.loot.clear_active_loot_guid_if(owner_guid);
-            if !self
-                .represented_gameobject_can_autostore_loot_item_like_cpp(owner_guid, player_guid)
-            {
-                if authoritative_release.is_some() {
-                    self.loot
-                        .discard_represented_personal_loot_cache_for_player_like_cpp(
-                            owner_guid,
-                            player_guid,
-                        );
-                }
-                return true;
-            }
-            crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
-                owner_guid,
-                player_guid,
-                selected_pool_looted,
-                whole_object_fully_looted,
-                authoritative_release.as_ref(),
-            );
-            let _ = crate::session::cx_loot_ref(self)
-                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(owner_guid);
-            let go_type = self
-                .world_entities
-                .represented_gameobject_use_state_like_cpp(owner_guid)
-                .and_then(|state| state.go_type)
-                .map(u32::from);
-            let selected_release_branch = selected_pool_looted
-                || matches!(
-                    go_type,
-                    Some(GAMEOBJECT_TYPE_FISHING_NODE) | Some(GAMEOBJECT_TYPE_FISHING_HOLE)
-                );
-            if !selected_release_branch {
-                if authoritative_release.is_some() {
-                    self.loot
-                        .discard_represented_personal_loot_cache_for_player_like_cpp(
-                            owner_guid,
-                            player_guid,
-                        );
-                }
-                return true;
-            }
-
-            crate::session::cx_loot(self)
-                .hide_represented_gameobject_for_player_after_loot_release_like_cpp(owner_guid);
-            if go_type == Some(GAMEOBJECT_TYPE_GATHERING_NODE) {
-                self.send_gathering_node_loot_release_dynamic_flags_update_like_cpp(owner_guid);
-            }
-            if authoritative_release.is_some() {
-                self.loot
-                    .discard_represented_personal_loot_cache_for_player_like_cpp(
-                        owner_guid,
-                        player_guid,
-                    );
-            } else {
-                self.loot.remove_cached_loot_for_owner_like_cpp(owner_guid);
-            }
-            return true;
-        }
-
-        if owner_guid.is_item()
-            && matches!(
-                represented_loot_type,
-                LOOT_TYPE_PROSPECTING_LIKE_CPP | LOOT_TYPE_MILLING_LIKE_CPP
-            )
-        {
-            // C++ always clears the generated Loot and consumes at most five
-            // source items for prospecting/milling, even if the window closes
-            // before every generated entry was taken.
-            self.loot.clear_active_loot_guid_if(owner_guid);
-            self.loot.remove_cached_loot_for_owner_like_cpp(owner_guid);
-            let _ = self.apply_inventory_item_object_updates_like_cpp(
-                owner_guid,
-                &[ItemObjectUpdateLikeCpp::SetLootGenerated(false)],
-            );
-            self.destroy_direct_item_count_after_loot_release_like_cpp(owner_guid, Some(5))
-                .await;
-            return true;
-        }
-
-        if owner_guid.is_item() && !selected_pool_looted {
-            self.loot.clear_active_loot_guid_if(owner_guid);
-            let item_has_loot_flag = self
-                .resolved_inventory_items_like_cpp()
-                .and_then(|items| items.values().find(|item| item.guid == owner_guid).cloned())
-                .and_then(|item| self.item_template_flags(item.entry_id))
-                .map(|flags| flags.contains(wow_constants::ItemFlags::HAS_LOOT));
-            if item_has_loot_flag == Some(false) {
-                self.destroy_fully_looted_direct_item(owner_guid).await;
-            }
-            return true;
-        }
-
-        self.loot.clear_active_loot_guid_if(owner_guid);
-
-        if !selected_pool_looted {
-            let round_robin_released = if let Some(release) = authoritative_release.as_ref() {
-                release
-                    .authority
-                    .clear_round_robin_if_generation_like_cpp(
-                        release.selected_generation,
-                        player_guid,
-                    )
-                    .is_some_and(|outcome| {
-                        self.loot
-                            .insert_cached_loot_for_owner_like_cpp(
-                                owner_guid,
-                                outcome.snapshot.loot,
-                            );
-                        outcome.cleared
-                    })
-            } else {
-                self.loot
-                    .cached_loot_for_owner_mut_like_cpp(owner_guid)
-                    .is_some_and(|loot| {
-                        if loot.round_robin_player == player_guid {
-                            loot.round_robin_player = ObjectGuid::EMPTY;
-                            true
-                        } else {
-                            false
-                        }
-                    })
-            };
-            if round_robin_released {
-                self.represented_notify_loot_list_like_cpp(owner_guid);
-            }
-            if owner_guid.is_creature_or_vehicle() {
-                let values_update = self.core.mutate_world_creature(owner_guid, |creature| {
-                    creature.force_dynamic_flags_update_like_cpp();
-                    creature.creature.unit().values_update()
-                });
-                if let Some(values_update) = values_update.as_ref() {
-                    self.send_creature_loot_release_dynamic_flags_update_like_cpp(
-                        owner_guid,
-                        values_update,
-                        authoritative_release
-                            .as_ref()
-                            .map(|release| &release.authority),
-                    );
-                }
-            }
-            if authoritative_release.is_some() {
-                self.loot
-                    .discard_represented_personal_loot_cache_for_player_like_cpp(
-                        owner_guid,
-                        player_guid,
-                    );
-            }
-            return true;
-        }
-
-        // Remove loot entry from memory once the represented loot is consumed.
-        self.loot.remove_cached_loot_for_owner_like_cpp(owner_guid);
-
-        if owner_guid.is_item() && selected_pool_looted {
-            self.destroy_fully_looted_direct_item(owner_guid).await;
-            return true;
-        }
-
-        if owner_guid.is_corpse() {
-            {
-                let (s, mut h) = crate::session::split_loot_mut(self);
-                s.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(&mut h, owner_guid)
-            };
-            return true;
-        }
-
-        // C++ forces the viewer-dependent DynamicFlags field after every
-        // creature release, including a selected personal pool that completed
-        // while another pool remains.
-        let forced_values_update = self.core.mutate_world_creature(owner_guid, |creature| {
-            creature.force_dynamic_flags_update_like_cpp();
-            creature.creature.unit().values_update()
-        });
-
-        if !whole_object_fully_looted {
-            if let Some(values_update) = forced_values_update.as_ref() {
-                self.send_creature_loot_release_dynamic_flags_update_like_cpp(
-                    owner_guid,
-                    values_update,
-                    authoritative_release
-                        .as_ref()
-                        .map(|release| &release.authority),
-                );
-            }
-            if authoritative_release.is_some() {
-                self.loot
-                    .discard_represented_personal_loot_cache_for_player_like_cpp(
-                        owner_guid,
-                        player_guid,
-                    );
-            }
-            return true;
-        }
-
-        let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
-
-        // Start corpse despawn timer if fully looted.
-        let whole_object_fully_skinned = authoritative_release.as_ref().map_or(
-            represented_loot_type == LOOT_TYPE_SKINNING_LIKE_CPP,
-            |release| release.whole_object_fully_skinned,
-        );
-        let apply_lifecycle = |creature: &mut crate::map_manager::WorldCreature| {
-            creature.remove_lootable_dynamic_flag_like_cpp();
-            let marked = if !creature.is_alive() {
-                let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
-                    whole_object_fully_skinned,
-                    creature.corpse_delay_secs_like_cpp(),
-                    creature.ignore_corpse_decay_ratio_like_cpp(),
-                    corpse_decay_looted_rate,
-                );
-                if !creature.all_loot_removed_from_corpse_like_cpp(
-                    corpse_decay_looted_rate,
-                    whole_object_fully_skinned,
-                ) {
-                    // C++ returns without resetting an already-expired
-                    // corpse. The lifecycle mirror must remain expired too.
-                    None
-                } else {
-                    Some((creature.entry(), corpse_decay_secs))
-                }
-            } else {
-                None
-            };
-            (marked, creature.creature.unit().values_update())
-        };
-        let lifecycle_update = if let Some(release) = authoritative_release.as_ref() {
-            let (s, mut h) = crate::session::split_loot_mut(self);
-            s.mutate_world_creature_if_fully_looted_observation_like_cpp(
-                &mut h,
-                owner_guid,
-                &release.authority,
-                release.object_generation,
-                release.lifecycle_revision,
-                apply_lifecycle,
-            )
-        } else {
-            self.core.mutate_world_creature(owner_guid, apply_lifecycle)
-        };
-
-        if let Some((_, values_update)) = lifecycle_update.as_ref() {
-            self.send_creature_loot_release_dynamic_flags_update_like_cpp(
-                owner_guid,
-                values_update,
-                authoritative_release
-                    .as_ref()
-                    .map(|release| &release.authority),
-            );
-        }
-        let marked = lifecycle_update.and_then(|(marked, _)| marked);
-
-        if let Some((entry, corpse_decay_secs)) = marked {
-            info!(
-                "Creature {:?} (entry {}) fully looted — despawning in {}s",
-                owner_guid, entry, corpse_decay_secs
-            );
-        }
-
-        if authoritative_release.is_some() {
-            self.loot
-                .discard_represented_personal_loot_cache_for_player_like_cpp(
-                    owner_guid,
-                    player_guid,
-                );
-        }
-
-        true
+        self.loot_release_cx_like_cpp()
+            .release_owner_like_cpp(owner_guid, player_guid)
+            .await
     }
 }
 

@@ -47,27 +47,6 @@ impl WorldSession {
         Some(())
     }
 
-    pub(in crate::handlers::loot) fn canonical_creature_fully_looted_after_represented_sync_like_cpp(
-        &mut self,
-        creature_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        fallback_fully_looted: bool,
-    ) -> bool {
-        if self
-            .sync_represented_creature_loot_to_canonical_like_cpp(creature_guid, player_guid)
-            .is_some()
-        {
-            return self
-                .core
-                .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
-                    creature.is_fully_looted_like_cpp()
-                })
-                .unwrap_or(fallback_fully_looted);
-        }
-
-        fallback_fully_looted
-    }
-
     pub(in crate::handlers::loot) async fn represented_ae_loot_creature_targets_like_cpp(
         &mut self,
         main_loot_target: ObjectGuid,
