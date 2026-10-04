@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `63b30b09d` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `c092a4811` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,13 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `c092a4811` (destroy de item looteado en App) se repitió el mismo
+conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.687 passed / 0 failed / 1 ignored**; `wow-world-application` 29/29; sin avisos
+nuevos de imports ni de código muerto. La rama ya trae F4a P4b (hub en `wow-world-core`) y
+los crates de dominio F4b; lo que queda de F4–F6 es F5 (handlers/orquestación) y F6.
 
 Sobre el checkpoint `63b30b09d` (refresco de cofre en App) se repitió el mismo conjunto:
 `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3793,9 +3800,13 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   `queue_chest_gameobject_state_refresh_for_same_map_like_cpp` en App, consumido por la
   fachada `LootCxRef` de World (la usan `session/world_entities/gameobject.rs` y
   `handlers/loot/sources/gameobject.rs`), retirando el constructor World
-  `chest_gameobject_state_refresh_command_like_cpp`. El módulo App todavía no tiene pruebas
-  propias (la cobertura la aportan hoy las 264 pruebas `handlers::loot` de `wow-world`, que
-  ahora ejercitan el camino App).
+  `chest_gameobject_state_refresh_command_like_cpp`. Se convergió además el destroy de item
+  directo totalmente looteado: `item_storage.rs::destroy_fully_looted_direct_item` construye
+  el Cx App y delega; se retiró la copia World de 108 líneas
+  `destroy_direct_item_count_after_loot_release_like_cpp` y su helper libre
+  `direct_item_count_after_loot_release_like_cpp` (ahora `pub` en App para la prueba de la
+  aritmética). El módulo App todavía no tiene pruebas propias (la cobertura la aportan hoy
+  las 264 pruebas `handlers::loot` de `wow-world`, que ahora ejercitan el camino App).
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
   completions en `quest/objectives.rs`) tiene consumidor World completo: ActivateToQuest,
   DynamicFlags y el refresh `update_visible_gameobjects_like_cpp` (que además usa
