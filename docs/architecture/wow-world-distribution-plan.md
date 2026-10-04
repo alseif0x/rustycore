@@ -4384,6 +4384,33 @@ si el delta lo exige, y la campaña `final --base origin/3.4.3 --architecture`, 
 sabe que supera los 600 s. Después, el alcance funcional F4–F6. Sin capturas, live, push ni
 cierre.
 
+#### CompleteQuest: paridad de la guarda de posesión — 2026-10-04, checkpoint `1f5df8f81`
+
+Se corrigió la divergencia que el corte anterior dejó explícita. C++
+`HandleQuestgiverCompleteQuest`
+(`/home/server/woltk-trinity-legacy/src/server/game/Handlers/QuestHandler.cpp:559`) solo
+rechaza cuando `!CanSeeStartQuest(quest) && GetQuestStatus(id) == QUEST_STATUS_NONE`; el
+handler usaba `!has_quest(quest_id)`, que exigía una entrada de estado y descartaba una quest
+visible pero nunca aceptada (C++ la responde con el diálogo de request-items a través de
+`CanRewardQuest`/`CanCompleteRepeatableQuest`).
+
+- `Player::CanSeeStartQuest` (`Player.cpp:14073-14085`) ya existía como método privado del
+  `QuestEligibilityCx` de Application; pasa a `pub` porque lo consume la guarda de completado.
+- La fachada World de elegibilidad gana `can_see_start_quest_represented_bounded_like_cpp` y un
+  constructor compartido `with_quest_eligibility_cx_like_cpp` que `can_take_quest` también usa:
+  el acceso canónico al Player, el estado de quest y la proyección de condiciones se construyen
+  una vez, no por consulta.
+
+Pruebas: `scenarios_quest_2` 10/10 con dos regresiones nuevas (visible sin estado publica
+`QuestGiverRequestItems`; invisible y no poseída no publica nada). Suite completa
+`wow-world --lib --features test-fixtures`: **3634 ok / 0 fallos / 1 ignorado**. El baseline de
+session-ownership registra los dos nuevos ítems de impl (3.180 → 3.182); accesos de registro,
+bridges y el resto de secciones sin cambios, y `check --syntax-only` sigue **PASS**;
+`check_architecture.py check` exit 0 y la suite del checker 443/0. Sin capturas, live ni `final`.
+
+Quedan de CompleteQuest los seams acotados de `CanRewardQuest`/`CanCompleteRepeatableQuest`
+(hoy en World, documentados como proyección parcial) y la publicación de paquetes de diálogo.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
