@@ -1,9 +1,10 @@
 //! World-session spell state and its application-owned operations.
 
 pub mod aura_effects;
+pub mod melee_damage;
 mod records;
 mod state;
-mod player_cast;
+pub mod player_cast;
 mod session;
 mod spell_cast_adapter;
 mod spell_acquisition;
