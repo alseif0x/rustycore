@@ -162,12 +162,32 @@ fn exact_cfg_fixture(attribute: &syn::Attribute) -> bool {
     let Ok(inner) = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(any.tokens.clone()) else {
         return false;
     };
-    inner.len() == 2
-        && matches!(inner.first(), Some(Meta::Path(path)) if path.is_ident("test"))
-        && matches!(inner.iter().nth(1), Some(Meta::NameValue(value)
-            if value.path.is_ident("feature")
-                && matches!(&value.value, Expr::Lit(literal)
-                    if matches!(&literal.lit, syn::Lit::Str(feature) if feature.value() == "test-fixtures"))))
+    // Only the canonical `#[cfg(any(test, feature = "test-fixtures"))]` shape is
+    // accepted. Written with early returns rather than nested `matches!` guards
+    // because rustc 1.98 rejects a guard-bearing `matches!` inside another guard
+    // (E0658 "guard patterns are experimental"); the accepted set is identical.
+    if inner.len() != 2 {
+        return false;
+    }
+    let Some(Meta::Path(path)) = inner.first() else {
+        return false;
+    };
+    if !path.is_ident("test") {
+        return false;
+    }
+    let Some(Meta::NameValue(value)) = inner.iter().nth(1) else {
+        return false;
+    };
+    if !value.path.is_ident("feature") {
+        return false;
+    }
+    let Expr::Lit(literal) = &value.value else {
+        return false;
+    };
+    let syn::Lit::Str(feature) = &literal.lit else {
+        return false;
+    };
+    feature.value() == "test-fixtures"
 }
 
 fn builder_mut_ref(expression: &Expr) -> bool {
@@ -566,7 +586,7 @@ fn exact_facade_tree(tree: &UseTree, child: &str, expected_exports: &[&str]) -> 
     if path.ident != child {
         return false;
     }
-    let actual_names: Vec<String> = match &path.tree {
+    let actual_names: Vec<String> = match &*path.tree {
         UseTree::Name(name) if expected_exports.len() == 1 => vec![name.ident.to_string()],
         UseTree::Group(group) => {
             let Some(names): Option<Vec<_>> = group

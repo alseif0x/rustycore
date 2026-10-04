@@ -500,7 +500,7 @@ fn where_type_name(predicate: &syn::PredicateType, expected: &str) -> bool {
 fn trait_bound_name(bound: &TypeParamBound, expected: &str) -> bool {
     matches!(bound, TypeParamBound::Trait(bound)
         if bound.paren_token.is_none()
-            && bound.modifier == syn::TraitBoundModifier::None
+            && matches!(&bound.modifier, syn::TraitBoundModifier::None)
             && bound.lifetimes.is_none()
             && bound.path.leading_colon.is_none()
             && bound.path.segments.len() == 1
@@ -512,7 +512,7 @@ fn is_host_trait_bound(bound: &TypeParamBound, host_trait: &str) -> bool {
         return false;
     };
     if bound.paren_token.is_some()
-        || bound.modifier != syn::TraitBoundModifier::None
+        || !matches!(&bound.modifier, syn::TraitBoundModifier::None)
         || bound.lifetimes.is_some()
         || bound.path.leading_colon.is_some()
         || bound.path.segments.len() != 1

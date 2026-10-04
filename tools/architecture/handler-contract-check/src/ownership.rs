@@ -1608,6 +1608,7 @@ pub(crate) fn audit_package_source_graph(
 
 /// One physical source and all of its logical production/test mount contexts
 /// in a Cargo workspace package.
+#[derive(Clone)]
 pub(crate) struct WorkspaceSourceMount {
     pub(crate) package: String,
     pub(crate) source_path: PathBuf,
