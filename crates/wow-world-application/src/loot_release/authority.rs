@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use wow_loot::rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp;
 
 impl LootReleaseCxLikeCpp<'_> {
-    fn canonical_creature_fully_looted_after_represented_sync_like_cpp(
+    pub(super) fn canonical_creature_fully_looted_after_represented_sync_like_cpp(
         &mut self, guid: ObjectGuid, player_guid: ObjectGuid, fallback_fully_looted: bool,
     ) -> bool {
         if self.sync_represented_creature_loot_to_canonical_like_cpp(guid, player_guid).is_some() {
@@ -16,7 +16,7 @@ impl LootReleaseCxLikeCpp<'_> {
         fallback_fully_looted
     }
 
-    fn canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
+    pub(super) fn canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
         &mut self, guid: ObjectGuid, player_guid: ObjectGuid, fallback_fully_looted: bool,
     ) -> bool {
         if self.sync_represented_gameobject_loot_to_canonical_like_cpp(guid, player_guid).is_some() {
@@ -38,7 +38,7 @@ impl LootReleaseCxLikeCpp<'_> {
         let canonical = self.owner.next_canonical_loot_object_guid_like_cpp(owner);
         if self.consumer_test {
             canonical.or_else(|| (!owner.is_empty()).then(|| ObjectGuid::create_world_object(
-                wow_core::HighGuid::LootObject, 0, owner.realm_id(), owner.map_id(), 0, 0, owner.counter(),
+                wow_core::guid::HighGuid::LootObject, 0, owner.realm_id(), owner.map_id(), 0, 0, owner.counter(),
             )))
         } else {
             canonical

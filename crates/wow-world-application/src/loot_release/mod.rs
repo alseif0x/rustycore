@@ -7,7 +7,7 @@ use wow_core::ObjectGuid;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP};
 use wow_entities::ItemObjectUpdateLikeCpp;
-use wow_loot::{CreatureLoot, OwnedLootAuthority};
+use wow_loot::{CreatureLoot, OwnedLootAuthority, loot_is_looted_like_cpp};
 use wow_entities::{GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_GATHERING_NODE};
 
 #[derive(Clone)]

@@ -163,7 +163,7 @@ impl WorldEntitiesState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wow_core::HighGuid;
+    use wow_core::guid::HighGuid;
 
     #[test]
     fn creature_aura_publication_uses_retained_base_provenance_like_cpp() {
