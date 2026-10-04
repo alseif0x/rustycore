@@ -2841,6 +2841,19 @@ fuente favorable; sin ejecución ni paridad nueva. El siguiente corte asignado
 es publicación completa de campos de item y slots de container, conservando
 lectores FULL, masks y Map tardío; publicación de posiciones/stats sigue aparte.
 
+Ese grupo de publicación ya está conectado por fuente en Inventory
+`publication.rs`/`storage_bags.rs`, con lectores y canal Core seleccionados.
+Las fachadas Hub comparten el mismo cuerpo y World relocation/dynamic y
+real-swap usan los proveedores finitos; child → old-bag → new-bag conserva
+su orden. Los publishers Core consultan MapID al final y usan `send_packet`
+como el original. Tres casos escritos en `scenarios_player_items_2/item_publication.rs`
+construyen masks/bytes esperados, cambian MapID entre envíos, verifican clear
+del slot viejo y children frescos, y rechazan owner stale sin fallback ni
+paquetes. Revisión por fuente favorable, sin ejecución. El siguiente corte
+asignado es PositionPublication: sort/dedup → bolsas inmediatas → lecturas
+top-level frescas → Player VALUES → Stats completo, con vista de bolsa canónica
+que conserva su accessor actual (no strict-owned ni fallback nuevo).
+
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
 y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
