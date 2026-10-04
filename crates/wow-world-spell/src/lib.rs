@@ -2,6 +2,7 @@
 
 pub mod aura_effects;
 pub mod melee_damage;
+pub mod melee_rules;
 mod records;
 mod state;
 pub mod player_cast;

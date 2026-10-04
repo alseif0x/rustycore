@@ -1,12 +1,15 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! World adapters for melee RNG, packet presentation and aura mitigation.
+//! Melee RNG, packet presentation and aura mitigation adapters over the
+//! pure `wow-combat` attack table.
+//!
+//! Session-independent: moved out of `wow-world` under #1263 F5.
 //!
 //! Pure attack-table arithmetic lives in `wow-combat`; these adapters retain
 //! the original random-draw call, packet mapping and aura/catalog dependencies.
 
-pub(crate) use wow_combat::{
+pub use wow_combat::{
     CREATURE_BLOCK_PERCENT_LIKE_CPP, MELEE_OUTCOME_ROLL_MAX_LIKE_CPP,
     RepresentedMeleeAttackerFactsLikeCpp, RepresentedMeleeOutcomeInputsLikeCpp,
     RepresentedMeleeOutcomeLikeCpp, RepresentedMeleeVictimFactsLikeCpp,
@@ -16,7 +19,7 @@ pub(crate) use wow_combat::{
 
 /// C++ `urand(0, 9999)` then [`melee_outcome_like_cpp`]; the owners call this
 /// once per landed swing, never for a timer that is not ready.
-pub(crate) fn rolled_melee_outcome_like_cpp(
+pub fn rolled_melee_outcome_like_cpp(
     inputs: &RepresentedMeleeOutcomeInputsLikeCpp,
 ) -> RepresentedMeleeOutcomeLikeCpp {
     let roll = i32::try_from(wow_core::urand_like_cpp(0, MELEE_OUTCOME_ROLL_MAX_LIKE_CPP))
@@ -28,7 +31,7 @@ pub(crate) fn rolled_melee_outcome_like_cpp(
 /// (`UnitDefines.h:440-465`, `Unit.h:45-55`), including the `HITINFO_OFFHAND`
 /// the offhand branch sets before the table and the `HITINFO_AFFECTS_VICTIM`
 /// C++ adds to every non-miss outcome.
-pub(crate) fn melee_outcome_presentation_like_cpp(
+pub fn melee_outcome_presentation_like_cpp(
     outcome: RepresentedMeleeOutcomeLikeCpp,
     offhand: bool,
 ) -> (u32, u8) {
@@ -96,14 +99,14 @@ pub(crate) fn melee_outcome_presentation_like_cpp(
 /// white swing, already resolved from the victim's and attacker's auras by the
 /// swing owner.
 #[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedMeleeDamageTakenLikeCpp {
+pub struct RepresentedMeleeDamageTakenLikeCpp {
     pub flat: i32,
     pub pct: f32,
 }
 
 impl RepresentedMeleeDamageTakenLikeCpp {
     /// No represented taken modifiers: the damage passes through unchanged.
-    pub(crate) const NONE: Self = Self { flat: 0, pct: 1.0 };
+    pub const NONE: Self = Self { flat: 0, pct: 1.0 };
 }
 
 /// C++ `Unit::MeleeDamageBonusTaken` for `spellProto == null` and a melee attack
@@ -118,8 +121,8 @@ impl RepresentedMeleeDamageTakenLikeCpp {
 /// school. Boundaries: the fixed cheat-death aura (45182), the ranged variants
 /// and every `spellProto` branch cannot apply to a represented white swing; the
 /// versatility term is commented out in the 3.4.3 source itself.
-pub(crate) fn melee_damage_taken_flat_pct_like_cpp(
-    victim_effects: &[crate::session_rules::AppliedAuraEffectLikeCpp],
+pub fn melee_damage_taken_flat_pct_like_cpp(
+    victim_effects: &[crate::aura_effects::AppliedAuraEffectLikeCpp],
     attacker_ignore_resist: &[(i32, i32)],
     attacker_guid: wow_core::ObjectGuid,
     school_mask: i32,
@@ -188,7 +191,7 @@ pub(crate) fn melee_damage_taken_flat_pct_like_cpp(
 /// benefit is added, the total modifier multiplies and the result truncates at
 /// zero. C++ returns zero before the arithmetic when the flat benefit is
 /// negative enough to absorb the whole hit.
-pub(crate) fn melee_damage_taken_apply_like_cpp(
+pub fn melee_damage_taken_apply_like_cpp(
     taken: RepresentedMeleeDamageTakenLikeCpp,
     damage: u32,
 ) -> u32 {
@@ -210,8 +213,8 @@ pub(crate) fn melee_damage_taken_apply_like_cpp(
 /// pair, so C++'s `std::sort` leaves equal-rank shields in an unspecified order;
 /// this rank reproduces the named order and keeps equal ranks in the caller's
 /// deterministic slot order.
-pub(crate) fn represented_absorb_priority_like_cpp(
-    shield: &crate::session_rules::RepresentedAbsorbShieldLikeCpp,
+pub fn represented_absorb_priority_like_cpp(
+    shield: &crate::aura_effects::RepresentedAbsorbShieldLikeCpp,
 ) -> u8 {
     // Lowest spends first.
     if shield.spell_id == 28527 {
@@ -234,7 +237,7 @@ pub(crate) fn represented_absorb_priority_like_cpp(
 
 /// One shield's depletion, applied by the canonical aura owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedAbsorbConsumptionLikeCpp {
+pub struct RepresentedAbsorbConsumptionLikeCpp {
     pub slot: u8,
     pub effect_index: u8,
     /// C++ `currentAbsorb`, after the `[0, damage]` clamp.
@@ -247,7 +250,7 @@ pub(crate) struct RepresentedAbsorbConsumptionLikeCpp {
 
 /// C++ `Unit::CalcAbsorbResist`'s school-absorb result for one hit.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct RepresentedMeleeAbsorbLikeCpp {
+pub struct RepresentedMeleeAbsorbLikeCpp {
     /// C++ `DamageInfo::GetAbsorb()`.
     pub absorbed: u32,
     /// C++ `DamageInfo::GetDamage()` after the shields were spent.
@@ -275,8 +278,8 @@ pub(crate) struct RepresentedMeleeAbsorbLikeCpp {
 /// (`Unit.cpp:1803-1811`): the attacker's
 /// `GetMaxPositiveAuraModifierByMiscMask(SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL,
 /// schoolMask)` clamped to `[0, 100]`.
-pub(crate) fn represented_melee_ignore_absorb_like_cpp(
-    attacker_effects: &[crate::session_rules::AppliedAuraEffectLikeCpp],
+pub fn represented_melee_ignore_absorb_like_cpp(
+    attacker_effects: &[crate::aura_effects::AppliedAuraEffectLikeCpp],
     school_mask: u32,
 ) -> f32 {
     attacker_effects
@@ -292,15 +295,15 @@ pub(crate) fn represented_melee_ignore_absorb_like_cpp(
 
 /// C++ `CalculatePct(damage, auraAbsorbMod)`: the damage portion the attacker's
 /// ignore-absorb modifier removes from what a shield may take.
-pub(crate) fn represented_melee_ignored_absorb_amount_like_cpp(damage: u32, pct: f32) -> u32 {
+pub fn represented_melee_ignored_absorb_amount_like_cpp(damage: u32, pct: f32) -> u32 {
     if pct <= 0.0 {
         return 0;
     }
     ((damage as f32) * pct / 100.0) as u32
 }
 
-pub(crate) fn represented_melee_absorb_like_cpp(
-    shields: &[crate::session_rules::RepresentedAbsorbShieldLikeCpp],
+pub fn represented_melee_absorb_like_cpp(
+    shields: &[crate::aura_effects::RepresentedAbsorbShieldLikeCpp],
     damage: u32,
     ignore_absorb_pct: f32,
 ) -> RepresentedMeleeAbsorbLikeCpp {
@@ -313,7 +316,7 @@ pub(crate) fn represented_melee_absorb_like_cpp(
         return result;
     }
     let ignore = represented_melee_ignored_absorb_amount_like_cpp(damage, ignore_absorb_pct);
-    let mut ordered: Vec<&crate::session_rules::RepresentedAbsorbShieldLikeCpp> =
+    let mut ordered: Vec<&crate::aura_effects::RepresentedAbsorbShieldLikeCpp> =
         shields.iter().collect();
     ordered.sort_by_key(|shield| represented_absorb_priority_like_cpp(shield));
     let mut remaining_damage = damage;
@@ -361,7 +364,7 @@ pub(crate) fn represented_melee_absorb_like_cpp(
 
 /// One mana shield's depletion, applied by the canonical aura owner.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedManaShieldConsumptionLikeCpp {
+pub struct RepresentedManaShieldConsumptionLikeCpp {
     pub slot: u8,
     pub effect_index: u8,
     /// C++ `currentAbsorb` after the mana scaling: the damage the shield
@@ -375,7 +378,7 @@ pub(crate) struct RepresentedManaShieldConsumptionLikeCpp {
 
 /// C++ `Unit::CalcAbsorbResist`'s mana-shield result for one hit.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub(crate) struct RepresentedMeleeManaAbsorbLikeCpp {
+pub struct RepresentedMeleeManaAbsorbLikeCpp {
     /// C++ `DamageInfo::GetAbsorb()` after the mana scaling.
     pub absorbed: u32,
     /// C++ `DamageInfo::GetDamage()` after the shields were spent.
@@ -400,8 +403,8 @@ pub(crate) struct RepresentedMeleeManaAbsorbLikeCpp {
 /// `CalcValueMultiplier` stay unrepresented (`mana_multiplier` is the data
 /// amplitude alone), and a zero drain resolves to no absorb instead of C++'s
 /// `0 / 0` float division.
-pub(crate) fn represented_melee_mana_absorb_like_cpp(
-    shields: &[crate::session_rules::RepresentedManaShieldLikeCpp],
+pub fn represented_melee_mana_absorb_like_cpp(
+    shields: &[crate::aura_effects::RepresentedManaShieldLikeCpp],
     damage: u32,
     available_mana: u32,
     ignore_absorb_pct: f32,
@@ -480,7 +483,7 @@ pub(crate) fn represented_melee_mana_absorb_like_cpp(
 
 /// C++ `Unit::CalcHealAbsorb`'s result for one heal.
 #[derive(Debug, Clone, PartialEq, Default)]
-pub(crate) struct RepresentedHealAbsorbLikeCpp {
+pub struct RepresentedHealAbsorbLikeCpp {
     /// C++ `HealInfo::GetAbsorb()`.
     pub absorbed: u32,
     /// C++ `HealInfo::GetHeal()` after the shields were spent.
@@ -495,8 +498,8 @@ pub(crate) struct RepresentedHealAbsorbLikeCpp {
 /// amount-counting shield is depleted and removed at zero, and a negative
 /// (infinite) amount is clamped to zero and never removed. Unlike the damage
 /// absorb loop there is no priority sort and no ignore-absorb term in C++.
-pub(crate) fn represented_heal_absorb_like_cpp(
-    shields: &[crate::session_rules::RepresentedHealAbsorbShieldLikeCpp],
+pub fn represented_heal_absorb_like_cpp(
+    shields: &[crate::aura_effects::RepresentedHealAbsorbShieldLikeCpp],
     heal: u32,
 ) -> RepresentedHealAbsorbLikeCpp {
     let mut result = RepresentedHealAbsorbLikeCpp {

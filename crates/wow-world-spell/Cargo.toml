@@ -16,6 +16,7 @@ test-fixtures = [
 num-traits = { workspace = true }
 tracing = { workspace = true }
 wow-constants = { workspace = true }
+wow-combat = { workspace = true }
 wow-core = { workspace = true }
 wow-data = { workspace = true }
 wow-entities = { workspace = true }
