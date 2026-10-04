@@ -4344,6 +4344,46 @@ el inventario de persistencia del `check` completo, `check_architecture.py self-
 ledger R1 y la campaña `final`, que además ya se sabe que supera los 600 s. Sin `final`,
 capturas, live, push ni cierre.
 
+#### Gate de arquitectura Python en verde — 2026-10-04, checkpoint `6e9bd9c20`
+
+`python3 tools/architecture/check_architecture.py check` y `self-test` pasan con el modelo
+propio de la rama. Cada desviación se revisó, no se regeneró a ciegas:
+
+- **Ratchet físico**: los 7 ficheros se inspeccionaron en el commit que los hizo crecer y
+  `observed_lines`/`ceiling_lines` se sincronizaron con la nota de revisión en la propia fila:
+  declaraciones de módulo y sus reexportaciones en el root (`map_manager::corpse_load`,
+  `world-server::handler_registry`, los dos escenarios del checker), el campo del registro de
+  paquetes F5 en `SessionCoreCapabilitiesLikeCpp` y rewraps de rustfmt de las extracciones F4b
+  a setters con nombre.
+- **Políticas de dependencias**: `wow-handler` y `wow-world-application` son paquetes
+  protegidos, así que se declara su superficie externa (vacía en handler; `rand`/`tracing` en
+  application); las listas restringidas ganan las aristas internas que introdujeron las
+  extracciones F4/F5 (application → wow-loot/wow-progression, entities →
+  wow-ai/wow-persistence/wow-recastdetour, lifecycle → wow-movement/wow-world-visibility,
+  spell → wow-combat) y sus externals.
+- **Ledger de issues**: #1263 se registra como slice abierto bajo #584 y entra en la
+  secuencia; la sección humana `## Refactor sequence` de `ownership-and-boundaries.md`
+  coincide.
+- **Ledger de runtime ownership**: world-server (+50 producción/+15 test/+65 total) y Player de
+  wow-entities (+4 producción) se sincronizan con una revisión de crecimiento del mismo
+  programa de extracción.
+- **Handler module policy schema 2**: el self-test Python acepta varias rutas por capability,
+  rechaza rutas duplicadas y sigue prohibiendo solapamientos dentro de un paquete.
+- **Clasificador de hotspots**: cuenta todos los delimitadores, no solo llaves; un
+  `#[cfg(...)]` sobre un parámetro de función se leía como ítem de test de nivel superior y
+  abortaba ocho ficheros movidos.
+
+Evidencia al mismo árbol: `cargo test --release … handler-contract-check` **443 ok / 0 fallos**;
+`check --syntax-only` **PASS**; `check_architecture.py check` **exit 0**; `self-test` **exit 0**
+(20 fixtures, 14 rechazos de deuda, 9 de runtime ownership, 3 aserciones físicas/lógicas, 4
+rechazos del ratchet de hotspots, 6 rechazos de handler-module-policy).
+
+**Pendiente de aceptación**: el `check` completo del inventario de persistencia (la parte
+lenta), la coherencia con `persistence-access-snapshot.json`/`persistence-boundary-policy.json`
+si el delta lo exige, y la campaña `final --base origin/3.4.3 --architecture`, que además ya se
+sabe que supera los 600 s. Después, el alcance funcional F4–F6. Sin capturas, live, push ni
+cierre.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
