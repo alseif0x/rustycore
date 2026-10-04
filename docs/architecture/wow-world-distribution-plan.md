@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `ababcd7f7` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `885b80731` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3717,11 +3717,13 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
 
-Sobre el checkpoint `ababcd7f7` (traslado de geometría + montaje de LootRelease) la
+Sobre el checkpoint `885b80731` (delegación del release de botín en el Cx App) la
 verificación del implementador fue: `cargo check --workspace --all-targets` verde,
 `cargo check -p wow-world-application --all-targets` verde (incluye cfg(test)/fixtures),
-`cargo test -p wow-world-application` 29/29 y `cargo test -p wow-world --lib -- handlers::loot`
-264/264. No se repitió la suite completa de `wow-world` en esta ronda.
+`cargo test -p wow-world --lib` **3.685 passed / 0 failed / 1 ignored** (idéntico al
+baseline, sin pérdida de escenarios), `cargo test -p wow-world --lib -- handlers::loot`
+264/264 y `cargo test -p wow-world-application` 29/29. No se repitieron otras suites ni
+configuraciones de features en esta ronda.
 
 RawEquip (F5) está conectado por fuente y validado de forma acotada:
 `RegistrySyncInputs` inerte en Core presta los vitals de Stats al final; `InventoryEquipCxLikeCpp`
@@ -3735,35 +3737,40 @@ fixture en vez del Player canónico por GUID (`session/catalogs/operations.rs`,
 Barreras explícitas que siguen abiertas, sin declarar cierre:
 
 - **LootRelease**: `crates/wow-world-application/src/loot_release/` está montado
-  (`mod loot_release;`) y todo el contexto compila, incluidos sus caminos `cfg(test)` y
-  `test-fixtures` (`cargo check -p wow-world-application --all-targets`: verde). Para ello:
-  la geometría compartida `represented_gameobject_interaction_distance_like_cpp` y
-  `represented_gameobject_display_box_contains_like_cpp` vive ahora en
-  `wow-world-entities` (con reexport en `handlers::loot` para sus consumidores y pruebas
-  existentes); el Cx App recibe `quest_state`, `social`, `spell_state` (cfg) y
-  `SessionFixtures` (cfg) y construye `HubRef` inerte por `owner.core_ref_like_cpp()`
-  reutilizando `catalogs`/`config` de `LootReleaseStatsInputsLikeCpp`; se implementaron
+  (`mod loot_release;`) y **tiene consumidor World**. `WorldSession::loot_release_cx_like_cpp`
+  construye el Cx con préstamos disjuntos; `do_loot_release_all_like_cpp` y
+  `do_loot_release_owner_like_cpp` (entrada de `requests.rs`, `persistence.rs`, cleanup,
+  finalization, swaps y spell ops) delegan en `release_all_like_cpp`/`release_owner_like_cpp`
+  de App. Para llegar ahí: la geometría compartida
+  `represented_gameobject_interaction_distance_like_cpp` y
+  `represented_gameobject_display_box_contains_like_cpp` vive en `wow-world-entities` (con
+  reexport en `handlers::loot` para consumidores y pruebas existentes); el Cx recibe
+  `quest_state`, `social`, `spell_state` (cfg) y `SessionFixtures` **mutable** (cfg) y
+  construye `HubRef` inerte por `owner.core_ref_like_cpp()` reutilizando `catalogs`/`config`
+  de `LootReleaseStatsInputsLikeCpp`; se implementaron
   `represented_gameobject_can_autostore_loot_item_like_cpp` (posición canónica/representada,
   display box, rango de spell-lock con known-spells y fallback de fixture) y
   `send_gathering_node_loot_release_dynamic_flags_update_like_cpp` (proyección
   `ViewerDependentValue<ObjectData::DynamicFlagsTag>` con `QuestEligibilityCx` y condición
-  construidas bajo demanda). Queda pendiente el consumidor: la fachada World que construye
-  el Cx, delega `handlers::loot` en él y aporta sus pruebas. El módulo aún no tiene tests
-  propios ni aceptación.
-- **Hallazgo de diseño para el consumidor de LootRelease** (descubierto al planificar la
-  fachada World, aún sin implementar): el Cx App no es construible tal cual desde
-  `&mut WorldSession`. `LootReleaseStatsInputsLikeCpp` guarda `StatsFixtureRefs` con
-  referencias `&mut` a `fixtures.combat.{player_health,max_health,alive}` y a las auras de
-  stats, mientras `registry_fixtures` y las refs de condición vuelven a pedir esos mismos
-  campos (health/max_health/alive, `visible_auras`, autoridad de aura, tombstone, threat
-  snapshots) y `fixtures: &SessionFixtures` los cubre todos: préstamos mutables e
-  inmutables del mismo campo no pueden coexistir en el struct. Resolución canónica
-  propuesta: que el Cx derive de `stats_inputs` los refs solapados (exponer
-  `health_refs_like_cpp` y los refs de aura de stats, hoy `pub(crate)` en Core) y reciba
-  del adaptador World solo un paquete inerte de refs **no solapadas** (identidad,
-  progresión, movimiento, vehículos, PvP, `in_combat`, skill records), retirando
-  `fixtures: &SessionFixtures` y los campos de stats duplicados de
-  `LootReleaseRegistryFixtureRefsLikeCpp`. No se ha cambiado nada de eso todavía.
+  construidas bajo demanda).
+- **Resolución del solapamiento de fixtures** (el Cx no era construible con el diseño previo):
+  `LootReleaseStatsInputsLikeCpp` ya no guarda `StatsFixtureRefs` con `&mut`; conserva solo
+  catálogos/config y `stats_like_cpp` recibe race/class/level y el `StatsFixtureRefs`
+  reborrow en la llamada. Así `SessionFixtures` queda como **un único dueño mutable** en el
+  Cx, que sirve a la vez la pasada de stats (`send_stat_update`), la proyección de condición
+  y `sync_player_registry_state_like_cpp` (que ahora lee `self.fixtures` directamente y ya no
+  necesita `LootReleaseRegistryFixtureRefsLikeCpp`, tipo retirado). Se eliminaron también las
+  copias World ya sin uso `canonical_creature_fully_looted_after_represented_sync_like_cpp`,
+  `canonical_gameobject_fully_looted_after_represented_sync_like_cpp` (WorldSession) y
+  `LootCx::canonical_gameobject_is_fully_looted_like_cpp`.
+- **Pendiente de LootRelease**: el camino de persistencia/crédito diferido
+  (`handlers/loot/persistence.rs`) sigue usando los helpers gameobject de World
+  (`apply_represented_gameobject_loot_release_like_cpp`, `hide_...`,
+  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp`) y las compuertas
+  `represented_gameobject_can_autostore_loot_item_like_cpp`/`spell_lock_range`; su
+  convergencia al mismo Cx y la retirada de esas copias es F6. El módulo App todavía no
+  tiene pruebas propias (la cobertura la aportan hoy las 264 pruebas `handlers::loot` de
+  `wow-world`, que ahora ejercitan el camino App).
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
   completions en `quest/objectives.rs`) ya tiene consumidor World: tanto ActivateToQuest como
   DynamicFlags delegan en el proveedor App; World conserva sus `has_quest`/`is_for_quests`
