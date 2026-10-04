@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `52bea68cb` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `9b7be3f9e` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `9b7be3f9e` (contratos de entrega de botín en wow-world-lifecycle) se
+repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
+límite ampliado), `wow-world --all-targets` (con y sin `test-fixtures`),
+`wow-world-lifecycle --all-targets --features test-fixtures` y
+`wow-world-application --all-targets` verdes; `cargo test -p wow-world --lib` **3.632 passed /
+0 failed / 1 ignored**; `wow-world-lifecycle --features test-fixtures` 14/14;
+`wow-world-application` 52/52; sin líneas de aviso nuevas respecto del baseline.
 
 Sobre el checkpoint `52bea68cb` (aprendizaje por efecto en App + limpieza del prelude) se
 repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
@@ -4102,6 +4110,14 @@ Con la característica activada ambas suites pasan (`wow-world-spell` 3/3, `wow-
 workspace/`final`, donde las características se unifican); una ejecución por paquete sin la
 característica no es una configuración soportada de estos crates.
 
+- los contratos de entrega de botín duradero (`session/loot_delivery_contracts.rs`, 80
+  líneas: `LootMoneyViewerFanoutLikeCpp`, la dirección de entrega
+  `LootMoneyDeliveryAddressLikeCpp` y `loot_money_durable_outcome_like_cpp`) pasaron a
+  `wow-world-lifecycle/src/loot_delivery_contracts.rs`, junto a los contratos de ítem/botín
+  duradero que ya reexportaba; las dependencias se reapuntaron a Core (`PlayerRegistry`,
+  `PlayerRegistration`, `SessionCommand`), `wow-core`, `wow-loot` y `wow-entities`, y los tres
+  tipos que quedaron solo para pruebas se reexportan desde `session/mod.rs` bajo `#[cfg(test)]`
+  (solo `LootStoreKind` resultó necesario);
 - el ejecutor genérico de aprendizaje por efecto
   (`spell_acquisition/effect_learning.rs`, 337 líneas: trait `EffectLearningRuntimeLikeCpp`,
   `execute_effect_learning_like_cpp`, aprendizaje base y fallback) pasó a
