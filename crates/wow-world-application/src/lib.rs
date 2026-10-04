@@ -75,6 +75,8 @@ pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSou
 pub use quest::{
     represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,
+    represented_gameobject_is_for_quests_like_cpp,
+    represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp,
 };
 pub use quest::add_currency_quest_reward_like_cpp;

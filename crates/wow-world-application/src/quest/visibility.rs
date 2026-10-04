@@ -366,7 +366,7 @@ pub fn represented_can_see_spell_click_on_like_cpp(
     Outcome::Hidden
 }
 
-pub(crate) fn represented_has_quest_for_gameobject_like_cpp(
+pub fn represented_has_quest_for_gameobject_like_cpp(
     owner: &QuestObjectiveAccessLikeCpp<'_>,
     catalogs: &SessionCatalogs,
     quest_state: &SessionQuestState,
@@ -410,7 +410,7 @@ pub(crate) fn represented_has_quest_for_gameobject_like_cpp(
     })
 }
 
-pub(crate) fn represented_gameobject_is_for_quests_like_cpp(
+pub fn represented_gameobject_is_for_quests_like_cpp(
     catalogs: &SessionCatalogs,
     owner: &QuestObjectiveAccessLikeCpp<'_>,
     quest_state: &SessionQuestState,
