@@ -2875,6 +2875,17 @@ Ese contraste queda pendiente de F6; F5 no introduce silenciosamente correo ni
 declara paridad por trasladar el executor. Child también conserva la búsqueda
 nativa del snapshot completo y sus consultas tardías de desplazamiento.
 
+El mapa source-only de child/offhand identifica StorageMove completo en
+`handlers/character/items.rs:171–635` como dependencia, incluso con
+`QuestChecks::None`: conserva conteos frescos y obtain-spells async. El siguiente
+corte asignado es la relocalización committed completa de
+`session/player_items/persistence.rs:15–129` hacia
+`inventory_swap/relocation.rs`, con participantes seleccionados y una operación
+Core finita final. Debe conservar escrituras independientes, snapshots completos,
+children en orden nativo y GUID tardío; sus callers mantienen el rollback temporal
+del redirect. Este corte está asignado, no entregado ni validado. RawEquip,
+StorageMove y child/offhand completos siguen pendientes dentro de F5.
+
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
 y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
