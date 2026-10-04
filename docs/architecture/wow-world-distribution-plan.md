@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `885b80731` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `3fa0a9816` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3717,13 +3717,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
 
-Sobre el checkpoint `885b80731` (delegación del release de botín en el Cx App) la
+Sobre el checkpoint `3fa0a9816` (convergencia del cierre diferido de LootRelease) la
 verificación del implementador fue: `cargo check --workspace --all-targets` verde,
-`cargo check -p wow-world-application --all-targets` verde (incluye cfg(test)/fixtures),
-`cargo test -p wow-world --lib` **3.685 passed / 0 failed / 1 ignored** (idéntico al
-baseline, sin pérdida de escenarios), `cargo test -p wow-world --lib -- handlers::loot`
-264/264 y `cargo test -p wow-world-application` 29/29. No se repitieron otras suites ni
-configuraciones de features en esta ronda.
+`cargo check -p wow-world --all-targets` y `--all-targets --features test-fixtures` verdes,
+`cargo check -p wow-world-application --all-targets` verde, `cargo test -p wow-world --lib`
+**3.685 passed / 0 failed / 1 ignored** (idéntico al baseline), `handlers::loot` 264/264 y
+`cargo test -p wow-world-application` 29/29. Sin avisos nuevos de imports sin usar ni de
+código muerto respecto del baseline (comparación de conjuntos de nombres). No se repitieron
+otras suites ni la campaña `final`.
 
 RawEquip (F5) está conectado por fuente y validado de forma acotada:
 `RegistrySyncInputs` inerte en Core presta los vitals de Stats al final; `InventoryEquipCxLikeCpp`
@@ -3763,12 +3764,20 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   copias World ya sin uso `canonical_creature_fully_looted_after_represented_sync_like_cpp`,
   `canonical_gameobject_fully_looted_after_represented_sync_like_cpp` (WorldSession) y
   `LootCx::canonical_gameobject_is_fully_looted_like_cpp`.
-- **Pendiente de LootRelease**: el camino de persistencia/crédito diferido
-  (`handlers/loot/persistence.rs`) sigue usando los helpers gameobject de World
-  (`apply_represented_gameobject_loot_release_like_cpp`, `hide_...`,
-  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp`) y las compuertas
-  `represented_gameobject_can_autostore_loot_item_like_cpp`/`spell_lock_range`; su
-  convergencia al mismo Cx y la retirada de esas copias es F6. El módulo App todavía no
+- **Pendiente de LootRelease**: ya **no** queda copia World del release ni del cierre
+  diferido. `finalize_unviewed_durable_loot_owner_like_cpp` (`handlers/loot/persistence.rs`)
+  delega en el nuevo `LootReleaseCxLikeCpp::release_detached_owner_like_cpp`, que reinserta
+  el snapshot comprometido en la caché y corre las mismas transiciones bajo la observación
+  *unviewed* (`set_canonical_gameobject_loot_state_if_unviewed_...`, la nueva
+  `LootReleaseOwnerAccessLikeCpp::finish_unviewed_looted_creature_like_cpp` —que comparte el
+  cierre de ciclo de vida con la variante *viewed*— y la compuerta de corpse ya existente en
+  Core). Se retiraron las copias World `apply_represented_gameobject_loot_release_like_cpp`,
+  `hide_...`, `send_gathering_node_...`, `send_creature_loot_release_dynamic_flags_update_...`,
+  `remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_...` y el struct
+  `AuthoritativeLootReleaseLikeCpp`, con imports de test movidos a `#[cfg(test)]`.
+  Único duplicado que sobrevive: la compuerta `represented_gameobject_can_autostore_loot_item_like_cpp`
+  (+ su `spell_lock_range`) que consume `handlers/loot/handlers/item.rs` (opcode de autostore,
+  operación distinta del release); su convergencia es F6. El módulo App todavía no
   tiene pruebas propias (la cobertura la aportan hoy las 264 pruebas `handlers::loot` de
   `wow-world`, que ahora ejercitan el camino App).
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
