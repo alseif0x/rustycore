@@ -672,6 +672,25 @@ impl<'a> Resolver<'a> {
         let module = ModuleIdentity::new(&self.index.modules[node].package, &module);
         let mut targets = self.module_ids(&module);
         if targets.is_empty()
+            && !path
+                .first()
+                .is_some_and(|s| matches!(s.as_str(), "crate" | "self" | "super"))
+            && let Some(first) = path.first()
+            && let Some(package) = self.package_for_crate_root(first)
+        {
+            // `wow_world_spell::melee_damage` names a sibling workspace package's
+            // module, not a `crate::wow_world_spell` child. The index is keyed by
+            // package, so resolve the tail against that package's crate root. This
+            // is only reached when the current-package reading found nothing, so an
+            // existing resolution is never displaced.
+            let sibling_module = if path.len() == 1 {
+                "crate".to_owned()
+            } else {
+                format!("crate::{}", path[1..].join("::"))
+            };
+            targets = self.module_ids(&ModuleIdentity::new(package, &sibling_module));
+        }
+        if targets.is_empty()
             && path.first().is_some_and(|first| first == "wow_world_core")
             && !self.scopes[node]
                 .declarations
@@ -699,6 +718,19 @@ impl<'a> Resolver<'a> {
         targets.sort();
         targets.dedup();
         targets
+    }
+
+    /// The workspace package whose crate root is named `ident`.
+    ///
+    /// A path that starts with a dependency's crate name (`wow_world_spell::…`) is
+    /// absolute: its tail hangs off that package's crate root, not off the module
+    /// that wrote the path.
+    fn package_for_crate_root(&self, ident: &str) -> Option<&str> {
+        self.index
+            .modules
+            .iter()
+            .find(|module| module.module == "crate" && module.package.replace('-', "_") == ident)
+            .map(|module| module.package.as_str())
     }
 
     fn module_ids(&self, module: &ModuleIdentity) -> Vec<usize> {
