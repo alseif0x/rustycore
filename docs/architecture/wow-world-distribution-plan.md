@@ -4432,6 +4432,68 @@ baseline de session-ownership registra la reducción de deuda (3.182 → **3.162
 la suite del checker sigue 443/0. `wow-world/src` queda en 120.995 líneas (objetivo F5:
 20–40k, aún lejos). Sin capturas, live ni `final`.
 
+#### Estado real de las fases frente al checklist de #1263 — 2026-10-04
+
+El cuerpo de #1263 es anterior a buena parte de esta rama y marca como pendientes fases ya
+ejecutadas aquí. Estado verificado por inspección en este árbol:
+
+- **F4a P4b (hub a `wow-world-core`): hecho en esta rama.** `HubRef`, `HubMut`, `SessionCore`,
+  `SessionCatalogs`, `SessionWorldConfig` y `SessionFixtures` están definidos en
+  `crates/wow-world-core/src/session/state/{hub,session_core,catalogs,config,fixtures}.rs`, y
+  `wow-world` los reexporta desde `crate::session`. El checkpoint de la casilla en el issue está
+  desactualizado; su verificación de aceptación sigue siendo la de la fase.
+- **F4b (crates de dominio): hecho.** Existen y se componen
+  `wow-world-application`, `-entities`, `-instances`, `-interaction`, `-inventory`, `-lifecycle`,
+  `-loot`, `-social`, `-spell`, `-visibility` (más `-core`), con sus propias aristas en
+  `dependency-policy.json` y en el modelo de roles del checker.
+- **F5 (handlers y orquestación): en curso, con el contrato de registro ya resuelto.** Hay cuatro
+  registradores directos (`register_inventory_handlers_like_cpp`,
+  `register_instance_handlers_like_cpp`, `register_equipment_set_use_handler_like_cpp`,
+  `register_bank_handlers_like_cpp`) sobre traits host que `WorldSession` implementa, con
+  compositor de producción (`world-server/src/handler_registry.rs`) y dispatch de fixture
+  (`wow-world/src/session/registry.rs`) verificado por los contratos de composición. Quedan
+  **383** registros `register_packet_handler_like_cpp!` en `wow-world` por migrar a ese patrón,
+  más los eslabones bloqueados (raíces de cadena, ayudantes de sesión completa y thunks
+  diferidos) que el issue enumera.
+- **F6 (retirada de duplicados): iniciado** con el corte de 22 ítems de arriba. Los otros dos
+  candidatos automáticos de esta ronda se evaluaron y descartaron con motivo: el resto de avisos
+  de código muerto o bien lo usan las pruebas `cfg(test)` (p. ej. `prepare_player_save_like_cpp`,
+  los wrappers de `progression_adapters`), o bien lo referencia otro ítem muerto del mismo
+  fichero; y estrechar `RepresentedPlayerConditionContextLikeCpp::as_context` a la proyección en
+  lugar del `WorldSession` exige que la proyección viva más que el contexto devuelto, lo que
+  obliga a un binding local en sus 15 puntos de llamada: se evaluó, se revirtió y queda como
+  candidato con ese coste explícito.
+
+Con esto, el trabajo restante del programa es F5 (la palanca de tamaño) y F6 (pista de
+comportamiento), más la aceptación completa. Las casillas de #1263 deben releerse contra este
+estado antes de cerrar nada.
+
+#### Inventario de persistencia reconciliado — 2026-10-04, `check` completo en verde
+
+Primera ejecución del `check` **completo** (con el inventario exhaustivo de persistencia) en
+esta rama. Falló con 8 filas `composition` obsoletas y 8 sin registrar, todas en
+`world-server/src/app.rs::fn run_inner`.
+
+- `print-persistence-baseline` regeneró el snapshot: **9.939 → 9.939** filas, 0 añadidas, 0
+  retiradas, **8 modificadas** (`git diff --stat`: 8 inserciones / 8 borrados).
+- Revisión semántica de las 8 huellas: la única diferencia es el campo nuevo
+  `packet_handlers : Arc :: clone (& packet_handler_registry)` dentro de
+  `SessionCoreCapabilitiesLikeCpp`, es decir la composición del registro de paquetes de F5
+  (`bc9d6185a`). Nada más cambia en el literal de composición.
+- `print-persistence-policy --from-snapshot` produce un fichero **byte-idéntico** al
+  `persistence-boundary-policy.json` versionado, así que la proyección semántica no cambia y no
+  se tocó.
+- Tras sustituir el snapshot, el `check` completo **PASA**: 7.718 filas de persistencia de
+  producción + 2.221 de fixture (4 filas de entrada generada, subconjunto; 1.034 grupos
+  semánticos exactos), 85 bridges, 665 registros directos, 3.162 ítems de impl y las superficies
+  de include/macro fallando cerradas. `check_architecture.py check` y `self-test` siguen
+  verdes.
+
+Con esto **no queda ninguna comprobación de arquitectura/ownership sin ejecutar** en la rama:
+sintaxis, persistencia, política física, dependencias, ownership, hotspots y self-test están
+verdes. Lo que falta es la campaña `final --base origin/3.4.3 --architecture` (que ya se sabe
+que supera los 600 s), las capturas/QA live y el alcance funcional F5/F6.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
