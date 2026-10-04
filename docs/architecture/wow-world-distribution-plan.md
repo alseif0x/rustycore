@@ -2812,6 +2812,22 @@ ni publicación. No se ejecutó validación. Sigue pendiente la ejecución compl
 swap/equip; el siguiente mapa asignado cubre real-swap, sus callers y todos los
 efectos anteriores y posteriores al await, no solo la planificación.
 
+El siguiente corte de efectos ya está conectado por fuente: App privado
+`inventory_swap/effects.rs`, contexto seleccionado con constructor inerte y
+dos fachadas World en `session/player_items/storage.rs`. Remove mantiene
+duration/tradeable antes del gate de equipo, ItemSet, consulta FULL runtime
+de broken, mods, clear-equipped/enchantments y profesión-stat; Store mantiene
+duration, gate, equipped, ItemSet y una nueva consulta FULL runtime de broken
+antes de mods. `None` conserva decisiones distintas en remove/store. Los
+proveedores de duración/tradeable usan operaciones Core finitas; ItemSet
+conserva su lector directo y eventos actuales, sin añadir aplicación de auras.
+Cuatro casos escritos en `scenarios_player_items_2.rs` cubren duración y paquetes,
+modificadores/clear, ItemSet activo en broken y owner reemplazado con igual GUID.
+Revisión por fuente favorable; no se ejecutaron. C++ Player.cpp:11553 y :7654
+del SHA target muestran responsabilidades adicionales de auras/meta/enchantments
+que no se reparan dentro de F5. Committed-swap, publicación, StorageMove,
+child/offhand y release-all siguen pendientes de traslado completo.
+
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
 y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
