@@ -40,7 +40,7 @@ impl LootReleaseCxLikeCpp<'_> {
         routing.queue_like_cpp(command)
     }
 
-    pub(super) fn apply_represented_gameobject_loot_release_like_cpp(
+    pub fn apply_represented_gameobject_loot_release_like_cpp(
         &mut self,
         guid: ObjectGuid,
         player_guid: ObjectGuid,

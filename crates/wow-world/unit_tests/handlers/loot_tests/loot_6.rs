@@ -302,7 +302,6 @@ fn partial_gathering_node_release_does_not_run_on_loot_release_state_like_cpp() 
         player_guid,
         false,
         false,
-        None,
     );
 
     let state = session

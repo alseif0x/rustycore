@@ -180,110 +180,16 @@ impl WorldSession {
             return;
         };
 
-        self.loot
-            .insert_cached_loot_for_owner_like_cpp(route.owner_guid, snapshot.loot.clone());
-        self.loot
-            .insert_cached_loot_generation_like_cpp(route.owner_guid, snapshot.generation);
-
-        if route.owner_guid.is_game_object() {
-            let release = AuthoritativeLootReleaseLikeCpp {
-                authority: route.authority.clone(),
-                selected_generation: route.authority_generation,
-                loot: snapshot.loot,
-                whole_object_fully_looted: true,
-                whole_object_fully_skinned: observation.whole_object_fully_skinned,
-                object_generation: observation.object_generation,
-                lifecycle_revision: observation.lifecycle_revision,
-                require_no_viewers: true,
-            };
-            crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
-                route.owner_guid,
-                route.player_guid,
-                true,
-                true,
-                Some(&release),
-            );
-            let _ = crate::session::cx_loot_ref(self)
-                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(route.owner_guid);
-            crate::session::cx_loot(self)
-                .hide_represented_gameobject_for_player_after_loot_release_like_cpp(
-                    route.owner_guid,
-                );
-            if self
-                .world_entities
-                .represented_gameobject_use_state_like_cpp(route.owner_guid)
-                .and_then(|state| state.go_type)
-                .map(u32::from)
-                == Some(GAMEOBJECT_TYPE_GATHERING_NODE)
-            {
-                self.send_gathering_node_loot_release_dynamic_flags_update_like_cpp(
-                    route.owner_guid,
-                );
-            }
-            self.loot.remove_cached_loot_for_owner_like_cpp(route.owner_guid);
-            return;
-        }
-
-        if route.owner_guid.is_corpse() {
-            self.remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
-                route.owner_guid,
-                &route.authority,
-                observation.object_generation,
-                observation.lifecycle_revision,
-            );
-            self.loot.remove_cached_loot_for_owner_like_cpp(route.owner_guid);
-            return;
-        }
-
-        if !route.owner_guid.is_creature_or_vehicle() {
-            return;
-        }
-
-        let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
-        let whole_object_fully_skinned = observation.whole_object_fully_skinned;
-        let lifecycle_update = self
-            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
-                route.owner_guid,
-                &route.authority,
-                observation.object_generation,
-                observation.lifecycle_revision,
-                |creature| {
-                    creature.force_dynamic_flags_update_like_cpp();
-                    creature.remove_lootable_dynamic_flag_like_cpp();
-                    let marked = if creature.is_alive() {
-                        None
-                    } else {
-                        let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
-                            whole_object_fully_skinned,
-                            creature.corpse_delay_secs_like_cpp(),
-                            creature.ignore_corpse_decay_ratio_like_cpp(),
-                            corpse_decay_looted_rate,
-                        );
-                        creature
-                            .all_loot_removed_from_corpse_like_cpp(
-                                corpse_decay_looted_rate,
-                                whole_object_fully_skinned,
-                            )
-                            .then_some((creature.entry(), corpse_decay_secs))
-                    };
-                    (marked, creature.creature.unit().values_update())
-                },
-            );
-        self.loot.remove_cached_loot_for_owner_like_cpp(route.owner_guid);
-        if let Some((_, values_update)) = lifecycle_update.as_ref() {
-            self.send_creature_loot_release_dynamic_flags_update_like_cpp(
-                route.owner_guid,
-                values_update,
-                Some(&route.authority),
-            );
-        }
-        let marked = lifecycle_update.and_then(|(marked, _)| marked);
-        if let Some((entry, corpse_decay_secs)) = marked {
-            info!(
-                "Creature {:?} (entry {}) fully looted after durable claim — despawning in {}s",
-                route.owner_guid, entry, corpse_decay_secs
-            );
-        }
+        self.loot_release_cx_like_cpp().release_detached_owner_like_cpp(
+            route.owner_guid,
+            route.player_guid,
+            route.authority.clone(),
+            route.authority_generation,
+            snapshot.loot,
+            observation.whole_object_fully_skinned,
+            observation.object_generation,
+            observation.lifecycle_revision,
+        );
     }
 
     fn commit_represented_loot_item_claim_like_cpp(

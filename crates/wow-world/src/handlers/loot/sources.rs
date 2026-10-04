@@ -908,14 +908,4 @@ impl WorldSession {
         all_stored
     }
 
-    pub(super) fn remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
-        &mut self,
-        corpse_guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(&mut hub, corpse_guid, authority, object_generation, lifecycle_revision)
-    }
 }

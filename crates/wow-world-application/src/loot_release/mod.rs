@@ -16,7 +16,7 @@ use wow_loot::{
     loot_has_over_threshold_item_like_cpp, loot_is_looted_like_cpp,
 };
 use wow_entities::{GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_GATHERING_NODE};
-use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore, SessionWorldConfig};
+use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore};
 
 /// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
@@ -39,6 +39,7 @@ pub struct AuthoritativeLootReleaseLikeCpp {
 mod item;
 mod gameobject;
 mod creature;
+mod detached;
 mod publication;
 mod authority;
 mod registry;

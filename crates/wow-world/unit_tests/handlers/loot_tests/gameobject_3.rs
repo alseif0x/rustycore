@@ -753,7 +753,6 @@ fn gameobject_loot_release_without_canonical_manager_keeps_represented_restock_f
         player_guid,
         true,
         true,
-        None,
     );
 
     let state = session

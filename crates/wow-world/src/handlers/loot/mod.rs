@@ -57,7 +57,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use rand::Rng;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeCpp};
 use crate::session::mailbox::{
@@ -80,19 +80,23 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_entities::{
-    AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, GAMEOBJECT_TYPE_AREADAMAGE,
-    GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CAMERA,
-    GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING,
-    GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_FLAGSTAND,
-    GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_GUILD_BANK,
-    GAMEOBJECT_TYPE_MAILBOX, GAMEOBJECT_TYPE_MAP_OBJECT, GAMEOBJECT_TYPE_MINI_GAME,
-    GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_TEXT, GO_DYNFLAG_LO_NO_INTERACT,
+    AccessorObjectKind, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_HOLE,
+    GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GOOBER, GO_DYNFLAG_LO_NO_INTERACT,
     GameObjectLootSource, GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount,
-    LootState, MAX_MONEY_AMOUNT, is_bag_pos, make_item_pos,
+    LootState, MAX_MONEY_AMOUNT, make_item_pos,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
+
+// Test-only represented GameObject/decay constants; production paths read the
+// same values through their own imports.
+#[cfg(test)]
+use wow_entities::{
+    GAMEOBJECT_TYPE_AREADAMAGE, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR,
+    GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER,
+};
+#[cfg(test)]
+use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
 use crate::session::hub_support::RepresentedLootPlayerContext;
 use crate::session::registry::PacketHandlerEntry;
@@ -173,18 +177,6 @@ const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
 const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
-
-#[derive(Clone)]
-struct AuthoritativeLootReleaseLikeCpp {
-    authority: OwnedLootAuthority,
-    selected_generation: u64,
-    loot: CreatureLoot,
-    whole_object_fully_looted: bool,
-    whole_object_fully_skinned: bool,
-    object_generation: u64,
-    lifecycle_revision: u64,
-    require_no_viewers: bool,
-}
 
 // ── Handler registrations ─────────────────────────────────────────
 
@@ -466,8 +458,6 @@ fn represented_loot_response_items_like_cpp(
         })
         .collect()
 }
-
-use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
