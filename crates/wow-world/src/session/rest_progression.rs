@@ -200,7 +200,7 @@ impl WorldSession {
             return (0, 0);
         }
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
+        if self.core.with_owned_player_for_rest_like_cpp(|_| ()).is_none() {
             return self.fixture_take_xp_rest_bonus_like_cpp(xp, victim);
         }
         let Some(pct) = crate::session::hub_ref(self)
@@ -212,11 +212,10 @@ impl WorldSession {
         };
         let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
-            })
-            .unwrap_or((0, 0))
+        self.with_owned_player_mut_for_rest_like_cpp(|player| {
+            player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
+        })
+        .unwrap_or((0, 0))
     }
 
     pub(crate) fn set_represented_rest_flag_like_cpp(
