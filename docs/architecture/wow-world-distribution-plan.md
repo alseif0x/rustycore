@@ -4260,6 +4260,25 @@ pueden pasar, así que todavía no hay aceptación posible de F5/F6. Sigue sin h
 inventario de persistencia, capturas, live, push ni cierre. Los cambios de esta ronda son del
 gate y de reexportaciones, no de comportamiento: no acreditan paridad.
 
+#### Seguimiento — resolución de rutas absolutas entre paquetes, checkpoint `315154069`
+
+El bloqueo dominante no era de fuente sino del resolvedor: `module_targets` leía toda ruta no
+relativa como hija del módulo que la escribía, de modo que `wow_world_spell::melee_damage`
+se convertía en `crate::session_rules::wow_world_spell::melee_damage` y un glob de fachada
+sobre otro crate no resolvía nunca. Solo `wow_world_core` tenía un caso especial. Ahora, si el
+primer segmento nombra la raíz de un crate del workspace y la lectura en el paquete actual no
+encontró nada, la cola se resuelve contra la raíz de ese paquete hermano (que es como la
+resuelve Rust); al ser aditivo, no desplaza ninguna resolución existente.
+
+Resultado: los `cannot resolve bridge provenance` bajan de **172 a 64** y la suite de la
+herramienta sigue igual, 434 ok / 9 fallos, sin escenario regresado. Los 64 restantes son
+vocabulario de `wow-world-application` (vendor, `character_creation`, `spell_click_values`,
+ítem cargado, `start_zone`/`start_position`…): ese crate no tiene `PackageRole` en el modelo
+de la herramienta y por tanto no entra en el conjunto de fuentes de puente, así que sus globs
+no pueden resolverse. La decisión pendiente es añadir ese rol al modelo (con su filtro de
+fuentes y su clasificación de no-autoridad) o nominalizar las fachadas World que lo consumen;
+no se tomó en esta ronda.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
