@@ -316,15 +316,18 @@ def top_level_cfg_test_item_spans(source: str) -> list[tuple[int, int]]:
     masked = mask_rust_noncode(source)
     original = source.encode("utf-8")
     spans: list[tuple[int, int]] = []
-    brace_depth = 0
+    # Depth covers every delimiter, not only braces: a `#[cfg(...)]` on a
+    # function parameter or an array element is nested code, and a brace-only
+    # counter read it as a top-level item and then failed on the parameter.
+    depth = 0
     cursor = 0
     while cursor < len(masked):
         byte = masked[cursor]
-        if byte == ord("{"):
-            brace_depth += 1
-        elif byte == ord("}"):
-            brace_depth -= 1
-        elif byte == ord("#") and brace_depth == 0:
+        if byte in (ord("{"), ord("("), ord("[")):
+            depth += 1
+        elif byte in (ord("}"), ord(")"), ord("]")):
+            depth -= 1
+        elif byte == ord("#") and depth == 0:
             bracket = skip_rust_whitespace(masked, cursor + 1)
             if bracket < len(masked) and masked[bracket] == ord("["):
                 closing = matching_rust_delimiter(

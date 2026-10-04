@@ -38,8 +38,8 @@ def validate_handler_module_policy(
 ) -> dict[str, Any]:
     """Validate logical handler capability owners and their open retirement issues."""
     root_keys = {"schema_version", "introduced_by_issue", "capability_owners"}
-    if not isinstance(policy, dict) or policy.get("schema_version") != 1:
-        raise ArchitectureError("handler module policy must be a schema_version 1 object")
+    if not isinstance(policy, dict) or policy.get("schema_version") != 2:
+        raise ArchitectureError("handler module policy must be a schema_version 2 object")
     if set(policy) != root_keys:
         raise ArchitectureError(
             "handler module policy must contain exactly " + ", ".join(sorted(root_keys))
@@ -64,7 +64,10 @@ def validate_handler_module_policy(
         "allow_descendants",
         "tracking_issue",
     }
+    # Schema 2 lets one capability own several package/module routes, so the
+    # owners form a set of routes rather than one row per capability.
     seen_capabilities: set[str] = set()
+    seen_routes: set[tuple[str, str, str]] = set()
     declared_owners: list[dict[str, Any]] = []
     logical_module = re.compile(r"^crate(?:::[A-Za-z_][A-Za-z0-9_]*)*$")
     for index, owner in enumerate(owners):
@@ -82,10 +85,7 @@ def validate_handler_module_policy(
             raise ArchitectureError(
                 f"handler module policy owner {index} has unknown capability {capability!r}"
             )
-        if capability in seen_capabilities:
-            raise ArchitectureError(
-                f"handler module policy declares duplicate capability {capability}"
-            )
+        route = (capability, package, module) if isinstance(package, str) and isinstance(module, str) else None
         seen_capabilities.add(capability)
         if not isinstance(package, str) or not package:
             raise ArchitectureError(
@@ -99,7 +99,16 @@ def validate_handler_module_policy(
             raise ArchitectureError(
                 f"handler module policy capability {capability} allow_descendants must be boolean"
             )
+        if route is not None and route in seen_routes:
+            raise ArchitectureError(
+                f"handler module policy declares duplicate capability route {capability} "
+                f"for {package}::{module}"
+            )
+        if route is not None:
+            seen_routes.add(route)
         for previous in declared_owners:
+            # Schema 2 repeats one capability across routes, but two owners of
+            # any capability must still not overlap inside the same package.
             same_package = package == previous["package"]
             this_below_previous = module == previous["module"] or (
                 previous["allow_descendants"]

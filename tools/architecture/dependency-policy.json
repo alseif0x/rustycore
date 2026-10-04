@@ -110,11 +110,13 @@
       "wow-core",
       "wow-data",
       "wow-entities",
-      "wow-packet",
-      "wow-persistence",
       "wow-handler",
       "wow-instances",
+      "wow-loot",
       "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-progression",
       "wow-script",
       "wow-social",
       "wow-spell-acquisition",
@@ -158,6 +160,7 @@
       "wow-world-core"
     ],
     "wow-world-entities": [
+      "wow-ai",
       "wow-conditions",
       "wow-constants",
       "wow-core",
@@ -167,7 +170,9 @@
       "wow-map",
       "wow-movement",
       "wow-packet",
+      "wow-persistence",
       "wow-progression",
+      "wow-recastdetour",
       "wow-world-core"
     ],
     "wow-world-instances": [
@@ -200,11 +205,13 @@
       "wow-loot",
       "wow-map",
       "wow-module-api",
+      "wow-movement",
       "wow-packet",
       "wow-persistence",
       "wow-progression",
       "wow-social",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-visibility"
     ],
     "wow-world-loot": [
       "wow-constants",
@@ -224,6 +231,7 @@
       "wow-world-core"
     ],
     "wow-world-spell": [
+      "wow-combat",
       "wow-constants",
       "wow-core",
       "wow-data",
@@ -376,6 +384,7 @@
     ],
     "protected_packages": [
       "wow-data",
+      "wow-handler",
       "wow-network",
       "wow-packet",
       "wow-session"
@@ -435,6 +444,10 @@
           "bitflags",
           "num-traits"
         ],
+        "build": []
+      },
+      "wow-handler": {
+        "normal": [],
         "build": []
       },
       "wow-instances": {
@@ -537,6 +550,13 @@
         ],
         "build": []
       },
+      "wow-world-application": {
+        "normal": [
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
       "wow-world-core": {
         "normal": [
           "dashmap",
@@ -548,7 +568,10 @@
         "build": []
       },
       "wow-world-entities": {
-        "normal": [],
+        "normal": [
+          "num-traits",
+          "tracing"
+        ],
         "build": []
       },
       "wow-world-inventory": {
@@ -562,6 +585,7 @@
         "normal": [
           "dashmap",
           "flume",
+          "rand",
           "tokio",
           "tracing"
         ],
