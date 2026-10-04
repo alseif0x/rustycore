@@ -3718,8 +3718,8 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo test -p wow-world-application`: 29/29.
 
 Sobre el checkpoint `78447d971` (reglas de plantilla de botín en wow-world-lifecycle) se
-repitió el mismo conjunto: `cargo check --workspace --all-targets` (pendiente de re-ejecutar al
-cierre de ronda), `wow-world --all-targets` (con y sin `test-fixtures`),
+repitió el mismo conjunto: `cargo check --workspace --all-targets` (verde, 0 errores, con
+límite ampliado), `wow-world --all-targets` (con y sin `test-fixtures`),
 `wow-world-lifecycle --all-targets --features test-fixtures` y
 `wow-world-application --all-targets` verdes; `cargo test -p wow-world --lib` **3.632 passed /
 0 failed / 1 ignored**; `wow-world-lifecycle --features test-fixtures` 14/14;
