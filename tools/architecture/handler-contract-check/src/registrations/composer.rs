@@ -517,6 +517,7 @@ struct RegistrarCalls<'a> {
     contracts: &'a [DirectRegistrarContract],
     counts: std::collections::BTreeMap<&'static str, RegistrarCallCount>,
     ambiguous_name: bool,
+    cfg: Vec<String>,
 }
 
 impl<'a> RegistrarCalls<'a> {
@@ -525,6 +526,7 @@ impl<'a> RegistrarCalls<'a> {
             contracts,
             counts: std::collections::BTreeMap::new(),
             ambiguous_name: false,
+            cfg: Vec::new(),
         }
     }
 
@@ -547,6 +549,18 @@ impl<'a> RegistrarCalls<'a> {
 }
 
 impl<'ast> Visit<'ast> for RegistrarCalls<'_> {
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        // A `#[path]` test child arrives spliced inside its parent and calls
+        // registrars for its own fixtures; those calls are not composition.
+        if !crate::registrations::direct_builder::attributes_are_production(&item.attrs, &self.cfg) {
+            return;
+        }
+        let previous = self.cfg.len();
+        self.cfg = crate::ownership::extend_cfg_context(&self.cfg, &item.attrs);
+        syn::visit::visit_item_mod(self, item);
+        self.cfg.truncate(previous);
+    }
+
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
         if let Some(contract) = self.contract_for_path(&path.path) {
             let count = self.counts.entry(contract.registrar).or_default();

@@ -280,6 +280,7 @@ struct EntryAndRegisterVisitor {
     entry_literals: usize,
     register_calls: usize,
     all_register_calls: usize,
+    cfg: Vec<String>,
 }
 
 impl EntryAndRegisterVisitor {
@@ -289,6 +290,7 @@ impl EntryAndRegisterVisitor {
             entry_literals: 0,
             register_calls: 0,
             all_register_calls: 0,
+            cfg: Vec::new(),
         }
     }
 }
@@ -309,7 +311,47 @@ impl<'ast> Visit<'ast> for EntryLiteralFinder<'_> {
     }
 }
 
+/// Whether an item can exist in a production build.
+///
+/// A `#[path]` child arrives spliced inside its parent and keeps its own cfg; a
+/// test-only module cannot register a production handler, so its entries are
+/// fixture data and stay outside the registrar grammar.
+pub(crate) fn attributes_are_production(attrs: &[syn::Attribute], parent_cfg: &[String]) -> bool {
+    crate::ownership::cfg_context_allows_production(parent_cfg, attrs).unwrap_or(true)
+}
+
+fn item_attributes(item: &Item) -> &[syn::Attribute] {
+    match item {
+        Item::Const(item) => &item.attrs,
+        Item::Enum(item) => &item.attrs,
+        Item::ExternCrate(item) => &item.attrs,
+        Item::Fn(item) => &item.attrs,
+        Item::ForeignMod(item) => &item.attrs,
+        Item::Impl(item) => &item.attrs,
+        Item::Macro(item) => &item.attrs,
+        Item::Mod(item) => &item.attrs,
+        Item::Static(item) => &item.attrs,
+        Item::Struct(item) => &item.attrs,
+        Item::Trait(item) => &item.attrs,
+        Item::TraitAlias(item) => &item.attrs,
+        Item::Type(item) => &item.attrs,
+        Item::Union(item) => &item.attrs,
+        Item::Use(item) => &item.attrs,
+        _ => &[],
+    }
+}
+
 impl<'ast> Visit<'ast> for EntryAndRegisterVisitor {
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        if !attributes_are_production(&item.attrs, &self.cfg) {
+            return;
+        }
+        let previous = self.cfg.len();
+        self.cfg = crate::ownership::extend_cfg_context(&self.cfg, &item.attrs);
+        syn::visit::visit_item_mod(self, item);
+        self.cfg.truncate(previous);
+    }
+
     fn visit_expr_struct(&mut self, expression: &'ast syn::ExprStruct) {
         if expression.path.segments.last().is_some_and(|segment| {
             self.entry_names.contains(&segment.ident.to_string())
@@ -782,6 +824,7 @@ pub(crate) fn analyze_contract_source(
     for item in &syntax.items {
         if matches!(item, Item::Use(_))
             || matches!(item, Item::Fn(function) if ident_is(&function.sig.ident, contract.registrar))
+            || !attributes_are_production(item_attributes(item), &[])
         {
             continue;
         }

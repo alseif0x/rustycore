@@ -650,7 +650,7 @@ fn world_session_remains_owned_by_world_across_all_extracted_packages() {
 
         let error = baseline_with_world_domain(
             role,
-            "impl crate::session::WorldSession { pub fn foreign_owner(&self) {} }",
+            "impl wow_world::session::WorldSession { pub fn foreign_owner(&self) {} }",
         )
         .expect_err("an extracted package cannot implement WorldSession");
         assert!(error.contains(role.package_name()), "{error}");
@@ -660,7 +660,7 @@ fn world_session_remains_owned_by_world_across_all_extracted_packages() {
     for (source, surface) in [
         ("pub struct WorldSession;", "WorldSession struct"),
         (
-            "impl crate::session::WorldSession { pub fn foreign_owner(&self) {} }",
+            "impl wow_world::session::WorldSession { pub fn foreign_owner(&self) {} }",
             "WorldSession impl",
         ),
     ] {

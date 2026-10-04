@@ -1567,35 +1567,29 @@ pub(crate) fn audit_package_source_mounts(
 /// root, which made a conditional parent impossible by construction; owning it
 /// by module path instead lost that for free, so the mount chain is now checked
 /// explicitly (#363).
+type AuditedSourceGraph = (
+    BTreeMap<PathBuf, BTreeSet<String>>,
+    usize,
+    BTreeSet<PathBuf>,
+    BTreeSet<PathBuf>,
+);
+
 pub(crate) fn audit_package_source_graph(
     package_root: &Path,
     production_roots: &[PathBuf],
-) -> Result<
-    (
-        BTreeMap<PathBuf, BTreeSet<String>>,
-        usize,
-        BTreeSet<PathBuf>,
-        BTreeSet<PathBuf>,
-    ),
-    String,
-> {
+) -> Result<AuditedSourceGraph, String> {
     let (mounts, explicit_paths) = audit_package_source_mounts(package_root, production_roots)?;
-    let unconditional = mounts
-        .iter()
-        .filter(|(_, contexts)| {
-            contexts
-                .iter()
-                .any(|context| context.production_possible && context.cfg.is_empty())
-        })
-        .map(|(source, _)| source.clone())
-        .collect();
-    // A source that no mount context can compile in production is fixture data:
-    // its PacketHandlerEntry constructions cannot own a production registration.
-    let production_impossible: BTreeSet<PathBuf> = mounts
-        .iter()
-        .filter(|(_, contexts)| contexts.iter().all(|context| !context.production_possible))
-        .map(|(source, _)| source.clone())
-        .collect();
+    let mut unconditional = BTreeSet::new();
+    let mut production_impossible = BTreeSet::new();
+    for (source, contexts) in &mounts {
+        let production = contexts.iter().any(|c| c.production_possible && c.cfg.is_empty());
+        if production {
+            unconditional.insert(source.clone());
+        }
+        if contexts.iter().all(|c| !c.production_possible) {
+            production_impossible.insert(source.clone());
+        }
+    }
     Ok((
         mounts
             .into_iter()
@@ -1807,9 +1801,8 @@ pub(crate) fn audit_package_registration_sources_with_owners(
     let mut errors = Vec::new();
     let mut exact_collectors = 0usize;
     for (source_path, logical_paths) in sources {
-        if is_owned_handler_mount(package_name, logical_paths, owners)
-            || production_impossible.contains(source_path)
-        {
+        let owned = is_owned_handler_mount(package_name, logical_paths, owners);
+        if owned || production_impossible.contains(source_path) {
             continue;
         }
         let source = fs::read_to_string(source_path)
@@ -1975,9 +1968,6 @@ pub(crate) fn audit_registration_ownership(
             for source_path in sources.keys() {
                 scanned_files.insert((scope.name.clone(), source_path.clone()));
             }
-            // A package without any dependency path to the `inventory` crate
-            // cannot shadow it, so its local data modules are allowed exactly as
-            // the non-registry-closure audit already allows them.
             let allow_local_data_module = !inventory_capable.contains(&scope.id);
             if let Err(error) = audit_package_registration_sources_with_owners(
                 &scope.name,

@@ -10,7 +10,13 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    let owners = "world-modules, world-server, wow-handler, wow-world, wow-world-core)";
+    // The reviewed production-package set: the #1263 extraction added the
+    // application, core and domain crates, and the report lists every package
+    // whose source surface the guard checked.
+    let owners = "world-modules, world-server, wow-handler, wow-world, wow-world-application, \
+                  wow-world-core, wow-world-entities, wow-world-instances, wow-world-interaction, \
+                  wow-world-inventory, wow-world-lifecycle, wow-world-loot, wow-world-social, \
+                  wow-world-spell, wow-world-visibility)";
     assert!(report.ends_with(owners), "{report}");
 }
 
