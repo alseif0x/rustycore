@@ -2864,8 +2864,17 @@ Inventory, Lifecycle y QuestState y ampliaba consultas World de &self a &mut sel
 Ese límite se rechazó: la admisión completa requiere un contexto de solo lectura
 y una capacidad Core finita, con proyección de condiciones inerte y lecturas
 tardías originales. Se asignó conservar el cuerpo completo y restaurar firmas
-de lectura, sin cambiar gameplay ni duplicar autoridad. La integración de esa
-corrección sigue pendiente; revisar el cuerpo no aprobaba ese consumidor mutable.
+de lectura, sin cambiar gameplay ni duplicar autoridad. Esa corrección ya está
+conectada por fuente: QuestEligibilityCx toma QuestState/condiciones compartidos,
+QuestEligibilityAccess conserva Core privado de solo lectura y World vuelve a
+`can_take_quest(&self)`. Los consumidores de status, diálogo, menú y activate
+conservan sus firmas de lectura; los handlers de paquetes siguen mutables por
+decode/envío. Core y App tienen exports normales. Se corrigió una referencia
+obsoleta al consumer-test y la expansión final usa el lector Core seleccionado.
+Los casos existentes de quest_6/quest_7 y scenarios_quest_1 se conservaron sin
+ejecutar; no hay evidencia de compilación, aceptación ni nueva paridad. Timed
+continúa como diferencia explícita de F6. Revisar el cuerpo anterior no aprobaba
+el consumidor mutable que fue sustituido.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
