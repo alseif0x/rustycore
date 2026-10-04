@@ -71,6 +71,12 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         self.core.player_guid()
     }
 
+    /// Shared view of the same canonical session, for read-only projections the
+    /// release context builds on the fly (C++ reads the Player/Map directly).
+    pub fn core_ref_like_cpp(&self) -> &SessionCore {
+        self.core
+    }
+
     pub fn player_map_id_like_cpp(&self) -> u16 {
         self.core.player_map_id_like_cpp()
     }

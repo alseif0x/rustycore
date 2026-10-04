@@ -25,6 +25,14 @@ impl<'a> LootReleaseStatsInputsLikeCpp<'a> {
         self.config.loot_drop_rates_like_cpp().corpse_decay_looted
     }
 
+    pub fn catalogs_like_cpp(&self) -> &'a SessionCatalogs {
+        self.catalogs
+    }
+
+    pub fn config_like_cpp(&self) -> &'a SessionWorldConfig {
+        self.config
+    }
+
     pub fn new_like_cpp(
         catalogs: &'a SessionCatalogs,
         config: &'a SessionWorldConfig,

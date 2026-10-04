@@ -11,6 +11,7 @@ mod player_save;
 mod registry_sync;
 mod spell_acquisition;
 mod instances;
+mod loot_release;
 mod stats;
 mod equipment_set_use;
 mod trainer_purchase;

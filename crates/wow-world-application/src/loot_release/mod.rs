@@ -1,9 +1,12 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Owner release orchestration. Kept private until its selected dependencies close.
+//! Owner release orchestration. Compiled and constrained by the application
+//! crate; the World facade that constructs the context lands with its release
+//! delegation follow-up.
 
 use wow_core::ObjectGuid;
+use wow_packet::ServerPacket;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP};
 use wow_packet::packets::loot::LootList;
@@ -13,6 +16,13 @@ use wow_loot::{
     loot_has_over_threshold_item_like_cpp, loot_is_looted_like_cpp,
 };
 use wow_entities::{GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_GATHERING_NODE};
+use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore, SessionWorldConfig};
+
+/// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
+const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
+const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
+/// C++ `SpellEffects::SPELL_EFFECT_OPEN_LOCK`.
+const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
 
 #[derive(Clone)]
 pub struct AuthoritativeLootReleaseLikeCpp {
@@ -44,6 +54,12 @@ pub struct LootReleaseCxLikeCpp<'a> {
     consumer_test: bool,
     instances: &'a wow_world_instances::InstanceState,
     stats_inputs: wow_world_core::session::LootReleaseStatsInputsLikeCpp<'a>,
+    quest_state: &'a crate::SessionQuestState,
+    social: &'a wow_world_social::SessionSocialLimits,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    spell_state: &'a wow_world_spell::SessionSpellState,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fixtures: &'a wow_world_core::session::state::SessionFixtures,
     item_store: Option<&'a std::sync::Arc<wow_data::ItemStore>>,
     item_stats_store: Option<&'a std::sync::Arc<wow_data::ItemStatsStore>>,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -51,6 +67,7 @@ pub struct LootReleaseCxLikeCpp<'a> {
 }
 
 impl<'a> LootReleaseCxLikeCpp<'a> {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         owner: wow_world_core::session::LootReleaseOwnerAccessLikeCpp<'a>,
         loot: &'a mut wow_world_loot::LootState,
@@ -60,13 +77,43 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         consumer_test: bool,
         instances: &'a wow_world_instances::InstanceState,
         stats_inputs: wow_world_core::session::LootReleaseStatsInputsLikeCpp<'a>,
+        quest_state: &'a crate::SessionQuestState,
+        social: &'a wow_world_social::SessionSocialLimits,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        spell_state: &'a wow_world_spell::SessionSpellState,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures: &'a wow_world_core::session::state::SessionFixtures,
         item_store: Option<&'a std::sync::Arc<wow_data::ItemStore>>,
         item_stats_store: Option<&'a std::sync::Arc<wow_data::ItemStatsStore>>,
         #[cfg(any(test, feature = "test-fixtures"))]
         registry_fixtures: LootReleaseRegistryFixtureRefsLikeCpp<'a>,
     ) -> Self {
-        Self { owner, loot, world_entities, inventory, lifecycle, consumer_test, instances, stats_inputs, item_store, item_stats_store,
+        Self { owner, loot, world_entities, inventory, lifecycle, consumer_test, instances, stats_inputs, quest_state, social,
+            #[cfg(any(test, feature = "test-fixtures"))] spell_state,
+            #[cfg(any(test, feature = "test-fixtures"))] fixtures,
+            item_store, item_stats_store,
             #[cfg(any(test, feature = "test-fixtures"))] registry_fixtures }
+    }
+
+    /// Shared hub view over the release context's disjoint borrows. The
+    /// canonical map helpers the release reads take a `HubRef`, exactly as the
+    /// World adapter passes one.
+    fn hub_ref_like_cpp(&self) -> HubRef<'_> {
+        HubRef {
+            core: self.owner.core_ref_like_cpp(),
+            catalogs: self.stats_inputs.catalogs_like_cpp(),
+            config: self.stats_inputs.config_like_cpp(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: self.fixtures,
+        }
+    }
+
+    fn catalogs_like_cpp(&self) -> &SessionCatalogs {
+        self.stats_inputs.catalogs_like_cpp()
+    }
+
+    fn core_like_cpp(&self) -> &SessionCore {
+        self.owner.core_ref_like_cpp()
     }
 
     fn player_guid(&self) -> Option<ObjectGuid> {

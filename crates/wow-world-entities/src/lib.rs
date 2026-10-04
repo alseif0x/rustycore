@@ -45,6 +45,10 @@ pub use contracts::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use contracts::RepresentedCreatureKillEventLikeCpp;
+pub use gameobject_interaction::{
+    represented_gameobject_display_box_contains_like_cpp,
+    represented_gameobject_interaction_distance_like_cpp,
+};
 pub use gameobject_contracts::{
     BattlegroundFlagDropClickTarget, RepresentedBattlegroundObjectUseRejection,
     RepresentedCapturePointStateLikeCpp, RepresentedGameObjectSpellCaster,
