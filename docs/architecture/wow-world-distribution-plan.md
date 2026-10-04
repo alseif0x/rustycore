@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `9f0410933` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `f2d34730a` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,11 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `f2d34730a` (registros de plan de almacenamiento en `wow-world-loot`) se
+verificó con el bucle focalizado tras liberar disco: `cargo check -p wow-world-loot
+--all-targets` y `-p wow-world --all-targets` verdes (0 errores), `cargo test -p wow-world
+--lib` **3.632 passed / 0 failed / 1 ignored**, `wow-world-application` 52/52, disco al 59%.
 
 Sobre el checkpoint `9f0410933` (adaptador de movimiento de criatura en `wow-world-entities`)
 se repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
@@ -4117,6 +4122,10 @@ Con la característica activada ambas suites pasan (`wow-world-spell` 3/3, `wow-
 workspace/`final`, donde las características se unifican); una ejecución por paquete sin la
 característica no es una configuración soportada de estos crates.
 
+- los registros de plan de almacenamiento de ítems (`handlers/loot/storage_plans.rs`, 79
+  líneas: `PlannedLootNewStack` y el contexto de commit de claim directo) pasaron a
+  `wow-world-loot/src/storage_plans.rs`, el crate que ya definía
+  `LootStoreRandomProperties`; la fachada World reexporta;
 - el adaptador de movimiento de criatura (`session/creature_movement_adapter.rs`, 139
   líneas: mapeo de `CreaturePathQueryLikeCpp` a la petición del worker Detour, resolución de
   la ruta con la semántica de `PathGenerator::CalculatePath` y el trazado de
@@ -4147,6 +4156,17 @@ característica no es una configuración soportada de estos crates.
 - `session/spell_click_values.rs` hacia `wow-world-entities`: imposible sin ciclo, porque el
   módulo reexporta un tipo de App (`RepresentedCanSeeSpellClickOutcomeLikeCpp`) y entities está
   por debajo de App; se resolvió moviéndolo a App.
+
+**Incidente de disco y corrección operativa (2026-10-04)**: el sistema de archivos raíz
+llegó al 100% (193G/193G, 1,6M libres) durante esta ronda. El consumidor dominante era la caché
+de compilación incremental del worktree activo: `target/debug/incremental` con **80G** (frente a
+20G de `deps`, 1,2G de `release` y 494M de `validation-v2`). Se eliminó únicamente esa caché,
+que no contiene artefactos entregables, y el disco quedó al 59% (79G libres); el árbol y los
+commits no se vieron afectados y las comprobaciones focalizadas siguieron verdes. A partir de
+ahora el bucle del implementador usa `CARGO_INCREMENTAL=0` para evitar que la caché vuelva a
+crecer hasta llenar el disco; el coste es un tiempo de recompilación mayor, que se registra como
+coste de codificación y no como aceptación. No se borraron artefactos de otros worktrees,
+`backups` ni cachés ajenas.
 
 **Límite de este método**: retirar duplicados ya convergidos no alcanza el objetivo de F5
 (20–40k líneas en `wow-world`, hoy ~128k). F5 exige el rediseño de registro descrito en
