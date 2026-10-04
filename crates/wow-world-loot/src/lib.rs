@@ -3,6 +3,7 @@
 mod contracts;
 mod random_properties;
 mod state;
+pub mod storage_plans;
 
 pub use contracts::{
     LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_LOCKED_LIKE_CPP,
