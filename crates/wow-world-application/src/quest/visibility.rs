@@ -10,6 +10,10 @@ mod quest_eligibility;
 pub use self::quest_eligibility::QuestEligibilityCx;
 
 pub(crate) use self::gameobject_flags::represented_gameobject_go_state_for_viewer_like_cpp;
+pub use self::gameobject_flags::{
+    represented_gameobject_activate_to_quest_like_cpp,
+    represented_meets_player_condition_id_like_cpp,
+};
 
 use std::sync::Arc;
 

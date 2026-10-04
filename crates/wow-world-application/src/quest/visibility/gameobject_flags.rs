@@ -9,11 +9,17 @@ use std::time::Instant;
 use wow_core::ObjectGuid;
 use wow_data::{PlayerConditionStore, is_player_meeting_condition_like_cpp};
 use wow_entities::GoState;
+use wow_world_core::session::{
+    OwnedInventoryAccessLikeCpp, QuestObjectiveAccessLikeCpp, SessionCatalogs,
+};
 use wow_world_entities::RepresentedGameObjectUseState;
+use wow_world_inventory::InventoryState;
 
 use super::QuestEligibilityCx;
 use crate::PlayerConditionProjectionCxLikeCpp;
+use crate::SessionQuestState;
 use crate::quest::dialog_status::RepresentedQuestGiverStatusSourceLikeCpp;
+use crate::quest::objective_progress::current_quest_gameplay_snapshot_like_cpp;
 use crate::quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 
 use super::super::objectives::QuestObjectiveProgressCx;
@@ -40,7 +46,7 @@ pub(crate) fn represented_gameobject_go_state_for_viewer_like_cpp(
 ///
 /// The owned projection is built at this read point; the caller lends the
 /// inert condition inputs so no mutable owner is retained here.
-fn represented_meets_player_condition_id_like_cpp(
+pub fn represented_meets_player_condition_id_like_cpp(
     conditions: &PlayerConditionProjectionCxLikeCpp<'_>,
     store: Option<&PlayerConditionStore>,
     player_condition_id: u32,
@@ -62,6 +68,110 @@ fn represented_meets_player_condition_id_like_cpp(
         .is_some_and(|context| is_player_meeting_condition_like_cpp(condition, &context))
 }
 
+/// C++ `GameObject::ActivateToQuest` with its native per-type gates.
+///
+/// Free form so the World `&self` facade can reuse the exact same dialog,
+/// condition and quest-loot gates without constructing a mutable quest-reward
+/// context.
+#[allow(clippy::too_many_arguments)]
+pub fn represented_gameobject_activate_to_quest_like_cpp(
+    owner: &QuestObjectiveAccessLikeCpp<'_>,
+    catalogs: &SessionCatalogs,
+    quest_state: &SessionQuestState,
+    inventory: &InventoryState,
+    inventory_access: &OwnedInventoryAccessLikeCpp<'_>,
+    eligibility: &QuestEligibilityCx<'_>,
+    gameobject_entry: u32,
+    state: &RepresentedGameObjectUseState,
+    fixture_fallback: bool,
+) -> bool {
+    if super::represented_has_quest_for_gameobject_like_cpp(
+        owner,
+        catalogs,
+        quest_state,
+        gameobject_entry,
+        fixture_fallback,
+    ) {
+        return true;
+    }
+
+    if !super::represented_gameobject_is_for_quests_like_cpp(
+        catalogs,
+        owner,
+        quest_state,
+        gameobject_entry,
+        state,
+        fixture_fallback,
+    ) {
+        return false;
+    }
+
+    let current_status = |quest_id: u32| {
+        current_quest_gameplay_snapshot_like_cpp(owner, quest_state, fixture_fallback).and_then(
+            |state| {
+                state
+                    .statuses_like_cpp()
+                    .get(&quest_id)
+                    .map(|status| status.status)
+            },
+        )
+    };
+    let loot_ids_have_quest_loot = |loot_ids: Vec<u32>| {
+        represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
+            owner,
+            inventory_access,
+            catalogs,
+            inventory,
+            quest_state,
+            loot_ids,
+            fixture_fallback,
+        )
+    };
+
+    match state.go_type.map(u32::from) {
+        Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => {
+            let status = eligibility.get_represented_quest_giver_status_with_catalog_like_cpp(
+                catalogs.quests.info_store.as_deref(),
+                RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
+                    entry: gameobject_entry,
+                },
+            );
+            status != wow_packet::packets::quest::quest_giver_status::NONE
+                && status != wow_packet::packets::quest::quest_giver_status::FUTURE
+        }
+        Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
+            state.loot_state != Some(wow_entities::LootState::NotReady)
+                && (state.chest_loot_source.is_some_and(|source| {
+                    source.chest_quest_id != 0
+                        && current_status(source.chest_quest_id)
+                            == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+                }) || state.chest_loot_source.is_some_and(|source| {
+                    loot_ids_have_quest_loot(source.loot_ids_like_cpp().to_vec())
+                }))
+        }
+        Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
+            super::represented_has_quest_for_gameobject_like_cpp(
+                owner,
+                catalogs,
+                quest_state,
+                gameobject_entry,
+                fixture_fallback,
+            )
+        }
+        Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => state.goober_use_source.is_some_and(
+            |source| {
+                source.quest_id != 0
+                    && current_status(source.quest_id)
+                        == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
+            },
+        ),
+        Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => state
+            .gathering_node_loot_id
+            .is_some_and(|loot_id| loot_ids_have_quest_loot(vec![loot_id])),
+        _ => false,
+    }
+}
+
 impl QuestObjectiveProgressCx<'_, '_> {
     fn player_is_game_master_like_cpp(&self) -> bool {
         let access = self.reward.player.quest_objective_access_like_cpp();
@@ -77,9 +187,8 @@ impl QuestObjectiveProgressCx<'_, '_> {
 
     /// C++ `GameObject::ActivateToQuest` with its native per-type gates.
     ///
-    /// The caller lends the read-only eligibility context (dialog conditions and
-    /// quest eligibility) so this reader never constructs or stores a World
-    /// callback.
+    /// Delegates to the shared read-only provider so World and App use one
+    /// authority for the dialog, condition and quest-loot gates.
     pub(super) fn represented_gameobject_activate_to_quest_like_cpp(
         &self,
         eligibility: &QuestEligibilityCx<'_>,
@@ -87,83 +196,18 @@ impl QuestObjectiveProgressCx<'_, '_> {
         state: &RepresentedGameObjectUseState,
     ) -> bool {
         let owner = self.reward.player.quest_objective_access_like_cpp();
-        let fixture_fallback = self.reward.world_test_consumer;
-        if super::represented_has_quest_for_gameobject_like_cpp(
+        let inventory_access = self.reward.player.inventory_like_cpp();
+        represented_gameobject_activate_to_quest_like_cpp(
             &owner,
             self.reward.catalogs,
             self.reward.quest_state,
-            gameobject_entry,
-            fixture_fallback,
-        ) {
-            return true;
-        }
-
-        if !super::represented_gameobject_is_for_quests_like_cpp(
-            self.reward.catalogs,
-            &owner,
-            self.reward.quest_state,
+            self.reward.inventory,
+            &inventory_access,
+            eligibility,
             gameobject_entry,
             state,
-            fixture_fallback,
-        ) {
-            return false;
-        }
-
-        let loot_ids_have_quest_loot = |loot_ids: Vec<u32>| {
-            represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-                &owner,
-                &self.reward.player.inventory_like_cpp(),
-                self.reward.catalogs,
-                self.reward.inventory,
-                self.reward.quest_state,
-                loot_ids,
-                self.reward.world_test_consumer,
-            )
-        };
-
-        match state.go_type.map(u32::from) {
-            Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => {
-                let status = eligibility
-                    .get_represented_quest_giver_status_with_catalog_like_cpp(
-                        self.reward.catalogs.quests.info_store.as_deref(),
-                        RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
-                            entry: gameobject_entry,
-                        },
-                    );
-                status != wow_packet::packets::quest::quest_giver_status::NONE
-                    && status != wow_packet::packets::quest::quest_giver_status::FUTURE
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
-                state.loot_state != Some(wow_entities::LootState::NotReady)
-                    && (state.chest_loot_source.is_some_and(|source| {
-                        source.chest_quest_id != 0
-                            && self.current_quest_status_like_cpp(source.chest_quest_id)
-                                == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-                    }) || state.chest_loot_source.is_some_and(|source| {
-                        loot_ids_have_quest_loot(source.loot_ids_like_cpp().to_vec())
-                    }))
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
-                super::represented_has_quest_for_gameobject_like_cpp(
-                    &owner,
-                    self.reward.catalogs,
-                    self.reward.quest_state,
-                    gameobject_entry,
-                    fixture_fallback,
-                )
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => state.goober_use_source.is_some_and(
-                |source| {
-                    source.quest_id != 0
-                        && self.current_quest_status_like_cpp(source.quest_id)
-                            == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-                },
-            ),
-            Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => state
-                .gathering_node_loot_id
-                .is_some_and(|loot_id| loot_ids_have_quest_loot(vec![loot_id])),
-            _ => false,
-        }
+            self.reward.world_test_consumer,
+        )
     }
 
     pub(super) fn represented_gameobject_dynamic_flags_for_player_like_cpp(
