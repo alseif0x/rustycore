@@ -2956,6 +2956,19 @@ de mapping ausente conserva resolución antes de Feign. Revisión por fuente
 favorable, sin ejecutar; no hay evidencia de compilación ni aceptación. El mapa
 completo de TrainerBuy es la siguiente responsabilidad asignada.
 
+El primer corte completo de Buy ya está conectado por fuente:
+`trainer_purchase/buy_admission.rs` conserva decode/log → NPC → fullFeign →
+provenance/store/member → rechazos exactos y devuelve una request owned. El
+contexto seleccionado no retiene CoreAcquisition mutable ni ConditionProjection;
+constructor World y export normal están escritos. El lookup se comparte con
+Buy existente y los dos reads del log de mismatch siguen separados. Dos nuevos
+casos en `handlers/trainer/tests/failures.rs` cubren parse-failure sin cambios
+y spell ausente con AuraUpdate antes de TrainerBuyFailed reason 0, sin cargo.
+Se revisaron por fuente; no se ejecutaron. World conserva el cuerpo posterior
+de Save/dinero. Full Save, saga BattlePet, cierre de Buy y aceptación siguen
+pendientes; sustituir el preflush completo por capture/persist/ACK App no sería
+un traslado fiel. Se asignó el mapa acotado de ese coordinador de guardado.
+
 Proveedor de precio de trainer (2026-10-03, NO VALIDADO): el nuevo método
 NpcInteractionAccess de faction_reactions.rs conserva los retornos Neutral por
 store/faction ausentes, identidad antes del guard, rank dentro del guard de
