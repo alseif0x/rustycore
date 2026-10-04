@@ -4411,6 +4411,27 @@ bridges y el resto de secciones sin cambios, y `check --syntax-only` sigue **PAS
 Quedan de CompleteQuest los seams acotados de `CanRewardQuest`/`CanCompleteRepeatableQuest`
 (hoy en World, documentados como proyección parcial) y la publicación de paquetes de diálogo.
 
+#### F6: retirada de 22 duplicados muertos — 2026-10-04, checkpoint `31f83577f`
+
+Primer corte de F6 sobre el residuo de las extracciones F4b/F5. Los 22 ítems retirados no
+aparecen en ninguna otra fuente (ni producción, ni pruebas, ni otro crate) además de su propia
+definición: estado de shapeshift (aplicar/quitar boosts, sincronizar forma/propiedad/velocidad
+de ataque), publicación de criatura y gameobject (broadcast al conjunto visible de realm,
+relocalización del objeto de mapa canónico, contador de uso, autoridad personal de loot de GO),
+quest (estado de quest-giver y consulta de recompensada), inventario (planificación de banco,
+auras iniciales de conjunto, valores pendientes, post-store de void), carga de subgrupo de
+grupo, combate (muerte ambiental, límites de daño de arma, entradas de regeneración), instantánea
+de poder de grupo, cambio durable de calidad de mascota y sincronización de nivel/líquido.
+
+Evidencia: `cargo check -p wow-world --lib` elimina exactamente esos 22 nombres de aviso y no
+añade ninguno (diferencia de conjuntos de nombres); la suite completa
+`wow-world --lib --features test-fixtures` sigue en **3634 ok / 0 fallos / 1 ignorado**. El
+baseline de session-ownership registra la reducción de deuda (3.182 → **3.162** ítems de impl,
+670 → **665** filas de registro directo, las cinco del cargador de subgrupo retirado) y
+`check --syntax-only` sigue **PASS**; `check_architecture.py check` pasa todas sus secciones y
+la suite del checker sigue 443/0. `wow-world/src` queda en 120.995 líneas (objetivo F5:
+20–40k, aún lejos). Sin capturas, live ni `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
