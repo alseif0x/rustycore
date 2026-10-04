@@ -82,7 +82,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/vendor/buy.rs"),
         include_str!("../../../src/handlers/character/vendor/buyback.rs"),
         include_str!("../../../src/handlers/character/vendor/rules.rs"),
-        include_str!("../character/vendor/rules_tests.rs"),
+        include_str!("../../../../wow-world-application/unit_tests/vendor_rules.rs"),
         include_str!("../../../src/handlers/character/vendor/sell.rs"),
         include_str!("../../../src/handlers/character/vendor_admission.rs"),
         include_str!("../../../src/handlers/character/visibility.rs"),

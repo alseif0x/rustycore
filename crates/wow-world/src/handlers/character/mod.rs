@@ -81,7 +81,7 @@ use wow_entities::{
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::hub_support::{player_class_mask, player_team_for_race_cpp};
+use crate::session::hub_support::player_team_for_race_cpp;
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,

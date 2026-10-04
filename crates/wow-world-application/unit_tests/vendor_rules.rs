@@ -27,7 +27,7 @@ use wow_data::{
 use wow_entities::{INVENTORY_SLOT_BAG_0, MAX_BAG_SIZE, NULL_BAG, NULL_SLOT};
 use wow_packet::packets::misc::BuyItem;
 
-use super::super::super::player_team_for_race_cpp;
+use wow_world_core::session::player_team_for_race_cpp;
 
 #[test]
 fn vendor_buy_price_uses_cpp_buy_count_unit_price() {
