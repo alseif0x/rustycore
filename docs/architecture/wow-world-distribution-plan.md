@@ -4494,6 +4494,27 @@ sintaxis, persistencia, política física, dependencias, ownership, hotspots y s
 verdes. Lo que falta es la campaña `final --base origin/3.4.3 --architecture` (que ya se sabe
 que supera los 600 s), las capturas/QA live y el alcance funcional F5/F6.
 
+#### F6: auditoría del residuo muerto y segundo corte — 2026-10-04, checkpoint `708f6326d`
+
+Se auditó el conjunto completo de avisos `never used` de `wow-world` (98 tras el primer corte)
+con la regla estricta «sin referencias fuera de su propia definición, en **ninguna**
+configuración». Con esa regla solo queda un ítem retirable: `party_member_power_to_u16_like_cpp`
+(su única referencia era su propio import, también marcado como no usado); retirado en
+`708f6326d`. El resto es alcanzable desde `cfg(test)` (p. ej.
+`set_player_liquid_status_like_cpp`, los wrappers de `progression_adapters`,
+`represented_raid_difficulty_id_like_cpp`) o solo lo referencian otros ítems muertos del mismo
+fichero, así que borrarlos sin mover sus pruebas rompería la build de fixtures.
+
+Se intentó un bucle guiado por el compilador que relajaba esa regla; rompió cinco ficheros
+(`combat/vitals.rs`, `persistence/prepared.rs`, `quest/rewards/items.rs`,
+`canonical_player_sync.rs`, `world_entity/creature_registry.rs`) y se revirtió por completo. La
+lección queda registrada: la automatización debe conservar el criterio de configuración
+completa; no vale con «solo lo referencian fuentes de src».
+
+Evidencia del corte: `cargo check -p wow-world --lib` elimina exactamente los dos nombres de
+aviso y no añade ninguno; suite completa `wow-world --lib --features test-fixtures` **3634 ok /
+0 fallos / 1 ignorado**; `check --syntax-only` **PASS** (3.162 ítems, 665 registros).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
