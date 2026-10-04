@@ -10932,6 +10932,20 @@
           "module": "crate::handlers::quest::eligibility",
           "trait_path": null,
           "kind": "method",
+          "name": "can_see_start_quest_represented_bounded_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn can_see_start_quest_represented_bounded_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::eligibility",
+          "trait_path": null,
+          "kind": "method",
           "name": "can_take_quest",
           "visibility": "pub",
           "signature": "fn can_take_quest (& self , quest : & wow_data :: quest :: QuestTemplate) -> bool",
@@ -11045,6 +11059,19 @@
           "name": "satisfy_quest_skill_like_cpp",
           "visibility": "private",
           "signature": "fn satisfy_quest_skill_like_cpp (& self , quest : & wow_data :: quest :: QuestTemplate) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::eligibility",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_quest_eligibility_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_quest_eligibility_cx_like_cpp < R > (& self , run : impl FnOnce (& wow_world_application :: QuestEligibilityCx < '_ >) -> R ,) -> R",
           "cfg": [],
           "source_class": "production",
           "guards": [

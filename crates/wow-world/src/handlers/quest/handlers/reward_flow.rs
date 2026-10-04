@@ -232,21 +232,29 @@ impl WorldSession {
             return;
         }
 
-        // Check if player has the quest active
-        if !self.has_quest(quest_id) {
-            debug!(
+        // C++ `HandleQuestgiverCompleteQuest` (QuestHandler.cpp:559) rejects only a
+        // quest the player can neither see nor hold:
+        // `!CanSeeStartQuest(quest) && GetQuestStatus(id) == QUEST_STATUS_NONE`.
+        // A quest that is visible but has no status entry still reaches the dialog
+        // selection below; `has_quest` alone would drop it.
+        let represented_status = self
+            .player_quest_gameplay_snapshot_like_cpp()
+            .and_then(|state| state.statuses_like_cpp().get(&quest_id).map(|qs| qs.status))
+            .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP);
+        if !self.can_see_start_quest_represented_bounded_like_cpp(quest)
+            && represented_status == QUEST_STATUS_NONE_LIKE_CPP
+        {
+            warn!(
                 account = self.core.account_id,
-                quest_id, "Player doesn't have quest"
+                quest_id,
+                "QuestGiverCompleteQuest: possible hacking attempt, quest is neither visible nor held"
             );
             return;
         }
 
         // C++ `GetQuestStatus(packet.QuestID) != QUEST_STATUS_COMPLETE` plus the
         // `HasQuestObjectiveType(QUEST_OBJECTIVE_ITEM)` dialog choice.
-        let is_complete = self
-            .player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.statuses_like_cpp().get(&quest_id).map(|qs| qs.status))
-            == Some(QUEST_STATUS_COMPLETE_LIKE_CPP);
+        let is_complete = represented_status == QUEST_STATUS_COMPLETE_LIKE_CPP;
         let can_reward_quest = self.can_reward_quest_represented_bounded_like_cpp(quest);
         let can_complete_repeatable_quest =
             self.can_complete_repeatable_quest_represented_bounded_like_cpp(quest);

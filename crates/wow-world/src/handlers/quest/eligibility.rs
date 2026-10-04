@@ -231,6 +231,29 @@ impl WorldSession {
     /// This keeps the current represented Rust gate order; `SatisfyQuestTimed`
     /// remains unrepresented, so this is not a full-parity claim.
     pub fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
+        self.with_quest_eligibility_cx_like_cpp(|operation| operation.can_take_quest_like_cpp(quest))
+    }
+
+    /// C++ anchor: `Player::CanSeeStartQuest` (Player.cpp:14073–14085).
+    ///
+    /// `HandleQuestgiverCompleteQuest` asks this before it answers a dialog
+    /// request, so the represented bounded projection is exposed here rather
+    /// than duplicated in the handler.
+    pub(crate) fn can_see_start_quest_represented_bounded_like_cpp(
+        &self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> bool {
+        self.with_quest_eligibility_cx_like_cpp(|operation| {
+            operation.can_see_start_quest_like_cpp(quest)
+        })
+    }
+
+    /// Build the represented eligibility operation over the canonical Player
+    /// access, the quest state and the condition projection.
+    fn with_quest_eligibility_cx_like_cpp<R>(
+        &self,
+        run: impl FnOnce(&wow_world_application::QuestEligibilityCx<'_>) -> R,
+    ) -> R {
         let player = self.core.quest_eligibility_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.identity.player_race,
@@ -248,14 +271,13 @@ impl WorldSession {
             &self.fixtures.progression.reputation_state_like_cpp,
         );
         let conditions = self.player_condition_projection_cx_like_cpp();
-        let operation = wow_world_application::QuestEligibilityCx::new(
+        run(&wow_world_application::QuestEligibilityCx::new(
             player,
             &self.quest_state,
             &self.catalogs,
             &conditions,
             cfg!(test),
-        );
-        operation.can_take_quest_like_cpp(quest)
+        ))
     }
 
     pub(crate) fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {

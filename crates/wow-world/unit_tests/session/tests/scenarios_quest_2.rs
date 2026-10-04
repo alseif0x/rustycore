@@ -401,3 +401,64 @@ async fn quest_giver_complete_incomplete_item_turn_in_requests_items_like_cpp() 
         Some(ServerOpcodes::QuestGiverRequestItems)
     );
 }
+
+/// C++ `HandleQuestgiverCompleteQuest` (QuestHandler.cpp:559) refuses only a
+/// quest the player can neither see nor hold:
+/// `!CanSeeStartQuest(quest) && GetQuestStatus(id) == QUEST_STATUS_NONE`.
+/// A visible quest the player has never accepted still answers the dialog; the
+/// previous `has_quest` guard required a status entry and dropped it.
+#[tokio::test]
+async fn quest_giver_complete_visible_quest_without_status_requests_items_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 99);
+    session.set_player_guid(Some(player_guid));
+    session.catalogs.quests.store = Some(Arc::new(
+        wow_data::quest::QuestStore::from_quests_like_cpp([quest_with_item_objective_like_cpp(
+            9_240,
+        )]),
+    ));
+
+    session
+        .handle_quest_giver_complete_quest(quest_giver_complete_packet_like_cpp(
+            player_guid,
+            9_240,
+            true,
+        ))
+        .await;
+
+    let bytes = send_rx
+        .try_recv()
+        .expect("a visible quest without a status entry still answers the dialog");
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+        Some(ServerOpcodes::QuestGiverRequestItems)
+    );
+}
+
+/// The other half of the same C++ guard: a quest the player can neither see nor
+/// hold is refused before any dialog is built.
+#[tokio::test]
+async fn quest_giver_complete_invisible_quest_without_status_sends_nothing_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 99);
+    session.set_player_guid(Some(player_guid));
+    let mut quest = quest_with_item_objective_like_cpp(9_241);
+    // `CanSeeStartQuest` requires level + QUEST_HIGH_LEVEL_HIDE_DIFF >= min_level.
+    quest.min_level = i32::from(u8::MAX);
+    session.catalogs.quests.store = Some(Arc::new(
+        wow_data::quest::QuestStore::from_quests_like_cpp([quest]),
+    ));
+
+    session
+        .handle_quest_giver_complete_quest(quest_giver_complete_packet_like_cpp(
+            player_guid,
+            9_241,
+            true,
+        ))
+        .await;
+
+    assert!(
+        send_rx.try_recv().is_err(),
+        "an invisible, unheld quest must not publish a dialog"
+    );
+}

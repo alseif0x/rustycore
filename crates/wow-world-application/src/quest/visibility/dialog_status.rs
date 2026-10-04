@@ -133,7 +133,11 @@ impl QuestEligibilityCx<'_> {
         )
     }
 
-    fn can_see_start_quest_like_cpp(&self, quest: &QuestTemplate) -> bool {
+    /// C++ `Player::CanSeeStartQuest` (Player.cpp:14073-14085).
+    ///
+    /// The CompleteQuest guard asks this question before it publishes a dialog,
+    /// so it is part of the public represented surface.
+    pub fn can_see_start_quest_like_cpp(&self, quest: &QuestTemplate) -> bool {
         if self.catalogs.disable_mgr().is_some_and(|disable_mgr| {
             disable_mgr.is_disabled_for_like_cpp(
                 wow_data::DISABLE_TYPE_QUEST,
