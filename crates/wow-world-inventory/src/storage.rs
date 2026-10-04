@@ -694,8 +694,8 @@ impl crate::InventoryState {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
             let attack = match slot {
-                EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
-                EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
+                wow_entities::EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
+                wow_entities::EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
                 _ => None,
             };
             if let Some(attack) = attack {
