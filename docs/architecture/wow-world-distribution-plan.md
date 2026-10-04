@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `ffd67f97b` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `901ac70ab` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `901ac70ab` (aura-effects en wow-world-spell) se repitió el mismo
+conjunto (workspace/`wow-world` verdes, `wow-world --lib` 3.664, aplicación 29/29, sin avisos
+nuevos) y se añadió la ejecución por dominio con características: `wow-world-spell`
+`--features test-fixtures` 3/3, `wow-world-inventory --features test-fixtures` 0/0,
+`wow-world-social` 0/0, `wow-world-loot` 2/2, `wow-world-entities` 2/2,
+`wow-world-lifecycle` 14/14, `wow-world-instances` 0/0, `wow-world-interaction` 1/1,
+`wow-world-visibility` 0/0.
 
 Sobre el checkpoint `ffd67f97b` (phasing en Core) se repitió el mismo conjunto:
 `cargo check --workspace --all-targets`, `wow-world --all-targets` y
@@ -3843,6 +3851,11 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- las proyecciones de efectos de aura independientes de sesión
+  (`session_rules/rules_3/aura_effects.rs`, 427 líneas) pasaron a
+  `wow-world-spell/src/aura_effects.rs` (`pub mod aura_effects`); la fachada World
+  `session_rules/rules_3/aura_effects.rs` queda como `pub(crate) use wow_world_spell::aura_effects::*`
+  y `rules_3/melee_damage.rs` sigue resolviendo por `super::aura_effects::…`;
 - el módulo de phasing independiente de sesión (`src/phasing.rs`, 720 líneas de fachadas
   `PhasingHandler` sobre `WorldObject`/`PhaseShift`) pasó a `wow-world-core/src/phasing/`
   (`mod.rs` + `visibility.rs`) y **sus 23 pruebas** se movieron con él a
@@ -3855,6 +3868,16 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   Como dependía de `MAX_QUEST_LOG_SIZE_LIKE_CPP` (definida en App, no accesible desde Core),
   la constante se movió a `wow-world-core/src/session/gameplay_limits.rs` con ancla C++
   `Quests/QuestDef.h:43` y App la reexporta, manteniendo una sola definición.
+
+**Hallazgo de configuración de aceptación (no es defecto de código)**: ejecutar
+`cargo test -p wow-world-spell` o `-p wow-world-inventory` **sin** `--features test-fixtures`
+falla al compilar (4 y N errores E0061 de aridad), porque el `dev-dependency` sobre
+`wow-world-core` activa `test-fixtures` en Core, que entonces expone parámetros de fixture
+que el lib normal del crate no pasa (su `cfg(any(test, feature = "test-fixtures"))` es falso).
+Con la característica activada ambas suites pasan (`wow-world-spell` 3/3, `wow-world-inventory`
+0/0). La receta de aceptación debe usar `--features test-fixtures` (o la invocación de
+workspace/`final`, donde las características se unifican); una ejecución por paquete sin la
+característica no es una configuración soportada de estos crates.
 
 **Límite de este método**: retirar duplicados ya convergidos no alcanza el objetivo de F5
 (20–40k líneas en `wow-world`, hoy ~128k). F5 exige el rediseño de registro descrito en
