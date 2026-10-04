@@ -30,12 +30,14 @@ use wow_persistence::{
 #[path = "../../unit_tests/spell_acquisition/application/tests/mod.rs"]
 mod tests;
 
+// Test-only re-exports: the application fixtures exercise the full seam.
+#[cfg(test)]
 pub(crate) use wow_world_application::{
     PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
+    PlayerSpellAcquisitionPrepareErrorLikeCpp,
     PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
-    PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
-    PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
-    PreparedPlayerSpellAcquisitionLikeCpp, PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
+    PreparedPlayerSpellAcquisitionActionsLikeCpp,
+    PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
     apply_prepared_player_spell_acquisition_actions_like_cpp,
     apply_prepared_player_spell_acquisition_before_save_like_cpp,
     apply_prepared_player_spell_acquisition_like_cpp,
@@ -46,7 +48,12 @@ pub(crate) use wow_world_application::{
     persist_player_spell_acquisition_through_port_like_cpp,
     player_spell_acquisition_persistence_request_like_cpp,
     prepare_player_spell_acquisition_like_cpp,
-    snapshot_has_pending_durable_save_like_cpp,
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
+};
+pub(crate) use wow_world_application::{
+    PlayerSpellAcquisitionRuntimeLikeCpp,
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
+    PreparedPlayerSpellAcquisitionLikeCpp,
+    snapshot_has_pending_durable_save_like_cpp,
 };

@@ -110,6 +110,7 @@ pub enum PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp {
     PublicationInterrupted,
 }
 
+mod effect_learning;
 mod prepare;
 mod persistence;
 mod commit;
@@ -124,6 +125,10 @@ use translate::{
 use validate_plan::{validate_plan_replay_like_cpp, validate_profession_plan_like_cpp};
 use validate_post_commit::validate_post_commit_actions_like_cpp;
 
+pub use effect_learning::{
+    EffectLearningRuntimeLikeCpp, apply_base_learning_like_cpp, execute_effect_learning_like_cpp,
+    may_shallow_fallback_after_profession_plan_error_like_cpp,
+};
 pub use prepare::prepare_player_spell_acquisition_like_cpp;
 pub use persistence::{
     PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,

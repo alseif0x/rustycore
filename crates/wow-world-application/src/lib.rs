@@ -142,12 +142,13 @@ pub use profession::{
     plan_primary_professions_like_cpp,
 };
 pub use spell_acquisition::{
-    PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
+    EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
     PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
     PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
     PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
     PreparedPlayerSpellAcquisitionLikeCpp, PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
     apply_prepared_player_spell_acquisition_actions_like_cpp,
+    apply_base_learning_like_cpp, execute_effect_learning_like_cpp,
     apply_prepared_player_spell_acquisition_before_save_like_cpp,
     apply_prepared_player_spell_acquisition_like_cpp,
     apply_prepared_player_spell_acquisition_with_before_actions_like_cpp,
@@ -160,6 +161,7 @@ pub use spell_acquisition::{
     prepare_player_spell_acquisition_like_cpp,
     snapshot_has_pending_durable_save_like_cpp,
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
+    may_shallow_fallback_after_profession_plan_error_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
 pub use trainer_purchase::{
