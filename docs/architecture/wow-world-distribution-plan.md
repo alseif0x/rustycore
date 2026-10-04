@@ -2866,6 +2866,14 @@ sin gear/entrada vacía y ausencia de reconstrucción desde fixture sin handle.
 Export normal conectado, revisión por fuente favorable; no hay ejecución ni
 captura nueva. Child/offhand y el executor swap completo siguen pendientes;
 la liberación completa de botín se trabaja como dependencia compartida con Save.
+El contraste del siguiente mapa ubica AutoUnequipOffhand en
+Player.cpp:24600–24645 del SHA target: cuando CanStore falla, C++ mueve el item
+fuera del inventario y lo envía por correo en una transacción. El executor Rust
+actual de `inventory_moves/item_mutations.rs` conserva el offhand si StorageMove
+no lo mueve y registra `needs_mail_fallback: false` cuando sí se trasladó.
+Ese contraste queda pendiente de F6; F5 no introduce silenciosamente correo ni
+declara paridad por trasladar el executor. Child también conserva la búsqueda
+nativa del snapshot completo y sus consultas tardías de desplazamiento.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
