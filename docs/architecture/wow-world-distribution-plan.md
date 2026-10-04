@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `1d7478363` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `ababcd7f7` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `ababcd7f7` (traslado de geometría + montaje de LootRelease) la
+verificación del implementador fue: `cargo check --workspace --all-targets` verde,
+`cargo check -p wow-world-application --all-targets` verde (incluye cfg(test)/fixtures),
+`cargo test -p wow-world-application` 29/29 y `cargo test -p wow-world --lib -- handlers::loot`
+264/264. No se repitió la suite completa de `wow-world` en esta ronda.
 
 RawEquip (F5) está conectado por fuente y validado de forma acotada:
 `RegistrySyncInputs` inerte en Core presta los vitals de Stats al final; `InventoryEquipCxLikeCpp`
@@ -3728,17 +3734,22 @@ fixture en vez del Player canónico por GUID (`session/catalogs/operations.rs`,
 
 Barreras explícitas que siguen abiertas, sin declarar cierre:
 
-- **LootRelease**: `crates/wow-world-application/src/loot_release/` no está montado
-  (`mod loot_release;` ausente). Ya tienen cuerpo App `represented_notify_loot_list_like_cpp`
-  y sus accesos Core (`resolved_group_guid_like_cpp`,
-  `send_loot_list_to_other_allowed_looters_like_cpp`), más las 4 correcciones iniciales
-  (HighGuid, `loot_is_looted`, visibilidad de autoridad). Faltan dos helpers nunca movidos
-  desde World: `represented_gameobject_can_autostore_loot_item_like_cpp` (necesita `HubRef`
-  de Core con catálogos/config/fixtures, `gameobject_display_info_store`, rango de spell-lock
-  con known-spells y las geometrías `interaction_distance`/`display_box_contains`) y
-  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp` (reutiliza el proveedor
-  readonly de visibilidad ya unificado). El Cx App debe recibir catálogos/config/fixtures/
-  social/quest_state y construir lecturas por `HubRef`.
+- **LootRelease**: `crates/wow-world-application/src/loot_release/` está montado
+  (`mod loot_release;`) y todo el contexto compila, incluidos sus caminos `cfg(test)` y
+  `test-fixtures` (`cargo check -p wow-world-application --all-targets`: verde). Para ello:
+  la geometría compartida `represented_gameobject_interaction_distance_like_cpp` y
+  `represented_gameobject_display_box_contains_like_cpp` vive ahora en
+  `wow-world-entities` (con reexport en `handlers::loot` para sus consumidores y pruebas
+  existentes); el Cx App recibe `quest_state`, `social`, `spell_state` (cfg) y
+  `SessionFixtures` (cfg) y construye `HubRef` inerte por `owner.core_ref_like_cpp()`
+  reutilizando `catalogs`/`config` de `LootReleaseStatsInputsLikeCpp`; se implementaron
+  `represented_gameobject_can_autostore_loot_item_like_cpp` (posición canónica/representada,
+  display box, rango de spell-lock con known-spells y fallback de fixture) y
+  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp` (proyección
+  `ViewerDependentValue<ObjectData::DynamicFlagsTag>` con `QuestEligibilityCx` y condición
+  construidas bajo demanda). Queda pendiente el consumidor: la fachada World que construye
+  el Cx, delega `handlers::loot` en él y aporta sus pruebas. El módulo aún no tiene tests
+  propios ni aceptación.
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
   completions en `quest/objectives.rs`) ya tiene consumidor World: tanto ActivateToQuest como
   DynamicFlags delegan en el proveedor App; World conserva sus `has_quest`/`is_for_quests`
