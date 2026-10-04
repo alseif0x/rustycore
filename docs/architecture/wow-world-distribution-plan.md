@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `b044cbcee` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `63b30b09d` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `63b30b09d` (refresco de cofre en App) se repitió el mismo conjunto:
+`cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.687 passed / 0 failed / 1 ignored**; `wow-world-application` 29/29; sin avisos
+nuevos de imports ni de código muerto. Además se ejecutó el bloque de inventario ya escrito
+(`cargo test -p wow-world --lib -- scenarios_player_items raw_equip`: 179/179), que hasta
+ahora figuraba como "escrito, no ejecutado" en este documento.
 
 Sobre el checkpoint `b044cbcee` (decisión de CompleteQuest en App + paridad C++) la
 verificación del implementador fue: `cargo check --workspace --all-targets` verde,
@@ -3780,9 +3788,14 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   `wow_world_application::represented_gameobject_can_autostore_loot_item_like_cpp` (posición
   canónica/representada, display box y rango de spell-lock con `known_spells` explícitos) y
   `handlers/loot/handlers/item.rs` la consume por la fachada World; se retiraron las copias
-  World del gate y de `represented_gameobject_spell_lock_range_like_cpp`. El módulo App
-  todavía no tiene pruebas propias (la cobertura la aportan hoy las 264 pruebas
-  `handlers::loot` de `wow-world`, que ahora ejercitan el camino App).
+  World del gate y de `represented_gameobject_spell_lock_range_like_cpp`. También se
+  convergió el comando de refresco de estado de cofre: provider libre
+  `queue_chest_gameobject_state_refresh_for_same_map_like_cpp` en App, consumido por la
+  fachada `LootCxRef` de World (la usan `session/world_entities/gameobject.rs` y
+  `handlers/loot/sources/gameobject.rs`), retirando el constructor World
+  `chest_gameobject_state_refresh_command_like_cpp`. El módulo App todavía no tiene pruebas
+  propias (la cobertura la aportan hoy las 264 pruebas `handlers::loot` de `wow-world`, que
+  ahora ejercitan el camino App).
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
   completions en `quest/objectives.rs`) tiene consumidor World completo: ActivateToQuest,
   DynamicFlags y el refresh `update_visible_gameobjects_like_cpp` (que además usa
