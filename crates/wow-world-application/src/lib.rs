@@ -6,6 +6,7 @@
 
 pub mod vendor;
 pub mod character_creation;
+pub mod character_enumeration;
 mod profession;
 mod player_conditions;
 mod quest;
