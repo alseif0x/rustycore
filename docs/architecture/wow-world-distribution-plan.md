@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `901ac70ab` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `29b8bb9af` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `29b8bb9af` (melee-damage y player-cast en wow-world-spell) se repitió
+el mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y
+sin `test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.657 passed / 0 failed / 1 ignored**; `wow-world-spell --features test-fixtures`
+**10/10**; `wow-world-application` 29/29; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `901ac70ab` (aura-effects en wow-world-spell) se repitió el mismo
 conjunto (workspace/`wow-world` verdes, `wow-world --lib` 3.664, aplicación 29/29, sin avisos
@@ -3851,6 +3857,15 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- las reglas de daño cuerpo a cuerpo (`session_rules/rules_3/melee_damage.rs`, 259 líneas)
+  pasaron a `wow-world-spell/src/melee_damage.rs`; la fachada World queda como
+  `pub(crate) use wow_world_spell::melee_damage::*`;
+- el ciclo de vida de la petición de lanzamiento (`src/player_cast.rs`, 192 líneas: trait
+  `Runtime`, `prepare`, `request`) pasó a
+  `wow-world-spell/src/player_cast/lifecycle.rs` y **sus 7 pruebas** a
+  `wow-world-spell/unit_tests/player_cast_tests.rs`; la fachada World reexporta
+  `{Runtime, prepare, request}` y `impl Runtime for WorldSession` sigue resolviendo.
+  Identidades preservadas: `wow-world` 3.664 → 3.657 y `wow-world-spell` 3 → 10;
 - las proyecciones de efectos de aura independientes de sesión
   (`session_rules/rules_3/aura_effects.rs`, 427 líneas) pasaron a
   `wow-world-spell/src/aura_effects.rs` (`pub mod aura_effects`); la fachada World
