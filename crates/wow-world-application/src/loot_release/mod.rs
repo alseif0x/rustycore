@@ -6,8 +6,12 @@
 use wow_core::ObjectGuid;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP};
+use wow_packet::packets::loot::LootList;
 use wow_entities::ItemObjectUpdateLikeCpp;
-use wow_loot::{CreatureLoot, OwnedLootAuthority, loot_is_looted_like_cpp};
+use wow_loot::{
+    CreatureLoot, LOOT_METHOD_MASTER_LIKE_CPP, OwnedLootAuthority,
+    loot_has_over_threshold_item_like_cpp, loot_is_looted_like_cpp,
+};
 use wow_entities::{GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_GATHERING_NODE};
 
 #[derive(Clone)]
@@ -138,6 +142,41 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         publication::LootReleasePublicationCxLikeCpp::new(
             self.owner.transitions_like_cpp(), self.owner.publication_like_cpp(), self.instances,
         ).send_creature_loot_release_dynamic_flags_update_like_cpp(guid, update, authority)
+    }
+
+    /// C++ `Loot::NotifyLootList`: only grouped owners notify, the owner's own
+    /// session publishes its typed packet and the registry delivers the same
+    /// bytes to every other allowed looter on this map.
+    fn represented_notify_loot_list_like_cpp(&self, owner_guid: ObjectGuid) {
+        if self.owner.resolved_group_guid_like_cpp().is_none() {
+            return;
+        }
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
+            return;
+        };
+        let master = if loot.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
+            && loot_has_over_threshold_item_like_cpp(loot)
+        {
+            (!loot.loot_master.is_empty()).then_some(loot.loot_master)
+        } else {
+            None
+        };
+        let packet = LootList {
+            owner: owner_guid,
+            loot_obj: loot.loot_guid,
+            master,
+            round_robin_winner: (!loot.round_robin_player.is_empty())
+                .then_some(loot.round_robin_player),
+        };
+        let bytes = packet.to_bytes();
+        if self.owner.player_guid_like_cpp() == Some(owner_guid) {
+            self.send_packet(&packet);
+        }
+        let _ = self.owner.send_loot_list_to_other_allowed_looters_like_cpp(
+            owner_guid,
+            &loot.allowed_looters,
+            &bytes,
+        );
     }
 }
 

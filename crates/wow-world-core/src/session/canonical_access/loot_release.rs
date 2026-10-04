@@ -75,6 +75,52 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         self.core.player_map_id_like_cpp()
     }
 
+    /// Resolve the current represented group guid at its original read point.
+    pub fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
+        self.core
+            .player_group_owner_access_like_cpp()
+            .canonical_group_guid_like_cpp()
+            .flatten()
+    }
+
+    /// Deliver one already-built loot-list packet to this owner's other allowed
+    /// looters on the current map, mirroring C++ `Loot::NotifyLootList`. The
+    /// owner's own delivery stays with the caller's typed publication path.
+    pub fn send_loot_list_to_other_allowed_looters_like_cpp(
+        &self,
+        owner_guid: ObjectGuid,
+        allowed_looters: &[ObjectGuid],
+        bytes: &[u8],
+    ) -> usize {
+        let map_id = self.core.player_map_id_like_cpp();
+        let instance_id = self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut delivered = 0;
+        for &allowed_looter in allowed_looters {
+            if allowed_looter == owner_guid {
+                continue;
+            }
+            let Some(registry) = self.core.player_registry() else {
+                continue;
+            };
+            let Some(registration) =
+                registry.loot_delivery_recipient(allowed_looter, map_id, instance_id)
+            else {
+                continue;
+            };
+            if registry
+                .send_current_packet(registration, bytes.to_vec())
+                .is_ok()
+            {
+                delivered += 1;
+            }
+        }
+        delivered
+    }
+
     pub fn retire_client_visible_guid_like_cpp(&mut self, guid: ObjectGuid) -> bool {
         self.core.client_visible_guids_like_cpp.remove(&guid)
     }
