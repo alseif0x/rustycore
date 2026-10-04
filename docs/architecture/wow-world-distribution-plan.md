@@ -2919,6 +2919,18 @@ SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, no demuestran paridad de ese helpe
 bounded: CanSeeStart aplica además skill, exclusive, reputation, day/week/month y
 expansion. F5 mantiene la representación Rust; diálogo, condiciones y completions
 enteros siguen abiertos, sin callbacks World ni prueba ejecutada.
+El diálogo completo ya está conectado posteriormente en
+`quest/visibility/dialog_status.rs`, reutilizando el participante readonly
+QuestEligibility y una sola definición del enum de fuente. Las dos fachadas
+World conservan `&self` y el catálogo QuestInfo opcional. Mantiene enders antes
+de starters, status fresco con retorno NONE si falta owner, CanTake antes de
+los filtros repeatable y condiciones completas antes del status/CanSee/level
+de starters. Tres escenarios nuevos de `quest_tests/creature.rs` comprueban OR
+de flags, prioridad del owner canónico sobre el fixture y rechazo del fallback
+tras reemplazar el owner con el mismo GUID. Se revisaron cuerpos y fixtures por
+fuente; no se ejecutaron pruebas, capturas ni aceptación. Este avance sustituye
+solo el pendiente de diálogo citado arriba: ActivateToQuest, refresh completo y
+CompleteQuest siguen abiertos.
 También se escribieron los gates completos de skill y reputation: skill mantiene
 conversión y proyección de records actuales; reputation consulta min/max por
 separado mediante un lector Core de faction/manager, con race/class tardíos,
