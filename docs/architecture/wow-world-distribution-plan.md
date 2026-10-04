@@ -2828,6 +2828,19 @@ del SHA target muestran responsabilidades adicionales de auras/meta/enchantments
 que no se reparan dentro de F5. Committed-swap, publicación, StorageMove,
 child/offhand y release-all siguen pendientes de traslado completo.
 
+CommittedSwap también está conectado por fuente: App
+`inventory_swap/committed.rs`, export normal y fachada World de cuatro argumentos.
+Conserva GetPos source/destination, FULL InventoryItems/ItemObjects, children
+sin ordenar, writes top-level independientes, GUID fresco posterior, updates
+source/destination/children y cierre Core finito de placement nativo. No agrupa
+guards ni elimina escrituras del original. Cuatro casos escritos cubren swap
+top-level, bolsas canónicas con children y bag_slot trasladados, destino ausente
+y rechazo del owner reemplazado con igual GUID. El caso de destino ausente
+retorna en GetPos; no demuestra el gate posterior de container. Revisión por
+fuente favorable; sin ejecución ni paridad nueva. El siguiente corte asignado
+es publicación completa de campos de item y slots de container, conservando
+lectores FULL, masks y Map tardío; publicación de posiciones/stats sigue aparte.
+
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
 y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
@@ -3007,8 +3020,16 @@ RecordingPort registra la request antes del hook y devuelve sus committed groups
 Los casos cubren riesgos distintos; su existencia no acredita PASS ni DB real.
 La revisión solicita además reemplazo del owner con el mismo GUID y otra
 incarnación/generación: retirar y observar el Player viejo no demuestra por sí
-solo que un receipt antiguo deje intactas las filas del nuevo owner. Queda
-pendiente escribir ese caso y el contraste de expected con committed groups.
+solo que un receipt antiguo deje intactas las filas del nuevo owner.
+Ese caso ya está escrito como extensión del test de owner retirado: instala
+otro Player con igual GUID y generación distinta durante el hook, y conserva
+dirty tanto en la fila compartida como en una exclusiva del nuevo owner.
+También está escrito `full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_tutorials`:
+captura un receipt real y combina grupos esperados no confirmados y un grupo
+confirmado ausente de la solicitud; exige conservar filas y tutorial dirty.
+La revisión corrigió un helper inexistente y la expectativa del retorno de ACK
+(indica necesidad de Registry sync, no mera presencia del receipt). Ambos casos
+siguen NO EJECUTADOS; no prueban durabilidad con DB/restart.
 
 Primer cuerpo CanEquip completo (2026-10-03, NO VALIDADO): el placeholder ya
 está reemplazado por la operación App. La revisión detectó que omitía CanUnequip
