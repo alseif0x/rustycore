@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `277d29681` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `d1889a262` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `d1889a262` (admisión y publicación de hechizos de criatura en
+`wow-world-entities`) se repitió el mismo conjunto: `cargo check --workspace --all-targets`
+verde (0 errores, con límite ampliado), `wow-world --all-targets` (con y sin
+`test-fixtures`), `wow-world-entities --all-targets` (con y sin `test-fixtures`) verdes;
+`cargo test -p wow-world --lib` **3.632 passed / 0 failed / 1 ignored**;
+`wow-world-entities --features test-fixtures` 2/2; `wow-world-application` 52/52; sin líneas
+de aviso nuevas.
 
 Sobre el checkpoint `277d29681` (contratos de aggro de criatura en `wow-world-entities`) se
 repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
@@ -3939,6 +3947,16 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- la admisión y la publicación de hechizos de criatura
+  (`session/creature_spell_admission.rs` 239 líneas: validación de objetivo, rango efectivo y
+  rechazo de torreta; y `session/creature_spell_publication.rs` 234 líneas: perfiles de
+  impacto, resolución de golpe y paquetes comprometidos) pasaron a
+  `wow-world-entities`. Con ello se movió también el umbral constante de fallo
+  (`creature_melee_spell_miss_threshold_3_3_5_like_cpp`, ahora dueño único en entities) y World
+  conserva solo un delegado `#[cfg(test)]`, que es su único consumidor restante. Se añadió
+  `num-traits` al manifiesto y se reapuntaron rutas a `wow_world_core::map_manager`/
+  `session`, además de plegar el helper de prueba de admisión a
+  `#[cfg(any(test, feature = "test-fixtures"))]`;
 - los contratos de aggro de criatura (`session/creature_aggro_contracts.rs`, 272 líneas:
   instantáneas de dueño de aggro, actualizaciones de amenaza, decisiones de disable/visibilidad/
   selección de IA y `CreatureSpellTargetHitResultLikeCpp`) pasaron a
