@@ -2931,6 +2931,18 @@ no por snapshots adelantados. Las vistas terminan antes de publicar interaction
 y el paquete. Implementación asignada; esta decisión no acredita que el nuevo
 constructor ni sus consumidores estén terminados o compilados.
 
+TrainerList ya entregó esa integración completa por fuente: controller y row
+projection App, builders Core, vistas temporales desde Aura, inputs de
+PlayerCondition y constructor World. NPC → clone/resolve store → fullFeign →
+ofertas frescas → count/log → greeting → reemplazo de interacción → envío
+conservan el orden. Buy conserva su consulta standalone de oferta. Dos pruebas
+nuevas en `handlers/trainer/tests/admission.rs` fijan la oferta Unavailable antes
+de Feign y Available después, con bytes AuraUpdate antes de TrainerList, y el
+rechazo de NPC sin alterar aura/provenance ni enviar paquetes. El caso existente
+de mapping ausente conserva resolución antes de Feign. Revisión por fuente
+favorable, sin ejecutar; no hay evidencia de compilación ni aceptación. El mapa
+completo de TrainerBuy es la siguiente responsabilidad asignada.
+
 Proveedor de precio de trainer (2026-10-03, NO VALIDADO): el nuevo método
 NpcInteractionAccess de faction_reactions.rs conserva los retornos Neutral por
 store/faction ausentes, identidad antes del guard, rank dentro del guard de
