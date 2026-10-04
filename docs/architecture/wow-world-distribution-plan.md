@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `33103aeb9` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `277d29681` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,13 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `277d29681` (contratos de aggro de criatura en `wow-world-entities`) se
+repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
+límite ampliado), `wow-world --all-targets` (con y sin `test-fixtures`) y
+`wow-world-entities --all-targets` verdes; `cargo test -p wow-world --lib` **3.632 passed /
+0 failed / 1 ignored**; `wow-world-entities --features test-fixtures` 2/2;
+`wow-world-application` 52/52; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `33103aeb9` (metadatos y planificación de hechizos de criatura en
 `wow-world-entities`) se repitió el mismo conjunto: `cargo check --workspace
@@ -3932,6 +3939,14 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- los contratos de aggro de criatura (`session/creature_aggro_contracts.rs`, 272 líneas:
+  instantáneas de dueño de aggro, actualizaciones de amenaza, decisiones de disable/visibilidad/
+  selección de IA y `CreatureSpellTargetHitResultLikeCpp`) pasaron a
+  `wow-world-entities/src/creature_aggro_contracts.rs`; se añadieron `wow-ai` y
+  `wow-persistence` al manifiesto y se reapuntaron las rutas `crate::map_manager`/
+  `crate::session::mailbox` a Core. La fachada World usa `pub use` (el módulo original ya
+  reexportaba en público) y `UnitVisibilityDetectionStateLikeCpp` pasó al bloque
+  `#[cfg(test)]` de `session/mod.rs`, que es su único consumidor restante;
 - el cluster de hechizos de criatura independiente de sesión pasó a
   `wow-world-entities`: `session/creature_spell_metadata.rs` (418 líneas: objetivo/condición
   de IA, perfiles de cooldown y metadatos de lanzamiento) y
