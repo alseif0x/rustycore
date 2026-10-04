@@ -11,6 +11,8 @@ pub use prelude::{
 };
 
 pub mod character_availability;
+pub mod gameplay_limits;
+pub use gameplay_limits::MAX_QUEST_LOG_SIZE_LIKE_CPP;
 pub mod battle_pet_adapter;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
@@ -117,6 +119,7 @@ pub use combat::{
     SPELL_PVP_RULES_ENABLED_LIKE_CPP,
 };
 mod admission;
+pub use admission::packet_spoof_max_packet_counter_allowed_like_cpp;
 mod battleground_adapter;
 mod lifecycle_ops;
 mod npc_interaction;

@@ -727,6 +727,9 @@ use wow_entities::PetStable;
 #[cfg(test)]
 use wow_entities::TitanGripPenaltyAction;
 use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
+// Test-only: the session admission fixtures compare against the player slot end.
+#[cfg(test)]
+pub(crate) use wow_entities::PLAYER_SLOT_END;
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
@@ -750,7 +753,7 @@ use wow_entities::{
     ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
     ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
     MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
-    PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetDeclinedNamesLikeCpp, PetSpellState,
+    PROFESSION_SLOT_END, Pet, PetDeclinedNamesLikeCpp, PetSpellState,
     PetSpellType, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
     PlayerInteractionDataLikeCpp, PlayerInventoryRuntime, PlayerItemTimeUpdate,
     PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp,

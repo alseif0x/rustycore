@@ -574,7 +574,7 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
         ClientOpcodes::MoveForcePitchRateChangeAck,
     ] {
         assert_eq!(
-            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+            wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
             0,
             "{opcode:?}"
         );
@@ -592,7 +592,7 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
         ClientOpcodes::MoveHeartbeat,
     ] {
         assert_eq!(
-            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+            wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
             200,
             "{opcode:?}"
         );
@@ -609,14 +609,14 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
         ClientOpcodes::DeclinePetition,
     ] {
         assert_eq!(
-            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+            wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
             50,
             "{opcode:?}"
         );
     }
 
     assert_eq!(
-        WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+        wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(
             ClientOpcodes::QuestPoiQuery
         ),
         crate::handlers::quest::MAX_QUEST_LOG_SIZE_LIKE_CPP as u32
@@ -624,7 +624,7 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
 
     for opcode in [ClientOpcodes::SpellClick, ClientOpcodes::MoveDismissVehicle] {
         assert_eq!(
-            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+            wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
             20,
             "{opcode:?}"
         );
@@ -658,7 +658,7 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
         ClientOpcodes::ReportPvpPlayerAfk,
     ] {
         assert_eq!(
-            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+            wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
             10,
             "{opcode:?}"
         );
@@ -708,26 +708,26 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
         ClientOpcodes::DoReadyCheck,
     ] {
         assert_eq!(
-            WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
+            wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(opcode),
             3,
             "{opcode:?}"
         );
     }
 
     assert_eq!(
-        WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+        wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(
             ClientOpcodes::GetItemPurchaseData
         ),
         PLAYER_SLOT_END as u32
     );
     assert_eq!(
-        WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(
+        wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(
             ClientOpcodes::HotfixRequest
         ),
         1
     );
     assert_eq!(
-        WorldSession::packet_spoof_max_packet_counter_allowed_like_cpp(ClientOpcodes::AuthSession),
+        wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(ClientOpcodes::AuthSession),
         100
     );
 }

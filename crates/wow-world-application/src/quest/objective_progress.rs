@@ -14,7 +14,7 @@ use wow_world_lifecycle::SessionLifecycleState;
 
 use super::SessionQuestState;
 
-pub const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
+pub use wow_world_core::session::MAX_QUEST_LOG_SIZE_LIKE_CPP;
 
 pub fn plan_quest_status_save_like_cpp(
     owner: &QuestObjectiveAccessLikeCpp<'_>,
