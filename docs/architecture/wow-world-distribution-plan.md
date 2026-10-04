@@ -3750,6 +3750,20 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   construidas bajo demanda). Queda pendiente el consumidor: la fachada World que construye
   el Cx, delega `handlers::loot` en él y aporta sus pruebas. El módulo aún no tiene tests
   propios ni aceptación.
+- **Hallazgo de diseño para el consumidor de LootRelease** (descubierto al planificar la
+  fachada World, aún sin implementar): el Cx App no es construible tal cual desde
+  `&mut WorldSession`. `LootReleaseStatsInputsLikeCpp` guarda `StatsFixtureRefs` con
+  referencias `&mut` a `fixtures.combat.{player_health,max_health,alive}` y a las auras de
+  stats, mientras `registry_fixtures` y las refs de condición vuelven a pedir esos mismos
+  campos (health/max_health/alive, `visible_auras`, autoridad de aura, tombstone, threat
+  snapshots) y `fixtures: &SessionFixtures` los cubre todos: préstamos mutables e
+  inmutables del mismo campo no pueden coexistir en el struct. Resolución canónica
+  propuesta: que el Cx derive de `stats_inputs` los refs solapados (exponer
+  `health_refs_like_cpp` y los refs de aura de stats, hoy `pub(crate)` en Core) y reciba
+  del adaptador World solo un paquete inerte de refs **no solapadas** (identidad,
+  progresión, movimiento, vehículos, PvP, `in_combat`, skill records), retirando
+  `fixtures: &SessionFixtures` y los campos de stats duplicados de
+  `LootReleaseRegistryFixtureRefsLikeCpp`. No se ha cambiado nada de eso todavía.
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
   completions en `quest/objectives.rs`) ya tiene consumidor World: tanto ActivateToQuest como
   DynamicFlags delegan en el proveedor App; World conserva sus `has_quest`/`is_for_quests`
