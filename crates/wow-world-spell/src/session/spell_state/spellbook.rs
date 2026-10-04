@@ -1,6 +1,21 @@
 use std::collections::HashSet;
 use wow_data::{SkillRangeTypeLikeCpp, SpellLearnSkillLookupLikeCpp};
 impl crate::SessionSpellState {
+    pub fn known_spell_ids_for_aura_with_access_like_cpp(
+        &self, player: &wow_world_core::session::OwnedSpellAcquisitionAccessLikeCpp<'_>,
+        consumer_test: bool,
+    ) -> Vec<i32> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if consumer_test && player.player_handle_absent_like_cpp() {
+            let snapshot = player.with_player_spell_runtime_like_cpp(crate::represented_player_spell_runtime_like_cpp)
+                .unwrap_or_else(|| self.represented_spell_runtime_fixture_like_cpp());
+            let runtime = crate::canonical_player_spell_runtime_like_cpp(snapshot);
+            return runtime.known_spells_like_cpp().to_vec();
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = consumer_test;
+        player.with_player_spell_runtime_like_cpp(|runtime| runtime.known_spells_like_cpp().to_vec()).unwrap_or_default()
+    }
     pub fn represented_spell_valid_for_learning_like_cpp(
         &self,
         hub: wow_world_core::session::HubRef<'_>,

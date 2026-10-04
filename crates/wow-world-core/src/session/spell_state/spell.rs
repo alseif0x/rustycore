@@ -1,6 +1,5 @@
 use crate::session::HubRef;
 use crate::session::state::SessionCatalogs;
-use std::collections::HashSet;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::ServersideSpellInfoLikeCpp;
 
@@ -87,14 +86,8 @@ impl SessionCatalogs {
 
 impl HubRef<'_> {
     pub fn represented_spell_valid_for_talent_like_cpp(&self, spell_id: i32) -> bool {
-        let Some(spell_store) = self.catalogs.spell_store() else {
-            return true;
-        };
-        wow_data::represented_spell_valid_with_seen_like_cpp(
-            spell_store,
-            spell_id,
-            &mut HashSet::new(),
-        )
+        self.catalogs
+            .represented_spell_valid_for_talent_like_cpp(spell_id)
     }
 }
 

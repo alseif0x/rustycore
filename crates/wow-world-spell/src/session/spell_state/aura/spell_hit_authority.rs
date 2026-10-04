@@ -8,40 +8,8 @@ impl SessionSpellState {
         hub: &mut HubMut<'_>,
         mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
     ) -> Option<R> {
-        let mut mutate = Some(mutate);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
-            let mut auras = hub.shared().player_aura_subsystem_snapshot_like_cpp()?;
-            let result =
-                mutate
-                    .take()
-                    .expect("test Player aura mutation executes once")(&mut auras);
-            hub.fixtures.auras.player_aura_authority_complete_like_cpp =
-                auras.persisted_player_aura_authority_complete_like_cpp();
-            hub.fixtures
-                .auras
-                .player_spell_hit_aura_authority_tombstoned_like_cpp =
-                auras.spell_hit_aura_authority_tombstoned_like_cpp();
-            hub.fixtures.auras.visible_auras = auras.runtime_applications_like_cpp().clone();
-            hub.fixtures
-                .auras
-                .canonical_threat_aura_snapshots_like_cpp
-                .clear();
-            for slot in 0..=u8::MAX {
-                if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
-                    hub.fixtures
-                        .auras
-                        .canonical_threat_aura_snapshots_like_cpp
-                        .insert(slot, snapshot.clone());
-                }
-            }
-            return Some(result);
-        }
-        hub.core.with_owned_player_mut_like_cpp(|player| {
-            mutate.take().expect("Player aura mutation executes once")(
-                &mut player.unit_mut().subsystems_mut().auras,
-            )
-        })
+        hub.player_aura_removal_access_like_cpp()
+            .mutate_player_aura_subsystem_like_cpp(mutate)
     }
 
     pub fn set_player_aura_authority_complete_like_cpp(

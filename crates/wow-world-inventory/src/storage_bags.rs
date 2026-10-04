@@ -7,8 +7,7 @@ use wow_entities::{
     CONTAINER_DATA_SLOTS_PARENT_BIT, ContainerDataUpdate, ContainerDataValues, MAX_BAG_SIZE,
     TYPEID_CONTAINER, UpdateMask,
 };
-use wow_world_core::entity_update_bridge::bag_values_update_to_update_object;
-use wow_world_core::session::HubRef;
+use wow_world_core::session::{HubRef, OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp};
 
 impl crate::InventoryState {
     /// Publish a container-slot change by bag GUID. This is needed for C++'s
@@ -21,22 +20,39 @@ impl crate::InventoryState {
         bag_guid: ObjectGuid,
         changed_slot: u8,
     ) {
+        self.send_bag_object_slot_values_update_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            &hub.core.packet_publication_access_like_cpp(),
+            hub.catalogs.items.store.as_ref(), hub.catalogs.items.stats_store.as_ref(),
+            bag_guid, changed_slot,
+        );
+    }
+
+    pub fn send_bag_object_slot_values_update_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        publication: &PacketPublicationAccessLikeCpp<'_>,
+        item_store: Option<&std::sync::Arc<wow_data::ItemStore>>,
+        item_stats_store: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
+        bag_guid: ObjectGuid,
+        changed_slot: u8,
+    ) {
         if changed_slot as usize >= MAX_BAG_SIZE {
             return;
         }
-        let Some(bag_item) = self.resolved_inventory_item_object_like_cpp(hub, bag_guid) else {
+        let Some(bag_item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, bag_guid) else {
             return;
         };
-        let Some(bag_size) = hub
-            .catalogs
-            .item_storage_template(bag_item.object().entry())
+        let Some(bag_size) = wow_world_core::catalogs::item::item_storage_template_like_cpp(
+            item_store, item_stats_store, bag_item.object().entry(),
+        )
             .map(|template| template.container_slots)
             .filter(|size| *size > 0)
         else {
             return;
         };
         let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp(hub) else {
+        let Some(item_objects) = self.resolved_inventory_item_objects_with_access_like_cpp(access) else {
             return;
         };
         for item in item_objects
@@ -63,11 +79,7 @@ impl crate::InventoryState {
                 },
             }),
         };
-        if let Some(packet) =
-            bag_values_update_to_update_object(bag_guid, hub.core.player_map_id_like_cpp(), &update)
-        {
-            hub.core.send_packet(&packet);
-        }
+        let _ = publication.publish_bag_values_update_like_cpp(bag_guid, &update);
     }
 }
 
@@ -78,24 +90,23 @@ impl crate::InventoryState {
         bag_slot: u8,
         changed_slot: u8,
     ) {
+        self.send_bag_slot_values_update_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(), &hub.core.packet_publication_access_like_cpp(),
+            bag_slot, changed_slot,
+        );
+    }
+
+    pub fn send_bag_slot_values_update_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        publication: &PacketPublicationAccessLikeCpp<'_>,
+        bag_slot: u8,
+        changed_slot: u8,
+    ) {
         if changed_slot as usize >= MAX_BAG_SIZE {
             return;
         }
-        let Some((bag_guid, bag_size, slot_values)) = hub
-            .core
-            .canonical_player_snapshot_like_cpp(|player| {
-                let bag = player
-                    .inventory()
-                    .bags
-                    .get(bag_slot as usize)
-                    .and_then(Option::as_ref)?;
-                let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
-                for (index, slot) in bag.slots.iter().enumerate() {
-                    slots[index] = slot.unwrap_or(ObjectGuid::EMPTY);
-                }
-                Some((bag.bag_guid, bag.bag_size, slots))
-            })
-            .flatten()
+        let Some((bag_guid, bag_size, slot_values)) = access.canonical_inventory_bag_slots_snapshot_like_cpp(bag_slot)
         else {
             return;
         };
@@ -115,10 +126,6 @@ impl crate::InventoryState {
                 },
             }),
         };
-        if let Some(packet) =
-            bag_values_update_to_update_object(bag_guid, hub.core.player_map_id_like_cpp(), &update)
-        {
-            hub.core.send_packet(&packet);
-        }
+        let _ = publication.publish_bag_values_update_like_cpp(bag_guid, &update);
     }
 }

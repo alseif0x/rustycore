@@ -355,7 +355,7 @@ impl crate::session::state::SessionCatalogs {
 }
 
 impl SessionCore {
-    fn resolved_player_skill_records_for_publication_like_cpp(
+    pub(crate) fn resolved_player_skill_records_for_publication_like_cpp(
         &self,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_records: &HashMap<u16, RepresentedPlayerSkillLikeCpp>,

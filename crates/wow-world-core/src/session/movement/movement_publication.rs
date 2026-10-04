@@ -2,75 +2,13 @@
 
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 use std::time::Instant;
-use tracing::warn;
 use wow_constants::ServerOpcodes;
 use wow_core::ObjectGuid;
 
 impl crate::session::HubMut<'_> {
     pub fn send_movement_set_collision_height_like_cpp(&mut self, reason: u8) {
-        let Some(player_guid) = self.core.player_guid() else {
-            return;
-        };
-        let Some((_, mount_display_id, object_scale)) =
-            self.shared().player_unit_presentation_snapshot_like_cpp()
-        else {
-            return;
-        };
-        let Some(collision_height) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.unit().collision_height_like_cpp())
-            .or_else(|| {
-                #[cfg(any(test, feature = "test-fixtures"))]
-                {
-                    return self
-                        .core
-                        .player_handle_like_cpp
-                        .is_none()
-                        .then_some(self.fixtures.movement.player_collision_height_like_cpp);
-                }
-                #[cfg(not(any(test, feature = "test-fixtures")))]
-                {
-                    None
-                }
-            })
-        else {
-            return;
-        };
-        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
-            return;
-        };
-
-        let Some(scale_duration) = self.shared().resolved_player_scale_duration_like_cpp() else {
-            return;
-        };
-
-        self.core
-            .send_packet(&wow_packet::packets::movement::MoveSetCollisionHeight {
-                mover_guid: player_guid,
-                sequence_index,
-                height: collision_height,
-                scale: object_scale,
-                reason,
-                mount_display_id: u32::try_from(mount_display_id).unwrap_or(0),
-                scale_duration,
-            });
-
-        use wow_packet::ServerPacket;
-        let Some(status) = self
-            .shared()
-            .current_player_movement_info_like_cpp(player_guid)
-        else {
-            return;
-        };
-        self.shared().broadcast_to_movement_set_like_cpp(
-            wow_packet::packets::movement::MoveUpdateCollisionHeight {
-                status,
-                height: collision_height,
-                scale: object_scale,
-            }
-            .to_bytes(),
-            false,
-        );
+        let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.send_movement_set_collision_height_like_cpp(&presentation, reason);
     }
 
     pub fn send_represented_capture_point_removed_like_cpp(&mut self, gameobject_guid: ObjectGuid) {
@@ -81,35 +19,8 @@ impl crate::session::HubMut<'_> {
     }
 
     pub(in crate::session) fn send_player_move_set_flag_like_cpp(&mut self, opcode: ServerOpcodes) {
-        use wow_packet::ServerPacket;
-
-        let Some(player_guid) = self.core.player_guid() else {
-            return;
-        };
-        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
-            return;
-        };
-
-        let self_packet = wow_packet::packets::movement::MoveSetFlag {
-            opcode,
-            mover_guid: player_guid,
-            sequence_index,
-        }
-        .to_bytes();
-        if self.core.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
-
-        let Some(status) = self
-            .shared()
-            .current_player_movement_info_like_cpp(player_guid)
-        else {
-            return;
-        };
-        self.shared().broadcast_to_movement_set_like_cpp(
-            wow_packet::packets::movement::MoveUpdate { info: status }.to_bytes(),
-            false,
-        );
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.send_player_move_set_flag_like_cpp(opcode);
     }
 }
 impl crate::session::state::SessionCore {

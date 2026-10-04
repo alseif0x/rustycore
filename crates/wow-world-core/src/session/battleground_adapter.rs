@@ -394,37 +394,41 @@ impl crate::session::HubRef<'_> {
     pub fn player_battleground_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerBattlegroundState> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
-                    self.fixtures
-                        .battleground
-                        .player_battleground_type_id_like_cpp,
-                    self.fixtures
-                        .battleground
-                        .player_battleground_map_id_like_cpp,
-                    self.fixtures
-                        .battleground
-                        .represented_battleground_status_like_cpp,
-                    self.fixtures
-                        .battleground
-                        .represented_battleground_queue_slots_like_cpp
-                        .clone(),
-                    self.fixtures
-                        .battleground
-                        .represented_arena_team_id_invited_like_cpp,
-                ),
-            );
-        }
-        canonical
+        self.core
+            .player_battleground_state_snapshot_with_fixture_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.battleground,
+            )
     }
 
     pub fn player_in_represented_battleground_like_cpp(&self) -> bool {
         self.player_battleground_state_snapshot_like_cpp()
             .is_some_and(|state| state.in_battleground_like_cpp())
+    }
+}
+
+impl crate::session::SessionCore {
+    pub(crate) fn player_battleground_state_snapshot_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture: &crate::session::BattlegroundState,
+    ) -> Option<wow_entities::PlayerBattlegroundState> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(
+                wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
+                    fixture.player_battleground_type_id_like_cpp,
+                    fixture.player_battleground_map_id_like_cpp,
+                    fixture.represented_battleground_status_like_cpp,
+                    fixture
+                        .represented_battleground_queue_slots_like_cpp
+                        .clone(),
+                    fixture.represented_arena_team_id_invited_like_cpp,
+                ),
+            );
+        }
+        canonical
     }
 }

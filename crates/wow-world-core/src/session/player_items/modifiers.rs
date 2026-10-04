@@ -28,19 +28,7 @@ impl crate::session::state::SessionCatalogs {
     /// `CanUseItem` learning-effect gate (`Player.cpp:11110-11113`) reads the
     /// first two entries.
     pub fn represented_item_effect_spell_ids_like_cpp(&self, item_id: u32) -> Vec<(u8, i32)> {
-        let mut effects: Vec<(u8, i32)> = self
-            .items
-            .effect_store
-            .as_ref()
-            .map(|store| {
-                store
-                    .values()
-                    .filter(|effect| effect.parent_item_id == item_id)
-                    .map(|effect| (effect.legacy_slot_index, effect.spell_id))
-                    .collect()
-            })
-            .unwrap_or_default();
-        effects.sort_by_key(|(slot, _)| *slot);
-        effects
+        self.inventory_valuation_catalog_view_like_cpp()
+            .represented_item_effect_spell_ids_like_cpp(item_id)
     }
 }

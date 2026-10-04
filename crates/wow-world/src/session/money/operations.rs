@@ -15,12 +15,8 @@ impl WorldSession {
     }
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
-        self.player_currencies_like_cpp().map(|currencies| {
-            currencies
-                .get(&currency_id)
-                .map(|currency| currency.quantity)
-                .unwrap_or(0)
-        })
+        let access = self.core.owned_player_currency_access_like_cpp();
+        self.inventory.player_currency_quantity_with_access_like_cpp(&access, currency_id)
     }
     /// C++ `Player::HasCurrency`.
     pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {

@@ -28,284 +28,104 @@ impl WorldSession {
         &mut self,
         publish: bool,
     ) -> Option<bool> {
-        let map_pvp_activity = self
-            .catalogs
-            .map_store()
-            .and_then(|store| store.get(u32::from(self.core.player_map_id_like_cpp())))
-            .is_some_and(|entry| {
-                entry.is_battleground_or_arena() || entry.activates_pvp_item_levels_like_cpp()
-            });
-        let pvp_activity = map_pvp_activity
-            || crate::session::hub_ref(self).represented_has_pvp_rules_enabled_like_cpp();
-        let Some(using_pvp_item_levels) = self.resolved_using_pvp_item_levels_like_cpp() else {
-            return None;
-        };
-        if using_pvp_item_levels == pvp_activity {
-            return Some(false);
-        }
-
-        let Some((health_before, max_health_before, _)) =
-            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
-        else {
-            return None;
-        };
-        let Some(item_mod_targets) = ({
-            let (s, h) = crate::session::split_inventory_ref(self);
-            s.represented_top_level_item_mod_targets_like_cpp(h)
-        }) else {
-            return None;
-        };
-        self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
-        if !self.set_represented_using_pvp_item_levels_like_cpp(pvp_activity) {
-            return None;
-        }
-        self.record_represented_all_item_mods_like_cpp(&item_mod_targets, true);
-        self.restore_represented_health_pct_after_item_mod_scaling_like_cpp(
-            health_before,
-            max_health_before,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let player = self.core.player_stats_access_with_fixture_refs_like_cpp(
+            &self.catalogs, &self.config,
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+            &self.fixtures.identity.player_level,
+            wow_world_core::session::StatsFixtureRefs::new_like_cpp(
+                wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
+                    &mut self.fixtures.combat.player_health_like_cpp,
+                    &mut self.fixtures.combat.player_max_health_like_cpp,
+                    &mut self.fixtures.combat.player_alive_like_cpp,
+                    &mut self.fixtures.combat.represented_player_powers_like_cpp[0],
+                    &mut self.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                    &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
+                ),
+                wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
+                    &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                    &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                    &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                    &self.fixtures.auras.visible_auras,
+                    &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                ),
+            ),
         );
-        if publish && !item_mod_targets.is_empty() {
-            self.send_represented_item_bonus_player_stat_update_like_cpp();
-        }
-        Some(true)
-    }
-    pub(in crate::session) fn represented_avg_total_item_level_like_cpp(&self) -> Option<f32> {
-        let (can_dual_wield, can_titan_grip) = self.inventory_equip_capabilities_like_cpp()?;
-        let mut best_item_levels =
-            vec![(InventoryType::NonEquip, 0u32, ObjectGuid::EMPTY); EQUIPMENT_SLOT_END as usize];
-        let mut sum = 0u32;
-
-        let item_objects = self.resolved_inventory_item_objects_like_cpp()?;
-        for (&slot, inventory_item) in &self.resolved_inventory_items_like_cpp()? {
-            let runtime_item = item_objects.get(&inventory_item.guid);
-            self.represented_avg_total_item_level_consume_candidate_like_cpp(
-                &mut best_item_levels,
-                &mut sum,
-                Some(slot),
-                inventory_item.entry_id,
-                inventory_item.guid,
-                runtime_item,
-                can_dual_wield,
-                can_titan_grip,
-            );
-        }
-
-        for item in item_objects.values() {
-            if item.is_in_trade()
-                || item.container_guid().is_empty()
-                || !item_objects.contains_key(&item.container_guid())
-            {
-                continue;
-            }
-
-            self.represented_avg_total_item_level_consume_candidate_like_cpp(
-                &mut best_item_levels,
-                &mut sum,
-                None,
-                item.object().entry(),
-                item.object().guid(),
-                Some(item),
-                can_dual_wield,
-                can_titan_grip,
-            );
-        }
-
-        if !can_titan_grip
-            && best_item_levels[EQUIPMENT_SLOT_MAINHAND as usize].0 == InventoryType::Weapon2Hand
-        {
-            sum = sum.saturating_add(best_item_levels[EQUIPMENT_SLOT_MAINHAND as usize].1);
-        }
-
-        Some(sum as f32 / 16.0)
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let player = self.core.player_stats_access_like_cpp(&self.catalogs, &self.config);
+        wow_world_application::InventoryScalingApplicationCxLikeCpp::new(
+            &mut self.inventory,
+            player,
+            self.core.owned_inventory_access_like_cpp(),
+            self.core.inventory_valuation_access_like_cpp(),
+            self.core.owned_item_modifiers_access_like_cpp(),
+            self.core.packet_publication_access_like_cpp(),
+            self.catalogs.map_store().map(AsRef::as_ref),
+            wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+                self.catalogs.scaling_stat_distribution_store.as_ref(),
+                self.catalogs.scaling_stat_values_store.as_ref(),
+                self.catalogs.shield_block_regular_game_table.as_ref(),
+                self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
+            ),
+            &self.loot,
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.movement.player_position,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_application::PlayerRegistryHydrationContext::new(
+                self.core.player_registry_hydration_access_like_cpp(),
+                &self.spell_state,
+                &self.quest_state,
+                (
+                    &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                    &self.fixtures.pets.represented_pet_guid_like_cpp,
+                ),
+                cfg!(test),
+            ),
+        ).update_item_level_area_based_scaling_like_cpp(publish)
     }
     /// C++ `Player::GetAverageItemLevel`.
     pub(crate) fn represented_average_item_level_like_cpp(&self) -> Option<f32> {
-        let item_objects = self.resolved_inventory_item_objects_like_cpp()?;
-        let inventory_items = self.resolved_inventory_items_like_cpp()?;
-        let mut sum = 0.0f32;
-        let mut count = 0u32;
-
-        for slot in 0..EQUIPMENT_SLOT_END {
-            if matches!(
-                slot,
-                EQUIPMENT_SLOT_TABARD
-                    | EQUIPMENT_SLOT_RANGED
-                    | EQUIPMENT_SLOT_OFFHAND
-                    | EQUIPMENT_SLOT_BODY
-            ) {
-                continue;
-            }
-
-            if let Some(inventory_item) = inventory_items.get(&slot) {
-                let runtime_item = item_objects.get(&inventory_item.guid);
-                if let Some(item_level) =
-                    self.represented_item_level_like_cpp(inventory_item.entry_id, runtime_item)
-                {
-                    sum += item_level as f32;
-                }
-            }
-
-            count += 1;
-        }
-
-        Some(if count == 0 { 0.0 } else { sum / count as f32 })
-    }
-    fn represented_avg_total_item_level_consume_candidate_like_cpp(
-        &self,
-        best_item_levels: &mut [(InventoryType, u32, ObjectGuid)],
-        sum: &mut u32,
-        direct_slot: Option<u8>,
-        entry_id: u32,
-        item_guid: ObjectGuid,
-        runtime_item: Option<&Item>,
-        can_dual_wield: bool,
-        can_titan_grip: bool,
-    ) {
-        let Some(storage_template) = self.item_storage_template(entry_id) else {
-            return;
-        };
-        let Some(item_level) = self.represented_item_level_like_cpp(entry_id, runtime_item) else {
-            return;
-        };
-        let inventory_type = storage_template.inventory_type;
-
-        if let Some(slot) = direct_slot.filter(|slot| *slot < EQUIPMENT_SLOT_END) {
-            wow_entities::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
-                best_item_levels,
-                sum,
-                slot,
-                inventory_type,
-                item_level,
-                item_guid,
-                false,
-            );
-            return;
-        }
-
-        if let Some(runtime_item) = runtime_item {
-            let represented_item = InventoryItem {
-                guid: item_guid,
-                entry_id,
-                db_guid: item_guid.counter() as u64,
-                inventory_type: Some(inventory_type as u8),
-            };
-            if self.can_use_inventory_item_represented_with_loading_like_cpp(
-                &represented_item,
-                Some(runtime_item),
-                false,
-            ) != InventoryResult::Ok
-            {
-                return;
-            }
-
-            if self.represented_can_equip_unique_item_like_cpp(entry_id, runtime_item, NULL_SLOT)
-                != InventoryResult::Ok
-            {
-                return;
-            }
-
-            if self.represented_avg_total_item_level_can_equip_item_like_cpp(
-                entry_id,
-                runtime_item,
-                can_dual_wield,
-                can_titan_grip,
-            ) != InventoryResult::Ok
-            {
-                return;
-            }
-        }
-
-        for (candidate_slot, check_duplicate_guid) in
-            wow_entities::represented_total_avg_equipment_slot_candidates_like_cpp(
-                inventory_type,
-                can_dual_wield,
-                can_titan_grip,
-            )
-        {
-            wow_entities::represented_avg_total_item_level_maybe_replace_slot_like_cpp(
-                best_item_levels,
-                sum,
-                candidate_slot,
-                inventory_type,
-                item_level,
-                item_guid,
-                check_duplicate_guid,
-            );
-        }
+        self.inventory.represented_average_item_level_with_access_like_cpp(
+            &self.core.owned_inventory_access_like_cpp(),
+            &self.core.inventory_valuation_access_like_cpp(),
+            &self.core.owned_item_modifiers_access_like_cpp(),
+            &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+            Self::MIN_ITEM_LEVEL_LIKE_CPP,
+            Self::MAX_ITEM_LEVEL_LIKE_CPP,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+        )
     }
     pub(in crate::session) fn represented_item_level_like_cpp(
         &self,
         entry_id: u32,
         runtime_item: Option<&Item>,
     ) -> Option<u32> {
-        let using_pvp_item_levels = self.resolved_using_pvp_item_levels_like_cpp()?;
-        let caps = self
-            .player_item_modifier_runtime_snapshot_like_cpp()?
-            .item_level_caps_like_cpp();
-        let item_stats_store = self.catalogs.items.stats_store.as_ref()?;
-        let random_property_template = item_stats_store.random_property_template(entry_id)?;
-        let sparse_template = item_stats_store.sparse_template(entry_id);
-        let template_item_level = i64::from(random_property_template.item_level);
-        let runtime_item_level = runtime_item
-            .map(|item| i64::from(item.data().debug_item_level))
-            .filter(|level| *level != 0);
-        let item_level = runtime_item_level.unwrap_or_else(|| {
-            let mut item_level = sparse_template
-                .and_then(|template| {
-                    let (s, h) = crate::session::split_inventory_ref(self);
-                    s.represented_player_level_curve_item_level_like_cpp(h, template, runtime_item)
-                })
-                .unwrap_or(template_item_level);
-            item_level += self
-                .catalogs
-                .represented_item_level_bonus_like_cpp(runtime_item);
-            let item_level_before_upgrades = item_level;
-            if using_pvp_item_levels {
-                item_level += i64::from(
-                    self.catalogs
-                        .represented_pvp_item_level_bonus_like_cpp(entry_id),
-                );
-            }
-
-            let inventory_type = sparse_template
-                .map(|template| template.inventory_type)
-                .unwrap_or(random_property_template.inventory_type);
-            let is_equipable =
-                <InventoryType as num_traits::FromPrimitive>::from_i8(inventory_type)
-                    .is_some_and(|inventory_type| inventory_type != InventoryType::NonEquip);
-            if !is_equipable {
-                return item_level;
-            }
-
-            if caps.min_item_level != 0
-                && (caps.min_item_level_cutoff == 0
-                    || item_level_before_upgrades >= i64::from(caps.min_item_level_cutoff))
-                && item_level < i64::from(caps.min_item_level)
-            {
-                item_level = i64::from(caps.min_item_level);
-            }
-
-            let flags3 = sparse_template
-                .map(|template| template.flags[2])
-                .unwrap_or_default();
-            let ignore_max_cap = (flags3 & ItemFlags3::IgnoreItemLevelCapInPvp as u32) != 0;
-            if caps.max_item_level != 0
-                && !ignore_max_cap
-                && item_level > i64::from(caps.max_item_level)
-            {
-                item_level = i64::from(caps.max_item_level);
-            }
-
-            item_level
-        });
-        Some(
-            item_level
-                .clamp(
-                    i64::from(Self::MIN_ITEM_LEVEL_LIKE_CPP),
-                    i64::from(Self::MAX_ITEM_LEVEL_LIKE_CPP),
-                )
-                .try_into()
-                .expect("clamped item level fits u32"),
+        let valuation_access = self.core.inventory_valuation_access_like_cpp();
+        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
+        let catalogs = self.catalogs.inventory_valuation_catalog_view_like_cpp();
+        self.inventory.represented_item_level_with_access_like_cpp(
+            &valuation_access,
+            &modifier_access,
+            &catalogs,
+            entry_id,
+            runtime_item,
+            Self::MIN_ITEM_LEVEL_LIKE_CPP,
+            Self::MAX_ITEM_LEVEL_LIKE_CPP,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
         )
     }
 }

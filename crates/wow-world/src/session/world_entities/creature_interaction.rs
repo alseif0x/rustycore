@@ -15,12 +15,9 @@ impl WorldSession {
             return npc_flags;
         }
 
-        match self.represented_can_see_spell_click_on_creature_like_cpp(creature_guid) {
-            RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden => {
-                npc_flags & !UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP
-            }
-            RepresentedCanSeeSpellClickOutcomeLikeCpp::Visible
-            | RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented => npc_flags,
-        }
+        wow_world_application::represented_viewer_dependent_creature_npc_flags_like_cpp(
+            npc_flags,
+            self.represented_can_see_spell_click_on_creature_like_cpp(creature_guid),
+        )
     }
 }

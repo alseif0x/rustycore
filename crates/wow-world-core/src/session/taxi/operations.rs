@@ -168,28 +168,10 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn remove_player_mount_vehicle_kit_like_cpp(&mut self) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.remove_mount_vehicle_kit_like_cpp())
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical {
-            return true;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            if let Some(vehicle_kit) = self
-                .fixtures
-                .vehicles
-                .player_mount_vehicle_kit_like_cpp
-                .as_mut()
-            {
-                vehicle_kit.uninstall();
-            }
-            self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = None;
-            return true;
-        }
-        canonical
+        self.core.remove_mount_vehicle_kit_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+        )
     }
 
     pub(in crate::session) fn eject_player_mount_vehicle_passenger_like_cpp(
@@ -343,25 +325,8 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn send_set_vehicle_rec_id_like_cpp(&mut self, vehicle_id: u32) {
-        let Some(player_guid) = self.core.player_guid() else {
-            return;
-        };
-        let vehicle_rec_id = i32::try_from(vehicle_id).unwrap_or(i32::MAX);
-        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
-            return;
-        };
-
-        self.core
-            .send_packet(&wow_packet::packets::vehicle::MoveSetVehicleRecId {
-                mover_guid: player_guid,
-                sequence_index,
-                vehicle_rec_id,
-            });
-        self.core
-            .send_packet(&wow_packet::packets::vehicle::SetVehicleRecId {
-                vehicle_guid: player_guid,
-                vehicle_rec_id,
-            });
+        self.aura_removal_mount_accesses_like_cpp().1
+            .send_set_vehicle_rec_id_like_cpp(vehicle_id);
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -581,19 +546,10 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn player_mount_vehicle_kit_snapshot_like_cpp(&self) -> Option<Option<Vehicle>> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.mount_vehicle_kit_snapshot_like_cpp());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .vehicles
-                    .player_mount_vehicle_kit_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
+        self.core.mount_vehicle_kit_snapshot_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+        )
     }
 
     pub fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {

@@ -236,8 +236,42 @@ impl crate::SessionSpellState {
         hub: wow_world_core::session::HubRef<'_>,
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
-        let catalog = hub.catalogs.spell_catalogs.spell_acquisition_catalog()?;
-        let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp(hub);
+        self.resolve_trainer_wrapper_cast_acquisition_with_access_like_cpp(
+            &hub.core.owned_spell_acquisition_access_like_cpp(),
+            &hub.player_condition_access_like_cpp(),
+            hub.catalogs.spell_catalogs.spell_acquisition_catalog(),
+            hub.catalogs.difficulty_store().map(AsRef::as_ref),
+            hub.catalogs.map_store().map(AsRef::as_ref),
+            hub.catalogs.disable_mgr().map(AsRef::as_ref),
+            hub.catalogs.spell_catalogs.spell_target_restrictions_store().map(AsRef::as_ref),
+            hub.catalogs.spell_catalogs.spell_aura_restrictions_store().map(AsRef::as_ref),
+            hub.catalogs.spell_pet_aura_store_like_cpp(),
+            hub.catalogs.spell_catalogs.spell_linked_store_like_cpp(),
+            spell_id,
+        )
+    }
+
+    /// Resolve one wrapper using borrowed, selected canonical inputs. Store
+    /// selection performs no player query; each query stays at its cast phase.
+    pub fn resolve_trainer_wrapper_cast_acquisition_with_access_like_cpp(
+        &self,
+        spell: &wow_world_core::session::OwnedSpellAcquisitionAccessLikeCpp<'_>,
+        player: &wow_world_core::session::PlayerConditionAccessLikeCpp<'_>,
+        catalog: Option<&SpellAcquisitionCatalogLikeCpp>,
+        difficulties: Option<&wow_data::DifficultyStore>,
+        maps: Option<&wow_data::MapStore>,
+        disables: Option<&wow_data::DisableMgrLikeCpp>,
+        targets: Option<&wow_data::SpellTargetRestrictionsStore>,
+        restrictions: Option<&wow_data::SpellAuraRestrictionsStore>,
+        pet_auras: Option<&wow_data::SpellPetAuraStoreLikeCpp>,
+        linked: Option<&wow_data::SpellLinkedStoreLikeCpp>,
+        spell_id: u32,
+    ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
+        let catalog = catalog?;
+        let difficulty_chain = self.difficulty_chain_for_acquisition_like_cpp(
+            difficulties,
+            u32::from(spell.current_map_difficulty_id_like_cpp()),
+        );
         let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
             spell_id,
             difficulty_chain.iter().copied(),
@@ -248,14 +282,12 @@ impl crate::SessionSpellState {
             SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
             | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
         };
-        let map_id = u32::from(hub.core.player_map_id_like_cpp());
-        let (_, area_id) = hub.player_zone_area_like_cpp()?;
-        let map_instance_type = hub
-            .catalogs
-            .map_store()
+        let map_id = u32::from(spell.player_map_id_like_cpp());
+        let (_, area_id) = player.player_zone_area_like_cpp()?;
+        let map_instance_type = maps
             .and_then(|store| store.get(map_id))
             .map(|entry| entry.instance_type);
-        if hub.catalogs.disable_mgr()?.is_disabled_for_like_cpp(
+        if disables?.is_disabled_for_like_cpp(
             wow_data::DISABLE_TYPE_SPELL,
             spell_id,
             Some(wow_data::DisableWorldObjectRefLikeCpp {
@@ -269,7 +301,7 @@ impl crate::SessionSpellState {
                 player_map_difficulty: None,
             }),
             0,
-            hub.catalogs.map_store().map(AsRef::as_ref),
+            maps,
         ) {
             // Spell::prepare rejects disabled spells before CheckCast and any
             // effect/pet hook. Trainer::TeachSpell has already charged and
@@ -282,9 +314,7 @@ impl crate::SessionSpellState {
         // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
         // restriction cannot reject a normal cast (or vice versa).
         if !trainer_target_restriction_admits_player_like_cpp(
-            hub.catalogs
-                .spell_catalogs
-                .spell_target_restrictions_store()?,
+            targets?,
             spell_id,
             difficulty_chain.iter().copied(),
         ) {
@@ -295,18 +325,15 @@ impl crate::SessionSpellState {
         // An empty aura map proves absence only after both persisted aura
         // tables completed successfully during login. This authority is also
         // required before resolving positive/negative aura-spell gates.
-        if self.resolved_player_aura_authority_complete_like_cpp(hub) != Some(true) {
+        if player.resolved_player_aura_authority_complete_like_cpp() != Some(true) {
             return None;
         }
         // Startup proves only DIFFICULTY_NONE. Resolve the active row against
         // the current self-target where the session owns exact aura-spell
         // presence. A definite cast failure happens after fee/visuals in C++;
         // state-based rows remain unavailable until Unit AuraState is owned.
-        let visible_auras = hub.resolved_player_visible_auras_like_cpp()?;
-        let aura_restriction_result = hub
-            .catalogs
-            .spell_catalogs
-            .spell_aura_restrictions_store()?
+        let visible_auras = player.resolved_visible_auras_like_cpp()?;
+        let aura_restriction_result = restrictions?
             .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
             .map_or(TrainerAuraRestrictionResultLikeCpp::Pass, |restriction| {
                 trainer_aura_restriction_result_like_cpp(restriction, |required_spell_id| {
@@ -327,7 +354,7 @@ impl crate::SessionSpellState {
         // pet-aura hooks only after CheckCast has accepted the target/aura
         // gates above, so a definite pre-effect cast failure must win over an
         // unsupported hook and preserve the paid, visualized no-effect cast.
-        let pet_auras = hub.catalogs.spell_pet_aura_store_like_cpp()?;
+        let pet_auras = pet_auras?;
         for effect in &effective_effects {
             let effect_index = effect.effect_index_checked().ok()?;
             if pet_auras
@@ -379,7 +406,9 @@ impl crate::SessionSpellState {
             return None;
         }
         let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
-            hub,
+            player,
+            difficulties,
+            linked,
             catalog,
             spell_id,
             &effective_effects,
@@ -421,26 +450,15 @@ impl crate::SessionSpellState {
     /// Build the C++ `SpellMgr::GetSpellInfo` fallback chain for a selected
     /// difficulty. Casts use the current map difficulty; retained auras use
     /// the difficulty whose `SpellInfo` was selected when they were created.
-    fn current_map_difficulty_chain_for_acquisition_like_cpp(
-        &self,
-        hub: wow_world_core::session::HubRef<'_>,
-    ) -> Vec<u32> {
-        self.difficulty_chain_for_acquisition_like_cpp(
-            hub,
-            u32::from(hub.core.current_map_difficulty_id_like_cpp()),
-        )
-    }
     fn difficulty_chain_for_acquisition_like_cpp(
         &self,
-        hub: wow_world_core::session::HubRef<'_>,
+        difficulties: Option<&wow_data::DifficultyStore>,
         requested: u32,
     ) -> Vec<u32> {
         let mut chain = vec![requested];
         let mut visited = BTreeSet::from([requested]);
         let mut current = requested;
-        while let Some(difficulty) = hub
-            .catalogs
-            .difficulty_store()
+        while let Some(difficulty) = difficulties
             .and_then(|store| store.get(current))
         {
             let fallback = u32::from(difficulty.fallback_difficulty_id);
@@ -454,14 +472,16 @@ impl crate::SessionSpellState {
     }
     fn active_auras_immunized_trainer_effect_mask_like_cpp(
         &self,
-        hub: wow_world_core::session::HubRef<'_>,
+        player: &wow_world_core::session::PlayerConditionAccessLikeCpp<'_>,
+        difficulties: Option<&wow_data::DifficultyStore>,
+        linked: Option<&wow_data::SpellLinkedStoreLikeCpp>,
         catalog: &SpellAcquisitionCatalogLikeCpp,
         trainer_spell_id: u32,
         trainer_effects: &[SpellAcquisitionEffectLikeCpp],
         no_immunities: bool,
     ) -> Option<u32> {
-        let linked = hub.catalogs.spell_catalogs.spell_linked_store_like_cpp()?;
-        let visible_auras = hub.resolved_player_visible_auras_like_cpp()?;
+        let linked = linked?;
+        let visible_auras = player.resolved_visible_auras_like_cpp()?;
         let mut immunized_effect_mask = 0_u32;
         for aura in visible_auras.values() {
             let aura_spell_id = u32::try_from(aura.spell_id).ok().filter(|id| *id != 0)?;
@@ -482,7 +502,7 @@ impl crate::SessionSpellState {
                 continue;
             }
             let aura_difficulty_chain =
-                self.difficulty_chain_for_acquisition_like_cpp(hub, u32::from(aura.difficulty_id));
+                self.difficulty_chain_for_acquisition_like_cpp(difficulties, u32::from(aura.difficulty_id));
             let effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
                 aura_spell_id,
                 aura_difficulty_chain,

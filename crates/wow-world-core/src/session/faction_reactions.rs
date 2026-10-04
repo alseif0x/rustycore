@@ -100,6 +100,59 @@ impl crate::session::HubRef<'_> {
 }
 
 impl NpcInteractionAccessLikeCpp<'_> {
+    /// Resolve the trainer price rank from this selected NPC capability's
+    /// faction catalogs and the canonical reputation owner. The manager read
+    /// remains at the caller's original price-evaluation point.
+    pub fn trainer_price_reputation_rank_like_cpp(
+        &self,
+        faction_template_id: u32,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        use wow_data::reputation::ReputationRankLikeCpp;
+
+        let Some(faction_template) = self
+            .faction_template_store
+            .and_then(|store| store.get(faction_template_id))
+        else {
+            return ReputationRankLikeCpp::Neutral;
+        };
+        if faction_template.faction == 0 {
+            return ReputationRankLikeCpp::Neutral;
+        }
+        let Some(faction_entry) = self
+            .faction_store
+            .and_then(|store| store.get(u32::from(faction_template.faction)))
+        else {
+            return ReputationRankLikeCpp::Neutral;
+        };
+
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let friendship_rep_reaction_store = self.friendship_rep_reaction_store;
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(player.reputation_like_cpp());
+            manager.rank_for_faction_entry_like_cpp(
+                faction_entry,
+                friendship_rep_reaction_store,
+                player_race,
+                player_class,
+            )
+        });
+        if let Some(rank) = canonical {
+            return rank;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.core.player_handle_like_cpp.is_none() {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(self.fixtures.reputation_state);
+            return manager.rank_for_faction_entry_like_cpp(
+                faction_entry,
+                friendship_rep_reaction_store,
+                player_race,
+                player_class,
+            );
+        }
+        ReputationRankLikeCpp::Neutral
+    }
+
     fn cloned_reputation_state_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerReputationStateLikeCpp> {

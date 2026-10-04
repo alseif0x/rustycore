@@ -23,6 +23,26 @@ impl SessionCore {
 }
 
 impl PacketPublicationAccessLikeCpp<'_> {
+    pub fn reborrow_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
+        PacketPublicationAccessLikeCpp { core: self.core }
+    }
+
+    /// Project and send Item values using the current map at publication time.
+    pub fn publish_item_values_update_like_cpp(&self, guid: ObjectGuid, update: &wow_entities::ItemValuesUpdate) -> bool {
+        let Some(packet) = crate::entity_update_bridge::item_values_update_to_update_object(
+            guid, self.core.player_map_id_like_cpp(), update,
+        ) else { return false; };
+        self.core.send_packet(&packet)
+    }
+
+    /// Project and send container values using the current map at publication time.
+    pub fn publish_bag_values_update_like_cpp(&self, guid: ObjectGuid, update: &wow_entities::BagValuesUpdate) -> bool {
+        let Some(packet) = crate::entity_update_bridge::bag_values_update_to_update_object(
+            guid, self.core.player_map_id_like_cpp(), update,
+        ) else { return false; };
+        self.core.send_packet(&packet)
+    }
+
     /// Publish one packet through the session's established send operation.
     pub fn send_packet<P: wow_packet::ServerPacket>(&self, packet: &P) -> bool {
         self.core.send_packet(packet)

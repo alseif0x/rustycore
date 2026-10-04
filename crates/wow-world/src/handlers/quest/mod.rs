@@ -66,7 +66,7 @@ use wow_packet::packets::quest::{
     quest_push_reason,
 };
 use wow_packet::packets::update::{
-    ItemCreateData, ItemEnchantmentValuesUpdate, PlayerDataValuesDeltaUpdate, QuestLogValuesUpdate,
+    ItemCreateData, ItemEnchantmentValuesUpdate,
     UpdateObject,
 };
 
@@ -107,9 +107,6 @@ const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;
 pub(crate) use wow_constants::quest::{
     QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
 };
-const QUEST_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
-const QUEST_STATE_FAIL_LIKE_CPP: u32 = 0x0002;
-const QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
@@ -222,59 +219,21 @@ fn represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
     receiver_rewarded_quests: &std::collections::HashSet<u32>,
 ) -> bool {
-    if quest.dependent_previous_quests.is_empty() {
-        return false;
-    }
-
-    for &prev_id in &quest.dependent_previous_quests {
-        let Some(previous_quest) = quest_store.get(prev_id) else {
-            // C++ ASSERTs because ObjectMgr validates this at startup. Rust fails closed
-            // as the prerequisite branch rather than panicking in the sender loop.
-            return true;
-        };
-
-        if receiver_rewarded_quests.contains(&prev_id) {
-            if previous_quest.exclusive_group >= 0 {
-                return false;
-            }
-
-            for exclusive_quest_id in quest_store
-                .quests
-                .values()
-                .filter(|candidate| candidate.exclusive_group == previous_quest.exclusive_group)
-                .map(|candidate| candidate.id)
-            {
-                if exclusive_quest_id != prev_id
-                    && !receiver_rewarded_quests.contains(&exclusive_quest_id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
-    true
+    wow_world_application::QuestEligibilityCx::represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
+        quest_store,
+        quest,
+        receiver_rewarded_quests,
+    )
 }
 
 fn represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
     receiver_active_quest_statuses: &std::collections::HashMap<u32, u8>,
 ) -> bool {
-    quest
-        .dependent_breadcrumb_quests
-        .iter()
-        .any(|breadcrumb_quest_id| {
-            matches!(
-                receiver_active_quest_statuses
-                    .get(breadcrumb_quest_id)
-                    .copied(),
-                Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-                    | Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
-                    | Some(QUEST_STATUS_FAILED_LIKE_CPP)
-            )
-        })
+    wow_world_application::QuestEligibilityCx::represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
+        quest,
+        receiver_active_quest_statuses,
+    )
 }
 
 fn represented_can_take_quest_after_expansion_like_cpp(
@@ -435,28 +394,8 @@ fn build_quest_poi_store_like_cpp(
 
 // ── Handler registrations ────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestGiverStatusSourceLikeCpp {
-    Creature { entry: u32 },
-    GameObject { entry: u32 },
-}
-
-impl RepresentedQuestGiverStatusSourceLikeCpp {
-    fn entry(self) -> u32 {
-        match self {
-            Self::Creature { entry } | Self::GameObject { entry } => entry,
-        }
-    }
-
-    fn kind_name(self) -> &'static str {
-        match self {
-            Self::Creature { .. } => "Creature",
-            Self::GameObject { .. } => "GameObject",
-        }
-    }
-}
-
-pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
+pub(crate) use wow_world_application::RepresentedQuestGiverStatusSourceLikeCpp;
+pub(crate) use wow_world_application::MAX_QUEST_LOG_SIZE_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/quest_tests.rs"]

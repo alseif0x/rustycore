@@ -186,3 +186,133 @@ async fn quest_giver_status_multiple_visible_canonical_creature_starter_sends_av
         vec![(guid, quest_giver_status::TRIVIAL)]
     );
 }
+
+#[tokio::test]
+async fn quest_giver_status_combines_ender_and_starter_flags() {
+    let (mut session, send_rx) = make_session();
+    let ender_quest_id = 1018;
+    let starter_quest_id = 1019;
+    let mut store = store_with_quests(&[ender_quest_id, starter_quest_id]);
+    store.ender_quests.entry(9018).or_default().push(ender_quest_id);
+    store
+        .starter_quests
+        .entry(9018)
+        .or_default()
+        .push(starter_quest_id);
+    session.set_quest_store(Arc::new(store));
+    session.quest_state.fixture_insert_player_quest_status_like_cpp(
+        ender_quest_id,
+        PlayerQuestStatus {
+            quest_id: ender_quest_id,
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot: 0,
+        },
+    );
+    let guid = creature_guid(9018, 18);
+    let mut manager = wow_map::MapManager::default();
+    insert_creature(&mut manager, guid, 9018);
+    attach_map_manager(&mut session, manager);
+
+    run_status_query(&mut session, guid).await;
+
+    assert_eq!(
+        recv_status(&send_rx),
+        (
+            guid,
+            quest_giver_status::CAN_REWARD | quest_giver_status::TRIVIAL
+        )
+    );
+}
+
+#[tokio::test]
+async fn quest_giver_status_prefers_canonical_owner_state_over_test_fixture() {
+    let (mut session, send_rx) = make_session();
+    let quest_id = 1020;
+    let mut store = store_with_quests(&[quest_id]);
+    store.ender_quests.entry(9020).or_default().push(quest_id);
+    session.set_quest_store(Arc::new(store));
+    session.quest_state.fixture_insert_player_quest_status_like_cpp(
+        quest_id,
+        PlayerQuestStatus {
+            quest_id,
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot: 0,
+        },
+    );
+
+    let player_guid = session.player_guid().expect("test Player guid");
+    let mut player = Box::new(Player::new(Some(1), false));
+    player.unit_mut().world_mut().object_mut().create(player_guid);
+    let mut manager = wow_map::MapManager::default();
+    let handle = manager
+        .install_detached_player_like_cpp(player)
+        .expect("canonical test Player");
+    let guid = creature_guid(9020, 20);
+    insert_creature(&mut manager, guid, 9020);
+    session.core.player_handle_like_cpp = Some(handle);
+    attach_map_manager(&mut session, manager);
+    add_active_quest(&mut session, quest_id);
+
+    run_status_query(&mut session, guid).await;
+
+    assert_eq!(recv_status(&send_rx), (guid, quest_giver_status::REWARD));
+}
+
+#[tokio::test]
+async fn quest_giver_status_rejects_fixture_fallback_after_owner_stales() {
+    let (mut session, send_rx) = make_session();
+    let quest_id = 1021;
+    let mut store = store_with_quests(&[quest_id]);
+    store.ender_quests.entry(9021).or_default().push(quest_id);
+    session.set_quest_store(Arc::new(store));
+    session.quest_state.fixture_insert_player_quest_status_like_cpp(
+        quest_id,
+        PlayerQuestStatus {
+            quest_id,
+            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+            explored: false,
+            accept_time_secs: 0,
+            end_time_secs: 0,
+            objective_counts: Vec::new(),
+            slot: 0,
+        },
+    );
+
+    let player_guid = session.player_guid().expect("test Player guid");
+    let mut manager = wow_map::MapManager::default();
+    let mut old_player = Box::new(Player::new(Some(1), false));
+    old_player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let stale = manager
+        .install_detached_player_like_cpp(old_player)
+        .expect("initial test Player");
+    session.core.player_handle_like_cpp = Some(stale);
+    let mut replacement = Box::new(Player::new(Some(1), false));
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    let current = manager
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement test Player");
+    assert_ne!(stale, current);
+    let guid = creature_guid(9021, 21);
+    insert_creature(&mut manager, guid, 9021);
+    attach_map_manager(&mut session, manager);
+
+    run_status_query(&mut session, guid).await;
+
+    assert_eq!(recv_status(&send_rx), (guid, quest_giver_status::NONE));
+}

@@ -9,7 +9,7 @@ use wow_entities::{
     ITEM_DATA_PARENT_BIT, PLAYER_SLOT_END, TYPEID_ITEM,
 };
 use wow_world_core::{
-    entity_update_bridge::{item_values_update_to_update_object, player_values_update_to_update_object},
+    entity_update_bridge::player_values_update_to_update_object,
     session::{
         HubRef, InventoryPlayerProjectionLikeCpp, OwnedInventoryAccessLikeCpp,
         PacketPublicationAccessLikeCpp, PLAYER_FLAGS_RESTING_LIKE_CPP,
@@ -226,7 +226,36 @@ impl crate::InventoryState {
         dynamic_flags2_changed: bool,
         changed_enchantments: &[EnchantmentSlot],
     ) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, item_guid) else {
+        self.send_item_storage_fields_values_update_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            &hub.core.packet_publication_access_like_cpp(),
+            item_guid, contained_in_changed, dynamic_flags2_changed, changed_enchantments,
+        );
+    }
+
+    pub fn send_item_relocation_values_update_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        publication: &PacketPublicationAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+        dynamic_flags2_changed: bool,
+        cleared_enchantments: &[EnchantmentSlot],
+    ) {
+        self.send_item_storage_fields_values_update_with_access_like_cpp(
+            access, publication, item_guid, true, dynamic_flags2_changed, cleared_enchantments,
+        );
+    }
+
+    fn send_item_storage_fields_values_update_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        publication: &PacketPublicationAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+        contained_in_changed: bool,
+        dynamic_flags2_changed: bool,
+        changed_enchantments: &[EnchantmentSlot],
+    ) {
+        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid) else {
             return;
         };
         let update = crate::item_storage_fields_values_update_like_cpp(
@@ -235,13 +264,7 @@ impl crate::InventoryState {
             dynamic_flags2_changed,
             changed_enchantments,
         );
-        if let Some(packet) = item_values_update_to_update_object(
-            item_guid,
-            hub.core.player_map_id_like_cpp(),
-            &update,
-        ) {
-            hub.core.send_packet(&packet);
-        }
+        let _ = publication.publish_item_values_update_like_cpp(item_guid, &update);
     }
 
     pub fn send_item_dynamic_flags_values_update_like_cpp(
@@ -249,7 +272,19 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, item_guid) else {
+        self.send_item_dynamic_flags_values_update_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            &hub.core.packet_publication_access_like_cpp(), item_guid,
+        );
+    }
+
+    pub fn send_item_dynamic_flags_values_update_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        publication: &PacketPublicationAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid) else {
             return;
         };
         let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
@@ -263,13 +298,7 @@ impl crate::InventoryState {
                 values: item.data().clone(),
             }),
         };
-        if let Some(packet) = item_values_update_to_update_object(
-            item_guid,
-            hub.core.player_map_id_like_cpp(),
-            &update,
-        ) {
-            hub.core.send_packet(&packet);
-        }
+        let _ = publication.publish_item_values_update_like_cpp(item_guid, &update);
     }
 }
 

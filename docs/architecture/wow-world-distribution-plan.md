@@ -5,6 +5,18 @@ P4a aceptada en `d9c9e3637`, con publicación/integración registradas en #1263.
 **Responsabilidad pendiente:** [#1263](https://github.com/alseif0x/rustycore/issues/1263),
 continuación de [#1241](https://github.com/alseif0x/rustycore/issues/1241) bajo #584.
 #1241 ya está cerrada en GitHub; ese estado no demuestra que F4–F6 estén terminadas.
+
+**Checkpoint de pausa solicitado por el usuario — 2026-10-04.** Se detuvo a los
+tres trabajadores para conservar el avance de #1263 y preparar commit/publicación.
+El checkpoint es WIP y no acredita compilación, pruebas ni aceptación de F5/F6.
+RawEquip conserva su cuerpo App, fachada y pruebas escritas, pero faltan montajes
+y resolver el préstamo simultáneo de vitals mutables de Stats y Registry. Full
+LootRelease tiene cuerpos de autoridad, publicación y ramas escritos, pero faltan
+integración del consumidor, pruebas y la publicación Gathering dependiente de GO.
+El proveedor readonly de activación/DynamicFlags de GO está diseñado, todavía sin
+implementar; refresh completo y CompleteQuest siguen pendientes. Full Save,
+completions de persistencia, compra Trainer y StorageMove/child/offhand/swap
+completos conservan sus pendientes. No se cierra #1263 ni se autoriza merge/runtime.
 El plan técnico general sigue siendo [refactor-completion-plan.md](refactor-completion-plan.md).
 Este documento mantiene las decisiones, el estado fechado y los criterios de aceptación;
 #1263 es su lista operativa de trabajo restante. Sustituye el enfoque anterior de #1233

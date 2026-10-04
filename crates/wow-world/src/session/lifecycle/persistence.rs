@@ -15,28 +15,15 @@ mod deferred;
 mod fixture_tests;
 pub use deferred::PlayerSaveOutcomeLikeCpp;
 mod prepared;
-mod projection;
 
 use tracing::{info, trace, warn};
 use wow_persistence::{
-    PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
     PlayerCharacterCommittedGroupsLikeCpp, PlayerCharacterSaveRequestLikeCpp,
-    PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
-    PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
-    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
-    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
-    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
-    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,
-    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
+    PlayerTutorialsSaveLikeCpp,
 };
 
 use super::super::{
-    ExclusivePlayerMoneyPersistenceLikeCpp, PlayerMoneyCommitCancellationFenceLikeCpp,
-    PlayerSaveToDbSnapshotLikeCpp,
-    RepresentedEquipmentSetTypeLikeCpp, RepresentedEquipmentSetUpdateStateLikeCpp,
-    RepresentedPlayerSkillStateLikeCpp, RepresentedPlayerSpellStateLikeCpp, WorldSession,
-    character_power_snapshot_values_like_cpp, unix_now,
+    ExclusivePlayerMoneyPersistenceLikeCpp, PlayerSaveToDbSnapshotLikeCpp, WorldSession, unix_now,
 };
 
 impl WorldSession {
@@ -121,18 +108,71 @@ impl WorldSession {
             return PlayerSaveOutcomeLikeCpp::Quarantined;
         }
 
-        let Some(prepared) = self.prepare_player_save_like_cpp(unix_now()) else {
-            // Transfer may have begun while draining previously admitted durable work.
-            let outcome = self
-                .defer_player_save_for_transfer_like_cpp()
-                .unwrap_or(PlayerSaveOutcomeLikeCpp::Unavailable);
-            warn!(
-                account = self.core.account_id,
-                player_guid = ?self.player_guid(),
-                has_session_position = crate::session::hub_ref(self).player_position_like_cpp().is_some(),
-                has_canonical_map_manager = self.core.canonical_map_manager.is_some(),
-                "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
-            );
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            let Some(prepared) = self.prepare_player_save_like_cpp(unix_now()) else {
+                let outcome = self
+                    .defer_player_save_for_transfer_like_cpp()
+                    .unwrap_or(PlayerSaveOutcomeLikeCpp::Unavailable);
+                warn!(
+                    account = self.core.account_id,
+                    player_guid = ?self.player_guid(),
+                    has_session_position = crate::session::hub_ref(self).player_position_like_cpp().is_some(),
+                    has_canonical_map_manager = self.core.canonical_map_manager.is_some(),
+                    "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
+                );
+                drop(money_mutation_lock);
+                drop(money_save_fence);
+                self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
+                )
+                .await;
+                return outcome;
+            };
+            let guid = prepared.header.guid;
+            let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
+            let spell_store = self.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+            let mut save_owner = self
+                .core
+                .player_save_operation_access_like_cpp(talent_store, spell_store);
+            let result = wow_world_application::persist_player_save_request_like_cpp(
+                &self.lifecycle,
+                &mut save_owner,
+                guid,
+                prepared.request,
+            )
+            .await;
+            drop(save_owner);
+            let outcome = match result {
+                wow_world_application::PlayerSavePersistenceResultLikeCpp::Applied {
+                    rows,
+                    committed,
+                    ..
+                } => {
+                    prepared.receipt.acknowledge(self, &committed);
+                    trace!(
+                        publication = "player.save.commit_confirmed",
+                        "persistence publication"
+                    );
+                    info!(
+                        guid = guid.counter(),
+                        statement_count = rows,
+                        "Player::SaveToDB represented save committed in one CharacterDatabase transaction"
+                    );
+                    PlayerSaveOutcomeLikeCpp::Applied
+                }
+                wow_world_application::PlayerSavePersistenceResultLikeCpp::Failed { .. } => {
+                    PlayerSaveOutcomeLikeCpp::Failed
+                }
+                wow_world_application::PlayerSavePersistenceResultLikeCpp::Unknown { .. }
+                | wow_world_application::PlayerSavePersistenceResultLikeCpp::Quarantined { .. } => {
+                    PlayerSaveOutcomeLikeCpp::Quarantined
+                }
+                wow_world_application::PlayerSavePersistenceResultLikeCpp::Unavailable
+                | wow_world_application::PlayerSavePersistenceResultLikeCpp::SnapshotUnavailable => {
+                    PlayerSaveOutcomeLikeCpp::Unavailable
+                }
+            };
             drop(money_mutation_lock);
             drop(money_save_fence);
             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
@@ -140,85 +180,73 @@ impl WorldSession {
             )
             .await;
             return outcome;
-        };
-        let Some(player_lifecycle_port) = self
-            .lifecycle
-            .player_lifecycle_port_like_cpp()
-            .map(Arc::clone)
-        else {
-            warn!(
-                account = self.core.account_id,
-                player_guid = ?self.player_guid(),
-                "Skipping Player::SaveToDB represented save because lifecycle persistence is unavailable"
-            );
-            drop(money_mutation_lock);
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return PlayerSaveOutcomeLikeCpp::Unavailable;
-        };
-
-        if money_tracker.is_indeterminate_like_cpp() {
-            self.kick(
-                "player persistence became indeterminate before the full-save semantic snapshot; aborting the entire save",
-            );
-            drop(money_mutation_lock);
-            drop(money_save_fence);
-            self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                item_guid_generator,
-            )
-            .await;
-            return PlayerSaveOutcomeLikeCpp::Quarantined;
         }
-        let mut cancellation_fence =
-            PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(&money_tracker));
-        let guid = prepared.header.guid;
-        // Only the request crosses the asynchronous persistence boundary; the
-        // receipt remains owned by this operation and contains no borrowed guard.
-        let result = player_lifecycle_port
-            .save_character_like_cpp(prepared.request)
-            .await;
-        let outcome = match result.outcome {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { rows } => {
-                cancellation_fence.disarm_like_cpp();
-                prepared.receipt.acknowledge(self, &result.committed);
+
+        let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
+        let spell_store = self.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+        let mut save_owner = self
+            .core
+            .player_save_operation_access_like_cpp(talent_store, spell_store);
+        let result = wow_world_application::save_canonical_player_like_cpp(
+            &mut self.lifecycle,
+            &mut save_owner,
+            unix_now(),
+        )
+        .await;
+        drop(save_owner);
+        let outcome = match result {
+            wow_world_application::PlayerSavePersistenceResultLikeCpp::Applied {
+                player_guid,
+                rows,
+                registry_sync_required,
+                ..
+            } => {
+                if registry_sync_required {
+                    self.sync_player_registry_state_like_cpp();
+                }
                 trace!(
                     publication = "player.save.commit_confirmed",
                     "persistence publication"
                 );
                 info!(
-                    guid = guid.counter(),
+                    guid = player_guid.counter(),
                     statement_count = rows,
                     "Player::SaveToDB represented save committed in one CharacterDatabase transaction"
                 );
                 PlayerSaveOutcomeLikeCpp::Applied
             }
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(
-                    guid = guid.counter(),
-                    "Failed to commit Player::SaveToDB represented transaction: {reason}"
-                );
+            wow_world_application::PlayerSavePersistenceResultLikeCpp::Failed { .. } => {
                 PlayerSaveOutcomeLikeCpp::Failed
             }
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                // The full save includes many absolute replacements. A money
-                // row alone cannot establish whether that whole transaction
-                // committed, so preserve dirty flags and force a reload before
-                // any further money mutation can race an unknown durable base.
-                money_tracker.mark_indeterminate_like_cpp();
-                trace!(fence = "player.save.relogin_required", "persistence fence");
-                cancellation_fence.disarm_like_cpp();
-                self.kick(
-                    "Player::SaveToDB COMMIT outcome is unknown; relog required before another money mutation",
-                );
-                warn!(
-                    guid = guid.counter(),
-                    "Player::SaveToDB represented transaction COMMIT outcome is unknown: {reason}"
-                );
+            wow_world_application::PlayerSavePersistenceResultLikeCpp::Unknown { .. } => {
                 PlayerSaveOutcomeLikeCpp::Quarantined
+            }
+            wow_world_application::PlayerSavePersistenceResultLikeCpp::Unavailable => {
+                PlayerSaveOutcomeLikeCpp::Unavailable
+            }
+            wow_world_application::PlayerSavePersistenceResultLikeCpp::Quarantined { .. } => {
+                PlayerSaveOutcomeLikeCpp::Quarantined
+            }
+            wow_world_application::PlayerSavePersistenceResultLikeCpp::SnapshotUnavailable => {
+                // Preserve the transfer check and warning after a failed
+                // canonical capture, at the original post-fence phase.
+                let outcome = self
+                    .defer_player_save_for_transfer_like_cpp()
+                    .unwrap_or(PlayerSaveOutcomeLikeCpp::Unavailable);
+                warn!(
+                    account = self.core.account_id,
+                    player_guid = ?self.player_guid(),
+                    has_session_position = crate::session::hub_ref(self).player_position_like_cpp().is_some(),
+                    has_canonical_map_manager = self.core.canonical_map_manager.is_some(),
+                    "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
+                );
+                drop(money_mutation_lock);
+                drop(money_save_fence);
+                self.drain_represented_quest_objective_progress_with_generator_like_cpp(
+                    item_guid_generator,
+                )
+                .await;
+                return outcome;
             }
         };
         drop(money_mutation_lock);

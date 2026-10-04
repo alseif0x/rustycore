@@ -6,6 +6,7 @@ use std::collections::{BTreeSet, HashMap};
 use crate::session::{
     RepresentedPlayerSkillLikeCpp, SessionCore, canonical_player_skill_record_like_cpp,
 };
+use wow_core::ObjectGuid;
 
 /// Borrowed capability for installing a complete spell-acquisition snapshot
 /// into the session's current canonical Player.
@@ -23,6 +24,33 @@ impl SessionCore {
 }
 
 impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
+    pub fn current_map_difficulty_id_like_cpp(&self) -> u8 {
+        self.core.current_map_difficulty_id_like_cpp()
+    }
+
+    pub fn player_map_id_like_cpp(&self) -> u16 {
+        self.core.player_map_id_like_cpp()
+    }
+
+    pub fn player_skill_records_loaded_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_loaded: &bool,
+    ) -> Option<bool> {
+        let canonical = self.core.with_owned_player_like_cpp(
+            wow_entities::Player::skill_records_loaded_like_cpp,
+        );
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(*fixture_loaded);
+        }
+        canonical
+    }
+
+    /// Read the current session identity at the acquisition snapshot point.
+    pub fn player_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.core.player_guid()
+    }
+
     /// Project the current spell runtime from the strict owned Player path.
     /// The canonical runtime stays borrowed for the projection and is never
     /// cloned to cross this capability boundary.
@@ -63,6 +91,41 @@ impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
         self.core.with_owned_player_like_cpp(|player| {
             player.non_durable_skill_tombstones_like_cpp().clone()
         })
+    }
+
+    /// Preserve the handle-less test fallback used by the existing Hub query.
+    /// The canonical owner remains the only production source.
+    pub fn skill_non_durable_tombstones_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture: &BTreeSet<u16>,
+    ) -> Option<BTreeSet<u16>> {
+        let canonical = self.skill_non_durable_tombstones_snapshot_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(fixture.clone());
+        }
+        canonical
+    }
+
+    /// Resolve complete slot occupancy from the canonical Player or the
+    /// existing handle-less skill fixture, with the same completeness fence
+    /// as the session Hub query.
+    pub fn complete_player_skill_occupied_slots_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_complete: &bool,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_occupied: &Option<u16>,
+    ) -> Option<u16> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .skill_records_complete_like_cpp()
+                .then(|| player.occupied_skill_slots_like_cpp())
+                .flatten()
+        });
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return fixture_complete.then_some(*fixture_occupied).flatten();
+        }
+        canonical.flatten()
     }
 
     /// Validate a complete acquisition snapshot before invalidating the

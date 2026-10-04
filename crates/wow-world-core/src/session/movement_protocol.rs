@@ -260,74 +260,13 @@ pub const PLAYER_BASE_MOVE_SPEED_LIKE_CPP: [f32; UnitMoveTypeLikeCpp::COUNT] = [
 
 impl crate::session::HubMut<'_> {
     pub fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
-        let Some(mut movement_flags) = self.shared().resolved_player_movement_flags_like_cpp()
-        else {
-            return false;
-        };
-        let currently_enabled = movement_flags.contains(MovementFlag::CAN_FLY);
-        if enable == currently_enabled {
-            return false;
-        }
-
-        if enable {
-            movement_flags.insert(MovementFlag::CAN_FLY);
-            movement_flags.remove(MovementFlag::SWIMMING | MovementFlag::SPLINE_ELEVATION);
-        } else {
-            movement_flags.remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
-            if let Some(position) = self.shared().player_position_like_cpp() {
-                self.set_fall_information_like_cpp(0, position.z);
-            }
-        }
-        self.set_player_movement_flags_like_cpp(movement_flags);
-
-        self.send_player_move_set_flag_like_cpp(if enable {
-            ServerOpcodes::MoveSetCanFly
-        } else {
-            ServerOpcodes::MoveUnsetCanFly
-        });
-        true
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.set_represented_can_fly_like_cpp(enable)
     }
 
     pub fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
-        let canonical_changed = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.set_can_transition_between_swim_and_fly_like_cpp(enable)
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let changed = canonical_changed.unwrap_or_else(|| {
-            if self.core.player_handle_like_cpp.is_some()
-                || self
-                    .fixtures
-                    .movement
-                    .represented_can_swim_to_fly_transition_like_cpp
-                    == enable
-            {
-                return false;
-            }
-            self.fixtures
-                .movement
-                .represented_can_swim_to_fly_transition_like_cpp = enable;
-            true
-        });
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let Some(changed) = canonical_changed else {
-            return false;
-        };
-        if !changed {
-            return false;
-        }
-
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical_changed.is_some() {
-            self.fixtures
-                .movement
-                .represented_can_swim_to_fly_transition_like_cpp = enable;
-        }
-        self.send_player_move_set_flag_like_cpp(if enable {
-            ServerOpcodes::MoveEnableTransitionBetweenSwimAndFly
-        } else {
-            ServerOpcodes::MoveDisableTransitionBetweenSwimAndFly
-        });
-        true
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.set_represented_can_swim_to_fly_transition_like_cpp(enable)
     }
 }
 

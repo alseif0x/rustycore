@@ -19,6 +19,7 @@ pub use records::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use records::canonical_player_spell_runtime_like_cpp;
 pub use state::SessionSpellState;
+pub use session::spell_state::unit_owned_apply_aura_effect_mask_like_cpp;
 pub use player_cast::PlayerCastPublicationPhaseLikeCpp;
 pub use session::spell_state::{
     AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP, RepresentedShapeshiftMutationLikeCpp,

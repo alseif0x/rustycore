@@ -13,135 +13,17 @@ impl WorldSession {
         self.core.directory.game_event_quest_complete_tx = Some(sender);
     }
     pub async fn notify_game_event_quest_complete_like_cpp(
-        &self,
+        &mut self,
         quest_id: u32,
     ) -> GameEventQuestCompleteClientOutcomeLikeCpp {
-        let hub = crate::session::hub_ref(self);
-        let Some(sender) = hub.core.directory.game_event_quest_complete_tx.as_ref() else {
-            return GameEventQuestCompleteClientOutcomeLikeCpp::SenderMissing { quest_id };
-        };
-
-        let (response_tx, response_rx) = flume::bounded(1);
-        let command = GameEventQuestCompleteCommandLikeCpp {
-            quest_id,
-            response_tx,
-        };
-        if sender.try_send(command).is_err() {
-            return GameEventQuestCompleteClientOutcomeLikeCpp::SendFailed { quest_id };
-        }
-
-        match tokio::time::timeout(Duration::from_millis(250), response_rx.recv_async()).await {
-            Ok(Ok(response)) => GameEventQuestCompleteClientOutcomeLikeCpp::Ok(response),
-            Ok(Err(_)) => {
-                GameEventQuestCompleteClientOutcomeLikeCpp::ResponseChannelClosed { quest_id }
-            }
-            Err(_) => GameEventQuestCompleteClientOutcomeLikeCpp::ResponseTimeout { quest_id },
-        }
-    }
-    /// C++ `Player::AddCurrency(..., CurrencyGainSource::*QuestReward*)`.
-    ///
-    /// This represented seam intentionally fails closed for award conditions and reputation
-    /// conversion currencies until those runtime systems are available to quest rewards.
-    pub(crate) fn add_currency_quest_reward_like_cpp(
-        &mut self,
-        currency_id: u32,
-        amount: u32,
-        gain_source: CurrencyGainSourceLikeCpp,
-    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        if amount == 0 {
-            return Ok(None);
-        }
-
-        let Some(entry) = self
-            .catalogs
-            .currency_types_store
-            .as_ref()
-            .and_then(|store| store.get(currency_id))
-            .copied()
-        else {
-            return Err(());
-        };
-
-        let player_team =
-            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
-        if (entry.is_alliance() && player_team != Team::Alliance)
-            || (entry.is_horde() && player_team != Team::Horde)
-        {
-            return Ok(None);
-        }
-
-        if entry.award_condition_id != 0 {
-            return Err(());
-        }
-        if entry.faction_id != 0 || currency_id == CurrencyTypes::Azerite as u32 {
-            return Ok(None);
-        }
-
-        let ignore_caps = matches!(
-            gain_source,
-            CurrencyGainSourceLikeCpp::QuestRewardIgnoreCaps
-                | CurrencyGainSourceLikeCpp::WorldQuestRewardIgnoreCaps
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
         );
-        let mut currencies = self.player_currencies_like_cpp().ok_or(())?;
-        let currency = currencies.entry(currency_id).or_insert(PlayerCurrency {
-            state: PlayerCurrencyState::New,
-            quantity: 0,
-            weekly_quantity: 0,
-            tracked_quantity: 0,
-            increased_cap_quantity: 0,
-            earned_quantity: 0,
-            flags: 0,
-        });
-
-        let weekly_cap = entry.max_earnable_per_week;
-        let mut applied = amount;
-        if !ignore_caps {
-            if weekly_cap != 0 && currency.weekly_quantity.saturating_add(applied) > weekly_cap {
-                applied = weekly_cap.saturating_sub(currency.weekly_quantity);
-            }
-
-            let max_quantity = currency_max_quantity_cpp(&entry, currency);
-            if max_quantity != 0 && currency.quantity.saturating_add(applied) > max_quantity {
-                applied = max_quantity.saturating_sub(currency.quantity);
-            }
-        }
-
-        if applied == 0 {
-            return Ok(None);
-        }
-
-        if currency.state != PlayerCurrencyState::New {
-            currency.state = PlayerCurrencyState::Changed;
-        }
-        currency.quantity = currency.quantity.saturating_add(applied);
-        if !ignore_caps {
-            if weekly_cap != 0 {
-                currency.weekly_quantity = currency.weekly_quantity.saturating_add(applied);
-            }
-            if entry.is_tracking_quantity() {
-                currency.tracked_quantity = currency.tracked_quantity.saturating_add(applied);
-            }
-            if entry.has_total_earned() {
-                currency.earned_quantity = currency.earned_quantity.saturating_add(applied);
-            }
-        }
-
-        let scaler = entry.scaler().max(1) as u32;
-        let max_quantity = currency_max_quantity_cpp(&entry, currency);
-        let delta = PlayerCurrencyDelta {
-            currency_id,
-            quantity: currency.quantity,
-            amount: applied,
-            weekly_quantity: ((currency.weekly_quantity / scaler) > 0)
-                .then_some(currency.weekly_quantity),
-            max_quantity: (max_quantity != 0).then_some(max_quantity),
-            total_earned: entry.has_total_earned().then_some(currency.earned_quantity),
-            suppress_chat_log: entry.is_suppressing_chat_log(false),
-        };
-        if !self.set_player_currencies_like_cpp(currencies) {
-            return Err(());
-        }
-        Ok(Some(delta))
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let player = self.core.quest_reward_player_access_like_cpp();
+        player.notify_game_event_quest_complete_like_cpp(quest_id).await
     }
     pub(crate) fn record_represented_rewarded_quest_row_like_cpp(&mut self, quest_id: u32) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
@@ -374,23 +256,29 @@ impl WorldSession {
     }
     /// C++ `Player::GetQuestXPReward`.
     pub(crate) fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
-        let Some(already_rewarded) = self.represented_player_has_rewarded_quest_like_cpp(quest.id)
-        else {
+        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return 0;
         };
-        if already_rewarded && !quest.is_df_quest_like_cpp() {
+        if !wow_world_application::QuestRewardCx::quest_xp_reward_allowed_like_cpp(quest, &quests) {
             return 0;
         }
 
-        {
-            let (s, h) = crate::session::split_quest_state_ref(self);
-            s.calculate_quest_xp(
-                h,
-                quest.reward_xp_difficulty,
-                self.player_quest_level_like_cpp(quest),
-                quest.reward_xp_multiplier,
-            )
-        }
+        let quest_level = self.player_quest_level_like_cpp(quest);
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        let xp_store = hub.catalogs.quests.xp_store.as_deref();
+        let player_level = if xp_store.is_some() {
+            hub.player_level_like_cpp()
+        } else {
+            0
+        };
+        wow_world_application::QuestRewardCx::calculate_quest_xp_reward_like_cpp(
+            state,
+            xp_store,
+            player_level,
+            quest.reward_xp_difficulty,
+            quest_level,
+            quest.reward_xp_multiplier,
+        )
     }
     pub(crate) fn quest_money_reward_like_cpp(
         &self,

@@ -402,12 +402,7 @@ impl WorldSession {
     }
 
     pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
-        let response = self
-            .resolved_inventory_item_object_like_cpp(query.id)
-            .map(|item| QueryItemTextResponse::valid_like_cpp(query.id, item.text().to_string()))
-            .unwrap_or_else(|| QueryItemTextResponse::invalid_like_cpp(query.id));
-
-        self.send_packet(&response);
+        self.build_item_text_query_handler_cx_like_cpp().handle_item_text_query(query);
     }
 
     /// CMSG_QUERY_PET_NAME — resolve an in-world pet name.

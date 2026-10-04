@@ -5,12 +5,35 @@
 use std::path::Path;
 
 use crate::registrations::{
-    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR,
+    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, analyze_contract_source, analyze_owner_source,
     analyze_owner_source_with_contracts, unowned_entry_literal_violation,
 };
 
 const INVENTORY_PACKAGE: &str = "wow-world-inventory";
+
+#[test]
+fn direct_bank_registrar_requires_exact_owner_host_and_unaliased_entry() {
+    const SOURCE: &str = include_str!("../../../../../crates/wow-world-application/src/bank.rs");
+    let report = analyze_owner_source_with_contracts(
+        BANK_REGISTRAR.package, BANK_REGISTRAR.module, Path::new("bank.rs"),
+        SOURCE, DIRECT_REGISTRAR_CONTRACTS,
+    ).expect("finite Bank registrar");
+    assert_eq!(report.entries, 1);
+    assert_eq!(report.registrar_count, 1);
+    assert_eq!(report.contract, Some(BANK_REGISTRAR));
+    for (module, source, contracts) in [
+        ("crate::bank::other", SOURCE.to_owned(), DIRECT_REGISTRAR_CONTRACTS),
+        (BANK_REGISTRAR.module, SOURCE.replace("BankHandlerHostLikeCpp", "OtherHost"), DIRECT_REGISTRAR_CONTRACTS),
+        (BANK_REGISTRAR.module, SOURCE.replace("PacketHandlerEntry,", "PacketHandlerEntry as Entry,")
+            .replace("builder.register(PacketHandlerEntry", "builder.register(Entry"), DIRECT_REGISTRAR_CONTRACTS),
+        (BANK_REGISTRAR.module, SOURCE.to_owned(), &[INVENTORY_REGISTRAR][..]),
+    ] {
+        assert!(analyze_owner_source_with_contracts(
+            BANK_REGISTRAR.package, module, Path::new("bank.rs"), &source, contracts,
+        ).is_err());
+    }
+}
 const INVENTORY_MODULE: &str = "crate::handlers::equipment_sets";
 
 const ONE_ENTRY: &str = r#"
@@ -47,7 +70,7 @@ fn analyze(source: &str) -> Result<crate::registrations::RegistrarReport, String
 fn direct_inventory_registrar_accepts_current_source_and_counts_entries() {
     let report = analyze(include_str!("../../../../../crates/wow-world-inventory/src/handlers/equipment_sets.rs"))
         .expect("the production Inventory registrar matches its direct-builder grammar");
-    assert_eq!(report.entries, 3);
+    assert_eq!(report.entries, 5);
     assert_eq!(report.registrar_count, 1);
     assert_eq!(analyze(ONE_ENTRY).expect("single direct entry").entries, 1);
     let harmless_text = format!("{ONE_ENTRY}\nconst DOC: &str = \"PacketHandlerEntry RegistryBuilder\";");

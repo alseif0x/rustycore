@@ -3,8 +3,6 @@
 use crate::session::movement_protocol::{
     MovementSpeedAckEventLikeCpp, PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp,
 };
-use tracing::warn;
-use wow_entities::RepresentedAuraEffectLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::MovementState {
@@ -113,59 +111,28 @@ impl crate::session::HubMut<'_> {
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) -> bool {
-        let index = move_type.index();
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().set_speed_rate_at_like_cpp(index, rate)
-            })
-            .unwrap_or(false);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.movement.movement_speed_rates_like_cpp[index] = rate;
-        }
-        canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none()
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.set_player_movement_speed_rate_like_cpp_inner(move_type, rate)
     }
 
     pub fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
-        let Some(speed) = self.shared().represented_run_speed_rate_like_cpp() else {
-            return;
-        };
-        self.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, speed);
+        let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.recompute_represented_run_speed_rate_like_cpp(&presentation);
     }
 
     pub fn recompute_represented_flight_speed_rate_like_cpp(&mut self) {
-        let Some(speed) = self.shared().represented_flight_speed_rate_like_cpp() else {
-            return;
-        };
-        self.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Flight, speed);
+        let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.recompute_represented_flight_speed_rate_like_cpp(&presentation);
     }
 
     pub fn recompute_represented_swim_speed_rate_like_cpp(&mut self) {
-        let Some(speed) = self.shared().represented_swim_speed_rate_like_cpp() else {
-            return;
-        };
-        self.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Swim, speed);
+        let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.recompute_represented_swim_speed_rate_like_cpp(&presentation);
     }
 
     pub fn recompute_represented_backward_speed_rates_like_cpp(&mut self) {
-        let Some(speed) = self.shared().represented_backward_speed_rate_like_cpp() else {
-            return;
-        };
-        self.set_player_movement_speed_rate_and_notify_like_cpp(
-            UnitMoveTypeLikeCpp::RunBack,
-            speed,
-        );
-        self.set_player_movement_speed_rate_and_notify_like_cpp(
-            UnitMoveTypeLikeCpp::SwimBack,
-            speed,
-        );
-        self.set_player_movement_speed_rate_and_notify_like_cpp(
-            UnitMoveTypeLikeCpp::FlightBack,
-            speed,
-        );
+        let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.recompute_represented_backward_speed_rates_like_cpp(&presentation);
     }
 
     pub fn recompute_represented_mounted_speed_rates_like_cpp(&mut self) {
@@ -178,94 +145,10 @@ impl crate::session::HubMut<'_> {
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        let rate = rate.max(0.01);
-        let Some(current_rate) = self
-            .shared()
-            .resolved_player_movement_speed_rate_like_cpp(move_type)
-        else {
-            return;
-        };
-        if current_rate == rate {
-            return;
-        }
-        if !self.set_player_movement_speed_rate_like_cpp_inner(move_type, rate) {
-            return;
-        }
-        self.propagate_represented_player_speed_to_pet_like_cpp(move_type, rate);
-
-        let Some(player_guid) = self.core.player_guid() else {
-            return;
-        };
-        let Some((set_opcode, update_opcode)) =
-            crate::session::player_movement_speed_opcodes_like_cpp(move_type)
-        else {
-            return;
-        };
-
-        if self
-            .increment_forced_speed_changes_like_cpp(move_type)
-            .is_none()
-        {
-            return;
-        }
-
-        let Some(speed) = self
-            .shared()
-            .resolved_player_movement_speed_like_cpp(move_type)
-        else {
-            return;
-        };
-        let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
-            return;
-        };
-
-        let self_packet = wow_packet::packets::movement::MoveSetSpeed {
-            opcode: set_opcode,
-            mover_guid: player_guid,
-            sequence_index,
-            speed,
-        }
-        .to_bytes();
-        if self.core.send_tx().send(self_packet).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
-
-        let Some(status) = self
-            .shared()
-            .current_player_movement_info_like_cpp(player_guid)
-        else {
-            return;
-        };
-        self.shared().broadcast_to_movement_set_like_cpp(
-            wow_packet::packets::movement::MoveUpdateSpeed {
-                opcode: update_opcode,
-                status,
-                speed,
-            }
-            .to_bytes(),
-            false,
-        );
+        let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.set_player_movement_speed_rate_and_notify_like_cpp(&presentation, move_type, rate);
     }
 
-    fn increment_forced_speed_changes_like_cpp(
-        &mut self,
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<u8> {
-        let index = move_type.index();
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.increment_forced_speed_changes_like_cpp(index)
-            })
-            .flatten();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let count = &mut self.fixtures.movement.forced_speed_changes_like_cpp[index];
-            *count = count.saturating_add(1);
-            return Some(*count);
-        }
-        canonical
-    }
 }
 impl crate::session::HubRef<'_> {
     pub fn resolved_player_movement_speed_rate_like_cpp(
@@ -294,133 +177,8 @@ impl crate::session::HubRef<'_> {
         )
     }
 
-    fn represented_run_speed_rate_like_cpp(&self) -> Option<f32> {
-        let mounted = self.resolved_player_mounted_like_cpp()?;
-        let (main_mod_effect, stack_effect, not_stack_effect) = if mounted {
-            (
-                RepresentedAuraEffectLikeCpp::MountedSpeed,
-                RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
-                RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
-            )
-        } else {
-            (
-                RepresentedAuraEffectLikeCpp::Speed,
-                RepresentedAuraEffectLikeCpp::SpeedAlways,
-                RepresentedAuraEffectLikeCpp::SpeedNotStack,
-            )
-        };
-        let main_mod = self.max_represented_aura_amount_like_cpp(main_mod_effect)?;
-        let stack_bonus = self.total_represented_aura_amount_multiplier_like_cpp(stack_effect)?;
-        let not_stack_bonus = 1.0
-            + self
-                .max_represented_aura_amount_like_cpp(not_stack_effect)?
-                .max(0) as f32
-                / 100.0;
 
-        let speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
-        Some(self.apply_represented_forward_speed_adjustments_like_cpp(
-            UnitMoveTypeLikeCpp::Run,
-            speed,
-        )?)
-    }
 
-    fn apply_represented_forward_speed_adjustments_like_cpp(
-        &self,
-        move_type: UnitMoveTypeLikeCpp,
-        mut speed: f32,
-    ) -> Option<f32> {
-        let normal_speed_cap = self.max_represented_aura_amount_like_cpp(
-            RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
-        )? as f32
-            / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
-        if normal_speed_cap > 0.0 && speed > normal_speed_cap {
-            speed = normal_speed_cap;
-        }
-        if move_type == UnitMoveTypeLikeCpp::Run {
-            let minimum_speed_rate = self.max_represented_aura_amount_like_cpp(
-                RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
-            )? as f32
-                / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
-            if speed < minimum_speed_rate {
-                speed = minimum_speed_rate;
-            }
-        }
-        let slow = self.max_negative_represented_aura_amount_like_cpp(
-            RepresentedAuraEffectLikeCpp::DecreaseSpeed,
-        )?;
-        if slow < 0 {
-            speed *= 1.0 + slow as f32 / 100.0;
-        }
-        let minimum_speed = self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)?
-            as f32
-            / 100.0;
-        if speed < minimum_speed {
-            speed = minimum_speed;
-        }
-        Some(speed)
-    }
 
-    fn represented_flight_speed_rate_like_cpp(&self) -> Option<f32> {
-        let mounted = self.resolved_player_mounted_like_cpp()?;
-        let (flight_mod, flight_always) = if mounted {
-            (
-                self.max_represented_aura_amount_like_cpp(
-                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-                )?,
-                self.total_represented_aura_amount_multiplier_like_cpp(
-                    RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
-                )?,
-            )
-        } else {
-            (
-                self.total_represented_aura_amount_like_cpp(
-                    RepresentedAuraEffectLikeCpp::FlightSpeed,
-                )? + self.total_represented_aura_amount_like_cpp(
-                    RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
-                )?,
-                1.0,
-            )
-        };
-        let flight_not_stack = 1.0
-            + self
-                .max_represented_aura_amount_like_cpp(
-                    RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
-                )?
-                .max(0) as f32
-                / 100.0;
 
-        let speed = flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0);
-        Some(self.apply_represented_forward_speed_adjustments_like_cpp(
-            UnitMoveTypeLikeCpp::Flight,
-            speed,
-        )?)
-    }
-
-    fn represented_swim_speed_rate_like_cpp(&self) -> Option<f32> {
-        let speed = 1.0
-            + self
-                .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::SwimSpeed)?
-                .max(0) as f32
-                / 100.0;
-        self.apply_represented_forward_speed_adjustments_like_cpp(UnitMoveTypeLikeCpp::Swim, speed)
-    }
-
-    fn represented_backward_speed_rate_like_cpp(&self) -> Option<f32> {
-        let mut speed = 1.0;
-        let slow = self.max_negative_represented_aura_amount_like_cpp(
-            RepresentedAuraEffectLikeCpp::DecreaseSpeed,
-        )?;
-        if slow < 0 {
-            speed *= 1.0 + slow as f32 / 100.0;
-        }
-        let minimum_speed = self
-            .max_represented_aura_amount_like_cpp(RepresentedAuraEffectLikeCpp::MinimumSpeed)?
-            as f32
-            / 100.0;
-        if speed < minimum_speed {
-            speed = minimum_speed;
-        }
-        Some(speed)
-    }
 }

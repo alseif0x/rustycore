@@ -140,59 +140,11 @@ impl WorldEntitiesState {
         effect_mask: u32,
         represented_effect_amounts: &[RepresentedAuraEffectAmountLikeCpp],
     ) -> CanonicalThreatAuraSnapshotLikeCpp {
-        let interrupt_flags = hub
-            .catalogs
-            .spell_store()
-            .and_then(|store| {
-                store.aura_interrupt_flags_for_difficulty_like_cpp(
-                    spell_id,
-                    difficulty,
-                    hub.catalogs.difficulty_store().map(AsRef::as_ref),
-                )
-            })
-            .unwrap_or([0; 2]);
-        let effects = hub
-            .catalogs
-            .spell_store()
-            .and_then(|store| {
-                store.effects_for_difficulty_like_cpp(
-                    spell_id,
-                    difficulty,
-                    hub.catalogs.difficulty_store().map(AsRef::as_ref),
-                )
-            })
-            .map(|effects| {
-                effects
-                    .iter()
-                    .filter_map(|effect| {
-                        let bit = 1u32.checked_shl(effect.effect_index)?;
-                        let aura_type = effect.effect_aura;
-                        (effect_mask & bit != 0
-                            && matches!(
-                                aura_type,
-                                wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT
-                                    | wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY
-                                    | wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
-                                    | wow_data::spell::aura_types::SPELL_AURA_MOD_STUN
-                            ))
-                        .then(|| {
-                            let amount = represented_effect_amounts
-                                .iter()
-                                .find(|represented| {
-                                    represented.effect_index == effect.effect_index as u8
-                                })
-                                .map_or_else(
-                                    || effect.calc_value_no_caster_like_cpp(),
-                                    |represented| represented.amount,
-                                );
-                            (bit, aura_type, amount, effect.effect_misc_value_1)
-                        })
-                    })
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        CanonicalThreatAuraSnapshotLikeCpp::new(interrupt_flags, effects)
+        wow_world_core::session::PlayerAuraRemovalAccessLikeCpp::threat_aura_snapshot_from_stores_like_cpp(
+            hub.catalogs.spell_store().map(AsRef::as_ref),
+            hub.catalogs.difficulty_store().map(AsRef::as_ref),
+            spell_id, difficulty, effect_mask, represented_effect_amounts,
+        )
     }
 }
 

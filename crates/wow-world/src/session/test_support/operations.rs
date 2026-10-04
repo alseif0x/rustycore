@@ -235,62 +235,26 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
-        let Some(old_threshold) =
-            crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
-        else {
-            return 0;
-        };
-        let Some(old_state) = crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()
-        else {
-            return 0;
-        };
-        let mut rest_bonus = wow_entities::sanitize_rest_bonus_like_cpp(rest_bonus);
-        let Some(can_gain) = self.can_gain_represented_xp_rest_bonus_like_cpp() else {
-            return 0;
-        };
-        if !can_gain {
-            rest_bonus = 0.0;
-        }
-
-        let Some(rest_bonus_cap) = self.represented_xp_rest_bonus_cap_like_cpp() else {
-            return 0;
-        };
-        rest_bonus = rest_bonus.clamp(0.0, rest_bonus_cap);
-        let is_raf_linked = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        let new_state = if is_raf_linked {
-            REST_STATE_RAF_LINKED_LIKE_CPP
-        } else if rest_bonus >= 1.0 {
-            REST_STATE_RESTED_LIKE_CPP
-        } else {
-            REST_STATE_NORMAL_LIKE_CPP
-        };
-        // The older legacy2 snapshot uses a `rest_bonus > 10` deadband here.
-        // Current legacy1 uses `rest_bonus >= 1` with multi-type RestInfo and
-        // is the selected port target; the divergence is retained as evidence
-        // that matching one C++ tree alone is not proof that behavior is sound.
-        let Some(()) = self.mutate_player_rest_state_like_cpp(|state| {
-            state.install_loaded_rest_like_cpp(new_state, rest_bonus);
-        }) else {
-            return 0;
-        };
-        let Some(new_threshold) =
-            crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
-        else {
-            return 0;
-        };
-        let Some(new_state) = crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()
-        else {
-            return 0;
-        };
-        // C++ writes both RestInfo fields after this combined early-return,
-        // and `ModifyValue` marks both nested bits even if one value stayed
-        // equal. Therefore every emitted SetRestBonus delta carries 0x07.
-        let nested_mask = if old_threshold != new_threshold || old_state != new_state {
-            0x07
-        } else {
-            0
-        };
-        nested_mask
+        let wow_world_core::session::state::SessionFixtures {
+            identity,
+            progression,
+            movement,
+            ..
+        } = &mut self.fixtures;
+        let player = self
+            .core
+            .xp_gain_access_like_cpp(&self.catalogs, &self.config);
+        wow_world_application::QuestRewardCx::set_represented_xp_rest_bonus_from_selected_access_like_cpp(
+            player,
+            &self.social,
+            &self.config,
+            cfg!(test),
+            &identity.player_level,
+            &movement.player_position,
+            &progression.player_next_level_xp,
+            &mut progression.rest_mgr_test_fixture_like_cpp,
+            rest_bonus,
+        )
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_apply_offline_xp_rest_bonus_like_cpp(
@@ -370,34 +334,32 @@ impl WorldSession {
         xp: u32,
         victim: wow_core::ObjectGuid,
     ) -> (u32, u8) {
-        if victim.is_empty() {
-            return (0, 0);
-        }
-
-        let Some(current_rest_bonus) =
-            crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp()
-        else {
-            return (0, 0);
-        };
-        let rested_bonus = (current_rest_bonus as u32).min(xp);
-        let Some(rested_consumption_modifier) = crate::session::hub_ref(self)
-            .resolved_total_represented_aura_modifier_like_cpp(
-                RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
-            )
-        else {
-            return (0, 0);
-        };
-        let rested_loss = wow_entities::apply_pct_modifier_to_u32_like_cpp(
-            rested_bonus,
-            rested_consumption_modifier,
-        );
-        // Both C++ RestMgr implementations call SetRestBonus unconditionally,
-        // including when the float bonus truncates to a zero integer award.
-        // That call normalizes a verbatim loaded RestState against the current
-        // bonus even though no rested XP is awarded or consumed.
-        let nested_mask =
-            self.set_represented_xp_rest_bonus_like_cpp(current_rest_bonus - rested_loss as f32);
-        (rested_bonus, nested_mask)
+        let wow_world_core::session::state::SessionFixtures {
+            identity,
+            progression,
+            movement,
+            auras,
+            ..
+        } = &mut self.fixtures;
+        let player = self
+            .core
+            .xp_gain_access_like_cpp(&self.catalogs, &self.config);
+        wow_world_application::QuestRewardCx::take_represented_xp_rest_bonus_for_fixture_from_selected_access_like_cpp(
+            player,
+            &self.social,
+            &self.config,
+            cfg!(test),
+            &identity.player_level,
+            &movement.player_position,
+            &progression.player_next_level_xp,
+            &mut progression.rest_mgr_test_fixture_like_cpp,
+            &auras.player_aura_authority_complete_like_cpp,
+            &auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+            &auras.visible_auras,
+            &auras.canonical_threat_aura_snapshots_like_cpp,
+            xp,
+            victim,
+        )
     }
     #[cfg(test)]
     pub(crate) fn progression_catalogs_for_test_like_cpp(&self) -> ProgressionCatalogsLikeCpp {

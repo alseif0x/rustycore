@@ -269,30 +269,9 @@ impl WorldSession {
         item_guid: ObjectGuid,
         cleared_mainhand_enchantments: &[EnchantmentSlot],
     ) -> bool {
-        self.remove_inventory_item_duration_refs_like_cpp(item_guid);
-        self.remove_inventory_tradeable_item_like_cpp(item_guid);
-
-        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
-            return false;
-        }
-
-        let _ = self.record_direct_inventory_item_set_remove_like_cpp(bag, slot, item_guid);
-        let item_mods_changed =
-            self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item_guid);
-        let _ = {
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.clear_inventory_item_equipped_state_like_cpp(
-                &mut h,
-                item_guid,
-                cleared_mainhand_enchantments,
-            )
-        };
-
-        if slot < PROFESSION_SLOT_END {
-            self.inventory
-                .record_inventory_item_combat_stat_recalculations_like_cpp(slot);
-        }
-        item_mods_changed
+        self.inventory_swap_effects_cx_like_cpp().remove_item_effects_like_cpp(
+            bag, slot, item_guid, cleared_mainhand_enchantments,
+        )
     }
     /// C++ `StoreItem`/`BankItem`/`EquipItem` post-placement side effects for
     /// a runtime item whose persistence and position have already committed.
@@ -302,29 +281,41 @@ impl WorldSession {
         slot: u8,
         item_guid: ObjectGuid,
     ) -> bool {
-        self.add_inventory_item_duration_refs_like_cpp(item_guid);
-        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
-            return false;
-        }
+        self.inventory_swap_effects_cx_like_cpp().store_item_effects_like_cpp(bag, slot, item_guid)
+    }
 
-        let _ = {
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.set_inventory_item_equipped_like_cpp(&mut h, item_guid, true)
-        };
-        let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
-        let item_mods_changed = if self
-            .resolved_inventory_item_object_like_cpp(item_guid)
-            .is_some_and(|item| !item.is_broken())
-        {
-            self.record_represented_item_mods_like_cpp(item_guid, slot, true) != 0
-        } else {
-            false
-        };
-        if slot < PROFESSION_SLOT_END {
-            self.inventory
-                .record_inventory_item_combat_stat_recalculations_like_cpp(slot);
-        }
-        item_mods_changed
+    fn inventory_swap_effects_cx_like_cpp(&mut self) -> wow_world_application::InventorySwapEffectsCxLikeCpp<'_> {
+        let item_sets = self.core.owned_item_set_access_like_cpp(
+            self.catalogs.items.set_store.as_deref(),
+            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_store.as_deref(),
+            self.catalogs.heirloom_store.as_deref(),
+            self.catalogs.items.stats_store.as_deref(),
+            self.catalogs.curve_store.as_deref(),
+            self.catalogs.curve_point_store.as_deref(),
+            self.catalogs.content_tuning_store.as_deref(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.player_skill_test_fixture_like_cpp.player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.represented_primary_specialization_id_like_cpp,
+        );
+        wow_world_application::InventorySwapEffectsCxLikeCpp::new(
+            &mut self.inventory,
+            self.core.owned_inventory_access_like_cpp(),
+            self.core.owned_item_modifiers_access_like_cpp(),
+            item_sets,
+            self.core.packet_publication_access_like_cpp(),
+            wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
+                self.catalogs.items.store.as_ref(), self.catalogs.items.stats_store.as_ref(),
+                self.catalogs.scaling_stat_distribution_store.as_ref(), self.catalogs.scaling_stat_values_store.as_ref(),
+                self.catalogs.shield_block_regular_game_table.as_ref(), self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
+            ),
+            #[cfg(any(test, feature = "test-fixtures"))] &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))] &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+            cfg!(test),
+        )
     }
     pub(crate) fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         let (state, hub) = crate::session::split_inventory_ref(self);
@@ -362,21 +353,17 @@ impl crate::session::InventoryCxRef<'_> {
             .catalogs
             .item_template_max_durability(entry_id)
             .max(durability);
-        let mut item = Item::new(i64::from(self.lifecycle.total_played_time_like_cpp()));
-        item.initialize_created_state(ItemCreateInfo {
-            guid: item_guid,
-            item_id: entry_id,
-            context,
-            owner: Some(owner_guid),
+        wow_world_inventory::make_inventory_item_object_like_cpp(
+            item_guid,
+            entry_id,
+            owner_guid,
+            count,
+            durability,
             max_durability,
-            expiration: 0,
-            spell_charges: [0; MAX_ITEM_SPELLS],
-        });
-        item.set_count(count.max(1));
-        item.set_durability(durability);
-        item.set_slot(slot);
-        item.set_container_guid(ObjectGuid::EMPTY);
-        item
+            context,
+            slot,
+            self.lifecycle.total_played_time_like_cpp(),
+        )
     }
 }
 

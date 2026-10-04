@@ -11,12 +11,18 @@ impl WorldSession {
         plan: QuestRewardDurablePlanLikeCpp,
         quest_id: u32,
     ) -> Option<Option<wow_persistence::PlayerQuestRewardMoneyLikeCpp>> {
-        let player = self.core.quest_reward_player_access_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let mut player = self.core.quest_reward_player_access_like_cpp();
         let mut operation = wow_world_application::QuestRewardCommitCx::new(
             &mut self.inventory,
             &mut self.lifecycle,
             &mut self.quest_state,
-            player,
+            &mut player,
             self.catalogs.currency_types_store.as_deref(),
             cfg!(test),
         );

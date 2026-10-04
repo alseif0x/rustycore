@@ -20,6 +20,15 @@ impl SessionCore {
 }
 
 impl OwnedItemModifiersAccessLikeCpp<'_> {
+    pub fn set_item_level_caps_like_cpp(
+        &self,
+        caps: wow_entities::PlayerItemLevelCapsLikeCpp,
+    ) -> Option<()> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            player.set_item_level_caps_like_cpp(caps);
+        })
+    }
+
     /// Snapshot item-modifier state through this session's generation-checked handle.
     /// The manager guard is released before the snapshot is returned.
     pub fn item_modifier_runtime_snapshot_like_cpp(

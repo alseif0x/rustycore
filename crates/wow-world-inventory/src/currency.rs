@@ -9,6 +9,34 @@ use wow_world_core::session::{
 };
 
 impl crate::InventoryState {
+    pub fn player_currency_quantity_with_access_like_cpp(
+        &self,
+        access: &OwnedPlayerCurrencyAccessLikeCpp<'_>,
+        currency_id: u32,
+    ) -> Option<u32> {
+        self.player_currencies_with_access_like_cpp(access).map(|currencies| {
+            currencies
+                .get(&currency_id)
+                .map(|currency| currency.quantity)
+                .unwrap_or(0)
+        })
+    }
+
+    pub fn remove_currency_with_access_like_cpp(
+        &mut self,
+        access: &OwnedPlayerCurrencyAccessLikeCpp<'_>,
+        currency_id: u32,
+        amount: u32,
+    ) -> bool {
+        let Some(mut currencies) = self.player_currencies_with_access_like_cpp(access) else {
+            return false;
+        };
+        if !wow_entities::plan_remove_currency_like_cpp(&mut currencies, currency_id, amount) {
+            return false;
+        }
+        self.set_player_currencies_with_access_like_cpp(access, currencies)
+    }
+
     pub fn set_player_currencies_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,

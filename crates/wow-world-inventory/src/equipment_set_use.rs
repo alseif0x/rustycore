@@ -354,7 +354,7 @@ impl InventoryState {
         true
     }
 
-    fn apply_inventory_item_object_updates_with_access_like_cpp(
+    pub fn apply_inventory_item_object_updates_with_access_like_cpp(
         &mut self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
         item_guid: ObjectGuid,

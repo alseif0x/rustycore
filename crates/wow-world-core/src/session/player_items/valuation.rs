@@ -189,31 +189,12 @@ impl crate::session::state::SessionCatalogs {
     }
 
     pub fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
-        let Some(item) = runtime_item else {
-            return 0;
-        };
-        let Some(store) = self.items.bonus_db2_store.as_ref() else {
-            return 0;
-        };
-
-        item.data()
-            .item_bonus_key
-            .bonus_list_ids
-            .iter()
-            .filter_map(|bonus_list_id| u16::try_from(*bonus_list_id).ok())
-            .flat_map(|bonus_list_id| store.entries_for_bonus_list_like_cpp(bonus_list_id))
-            .filter(|bonus| {
-                <ItemBonusType as num_traits::FromPrimitive>::from_u8(bonus.bonus_type)
-                    == Some(ItemBonusType::ItemLevel)
-            })
-            .map(|bonus| i64::from(bonus.value[0]))
-            .sum()
+        self.inventory_valuation_catalog_view_like_cpp()
+            .represented_item_level_bonus_like_cpp(runtime_item)
     }
 
     pub fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
-        self.pvp_item_store
-            .as_ref()
-            .map(|store| store.item_level_bonus_like_cpp(entry_id))
-            .unwrap_or(0)
+        self.inventory_valuation_catalog_view_like_cpp()
+            .represented_pvp_item_level_bonus_like_cpp(entry_id)
     }
 }

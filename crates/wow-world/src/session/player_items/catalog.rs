@@ -34,20 +34,6 @@ impl WorldSession {
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.catalogs.items.stats_store = Some(store);
     }
-    pub(in crate::session) fn restore_represented_health_pct_after_item_mod_scaling_like_cpp(
-        &mut self,
-        health_before: u32,
-        max_health_before: u32,
-    ) {
-        let Some((_, max_health_after, _)) =
-            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
-        else {
-            return;
-        };
-        let restored = (u64::from(max_health_after) * u64::from(health_before)
-            / u64::from(max_health_before.max(1))) as u32;
-        self.set_player_health_like_cpp(restored, max_health_after);
-    }
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
         self.catalogs.items.spec_override_store = Some(store);
     }

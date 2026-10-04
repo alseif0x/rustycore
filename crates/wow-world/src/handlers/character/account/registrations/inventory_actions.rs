@@ -144,23 +144,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelTempEnchantment,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_temp_enchantment",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::item::CancelTempEnchantment::read(&mut pkt) {
-                    Ok(cancel) => session.handle_cancel_temp_enchantment(cancel).await,
-                    Err(e) => tracing::warn!("Failed to read CancelTempEnchantment: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::ShowTradeSkill,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,

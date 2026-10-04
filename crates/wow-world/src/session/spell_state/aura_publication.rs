@@ -58,30 +58,9 @@ impl WorldSession {
         &mut self,
         apply: bool,
     ) {
-        let should_enable = if apply {
-            true
-        } else {
-            let Some(has_fly) = self
-                .resolved_has_represented_aura_effect_like_cpp(RepresentedAuraEffectLikeCpp::Fly)
-            else {
-                return;
-            };
-            let Some(has_mounted_flight_speed) = self
-                .resolved_has_represented_aura_effect_like_cpp(
-                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
-                )
-            else {
-                return;
-            };
-            has_fly || has_mounted_flight_speed
-        };
-        crate::session::hub_mut(self)
-            .set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
-        let can_fly_changed =
-            crate::session::hub_mut(self).set_represented_can_fly_like_cpp(should_enable);
-        if !should_enable && can_fly_changed {
-            crate::session::hub_mut(self).move_represented_player_fall_like_cpp();
-        }
+        let mut hub = crate::session::hub_mut(self);
+        let (presentation, mut movement) = hub.aura_removal_mount_accesses_like_cpp();
+        movement.update_flight_flags_for_aura_like_cpp(&presentation, apply);
     }
 }
 

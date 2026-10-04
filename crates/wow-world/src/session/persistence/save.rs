@@ -13,21 +13,7 @@ impl WorldSession {
         if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_player_save_to_db_snapshot_like_cpp();
         }
-        let guid = self.player_guid()?;
-        let handle = self.core.player_handle_like_cpp?;
-        if handle.guid() != guid {
-            return None;
-        }
-        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
-        let residence = manager.player_residence_like_cpp(handle)?;
-        // C++ Player.cpp:19480-19514 reads one Player and selects a save-only
-        // teleport destination. Resolve every mutable input under this same guard.
-        // The existing residence-specific health projection remains explicit
-        // compatibility debt; map, instance and level come from the Player.
-        manager.with_player_like_cpp(handle, |player| {
-            self.lifecycle
-                .player_save_header_from_owner_like_cpp(player, residence)
-        })
+        wow_world_core::session::PlayerSaveOwnerAccessLikeCpp::header_like_cpp(&self.core)
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_player_save_to_db_snapshot_like_cpp(
@@ -45,61 +31,18 @@ impl WorldSession {
         // `player_level_like_cpp` re-enters it and would self-deadlock.
         let level = crate::session::hub_ref(self).player_level_like_cpp();
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
-        if let Some(manager) = self.core.canonical_map_manager.as_ref()
-            && let Ok(manager) = manager.lock()
+        if let Some(snapshot) =
+            wow_world_core::session::PlayerSaveOwnerAccessLikeCpp::fixture_canonical_header_like_cpp(
+                &self.core,
+                guid,
+                level,
+                xp,
+                money,
+                powers,
+                pending_teleport_destination,
+            )
         {
-            let mut snapshot = None;
-            manager.do_for_all_maps(|managed| {
-                if snapshot.is_some() {
-                    return;
-                }
-                let Some(player) = managed.map().get_typed_player(guid) else {
-                    return;
-                };
-                // C++ has one live Player object, and Player::SaveToDB reads a
-                // coherent snapshot from that object. Accepted movement now
-                // relocates this canonical Player before persistence, so do not
-                // recursively resolve a Session mirror while MapManager is held.
-                let (map_id, instance_id, position) =
-                    if let Some((map_id, position)) = pending_teleport_destination {
-                        (map_id, 0, position)
-                    } else {
-                        (
-                            self.core.player_map_id_like_cpp(),
-                            managed.instance_id(),
-                            player.unit().world().position(),
-                        )
-                    };
-
-                let canonical_max_health = player
-                    .unit()
-                    .data()
-                    .max_health
-                    .max(1)
-                    .min(u64::from(u32::MAX)) as u32;
-                let canonical_health = player.unit().data().health.min(u64::from(u32::MAX)) as u32;
-                let health = if player.unit().is_alive() && canonical_health > 0 {
-                    canonical_health
-                } else {
-                    0
-                };
-
-                snapshot = Some(PlayerSaveToDbSnapshotLikeCpp {
-                    guid,
-                    map_id,
-                    instance_id,
-                    position,
-                    level,
-                    xp,
-                    money,
-                    health,
-                    max_health: canonical_max_health,
-                    powers,
-                });
-            });
-            if snapshot.is_some() {
-                return snapshot;
-            }
+            return Some(snapshot);
         }
 
         let (map_id, instance_id, position) =
@@ -174,29 +117,14 @@ impl WorldSession {
     pub(in crate::session) fn resolved_player_flags_for_rest_state_save_like_cpp(
         &self,
     ) -> Option<u32> {
-        let resolve = |mut player_flags: u32, rest: &wow_entities::PlayerRestState| {
-            if rest.is_location_initialized_like_cpp() {
-                if rest.is_resting_by_flag_like_cpp() {
-                    player_flags |= PLAYER_FLAGS_RESTING_LIKE_CPP;
-                } else {
-                    player_flags &= !PLAYER_FLAGS_RESTING_LIKE_CPP;
-                }
-            }
-            player_flags
-        };
-        let canonical = self.core.with_owned_player_for_rest_like_cpp(|player| {
-            resolve(player.data().player_flags, player.rest_state_like_cpp())
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(resolve(
-                self.lifecycle
-                    .represented_loaded_player_flags_for_test_like_cpp()
-                    .unwrap_or(0),
-                &crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()?,
-            ));
-        }
-        canonical
+        wow_world_application::QuestRewardCx::resolved_player_flags_for_rest_state_save_from_access_like_cpp(
+            self.core
+                .xp_gain_access_like_cpp(&self.catalogs, &self.config),
+            &self.lifecycle,
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.rest_mgr_test_fixture_like_cpp,
+        )
     }
     #[cfg(test)]
     pub(in crate::session) fn represented_player_flags_for_rest_state_save_like_cpp(&self) -> u32 {

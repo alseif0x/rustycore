@@ -69,7 +69,7 @@ use crate::battle_pet_account::{
 use crate::session::{
     ExclusivePlayerMoneyPersistenceLikeCpp, PlayerMoneyCommitCancellationFenceLikeCpp, WorldSession,
 };
-use crate::trainer_offer::PreparedBattlePetTrainerOfferLikeCpp;
+use wow_world_application::PreparedBattlePetTrainerOfferLikeCpp;
 
 mod ops_1;
 mod ops_2;

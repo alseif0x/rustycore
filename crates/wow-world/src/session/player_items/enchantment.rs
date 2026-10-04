@@ -72,8 +72,8 @@ impl WorldSession {
         slot: EnchantmentSlot,
         args: ApplyEnchantmentArgs,
     ) -> Option<ApplyEnchantmentPlan> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.apply_current_player_item_enchantment_plan_like_cpp(&mut hub, item_guid, slot, args)
+        self.build_item_enchantment_handler_cx_like_cpp()
+            .apply_current_player_item_enchantment_plan_like_cpp(item_guid, slot, args)
     }
     pub(in crate::session) fn apply_loaded_enchantment_spell_action_like_cpp(
         &mut self,

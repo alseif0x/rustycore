@@ -104,6 +104,7 @@
       "wow-packet"
     ],
     "wow-world-application": [
+      "wow-conditions",
       "wow-config",
       "wow-constants",
       "wow-core",
@@ -114,10 +115,13 @@
       "wow-handler",
       "wow-instances",
       "wow-map",
+      "wow-script",
       "wow-social",
       "wow-spell-acquisition",
       "wow-world-core",
+      "wow-world-entities",
       "wow-world-instances",
+      "wow-world-interaction",
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",

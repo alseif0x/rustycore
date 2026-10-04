@@ -22,40 +22,8 @@ impl WorldSession {
         &self,
         limit_category_id: u32,
     ) -> Option<ItemLimitCategoryTemplate> {
-        if limit_category_id == 0 {
-            return None;
-        }
-
-        let entry = self
-            .catalogs
-            .items
-            .limit_category_store
-            .as_ref()
-            .and_then(|store| store.get(limit_category_id))?;
-
-        let mut quantity = entry.quantity;
-        if let Some(condition_store) = self.catalogs.items.limit_category_condition_store.as_ref() {
-            let context_holder = self.represented_player_condition_context_like_cpp()?;
-            let context = context_holder.as_context(self)?;
-            for condition in condition_store.conditions_for_parent_like_cpp(entry.id) {
-                let player_condition = self
-                    .catalogs
-                    .player_condition_store
-                    .as_ref()
-                    .and_then(|store| store.get(condition.player_condition_id));
-                if player_condition.is_none_or(|condition| {
-                    is_player_meeting_condition_like_cpp(condition, &context)
-                }) {
-                    quantity = (i16::from(quantity) + i16::from(condition.add_quantity)) as u8;
-                }
-            }
-        }
-
-        Some(ItemLimitCategoryTemplate {
-            id: entry.id,
-            quantity,
-            flags: entry.flags,
-        })
+        self.player_condition_projection_cx_like_cpp()
+            .item_limit_category_template_like_cpp(limit_category_id)
     }
     /// Set the item stats store for this session.
     pub fn set_item_bonus_db2_store(&mut self, store: Arc<ItemBonusDb2Store>) {
@@ -96,28 +64,11 @@ impl WorldSession {
         &mut self,
         caps: wow_entities::PlayerItemLevelCapsLikeCpp,
     ) -> bool {
-        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.set_item_level_caps_like_cpp(caps);
-        });
-        if canonical.is_some() {
-            return true;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .set_player_item_level_caps_for_test_like_cpp(caps);
-            return true;
-        }
-        false
-    }
-    pub(in crate::session) fn record_represented_all_item_mods_like_cpp(
-        &mut self,
-        targets: &[(u8, ObjectGuid)],
-        apply: bool,
-    ) {
-        for (slot, item_guid) in targets {
-            self.record_represented_item_mods_like_cpp(*item_guid, *slot, apply);
-        }
+        self.inventory.set_player_item_level_caps_with_access_like_cpp(
+            &self.core.owned_item_modifiers_access_like_cpp(),
+            caps,
+            cfg!(test),
+        )
     }
     pub(in crate::session) fn record_represented_item_mods_like_cpp(
         &mut self,
@@ -163,69 +114,14 @@ impl WorldSession {
         &self,
         form_change: bool,
     ) -> Vec<RepresentedItemSetAuraRefreshEventLikeCpp> {
-        let mut events = Vec::new();
-        let primary_spec = self.represented_primary_specialization_id_like_cpp();
-        let Some(active_effects) =
-            self.player_item_modifier_runtime_snapshot_like_cpp()
-                .map(|state| {
-                    state
-                        .item_set_effects_like_cpp()
-                        .values()
-                        .cloned()
-                        .collect::<Vec<_>>()
-                })
-        else {
-            return events;
-        };
-
-        for effect in active_effects {
-            let active_bonus_ids = effect.set_bonuses.clone();
-            let spells: Vec<_> = self
-                .catalogs
-                .item_set_spells_like_cpp(effect.item_set_id)
-                .into_iter()
-                .filter(|spell| active_bonus_ids.contains(&spell.id))
-                .cloned()
-                .collect();
-
-            for item_set_spell in spells {
-                if item_set_spell.chr_spec_id != 0
-                    && Some(u32::from(item_set_spell.chr_spec_id)) != primary_spec
-                {
-                    events.push(RepresentedItemSetAuraRefreshEventLikeCpp {
-                        item_set_id: effect.item_set_id,
-                        spell_entry_id: item_set_spell.id,
-                        spell_id: item_set_spell.spell_id,
-                        apply: false,
-                        form_change: false,
-                    });
-                    continue;
-                }
-
-                let fits_shapeshift =
-                    self.represented_equip_spell_fits_shapeshift_like_cpp(item_set_spell.spell_id);
-                if !form_change || !fits_shapeshift {
-                    events.push(RepresentedItemSetAuraRefreshEventLikeCpp {
-                        item_set_id: effect.item_set_id,
-                        spell_entry_id: item_set_spell.id,
-                        spell_id: item_set_spell.spell_id,
-                        apply: false,
-                        form_change,
-                    });
-                }
-                if fits_shapeshift {
-                    events.push(RepresentedItemSetAuraRefreshEventLikeCpp {
-                        item_set_id: effect.item_set_id,
-                        spell_entry_id: item_set_spell.id,
-                        spell_id: item_set_spell.spell_id,
-                        apply: true,
-                        form_change,
-                    });
-                }
-            }
-        }
-
-        events
+        wow_world_application::plan_item_set_aura_refresh_with_access_like_cpp(
+            &self.inventory, &self.core.owned_item_modifiers_access_like_cpp(),
+            &crate::session::hub_ref(self).owned_item_set_access_like_cpp(),
+            self.catalogs.spell_catalogs.spell_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_shapeshift_form_store.as_deref(),
+            form_change, cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))] &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+        )
     }
     pub(in crate::session) fn apply_initial_item_set_auras_like_cpp(
         &mut self,
@@ -324,46 +220,7 @@ impl WorldSession {
         &mut self,
         form_change: bool,
     ) -> usize {
-        let events = self.plan_represented_update_item_set_auras_like_cpp(form_change);
-        #[cfg(test)]
-        self.inventory
-            .record_represented_item_set_aura_refresh_events_for_test_like_cpp(&events);
-        let recorded = events.len();
-        let Some(player_guid) = self.player_guid() else {
-            return recorded;
-        };
-
-        for event in events {
-            let Ok(spell_id) = i32::try_from(event.spell_id) else {
-                continue;
-            };
-            if event.apply {
-                if event.form_change
-                    && crate::session::hub_ref(self)
-                        .player_has_visible_aura_spell_like_cpp(spell_id)
-                        != Some(false)
-                {
-                    continue;
-                }
-                let effect_mask = self
-                    .spell_store()
-                    .and_then(|store| store.get(spell_id))
-                    .map(unit_owned_apply_aura_effect_mask_like_cpp)
-                    .unwrap_or(0x0000_0001)
-                    .max(0x0000_0001);
-                let _ = self.apply_aura_with_effect_mask_like_cpp(
-                    spell_id,
-                    player_guid,
-                    0,
-                    AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200,
-                    effect_mask,
-                );
-            } else {
-                let _ = self.remove_represented_auras_due_to_spell_like_cpp(spell_id);
-            }
-        }
-
-        recorded
+        self.player_aura_application_cx_like_cpp().apply_item_set_aura_refresh_events_like_cpp(form_change)
     }
     pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
         // Item changes alter derived stats, vital maxima and weapon ranges

@@ -17,21 +17,21 @@ use super::SessionQuestState;
 use super::money_persistence::begin_exclusive_player_money_persistence_like_cpp;
 
 /// Concrete participants for committing one already-planned quest reward.
-pub struct QuestRewardCommitCx<'a> {
+pub struct QuestRewardCommitCx<'a, 'player> {
     inventory: &'a mut InventoryState,
     lifecycle: &'a mut SessionLifecycleState,
     quest_state: &'a mut SessionQuestState,
-    player: QuestRewardPlayerAccessLikeCpp<'a>,
+    player: &'a mut QuestRewardPlayerAccessLikeCpp<'player>,
     currency_types: Option<&'a CurrencyTypesStore>,
     _world_test_consumer: bool,
 }
 
-impl<'a> QuestRewardCommitCx<'a> {
+impl<'a, 'player> QuestRewardCommitCx<'a, 'player> {
     pub fn new(
         inventory: &'a mut InventoryState,
         lifecycle: &'a mut SessionLifecycleState,
         quest_state: &'a mut SessionQuestState,
-        player: QuestRewardPlayerAccessLikeCpp<'a>,
+        player: &'a mut QuestRewardPlayerAccessLikeCpp<'player>,
         currency_types: Option<&'a CurrencyTypesStore>,
         world_test_consumer: bool,
     ) -> Self {
@@ -43,6 +43,10 @@ impl<'a> QuestRewardCommitCx<'a> {
             currency_types,
             _world_test_consumer: world_test_consumer,
         }
+    }
+
+    pub fn player_mut(&mut self) -> &mut QuestRewardPlayerAccessLikeCpp<'player> {
+        self.player
     }
 
     /// Commit the operation's single character transaction.

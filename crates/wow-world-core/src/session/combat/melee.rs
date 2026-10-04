@@ -10,7 +10,8 @@ use wow_entities::AuraApplicationLikeCpp;
 /// `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` effect. The represented white swing
 /// multiplies its rolled damage by the returned factor; `1.0` when nothing is
 /// active.
-fn represented_autoattack_damage_multiplier_like_cpp(
+impl SessionCore {
+pub(crate) fn represented_autoattack_damage_multiplier_from_snapshot_like_cpp(
     auras: &HashMap<u8, AuraApplicationLikeCpp>,
     spell_store: &SpellStore,
 ) -> f32 {
@@ -23,6 +24,7 @@ fn represented_autoattack_damage_multiplier_like_cpp(
     .fold(1.0_f32, |total, (_, amount)| {
         total * (1.0 + amount as f32 / 100.0)
     })
+}
 }
 
 impl SessionCore {
@@ -126,7 +128,7 @@ impl crate::session::HubRef<'_> {
         ) else {
             return 1.0;
         };
-        represented_autoattack_damage_multiplier_like_cpp(&auras, spell_store)
+        SessionCore::represented_autoattack_damage_multiplier_from_snapshot_like_cpp(&auras, spell_store)
     }
 
     pub fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {

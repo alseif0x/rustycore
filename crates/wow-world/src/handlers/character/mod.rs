@@ -201,13 +201,7 @@ struct DirectInventoryPositionUpdateLikeCpp {
     item_db_guid: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InventorySwapTargetLikeCpp {
-    Inventory,
-    Bank,
-    Equipment { dest: u16 },
-    None,
-}
+use wow_world_application::InventorySwapTargetLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InventoryStorageTargetLikeCpp {
@@ -393,7 +387,6 @@ fn inventory_storage_move_quest_directions_like_cpp(
     (moving_to_bank, moving_from_bank)
 }
 
-type ItemStorageMutablePersistenceLikeCpp = wow_persistence::InventoryItemMutablePersistenceLikeCpp;
 
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
@@ -607,25 +600,7 @@ fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     equipment
 }
 
-fn bind_inventory_item_for_destination_like_cpp(item: &mut wow_entities::Item, destination: u16) {
-    let [bag, slot] = destination.to_be_bytes();
-    if is_equipment_pos(bag, slot) {
-        // C++ `Player::EquipItem` calls `VisualizeItem`, which binds
-        // BIND_ON_EQUIP as well as the acquire/quest bonding modes.
-        item.bind_if_visualized();
-    } else {
-        // C++ `Player::_StoreItem` has the narrower storage rule: an
-        // OnEquip item binds here only when stored in a bag-equipment slot.
-        item.bind_if_stored(wow_entities::is_bag_pos(destination));
-    }
-}
-
-fn item_dynamic_flags_changed_like_cpp(
-    before: &wow_entities::Item,
-    after: &wow_entities::Item,
-) -> bool {
-    before.item_flags_bits() != after.item_flags_bits()
-}
+use wow_world_application::{bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp};
 
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
@@ -718,35 +693,7 @@ fn destroy_item_count_action(current_count: u32, requested_count: u32) -> Destro
     DestroyItemCountAction::FullStack
 }
 
-fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String {
-    let mut out = String::new();
-    for charge in charges.iter().take(effect_count) {
-        out.push_str(&charge.to_string());
-        out.push(' ');
-    }
-    out
-}
-
-fn item_storage_mutable_persistence_like_cpp(
-    db_guid: u64,
-    item: &wow_entities::Item,
-    count: u32,
-    flags: u32,
-    enchantments: String,
-    effect_count: usize,
-) -> ItemStorageMutablePersistenceLikeCpp {
-    let data = item.data();
-    ItemStorageMutablePersistenceLikeCpp {
-        item_guid: db_guid,
-        count,
-        expiration: data.expiration,
-        charges: item_spell_charges_db_string(&data.spell_charges, effect_count),
-        flags,
-        enchantments,
-        durability: data.durability,
-        played_time: data.create_played_time,
-    }
-}
+use wow_world_application::{item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp};
 
 fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
     item.loot_generated()

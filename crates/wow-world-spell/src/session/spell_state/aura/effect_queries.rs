@@ -96,7 +96,15 @@ impl SessionSpellState {
         hub: HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        hub.catalogs.spell_store().is_some_and(|store| {
+        self.aura_has_total_stat_percentage_effect_with_store_like_cpp(hub.catalogs.spell_store().map(|store| store.as_ref()), aura)
+    }
+
+    pub fn aura_has_total_stat_percentage_effect_with_store_like_cpp(
+        &self,
+        spell_store: Option<&wow_data::SpellStore>,
+        aura: &AuraApplication,
+    ) -> bool {
+        spell_store.is_some_and(|store| {
             store.get(aura.spell_id).is_some_and(|spell| {
                 spell.effects().iter().any(|effect| {
                     1u32.checked_shl(effect.effect_index)
@@ -113,7 +121,15 @@ impl SessionSpellState {
         hub: HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        hub.catalogs.spell_store().is_some_and(|store| {
+        self.total_stat_percentage_aura_preserves_health_pct_with_store_like_cpp(hub.catalogs.spell_store().map(|store| store.as_ref()), aura)
+    }
+
+    pub fn total_stat_percentage_aura_preserves_health_pct_with_store_like_cpp(
+        &self,
+        spell_store: Option<&wow_data::SpellStore>,
+        aura: &AuraApplication,
+    ) -> bool {
+        spell_store.is_some_and(|store| {
             store.has_attribute0_like_cpp(
                 aura.spell_id,
                 wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,

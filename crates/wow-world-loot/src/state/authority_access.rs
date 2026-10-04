@@ -23,13 +23,7 @@ impl LootState {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let map_id = u16::try_from(map_key.map_id).ok()?;
-        let manager = hub.core.map_manager.as_ref()?;
-        manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .find_creature(map_id, map_key.instance_id, guid)
-            .map(|world_creature| world_creature.creature.loot_authority_like_cpp().clone())
+        hub.core.loot_release_access_like_cpp().read_legacy_creature_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
     pub fn read_canonical_creature_loot_authority_like_cpp(
@@ -51,12 +45,7 @@ impl LootState {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)?
-            .map()
-            .with_creature_like_cpp(guid, |creature| creature.loot_authority_like_cpp().clone())
+        hub.core.loot_release_access_like_cpp().read_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
     pub fn rebind_canonical_creature_loot_authority_like_cpp(
@@ -91,19 +80,7 @@ impl LootState {
         expected_stamp: OwnedLootAuthorityStamp,
         authority: OwnedLootAuthority,
     ) -> Option<bool> {
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let mut manager = manager.lock().ok()?;
-        manager
-            .find_map_mut(map_key.map_id, map_key.instance_id)?
-            .map_mut()
-            .get_typed_creature_mut(guid)
-            .and_then(|creature| {
-                creature.rebind_loot_authority_if_current_like_cpp(
-                    expected,
-                    expected_stamp,
-                    authority,
-                )
-            })
+        hub.core.loot_release_access_like_cpp().rebind_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key, expected, expected_stamp, authority)
     }
 
     pub fn read_canonical_gameobject_loot_authority_like_cpp(
@@ -125,13 +102,7 @@ impl LootState {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)?
-            .map()
-            .get_typed_game_object(guid)
-            .map(|gameobject| gameobject.loot_authority_like_cpp().clone())
+        hub.core.loot_release_access_like_cpp().read_canonical_gameobject_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
     pub fn rebind_canonical_gameobject_loot_authority_like_cpp(

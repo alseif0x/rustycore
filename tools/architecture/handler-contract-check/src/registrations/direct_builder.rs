@@ -36,12 +36,14 @@ pub(crate) struct DirectRegistrarContract {
 }
 
 const INVENTORY_ROOT_EXPORTS: &[&str] = &[
+    "ItemTextQueryHandlerCxLikeCpp",
     "EquipmentSetsHandlerCxLikeCpp",
     "InventoryHandlerHostLikeCpp",
     "EquipmentSetsSaveCxLikeCpp",
     "register_inventory_handlers_like_cpp",
 ];
 const INVENTORY_HANDLER_EXPORTS: &[&str] = &[
+    "ItemTextQueryHandlerCxLikeCpp",
     "EquipmentSetsHandlerCxLikeCpp",
     "InventoryHandlerHostLikeCpp",
     "register_inventory_handlers_like_cpp",
@@ -133,12 +135,35 @@ pub(crate) const EQUIPMENT_SET_USE_REGISTRAR: DirectRegistrarContract = DirectRe
     facades: EQUIPMENT_SET_USE_FACADES,
 };
 
+const BANK_ROOT_EXPORTS: &[&str] = &[
+    "BankSlotFlagApplicationCxLikeCpp",
+    "BankHandlerHostLikeCpp",
+    "can_use_current_bank_with_access_like_cpp",
+    "register_bank_handlers_like_cpp",
+];
+const BANK_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "bank",
+    exports: BANK_ROOT_EXPORTS,
+}];
+
+pub(crate) const BANK_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationBank",
+    package: "wow-world-application",
+    module: "crate::bank",
+    registrar: "register_bank_handlers_like_cpp",
+    host_trait: "BankHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: BANK_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] =
     &[
         INVENTORY_REGISTRAR,
         INSTANCES_REGISTRAR,
         EQUIPMENT_SET_USE_REGISTRAR,
+        BANK_REGISTRAR,
     ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

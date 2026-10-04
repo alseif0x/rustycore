@@ -3,19 +3,52 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Pure quest operation planning shared by World adapters.
+//! Quest application operations shared by selected-owner World adapters.
 
 mod reward_plan;
 mod reward_commit;
 mod money_persistence;
+mod completion;
+mod visibility;
+mod objective_progress;
+mod objectives;
+mod dialog_status;
+mod loot_requirements;
+mod currencies;
+mod reward;
+mod quest_log;
 mod session_state;
 
 pub use self::reward_plan::QuestRewardDurablePlanLikeCpp;
 pub use self::reward_commit::QuestRewardCommitCx;
+pub use self::reward::QuestRewardCx;
+pub use self::quest_log::{
+    get_quest_slot_quest_id_like_cpp, quest_log_create_entries_like_cpp,
+    send_represented_quest_log_slot_update_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use self::reward::QuestXpGainFixtureRefsLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use self::reward::QuestRewardItemPlanningFixtureRefsLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use self::reward::QuestRewardReputationFixtureRefsLikeCpp;
 pub use self::money_persistence::{
     begin_exclusive_player_money_persistence_like_cpp,
     reconcile_durable_loot_money_before_save_like_cpp,
 };
+pub use self::objective_progress::{
+    find_quest_slot_like_cpp, plan_quest_status_save_like_cpp,
+    save_changed_quest_statuses_like_cpp, save_quest_to_db_like_cpp,
+    MAX_QUEST_LOG_SIZE_LIKE_CPP,
+};
+pub use self::objectives::QuestObjectiveProgressCx;
+pub use self::dialog_status::{
+    QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp,
+};
+pub use self::visibility::QuestEligibilityCx;
+pub use self::loot_requirements::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use self::objectives::QuestObjectiveRegistryFixtureRefsLikeCpp;
 pub use self::session_state::SessionQuestState;
 pub use self::session_state::contracts::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
@@ -23,6 +56,11 @@ pub use self::session_state::contracts::{
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedPendingQuestSharingLikeCpp,
     RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
     RepresentedQuestRewardReputationSourceLikeCpp,
+};
+pub use self::visibility::{
+    RepresentedCanSeeSpellClickOutcomeLikeCpp,
+    represented_can_see_spell_click_on_like_cpp,
+    represented_viewer_dependent_creature_npc_flags_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use self::session_state::contracts::{

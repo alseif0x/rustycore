@@ -12,15 +12,7 @@ pub(crate) use wow_world_inventory::{
 };
 pub(in crate::session) use wow_world_inventory::represented_equipment_set_from_packet_like_cpp;
 
-/// Detached inventory state already reserved by an earlier operation in the
-/// same atomic storage plan.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct DirectInventoryStorageOverlayLikeCpp {
-    pub(crate) bag: u8,
-    pub(crate) slot: u8,
-    pub(crate) entry_id: u32,
-    pub(crate) count: u32,
-}
+pub(crate) use wow_world_inventory::DirectInventoryStorageOverlayLikeCpp;
 
 pub(crate) use wow_world_interaction::VendorItemCount;
 #[cfg(any(test, feature = "test-fixtures"))]

@@ -219,56 +219,27 @@ impl crate::session::HubRef<'_> {
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .filter(|amount| *amount > 0)
-                .max()
-                .unwrap_or(0)
-        })
+        crate::session::state::SessionCore::max_represented_aura_amount_like_cpp_from_snapshot(self.resolved_player_visible_auras_like_cpp(), effect)
     }
 
     pub fn max_negative_represented_aura_amount_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .filter(|amount| *amount < 0)
-                .min()
-                .unwrap_or(0)
-        })
+        crate::session::state::SessionCore::max_negative_represented_aura_amount_like_cpp_from_snapshot(self.resolved_player_visible_auras_like_cpp(), effect)
     }
 
     pub fn total_represented_aura_amount_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<f32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .fold(1.0, |multiplier, aura| {
-                    multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
-                })
-        })
+        crate::session::state::SessionCore::total_represented_aura_amount_multiplier_like_cpp_from_snapshot(self.resolved_player_visible_auras_like_cpp(), effect)
     }
 
     pub fn total_represented_aura_amount_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .sum()
-        })
+        crate::session::state::SessionCore::total_represented_aura_amount_like_cpp_from_snapshot(self.resolved_player_visible_auras_like_cpp(), effect)
     }
 }

@@ -195,9 +195,58 @@ impl crate::session::HubMut<'_> {
         &mut self,
         update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
     ) -> bool {
-        if self.core.player_handle_like_cpp.is_some() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            self.core.update_player_teleport_state_with_fixture_like_cpp(
+                &mut self.fixtures.teleport,
+                update,
+            )
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            self.core.update_player_teleport_state_with_fixture_like_cpp(update)
+        }
+    }
+
+    pub fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            self.core.set_can_delay_teleport_with_fixture_like_cpp(
+                &mut self.fixtures.teleport,
+                can_delay,
+            )
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            self.core
+                .set_can_delay_teleport_with_fixture_like_cpp(can_delay)
+        }
+    }
+}
+impl crate::session::HubRef<'_> {
+    pub fn player_teleport_state_snapshot_like_cpp(&self) -> Option<PlayerTeleportStateLikeCpp> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            self.core
+                .player_teleport_state_snapshot_with_fixture_like_cpp(&self.fixtures.teleport)
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            self.core
+                .with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp())
+        }
+    }
+}
+
+impl crate::session::SessionCore {
+    pub(crate) fn update_player_teleport_state_with_fixture_like_cpp(
+        &mut self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture: &mut crate::session::state::TeleportState,
+        update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
+    ) -> bool {
+        if self.player_handle_like_cpp.is_some() {
             return self
-                .core
                 .with_owned_player_mut_like_cpp(|player| {
                     update(player.teleport_state_mut_like_cpp())
                 })
@@ -206,26 +255,18 @@ impl crate::session::HubMut<'_> {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
             let mut state = self
-                .shared()
-                .player_teleport_state_snapshot_like_cpp()
+                .player_teleport_state_snapshot_with_fixture_like_cpp(fixture)
                 .unwrap_or_default();
             update(&mut state);
-            self.fixtures.teleport.pending_teleport = state.far_destination;
-            self.fixtures
-                .teleport
-                .represented_can_delay_teleport_like_cpp = state.can_delay;
-            self.fixtures
-                .teleport
-                .represented_has_delayed_teleport_like_cpp = state.has_delayed;
-            self.fixtures.teleport.near_teleport_pending_like_cpp = state.near_pending;
-            self.fixtures
-                .teleport
-                .represented_far_teleport_pending_like_cpp = state.far_pending;
-            self.fixtures.teleport.near_teleport_destination_like_cpp = state.near_destination;
-            self.fixtures.teleport.represented_delayed_teleport_like_cpp = state.delayed;
-            self.fixtures
-                .teleport
-                .near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
+            fixture.pending_teleport = state.far_destination;
+            fixture.represented_can_delay_teleport_like_cpp = state.can_delay;
+            fixture.represented_has_delayed_teleport_like_cpp = state.has_delayed;
+            fixture.near_teleport_pending_like_cpp = state.near_pending;
+            fixture.represented_far_teleport_pending_like_cpp = state.far_pending;
+            fixture.near_teleport_destination_like_cpp = state.near_destination;
+            fixture.represented_delayed_teleport_like_cpp = state.delayed;
+            fixture.near_teleport_destination_zone_area_like_cpp =
+                state.near_destination_zone_area;
             true
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
@@ -235,42 +276,55 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    pub fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
-        self.update_player_teleport_state_like_cpp(|state| state.can_delay = can_delay)
-    }
-}
-impl crate::session::HubRef<'_> {
-    pub fn player_teleport_state_snapshot_like_cpp(&self) -> Option<PlayerTeleportStateLikeCpp> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
+    pub(crate) fn set_can_delay_teleport_with_fixture_like_cpp(
+        &mut self,
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+        fixture: &mut crate::session::state::TeleportState,
+        can_delay: bool,
+    ) -> bool {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            self.update_player_teleport_state_with_fixture_like_cpp(fixture, |state| {
+                state.can_delay = can_delay
+            })
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            self.update_player_teleport_state_with_fixture_like_cpp(|state| {
+                state.can_delay = can_delay
+            })
+        }
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn player_teleport_state_snapshot_with_fixture_like_cpp(
+        &self,
+        fixture: &crate::session::state::TeleportState,
+    ) -> Option<PlayerTeleportStateLikeCpp> {
+        let canonical = self.with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
-                far_destination: self.fixtures.teleport.pending_teleport,
+                far_destination: fixture.pending_teleport,
                 post_add: None,
-                can_delay: self
-                    .fixtures
-                    .teleport
-                    .represented_can_delay_teleport_like_cpp,
-                has_delayed: self
-                    .fixtures
-                    .teleport
-                    .represented_has_delayed_teleport_like_cpp,
-                near_pending: self.fixtures.teleport.near_teleport_pending_like_cpp,
-                far_pending: self
-                    .fixtures
-                    .teleport
-                    .represented_far_teleport_pending_like_cpp,
-                near_destination: self.fixtures.teleport.near_teleport_destination_like_cpp,
-                delayed: self.fixtures.teleport.represented_delayed_teleport_like_cpp,
-                near_destination_zone_area: self
-                    .fixtures
-                    .teleport
-                    .near_teleport_destination_zone_area_like_cpp,
+                can_delay: fixture.represented_can_delay_teleport_like_cpp,
+                has_delayed: fixture.represented_has_delayed_teleport_like_cpp,
+                near_pending: fixture.near_teleport_pending_like_cpp,
+                far_pending: fixture.represented_far_teleport_pending_like_cpp,
+                near_destination: fixture.near_teleport_destination_like_cpp,
+                delayed: fixture.represented_delayed_teleport_like_cpp,
+                near_destination_zone_area: fixture.near_teleport_destination_zone_area_like_cpp,
             });
         }
         canonical
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(in crate::session) fn represented_can_delay_teleport_with_fixture_like_cpp(
+        &self,
+        fixture: &crate::session::state::TeleportState,
+    ) -> bool {
+        self.player_teleport_state_snapshot_with_fixture_like_cpp(fixture)
+            .is_some_and(|state| state.can_delay)
     }
 }

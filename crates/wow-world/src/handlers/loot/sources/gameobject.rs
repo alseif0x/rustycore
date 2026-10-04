@@ -812,40 +812,15 @@ impl crate::session::LootCxRef<'_> {
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        let Some(player_guid) = self.hub.core.player_guid() else {
-            return 0;
-        };
-        let Some(registry) = self.hub.core.player_registry() else {
+        let access = self.hub.core.loot_release_access_like_cpp();
+        let Some(routing) = access.chest_routing_like_cpp() else {
             return 0;
         };
         let Some(command) = self.chest_gameobject_state_refresh_command_like_cpp(gameobject_guid)
         else {
             return 0;
         };
-        let current_map_id = self.hub.core.player_map_id_like_cpp();
-        let current_instance_id = self
-            .hub
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let mut queued = 0;
-
-        for registration in
-            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
-        {
-            if registry
-                .try_send_current_command(
-                    registration,
-                    SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command.clone()),
-                )
-                .is_ok()
-            {
-                queued += 1;
-            }
-        }
-
-        queued
+        routing.queue_like_cpp(command)
     }
 
     pub(crate) fn queue_goober_gameobject_state_refresh_for_same_map_like_cpp(

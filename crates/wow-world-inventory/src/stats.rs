@@ -13,6 +13,14 @@ use wow_world_core::session::{HubMut, HubRef, PlayerStatsAccessLikeCpp};
 pub const CR_HIT_MELEE_LIKE_CPP: u8 = 5;
 
 impl crate::InventoryState {
+    pub fn apply_represented_shapeshift_base_attack_time_with_access_like_cpp(
+        &self, player: &wow_world_core::session::PlayerStatsAccessLikeCpp<'_>,
+    ) -> bool {
+        let regular = self.represented_player_gear_stats_with_access_like_cpp(player)
+            .map(|gear| gear.base_attack_time);
+        let combat_round_time = player.represented_shapeshift_combat_round_time_like_cpp();
+        player.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
+    }
     /// C++ `Player::UpdateSpellDamageAndHealingBonus` producers
     /// (`StatSystem.cpp:171-197`) from `Unit::SpellBaseDamageBonusDone`
     /// (`Unit.cpp:6860-6890`) and `Unit::SpellBaseHealingBonusDone`
@@ -449,51 +457,6 @@ impl crate::InventoryState {
         let combat_round_time = hub
             .shared()
             .represented_shapeshift_combat_round_time_like_cpp();
-        hub.core
-            .mutate_canonical_player_like_cpp(|player| {
-                let unit = player.unit_mut();
-                let (base, offhand, ranged) = match combat_round_time {
-                    Some(round_time) => (round_time as u32, round_time as u32, 2_000),
-                    None => {
-                        let Some(regular) = regular else {
-                            return;
-                        };
-                        // C++ `Player::SetRegularAttackTime` only writes an attack
-                        // whose equipped weapon declares a delay; every other attack
-                        // keeps its current time.
-                        let current = unit.base_attack_speed();
-                        (
-                            if regular[0] > 0 {
-                                regular[0]
-                            } else {
-                                current[0]
-                            },
-                            if regular[1] > 0 {
-                                regular[1]
-                            } else {
-                                current[1]
-                            },
-                            if regular[2] > 0 {
-                                regular[2]
-                            } else {
-                                current[2]
-                            },
-                        )
-                    }
-                };
-                unit.set_base_attack_time_like_cpp(
-                    wow_constants::WeaponAttackType::BaseAttack,
-                    base,
-                );
-                unit.set_base_attack_time_like_cpp(
-                    wow_constants::WeaponAttackType::OffAttack,
-                    offhand,
-                );
-                unit.set_base_attack_time_like_cpp(
-                    wow_constants::WeaponAttackType::RangedAttack,
-                    ranged,
-                );
-            })
-            .is_some()
+        hub.core.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
     }
 }

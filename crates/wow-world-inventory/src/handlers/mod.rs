@@ -3,8 +3,11 @@
 
 mod equipment_sets;
 mod equipment_sets_save;
+mod cancel_temp_enchantment;
+mod item_text;
 
 pub use equipment_sets::{
+    ItemTextQueryHandlerCxLikeCpp,
     EquipmentSetsHandlerCxLikeCpp, InventoryHandlerHostLikeCpp,
     register_inventory_handlers_like_cpp,
 };

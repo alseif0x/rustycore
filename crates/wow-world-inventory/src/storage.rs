@@ -21,6 +21,16 @@ use wow_world_core::session::{
     HubMut, HubRef, InventoryPlayerProjectionLikeCpp, OwnedInventoryAccessLikeCpp,
 };
 
+/// Detached inventory state already reserved by an earlier operation in the
+/// same atomic storage plan.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct DirectInventoryStorageOverlayLikeCpp {
+    pub bag: u8,
+    pub slot: u8,
+    pub entry_id: u32,
+    pub count: u32,
+}
+
 /// C++ CombatRating::CR_ARMOR_PENETRATION (Unit.h:329).
 pub const CR_ARMOR_PENETRATION_LIKE_CPP: u8 = 24;
 
@@ -122,24 +132,6 @@ impl crate::InventoryState {
         .unwrap_or(false)
     }
 
-    pub(crate) fn restore_inventory_item_enchantment_durations_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        item_guid: ObjectGuid,
-        durations: &[wow_entities::PlayerEnchantDuration],
-    ) -> bool {
-        let updates = durations
-            .iter()
-            .map(
-                |duration| wow_entities::ItemObjectUpdateLikeCpp::SetEnchantmentDuration {
-                    slot: duration.slot,
-                    duration: duration.left_duration_ms,
-                },
-            )
-            .collect::<Vec<_>>();
-        self.apply_inventory_item_object_updates_like_cpp(hub, item_guid, &updates)
-    }
-
     pub fn clear_inventory_item_equipped_state_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
@@ -174,7 +166,16 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         item_guid: ObjectGuid,
     ) -> Option<Item> {
-        self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.remove_inventory_item_object_with_access_like_cpp(&access, item_guid)
+    }
+
+    pub fn remove_inventory_item_object_with_access_like_cpp(
+        &mut self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+    ) -> Option<Item> {
+        self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
             inventory.remove_item_object_like_cpp(item_guid)
         })
         .flatten()
@@ -216,7 +217,15 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         slot: u8,
     ) -> Option<InventoryItem> {
-        self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
+        self.remove_inventory_item_with_access_like_cpp(&hub.core.owned_inventory_access_like_cpp(), slot)
+    }
+
+    pub fn remove_inventory_item_with_access_like_cpp(
+        &mut self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        slot: u8,
+    ) -> Option<InventoryItem> {
+        self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
             inventory.remove_item_from_slot_like_cpp(slot)
         })
         .flatten()
@@ -240,26 +249,8 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<HashMap<u32, u32>> {
-        let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
-        let item_objects = self.resolved_inventory_item_objects_like_cpp(hub)?;
-        Some(
-            inventory_items
-                .values()
-                .filter_map(|inventory_item| item_objects.get(&inventory_item.guid))
-                .chain(item_objects.values().filter(|item| {
-                    !item.container_guid().is_empty()
-                        && item_objects.contains_key(&item.container_guid())
-                }))
-                .filter(|item| !item.is_in_trade())
-                .fold(HashMap::new(), |mut counts, item| {
-                    let entry_id = item.object().entry();
-                    counts
-                        .entry(entry_id)
-                        .and_modify(|count| *count = count.saturating_add(item.count()))
-                        .or_insert(item.count());
-                    counts
-                }),
-        )
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.represented_inventory_item_counts_with_access_like_cpp(&access)
     }
 
     /// Resolve an inventory item by GUID following C++ `Player::GetItemByGuid`.
@@ -339,7 +330,7 @@ impl crate::InventoryState {
         )
     }
 
-    pub(crate) fn direct_inventory_player_snapshot_with_access_like_cpp(
+    pub fn direct_inventory_player_snapshot_with_access_like_cpp(
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
         _item_store: Option<&Arc<ItemStore>>,
@@ -393,16 +384,22 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(mut item) = self.resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)
+        self.remove_inventory_item_duration_refs_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(), item_guid,
+        );
+    }
+
+    pub fn remove_inventory_item_duration_refs_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(mut item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
 
-        let Some(removed_enchantments) = hub.core.mutate_canonical_player_like_cpp(|player| {
-            let removed_enchantments = player.remove_enchantment_durations(&mut item);
-            let _ = player.remove_item_durations(&item);
-            removed_enchantments
-        }) else {
+        let Some(removed_enchantments) = access.remove_item_duration_refs_like_cpp(&mut item) else {
             return;
         };
 
@@ -410,11 +407,13 @@ impl crate::InventoryState {
             return;
         }
 
-        let _ = self.restore_inventory_item_enchantment_durations_like_cpp(
-            hub,
-            item_guid,
-            &removed_enchantments,
-        );
+        let updates = removed_enchantments.iter().map(|duration| {
+            ItemObjectUpdateLikeCpp::SetEnchantmentDuration {
+                slot: duration.slot,
+                duration: duration.left_duration_ms,
+            }
+        }).collect::<Vec<_>>();
+        let _ = self.apply_inventory_item_object_updates_with_access_like_cpp(access, item_guid, &updates);
     }
 
     pub fn remove_inventory_tradeable_item_like_cpp(
@@ -422,14 +421,22 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)
+        self.remove_inventory_tradeable_item_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(), item_guid,
+        );
+    }
+
+    pub fn remove_inventory_tradeable_item_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
 
-        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
-            player.remove_tradeable_item(&item);
-        });
+        access.remove_tradeable_item_like_cpp(&item);
     }
 
     pub fn add_inventory_item_duration_refs_like_cpp(
@@ -437,25 +444,45 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(mut item) = self.resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)
+        self.add_inventory_item_duration_refs_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            &hub.core.packet_publication_access_like_cpp(), item_guid,
+        );
+    }
+
+    pub fn add_inventory_item_duration_refs_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+        publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(mut item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
         let Some((owner_guid, item_update, enchantment_updates)) =
-            hub.core.mutate_canonical_player_like_cpp(|player| {
-                let item_update = player.add_item_durations(&item);
-                let enchantment_updates = player.add_enchantment_durations(&mut item);
-                (player.guid(), item_update, enchantment_updates)
-            })
+            access.add_item_duration_refs_like_cpp(&mut item)
         else {
             return;
         };
 
-        self.insert_inventory_item_object(hub, item);
+        let _ = self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
+            inventory.store_item_object_like_cpp(item)
+        });
         if let Some(update) = item_update {
-            self.send_item_time_update_plan(hub.shared(), &update);
+            publication.send_packet(&wow_packet::packets::item::ItemTimeUpdate {
+                item_guid: update.item_guid,
+                duration_left: update.expiration,
+            });
         }
-        self.send_item_enchant_time_update_plans(hub.shared(), owner_guid, &enchantment_updates);
+        for update in &enchantment_updates {
+            publication.send_packet(&wow_packet::packets::item::ItemEnchantTimeUpdate {
+                owner_guid,
+                item_guid: update.item_guid,
+                slot: update.slot as u32,
+                duration_left: update.duration_secs,
+            });
+        }
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -562,7 +589,7 @@ impl crate::InventoryState {
         self.resolved_inventory_items_with_access_like_cpp(&access)
     }
 
-    pub(crate) fn resolved_inventory_items_with_access_like_cpp(
+    pub fn resolved_inventory_items_with_access_like_cpp(
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
     ) -> Option<HashMap<u8, InventoryItem>> {
@@ -570,7 +597,7 @@ impl crate::InventoryState {
             .map(|inventory| inventory.inventory_items().clone())
     }
 
-    pub(crate) fn resolved_inventory_item_with_access_like_cpp(
+    pub fn resolved_inventory_item_with_access_like_cpp(
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
         slot: u8,
@@ -591,7 +618,7 @@ impl crate::InventoryState {
         self.resolved_inventory_item_objects_with_access_like_cpp(&access)
     }
 
-    pub(crate) fn resolved_inventory_item_objects_with_access_like_cpp(
+    pub fn resolved_inventory_item_objects_with_access_like_cpp(
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
     ) -> Option<HashMap<ObjectGuid, Item>> {
@@ -599,7 +626,7 @@ impl crate::InventoryState {
             .map(|inventory| inventory.item_objects().clone())
     }
 
-    pub(crate) fn resolved_inventory_item_object_with_access_like_cpp(
+    pub fn resolved_inventory_item_object_with_access_like_cpp(
         &self,
         access: &OwnedInventoryAccessLikeCpp<'_>,
         guid: ObjectGuid,
@@ -617,10 +644,8 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         slot: u8,
     ) -> Option<InventoryItem> {
-        self.resolved_player_inventory_runtime_like_cpp(hub)?
-            .inventory_items()
-            .get(&slot)
-            .cloned()
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.quest_reward_inventory_item_from_runtime_with_access_like_cpp(&access, slot)
     }
 
     pub fn resolved_inventory_item_object_like_cpp(

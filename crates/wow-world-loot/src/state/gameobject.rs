@@ -65,41 +65,6 @@ impl LootState {
         queued
     }
 
-    pub(crate) fn represented_creature_is_dead_for_loot_visibility_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        creature_guid: ObjectGuid,
-    ) -> bool {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = hub.core.map_manager.as_ref()
-            && let Some(creature) = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .find_creature(map_id, instance_id, creature_guid)
-        {
-            return !creature.is_alive();
-        }
-
-        let Some(map_key) = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
-        else {
-            return false;
-        };
-        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)
-            .and_then(|map| {
-                map.map()
-                    .creature_transform_vitals_snapshot_like_cpp(creature_guid)
-            })
-            .is_some_and(|creature| !creature.is_alive)
-    }
 
     pub fn represented_gathering_node_xp_like_cpp(
         &self,

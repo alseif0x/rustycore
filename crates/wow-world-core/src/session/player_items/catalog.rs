@@ -103,11 +103,8 @@ impl crate::session::state::SessionCatalogs {
     }
 
     pub fn item_template_quality(&self, item_id: u32) -> Option<i8> {
-        self.items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.random_property_template(item_id))
-            .map(|template| template.quality)
+        self.inventory_valuation_catalog_view_like_cpp()
+            .item_template_quality_like_cpp(item_id)
     }
 
     /// Resolve C++ `ItemSparseEntry` data used by random-property generation.

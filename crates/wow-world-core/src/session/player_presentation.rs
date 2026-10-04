@@ -27,48 +27,8 @@ impl crate::session::HubMut<'_> {
         display_id: i32,
         mounted: bool,
     ) -> bool {
-        let mut canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_mount_presentation_like_cpp(
-                    u32::try_from(display_id).unwrap_or(0),
-                    mounted,
-                );
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if !canonical
-            && self.core.player_handle_like_cpp.is_none()
-            && let Some(guid) = self.core.player_guid()
-        {
-            canonical = self
-                .core
-                .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.set_mount_presentation_like_cpp(
-                        u32::try_from(display_id).unwrap_or(0),
-                        mounted,
-                    );
-                })
-                .is_some();
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.vehicles.player_mount_display_id_like_cpp = display_id;
-            self.fixtures.vehicles.player_mounted_like_cpp = mounted;
-            if mounted {
-                self.fixtures
-                    .presentation
-                    .player_unit_flags_like_cpp
-                    .insert(UnitFlags::MOUNT);
-            } else {
-                self.fixtures
-                    .presentation
-                    .player_unit_flags_like_cpp
-                    .remove(UnitFlags::MOUNT);
-            }
-            return true;
-        }
-        canonical
+        self.player_aura_removal_access_like_cpp()
+            .set_player_mount_presentation_like_cpp(display_id, mounted)
     }
 }
 

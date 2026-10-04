@@ -73,10 +73,29 @@ impl crate::InventoryState {
         slot: usize,
         value: u32,
     ) {
-        let Some(guid) = hub.core.player_guid() else {
+        let access = hub.core.owned_inventory_access_like_cpp();
+        let publication = hub.core.packet_publication_access_like_cpp();
+        self.send_player_bank_bag_slot_flag_update_with_access_like_cpp(
+            &access, &publication, hub.catalogs.items.store.as_ref(),
+            hub.catalogs.items.stats_store.as_ref(), slot, value,
+        );
+    }
+
+    pub fn send_player_bank_bag_slot_flag_update_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
+        item_store: Option<&std::sync::Arc<wow_data::ItemStore>>,
+        item_stats_store: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
+        slot: usize,
+        value: u32,
+    ) {
+        let Some(guid) = access.player_guid_like_cpp() else {
             return;
         };
-        let Some(mut player) = self.player_values_update_snapshot(hub) else {
+        let Some(mut player) = self.player_values_update_snapshot_with_access_like_cpp(
+            access, publication, item_store, item_stats_store,
+        ) else {
             return;
         };
 
@@ -85,11 +104,7 @@ impl crate::InventoryState {
         }
         player.mark_bank_bag_slot_flag_changed_like_cpp(slot);
         let update = player.values_update_like_cpp(true);
-        if let Some(packet) =
-            player_values_update_to_update_object(guid, hub.core.player_map_id_like_cpp(), &update)
-        {
-            hub.core.send_packet(&packet);
-        }
+        publication.publish_player_values_update_like_cpp(guid, &update);
     }
 
     pub fn represented_bank_bag_slot_flag_like_cpp(

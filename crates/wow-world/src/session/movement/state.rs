@@ -48,13 +48,8 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
-        let Some(mut currencies) = self.player_currencies_like_cpp() else {
-            return false;
-        };
-        if !wow_entities::plan_remove_currency_like_cpp(&mut currencies, currency_id, amount) {
-            return false;
-        }
-        self.set_player_currencies_like_cpp(currencies)
+        let access = self.core.owned_player_currency_access_like_cpp();
+        self.inventory.remove_currency_with_access_like_cpp(&access, currency_id, amount)
     }
 
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
@@ -85,39 +80,7 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
-        let has_died_state = self
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                player.unit().has_unit_state(UnitState::DIED.bits())
-            })
-            .unwrap_or(false);
-        if !has_died_state {
-            return false;
-        }
-
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return false;
-        };
-        let slots: Vec<u8> = visible_auras
-            .iter()
-            .filter_map(|(slot, aura)| {
-                (aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::FeignDeath))
-                    .then_some(*slot)
-            })
-            .collect();
-        if slots.is_empty() {
-            return false;
-        }
-
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().clear_unit_state(UnitState::DIED.bits());
-        });
-        true
+        self.player_aura_application_cx_like_cpp().remove_represented_feign_death_if_needed_like_cpp()
     }
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {

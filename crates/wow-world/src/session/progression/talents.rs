@@ -122,57 +122,42 @@ impl WorldSession {
         }
         learned
     }
-    #[cfg(test)]
-    fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
-        let base_points = self
-            .catalogs
-            .num_talents_at_level_store()
-            .map(|store| {
-                store.num_talents_at_level_like_cpp(
-                    u32::from(crate::session::hub_ref(self).player_level_like_cpp()),
-                    crate::session::hub_ref(self).player_class_like_cpp(),
-                )
-            })
-            .unwrap_or(0);
-        Some(base_points + self.represented_quest_rewarded_talent_points_like_cpp()?)
-    }
     pub(crate) fn refresh_represented_talent_points_like_cpp(&mut self) {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let Some(spent) = self.represented_spent_talent_points_count_like_cpp() else {
-                return;
-            };
-            let Some(available) = self
-                .represented_calculate_talents_points_like_cpp()
-                .map(|points| points.saturating_sub(spent))
-            else {
-                return;
-            };
-            self.set_player_character_points_like_cpp(available.min(i32::MAX as u32) as i32);
-            return;
-        }
-        let base_points = self
-            .catalogs
-            .num_talents_at_level_store()
-            .map(|store| {
-                store.num_talents_at_level_like_cpp(
-                    u32::from(crate::session::hub_ref(self).player_level_like_cpp()),
-                    crate::session::hub_ref(self).player_class_like_cpp(),
-                )
-            })
-            .unwrap_or(0);
-        // Borrow immutable catalog policy; Player owns counting and field mutation.
-        let _points = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.refresh_represented_talent_points_like_cpp(base_points, |talent_id, rank| {
-                crate::session::hub_ref(self)
-                    .represented_talent_info_like_cpp(talent_id, rank)
-                    .is_some()
-            })
-        });
-        #[cfg(test)]
-        if let Some(points) = _points {
-            self.fixtures.progression.player_character_points_like_cpp = points;
-        }
+        let catalogs = &self.catalogs;
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let quest_state = &self.quest_state;
+        let world_test_consumer = cfg!(test);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(any(test, feature = "test-fixtures"))]
+        wow_world_application::QuestRewardCx::refresh_represented_talent_points_like_cpp(
+            &mut player,
+            catalogs,
+            quest_state,
+            world_test_consumer,
+            &mut self.fixtures.identity.player_level,
+            &self
+                .fixtures
+                .progression
+                .represented_gray_level_script_overrides_like_cpp,
+            &self.fixtures.progression.represented_talents_like_cpp,
+            &self
+                .fixtures
+                .progression
+                .represented_active_talent_group_like_cpp,
+            &mut self.fixtures.progression.player_character_points_like_cpp,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        wow_world_application::QuestRewardCx::refresh_represented_talent_points_like_cpp(
+            &mut player,
+            catalogs,
+            world_test_consumer,
+        );
     }
     fn reset_talents_notification_text_like_cpp(&self) -> String {
         let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);

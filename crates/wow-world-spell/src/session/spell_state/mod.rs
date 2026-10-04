@@ -1,6 +1,7 @@
 mod aura;
 mod aura_publication;
 mod aura_application;
+pub use aura_application::unit_owned_apply_aura_effect_mask_like_cpp;
 mod cast;
 mod cooldown;
 mod shapeshift;

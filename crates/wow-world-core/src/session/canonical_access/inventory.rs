@@ -1,9 +1,12 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_entities::PlayerInventoryRuntime;
+use wow_entities::{PlayerInventoryRuntime, INVENTORY_SLOT_BAG_0};
 
 use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
+
+mod relocation;
+mod enchantment;
 
 /// Borrowed access to the session's canonical inventory owner.
 pub struct OwnedInventoryAccessLikeCpp<'a> {
@@ -18,6 +21,107 @@ impl SessionCore {
 }
 
 impl OwnedInventoryAccessLikeCpp<'_> {
+    pub fn canonical_inventory_bag_slots_snapshot_like_cpp(
+        &self, bag_slot: u8,
+    ) -> Option<(wow_core::ObjectGuid, u8, [wow_core::ObjectGuid; wow_entities::MAX_BAG_SIZE])> {
+        self.core.canonical_player_snapshot_like_cpp(|player| {
+            let bag = player.inventory().bags.get(bag_slot as usize).and_then(Option::as_ref)?;
+            let mut slots = [wow_core::ObjectGuid::EMPTY; wow_entities::MAX_BAG_SIZE];
+            for (index, slot) in bag.slots.iter().enumerate() {
+                slots[index] = slot.unwrap_or(wow_core::ObjectGuid::EMPTY);
+            }
+            Some((bag.bag_guid, bag.bag_size, slots))
+        }).flatten()
+    }
+
+    /// Final native placement phase after the independent runtime writes.
+    #[allow(clippy::too_many_arguments)]
+    pub fn apply_committed_inventory_swap_native_placement_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+        destination_bag: u8,
+        destination_slot: u8,
+        source_guid: wow_core::ObjectGuid,
+        destination_guid: wow_core::ObjectGuid,
+        source_bag_size: Option<u8>,
+        destination_bag_size: Option<u8>,
+        source_children: &[(u8, wow_core::ObjectGuid)],
+        destination_children: &[(u8, wow_core::ObjectGuid)],
+    ) {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(source_slot);
+            } else {
+                let _ = player.remove_bag_item(source_bag, source_slot);
+            }
+            if destination_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(destination_slot);
+            } else {
+                let _ = player.remove_bag_item(destination_bag, destination_slot);
+            }
+
+            if destination_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(destination_slot, source_guid);
+                if wow_entities::is_bag_pos(wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, destination_slot))
+                    && let Some(size) = source_bag_size
+                    && player
+                        .register_bag_storage(destination_slot, source_guid, size)
+                        .is_ok()
+                {
+                    for &(slot, guid) in source_children {
+                        let _ = player.store_bag_item(destination_slot, slot, guid);
+                    }
+                }
+            } else {
+                let _ = player.store_bag_item(destination_bag, destination_slot, source_guid);
+            }
+
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(source_slot, destination_guid);
+                if wow_entities::is_bag_pos(wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, source_slot))
+                    && let Some(size) = destination_bag_size
+                    && player
+                        .register_bag_storage(source_slot, destination_guid, size)
+                        .is_ok()
+                {
+                    for &(slot, guid) in destination_children {
+                        let _ = player.store_bag_item(source_slot, slot, guid);
+                    }
+                }
+            } else {
+                let _ = player.store_bag_item(source_bag, source_slot, destination_guid);
+            }
+        });
+    }
+    pub fn remove_item_duration_refs_like_cpp(
+        &self,
+        item: &mut wow_entities::Item,
+    ) -> Option<Vec<wow_entities::PlayerEnchantDuration>> {
+        self.core.mutate_canonical_player_like_cpp(|player| {
+            let removed = player.remove_enchantment_durations(item);
+            let _ = player.remove_item_durations(item);
+            removed
+        })
+    }
+
+    pub fn remove_tradeable_item_like_cpp(&self, item: &wow_entities::Item) {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
+            player.remove_tradeable_item(item);
+        });
+    }
+
+    pub fn add_item_duration_refs_like_cpp(
+        &self,
+        item: &mut wow_entities::Item,
+    ) -> Option<(wow_core::ObjectGuid, Option<wow_entities::PlayerItemTimeUpdate>, Vec<wow_entities::PlayerEnchantTimeUpdate>)> {
+        self.core.mutate_canonical_player_like_cpp(|player| {
+            let item_update = player.add_item_durations(item);
+            let enchantment_updates = player.add_enchantment_durations(item);
+            (player.guid(), item_update, enchantment_updates)
+        })
+    }
+
     /// Return the current canonical Player as a detached inventory projection.
     pub fn inventory_player_projection_snapshot_like_cpp(
         &self,

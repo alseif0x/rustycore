@@ -54,29 +54,8 @@ impl WorldSession {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        (|| {
-            let owner_map_id = u32::from(owner_guid.map_id());
-            let key = self
-                .core
-                .canonical_object_lookup_map_key_like_cpp(owner_map_id)?;
-            if key.map_id != owner_map_id {
-                return None;
-            }
-            let manager = self.core.canonical_map_manager.as_ref()?;
-            let mut manager = manager.lock().ok()?;
-            let map = manager.find_map_mut(key.map_id, key.instance_id)?.map_mut();
-            let counter = map.generate_low_guid_like_cpp(HighGuid::LootObject).ok()?;
-            let map_id = u16::try_from(key.map_id).ok()?;
-            Some(ObjectGuid::create_world_object(
-                HighGuid::LootObject,
-                0,
-                self.realm_id(),
-                map_id,
-                0,
-                0,
-                counter,
-            ))
-        })()
+        self.core.loot_release_owner_access_like_cpp()
+            .next_canonical_loot_object_guid_like_cpp(owner_guid)
     }
 
     pub(super) fn refresh_represented_loot_owner_canonical_summary_like_cpp(

@@ -224,28 +224,43 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
-        let gray_level = crate::session::hub_ref(self).gray_level(level);
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_level_and_gray_level_like_cpp(level, gray_level);
-            })
-            .is_some();
-        if !canonical {
-            #[cfg(not(test))]
-            if self.core.player_handle_like_cpp.is_some() {
-                return;
-            }
-            self.core
-                .player_identity_bootstrap_like_cpp
-                .get_or_insert_default()
-                .level = level;
-            #[cfg(any(test, feature = "test-fixtures"))]
-            {
-                self.fixtures.identity.player_level = level;
-            }
-        }
-        self.refresh_represented_talent_points_like_cpp();
+        let catalogs = &self.catalogs;
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let quest_state = &self.quest_state;
+        let world_test_consumer = cfg!(test);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(any(test, feature = "test-fixtures"))]
+        wow_world_application::QuestRewardCx::set_player_level_and_refresh_talent_points_like_cpp(
+            &mut player,
+            level,
+            catalogs,
+            quest_state,
+            world_test_consumer,
+            &mut self.fixtures.identity.player_level,
+            &self
+                .fixtures
+                .progression
+                .represented_gray_level_script_overrides_like_cpp,
+            &self.fixtures.progression.represented_talents_like_cpp,
+            &self
+                .fixtures
+                .progression
+                .represented_active_talent_group_like_cpp,
+            &mut self.fixtures.progression.player_character_points_like_cpp,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        wow_world_application::QuestRewardCx::set_player_level_and_refresh_talent_points_like_cpp(
+            &mut player,
+            level,
+            catalogs,
+            world_test_consumer,
+        );
     }
 
     #[cfg(test)]

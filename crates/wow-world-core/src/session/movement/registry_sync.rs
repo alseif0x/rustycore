@@ -58,6 +58,34 @@ impl SessionCore {
 }
 
 impl PlayerRegistrySyncAccessLikeCpp<'_> {
+    /// Reborrow the same selected inputs without reading canonical state.
+    pub fn reborrow_like_cpp(&self) -> PlayerRegistrySyncAccessLikeCpp<'_> {
+        PlayerRegistrySyncAccessLikeCpp {
+            core: self.core,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_position: self.fixture_position,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_health: self.fixture_health,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_max_health: self.fixture_max_health,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_alive: self.fixture_alive,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_level: self.fixture_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_transport: self.fixture_transport,
+        }
+    }
+
+    /// Resolve the current control binding at the caller's final sync phase.
+    pub fn control_binding_if_available_like_cpp(
+        &self,
+    ) -> Option<crate::session::PlayerRegistryControlBindingLikeCpp<'_>> {
+        let guid = self.core.player_guid()?;
+        let registry = self.core.player_registry()?;
+        Some(self.core.player_registry_control_binding_like_cpp(guid, registry))
+    }
+
     fn player_position_like_cpp(&self) -> Option<Position> {
         self.core.player_position_with_fixture_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]

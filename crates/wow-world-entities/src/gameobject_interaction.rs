@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use std::time::Instant;
 
 use wow_core::ObjectGuid;
@@ -20,35 +19,8 @@ impl WorldEntitiesState {
         wow_entities::LootState,
         wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
     )> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(hub.core.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let map = managed.map_mut();
-        let use_count = {
-            let gameobject = map.get_typed_game_object_mut(guid)?;
-            gameobject.add_use_like_cpp();
-            gameobject.use_times()
-        };
-        let loot_state = if max_opens.is_some_and(|max_opens| use_count >= max_opens) {
-            wow_entities::LootState::JustDeactivated
-        } else {
-            wow_entities::LootState::Ready
-        };
-        let outcome = map.set_gameobject_loot_state_like_cpp(
-            guid,
-            loot_state,
-            None,
-            game_time_secs,
-            0,
-            false,
-        );
-        Some((use_count, loot_state, outcome))
+        hub.core.loot_release_access_like_cpp()
+            .release_canonical_fishing_hole_like_cpp(guid, max_opens)
     }
 
     pub fn record_represented_fishing_hole_max_opens_like_cpp(

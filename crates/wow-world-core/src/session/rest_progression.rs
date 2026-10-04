@@ -1,7 +1,30 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_ai::max_level_for_expansion_like_cpp;
+impl crate::session::state::SessionCore {
+    pub(crate) fn player_rest_state_snapshot_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture: &RestMgrTestFixtureLikeCpp,
+    ) -> Option<wow_entities::PlayerRestState> {
+        let canonical = self
+            .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                fixture.represented_rest_state_xp_like_cpp,
+                fixture.represented_rest_bonus_xp_like_cpp,
+                fixture.represented_rest_flag_mask_like_cpp,
+                fixture.represented_rest_location_initialized_like_cpp,
+                fixture.represented_defer_rest_flag_sync_like_cpp,
+                fixture.represented_deferred_rest_flag_update_dirty_like_cpp,
+                fixture.represented_inn_area_trigger_id_like_cpp,
+                fixture.represented_rest_time_secs_like_cpp,
+            ));
+        }
+        canonical
+    }
+}
 
 // C++ `RestMgr::SetRestBonus`: `float(next_level_xp) * 1.5f / 2`.
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -60,13 +83,8 @@ impl crate::session::HubRef<'_> {
     /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
     /// check above instead, so keep these two concepts separate.
     pub fn player_active_max_level_like_cpp(&self) -> u32 {
-        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.core.expansion));
-        let configured_max = self.config.max_player_level_config_like_cpp;
-        if expansion_max == 80 || expansion_max >= configured_max {
-            configured_max
-        } else {
-            expansion_max
-        }
+        self.core
+            .player_active_max_level_with_config_like_cpp(self.config)
     }
 
     pub fn player_is_max_level_like_cpp(&self) -> bool {
@@ -144,49 +162,10 @@ impl crate::session::HubRef<'_> {
 
 impl crate::session::HubRef<'_> {
     pub fn player_rest_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerRestState> {
-        let canonical = self
-            .core
-            .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerRestState::from_represented_parts_like_cpp(
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_state_xp_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_bonus_xp_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_flag_mask_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_location_initialized_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_defer_rest_flag_sync_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_deferred_rest_flag_update_dirty_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_inn_area_trigger_id_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_time_secs_like_cpp,
-                ),
-            );
-        }
-        canonical
+        self.core.player_rest_state_snapshot_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.rest_mgr_test_fixture_like_cpp,
+        )
     }
 
     pub fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {

@@ -13,68 +13,27 @@ impl WorldSession {
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
         let hub = crate::session::hub_ref(self);
-        match choice.loot_item_type {
-            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP => hub
-                .catalogs
-                .item_store()
-                .is_some_and(|store| store.get(choice.item_id).is_some()),
-            QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP => hub
-                .catalogs
-                .currency_types_store()
-                .is_some_and(|store| store.has_record(choice.item_id)),
-            _ => false,
-        }
+        wow_world_application::QuestRewardCx::reward_choice_template_exists_like_cpp(
+            choice.loot_item_type,
+            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+            QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
+            choice.item_id,
+            hub.catalogs.item_store().map(Arc::as_ref),
+            hub.catalogs.currency_types_store().map(Arc::as_ref),
+        )
     }
 
     pub(in crate::handlers::quest) fn represented_can_select_quest_package_item_like_cpp(
         &self,
         quest_package_item: &QuestPackageItemEntry,
     ) -> bool {
-        self.represented_can_select_quest_package_item_with_hub_like_cpp(
-            crate::session::hub_ref(self),
+        let hub = crate::session::hub_ref(self);
+        wow_world_application::QuestRewardCx::can_select_quest_package_item_like_cpp(
             quest_package_item,
+            hub.catalogs.item_store().map(Arc::as_ref),
+            hub.catalogs.item_stats_store().map(Arc::as_ref),
+            hub.player_race_like_cpp(),
         )
-    }
-
-    fn represented_can_select_quest_package_item_with_hub_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest_package_item: &QuestPackageItemEntry,
-    ) -> bool {
-        let Ok(item_id) = u32::try_from(quest_package_item.item_id) else {
-            return false;
-        };
-        if hub
-            .catalogs
-            .item_store()
-            .is_none_or(|store| store.get(item_id).is_none())
-        {
-            return false;
-        }
-
-        let Some(sparse) = hub
-            .catalogs
-            .item_stats_store()
-            .and_then(|store| store.sparse_template(item_id))
-        else {
-            return false;
-        };
-
-        let player_team = crate::session::player_team_for_race_cpp(hub.player_race_like_cpp());
-        if ((sparse.flags[1] & ItemFlags2::FactionAlliance as u32) != 0
-            && player_team != wow_constants::unit::Team::Alliance)
-            || ((sparse.flags[1] & ItemFlags2::FactionHorde as u32) != 0
-                && player_team != wow_constants::unit::Team::Horde)
-        {
-            return false;
-        }
-
-        match quest_package_item.display_type {
-            QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP => true,
-            QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP => false,
-            QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP => false,
-            _ => false,
-        }
     }
 
     pub(in crate::handlers::quest) fn represented_quest_package_choice_matches_like_cpp(
@@ -82,33 +41,17 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
-        if choice.loot_item_type != QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP
-            || quest.quest_package_id == 0
-        {
-            return false;
-        }
-
         let hub = crate::session::hub_ref(self);
-        let Some(store) = &hub.catalogs.quests.package_item_store else {
-            return false;
-        };
-        let Ok(choice_item_id) = i32::try_from(choice.item_id) else {
-            return false;
-        };
-
-        let primary_valid = store
-            .quest_package_items_like_cpp(quest.quest_package_id)
-            .filter(|entry| entry.item_id == choice_item_id)
-            .any(|entry| {
-                self.represented_can_select_quest_package_item_with_hub_like_cpp(hub, entry)
-            });
-        if primary_valid {
-            return true;
-        }
-
-        store
-            .quest_package_items_fallback_like_cpp(quest.quest_package_id)
-            .any(|entry| entry.item_id == choice_item_id)
+        wow_world_application::QuestRewardCx::quest_package_choice_matches_like_cpp(
+            quest.quest_package_id,
+            choice.loot_item_type,
+            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+            choice.item_id,
+            hub.catalogs.quests.package_item_store.as_deref(),
+            hub.catalogs.item_store().map(Arc::as_ref),
+            hub.catalogs.item_stats_store().map(Arc::as_ref),
+            hub.player_race_like_cpp(),
+        )
     }
 
     pub(in crate::handlers::quest) fn send_quest_failed_like_cpp(

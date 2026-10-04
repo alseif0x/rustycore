@@ -15,6 +15,8 @@ use wow_entities::PlayerEffectiveCombatStatsLikeCpp;
 #[path = "../player_stat_queries.rs"]
 mod queries;
 
+mod inventory_scaling;
+
 /// Borrowed fixture inputs consumed by the character-stats projection.
 ///
 /// These are selected fields only: the reward owner can reborrow them at the
@@ -31,6 +33,20 @@ pub struct StatsCombatFixtureRefs<'a> {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 impl<'a> StatsCombatFixtureRefs<'a> {
+    pub(crate) fn health_refs_like_cpp(&self) -> (&u32, &u32, &bool) {
+        (&*self.player_health_like_cpp, &*self.player_max_health_like_cpp,
+            &*self.player_alive_like_cpp)
+    }
+    pub(crate) fn reborrow_like_cpp(&mut self) -> StatsCombatFixtureRefs<'_> {
+        StatsCombatFixtureRefs {
+            player_health_like_cpp: &mut *self.player_health_like_cpp,
+            player_max_health_like_cpp: &mut *self.player_max_health_like_cpp,
+            player_alive_like_cpp: &mut *self.player_alive_like_cpp,
+            represented_player_powers_slot0_like_cpp: &mut *self.represented_player_powers_slot0_like_cpp,
+            represented_player_max_powers_slot0_like_cpp: &mut *self.represented_player_max_powers_slot0_like_cpp,
+            represented_player_base_mana_like_cpp: &mut *self.represented_player_base_mana_like_cpp,
+        }
+    }
     pub fn new_like_cpp(
         player_health_like_cpp: &'a mut u32,
         player_max_health_like_cpp: &'a mut u32,
@@ -122,6 +138,7 @@ impl<'a> StatsFixtureRefs<'a> {
             },
         }
     }
+
 }
 
 /// Borrowed, operation-specific access used while projecting Player stats.
@@ -206,6 +223,56 @@ fn represented_total_stat_multiplier_from_snapshot_like_cpp(
 }
 
 impl SessionCore {
+    pub fn apply_shapeshift_base_attack_times_like_cpp(
+        &self, regular: Option<[u32; 3]>, combat_round_time: Option<f32>,
+    ) -> bool {
+        self
+            .mutate_canonical_player_like_cpp(|player| {
+                let unit = player.unit_mut();
+                let (base, offhand, ranged) = match combat_round_time {
+                    Some(round_time) => (round_time as u32, round_time as u32, 2_000),
+                    None => {
+                        let Some(regular) = regular else {
+                            return;
+                        };
+                        // C++ `Player::SetRegularAttackTime` only writes an attack
+                        // whose equipped weapon declares a delay; every other attack
+                        // keeps its current time.
+                        let current = unit.base_attack_speed();
+                        (
+                            if regular[0] > 0 {
+                                regular[0]
+                            } else {
+                                current[0]
+                            },
+                            if regular[1] > 0 {
+                                regular[1]
+                            } else {
+                                current[1]
+                            },
+                            if regular[2] > 0 {
+                                regular[2]
+                            } else {
+                                current[2]
+                            },
+                        )
+                    }
+                };
+                unit.set_base_attack_time_like_cpp(
+                    wow_constants::WeaponAttackType::BaseAttack,
+                    base,
+                );
+                unit.set_base_attack_time_like_cpp(
+                    wow_constants::WeaponAttackType::OffAttack,
+                    offhand,
+                );
+                unit.set_base_attack_time_like_cpp(
+                    wow_constants::WeaponAttackType::RangedAttack,
+                    ranged,
+                );
+            })
+            .is_some()
+    }
     #[cfg(not(any(test, feature = "test-fixtures")))]
     pub fn player_stats_access_like_cpp<'a>(
         &'a self,
@@ -242,6 +309,28 @@ impl SessionCore {
 }
 
 impl PlayerStatsAccessLikeCpp<'_> {
+    /// Reborrow the selected inputs without reading canonical or fixture state.
+    pub fn reborrow_like_cpp(&mut self) -> PlayerStatsAccessLikeCpp<'_> {
+        PlayerStatsAccessLikeCpp {
+            core: self.core,
+            catalogs: self.catalogs,
+            config: self.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_race: self.player_race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_class: self.player_class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_level: self.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: self.fixtures.reborrow_like_cpp(),
+        }
+    }
+
+    pub fn apply_shapeshift_base_attack_times_like_cpp(
+        &self, regular: Option<[u32; 3]>, combat_round_time: Option<f32>,
+    ) -> bool {
+        self.core.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
+    }
     pub fn player_guid_like_cpp(&self) -> Option<ObjectGuid> {
         self.core.player_guid()
     }

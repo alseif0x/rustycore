@@ -219,23 +219,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::ChangeBankBagSlotFlag,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_change_bank_bag_slot_flag",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::misc::ChangeBankBagSlotFlag::read(&mut pkt) {
-                    Ok(change) => session.handle_change_bank_bag_slot_flag(change).await,
-                    Err(e) => tracing::warn!("Failed to read ChangeBankBagSlotFlag: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::BinderActivate,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

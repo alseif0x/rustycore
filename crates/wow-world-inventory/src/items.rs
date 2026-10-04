@@ -32,8 +32,16 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<Vec<(u8, ObjectGuid)>> {
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.represented_top_level_item_mod_targets_with_access_like_cpp(&access)
+    }
+
+    pub fn represented_top_level_item_mod_targets_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<Vec<(u8, ObjectGuid)>> {
         let mut targets = self
-            .resolved_inventory_item_objects_like_cpp(hub)?
+            .resolved_inventory_item_objects_with_access_like_cpp(access)?
             .values()
             .filter(|item| {
                 item.container_guid().is_empty()
@@ -107,7 +115,16 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         item_guid: ObjectGuid,
     ) -> bool {
-        self.resolved_inventory_item_objects_like_cpp(hub)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.direct_item_contains_items_with_access_like_cpp(&access, item_guid)
+    }
+
+    pub fn direct_item_contains_items_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        self.resolved_inventory_item_objects_with_access_like_cpp(access)
             .is_some_and(|items| {
                 items
                     .values()

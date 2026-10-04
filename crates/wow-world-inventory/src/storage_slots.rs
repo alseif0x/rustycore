@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use wow_core::ObjectGuid;
 use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, PLAYER_SLOT_END,
+    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START,
     PlayerInventoryItem as InventoryItem,
 };
 use wow_world_core::session::{HubMut, HubRef};
@@ -82,29 +82,14 @@ impl crate::InventoryState {
         bag: u8,
         slot: u8,
     ) -> Option<InventoryItem> {
-        if bag == INVENTORY_SLOT_BAG_0 {
-            if (slot as usize) >= PLAYER_SLOT_END || wow_entities::is_buyback_slot(slot) {
-                return None;
-            }
-            self.resolved_inventory_item_like_cpp(hub, slot)
-        } else if is_represented_bag_slot(bag) {
-            let bag_item = self.resolved_inventory_item_like_cpp(hub, bag)?;
-            let bag_guid = bag_item.guid;
-            let item_objects = self.resolved_inventory_item_objects_like_cpp(hub)?;
-            let nested = item_objects
-                .values()
-                .find(|item| item.container_guid() == bag_guid && item.slot() == slot)?;
-            let guid = nested.object().guid();
-            let entry_id = nested.object().entry();
-            Some(InventoryItem {
-                guid,
-                entry_id,
-                db_guid: guid.counter() as u64,
-                inventory_type: hub.item_template_inventory_type(entry_id),
-            })
-        } else {
-            None
-        }
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.get_inventory_item_by_pos_with_access_like_cpp(
+            &access,
+            hub.catalogs.items.store.as_ref(),
+            hub.catalogs.items.stats_store.as_ref(),
+            bag,
+            slot,
+        )
     }
 
     /// C++ `Player::IsValidPos` against the session-owned inventory snapshot.

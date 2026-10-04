@@ -54,7 +54,6 @@ mod player_items;
 mod progression;
 mod publication;
 mod quest;
-pub(crate) use quest::state::RepresentedQuestRecurrenceLikeCpp;
 pub mod registry;
 mod social;
 mod spell_effects;

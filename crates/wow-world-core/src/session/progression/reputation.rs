@@ -138,13 +138,7 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn canonical_player_reputation_standing_like_cpp(&self, faction_id: u32) -> Option<i32> {
-        self.core.canonical_player_snapshot_like_cpp(|player| {
-            player
-                .reputation_like_cpp()
-                .factions_like_cpp()
-                .find_map(|state| (state.faction_id == faction_id).then_some(state.standing))
-                .unwrap_or(0)
-        })
+        self.core.canonical_player_reputation_standing_like_cpp(faction_id)
     }
 
     pub fn reputation_reward_rate_for_source_like_cpp(
@@ -152,8 +146,17 @@ impl crate::session::HubRef<'_> {
         source: ReputationGainSourceLikeCpp,
         faction_id: u32,
     ) -> Option<f32> {
+        self.catalogs.reputation_reward_rate_for_source_like_cpp(source, faction_id)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub fn reputation_reward_rate_for_source_like_cpp(
+        &self,
+        source: ReputationGainSourceLikeCpp,
+        faction_id: u32,
+    ) -> Option<f32> {
         let rates = self
-            .catalogs
             .reputation_reward_rate_store()
             .and_then(|store| store.get(faction_id))?;
         let rate = match source {
@@ -226,41 +229,8 @@ impl crate::session::HubRef<'_> {
         &self,
         faction_template_id: u32,
     ) -> wow_data::reputation::ReputationRankLikeCpp {
-        use wow_data::reputation::ReputationRankLikeCpp;
-
-        let Some(faction_template) = self
-            .catalogs
-            .factions
-            .template_store
-            .as_ref()
-            .and_then(|store| store.get(faction_template_id))
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        if faction_template.faction == 0 {
-            return ReputationRankLikeCpp::Neutral;
-        }
-        let Some(faction_entry) = self
-            .catalogs
-            .factions
-            .store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(faction_template.faction)))
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let player_race = self.player_race_like_cpp();
-        let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store.as_deref();
-        self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.rank_for_faction_entry_like_cpp(
-                faction_entry,
-                friendship_rep_reaction_store,
-                player_race,
-                player_class,
-            )
-        })
-        .unwrap_or(ReputationRankLikeCpp::Neutral)
+        self.trainer_npc_interaction_access_like_cpp()
+            .trainer_price_reputation_rank_like_cpp(faction_template_id)
     }
 }
 
@@ -286,8 +256,34 @@ impl crate::session::HubMut<'_> {
         &mut self,
         operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
     ) -> Option<R> {
+        self.core.mutate_reputation_mgr_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut self.fixtures.progression.reputation_state_like_cpp,
+            operation,
+        )
+    }
+}
+
+impl crate::session::SessionCore {
+    pub(in crate::session) fn canonical_player_reputation_standing_like_cpp(
+        &self,
+        faction_id: u32,
+    ) -> Option<i32> {
+        self.canonical_player_snapshot_like_cpp(|player| {
+            player.reputation_like_cpp().factions_like_cpp()
+                .find_map(|state| (state.faction_id == faction_id).then_some(state.standing))
+                .unwrap_or(0)
+        })
+    }
+
+    pub(in crate::session) fn mutate_reputation_mgr_with_fixture_like_cpp<R>(
+        &mut self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture: &mut wow_entities::PlayerReputationStateLikeCpp,
+        operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
+    ) -> Option<R> {
         let mut operation = Some(operation);
-        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
             let mut manager =
                 ReputationMgrLikeCpp::borrowing_mut_like_cpp(player.reputation_mut_like_cpp());
             operation.take().expect("reputation mutation runs once")(&mut manager)
@@ -296,9 +292,9 @@ impl crate::session::HubMut<'_> {
             return canonical;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
+        if self.player_handle_like_cpp.is_none() {
             let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
-                &mut self.fixtures.progression.reputation_state_like_cpp,
+                fixture,
             );
             return Some(operation.take().expect("reputation mutation is available")(
                 &mut manager,
@@ -306,7 +302,9 @@ impl crate::session::HubMut<'_> {
         }
         None
     }
+}
 
+impl crate::session::HubMut<'_> {
     pub fn initialize_reputation_mgr_like_cpp(&mut self) {
         let Some(faction_store) = self.catalogs.factions.store.clone() else {
             return;

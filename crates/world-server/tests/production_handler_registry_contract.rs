@@ -28,6 +28,20 @@ fn production_linked_contract_rows() -> Vec<String> {
 
     let registry = world_server::compose_packet_handlers_like_cpp()
         .expect("valid world-server packet handler composition");
+    let bank = registry.get(wow_constants::ClientOpcodes::ChangeBankBagSlotFlag)
+        .expect("normal composition includes Bank registrar");
+    assert_eq!(bank.handler_name, "handle_change_bank_bag_slot_flag");
+    assert_eq!(bank.status, wow_handler::SessionStatus::LoggedIn);
+    assert_eq!(bank.processing, wow_handler::PacketProcessing::Inplace);
+    assert_eq!(registry.iter().filter(|entry|
+        entry.opcode == wow_constants::ClientOpcodes::ChangeBankBagSlotFlag).count(), 1);
+    let item_text = registry.get(wow_constants::ClientOpcodes::ItemTextQuery)
+        .expect("normal composition includes Inventory ItemTextQuery");
+    assert_eq!(item_text.handler_name, "handle_item_text_query");
+    assert_eq!(item_text.status, wow_handler::SessionStatus::LoggedIn);
+    assert_eq!(item_text.processing, wow_handler::PacketProcessing::Inplace);
+    assert_eq!(registry.iter().filter(|entry|
+        entry.opcode == wow_constants::ClientOpcodes::ItemTextQuery).count(), 1);
     let mut rows: Vec<_> = registry
         .iter()
         .map(|entry| {

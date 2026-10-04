@@ -1,10 +1,7 @@
-use std::{sync::Arc, time::Instant};
-
-use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
-use crate::session::movement_protocol::{PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp};
+use std::sync::Arc;
+use crate::session::movement_protocol::UnitMoveTypeLikeCpp;
 use crate::session::react_state_from_db_like_cpp;
 use crate::session::state::SessionCore;
-use tracing::warn;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{AccessorObjectKind, Pet, PlayerPetLifecycleStateLikeCpp};
 
@@ -203,29 +200,19 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
-        if let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() {
-            if let Some((current_react_state, command_state)) =
-                self.shared().canonical_pet_mode_state_like_cpp()
-            {
-                let react_state = self
-                    .shared()
-                    .player_pet_lifecycle_state_snapshot_like_cpp()
-                    .and_then(|state| state.temporary_mount_react_state)
-                    .unwrap_or(current_react_state);
-                if self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
-                    self.core.send_packet(&wow_packet::packets::pet::PetMode {
-                        pet_guid,
-                        react_state,
-                        command_state,
-                        flag: 0,
-                    });
-                }
-            }
-        }
-
-        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-            state.temporary_mount_react_state = None;
-        });
+        self.core.enable_pet_controls_on_dismount_with_fixture_refs_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut crate::session::AuraDismountPetFixtureRefsLikeCpp::new(
+                &self.fixtures.pets.represented_pet_guid_like_cpp,
+                &mut self.fixtures.pets.represented_pet_react_state_like_cpp,
+                &mut self.fixtures.pets.represented_pet_command_state_like_cpp,
+                &mut self.fixtures.pets.represented_pet_stable_like_cpp,
+                &mut self.fixtures.pets.represented_character_pet_rows_empty_authority_complete_like_cpp,
+                &mut self.fixtures.pets.represented_temporary_unsummoned_pet_number_like_cpp,
+                &mut self.fixtures.pets.represented_old_pet_spell_like_cpp,
+                &mut self.fixtures.pets.temporary_mount_pet_react_state_like_cpp,
+            ),
+        );
     }
 
     fn update_canonical_pet_mode_state_like_cpp(
@@ -385,65 +372,8 @@ impl crate::session::HubMut<'_> {
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() else {
-            return;
-        };
-        if self.shared().resolved_in_combat_like_cpp() != Some(false) {
-            return;
-        }
-
-        let rate = rate.max(0.01);
-        let index = move_type.index();
-        let canonical_changed = self.core.with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
-            let unit = pet.creature_mut().unit_mut();
-            if unit.speed_rate_at_like_cpp(index) == Some(rate) {
-                return false;
-            }
-            unit.set_speed_rate_at_like_cpp(index, rate)
-        });
-        let changed = match canonical_changed {
-            Some(changed) => changed,
-            None => {
-                #[cfg(any(test, feature = "test-fixtures"))]
-                {
-                    if self.core.player_handle_like_cpp.is_none() {
-                        if self
-                            .fixtures
-                            .pets
-                            .represented_pet_movement_speed_rates_like_cpp[index]
-                            == rate
-                        {
-                            return;
-                        }
-                        self.fixtures
-                            .pets
-                            .represented_pet_movement_speed_rates_like_cpp[index] = rate;
-                        true
-                    } else {
-                        false
-                    }
-                }
-                #[cfg(not(any(test, feature = "test-fixtures")))]
-                {
-                    false
-                }
-            }
-        };
-        if !changed {
-            return;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            self.fixtures
-                .pets
-                .represented_pet_speed_propagations_like_cpp = self
-                .fixtures
-                .pets
-                .represented_pet_speed_propagations_like_cpp
-                .saturating_add(1);
-        }
-        self.shared()
-            .send_represented_pet_spline_speed_like_cpp(pet_guid, move_type, rate);
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.propagate_represented_player_speed_to_pet_like_cpp(move_type, rate);
     }
 }
 
@@ -487,65 +417,4 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    fn send_represented_pet_spline_speed_like_cpp(
-        &self,
-        pet_guid: ObjectGuid,
-        move_type: UnitMoveTypeLikeCpp,
-        rate: f32,
-    ) {
-        let Some(opcode) =
-            crate::session::creature_movement_spline_speed_opcode_like_cpp(move_type)
-        else {
-            return;
-        };
-        let packet_bytes = wow_packet::packets::movement::MoveSplineSetSpeed {
-            opcode,
-            mover_guid: pet_guid,
-            speed: PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()] * rate,
-        }
-        .to_bytes();
-        let map_id = self.core.player_map_id_like_cpp();
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-
-        if self.core.client_visible_guids_like_cpp.contains(&pet_guid)
-            && self.core.send_tx().send(packet_bytes.clone()).is_err()
-        {
-            warn!("Send channel closed for account {}", self.core.account_id);
-        }
-
-        let (Some(player_guid), Some(registry)) =
-            (self.core.player_guid(), self.core.player_registry())
-        else {
-            return;
-        };
-        let Some(source_position) = self
-            .core
-            .represented_pet_position_like_cpp(pet_guid)
-            .or_else(|| self.player_position_like_cpp())
-        else {
-            return;
-        };
-        for registration in registry.movement_recipients_within_range(
-            player_guid,
-            map_id,
-            instance_id,
-            source_position,
-            crate::map_manager::VISIBILITY_RADIUS,
-        ) {
-            let _ = registry.try_send_current_command(
-                registration,
-                SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid: pet_guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: packet_bytes.clone(),
-                }),
-            );
-        }
-    }
 }

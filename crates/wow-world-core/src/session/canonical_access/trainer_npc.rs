@@ -125,6 +125,19 @@ impl HubRef<'_> {
 }
 
 impl NpcInteractionAccessLikeCpp<'_> {
+    pub fn player_interaction_data_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerInteractionDataLikeCpp> {
+        self.core.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp())
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn player_handle_absent_like_cpp(&self) -> bool {
+        self.core.player_handle_like_cpp.is_none()
+    }
+
+    pub fn account_id_like_cpp(&self) -> u32 {
+        self.core.account_id
+    }
+
     pub(crate) fn player_race_like_cpp(&self) -> u8 {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
@@ -156,7 +169,7 @@ impl NpcInteractionAccessLikeCpp<'_> {
         )
     }
 
-    pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
+    pub fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             u32::try_from(player.unit().data().faction_template)
                 .ok()
@@ -167,6 +180,10 @@ impl NpcInteractionAccessLikeCpp<'_> {
             return *self.fixtures.faction_template_id;
         }
         canonical.flatten()
+    }
+
+    pub fn has_faction_template_store_like_cpp(&self) -> bool {
+        self.faction_template_store.is_some()
     }
 
     pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {

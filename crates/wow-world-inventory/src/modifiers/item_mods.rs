@@ -30,6 +30,7 @@ use crate::{
 /// The six catalog handles selected by the World session for item modifier planning.
 ///
 /// The references keep one operation on the same catalog selection without cloning Arcs.
+#[derive(Clone, Copy)]
 pub struct ItemModsCatalogsViewLikeCpp<'a> {
     item_store: Option<&'a Arc<ItemStore>>,
     item_stats_store: Option<&'a Arc<ItemStatsStore>>,

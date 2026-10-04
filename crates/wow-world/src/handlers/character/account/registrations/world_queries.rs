@@ -108,23 +108,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::ItemTextQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_item_text_query",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::ItemTextQuery::read(&mut pkt) {
-                    Ok(query) => session.handle_item_text_query(query).await,
-                    Err(e) => tracing::warn!("Failed to read ItemTextQuery: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPetName,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

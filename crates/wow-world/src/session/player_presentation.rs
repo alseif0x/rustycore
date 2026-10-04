@@ -17,67 +17,20 @@ pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {
 
 impl WorldSession {
     pub(in crate::session) fn update_player_collision_height_like_cpp(&mut self) {
-        let Some((_, mount_display_id, object_scale)) =
-            crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
-        else {
-            return;
-        };
-        let computed_height = if let (Some(display_store), Some(model_store)) = (
-            self.catalogs.creatures.display_info_store.as_ref(),
-            self.catalogs.creatures.model_data_store.as_ref(),
-        ) {
-            let native_display_id = crate::handlers::character::default_display_id(
-                crate::session::hub_ref(self).player_race_like_cpp(),
-                crate::session::hub_ref(self).player_gender_like_cpp(),
-            );
-            let mount_display_id = u32::try_from(mount_display_id).ok().filter(|id| *id != 0);
-            wow_data::unit_collision_height_like_cpp(
-                object_scale,
-                native_display_id,
-                mount_display_id,
-                display_store,
-                model_store,
-            )
-        } else {
-            None
-        };
-
-        let mount_display_id = u32::try_from(mount_display_id).unwrap_or(0);
-        let _canonical_height = self.core.with_owned_player_mut_like_cpp(|player| {
-            let unit = player.unit_mut();
-            unit.set_mount_display_id(mount_display_id);
-            if let Some(height) = computed_height {
-                unit.set_collision_height_like_cpp(height);
-            }
-            unit.collision_height_like_cpp()
-        });
-        #[cfg(test)]
-        if let Some(height) = _canonical_height.or(computed_height)
-            && (_canonical_height.is_some() || self.core.player_handle_like_cpp.is_none())
-        {
-            self.fixtures.movement.player_collision_height_like_cpp = height;
-        }
+        let mut hub = crate::session::hub_mut(self);
+        let (presentation, mut control) = hub.aura_removal_mount_accesses_like_cpp();
+        control.update_player_collision_height_like_cpp(&presentation, cfg!(test));
     }
 
     /// C++ `Unit::SetShapeshiftForm`: write the canonical Unit field and keep
     /// the transitional Player gameplay projection in sync for the fallback
     /// readers.
     pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .unit_mut()
-                    .set_shapeshift_form_id_like_cpp(u8::try_from(form_id).unwrap_or(0));
-                player.set_shapeshift_form_id_like_cpp(form_id);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.auras.represented_shapeshift_form_like_cpp = form_id;
-            return true;
-        }
-        canonical
+        self.core.set_shapeshift_form_with_fixture_like_cpp(
+            form_id, cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut self.fixtures.auras.represented_shapeshift_form_like_cpp,
+        )
     }
 
     pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> Option<u32> {

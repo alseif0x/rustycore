@@ -54,12 +54,7 @@ pub(crate) use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
 pub(crate) use wow_world_core::session::RepresentedCreatureAccessLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedCanSeeSpellClickOutcomeLikeCpp {
-    Visible,
-    Hidden,
-    ExactContextUnrepresented,
-}
+pub(crate) use wow_world_application::RepresentedCanSeeSpellClickOutcomeLikeCpp;
 
 pub(in crate::session) const NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP: u8 = 0x01;
 pub(in crate::session) const NPC_CLICK_CAST_TARGET_CLICKER_LIKE_CPP: u8 = 0x02;

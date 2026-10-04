@@ -103,15 +103,10 @@ impl WorldSession {
         attribute_word: usize,
         attribute: u32,
     ) -> bool {
-        let Some(spell_store) = self.spell_store() else {
-            return false;
-        };
-        spell_store.has_attribute_for_difficulty_like_cpp(
-            spell_id,
-            self.core.current_map_difficulty_id_like_cpp(),
+        self.core.spell_has_attribute_with_stores_like_cpp(
+            self.spell_store().map(AsRef::as_ref),
             self.catalogs.difficulty_store().map(AsRef::as_ref),
-            attribute_word,
-            attribute,
+            spell_id, attribute_word, attribute,
         )
     }
 

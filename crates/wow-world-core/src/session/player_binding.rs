@@ -165,19 +165,10 @@ impl crate::session::HubMut<'_> {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_character_points_like_cpp(points);
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.player_character_points_like_cpp = points;
-        }
-        canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none()
+        self.core.set_player_character_points_with_fixture_like_cpp(
+            Some(&mut self.fixtures.progression.player_character_points_like_cpp),
+            points,
+        )
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -246,6 +237,27 @@ impl crate::session::state::SessionCore {
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         self.player_level_without_owned_player_like_cpp()
+    }
+
+    pub fn player_gender_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_gender: &u8,
+    ) -> u8 {
+        if let Some(gender) = self.with_owned_player_like_cpp(|player| player.gender_like_cpp()) {
+            return gender;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            return *fixture_gender;
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.gender)
+            .unwrap_or_default()
     }
 
     pub(crate) fn player_level_without_owned_player_like_cpp(&self) -> u8 {
@@ -412,24 +424,9 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn player_gender_like_cpp(&self) -> u8 {
-        if let Some(gender) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.gender_like_cpp())
-        {
-            return gender;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return self.fixtures.identity.player_gender;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
-        }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.gender)
-            .unwrap_or_default()
+        self.core.player_gender_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_gender,
+        )
     }
 }

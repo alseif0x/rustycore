@@ -5,6 +5,132 @@
 
 use super::*;
 
+#[test]
+fn inventory_move_planning_preserves_exact_store_and_bank_destinations_without_mutation() {
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    install_bank_move_item_fixture(&mut session, 120, 20);
+    let guid = insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 120, 9001, 3);
+    for (slot, target) in [
+        (INVENTORY_SLOT_ITEM_START + 1, InventorySwapTargetLikeCpp::Inventory),
+        (wow_entities::BANK_SLOT_ITEM_START, InventorySwapTargetLikeCpp::Bank),
+    ] {
+        assert_eq!(session.validate_inventory_swap_target_like_cpp(
+            INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+            INVENTORY_SLOT_BAG_0, slot, false, true,
+        ), Some((InventoryResult::Ok, target)));
+        assert!(session.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, slot).is_none());
+    }
+    let (result, destinations, _) = session.plan_store_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1, false,
+    ).unwrap();
+    assert_eq!(result, InventoryResult::Ok);
+    assert_eq!(destinations.len(), 1);
+    assert_eq!(destinations[0].count, 3);
+    let (result, destinations) = session.plan_bank_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START, false,
+    ).unwrap();
+    assert_eq!(result, InventoryResult::Ok);
+    assert_eq!(destinations.len(), 1);
+    assert_eq!(destinations[0].count, 3);
+    assert_eq!(session.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+        .map(|item| item.guid), Some(guid));
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn inventory_move_planning_exact_destination_rejects_split_allocation() {
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    install_bank_move_item_fixture(&mut session, 120, 5);
+    insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 120, 9002, 6);
+    let destination = INVENTORY_SLOT_ITEM_START + 1;
+    let (result, destinations, _) = session.plan_store_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, destination, false,
+    ).unwrap();
+    assert_eq!(result, InventoryResult::Ok);
+    assert!(destinations.len() > 1);
+    assert_eq!(session.validate_inventory_swap_target_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, destination, false, false,
+    ), Some((InventoryResult::Ok, InventorySwapTargetLikeCpp::Inventory)));
+    assert_eq!(session.validate_inventory_swap_target_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, destination, false, true,
+    ), Some((InventoryResult::InternalBagError, InventorySwapTargetLikeCpp::Inventory)));
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn inventory_move_planning_rejects_missing_source_and_non_equippable_item() {
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
+    assert_eq!(session.validate_inventory_swap_target_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND, false, true,
+    ), None);
+    install_bank_move_item_fixture(&mut session, 120, 20);
+    insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 120, 9003, 1);
+    let (result, _) = session.plan_equip_existing_inventory_item_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, EQUIPMENT_SLOT_MAINHAND, false,
+    ).unwrap();
+    assert_eq!(result, InventoryResult::NotEquippable);
+    assert_eq!(session.validate_inventory_swap_target_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, EQUIPMENT_SLOT_MAINHAND, false, false,
+    ).unwrap().0, InventoryResult::NotEquippable);
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn inventory_move_planning_does_not_fall_back_after_same_guid_owner_replacement() {
+    let (mut session, send_rx) = make_session_with_send_capacity(1);
+    let guid = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(guid));
+    install_bank_move_item_fixture(&mut session, 120, 20);
+    insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 120, 9004, 1);
+    assert_eq!(session.plan_store_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1, false,
+    ).expect("NoHandle source fixture supports Store").0, InventoryResult::Ok);
+    assert_eq!(session.plan_bank_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START, false,
+    ).expect("NoHandle source fixture supports Bank").0, InventoryResult::Ok);
+    assert!(send_rx.try_recv().is_err());
+    let manager = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 10)));
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    let mut first = Box::new(wow_entities::Player::new(Some(1), false));
+    first.unit_mut().world_mut().object_mut().create(guid);
+    let stale = manager.lock().unwrap().install_detached_player_like_cpp(first).unwrap();
+    session.core.player_handle_like_cpp = Some(stale);
+    let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let current = manager.lock().unwrap().install_detached_player_like_cpp(replacement).unwrap();
+    assert_ne!(stale, current);
+    assert_eq!(session.validate_inventory_swap_target_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1, false, true,
+    ), None);
+    assert!(session.plan_store_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START + 1, false,
+    ).is_none());
+    assert!(session.plan_bank_existing_inventory_item_at_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START,
+        INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START, false,
+    ).is_none());
+    assert!(session.plan_equip_existing_inventory_item_like_cpp(
+        INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START, EQUIPMENT_SLOT_MAINHAND, false,
+    ).is_none());
+    assert_eq!(manager.lock().unwrap().with_player_like_cpp(current,
+        |player| player.inventory_runtime_like_cpp().item_objects().is_empty()), Some(true));
+    assert!(send_rx.try_recv().is_err());
+}
+
 #[cfg(test)]
 fn relocate_bag_exchange_child_like_cpp(
     item: &mut wow_entities::Item,

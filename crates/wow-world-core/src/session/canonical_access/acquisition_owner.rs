@@ -41,6 +41,39 @@ impl PlayerAcquisitionOwnerAccessLikeCpp<'_> {
         self.core.player_guid()
     }
 
+    /// Update the canonical player's trainer interaction role when a trainer
+    /// list is successfully published. `None` remains a missing owner rather
+    /// than a handle-less fixture fallback.
+    pub fn set_trainer_interaction_role_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        trainer_id: u32,
+    ) -> bool {
+        self.trainer_interaction_role_like_cpp()
+            .set_trainer_interaction_like_cpp(source_guid, trainer_id)
+    }
+
+    /// Read only the canonical player's current trainer-role comparison. The
+    /// caller owns the handle-less fixture policy and re-reads at each
+    /// admission boundary.
+    pub fn trainer_interaction_role_matches_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        trainer_id: i32,
+    ) -> Option<bool> {
+        self.trainer_interaction_role_like_cpp()
+            .trainer_interaction_matches_like_cpp(source_guid, trainer_id)
+    }
+
+    /// Reborrow only the interaction-role view needed by the lower Interaction
+    /// owner. This keeps the acquisition coordinator's exclusive SessionCore
+    /// access while sharing one canonical role implementation with HubRef.
+    pub fn trainer_interaction_role_like_cpp(
+        &self,
+    ) -> super::trainer_interaction::TrainerInteractionRoleAccessLikeCpp<'_> {
+        self.core.trainer_interaction_role_access_like_cpp()
+    }
+
     /// Reborrow the existing canonical inventory access for one operation.
     pub fn inventory(&self) -> OwnedInventoryAccessLikeCpp<'_> {
         self.core.owned_inventory_access_like_cpp()

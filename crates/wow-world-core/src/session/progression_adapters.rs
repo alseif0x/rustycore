@@ -5,6 +5,8 @@
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::collections::HashMap;
 use wow_core::ObjectGuid;
 
 pub const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
@@ -28,31 +30,11 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                let xp = xp.min(i32::MAX as u32) as i32;
-                player.set_xp(xp);
-                player.mark_xp_changed_like_cpp();
-                let scaling_level_delta = if player.unit().data().level
-                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
-                    && xp < player.active_data().next_level_xp / 2
-                {
-                    -1
-                } else {
-                    0
-                };
-                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
-                player.mark_scaling_player_level_delta_changed_like_cpp();
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.player_xp = xp;
-        }
-        canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none()
+        self.core.set_player_xp_with_fixture_like_cpp(
+            xp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut self.fixtures.progression.player_xp,
+        )
     }
 }
 
@@ -153,31 +135,19 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn resolved_player_xp_for_level_like_cpp(&self, level: u8) -> Option<u32> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.player_xp_for_level_like_cpp(level))
-            .flatten();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() {
-            return self
-                .catalogs
-                .player_xp_table
-                .as_ref()
-                .and_then(|table| table.get(usize::from(level)).copied())
-                .or_else(|| self.resolved_player_next_level_xp_like_cpp());
-        }
-        canonical
+        self.core.resolved_player_xp_for_level_with_fixture_like_cpp(
+            self.catalogs,
+            level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.player_next_level_xp,
+        )
     }
 
     pub fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.active_data().next_level_xp.max(0) as u32);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.progression.player_next_level_xp);
-        }
-        canonical
+        self.core.resolved_player_next_level_xp_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.player_next_level_xp,
+        )
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -239,33 +209,11 @@ impl crate::session::state::SessionWorldConfig {
 
 impl crate::session::HubMut<'_> {
     pub fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                let next_level_xp = xp.min(i32::MAX as u32) as i32;
-                player.set_next_level_xp(next_level_xp);
-                // Rust hydrates the Character row before its XP table refresh,
-                // while C++ has NextLevelXP ready before `SetXP`. Recompute the
-                // dependent SetXP field here so the final canonical value is
-                // independent of that transitional load ordering.
-                let scaling_level_delta = if player.unit().data().level
-                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
-                    && player.active_data().xp < next_level_xp / 2
-                {
-                    -1
-                } else {
-                    0
-                };
-                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.player_next_level_xp = xp;
-        }
-        canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none()
+        self.core.set_player_next_level_xp_with_fixture_like_cpp(
+            xp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut self.fixtures.progression.player_next_level_xp,
+        )
     }
 
     pub fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
@@ -283,34 +231,29 @@ impl crate::session::HubMut<'_> {
 impl crate::session::HubRef<'_> {
     /// Level at which mobs give 0 XP ("gray") — C++ `Trinity::XP::GetGrayLevel`.
     pub fn gray_level(&self, pl: u8) -> u8 {
-        let level = if pl < 7 {
-            0
-        } else if pl < 35 {
-            let count = (15..=pl).filter(|level| level % 5 == 0).count() as u8;
-            (pl - 7).saturating_sub(count.saturating_sub(1))
-        } else {
-            pl.saturating_sub(10)
-        };
         #[cfg(any(test, feature = "test-fixtures"))]
-        let level = self
-            .fixtures
-            .progression
-            .represented_gray_level_script_overrides_like_cpp
-            .get(&pl)
-            .copied()
-            .unwrap_or(level);
-        level
+        {
+            return gray_level_for_script_like_cpp(
+                pl,
+                Some(
+                    &self
+                        .fixtures
+                        .progression
+                        .represented_gray_level_script_overrides_like_cpp,
+                ),
+            );
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            gray_level_for_script_like_cpp(pl)
+        }
     }
 
     pub fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.progression.player_xp);
-        }
-        canonical
+        self.core.resolved_player_xp_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.player_xp,
+        )
     }
 
     #[allow(dead_code)]
@@ -324,4 +267,23 @@ impl crate::session::HubRef<'_> {
         }
         canonical.filter(|guid| !guid.is_empty())
     }
+}
+
+pub(crate) fn gray_level_for_script_like_cpp(
+    pl: u8,
+    #[cfg(any(test, feature = "test-fixtures"))] overrides: Option<&HashMap<u8, u8>>,
+) -> u8 {
+    let level = if pl < 7 {
+        0
+    } else if pl < 35 {
+        let count = (15..=pl).filter(|level| level % 5 == 0).count() as u8;
+        (pl - 7).saturating_sub(count.saturating_sub(1))
+    } else {
+        pl.saturating_sub(10)
+    };
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let level = overrides
+        .and_then(|overrides| overrides.get(&pl).copied())
+        .unwrap_or(level);
+    level
 }

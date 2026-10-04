@@ -135,21 +135,10 @@ impl crate::session::state::SessionCatalogs {
         required_skill_value: u16,
         condition_fits: bool,
     ) -> Option<ApplyEnchantmentTemplateRef> {
-        let id = u32::try_from(enchantment_id).ok()?;
-        self.spell_catalogs
-            .spell_item_enchantment_store
-            .as_ref()
-            .and_then(|store| store.get(id))
-            .map(|entry| {
-                let mut template = ApplyEnchantmentTemplateRef::new(enchantment_id);
-                template.condition_id = u32::from(entry.condition_id);
-                template.condition_fits = condition_fits;
-                template.min_level = entry.min_level;
-                template.required_skill_id = u32::from(entry.required_skill_id);
-                template.required_skill_rank = entry.required_skill_rank;
-                template.required_skill_value = required_skill_value;
-                template
-            })
+        crate::session::apply_enchantment_template_from_store_like_cpp(
+            self.spell_catalogs.spell_item_enchantment_store.as_deref(),
+            enchantment_id, required_skill_value, condition_fits,
+        )
     }
 
     /// Build the C++ three `SpellItemEnchantmentEntry` effect refs.

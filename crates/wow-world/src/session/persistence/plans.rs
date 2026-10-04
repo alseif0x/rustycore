@@ -106,6 +106,12 @@ impl WorldSession {
     pub(crate) async fn begin_exclusive_player_money_persistence_like_cpp(
         &mut self,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let mut player = self.core.quest_reward_player_access_like_cpp();
         wow_world_application::begin_exclusive_player_money_persistence_like_cpp(
             &mut self.lifecycle,

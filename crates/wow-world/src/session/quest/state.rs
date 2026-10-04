@@ -20,29 +20,6 @@ impl WorldSession {
         hydration_access.owned_player_quest_gameplay_snapshot_like_cpp()
     }
 
-    pub(crate) fn represented_raid_difficulty_request_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        difficulty_id: i32,
-        legacy: bool,
-    ) -> Option<u32> {
-        let difficulty_id = u32::try_from(difficulty_id).ok()?;
-        let entry = hub
-            .catalogs
-            .difficulty_store()
-            .and_then(|store| store.get(difficulty_id))
-            .copied()?;
-        if entry.instance_type != MAP_RAID_LIKE_CPP {
-            return None;
-        }
-
-        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
-        if !flags.contains(DifficultyFlags::CAN_SELECT) {
-            return None;
-        }
-
-        (flags.contains(DifficultyFlags::LEGACY) == legacy).then_some(difficulty_id)
-    }
 
     pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
         let mut hub = crate::session::hub_mut(self);
@@ -125,21 +102,6 @@ impl WorldSession {
         .flatten()
     }
 
-    /// Clear one quest's timer, as C++ does when its timed window ends.
-    pub(crate) fn clear_represented_quest_end_time_like_cpp(&mut self, quest_id: u32) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let Some(status) = state.status_mut_like_cpp(quest_id) else {
-                return false;
-            };
-            if status.end_time_secs <= 0 {
-                return false;
-            }
-            status.end_time_secs = 0;
-            true
-        })
-        .unwrap_or(false)
-    }
-
     /// Mark one quest explored, reporting whether the record existed and
     /// whether the client must be told.
     pub(crate) fn mark_represented_quest_explored_like_cpp(
@@ -163,42 +125,6 @@ impl WorldSession {
     pub(crate) fn ensure_represented_seasonal_event_like_cpp(&mut self, event_id: u16) -> bool {
         self.mutate_player_quest_gameplay_like_cpp(|state| {
             state.ensure_seasonal_event_like_cpp(event_id);
-        })
-        .is_some()
-    }
-
-    /// C++ records a rewarded quest's recurrence under its own bucket
-    /// (`SetDailyQuestStatus` and its weekly/monthly/seasonal siblings).
-    pub(crate) fn record_represented_quest_recurrence_like_cpp(
-        &mut self,
-        recurrence: RepresentedQuestRecurrenceLikeCpp,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| match recurrence {
-            RepresentedQuestRecurrenceLikeCpp::Daily {
-                quest_id,
-                now_secs,
-                is_df_quest,
-            } => {
-                state.set_last_daily_quest_time_secs_like_cpp(now_secs);
-                if is_df_quest {
-                    state.set_df_quest_like_cpp(quest_id, true);
-                } else {
-                    state.set_daily_like_cpp(quest_id, true);
-                }
-            }
-            RepresentedQuestRecurrenceLikeCpp::Weekly { quest_id } => {
-                state.set_weekly_like_cpp(quest_id, true);
-            }
-            RepresentedQuestRecurrenceLikeCpp::Monthly { quest_id } => {
-                state.set_monthly_like_cpp(quest_id, true);
-            }
-            RepresentedQuestRecurrenceLikeCpp::Seasonal {
-                event_id,
-                quest_id,
-                completed_at,
-            } => {
-                state.set_seasonal_like_cpp(event_id, quest_id, completed_at);
-            }
         })
         .is_some()
     }
@@ -406,27 +332,6 @@ impl WorldSession {
             hub.player_level_like_cpp()
         };
         state.player_quest_level_like_cpp(player_level, quest)
-    }
-    pub(crate) fn calculate_quest_xp_like_cpp(
-        &self,
-        difficulty: u32,
-        quest_level: i32,
-        xp_multiplier: f32,
-    ) -> u32 {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        let xp_store = hub.catalogs.quests.xp_store.as_deref();
-        let player_level = if xp_store.is_some() {
-            hub.player_level_like_cpp()
-        } else {
-            0
-        };
-        state.calculate_quest_xp_like_cpp(
-            xp_store,
-            player_level,
-            difficulty,
-            quest_level,
-            xp_multiplier,
-        )
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
@@ -745,27 +650,6 @@ impl crate::session::QuestStateCx<'_> {
         self.inventory
             .record_represented_auction_replicate_request_like_cpp(request);
     }
-}
-
-/// Which recurrence bucket one rewarded quest belongs to.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestRecurrenceLikeCpp {
-    Daily {
-        quest_id: u32,
-        now_secs: i64,
-        is_df_quest: bool,
-    },
-    Weekly {
-        quest_id: u32,
-    },
-    Monthly {
-        quest_id: u32,
-    },
-    Seasonal {
-        event_id: u16,
-        quest_id: u32,
-        completed_at: u64,
-    },
 }
 
 #[cfg(test)]

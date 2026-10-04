@@ -1,305 +1,9 @@
-// Copyright (c) 2026 alseif0x
-// RustyCore — WoW WotLK 3.4.3 server in Rust
-// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
-
-//! Pure trainer-offer admission shared by list and purchase adapters.
-//!
-//! C++ anchors: `Trainer::SendSpells`, `Trainer::CanTeachSpell`,
-//! `Trainer::GetSpellState`, `Player::IsSpellFitByClassAndRace`, and
-//! `Player::GetReputationPriceDiscount`.  This boundary deliberately repairs
-//! the legacy condition-revalidation, transitive-profession, and `float`
-//! pricing defects documented by issue #157.
-
-use wow_data::reputation::ReputationRankLikeCpp;
-
-use crate::profession::{
-    PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
-};
-pub(crate) use crate::spell_acquisition::{
-    SpellAcquisitionIndeterminateLikeCpp, SpellAcquisitionOutcomeLikeCpp,
-    SpellAcquisitionPlanLikeCpp, SpellAcquisitionRootLikeCpp,
-};
-pub(crate) use wow_world_application::PreparedTrainerOfferLikeCpp;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TrainerHiddenReasonLikeCpp {
-    MissingTrainerMembership,
-    ClassOrRaceMismatch,
-    ClassOrRaceIndeterminate,
-    ConditionRejected,
-    ConditionIndeterminate,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TrainerKnownReasonLikeCpp {
-    DirectSourceSpell,
-    AllValidWrapperTargets,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TrainerUnavailableReasonLikeCpp {
-    InvalidEffectiveMetadata,
-    RequiredSkill {
-        skill_id: u32,
-        required: u16,
-        actual: u16,
-    },
-    RequiredAbility {
-        spell_id: u32,
-        index: u8,
-    },
-    RequiredLevel {
-        required: u8,
-        actual: u8,
-    },
-    InvalidOrUnsupportedWrapper,
-    BattlePetMetadataIndeterminate,
-    AcquisitionIndeterminate(SpellAcquisitionIndeterminateLikeCpp),
-    ProfessionCapacity(PrimaryProfessionCapacityPlanErrorLikeCpp),
-}
-
-/// A purchasable battle-pet trainer offer (issue #161). C++
-/// `Trainer::TeachSpell` reaches `BattlePetMgr::AddPet` for a confirmed
-/// species only when the trainer spell is not castable (`IsCastable()` is
-/// checked first at `Trainer.cpp:128`); wrapper-castable spells keep the
-/// normal acquisition path. Account-scoped capacity and journal authority
-/// are live #160 owner proofs rechecked at admission, not pure inputs.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PreparedBattlePetTrainerOfferLikeCpp {
-    pub source_spell_id: u32,
-    pub effective_price: u32,
-    pub species_id: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TrainerOfferDecisionLikeCpp {
-    Hidden(TrainerHiddenReasonLikeCpp),
-    Known(TrainerKnownReasonLikeCpp),
-    Unavailable(TrainerUnavailableReasonLikeCpp),
-    Available(PreparedTrainerOfferLikeCpp),
-    AvailableBattlePet(PreparedBattlePetTrainerOfferLikeCpp),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TrainerAdmissionProofLikeCpp {
-    Proven(bool),
-    Indeterminate,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum TrainerProductLikeCpp {
-    Direct,
-    Wrapper { valid_learn_targets: Vec<u32> },
-    InvalidOrUnsupportedWrapper,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum TrainerBattlePetProofLikeCpp {
-    NotBattlePet,
-    Species(u32),
-    Indeterminate,
-}
-
-pub(crate) struct TrainerOfferInputLikeCpp<'a> {
-    pub source_spell_id: u32,
-    pub is_exact_member: bool,
-    pub class_race: TrainerAdmissionProofLikeCpp,
-    pub condition: TrainerAdmissionProofLikeCpp,
-    pub directly_known: bool,
-    pub required_skill: Option<(u32, u16)>,
-    pub skill_value: &'a dyn Fn(u32) -> Option<u16>,
-    pub required_abilities: [u32; 3],
-    pub knows_spell: &'a dyn Fn(u32) -> bool,
-    pub required_level: u8,
-    pub player_level: u8,
-    pub product: TrainerProductLikeCpp,
-    pub battle_pet: TrainerBattlePetProofLikeCpp,
-    pub effective_price: u32,
-}
-
-/// Builds immutable evidence for one current snapshot.  Projection and
-/// capacity are closures so the expensive authorities are invoked only after
-/// every earlier C++-ordered gate has passed.
-pub(crate) fn decide_trainer_offer_like_cpp<Project, Capacity>(
-    input: TrainerOfferInputLikeCpp<'_>,
-    project: Project,
-    capacity: Capacity,
-) -> TrainerOfferDecisionLikeCpp
-where
-    Project: FnOnce(SpellAcquisitionRootLikeCpp) -> SpellAcquisitionOutcomeLikeCpp,
-    Capacity: FnOnce(
-        &[u32],
-    ) -> Result<
-        PrimaryProfessionCapacityPlanLikeCpp,
-        PrimaryProfessionCapacityPlanErrorLikeCpp,
-    >,
-{
-    if !input.is_exact_member {
-        return TrainerOfferDecisionLikeCpp::Hidden(
-            TrainerHiddenReasonLikeCpp::MissingTrainerMembership,
-        );
-    }
-    match input.class_race {
-        TrainerAdmissionProofLikeCpp::Proven(false) => {
-            return TrainerOfferDecisionLikeCpp::Hidden(
-                TrainerHiddenReasonLikeCpp::ClassOrRaceMismatch,
-            );
-        }
-        TrainerAdmissionProofLikeCpp::Indeterminate => {
-            return TrainerOfferDecisionLikeCpp::Hidden(
-                TrainerHiddenReasonLikeCpp::ClassOrRaceIndeterminate,
-            );
-        }
-        TrainerAdmissionProofLikeCpp::Proven(true) => {}
-    }
-    match input.condition {
-        TrainerAdmissionProofLikeCpp::Proven(false) => {
-            return TrainerOfferDecisionLikeCpp::Hidden(
-                TrainerHiddenReasonLikeCpp::ConditionRejected,
-            );
-        }
-        TrainerAdmissionProofLikeCpp::Indeterminate => {
-            return TrainerOfferDecisionLikeCpp::Hidden(
-                TrainerHiddenReasonLikeCpp::ConditionIndeterminate,
-            );
-        }
-        TrainerAdmissionProofLikeCpp::Proven(true) => {}
-    }
-    if input.directly_known {
-        return TrainerOfferDecisionLikeCpp::Known(TrainerKnownReasonLikeCpp::DirectSourceSpell);
-    }
-    if let Some((skill_id, required)) = input.required_skill {
-        let actual = (input.skill_value)(skill_id).unwrap_or(0);
-        if actual < required {
-            return TrainerOfferDecisionLikeCpp::Unavailable(
-                TrainerUnavailableReasonLikeCpp::RequiredSkill {
-                    skill_id,
-                    required,
-                    actual,
-                },
-            );
-        }
-    }
-    for (index, spell_id) in input.required_abilities.into_iter().enumerate() {
-        if spell_id != 0 && !(input.knows_spell)(spell_id) {
-            return TrainerOfferDecisionLikeCpp::Unavailable(
-                TrainerUnavailableReasonLikeCpp::RequiredAbility {
-                    spell_id,
-                    index: index as u8,
-                },
-            );
-        }
-    }
-    if input.player_level < input.required_level {
-        return TrainerOfferDecisionLikeCpp::Unavailable(
-            TrainerUnavailableReasonLikeCpp::RequiredLevel {
-                required: input.required_level,
-                actual: input.player_level,
-            },
-        );
-    }
-
-    let root = match input.product {
-        TrainerProductLikeCpp::Direct => {
-            SpellAcquisitionRootLikeCpp::DirectLearn(input.source_spell_id)
-        }
-        TrainerProductLikeCpp::Wrapper {
-            valid_learn_targets,
-        } => {
-            if valid_learn_targets.is_empty() {
-                return TrainerOfferDecisionLikeCpp::Unavailable(
-                    TrainerUnavailableReasonLikeCpp::InvalidOrUnsupportedWrapper,
-                );
-            }
-            if valid_learn_targets
-                .iter()
-                .all(|spell_id| (input.knows_spell)(*spell_id))
-            {
-                return TrainerOfferDecisionLikeCpp::Known(
-                    TrainerKnownReasonLikeCpp::AllValidWrapperTargets,
-                );
-            }
-            SpellAcquisitionRootLikeCpp::TrainerWrapperCast(input.source_spell_id)
-        }
-        TrainerProductLikeCpp::InvalidOrUnsupportedWrapper => {
-            return TrainerOfferDecisionLikeCpp::Unavailable(
-                TrainerUnavailableReasonLikeCpp::InvalidOrUnsupportedWrapper,
-            );
-        }
-    };
-
-    let battle_pet_species_id = match input.battle_pet {
-        TrainerBattlePetProofLikeCpp::NotBattlePet => None,
-        TrainerBattlePetProofLikeCpp::Species(species_id) => {
-            // C++ `Trainer::TeachSpell` resolves `IsCastable()` before the
-            // battle-pet branch (`Trainer.cpp:127-146`): only a non-castable
-            // (direct-learn) trainer spell reaches `BattlePetMgr::AddPet`;
-            // a wrapper-castable spell keeps the normal acquisition path
-            // but retains the species for its shared cap/visual behavior.
-            if matches!(root, SpellAcquisitionRootLikeCpp::DirectLearn(_)) {
-                return TrainerOfferDecisionLikeCpp::AvailableBattlePet(
-                    PreparedBattlePetTrainerOfferLikeCpp {
-                        source_spell_id: input.source_spell_id,
-                        effective_price: input.effective_price,
-                        species_id,
-                    },
-                );
-            }
-            Some(species_id)
-        }
-        TrainerBattlePetProofLikeCpp::Indeterminate => {
-            return TrainerOfferDecisionLikeCpp::Unavailable(
-                TrainerUnavailableReasonLikeCpp::BattlePetMetadataIndeterminate,
-            );
-        }
-    };
-
-    let acquisition_plan = match project(root) {
-        SpellAcquisitionOutcomeLikeCpp::Deterministic(plan) => plan,
-        SpellAcquisitionOutcomeLikeCpp::Indeterminate(reason) => {
-            return TrainerOfferDecisionLikeCpp::Unavailable(
-                TrainerUnavailableReasonLikeCpp::AcquisitionIndeterminate(reason),
-            );
-        }
-    };
-    let profession_plan = match capacity(&acquisition_plan.root_primary_profession_skill_ids) {
-        Ok(plan) => plan,
-        Err(reason) => {
-            return TrainerOfferDecisionLikeCpp::Unavailable(
-                TrainerUnavailableReasonLikeCpp::ProfessionCapacity(reason),
-            );
-        }
-    };
-    TrainerOfferDecisionLikeCpp::Available(PreparedTrainerOfferLikeCpp {
-        source_spell_id: input.source_spell_id,
-        effective_price: input.effective_price,
-        acquisition_plan,
-        profession_plan,
-        battle_pet_species_id,
-    })
-}
-
-/// C++ `MoneyCost * float reputationDiscount`, including its observable f32 rounding.
-pub(crate) fn trainer_price_like_cpp(base_cost: u32, rank: ReputationRankLikeCpp) -> u32 {
-    let discount = if rank <= ReputationRankLikeCpp::Neutral {
-        1.0_f32
-    } else {
-        1.0_f32
-            - 0.05_f32
-                * f32::from(
-                    rank.as_u8()
-                        .saturating_sub(ReputationRankLikeCpp::Neutral.as_u8()),
-                )
-    };
-    (base_cost as f32 * discount) as u32
-}
-
 #[cfg(test)]
 mod tests {
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashMap};
 
     use super::*;
-    use crate::spell_acquisition::{
+    use wow_spell_acquisition::{
         PlayerAcquisitionLifecycleLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
     };
 
@@ -348,10 +52,42 @@ mod tests {
         }
     }
 
-    fn base_input<'a>(
-        skill_value: &'a dyn Fn(u32) -> Option<u16>,
-        knows_spell: &'a dyn Fn(u32) -> bool,
-    ) -> TrainerOfferInputLikeCpp<'a> {
+    fn base_input(
+        skill_value: &dyn Fn(u32) -> Option<u16>,
+        knows_spell: &dyn Fn(u32) -> bool,
+    ) -> TrainerOfferInputLikeCpp {
+        let mut skill_rows = HashMap::new();
+        if let Some(value) = skill_value(164) {
+            skill_rows.insert(
+                164,
+                wow_world_core::session::RepresentedPlayerSkillLikeCpp {
+                    skill_id: 164,
+                    step: 0,
+                    value,
+                    max: value,
+                    profession_slot: -1,
+                    state: wow_world_core::session::RepresentedPlayerSkillStateLikeCpp::Unchanged,
+                },
+            );
+        }
+        let spell_rows = [100_u32, 200, 201, 202, 203]
+            .into_iter()
+            .filter(|spell_id| knows_spell(*spell_id))
+            .map(|spell_id| {
+                let spell_id = spell_id as i32;
+                (
+                    spell_id,
+                    wow_world_spell::RepresentedPlayerSpellLikeCpp {
+                        spell_id,
+                        active: true,
+                        disabled: false,
+                        dependent: false,
+                        favorite: false,
+                        state: wow_world_spell::RepresentedPlayerSpellStateLikeCpp::Unchanged,
+                    },
+                )
+            })
+            .collect();
         TrainerOfferInputLikeCpp {
             source_spell_id: 100,
             is_exact_member: true,
@@ -359,9 +95,9 @@ mod tests {
             condition: TrainerAdmissionProofLikeCpp::Proven(true),
             directly_known: false,
             required_skill: None,
-            skill_value,
+            skill_rows,
             required_abilities: [0; 3],
-            knows_spell,
+            spell_rows,
             required_level: 1,
             player_level: 80,
             product: TrainerProductLikeCpp::Direct,
@@ -371,7 +107,7 @@ mod tests {
     }
 
     fn decide_without_late_work(
-        input: TrainerOfferInputLikeCpp<'_>,
+        input: TrainerOfferInputLikeCpp,
     ) -> TrainerOfferDecisionLikeCpp {
         decide_trainer_offer_like_cpp(
             input,
@@ -643,3 +379,4 @@ mod tests {
         );
     }
 }
+crates/wow-world/src/lib.rs:39:pub(crate) mod trainer_offer;

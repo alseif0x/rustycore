@@ -89,29 +89,7 @@ impl WorldSession {
         &mut self,
         mutation: crate::session::RepresentedShapeshiftMutationLikeCpp,
     ) {
-        if !self.apply_represented_shapeshift_base_attack_time_like_cpp() {
-            return;
-        }
-        // C++ `AuraEffect::HandleShapeshiftBoosts`
-        // (`SpellAuraEffects.cpp:1394-1464`) owns the form's bonus spells and
-        // the stance-gated self-aura sweep on both directions.
-        match mutation {
-            crate::session::RepresentedShapeshiftMutationLikeCpp::Applied { form_id } => {
-                self.apply_represented_shapeshift_boosts_like_cpp(form_id);
-            }
-            crate::session::RepresentedShapeshiftMutationLikeCpp::Removed {
-                removed_form,
-                new_form,
-            } => {
-                self.remove_represented_shapeshift_boosts_like_cpp(removed_form, new_form);
-            }
-        }
-        // C++ `Player::InitDataForForm` (`Player.cpp:22090`) updates the displayed
-        // power before refreshing the equipped items' form-gated spells and
-        // item-set auras, and `UpdateAttackPowerAndDamage` republishes after.
-        self.sync_represented_display_power_like_cpp();
-        self.refresh_represented_item_effects_at_form_change_like_cpp();
-        let _ = self.send_stat_update();
+        self.player_aura_application_cx_like_cpp().sync_shapeshift_form_like_cpp(mutation);
     }
 
 }

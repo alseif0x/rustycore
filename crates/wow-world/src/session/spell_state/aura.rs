@@ -102,33 +102,25 @@ impl WorldSession {
         &mut self,
         mutated_spell_id: i32,
     ) -> Option<RepresentedShapeshiftMutationLikeCpp> {
-        let Some(store) = self.spell_store().cloned() else {
-            return None;
-        };
-        if !self.represented_spell_has_mod_shapeshift_effect_like_cpp(mutated_spell_id) {
-            return None;
-        }
-        let mutated_form = store
-            .get(mutated_spell_id)
-            .and_then(shapeshift_form_of_spell_like_cpp);
-        if crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(mutated_spell_id)
-            == Some(true)
-        {
-            let form_id = mutated_form?;
-            self.set_represented_shapeshift_form_like_cpp(form_id);
-            return Some(RepresentedShapeshiftMutationLikeCpp::Applied { form_id });
-        }
-        let remaining_form = crate::session::hub_ref(self)
-            .resolved_player_visible_auras_like_cpp()
-            .unwrap_or_default()
-            .into_values()
-            .find_map(|aura| shapeshift_form_of_spell_like_cpp(store.get(aura.spell_id)?));
-        let new_form = remaining_form.unwrap_or(0);
-        self.set_represented_shapeshift_form_like_cpp(new_form);
-        Some(RepresentedShapeshiftMutationLikeCpp::Removed {
-            removed_form: mutated_form.unwrap_or(0),
-            new_form,
-        })
+        let (state, hub) = crate::session::split_spell_state_mut(self);
+        let player = hub.core.player_aura_removal_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::AuraRemovalFixtureRefsLikeCpp::new(
+                &mut hub.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &mut hub.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &mut hub.fixtures.auras.visible_auras,
+                &mut hub.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                &mut hub.fixtures.vehicles.player_mount_display_id_like_cpp,
+                &mut hub.fixtures.vehicles.player_mounted_like_cpp,
+                &mut hub.fixtures.presentation.player_unit_flags_like_cpp,
+                &hub.fixtures.presentation.player_object_scale_like_cpp,
+            ),
+        );
+        state.sync_shapeshift_form_ownership_with_access_like_cpp(
+            &player, hub.catalogs.spell_store(), mutated_spell_id, cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut hub.fixtures.auras.represented_shapeshift_form_like_cpp,
+        )
     }
 
     pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
@@ -137,25 +129,21 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn sync_represented_attack_speed_like_cpp(&mut self) {
-        let multipliers = {
-            let (s, h) = crate::session::split_spell_state_ref(self);
-            s.represented_attack_speed_multipliers_like_cpp(h)
-        };
-        // C++ computes `Unit::MeleeDamageBonusDone`'s auto-attack factor from the
-        // attacker's auras on every swing; the represented model keeps the same
-        // value on the canonical Player so the map-owned swing path can apply it
-        // without the spell store. This session is its only writer.
-        let autoattack_damage_multiplier = crate::session::hub_ref(self)
-            .represented_player_autoattack_damage_multiplier_like_cpp()
-            .max(0.0);
-        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-            player
-                .unit_mut()
-                .apply_attack_time_multipliers_like_cpp(multipliers);
-            player
-                .unit_mut()
-                .set_mod_autoattack_damage_pct_like_cpp(autoattack_damage_multiplier);
-        });
+        let (state, hub) = crate::session::split_spell_state_mut(self);
+        let player = hub.core.player_aura_removal_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::AuraRemovalFixtureRefsLikeCpp::new(
+                &mut hub.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &mut hub.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &mut hub.fixtures.auras.visible_auras,
+                &mut hub.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                &mut hub.fixtures.vehicles.player_mount_display_id_like_cpp,
+                &mut hub.fixtures.vehicles.player_mounted_like_cpp,
+                &mut hub.fixtures.presentation.player_unit_flags_like_cpp,
+                &hub.fixtures.presentation.player_object_scale_like_cpp,
+            ),
+        );
+        state.sync_attack_speed_with_access_like_cpp(&player, hub.catalogs.spell_store().map(|store| store.as_ref()));
     }
 
     pub(in crate::session) fn calculate_represented_mounted_aura_amount_like_cpp(

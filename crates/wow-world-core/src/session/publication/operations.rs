@@ -232,26 +232,8 @@ impl SessionCore {
 
 impl crate::session::HubMut<'_> {
     pub fn send_represented_mount_unit_update_like_cpp(&mut self, display_id: i32) {
-        let Some(player_guid) = self.core.player_guid() else {
-            return;
-        };
-        let Some((unit_flags, _, _)) = self.shared().player_unit_presentation_snapshot_like_cpp()
-        else {
-            return;
-        };
-
-        use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, UpdateObject};
-        let mut data = UnitDataValuesDeltaUpdate::default();
-        data.unit_data_mask[1] |= 1 << (41 - 32);
-        data.unit_data_mask[1] |= 1 << (51 - 32);
-        data.flags = unit_flags.bits();
-        data.mount_display_id = display_id;
-
-        self.core.send_packet(&UpdateObject::unit_values_update(
-            player_guid,
-            self.core.player_map_id_like_cpp(),
-            data,
-        ));
+        let (presentation, control) = self.aura_removal_mount_accesses_like_cpp();
+        control.send_represented_mount_unit_update_like_cpp(&presentation, display_id);
     }
 }
 

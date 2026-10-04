@@ -6,6 +6,7 @@
 //! Moved out of the Session root under #611. Behaviour is preserved; the
 //! canonical owner of this state is unchanged.
 
+use std::collections::HashSet;
 use std::sync::Arc;
 
 use super::MAX_SPECIALIZATIONS_LIKE_CPP;
@@ -523,7 +524,18 @@ impl crate::session::HubRef<'_> {
         talent_id: u32,
         rank: u8,
     ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
-        let talent = self.catalogs.talent_store()?.get(talent_id)?;
+        self.catalogs
+            .represented_talent_info_like_cpp(talent_id, rank)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn represented_talent_info_like_cpp(
+        &self,
+        talent_id: u32,
+        rank: u8,
+    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
+        let talent = self.talent_store()?.get(talent_id)?;
         let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
         if spell_id <= 0 {
             return None;
@@ -534,9 +546,18 @@ impl crate::session::HubRef<'_> {
 
         Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
     }
-}
 
-impl crate::session::state::SessionCatalogs {
+    pub(crate) fn represented_spell_valid_for_talent_like_cpp(&self, spell_id: i32) -> bool {
+        let Some(spell_store) = self.spell_store() else {
+            return true;
+        };
+        wow_data::represented_spell_valid_with_seen_like_cpp(
+            spell_store,
+            spell_id,
+            &mut HashSet::new(),
+        )
+    }
+
     pub fn talent_store(&self) -> Option<&Arc<TalentStore>> {
         self.talent_store.as_ref()
     }

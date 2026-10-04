@@ -2,7 +2,6 @@
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::movement_protocol::MovementFallDamageEvent;
-use wow_constants::MovementFlag;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::MovementState {
@@ -72,37 +71,13 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn move_represented_player_fall_like_cpp(&mut self) -> bool {
-        let Some(mut movement_flags) = self.shared().resolved_player_movement_flags_like_cpp()
-        else {
-            return false;
-        };
-        if movement_flags.contains(MovementFlag::DISABLE_GRAVITY) {
-            return false;
-        }
-
-        movement_flags.insert(MovementFlag::FALLING);
-        self.set_player_movement_flags_like_cpp(movement_flags);
-        if let Some(position) = self.shared().player_position_like_cpp() {
-            self.set_fall_information_like_cpp(0, position.z);
-        }
-        true
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.move_represented_player_fall_like_cpp()
     }
 }
 impl crate::session::HubMut<'_> {
     pub fn set_fall_information_like_cpp(&mut self, time: u32, z: f32) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_fall_information_like_cpp(time, z);
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.movement.last_fall_time_like_cpp = time;
-            self.fixtures.movement.last_fall_z_like_cpp = z;
-        }
-        canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none()
+        let (_presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
+        control.set_fall_information_like_cpp(time, z)
     }
 }

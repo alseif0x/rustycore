@@ -7,7 +7,7 @@ use std::path::PathBuf;
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
-    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR,
+    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, RegistrarFacadeContract,
     validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
@@ -102,6 +102,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "crates/wow-world-application/src/equipment_set_use.rs",
             include_str!("../../../../../crates/wow-world-application/src/equipment_set_use.rs"),
         ),
+        mount(
+            BANK_REGISTRAR.package,
+            BANK_REGISTRAR.module,
+            "crates/wow-world-application/src/bank.rs",
+            include_str!("../../../../../crates/wow-world-application/src/bank.rs"),
+        ),
     ]
 }
 
@@ -134,6 +140,7 @@ where
 fn synthetic_two_owner_mounts() -> Vec<WorkspaceSourceMount> {
     let inventory_root = r#"
 pub use handlers::{
+    ItemTextQueryHandlerCxLikeCpp,
     EquipmentSetsHandlerCxLikeCpp,
     InventoryHandlerHostLikeCpp,
     EquipmentSetsSaveCxLikeCpp,
@@ -142,6 +149,7 @@ pub use handlers::{
 "#;
     let inventory_handlers = r#"
 pub use equipment_sets::{
+    ItemTextQueryHandlerCxLikeCpp,
     EquipmentSetsHandlerCxLikeCpp,
     InventoryHandlerHostLikeCpp,
     register_inventory_handlers_like_cpp,
@@ -247,6 +255,30 @@ fn composition_guard_accepts_a_finite_two_owner_synthetic_fixture() {
 fn composition_guard_accepts_actual_production_fixture_and_both_exact_facades() {
     validate_composition_mounts(&actual_mounts())
     .expect("actual normal composer, fixture dispatch, and all owner facades match");
+}
+
+#[test]
+fn composition_guard_requires_bank_once_in_both_builders_with_exact_facade() {
+    let actual = actual_mounts();
+    for index in [0, 1, 5] {
+        let mut missing = actual.clone();
+        missing[index].source = missing[index].source.replace(
+            "register_bank_handlers_like_cpp", "unowned_bank_registration",
+        );
+        assert_rejected(&missing, "missing Bank composition or facade");
+    }
+    let mut aliased = actual.clone();
+    aliased[0].source = aliased[0].source.replace(
+        "wow_world_application::register_bank_handlers_like_cpp",
+        "other_application::register_bank_handlers_like_cpp",
+    );
+    assert_rejected(&aliased, "aliased Bank provider");
+    let mut duplicate = actual;
+    duplicate[0].source = duplicate[0].source.replace(
+        "    register_remaining_handlers_like_cpp(&mut builder)?;",
+        "    wow_world_application::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
+    );
+    assert_rejected(&duplicate, "duplicate Bank registrar call");
 }
 
 #[test]

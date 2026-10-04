@@ -1,11 +1,9 @@
 use wow_packet::packets::misc::{CufProfile, MAX_CUF_PROFILES_LIKE_CPP};
 use wow_world_core::session::{
     HubMut, HubRef, TOY_FLAG_FAVORITE_LIKE_CPP, TOY_FLAG_HAS_FANFARE_LIKE_CPP,
-    player_cuf_profile_from_packet_like_cpp,
+    PlayerSaveOperationAccessLikeCpp, player_cuf_profile_from_packet_like_cpp,
 };
-use wow_world_core::session::persistence_capabilities::{
-    PlayerSaveToDbSnapshotLikeCpp, loaded_character_power_snapshot_like_cpp,
-};
+use wow_world_core::session::PlayerSaveSessionInputsLikeCpp;
 
 use super::SessionLifecycleState;
 use crate::{
@@ -13,91 +11,50 @@ use crate::{
 };
 
 impl SessionLifecycleState {
+    pub fn player_save_session_inputs_like_cpp(
+        &self,
+        now_unix_secs: i64,
+    ) -> PlayerSaveSessionInputsLikeCpp<'_> {
+        PlayerSaveSessionInputsLikeCpp::new_like_cpp(
+            now_unix_secs,
+            &self.tutorials_changed_like_cpp,
+            &self.tutorials_loaded_coherently_like_cpp,
+            &self.tutorials_like_cpp,
+            &self.tutorials_loaded_from_db_like_cpp,
+            &self.login_time,
+            &self.total_played_time,
+            &self.level_played_time,
+        )
+    }
+
     /// None permits normal save preparation; Some is a completed admission decision.
     pub fn defer_player_save_for_transfer_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
     ) -> Option<crate::PlayerSaveOutcomeLikeCpp> {
+        let mut owner = hub
+            .core
+            .player_save_operation_access_like_cpp(None, None);
+        self.defer_player_save_for_transfer_with_owner_like_cpp(&mut owner)
+    }
+
+    /// Apply the save's transfer gate through its selected canonical owner.
+    pub fn defer_player_save_for_transfer_with_owner_like_cpp(
+        &mut self,
+        owner: &mut PlayerSaveOperationAccessLikeCpp<'_>,
+    ) -> Option<crate::PlayerSaveOutcomeLikeCpp> {
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if owner.owner_handle_absent_like_cpp() {
             return None; // Existing ownerless persistence fixtures, never production.
         }
-        if hub
-            .core
-            .player_handle_like_cpp
-            .is_none_or(|handle| hub.core.player_guid() != Some(handle.guid()))
-        {
-            return Some(crate::PlayerSaveOutcomeLikeCpp::Unavailable);
-        }
-        match hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.defer_save_if_transfer_pending_like_cpp()
-        }) {
+        match owner.defer_player_save_for_transfer_like_cpp() {
             Some(Some(false)) => None,
             Some(Some(true)) => Some(crate::PlayerSaveOutcomeLikeCpp::Deferred),
             Some(None) => {
-                hub.core.kick("deferred player-save revision exhausted");
+                owner.quarantine_like_cpp("deferred player-save revision exhausted");
                 Some(crate::PlayerSaveOutcomeLikeCpp::Unavailable)
             }
             None => Some(crate::PlayerSaveOutcomeLikeCpp::Unavailable),
-        }
-    }
-
-    pub fn player_save_header_from_owner_like_cpp(
-        &self,
-        player: &wow_entities::Player,
-        residence: wow_map::PlayerResidenceLikeCpp,
-    ) -> PlayerSaveToDbSnapshotLikeCpp {
-        let teleport = &player.gameplay_state().teleport;
-        let destination = (teleport.recovery != wow_entities::PlayerTransferRecovery::Terminal)
-            .then(|| {
-                teleport
-                    .far_destination
-                    .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
-                    .or_else(|| {
-                        teleport
-                            .near_pending
-                            .then_some(teleport.near_destination)
-                            .flatten()
-                    })
-            })
-            .flatten();
-        let (map_id, instance_id, position) = if let Some((map_id, position)) = destination {
-            (map_id, 0, position)
-        } else {
-            // Player.cpp:19480-19514 reads the Player's location. ResetMap
-            // (Object.cpp:1814) retains map/instance even while detached.
-            (
-                player.unit().world().map_id() as u16,
-                player.unit().world().instance_id(),
-                player.unit().world().position(),
-            )
-        };
-        let unit = player.unit();
-        let max_health = unit.data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
-        let health = match residence {
-            wow_map::PlayerResidenceLikeCpp::Active(_) => {
-                let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
-                if unit.is_alive() && health > 0 {
-                    health
-                } else {
-                    0
-                }
-            }
-            wow_map::PlayerResidenceLikeCpp::Detached => {
-                unit.data().health.min(u64::from(max_health)) as u32
-            }
-        };
-        PlayerSaveToDbSnapshotLikeCpp {
-            guid: player.guid(),
-            map_id,
-            instance_id,
-            position,
-            level: unit.data().level as u8, // C++ Unit::GetLevel (Unit.h:733).
-            xp: player.active_data().xp.max(0) as u32,
-            money: player.money(),
-            health,
-            max_health,
-            powers: loaded_character_power_snapshot_like_cpp(unit.data().power),
         }
     }
 

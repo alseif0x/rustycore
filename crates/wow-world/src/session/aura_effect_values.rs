@@ -21,37 +21,4 @@ pub(in crate::session) fn represented_aura_effect_amounts_like_cpp(
     }]
 }
 
-pub(in crate::session) fn unit_owned_apply_aura_effect_mask_like_cpp(
-    spell: &wow_data::SpellInfo,
-) -> u32 {
-    use wow_data::spell::spell_effect_types::{
-        SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
-        SPELL_EFFECT_APPLY_AREA_AURA_OWNER, SPELL_EFFECT_APPLY_AREA_AURA_PARTY,
-        SPELL_EFFECT_APPLY_AREA_AURA_PET, SPELL_EFFECT_APPLY_AREA_AURA_RAID,
-        SPELL_EFFECT_APPLY_AURA, SPELL_EFFECT_APPLY_AURA_ON_PET,
-    };
-
-    const SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS: u32 = 202;
-    const SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM: u32 = 271;
-
-    spell.effects().iter().fold(0, |mask, effect| {
-        let unit_owned = matches!(
-            effect.effect,
-            SPELL_EFFECT_APPLY_AURA
-                | SPELL_EFFECT_APPLY_AURA_ON_PET
-                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY
-                | SPELL_EFFECT_APPLY_AREA_AURA_RAID
-                | SPELL_EFFECT_APPLY_AREA_AURA_FRIEND
-                | SPELL_EFFECT_APPLY_AREA_AURA_ENEMY
-                | SPELL_EFFECT_APPLY_AREA_AURA_PET
-                | SPELL_EFFECT_APPLY_AREA_AURA_OWNER
-                | SPELL_EFFECT_APPLY_AREA_AURA_SUMMONS
-                | SPELL_EFFECT_APPLY_AREA_AURA_PARTY_NONRANDOM
-        );
-        if unit_owned && effect.effect_index < u32::BITS {
-            mask | (1u32 << effect.effect_index)
-        } else {
-            mask
-        }
-    })
-}
+pub(in crate::session) use wow_world_spell::unit_owned_apply_aura_effect_mask_like_cpp;

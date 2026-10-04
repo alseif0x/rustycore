@@ -10,6 +10,7 @@ mod appearance;
 mod guild_inventory_contracts;
 mod inventory_request_contracts;
 mod item_modifiers;
+mod limit_category;
 mod contracts;
 mod currency;
 mod enchantment;
@@ -38,6 +39,7 @@ mod void_transfer_contracts;
 mod turnins;
 mod stats;
 mod persistence_load;
+mod quest_reward;
 mod state;
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -72,9 +74,13 @@ pub use contracts::{
     DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
     RepresentedEquipmentSetSavedLikeCpp,
 };
-pub use enchantment::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
+pub use enchantment::{
+    LoadedEquippedItemEnchantmentsOutcomeLikeCpp, ItemEnchantmentApplicationCxLikeCpp,
+    ItemEnchantmentCatalogsLikeCpp,
+};
 pub use equipment_sets::represented_equipment_set_from_packet_like_cpp;
 pub use handlers::{
+    ItemTextQueryHandlerCxLikeCpp,
     EquipmentSetsHandlerCxLikeCpp, InventoryHandlerHostLikeCpp,
     EquipmentSetsSaveCxLikeCpp,
     register_inventory_handlers_like_cpp,
@@ -88,9 +94,12 @@ pub use item_modifiers::{
 };
 pub use state::InventoryState;
 
-pub use storage::CR_ARMOR_PENETRATION_LIKE_CPP;
+pub use storage::{CR_ARMOR_PENETRATION_LIKE_CPP, DirectInventoryStorageOverlayLikeCpp};
 pub use stats::CR_HIT_MELEE_LIKE_CPP;
 pub use turnins::ExtendedCostItemTurninChange;
+pub use quest_reward::{
+    item_push_result_from_send_new_item_plan, make_inventory_item_object_like_cpp,
+};
 pub use void_transfer_contracts::{
     EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
 };

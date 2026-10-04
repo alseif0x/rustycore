@@ -46,9 +46,23 @@ impl<'a> PlayerRegistrySyncContext<'a> {
 
     /// Update position, hydrate the explicit fixture seam, then publish loot and party state.
     pub fn sync(&self) {
+        self.sync_selected_hydration_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            self.fixture_hydration.as_ref(),
+        );
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn sync_with_fixture_hydration_like_cpp(&self, hydration: &PlayerRegistryHydrationContext<'_>) {
+        self.sync_selected_hydration_like_cpp(Some(hydration));
+    }
+
+    fn sync_selected_hydration_like_cpp(&self,
+        #[cfg(any(test, feature = "test-fixtures"))] hydration: Option<&PlayerRegistryHydrationContext<'_>>,
+    ) {
         self.position.update_registry_position();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if let Some(hydration) = &self.fixture_hydration {
+        if let Some(hydration) = hydration {
             hydration.hydrate();
         }
         let identities = self

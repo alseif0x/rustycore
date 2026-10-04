@@ -106,6 +106,8 @@ mod item_2;
 mod item_3;
 #[path = "character_tests/item_4.rs"]
 mod item_4;
+#[path = "character_tests/raw_equip.rs"]
+mod raw_equip;
 #[path = "character_tests/login.rs"]
 mod login;
 #[path = "character_tests/loot.rs"]

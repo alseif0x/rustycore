@@ -6,6 +6,250 @@
 use super::*;
 
 #[tokio::test]
+async fn registered_item_text_query_preserves_payload_failure_invalid_and_valid_bytes() {
+    let (mut session, send_rx) = make_session_with_send_capacity(4);
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder).unwrap();
+    let registry = builder.build();
+    let entry = *registry.get(ClientOpcodes::ItemTextQuery).unwrap();
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    (entry.handler)(&mut session, &catalogs, WorldPacket::new_empty()).await;
+    assert!(send_rx.try_recv().is_err(), "parse failure sends nothing");
+    let owner = ObjectGuid::create_player(1, 700);
+    let guid = ObjectGuid::create_world_object(HighGuid::Item, 0, 1, 0, 0, 700, 2);
+    let mut request = WorldPacket::new_empty();
+    request.write_guid(&guid);
+    (entry.handler)(&mut session, &catalogs, request).await;
+    let bytes = send_rx.try_recv().expect("invalid item response");
+    assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::QueryItemTextResponse));
+    assert_eq!(&bytes[2..5], &[0, 0, 0]);
+    assert_eq!(&bytes[5..21], &guid.to_raw_bytes());
+    assert_eq!(bytes.len(), 21);
+
+    let mut item = session.make_inventory_item_object(guid, 8000, owner, 1, 0, ItemContext::None, 0);
+    item.set_text("abc");
+    session.insert_inventory_item_object(item);
+    let mut request = WorldPacket::new_empty();
+    request.write_guid(&guid);
+    (entry.handler)(&mut session, &catalogs, request).await;
+    let bytes = send_rx.try_recv().expect("valid item response");
+    assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::QueryItemTextResponse));
+    assert_eq!(&bytes[2..5], &[0x80, 0, 0x18]);
+    assert_eq!(&bytes[5..8], b"abc");
+    assert_eq!(&bytes[8..24], &guid.to_raw_bytes());
+    assert_eq!(bytes.len(), 24);
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn registered_item_text_query_does_not_read_fixture_item_after_same_guid_owner_replacement() {
+    let (mut session, send_rx) = make_session_with_send_capacity(2);
+    let owner = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(owner));
+    let guid = ObjectGuid::create_world_object(HighGuid::Item, 0, 1, 0, 0, 700, 3);
+    let mut item = session.make_inventory_item_object(guid, 8000, owner, 1, 0, ItemContext::None, 0);
+    item.set_text("fixture text must not leak");
+    session.insert_inventory_item_object(item);
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 10)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let mut first = Box::new(wow_entities::Player::new(Some(1), false));
+    first.unit_mut().world_mut().object_mut().create(owner);
+    let stale = canonical.lock().unwrap().install_detached_player_like_cpp(first).unwrap();
+    session.core.player_handle_like_cpp = Some(stale);
+    let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
+    replacement.unit_mut().world_mut().object_mut().create(owner);
+    let replacement_handle = canonical.lock().unwrap().install_detached_player_like_cpp(replacement).unwrap();
+    assert_ne!(stale, replacement_handle);
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder).unwrap();
+    let registry = builder.build();
+    let entry = *registry.get(ClientOpcodes::ItemTextQuery).unwrap();
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let mut request = WorldPacket::new_empty();
+    request.write_guid(&guid);
+    (entry.handler)(&mut session, &catalogs, request).await;
+    let bytes = send_rx.try_recv().expect("invalid response for stale owner");
+    assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::QueryItemTextResponse));
+    assert_eq!(&bytes[2..5], &[0, 0, 0]);
+    assert_eq!(&bytes[5..21], &guid.to_raw_bytes());
+    assert_eq!(bytes.len(), 21);
+    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle,
+        |player| player.inventory_runtime_like_cpp().item_objects().is_empty()), Some(true));
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn bank_domain_registration_exact_set_preserves_slot_flag_metadata() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
+    let registry = builder.build();
+    assert_eq!(registry.len(), 1);
+    let entry = registry.get(ClientOpcodes::ChangeBankBagSlotFlag).unwrap();
+    assert_eq!(entry.status, SessionStatus::LoggedIn);
+    assert_eq!(entry.processing, PacketProcessing::Inplace);
+    assert_eq!(entry.handler_name, "handle_change_bank_bag_slot_flag");
+    assert_eq!(crate::session::registry::registered_handler_entries_like_cpp()
+        .filter(|entry| entry.opcode == ClientOpcodes::ChangeBankBagSlotFlag).count(), 1);
+}
+
+#[tokio::test]
+async fn registered_bank_slot_flag_preserves_self_admission_and_rejects_invalid_payload_and_bounds() {
+    let (mut session, send_rx, _canonical) = make_bank_slot_session(8);
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
+    let registry = builder.build();
+    let entry = *registry.get(ClientOpcodes::ChangeBankBagSlotFlag).unwrap();
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    (entry.handler)(&mut session, &catalogs, WorldPacket::new_empty()).await;
+    assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), Some(0));
+    assert!(send_rx.try_recv().is_err());
+    let guid = session.player_guid().unwrap();
+    assert!(session.set_player_interaction_source_like_cpp(guid));
+    for (slot, flag) in [(7, 4), (2, 32)] {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_uint32(slot);
+        packet.write_uint32(flag);
+        packet.write_bit(true);
+        packet.flush_bits();
+        (entry.handler)(&mut session, &catalogs, packet).await;
+        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), Some(0));
+        assert!(send_rx.try_recv().is_err());
+    }
+    for enabled in [true, false] {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_uint32(2);
+        packet.write_uint32(4);
+        packet.write_bit(enabled);
+        packet.flush_bits();
+        (entry.handler)(&mut session, &catalogs, packet).await;
+        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2),
+            Some(if enabled { 16 } else { 0 }));
+        let bytes = send_rx.try_recv().expect("complete VALUES publication");
+        assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::UpdateObject));
+    }
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn registered_bank_slot_flag_rejects_stale_owner_without_fixture_fallback() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+    let guid = session.player_guid().unwrap();
+    assert!(session.set_player_interaction_source_like_cpp(guid));
+    let mut first = Box::new(wow_entities::Player::new(Some(1), false));
+    first.unit_mut().world_mut().object_mut().create(guid);
+    first.set_interaction_source_like_cpp(guid);
+    let stale = canonical.lock().unwrap().install_detached_player_like_cpp(first)
+        .expect("first owner");
+    session.core.player_handle_like_cpp = Some(stale);
+    let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let replacement_handle = canonical.lock().unwrap().install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+    assert_ne!(stale, replacement_handle);
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
+    let registry = builder.build();
+    let entry = *registry.get(ClientOpcodes::ChangeBankBagSlotFlag).unwrap();
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let mut packet = WorldPacket::new_empty();
+    packet.write_uint32(2);
+    packet.write_uint32(4);
+    packet.write_bit(true);
+    packet.flush_bits();
+    (entry.handler)(&mut session, &catalogs, packet).await;
+    assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), None);
+    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle,
+        |player| player.bank_bag_slot_flag_value_like_cpp(2)), Some(Some(0)));
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
+fn inventory_domain_registration_exact_set_includes_cancel_temp_enchantment() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder)
+        .expect("Inventory registrations");
+    let registry = builder.build();
+    assert_eq!(registry.len(), 5);
+    for (opcode, processing, name) in [
+        (ClientOpcodes::SaveEquipmentSet, PacketProcessing::ThreadUnsafe, "handle_save_equipment_set"),
+        (ClientOpcodes::AssignEquipmentSetSpec, PacketProcessing::Inplace, "handle_assign_equipment_set_spec"),
+        (ClientOpcodes::DeleteEquipmentSet, PacketProcessing::ThreadUnsafe, "handle_delete_equipment_set"),
+        (ClientOpcodes::CancelTempEnchantment, PacketProcessing::Inplace, "handle_cancel_temp_enchantment"),
+        (ClientOpcodes::ItemTextQuery, PacketProcessing::Inplace, "handle_item_text_query"),
+    ] {
+        let entry = registry.get(opcode).expect("expected Inventory opcode");
+        assert_eq!(entry.status, SessionStatus::LoggedIn);
+        assert_eq!(entry.processing, processing);
+        assert_eq!(entry.handler_name, name);
+    }
+    assert_eq!(crate::session::registry::registered_handler_entries_like_cpp()
+        .filter(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment).count(), 1);
+    assert_eq!(crate::session::registry::registered_handler_entries_like_cpp()
+        .filter(|entry| entry.opcode == ClientOpcodes::ItemTextQuery).count(), 1);
+}
+
+#[tokio::test]
+async fn registered_cancel_temp_enchantment_clears_only_after_valid_payload_and_equipment_slot() {
+    let (mut session, send_rx) = make_session_with_send_capacity(8);
+    let guid = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(guid));
+    let item_guid = insert_cancel_temp_enchant_test_item(&mut session, guid, 15, 903);
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
+        .find(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment).unwrap();
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    (entry.handler)(&mut session, &catalogs, WorldPacket::new_empty()).await;
+    assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
+        .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 903);
+    assert!(send_rx.try_recv().is_err());
+    for slot in [-1, 256, 36] {
+        let mut packet = WorldPacket::new_empty();
+        packet.write_int32(slot);
+        (entry.handler)(&mut session, &catalogs, packet).await;
+        assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
+            .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 903);
+    }
+    let mut packet = WorldPacket::new_empty();
+    packet.write_int32(15);
+    (entry.handler)(&mut session, &catalogs, packet).await;
+    assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
+        .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 0);
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn registered_cancel_temp_enchantment_does_not_fall_back_when_owner_handle_is_stale() {
+    let (mut session, send_rx) = make_session_with_send_capacity(8);
+    let guid = ObjectGuid::create_player(1, 42);
+    session.set_player_guid(Some(guid));
+    let item_guid = insert_cancel_temp_enchant_test_item(&mut session, guid, 15, 904);
+    let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 10)));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let mut first = Box::new(wow_entities::Player::new(Some(1), false));
+    first.unit_mut().world_mut().object_mut().create(guid);
+    let stale_handle = canonical.lock().unwrap().install_detached_player_like_cpp(first)
+        .expect("first owner");
+    session.core.player_handle_like_cpp = Some(stale_handle);
+    let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let replacement_handle = canonical.lock().unwrap().install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+    assert_ne!(stale_handle, replacement_handle);
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
+        .find(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment).unwrap();
+    let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    let mut packet = WorldPacket::new_empty();
+    packet.write_int32(15);
+    (entry.handler)(&mut session, &catalogs, packet).await;
+
+    assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
+        .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 904);
+    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle, |player| {
+        player.inventory_runtime_like_cpp().item_objects().is_empty()
+    }), Some(true));
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
 async fn change_bank_bag_slot_flag_toggles_flag_after_banker_activation_like_cpp() {
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);
     let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 4);

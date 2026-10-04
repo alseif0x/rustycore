@@ -19,17 +19,17 @@ impl WorldSession {
         &self,
         loot_ids: impl IntoIterator<Item = u32>,
     ) -> bool {
-        let Some(stores) = self.catalogs.loot_stores.as_ref() else {
-            return false;
-        };
-        let Some(store) = stores.get(&LootStoreKind::Gameobject) else {
-            return false;
-        };
-        loot_ids.into_iter().filter(|id| *id != 0).any(|loot_id| {
-            store.have_quest_loot_for_player_like_cpp(loot_id, stores.as_ref(), |item_id| {
-                self.represented_player_has_quest_for_loot_item_like_cpp(item_id)
-            })
-        })
+        let owner = self.core.quest_objective_access_like_cpp();
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        wow_world_application::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
+            &owner,
+            &inventory_access,
+            &self.catalogs,
+            &self.inventory,
+            &self.quest_state,
+            loot_ids,
+            cfg!(test),
+        )
     }
     pub(crate) fn read_legacy_creature_loot_authority_on_map_like_cpp(
         &self,
@@ -130,6 +130,12 @@ impl WorldSession {
     pub(in crate::session) async fn reconcile_durable_loot_money_before_save_like_cpp(
         &mut self,
     ) -> bool {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let mut player = self.core.quest_reward_player_access_like_cpp();
         wow_world_application::reconcile_durable_loot_money_before_save_like_cpp(
             &mut self.lifecycle,

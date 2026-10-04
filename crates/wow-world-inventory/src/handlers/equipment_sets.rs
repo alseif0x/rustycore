@@ -9,6 +9,7 @@ use wow_handler::{
 };
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::OwnedEquipmentSetsAccessLikeCpp;
+pub use super::item_text::ItemTextQueryHandlerCxLikeCpp;
 
 use crate::{
     EquipmentSetsSaveCxLikeCpp, InventoryState, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
@@ -108,6 +109,16 @@ impl<'a> EquipmentSetsHandlerCxLikeCpp<'a> {
 
 /// Builds an Inventory handler context from a host's state and request catalogs.
 pub trait InventoryHandlerHostLikeCpp<C> {
+    fn item_text_query_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> crate::ItemTextQueryHandlerCxLikeCpp<'a>;
+
+    fn item_enchantment_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> crate::ItemEnchantmentApplicationCxLikeCpp<'a>;
+
     fn equipment_sets_handler_cx_like_cpp<'a>(
         &'a mut self,
         catalogs: &'a C,
@@ -194,6 +205,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_delete_equipment_set",
         handler: handle_delete_equipment_set_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::CancelTempEnchantment,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_cancel_temp_enchantment",
+        handler: super::cancel_temp_enchantment::thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::ItemTextQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_item_text_query",
+        handler: super::item_text::thunk::<S, C>,
     })?;
     Ok(())
 }
