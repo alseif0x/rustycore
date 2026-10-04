@@ -3729,13 +3729,20 @@ fixture en vez del Player canónico por GUID (`session/catalogs/operations.rs`,
 Barreras explícitas que siguen abiertas, sin declarar cierre:
 
 - **LootRelease**: `crates/wow-world-application/src/loot_release/` no está montado
-  (`mod loot_release;` ausente). Al montarlo faltan tres helpers nunca movidos desde World:
-  `represented_gameobject_can_autostore_loot_item_like_cpp`,
-  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp` (depende del proveedor
-  readonly de visibilidad de GO) y `represented_notify_loot_list_like_cpp`; su traslado exige
-  ampliar accesos de Core (grupo/registro, catálogos de GO, proveedor de condiciones).
-- El `QuestGameObjectVisibilityCx` readonly App que implementé (`quest/visibility/gameobject_flags.rs`,
-  completions en `quest/objectives.rs`) compila pero **no tiene consumidores cableados**.
+  (`mod loot_release;` ausente). Ya tienen cuerpo App `represented_notify_loot_list_like_cpp`
+  y sus accesos Core (`resolved_group_guid_like_cpp`,
+  `send_loot_list_to_other_allowed_looters_like_cpp`), más las 4 correcciones iniciales
+  (HighGuid, `loot_is_looted`, visibilidad de autoridad). Faltan dos helpers nunca movidos
+  desde World: `represented_gameobject_can_autostore_loot_item_like_cpp` (necesita `HubRef`
+  de Core con catálogos/config/fixtures, `gameobject_display_info_store`, rango de spell-lock
+  con known-spells y las geometrías `interaction_distance`/`display_box_contains`) y
+  `send_gathering_node_loot_release_dynamic_flags_update_like_cpp` (reutiliza el proveedor
+  readonly de visibilidad ya unificado). El Cx App debe recibir catálogos/config/fixtures/
+  social/quest_state y construir lecturas por `HubRef`.
+- El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
+  completions en `quest/objectives.rs`) ya tiene consumidor World: tanto ActivateToQuest como
+  DynamicFlags delegan en el proveedor App; World conserva sus `has_quest`/`is_for_quests`
+  para query/refresh y su retirada es F6.
 - StorageMove/swap/child/offhand como executor completo, Save, compra Trainer, refresh de
   visibilidad y CompleteQuest conservan pendientes.
 - Sin `final`, arquitectura/self-test, inventario de persistencia, capturas ni live; por
