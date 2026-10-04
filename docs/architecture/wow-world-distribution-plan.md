@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `cbab688f3` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `b044cbcee` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3717,11 +3717,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
 
-Sobre el checkpoint `cbab688f3` (refresh de visibilidad + gate de autostore en App) la
+Sobre el checkpoint `b044cbcee` (decisión de CompleteQuest en App + paridad C++) la
 verificación del implementador fue: `cargo check --workspace --all-targets` verde,
 `cargo check -p wow-world --all-targets` y `--all-targets --features test-fixtures` verdes,
 `cargo check -p wow-world-application --all-targets` verde, `cargo test -p wow-world --lib`
-**3.685 passed / 0 failed / 1 ignored** (idéntico al baseline en las tres rondas) y
+**3.687 passed / 0 failed / 1 ignored** (3.685 del baseline + 2 escenarios nuevos de
+paridad), `handlers::quest` 228/228, `scenarios_quest_2` 8/8 y
 `cargo test -p wow-world-application` 29/29. Sin avisos nuevos de imports sin usar ni de
 código muerto respecto del baseline (comparación de conjuntos de nombres). No se repitieron
 otras suites ni la campaña `final`.
@@ -3788,8 +3789,20 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   `represented_has_quest_for_gameobject_like_cpp`/`represented_gameobject_is_for_quests_like_cpp`)
   delegan en los providers App, ahora `pub`. Las copias World de esas dos consultas quedaron
   como fachadas finas sobre el mismo provider, sin lógica duplicada.
-- StorageMove/swap/child/offhand como executor completo, Save, compra Trainer, refresh de
-  visibilidad y CompleteQuest conservan pendientes.
+- **CompleteQuest** (primer corte): la decisión de diálogo de
+  `handle_quest_giver_complete_quest` vive ahora en App
+  (`quest/complete.rs`: `represented_quest_complete_dialog_like_cpp`,
+  `represented_quest_has_item_objective_like_cpp`, `represented_quest_rewards_block_like_cpp`),
+  y World solo evalúa los seams acotados `can_reward_quest`/`can_complete_repeatable_quest` y
+  publica. Al contrastar con `HandleQuestgiverCompleteQuest`
+  (`/home/server/woltk-trinity-legacy/src/server/game/Handlers/QuestHandler.cpp:533-585`) se
+  corrigió una divergencia real: una quest COMPLETE **con objetivos de objeto** responde
+  `SendQuestGiverRequestItems` (no `SendQuestGiverOfferReward`), y el bloque de recompensas y
+  los `status_flags`/`collect` provienen ya de los helpers compartidos en vez de construirse
+  a mano con `collect` vacío y `0xFD` fijo. Quedan sin mover a App los seams acotados de
+  `CanRewardQuest`/`CanCompleteRepeatableQuest` y la publicación de paquetes de diálogo.
+- StorageMove/swap/child/offhand como executor completo, Save y compra Trainer conservan
+  pendientes.
 - Sin `final`, arquitectura/self-test, inventario de persistencia, capturas ni live; por
   tanto no hay aceptación de F5/F6 ni cierre de #1263.
 
