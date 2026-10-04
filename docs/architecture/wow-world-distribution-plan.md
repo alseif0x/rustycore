@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `c092a4811` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `5c6afbb50` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `5c6afbb50` (fanout de botín duradero en App) se repitió el mismo
+conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.687 passed / 0 failed / 1 ignored**; `wow-world-application` 29/29; sin avisos
+nuevos de imports ni de código muerto.
 
 Sobre el checkpoint `c092a4811` (destroy de item looteado en App) se repitió el mismo
 conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3805,8 +3811,19 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   el Cx App y delega; se retiró la copia World de 108 líneas
   `destroy_direct_item_count_after_loot_release_like_cpp` y su helper libre
   `direct_item_count_after_loot_release_like_cpp` (ahora `pub` en App para la prueba de la
-  aritmética). El módulo App todavía no tiene pruebas propias (la cobertura la aportan hoy
-  las 264 pruebas `handlers::loot` de `wow-world`, que ahora ejercitan el camino App).
+  aritmética). Y la publicación del fanout de botín duradero más el cierre del dueño
+  *unviewed* pasaron al Cx App (`loot_release/fanout.rs`:
+  `publish_durable_loot_item_fanout_like_cpp`, `finalize_unviewed_durable_loot_owner_like_cpp`
+  y el helper libre `durable_loot_item_fanout_viewers_like_cpp`); World solo prepara la ruta
+  y llama. El módulo App todavía no tiene pruebas propias (la cobertura la aportan hoy las
+  264 pruebas `handlers::loot` de `wow-world`, que ahora ejercitan el camino App).
+
+**Límite de este método**: retirar duplicados ya convergidos no alcanza el objetivo de F5
+(20–40k líneas en `wow-world`, hoy ~128k). F5 exige el rediseño de registro descrito en
+#1263 §5 (handlers como funciones de crate de dominio sobre `<Domain>Cx` registradas por
+`register()`); en esta rama `PacketHandlerEntry` sigue siendo
+`<WorldSession, SessionHandlerCatalogsLikeCpp>` y ningún crate de dominio expone `register()`.
+Ese rediseño no está iniciado.
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
   completions en `quest/objectives.rs`) tiene consumidor World completo: ActivateToQuest,
   DynamicFlags y el refresh `update_visible_gameobjects_like_cpp` (que además usa
