@@ -3555,6 +3555,7 @@ dependencies = [
 name = "wow-world-entities"
 version = "0.1.0"
 dependencies = [
+ "wow-ai",
  "wow-conditions",
  "wow-constants",
  "wow-core",
@@ -3564,6 +3565,7 @@ dependencies = [
  "wow-map",
  "wow-movement",
  "wow-packet",
+ "wow-persistence",
  "wow-progression",
  "wow-world-core",
 ]

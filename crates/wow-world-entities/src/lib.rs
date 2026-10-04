@@ -2,6 +2,7 @@
 
 mod contracts;
 mod creature_publication;
+pub mod creature_aggro_contracts;
 pub mod creature_spell_metadata;
 pub mod creature_spell_planning;
 mod aggro;

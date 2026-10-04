@@ -221,6 +221,8 @@ use creature_spell_metadata::creature_ai_spell_is_combat_forbidden_like_cpp;
 use creature_spell_metadata::creature_ai_spell_repeat_cooldown_like_cpp;
 #[cfg(test)]
 use creature_spell_metadata::creature_ai_spell_x_spell_visual_id_like_cpp;
+#[cfg(test)]
+pub(crate) use wow_entities::UnitVisibilityDetectionStateLikeCpp;
 use creature_spell_metadata::{CreatureAiSpellTargetLikeCpp, creature_ai_spell_target_like_cpp};
 mod creature_spell_planning;
 use creature_spell_planning::CreatureAiSpellRepresentationRejectionLikeCpp;
@@ -759,7 +761,7 @@ use wow_entities::{
     QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
     SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, Unit,
-    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
+    UpdateMask, Vehicle, VisibleItemValues, WorldObject,
     explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
     is_inventory_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
