@@ -2892,6 +2892,17 @@ no se convirtió en un preflight nuevo. Revisión por fuente favorable, sin
 ejecución ni aceptación. RawEquip,
 StorageMove y child/offhand completos siguen pendientes dentro de F5.
 
+El proveedor completo de persistencia de encantamientos ya tiene acceso
+seleccionado en Inventory y hoja Core `inventory/enchantment.rs` montada. La
+fachada Hub delega sin capturar datos: primero se clona el item desde el runtime
+completo, después se consultan duraciones mediante el accessor canónico original,
+y el default vacío permanece en Inventory. Se mantienen recorrido por índice,
+primer duration coincidente, flags MAINHAND_ONLY/DO_NOT_SAVE y espacios finales.
+Tres pruebas escritas cubren catálogo ausente, override canónico/fallback del item
+y rechazo de fixture con owner stale reemplazado por el mismo GUID; comprueban
+ausencia de mutación y publicación. Revisión por fuente favorable, sin ejecución.
+Este proveedor permite el siguiente traslado completo de rawEquip, todavía pendiente.
+
 El contraste de ActivateToQuest conserva dos diferencias adicionales para F6:
 `GameObject.cpp:2218–2265`, SHA target `a5f8da2eb`, consulta en Chest
 `Battleground::CanActivateGO` después de los requisitos de quest/loot, mientras
