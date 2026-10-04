@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `9b7be3f9e` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `9f0410933` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,13 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `9f0410933` (adaptador de movimiento de criatura en `wow-world-entities`)
+se repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
+límite ampliado), `wow-world --all-targets`, `wow-world-entities --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.632 passed / 0 failed / 1 ignored**; `wow-world-entities --features test-fixtures`
+2/2; `wow-world-application` 52/52; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `9b7be3f9e` (contratos de entrega de botín en wow-world-lifecycle) se
 repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
@@ -4110,6 +4117,13 @@ Con la característica activada ambas suites pasan (`wow-world-spell` 3/3, `wow-
 workspace/`final`, donde las características se unifican); una ejecución por paquete sin la
 característica no es una configuración soportada de estos crates.
 
+- el adaptador de movimiento de criatura (`session/creature_movement_adapter.rs`, 139
+  líneas: mapeo de `CreaturePathQueryLikeCpp` a la petición del worker Detour, resolución de
+  la ruta con la semántica de `PathGenerator::CalculatePath` y el trazado de
+  `RUSTYCORE_MONSTER_MOVE_TRACE`) pasó a
+  `wow-world-entities/src/creature_movement_adapter.rs`; se añadieron `tracing` y
+  `wow-recastdetour` (crate hoja, sin ciclo) al manifiesto y se reapuntaron las rutas
+  `crate::map_manager` a Core;
 - los contratos de entrega de botín duradero (`session/loot_delivery_contracts.rs`, 80
   líneas: `LootMoneyViewerFanoutLikeCpp`, la dirección de entrega
   `LootMoneyDeliveryAddressLikeCpp` y `loot_money_durable_outcome_like_cpp`) pasaron a
