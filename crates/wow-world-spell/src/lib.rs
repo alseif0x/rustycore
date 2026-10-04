@@ -3,6 +3,7 @@
 pub mod aura_effects;
 pub mod melee_damage;
 pub mod melee_rules;
+pub mod login_spell_rules;
 mod records;
 mod state;
 pub mod player_cast;
