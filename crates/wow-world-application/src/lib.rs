@@ -5,6 +5,7 @@
 //! Application-level operations shared by World adapters.
 
 pub mod vendor;
+pub mod character_creation;
 mod profession;
 mod player_conditions;
 mod quest;
