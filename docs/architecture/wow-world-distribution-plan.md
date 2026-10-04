@@ -4279,6 +4279,71 @@ no pueden resolverse. La decisión pendiente es añadir ese rol al modelo (con s
 fuentes y su clasificación de no-autoridad) o nominalizar las fachadas World que lo consumen;
 no se tomó en esta ronda.
 
+#### Gate de sesión en verde — 2026-10-04, checkpoints `ce94e5760` y `a909bec6d`
+
+Se resolvió la decisión anterior añadiendo `PackageRole::WorldApplication` (constantes de
+paquete/crate raíz, filtro de fuentes de puente, exclusiones de contrato de sesión y
+recolección). Con eso los 64 `cannot resolve bridge provenance` pasan a **0** y el inventario
+llega a la comparación de baseline. Además: `handler-module-policy.json` autoriza los
+registradores de App `crate::equipment_set_use` y `crate::bank`; el audit de propiedad de
+registro salta las fuentes que ningún contexto puede compilar en producción (una fixture
+`cfg(test)` no puede poseer un `PacketHandlerEntry` de producción); y
+`wow-world-core::canonical_access::inventory` se renombra a `owned_inventory` (fichero y
+directorio), porque el paquete tiene una ruta de dependencia normal opcional a `inventory` y
+la herramienta trata un módulo local `inventory` como shadowing del crate; el nombre
+reexportado del tipo no cambia.
+
+El baseline `session-ownership-policy.json` se reconcilió con el delta revisado de las
+mudanzas F4–F6: 3 filas de campo de `WorldSession` cambiadas (`config`/`inventory` a
+`pub(crate)`, `dispatch_table` a `Arc<WorldPacketHandlerRegistry>`), impls 162→165 (+4 impls
+host de los registradores directos y el controlador de recompensas de quest, −2 retirados),
+ítems asociados 3204→3180, filas de registro directo 648→670 (wow-world −81/+1, core
++59/−10, social +21, loot +20, lifecycle +8, application +2, spell +2), bridges 84→85; el
+resto de secciones sin cambios.
+
+Cierre de la suite (defectos de herramienta, no de fuente):
+
+- la gramática del registrador y el visitante de llamadas ignoran los ítems que no pueden
+  existir en producción: un hijo `#[path]` de test llega *spliceado* dentro de su padre y
+  llama registradores para sus propias fixtures; imputar esas llamadas a la composición del
+  padre hacía fallar a `handlers/character/mod.rs` (que splicea el árbol de tests de
+  character) contra la regla de los dos compositores;
+- la regresión de dueño ajeno apunta su `impl … WorldSession` a
+  `wow_world::session::WorldSession`, la ruta que la fixture sí define; la anterior
+  `crate::session::WorldSession` no resolvía en un paquete de dominio y rompía el inventario
+  antes de que la regla de propiedad pudiera informar;
+- la prueba del contrato de repositorio fija el conjunto revisado de 15 paquetes de
+  producción que el informe ya lista (la extracción #1263 añadió application, core y los
+  crates de dominio);
+- `audit_package_source_graph` devuelve además las fuentes imposibles en producción y el
+  audit de propiedad de registro las salta; `ownership.rs` se mantiene dentro de su
+  presupuesto por defecto de 2000 líneas.
+
+**Evidencia ejecutada** (bucle del implementador; `CARGO_BUILD_JOBS=1`,
+`CARGO_INCREMENTAL=0`, `CARGO_TARGET_DIR=/home/server/rustycore-1241/target`):
+
+| Orden | Resultado |
+| --- | --- |
+| `cargo test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml` | **443 ok / 0 fallos** (antes 434/9) |
+| `… --bin session-ownership-check -- check --syntax-only` | **PASS** (16 campos de producción + 1 fixture, 165 impl owners / 3180 ítems, 8 campos de `SessionResources`, 41 variantes de `SessionCommand`, 670 filas de registro) |
+| `python3 tools/architecture/check_architecture.py check` | exit 1: ratchet físico, 7 filas |
+
+`handler contract: PASS (478 snapshot rows; 377 legacy-direct + 14 builder + 87 macro
+registrations; one dispatch mechanism; 15 production packages / 1879 sources clean; 50
+workspace packages / 2957 production sources checked; 614 #[path] modules verified)`.
+
+**Pendiente inmediato del gate**: el ratchet físico señala 7 ficheros por encima de su techo
+(`world-server/src/app.rs` 5676/5675, `world-server/src/lib.rs` 2113/2110,
+`wow-world-core/src/map_manager/mod.rs` 259/251,
+`wow-world/src/handlers/character/world_entry/login.rs` 922/920,
+`wow-world/src/handlers/loot/handlers.rs` 996/994,
+`wow-world/src/handlers/quest/handlers.rs` 471/470,
+`handler-contract-check/src/tests/mod.rs` 92/90). Son crecimientos de las mudanzas previas de
+la rama, no de esta ronda, y exigen reducción o revisión registrada del techo. Después queda
+el inventario de persistencia del `check` completo, `check_architecture.py self-test`, el
+ledger R1 y la campaña `final`, que además ya se sabe que supera los 600 s. Sin `final`,
+capturas, live, push ni cierre.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
