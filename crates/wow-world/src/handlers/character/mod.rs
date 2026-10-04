@@ -48,9 +48,9 @@ use wow_constants::unit::{
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, EnchantmentSlot, InventoryResult,
-    InventoryType, ItemBondingType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
-    ItemFlags2, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId, TypeMask,
+    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, InventoryResult,
+    InventoryType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
+    ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId, TypeMask,
     UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
@@ -66,15 +66,20 @@ use wow_data::{
     calculate_player_stat_system_like_cpp, hotfix_locale_mask,
     is_player_meeting_condition_like_cpp,
 };
+// Test-only types whose production users moved to `wow-world-inventory`.
+#[cfg(test)]
+pub(crate) use wow_entities::SocketedGem;
+#[cfg(test)]
+pub(crate) use wow_constants::{EnchantmentSlot, ItemBondingType};
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
     CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
     GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
     INVENTORY_SLOT_ITEM_START, InventoryStorageMovePlanLikeCpp, MAX_BAG_SIZE, MAX_MONEY_AMOUNT,
-    MovementGeneratorType, NULL_BAG, NULL_SLOT, PlayerEffectiveCombatStatsLikeCpp,
+    MovementGeneratorType, NULL_BAG, NULL_SLOT,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SocketedGem,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan,
     SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos,
     is_inventory_pos, item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
@@ -173,7 +178,6 @@ const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
-const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
 
 pub(crate) use wow_world_core::map_manager::MapCorpseLoadOutcomeLikeCpp;
 
@@ -349,12 +353,6 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
     } else {
         saved_slots
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LoadedItemRandomPropertiesLikeCpp {
-    id: i32,
-    seed: i32,
 }
 
 fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {

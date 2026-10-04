@@ -46,6 +46,7 @@ mod state;
 mod collection_adapter;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
+pub mod loaded_item_support;
 
 pub use auction_contracts::{
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
