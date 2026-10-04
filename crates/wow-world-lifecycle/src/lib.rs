@@ -13,6 +13,7 @@ mod persistence_capabilities;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixture;
+pub mod loot_delivery_contracts;
 pub mod loot_template_rules;
 pub mod login_transport;
 

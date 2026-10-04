@@ -783,9 +783,12 @@ use wow_network::{SocketWriteFenceLikeCpp, SocketWriteFenceWaitResultLikeCpp};
 
 use registry::PacketHandlerEntry;
 use wow_loot::{
-    LootClaimLease, LootStoreKind, LootStores, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
-    OwnedLootAuthorityStamp, OwnedLootScope, OwnedLootSnapshot,
+    LootClaimLease, LootStores, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
+    OwnedLootAuthorityStamp,
 };
+// Test-only: the session fixtures still read these through this prelude.
+#[cfg(test)]
+pub(crate) use wow_loot::LootStoreKind;
 use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::SocketTimeoutsLikeCpp;
 use wow_network::session_mgr::SessionManager;
