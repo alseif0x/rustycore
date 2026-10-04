@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `78447d971` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `33103aeb9` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `33103aeb9` (metadatos y planificación de hechizos de criatura en
+`wow-world-entities`) se repitió el mismo conjunto: `cargo check --workspace
+--all-targets` verde (0 errores, con límite ampliado), `wow-world --all-targets` (con y sin
+`test-fixtures`), `wow-world-entities --all-targets --features test-fixtures` y
+`wow-world-application --all-targets` verdes; `cargo test -p wow-world --lib` **3.632 passed /
+0 failed / 1 ignored**; `wow-world-entities --features test-fixtures` 2/2;
+`wow-world-application` 52/52; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `78447d971` (reglas de plantilla de botín en wow-world-lifecycle) se
 repitió el mismo conjunto: `cargo check --workspace --all-targets` (verde, 0 errores, con
@@ -3924,6 +3932,15 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- el cluster de hechizos de criatura independiente de sesión pasó a
+  `wow-world-entities`: `session/creature_spell_metadata.rs` (418 líneas: objetivo/condición
+  de IA, perfiles de cooldown y metadatos de lanzamiento) y
+  `session/creature_spell_planning.rs` (316 líneas: identidad de encarnación, plan de
+  lanzamiento y rechazos de representación). Se reapuntaron sus dependencias a Core
+  (`LegacyCreatureAggroConfigLikeCpp`, `creature_ai_spell_difficulty_chain_like_cpp`,
+  `map_manager::WorldCreature`), `wow-core`, `wow-data` y `wow-loot`, y se limpiaron las
+  cuatro entradas del prelude de `session/mod.rs` que quedaron sin uso (una de ellas movida a
+  `#[cfg(test)]`, que es su único consumidor restante);
 - las reglas de tirada de plantillas de botín (`handlers/spell/state.rs`, 336 líneas: modos
   de botín, `LootTemplateFrame`, metadatos de addon de ítem, tiradas por fila plana/referencia/
   grupo y transformación de regalo envuelto) pasaron a
