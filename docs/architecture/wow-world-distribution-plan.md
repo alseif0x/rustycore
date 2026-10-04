@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `d1889a262` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `4ae932475` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,12 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `4ae932475` (valores de spell click en App) se repitió el mismo conjunto:
+`cargo check --workspace --all-targets` verde (0 errores, con límite ampliado),
+`wow-world --all-targets` (con y sin `test-fixtures`) y `wow-world-application --all-targets`
+verdes; `cargo test -p wow-world --lib` **3.632 passed / 0 failed / 1 ignored**;
+`wow-world-application` 52/52; sin líneas de aviso nuevas.
 
 Sobre el checkpoint `d1889a262` (admisión y publicación de hechizos de criatura en
 `wow-world-entities`) se repitió el mismo conjunto: `cargo check --workspace --all-targets`
@@ -3947,6 +3953,15 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- los valores de identidad de spell click / cast (`session/spell_click_values.rs`, 150
+  líneas: slot de summon object, destino near-or-DB, GUID de cast representado, flags de NPC
+  click y el enum de resultado clickee/caster) pasaron a
+  `wow-world-application/src/spell_click_values.rs`; la fachada World reexporta con
+  `pub(crate)` y los dos límites que usa el resto de World (`MAX_GAMEOBJECT_SLOT_LIKE_CPP` para
+  `effect_summon`, y `SPELL_CAST_SOURCE_NORMAL_LIKE_CPP`, solo de pruebas) se reexportan desde
+  `session/mod.rs`, el segundo bajo `#[cfg(test)]`. La reexportación de
+  `RepresentedVehicle*LikeCpp` (solo pruebas) se plegó a
+  `#[cfg(any(test, feature = "test-fixtures"))]`;
 - la admisión y la publicación de hechizos de criatura
   (`session/creature_spell_admission.rs` 239 líneas: validación de objetivo, rango efectivo y
   rechazo de torreta; y `session/creature_spell_publication.rs` 234 líneas: perfiles de
@@ -4079,6 +4094,16 @@ Con la característica activada ambas suites pasan (`wow-world-spell` 3/3, `wow-
 0/0). La receta de aceptación debe usar `--features test-fixtures` (o la invocación de
 workspace/`final`, donde las características se unifican); una ejecución por paquete sin la
 característica no es una configuración soportada de estos crates.
+
+**Intentos evaluados y revertidos en esta ronda** (registrados para no repetirlos):
+- `session/spell_click_values.rs` hacia `wow-world-entities`: imposible sin ciclo, porque el
+  módulo reexporta un tipo de App (`RepresentedCanSeeSpellClickOutcomeLikeCpp`) y entities está
+  por debajo de App; se resolvió moviéndolo a App;
+- `spell_acquisition/effect_learning.rs` hacia App: la compilación avanzó, pero al ser su
+  `use super::*` el prelude completo de `spell_acquisition`, el traslado dejaba sin uso ~20
+  elementos de `application.rs` y el import de varias listas de `spell_acquisition/mod.rs`;
+  se revirtió por completo para no arrastrar una limpieza amplia fuera de alcance. Queda como
+  corte propio con esa limpieza planificada.
 
 **Límite de este método**: retirar duplicados ya convergidos no alcanza el objetivo de F5
 (20–40k líneas en `wow-world`, hoy ~128k). F5 exige el rediseño de registro descrito en
