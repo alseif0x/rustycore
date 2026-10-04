@@ -12,7 +12,9 @@ mod registry_sync;
 mod spell_acquisition;
 mod instances;
 mod loot_release;
-pub use loot_release::LootReleaseCxLikeCpp;
+pub use loot_release::{
+    LootReleaseCxLikeCpp, represented_gameobject_can_autostore_loot_item_like_cpp,
+};
 mod stats;
 mod equipment_set_use;
 mod trainer_purchase;

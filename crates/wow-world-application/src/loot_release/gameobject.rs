@@ -299,105 +299,21 @@ impl LootReleaseCxLikeCpp<'_> {
     }
 
     /// C++ `GameObject::IsWithinDistInMap` gate for `HandleAutostoreLootItemOpcode`:
-    /// the represented GameObject position, display box and lock range, using
-    /// the same canonical/represented resolution as the World loot facade.
+    /// delegates to the free provider so the release context and the World
+    /// autostore opcode share one authority.
     pub(super) fn represented_gameobject_can_autostore_loot_item_like_cpp(
         &self,
         guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(state) = self.represented_gameobject_loot_state_like_cpp(guid) else {
-            return false;
-        };
-
-        // C++ ref: LootHandler.cpp HandleAutostoreLootItemOpcode skips distance
-        // for owned GameObjects and GAMEOBJECT_TYPE_FISHINGHOLE. DB spawns do
-        // not carry CreatedBy; apply the owner exception only when runtime GO
-        // state explicitly recorded GetOwnerGUID.
-        if state.owner_guid == Some(player_guid)
-            || state.go_type == Some(GAMEOBJECT_TYPE_FISHING_HOLE as u8)
-        {
-            return true;
-        }
-
-        match (self.hub_ref_like_cpp().player_position_like_cpp(), state.position) {
-            (Some(player), Some(position)) => {
-                let radius = wow_world_entities::represented_gameobject_interaction_distance_like_cpp(
-                    state.go_type,
-                    state.interact_radius_override,
-                );
-                let radius = self
-                    .represented_gameobject_spell_lock_range_like_cpp(state.lock_id)
-                    .unwrap_or(radius);
-                if let Some(display_info) = self
-                    .catalogs_like_cpp()
-                    .gameobject_display_info_store()
-                    .and_then(|store| {
-                        state
-                            .display_id
-                            .and_then(|display_id| store.get(display_id))
-                    })
-                {
-                    wow_world_entities::represented_gameobject_display_box_contains_like_cpp(
-                        position,
-                        player,
-                        display_info,
-                        state.scale,
-                        state.rotation,
-                        radius,
-                    )
-                } else {
-                    player.is_within_dist(&position, radius)
-                }
-            }
-            _ => true,
-        }
-    }
-
-    /// C++ `GameObject::GetLockRange`-style spell-lock gate: the largest range
-    /// among the spells the owner can use to open the lock.
-    fn represented_gameobject_spell_lock_range_like_cpp(
-        &self,
-        lock_id: Option<u32>,
-    ) -> Option<f32> {
-        let lock_id = lock_id?;
-        let catalogs = self.catalogs_like_cpp();
-        let lock = catalogs.lock_store()?.get(lock_id)?;
-        for i in 0..wow_data::lock::MAX_LOCK_CASE {
-            let lock_type = lock.lock_type[i];
-            if lock_type == 0 {
-                continue;
-            }
-
-            if lock_type == LOCK_KEY_SPELL_LIKE_CPP {
-                if let Some(range) = catalogs.represented_spell_max_range_like_cpp(lock.index[i]) {
-                    return Some(range);
-                }
-            }
-
-            if lock_type != LOCK_KEY_SKILL_LIKE_CPP {
-                break;
-            }
-
-            for spell_id in self.represented_known_spells_like_cpp() {
-                let Some(spell) = catalogs.spell_store().and_then(|store| store.get(spell_id))
-                else {
-                    continue;
-                };
-                let can_open_lock = spell.effects().iter().any(|effect| {
-                    effect.effect == SPELL_EFFECT_OPEN_LOCK_LIKE_CPP
-                        && effect.effect_misc_value_1 == lock.index[i]
-                        && effect.effect_base_points >= i32::from(lock.skill[i])
-                });
-                if can_open_lock {
-                    if let Some(range) = catalogs.represented_spell_max_range_like_cpp(spell_id) {
-                        return Some(range);
-                    }
-                }
-            }
-        }
-
-        None
+        represented_gameobject_can_autostore_loot_item_like_cpp(
+            self.loot,
+            self.world_entities,
+            self.hub_ref_like_cpp(),
+            &self.represented_known_spells_like_cpp(),
+            guid,
+            player_guid,
+        )
     }
 
     /// Canonical known spells, with the same absent-owner fixture fallback the
@@ -415,56 +331,6 @@ impl LootReleaseCxLikeCpp<'_> {
             return runtime.known_spells_like_cpp().to_vec();
         }
         canonical.unwrap_or_default()
-    }
-
-    /// C++ `Loot::GetOwnerGUID`-backed represented GameObject state used by the
-    /// release gates. Position and owner prefer the canonical map object and
-    /// fall back to the represented runtime state, matching the World facade.
-    fn represented_gameobject_loot_state_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectLootStateLikeCpp> {
-        if !guid.is_game_object() {
-            return None;
-        }
-
-        let hub = self.hub_ref_like_cpp();
-        let canonical_position = self.loot.canonical_map_object_position_for_loot_like_cpp(
-            hub,
-            guid,
-            &[
-                wow_entities::AccessorObjectKind::GameObject,
-                wow_entities::AccessorObjectKind::Transport,
-            ],
-        );
-        let canonical_owner = self
-            .loot
-            .canonical_gameobject_owner_for_loot_like_cpp(hub, guid);
-        let represented_state = self
-            .world_entities
-            .represented_gameobject_use_state_like_cpp(guid);
-        if canonical_position.is_none()
-            && represented_state.and_then(|state| state.position).is_none()
-            && !hub.core.client_visible_guids_like_cpp.contains(&guid)
-        {
-            return None;
-        }
-
-        Some(RepresentedGameObjectLootStateLikeCpp {
-            position: canonical_position
-                .or_else(|| represented_state.and_then(|state| state.position)),
-            display_id: represented_state.and_then(|state| state.display_id),
-            scale: represented_state.map(|state| state.scale).unwrap_or(1.0),
-            rotation: represented_state
-                .map(|state| state.rotation)
-                .unwrap_or([0.0, 0.0, 0.0, 1.0]),
-            go_type: represented_state.and_then(|state| state.go_type),
-            interact_radius_override: represented_state
-                .and_then(|state| state.interact_radius_override),
-            lock_id: represented_state.and_then(|state| state.lock_id),
-            owner_guid: canonical_owner
-                .or_else(|| represented_state.and_then(|state| state.owner_guid)),
-        })
     }
 
     /// C++ `GameObject::OnLootRelease` GATHERING_NODE branch: after
@@ -681,4 +547,157 @@ struct RepresentedGameObjectLootStateLikeCpp {
     interact_radius_override: Option<u32>,
     lock_id: Option<u32>,
     owner_guid: Option<ObjectGuid>,
+}
+
+/// C++ `GameObject::IsWithinDistInMap` gate for `HandleAutostoreLootItemOpcode`.
+///
+/// Free form so the World autostore opcode and the release context evaluate the
+/// identical owner, display-box and spell-lock gates against one authority.
+pub fn represented_gameobject_can_autostore_loot_item_like_cpp(
+    loot: &wow_world_loot::LootState,
+    world_entities: &wow_world_entities::WorldEntitiesState,
+    hub: HubRef<'_>,
+    known_spells: &[i32],
+    guid: ObjectGuid,
+    player_guid: ObjectGuid,
+) -> bool {
+    let Some(state) = represented_gameobject_loot_state_like_cpp(loot, world_entities, hub, guid)
+    else {
+        return false;
+    };
+
+    // C++ ref: LootHandler.cpp HandleAutostoreLootItemOpcode skips distance
+    // for owned GameObjects and GAMEOBJECT_TYPE_FISHINGHOLE. DB spawns do
+    // not carry CreatedBy; apply the owner exception only when runtime GO
+    // state explicitly recorded GetOwnerGUID.
+    if state.owner_guid == Some(player_guid)
+        || state.go_type == Some(GAMEOBJECT_TYPE_FISHING_HOLE as u8)
+    {
+        return true;
+    }
+
+    match (hub.player_position_like_cpp(), state.position) {
+        (Some(player), Some(position)) => {
+            let radius = wow_world_entities::represented_gameobject_interaction_distance_like_cpp(
+                state.go_type,
+                state.interact_radius_override,
+            );
+            let radius = represented_gameobject_spell_lock_range_like_cpp(
+                hub.catalogs,
+                known_spells,
+                state.lock_id,
+            )
+            .unwrap_or(radius);
+            if let Some(display_info) = hub
+                .catalogs
+                .gameobject_display_info_store()
+                .and_then(|store| {
+                    state
+                        .display_id
+                        .and_then(|display_id| store.get(display_id))
+                })
+            {
+                wow_world_entities::represented_gameobject_display_box_contains_like_cpp(
+                    position,
+                    player,
+                    display_info,
+                    state.scale,
+                    state.rotation,
+                    radius,
+                )
+            } else {
+                player.is_within_dist(&position, radius)
+            }
+        }
+        _ => true,
+    }
+}
+
+/// C++ `GameObject::GetLockRange`-style spell-lock gate: the largest range
+/// among the spells the owner can use to open the lock.
+fn represented_gameobject_spell_lock_range_like_cpp(
+    catalogs: &SessionCatalogs,
+    known_spells: &[i32],
+    lock_id: Option<u32>,
+) -> Option<f32> {
+    let lock_id = lock_id?;
+    let lock = catalogs.lock_store()?.get(lock_id)?;
+    for i in 0..wow_data::lock::MAX_LOCK_CASE {
+        let lock_type = lock.lock_type[i];
+        if lock_type == 0 {
+            continue;
+        }
+
+        if lock_type == LOCK_KEY_SPELL_LIKE_CPP {
+            if let Some(range) = catalogs.represented_spell_max_range_like_cpp(lock.index[i]) {
+                return Some(range);
+            }
+        }
+
+        if lock_type != LOCK_KEY_SKILL_LIKE_CPP {
+            break;
+        }
+
+        for &spell_id in known_spells {
+            let Some(spell) = catalogs.spell_store().and_then(|store| store.get(spell_id)) else {
+                continue;
+            };
+            let can_open_lock = spell.effects().iter().any(|effect| {
+                effect.effect == SPELL_EFFECT_OPEN_LOCK_LIKE_CPP
+                    && effect.effect_misc_value_1 == lock.index[i]
+                    && effect.effect_base_points >= i32::from(lock.skill[i])
+            });
+            if can_open_lock {
+                if let Some(range) = catalogs.represented_spell_max_range_like_cpp(spell_id) {
+                    return Some(range);
+                }
+            }
+        }
+    }
+
+    None
+}
+
+/// C++ `Loot::GetOwnerGUID`-backed represented GameObject state used by the
+/// release gates. Position and owner prefer the canonical map object and fall
+/// back to the represented runtime state, matching the World facade.
+fn represented_gameobject_loot_state_like_cpp(
+    loot: &wow_world_loot::LootState,
+    world_entities: &wow_world_entities::WorldEntitiesState,
+    hub: HubRef<'_>,
+    guid: ObjectGuid,
+) -> Option<RepresentedGameObjectLootStateLikeCpp> {
+    if !guid.is_game_object() {
+        return None;
+    }
+
+    let canonical_position = loot.canonical_map_object_position_for_loot_like_cpp(
+        hub,
+        guid,
+        &[
+            wow_entities::AccessorObjectKind::GameObject,
+            wow_entities::AccessorObjectKind::Transport,
+        ],
+    );
+    let canonical_owner = loot.canonical_gameobject_owner_for_loot_like_cpp(hub, guid);
+    let represented_state = world_entities.represented_gameobject_use_state_like_cpp(guid);
+    if canonical_position.is_none()
+        && represented_state.and_then(|state| state.position).is_none()
+        && !hub.core.client_visible_guids_like_cpp.contains(&guid)
+    {
+        return None;
+    }
+
+    Some(RepresentedGameObjectLootStateLikeCpp {
+        position: canonical_position.or_else(|| represented_state.and_then(|state| state.position)),
+        display_id: represented_state.and_then(|state| state.display_id),
+        scale: represented_state.map(|state| state.scale).unwrap_or(1.0),
+        rotation: represented_state
+            .map(|state| state.rotation)
+            .unwrap_or([0.0, 0.0, 0.0, 1.0]),
+        go_type: represented_state.and_then(|state| state.go_type),
+        interact_radius_override: represented_state.and_then(|state| state.interact_radius_override),
+        lock_id: represented_state.and_then(|state| state.lock_id),
+        owner_guid: canonical_owner.or_else(|| represented_state.and_then(|state| state.owner_guid)),
+    })
 }

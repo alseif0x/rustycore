@@ -44,6 +44,8 @@ mod publication;
 mod authority;
 mod registry;
 
+pub use gameobject::represented_gameobject_can_autostore_loot_item_like_cpp;
+
 pub struct LootReleaseCxLikeCpp<'a> {
     owner: wow_world_core::session::LootReleaseOwnerAccessLikeCpp<'a>,
     loot: &'a mut wow_world_loot::LootState,
