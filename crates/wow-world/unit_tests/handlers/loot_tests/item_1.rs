@@ -326,7 +326,7 @@ fn durable_item_fanout_uses_precommit_union_exact_commit_cut_like_cpp() {
     let after = ObjectGuid::create_player(1, 43);
 
     let viewers =
-        super::super::durable_loot_item_fanout_viewers_like_cpp(&[before], &[before, during]);
+        wow_world_application::durable_loot_item_fanout_viewers_like_cpp(&[before], &[before, during]);
 
     assert_eq!(viewers, HashSet::from([before, during]));
     assert!(

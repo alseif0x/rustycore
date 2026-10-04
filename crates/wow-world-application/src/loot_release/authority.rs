@@ -26,7 +26,7 @@ impl LootReleaseCxLikeCpp<'_> {
         fallback_fully_looted
     }
 
-    fn represented_owned_loot_authority_like_cpp(&mut self, guid: ObjectGuid) -> Option<OwnedLootAuthority> {
+    pub(super) fn represented_owned_loot_authority_like_cpp(&mut self, guid: ObjectGuid) -> Option<OwnedLootAuthority> {
         self.owner.represented_owned_loot_authority_like_cpp(guid)
     }
 

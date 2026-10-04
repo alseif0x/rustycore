@@ -40,11 +40,13 @@ mod item;
 mod gameobject;
 mod creature;
 mod detached;
+mod fanout;
 mod publication;
 mod authority;
 mod registry;
 
 pub use item::direct_item_count_after_loot_release_like_cpp;
+pub use fanout::durable_loot_item_fanout_viewers_like_cpp;
 pub use gameobject::{
     queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,

@@ -49,7 +49,7 @@ mod sources;
 mod storage_plans;
 mod visibility_commands;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -179,17 +179,6 @@ const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
 // ── Handler registrations ─────────────────────────────────────────
 
 // ── Handler implementations ───────────────────────────────────────
-
-fn durable_loot_item_fanout_viewers_like_cpp(
-    precommit_viewers: &[ObjectGuid],
-    committed_viewers: &[ObjectGuid],
-) -> HashSet<ObjectGuid> {
-    precommit_viewers
-        .iter()
-        .chain(committed_viewers)
-        .copied()
-        .collect()
-}
 
 fn master_loot_error_for_inventory_result_like_cpp(result: InventoryResult) -> Option<u8> {
     match result {
