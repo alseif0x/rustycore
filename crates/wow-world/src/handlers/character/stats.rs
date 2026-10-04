@@ -82,14 +82,5 @@ impl WorldSession {
         state.apply_represented_shapeshift_base_attack_time_like_cpp(&mut hub)
     }
 
-    /// C++ `Player::InitDataForForm` plus the `UpdateDamagePhysical` refresh at
-    /// a shapeshift aura apply/removal: reinstall the base attack times and
-    /// republish the weapon ranges the form rescales.
-    pub(crate) fn sync_represented_shapeshift_form_like_cpp(
-        &mut self,
-        mutation: crate::session::RepresentedShapeshiftMutationLikeCpp,
-    ) {
-        self.player_aura_application_cx_like_cpp().sync_shapeshift_form_like_cpp(mutation);
-    }
 
 }

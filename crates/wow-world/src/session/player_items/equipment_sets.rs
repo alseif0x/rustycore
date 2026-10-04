@@ -139,21 +139,6 @@ impl WorldSession {
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
         self.catalogs.items.child_equipment_store = Some(store);
     }
-    pub(crate) fn apply_initial_equipped_item_set_auras_like_cpp(&mut self) -> Option<usize> {
-        let mut equipped: Vec<_> = self
-            .resolved_inventory_item_objects_like_cpp()?
-            .values()
-            .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
-            .map(|item| (item.slot(), item.object().guid()))
-            .collect();
-        equipped.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
-        Some(
-            equipped
-                .into_iter()
-                .map(|(_slot, item_guid)| self.apply_initial_item_set_auras_like_cpp(item_guid))
-                .sum(),
-        )
-    }
     #[cfg(test)]
     pub fn set_creature_equipment_store_like_cpp(
         &mut self,

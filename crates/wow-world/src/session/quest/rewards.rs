@@ -35,16 +35,6 @@ impl WorldSession {
             state.set_status_authority_complete_like_cpp(true);
         });
     }
-    pub(crate) fn represented_player_has_rewarded_quest_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Option<bool> {
-        Some(
-            self.player_quest_gameplay_snapshot_like_cpp()?
-                .rewarded_quest_ids_like_cpp()
-                .contains(&quest_id),
-        )
-    }
     /// Set the QuestFactionReward store used by C++ quest reputation reward lookup.
     pub fn set_quest_faction_reward_store(&mut self, store: Arc<QuestFactionRewardStore>) {
         self.catalogs.quests.faction_reward_store = Some(store);

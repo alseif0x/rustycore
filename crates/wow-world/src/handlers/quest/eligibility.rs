@@ -8,16 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    /// World facade for the Application-owned represented dialog-status operation.
-    pub(crate) fn get_represented_quest_giver_status_like_cpp(
-        &self,
-        source: RepresentedQuestGiverStatusSourceLikeCpp,
-    ) -> u64 {
-        self.get_represented_quest_giver_status_with_catalog_like_cpp(
-            self.catalogs.quests.info_store.as_deref(),
-            source,
-        )
-    }
 
     pub(crate) fn get_represented_quest_giver_status_with_catalog_like_cpp(
         &self,

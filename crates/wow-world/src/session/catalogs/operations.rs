@@ -55,28 +55,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.update_speak_time_with_policy_like_cpp(&mut hub, index, config)
     }
-    pub(crate) fn send_void_withdrawal_post_store_item_values_update_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        create_dynamic_flags: u32,
-    ) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return;
-        };
-        let Some(update) = crate::session::void_withdrawal_post_store_item_values_update_like_cpp(
-            &item,
-            create_dynamic_flags,
-        ) else {
-            return;
-        };
-        if let Some(packet) = item_values_update_to_update_object(
-            item_guid,
-            self.core.player_map_id_like_cpp(),
-            &update,
-        ) {
-            self.send_packet(&packet);
-        }
-    }
     /// Set the random property points store for this session.
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
         self.catalogs.rand_prop_points_store = Some(store);

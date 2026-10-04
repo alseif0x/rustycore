@@ -81,19 +81,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_non_bank_item_count_like_cpp(hub, entry_id)
     }
-    pub(crate) fn plan_bank_existing_inventory_item_like_cpp(
-        &self,
-        source_bag: u8,
-        source_slot: u8,
-    ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
-        self.plan_bank_existing_inventory_item_at_like_cpp(
-            source_bag,
-            source_slot,
-            NULL_BAG,
-            NULL_SLOT,
-            false,
-        )
-    }
     pub(crate) fn plan_bank_existing_inventory_item_at_like_cpp(
         &self,
         source_bag: u8,

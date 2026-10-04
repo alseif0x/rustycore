@@ -46,11 +46,6 @@ pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status:
     });
 }
 
-pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray_level: u8) {
-    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
-        player.set_level_and_gray_level_like_cpp(level, gray_level);
-    });
-}
 
 #[cfg(test)]
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {

@@ -27,15 +27,6 @@ const SPELL_VISUAL_KIT_FOOD_LIKE_CPP: i32 = 406;
 /// C++ `SPELL_VISUAL_KIT_DRINK` (`SharedDefines.h:398`).
 const SPELL_VISUAL_KIT_DRINK_LIKE_CPP: i32 = 438;
 
-/// The aura modifiers C++ `Player::RegenerateHealth` reads for one tick.
-struct HealthRegenAuraInputsLikeCpp {
-    mod_regen: i32,
-    health_regen_percent: f32,
-    has_mod_regen_during_combat: bool,
-    mod_regen_during_combat: i32,
-    has_mod_health_regen_in_combat: bool,
-    mod_health_regen_in_combat: i32,
-}
 
 /// One represented power prepared for the C++ `RegenerateAll` power loop.
 struct RepresentedPowerRegenLikeCpp {

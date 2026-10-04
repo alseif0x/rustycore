@@ -105,29 +105,6 @@ impl WorldSession {
             preferences.2,
         )
     }
-    /// C++ `Player::SetGroup(group, subgroup)` stores the subgroup on the
-    /// player's `GroupReference`; `Player::GetSubGroup()` reads it from there.
-    pub(crate) fn load_represented_group_subgroup_like_cpp(&mut self) -> bool {
-        let (Some(group_guid), Some(player_guid), Some(group_registry)) = (
-            self.resolved_group_guid_like_cpp(),
-            self.player_guid(),
-            self.core.directory.group_registry.as_ref(),
-        ) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-
-        let Some(group) = group_registry.get(&group_guid) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-        let Some(slot) = group.member_slot_like_cpp(player_guid) else {
-            let _ = self.set_owned_player_group_like_cpp(None);
-            return false;
-        };
-
-        self.set_owned_player_group_like_cpp(Some((group_guid, slot.subgroup)))
-    }
     /// C++ `Player::_LoadGroup` resolves `CHAR_SEL_GROUP_MEMBER.guid` through
     /// `sGroupMgr->GetGroupByDbStoreId` before attaching the player to the
     /// already-loaded group.

@@ -44,30 +44,6 @@ pub(crate) fn write_absorbed_shield_amount_like_cpp(
 }
 
 impl WorldSession {
-    pub(in crate::session) fn represented_weapon_damage_bounds_like_cpp(
-        &self,
-        item_entry: u32,
-        weapon: &wow_data::ItemWeaponTemplateEntry,
-    ) -> (f32, f32) {
-        let access = self.core.owned_item_modifiers_access_like_cpp();
-        let catalogs = wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-            self.catalogs.scaling_stat_distribution_store.as_ref(),
-            self.catalogs.scaling_stat_values_store.as_ref(),
-            self.catalogs.shield_block_regular_game_table.as_ref(),
-            self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
-        );
-        self.inventory
-            .represented_weapon_damage_bounds_with_access_like_cpp(
-                &access,
-                &catalogs,
-                item_entry,
-                weapon,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.identity.player_level,
-            )
-    }
     /// C++ `Unit::CalcAbsorbResist`'s absorb publication for one melee hit
     /// (`Unit.cpp:1876-1889`): per shield that consumed part of the hit, send the
     /// victim `SMSG_SPELL_ABSORB_LOG` and then remove the aura C++

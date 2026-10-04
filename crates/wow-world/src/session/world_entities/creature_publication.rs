@@ -23,17 +23,6 @@ impl WorldSession {
             false,
         );
     }
-    pub(crate) fn broadcast_creature_packet_to_visible_set_realm_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        bytes: Vec<u8>,
-    ) {
-        self.broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
-            source_guid,
-            bytes,
-            true,
-        );
-    }
     pub(crate) fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>) {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.broadcast_player_packet_to_visible_set_realm_like_cpp(hub, bytes)

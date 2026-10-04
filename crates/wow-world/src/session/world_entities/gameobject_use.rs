@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn add_use_and_get_canonical_gameobject_use_count_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> Option<u32> {
-        self.mutate_canonical_gameobject_by_guid_like_cpp(guid, |gameobject| {
-            gameobject.add_use_like_cpp();
-            gameobject.use_times()
-        })
-    }
     pub(crate) fn represented_gameobject_can_interact_with_like_cpp(
         &self,
         guid: ObjectGuid,

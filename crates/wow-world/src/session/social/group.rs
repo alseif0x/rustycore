@@ -87,17 +87,6 @@ impl WorldSession {
     pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
         self.config.party_level_req_like_cpp
     }
-    pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
-        self.core.canonical_player_snapshot_like_cpp(|player| {
-            let power_type = player.unit().data().display_power;
-            let power = party_member_power_kind_from_u8_like_cpp(power_type);
-            (
-                power_type,
-                party_member_power_to_u16_like_cpp(player.get_power(power)),
-                party_member_power_to_u16_like_cpp(player.get_max_power(power)),
-            )
-        })
-    }
     pub(crate) fn send_player_party_type_update_like_cpp(&self, category: u8, party_type: u8) {
         let (state, hub) = crate::session::split_social_ref(self);
         state.send_player_party_type_update_like_cpp(hub, category, party_type)

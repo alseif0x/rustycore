@@ -133,18 +133,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.insert_inventory_item_like_cpp(&mut hub, slot, item)
     }
-    pub(crate) fn send_inventory_item_pending_values_update_like_cpp(&self, item_guid: ObjectGuid) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return;
-        };
-        if let Some(packet) = item_values_update_to_update_object(
-            item_guid,
-            self.core.player_map_id_like_cpp(),
-            &item.values_update(),
-        ) {
-            self.send_packet(&packet);
-        }
-    }
     pub(crate) fn remove_inventory_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_item_like_cpp(&mut hub, slot)

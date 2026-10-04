@@ -6,23 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    fn apply_represented_player_environmental_death_like_cpp(&mut self) {
-        // C++ `Player::EnvironmentalDamage` routes lethal damage through
-        // `Unit::Kill` -> `Player::setDeathState(JUST_DIED)` before the client
-        // proceeds into release/cemetery flows.
-        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .set_death_state(wow_constants::DeathState::JustDied);
-            player.unit_mut().set_health(0);
-        });
-        #[cfg(test)]
-        {
-            self.fixtures.combat.player_health_like_cpp = 0;
-            self.fixtures.combat.player_alive_like_cpp = false;
-        }
-        self.sync_player_registry_state_like_cpp();
-    }
     pub(in crate::session) fn player_resurrection_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerResurrectionStateLikeCpp> {

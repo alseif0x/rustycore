@@ -243,23 +243,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.remove_world_creature(&mut hub, guid)
     }
-    fn relocate_canonical_creature_map_object_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        position: wow_core::Position,
-    ) {
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return;
-        };
-        relocate_canonical_creature_map_object_on_map_like_cpp(
-            manager,
-            u32::from(map_id),
-            instance_id,
-            guid,
-            position,
-        );
-    }
 }
 
 
