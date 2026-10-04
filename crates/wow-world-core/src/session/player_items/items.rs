@@ -1,8 +1,9 @@
 use crate::session::item_modifiers::player_class_mask_for_transmog_like_cpp;
 use crate::session::state::SessionCore;
+use std::sync::Arc;
 use wow_constants::{ItemClass, ItemSubClassArmor};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
-use wow_data::SpellEquippedItemsEntry;
+use wow_data::{ShieldBlockRegularGameTableLikeCpp, SpellEquippedItemsEntry};
 use wow_entities::MAX_ITEM_SPELLS;
 
 impl SessionCore {

@@ -4,14 +4,14 @@
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::HashMap;
 
+mod equip;
+
 use crate::session::state::{HubRef, SessionCore};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::RepresentedPlayerSkillLikeCpp;
 use crate::session::represented_skill_values_from_records_like_cpp;
-use wow_data::{
-    ContentTuningStore, CurvePointStore, CurveStore, HeirloomStore, ItemSetEntry,
-    ItemSetSpellEntry, ItemStatsStore, SpellStore,
-};
+use wow_data::progression_rewards::{ContentTuningStore, CurvePointStore, CurveStore};
+use wow_data::{HeirloomStore, ItemSetEntry, ItemSetSpellEntry, ItemStatsStore, SpellStore};
 use wow_entities::Player;
 
 /// Read-only inputs for the ItemSet add/remove transition.

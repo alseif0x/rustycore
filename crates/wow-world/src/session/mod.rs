@@ -831,7 +831,7 @@ const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
 const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
 #[cfg(test)]
 const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
-const QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP: u32 = 0x0080;
+pub(crate) use wow_constants::quest::QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
@@ -850,7 +850,7 @@ pub(crate) use wow_world_core::session::{
 };
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
-const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP;
 pub(crate) const PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP: u32 = 0x2000_0000;
 pub(crate) use wow_constants::rest::{
     REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP,
@@ -1012,7 +1012,7 @@ use wow_world_core::session::{
 pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;
 pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};
 
-const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0000_0001;
+pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;

@@ -5,9 +5,10 @@ use std::sync::Arc;
 
 use wow_constants::{InventoryType, WeaponAttackType};
 use wow_core::ObjectGuid;
+use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
 use wow_data::{
-    ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, ScalingStatDistributionStore,
-    ScalingStatValuesStore, ShieldBlockRegularGameTableLikeCpp, SpellShapeshiftFormStore,
+    ItemStatsStore, ItemStore, ItemWeaponTemplateEntry, ShieldBlockRegularGameTableLikeCpp,
+    SpellShapeshiftFormStore,
 };
 use wow_entities::{
     ApplyEnchantmentEffectAction,

@@ -114,4 +114,3 @@ impl SessionQuestState {
         self.fixture_represented_push_quest_to_party_outcomes_like_cpp()
     }
 }
-

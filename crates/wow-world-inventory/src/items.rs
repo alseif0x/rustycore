@@ -19,11 +19,9 @@ use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, Item, ItemStorageTemplate,
     PlayerInventoryItem as InventoryItem, SpellCastBattlePetItemModifiersLikeCpp,
 };
+use crate::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionSellItemLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
-use crate::{
-    RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionSellItemLikeCpp,
-    RepresentedItemModsReapplyEventLikeCpp,
-};
+use crate::RepresentedItemModsReapplyEventLikeCpp;
 use crate::RepresentedItemSetSpellEventLikeCpp;
 use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
 

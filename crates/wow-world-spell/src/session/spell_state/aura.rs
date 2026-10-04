@@ -1,5 +1,13 @@
 use crate::SessionSpellState;
+use wow_entities::AuraApplicationLikeCpp as AuraApplication;
 use wow_world_core::session::{HubMut, HubRef};
+
+// The `aura` submodules live beside this file in `aura/`; the stale
+// `aura/mod.rs` stub that shadowed them was a leftover of the incomplete
+// module move and is removed.
+mod effect_queries;
+mod spell_hit_authority;
+
 fn attack_speed_multipliers_like_cpp(
     mut query: impl FnMut(i32) -> Option<Vec<(i32, i32)>>,
     ) -> [f32; 3] {

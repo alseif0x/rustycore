@@ -15,7 +15,7 @@ use wow_world_core::session::{
 
 use super::SessionLifecycleState;
 use crate::{
-    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp, AccountHeirloomDataLikeCpp,
+    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp,
     GLOBAL_CACHE_MASK_LIKE_CPP, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
 };
 
@@ -50,7 +50,10 @@ impl SessionLifecycleState {
                 }
                 None => 0,
             };
-            heirlooms.insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
+            heirlooms.insert(
+                item_id,
+                wow_entities::PlayerAccountHeirloomDataLikeCpp { flags, bonus_id },
+            );
         }
         let _ = hub.mutate_player_collection_state_like_cpp(|collections| {
             collections.replace_heirlooms_like_cpp(heirlooms);

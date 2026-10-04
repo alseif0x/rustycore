@@ -356,4 +356,3 @@ impl crate::session::LootCxRef<'_> {
         )
     }
 }
-

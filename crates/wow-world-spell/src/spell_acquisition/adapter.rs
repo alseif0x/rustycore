@@ -219,10 +219,12 @@ use wow_data::spell::spell_effect_types::{
     SPELL_EFFECT_SKILL_STEP,
 };
 use wow_data::SpellLinkedTypeLikeCpp;
-use wow_spell_acquisition::{
-    PlayerCastAcquisitionResolutionLikeCpp, PlayerExecutedDualWieldEffectLikeCpp,
+use wow_data::{
     SpellAcquisitionCatalogLikeCpp, SpellAcquisitionEffectLikeCpp,
     SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
+};
+use wow_spell_acquisition::{
+    PlayerCastAcquisitionResolutionLikeCpp, PlayerExecutedDualWieldEffectLikeCpp,
 };
 impl crate::SessionSpellState {
     /// Resolve the bounded normal-trainer wrapper against current represented
@@ -239,7 +241,10 @@ impl crate::SessionSpellState {
         self.resolve_trainer_wrapper_cast_acquisition_with_access_like_cpp(
             &hub.core.owned_spell_acquisition_access_like_cpp(),
             &hub.player_condition_access_like_cpp(),
-            hub.catalogs.spell_catalogs.spell_acquisition_catalog(),
+            hub.catalogs
+                .spell_catalogs
+                .spell_acquisition_catalog()
+                .map(AsRef::as_ref),
             hub.catalogs.difficulty_store().map(AsRef::as_ref),
             hub.catalogs.map_store().map(AsRef::as_ref),
             hub.catalogs.disable_mgr().map(AsRef::as_ref),

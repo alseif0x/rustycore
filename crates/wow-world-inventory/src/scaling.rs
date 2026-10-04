@@ -3,10 +3,10 @@
 
 use std::sync::Arc;
 
-use wow_data::{
-    ItemStore, ScalingStatDistributionEntry, ScalingStatDistributionStore,
-    ScalingStatValuesStore,
+use wow_data::progression_rewards::{
+    ScalingStatDistributionEntry, ScalingStatDistributionStore, ScalingStatValuesStore,
 };
+use wow_data::ItemStore;
 use wow_world_core::session::{HubRef, RepresentedScalingStatContextLikeCpp};
 
 impl crate::InventoryState {

@@ -35,6 +35,11 @@ impl QuestObjectiveAccessLikeCpp<'_> {
             .map(|access| access.entry)
     }
 
+    /// Resolve the credited player's race for a represented PvP objective kill.
+    pub fn quest_credit_race_like_cpp(&self, credit_guid: ObjectGuid) -> Option<u8> {
+        self.core.player_registry()?.quest_credit_race(credit_guid)
+    }
+
     /// Read one selected spell-click creature while its canonical map guard is held.
     pub fn with_spell_click_creature_like_cpp<R>(
         &self,
@@ -202,9 +207,6 @@ impl<'a> QuestObjectiveAccessLikeCpp<'a> {
     pub fn player_registry_sync_participants_like_cpp(
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<wow_core::Position>,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_max_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_alive: &'a bool,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
@@ -217,12 +219,6 @@ impl<'a> QuestObjectiveAccessLikeCpp<'a> {
         let position = self.core.player_registry_sync_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_position,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_max_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_alive,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_level,
             #[cfg(any(test, feature = "test-fixtures"))]

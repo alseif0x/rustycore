@@ -100,7 +100,13 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.transport,
             ) {
-                let sync = crate::PlayerRegistrySyncContext::new(position, control, self.loot);
+                let sync = crate::PlayerRegistrySyncContext::new(
+                    position,
+                    control,
+                    self.loot,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    self.player.registry_sync_inputs_like_cpp(),
+                );
                 #[cfg(any(test, feature = "test-fixtures"))]
                 let sync = sync.with_fixture_hydration(self.hydration);
                 sync.sync();

@@ -25,7 +25,7 @@ impl SessionCore {
         result
     }
 
-    fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
+    pub(crate) fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
         let map_id = u32::from(self.player_map_id_like_cpp());
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()

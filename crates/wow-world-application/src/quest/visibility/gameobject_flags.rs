@@ -7,7 +7,8 @@
 use std::time::Instant;
 
 use wow_core::ObjectGuid;
-use wow_entities::{GoState, RepresentedGameObjectUseState};
+use wow_entities::GoState;
+use wow_world_entities::RepresentedGameObjectUseState;
 
 use super::super::objectives::QuestObjectiveProgressCx;
 

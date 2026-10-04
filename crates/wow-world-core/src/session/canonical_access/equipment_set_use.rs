@@ -72,9 +72,6 @@ impl EquipmentSetUseAccessLikeCpp<'_> {
     pub fn player_registry_sync_capabilities_like_cpp<'a>(
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<Position>,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_max_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_alive: &'a bool,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
@@ -87,12 +84,6 @@ impl EquipmentSetUseAccessLikeCpp<'_> {
         let position = self.core.player_registry_sync_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_position,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_max_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_alive,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_level,
             #[cfg(any(test, feature = "test-fixtures"))]

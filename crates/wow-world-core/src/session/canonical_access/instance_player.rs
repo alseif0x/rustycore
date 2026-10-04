@@ -80,6 +80,6 @@ impl InstancePlayerAccessLikeCpp<'_> {
         let manager = manager.lock().ok()?;
         manager
             .find_map(map_id, instance_id)
-            .map(|managed| managed.map().difficulty())
+            .map(|managed| managed.difficulty())
     }
 }

@@ -86,21 +86,23 @@ impl crate::session::HubRef<'_> {
     /// Update this session's position (and map) in the player registry.
     /// Called whenever `player_position` changes.
     pub fn update_registry_position(&self) {
-        self.core
+        let position = self
+            .core
             .player_registry_sync_access_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
                 &self.fixtures.movement.player_position,
                 #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.combat.player_health_like_cpp,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.combat.player_max_health_like_cpp,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.combat.player_alive_like_cpp,
-                #[cfg(any(test, feature = "test-fixtures"))]
                 &self.fixtures.identity.player_level,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 &self.fixtures.vehicles.player_transport_login_state_like_cpp,
-            )
-            .update_registry_position();
+            );
+        position.update_registry_position(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &crate::session::RegistrySyncInputs::new_like_cpp(
+                &self.fixtures.combat.player_health_like_cpp,
+                &self.fixtures.combat.player_max_health_like_cpp,
+                &self.fixtures.combat.player_alive_like_cpp,
+            ),
+        );
     }
 }

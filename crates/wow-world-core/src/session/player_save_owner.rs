@@ -12,8 +12,8 @@ use std::collections::HashSet;
 use std::time::Instant;
 
 use wow_entities::{
-    Player, PlayerEquipmentSetTypeLikeCpp, PlayerEquipmentSetUpdateStateLikeCpp,
-    PlayerSpellLoadState,
+    Player, PlayerEquipmentSetTypeLikeCpp as EntitiesPlayerEquipmentSetTypeLikeCpp,
+    PlayerEquipmentSetUpdateStateLikeCpp, PlayerSpellLoadState,
 };
 use wow_map::{PlayerHandle, PlayerResidenceLikeCpp};
 use wow_persistence::{
@@ -766,10 +766,10 @@ fn request(
                     set_guid: equipment_set.guid,
                     set_id: equipment_set.set_id,
                     set_type: match equipment_set.set_type {
-                        PlayerEquipmentSetTypeLikeCpp::Equipment => {
+                        EntitiesPlayerEquipmentSetTypeLikeCpp::Equipment => {
                             PlayerEquipmentSetTypeLikeCpp::Equipment
                         }
-                        PlayerEquipmentSetTypeLikeCpp::Transmog => {
+                        EntitiesPlayerEquipmentSetTypeLikeCpp::Transmog => {
                             PlayerEquipmentSetTypeLikeCpp::Transmog
                         }
                     },

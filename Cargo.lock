@@ -3473,8 +3473,8 @@ dependencies = [
  "wow-world-application",
  "wow-world-core",
  "wow-world-entities",
- "wow-world-interaction",
  "wow-world-instances",
+ "wow-world-interaction",
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-loot",
@@ -3498,6 +3498,7 @@ dependencies = [
  "wow-entities",
  "wow-handler",
  "wow-instances",
+ "wow-loot",
  "wow-map",
  "wow-packet",
  "wow-persistence",
@@ -3568,16 +3569,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "wow-world-interaction"
-version = "0.1.0"
-dependencies = [
- "wow-core",
- "wow-entities",
- "wow-packet",
- "wow-world-core",
-]
-
-[[package]]
 name = "wow-world-instances"
 version = "0.1.0"
 dependencies = [
@@ -3589,6 +3580,16 @@ dependencies = [
  "wow-map",
  "wow-packet",
  "wow-social",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-interaction"
+version = "0.1.0"
+dependencies = [
+ "wow-core",
+ "wow-entities",
+ "wow-packet",
  "wow-world-core",
 ]
 

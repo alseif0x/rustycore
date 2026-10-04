@@ -3,6 +3,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use super::context::AppTrainerCx;
+use super::offer::{
+    TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerProductLikeCpp,
+    prepare_trainer_offer_like_cpp, trainer_price_like_cpp,
+};
 use super::{TrainerAdmissionProofLikeCpp, TrainerOfferDecisionLikeCpp};
 use super::{
     PreparedTrainerOfferLikeCpp, TrainerAcquisitionCompletionLikeCpp,

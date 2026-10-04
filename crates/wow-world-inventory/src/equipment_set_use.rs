@@ -1,7 +1,10 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use std::sync::Arc;
+
 use wow_core::ObjectGuid;
+use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
 use wow_entities::{
     ItemObjectUpdateLikeCpp, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
     INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START,
@@ -75,8 +78,8 @@ impl InventoryState {
         item_sets: &OwnedItemSetAccessLikeCpp<'_>,
         item_store: Option<&std::sync::Arc<wow_data::ItemStore>>,
         item_stats_store: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
-        scaling_stat_distribution_store: Option<&std::sync::Arc<wow_data::ScalingStatDistributionStore>>,
-        scaling_stat_values_store: Option<&std::sync::Arc<wow_data::ScalingStatValuesStore>>,
+        scaling_stat_distribution_store: Option<&Arc<ScalingStatDistributionStore>>,
+        scaling_stat_values_store: Option<&Arc<ScalingStatValuesStore>>,
         shield_block_regular_game_table:
             Option<&std::sync::Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
         spell_shapeshift_form_store: Option<&std::sync::Arc<wow_data::SpellShapeshiftFormStore>>,
@@ -270,8 +273,8 @@ impl InventoryState {
         modifier_access: &OwnedItemModifiersAccessLikeCpp<'_>,
         item_store: Option<&std::sync::Arc<wow_data::ItemStore>>,
         item_stats_store: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
-        scaling_stat_distribution_store: Option<&std::sync::Arc<wow_data::ScalingStatDistributionStore>>,
-        scaling_stat_values_store: Option<&std::sync::Arc<wow_data::ScalingStatValuesStore>>,
+        scaling_stat_distribution_store: Option<&Arc<ScalingStatDistributionStore>>,
+        scaling_stat_values_store: Option<&Arc<ScalingStatValuesStore>>,
         shield_block_regular_game_table:
             Option<&std::sync::Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
         spell_shapeshift_form_store: Option<&std::sync::Arc<wow_data::SpellShapeshiftFormStore>>,

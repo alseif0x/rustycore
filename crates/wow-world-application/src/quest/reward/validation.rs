@@ -4,10 +4,8 @@
 
 //! Quest package and reward-choice validation.
 
-use wow_data::{
-    CurrencyTypesStore, ItemStatsStore, ItemStore, QuestPackageItemEntry,
-    QuestPackageItemStore,
-};
+use wow_data::progression_rewards::{QuestPackageItemEntry, QuestPackageItemStore};
+use wow_data::{CurrencyTypesStore, ItemStatsStore, ItemStore};
 
 use super::QuestRewardCx;
 
@@ -60,7 +58,7 @@ impl QuestRewardCx<'_> {
 
         matches!(
             quest_package_item.display_type,
-            wow_data::QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP
+            wow_data::progression_rewards::QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP
         )
     }
 

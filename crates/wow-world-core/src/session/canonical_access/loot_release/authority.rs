@@ -20,10 +20,10 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
             let manager = self.core.canonical_map_manager.as_ref()?;
             let mut manager = manager.lock().ok()?;
             let map = manager.find_map_mut(key.map_id, key.instance_id)?.map_mut();
-            let counter = map.generate_low_guid_like_cpp(wow_core::HighGuid::LootObject).ok()?;
+            let counter = map.generate_low_guid_like_cpp(wow_core::guid::HighGuid::LootObject).ok()?;
             let map_id = u16::try_from(key.map_id).ok()?;
             Some(ObjectGuid::create_world_object(
-                wow_core::HighGuid::LootObject, 0, self.core.realm_id(), map_id, 0, 0, counter,
+                wow_core::guid::HighGuid::LootObject, 0, self.core.realm_id(), map_id, 0, 0, counter,
             ))
         })()
     }

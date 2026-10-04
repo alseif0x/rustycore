@@ -7,6 +7,8 @@ use wow_entities::{ApplyEnchantmentEffectAction, PlayerItemModifierRuntimeStateL
 
 use crate::session::SessionCore;
 
+mod equip;
+
 /// Borrowed, typed access to canonical Player item-modifier state.
 pub struct OwnedItemModifiersAccessLikeCpp<'a> {
     core: &'a SessionCore,

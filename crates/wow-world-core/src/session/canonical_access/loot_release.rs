@@ -39,18 +39,12 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
     pub fn registry_sync_like_cpp<'a>(
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] position: &'a Option<wow_core::Position>,
-        #[cfg(any(test, feature = "test-fixtures"))] health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] max_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] alive: &'a bool,
         #[cfg(any(test, feature = "test-fixtures"))] level: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))]
         transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
     ) -> crate::session::PlayerRegistrySyncAccessLikeCpp<'a> {
         self.core.player_registry_sync_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))] position,
-            #[cfg(any(test, feature = "test-fixtures"))] health,
-            #[cfg(any(test, feature = "test-fixtures"))] max_health,
-            #[cfg(any(test, feature = "test-fixtures"))] alive,
             #[cfg(any(test, feature = "test-fixtures"))] level,
             #[cfg(any(test, feature = "test-fixtures"))] transport,
         )

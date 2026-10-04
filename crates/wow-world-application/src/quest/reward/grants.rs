@@ -8,7 +8,7 @@
 use super::QuestRewardCx;
 use super::super::QuestRewardDurablePlanLikeCpp;
 use wow_constants::InventoryResult;
-use wow_data::QuestPackageItemEntry;
+use wow_data::progression_rewards::QuestPackageItemEntry;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::item_planning::QuestRewardItemPlanningFixtureRefsLikeCpp;
 

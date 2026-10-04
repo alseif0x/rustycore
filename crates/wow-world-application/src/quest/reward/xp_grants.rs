@@ -58,7 +58,7 @@ impl QuestRewardCx<'_> {
             }
         }
         if self.represented_player_has_flag_like_cpp(
-            wow_constants::player_flags::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP,
+            wow_world_core::session::PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP,
         ) {
             return false;
         }

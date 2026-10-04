@@ -331,6 +331,19 @@ impl PlayerStatsAccessLikeCpp<'_> {
     ) -> bool {
         self.core.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
     }
+
+    /// Lend the mutable-vitals participants to the Registry responsibility.
+    ///
+    /// This is a typed projection for the final registry publication, not a
+    /// general-purpose fixture view: the returned builder keeps the values in
+    /// `PlayerStatsAccessLikeCpp`, so the caller does not have to reborrow the
+    /// session fixtures that this capability already holds mutably.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn registry_sync_inputs_like_cpp(&self) -> crate::session::RegistrySyncInputs<'_> {
+        let (health, max_health, alive) = self.fixtures.combat.health_refs_like_cpp();
+        crate::session::RegistrySyncInputs::new_like_cpp(health, max_health, alive)
+    }
+
     pub fn player_guid_like_cpp(&self) -> Option<ObjectGuid> {
         self.core.player_guid()
     }
@@ -382,7 +395,7 @@ impl PlayerStatsAccessLikeCpp<'_> {
     pub fn player_class_attack_power_coefficients_like_cpp(
         &self,
         class: u8,
-    ) -> Option<(f32, f32, f32)> {
+    ) -> Option<(u8, u8, u8)> {
         self.catalogs
             .player_class_attack_power_coefficients_like_cpp(class)
     }

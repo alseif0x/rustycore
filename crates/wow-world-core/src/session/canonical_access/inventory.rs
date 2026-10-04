@@ -7,6 +7,7 @@ use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
 
 mod relocation;
 mod enchantment;
+mod equip;
 
 /// Borrowed access to the session's canonical inventory owner.
 pub struct OwnedInventoryAccessLikeCpp<'a> {

@@ -41,13 +41,20 @@ impl LootReleaseCxLikeCpp<'_> {
         };
         let position = self.owner.registry_sync_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))] self.registry_fixtures.position,
-            #[cfg(any(test, feature = "test-fixtures"))] self.registry_fixtures.health,
-            #[cfg(any(test, feature = "test-fixtures"))] self.registry_fixtures.max_health,
-            #[cfg(any(test, feature = "test-fixtures"))] self.registry_fixtures.alive,
             #[cfg(any(test, feature = "test-fixtures"))] self.registry_fixtures.level,
             #[cfg(any(test, feature = "test-fixtures"))] self.registry_fixtures.transport,
         );
-        let sync = crate::PlayerRegistrySyncContext::new(position, control, self.loot);
+        let sync = crate::PlayerRegistrySyncContext::new(
+            position,
+            control,
+            self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::RegistrySyncInputs::new_like_cpp(
+                self.registry_fixtures.health,
+                self.registry_fixtures.max_health,
+                self.registry_fixtures.alive,
+            ),
+        );
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.consumer_test {
             sync.with_fixture_hydration(crate::PlayerRegistryHydrationContext::new(

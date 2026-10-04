@@ -61,7 +61,7 @@ impl crate::InventoryState {
         events
     }
 
-    fn represented_heirloom_item_set_bonus_over_level_cap_with_access_like_cpp(
+    pub(crate) fn represented_heirloom_item_set_bonus_over_level_cap_with_access_like_cpp(
         &self,
         inventory_access: &OwnedInventoryAccessLikeCpp<'_>,
         item_sets: &OwnedItemSetAccessLikeCpp<'_>,

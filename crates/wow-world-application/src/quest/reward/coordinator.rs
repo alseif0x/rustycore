@@ -189,7 +189,7 @@ impl QuestRewardCx<'_> {
         // earlier grants written and the quest retryable.
         if !self.record_quest_reward_money_like_cpp(
             &mut plan,
-            quest.reward_money_difficulty,
+            quest.reward_money_difficulty as i32,
         ) {
             reward_abort!();
         }

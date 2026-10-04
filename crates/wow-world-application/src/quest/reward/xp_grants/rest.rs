@@ -4,7 +4,7 @@
 
 //! Rested-XP consumption and the existing handle-less rest update seam.
 
-use wow_world_core::session::RepresentedAuraEffectLikeCpp;
+use wow_entities::RepresentedAuraEffectLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::{CoreXPGainAccessLikeCpp, SessionWorldConfig};
 #[cfg(any(test, feature = "test-fixtures"))]

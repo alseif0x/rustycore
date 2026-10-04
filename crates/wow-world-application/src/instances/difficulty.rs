@@ -189,9 +189,9 @@ fn represented_set_difficulty_reset_owner_like_cpp(
             return None;
         }
 
-        let current = if entry.instance_type == wow_data::map::MAP_INSTANCE {
+        let current = if entry.instance_type == wow_data::map::MAP_INSTANCE as u8 {
             group.dungeon_difficulty_id
-        } else if entry.instance_type == wow_data::map::MAP_RAID {
+        } else if entry.instance_type == wow_data::map::MAP_RAID as u8 {
             if flags.contains(DifficultyFlags::LEGACY) {
                 group.legacy_raid_difficulty_id
             } else {
@@ -206,9 +206,9 @@ fn represented_set_difficulty_reset_owner_like_cpp(
     let (dungeon, raid, legacy_raid) = cx
         .instances
         .player_difficulty_preferences_with_access_like_cpp(&cx.player)?;
-    let current = if entry.instance_type == wow_data::map::MAP_INSTANCE {
+    let current = if entry.instance_type == wow_data::map::MAP_INSTANCE as u8 {
         dungeon
-    } else if entry.instance_type == wow_data::map::MAP_RAID {
+    } else if entry.instance_type == wow_data::map::MAP_RAID as u8 {
         if flags.contains(DifficultyFlags::LEGACY) {
             legacy_raid
         } else {
@@ -246,7 +246,7 @@ fn represented_set_difficulty_id_like_cpp(
         return Vec::new();
     }
 
-    if entry.instance_type == wow_data::map::MAP_INSTANCE {
+    if entry.instance_type == wow_data::map::MAP_INSTANCE as u8 {
         if let Some(command) = set_represented_group_difficulty_like_cpp(
             cx,
             difficulty_id,
@@ -268,7 +268,7 @@ fn represented_set_difficulty_id_like_cpp(
             difficulty_id: i32::try_from(difficulty_id).unwrap_or(i32::MAX),
         });
         Vec::new()
-    } else if entry.instance_type == wow_data::map::MAP_RAID {
+    } else if entry.instance_type == wow_data::map::MAP_RAID as u8 {
         let legacy = flags.contains(DifficultyFlags::LEGACY);
         let kind = if legacy {
             GroupDifficultyKindLikeCpp::LegacyRaid

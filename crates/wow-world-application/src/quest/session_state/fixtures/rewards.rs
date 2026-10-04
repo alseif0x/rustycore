@@ -111,4 +111,3 @@ impl SessionQuestState {
         self.fixture_represented_timed_quest_removals_like_cpp()
     }
 }
-

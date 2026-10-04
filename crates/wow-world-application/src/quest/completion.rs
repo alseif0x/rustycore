@@ -113,12 +113,6 @@ pub(crate) fn sync_quest_completion_registry_like_cpp(
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_position,
         #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_health,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_max_health,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_alive,
-        #[cfg(any(test, feature = "test-fixtures"))]
         fixture_level,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_transport,
@@ -126,7 +120,17 @@ pub(crate) fn sync_quest_completion_registry_like_cpp(
         return;
     };
 
-    let sync = crate::PlayerRegistrySyncContext::new(position, control, loot);
+    let sync = crate::PlayerRegistrySyncContext::new(
+        position,
+        control,
+        loot,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        wow_world_core::session::RegistrySyncInputs::new_like_cpp(
+            fixture_health,
+            fixture_max_health,
+            fixture_alive,
+        ),
+    );
     #[cfg(any(test, feature = "test-fixtures"))]
     if world_test_consumer {
         let sync = sync.with_fixture_hydration(crate::PlayerRegistryHydrationContext::new(

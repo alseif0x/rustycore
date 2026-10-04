@@ -7,6 +7,8 @@
 use wow_world_core::session::{
     PlayerRegistryControlBindingLikeCpp, PlayerRegistrySyncAccessLikeCpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::RegistrySyncInputs;
 use wow_world_loot::LootState;
 
 /// Executes the established World-session registry publication order using typed owner access.
@@ -15,20 +17,29 @@ pub struct PlayerRegistrySyncContext<'a> {
     control: PlayerRegistryControlBindingLikeCpp<'a>,
     loot: &'a LootState,
     #[cfg(any(test, feature = "test-fixtures"))]
+    inputs: RegistrySyncInputs<'a>,
+    #[cfg(any(test, feature = "test-fixtures"))]
     fixture_hydration: Option<PlayerRegistryHydrationContext<'a>>,
 }
 
 impl<'a> PlayerRegistrySyncContext<'a> {
     /// Borrow the existing canonical-position, control-channel, and loot providers.
+    ///
+    /// The mutable-vitals participants arrive through the inert
+    /// [`RegistrySyncInputs`] builder, lent by Stats/World at this final phase so
+    /// Registry never overlaps a Stats capability's mutable borrow.
     pub fn new(
         position: PlayerRegistrySyncAccessLikeCpp<'a>,
         control: PlayerRegistryControlBindingLikeCpp<'a>,
         loot: &'a LootState,
+        #[cfg(any(test, feature = "test-fixtures"))] inputs: RegistrySyncInputs<'a>,
     ) -> Self {
         Self {
             position,
             control,
             loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            inputs,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_hydration: None,
         }
@@ -60,7 +71,10 @@ impl<'a> PlayerRegistrySyncContext<'a> {
     fn sync_selected_hydration_like_cpp(&self,
         #[cfg(any(test, feature = "test-fixtures"))] hydration: Option<&PlayerRegistryHydrationContext<'_>>,
     ) {
-        self.position.update_registry_position();
+        self.position.update_registry_position(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.inputs,
+        );
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(hydration) = hydration {
             hydration.hydrate();

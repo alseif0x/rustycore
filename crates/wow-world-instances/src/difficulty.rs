@@ -99,7 +99,7 @@ impl InstanceState {
     ) -> Option<u32> {
         let difficulty_id = u32::try_from(difficulty_id).ok()?;
         let entry = difficulty_store.get(difficulty_id).copied()?;
-        if entry.instance_type != wow_data::map::MAP_RAID {
+        if entry.instance_type != wow_data::map::MAP_RAID as u8 {
             return None;
         }
         let flags = DifficultyFlags::from_bits_truncate(entry.flags);

@@ -1,9 +1,10 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use wow_constants::ItemFieldFlags;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    is_bag_pos, make_item_pos, Item, ItemFieldFlags, PlayerInventoryItem as InventoryItem,
+    is_bag_pos, make_item_pos, Item, PlayerInventoryItem as InventoryItem,
     PlayerItemTimeUpdate, SwapItemPreflightItem, SwapItemPreflightPlan, INVENTORY_SLOT_BAG_0,
 };
 use wow_packet::packets::item::ItemTimeUpdate;

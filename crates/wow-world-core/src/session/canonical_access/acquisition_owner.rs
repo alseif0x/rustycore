@@ -118,17 +118,12 @@ impl PlayerAcquisitionOwnerAccessLikeCpp<'_> {
     }
 
     /// Reborrow the existing registry synchronization view with its exact
-    /// caller-owned fixture inputs.
+    /// caller-owned fixture inputs. Mutable vitals are lent separately through
+    /// `RegistrySyncInputs` at the final publication phase.
     pub fn registry_sync<'a>(
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_position: &'a Option<wow_core::Position>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_max_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_alive: &'a bool,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_level: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -137,12 +132,6 @@ impl PlayerAcquisitionOwnerAccessLikeCpp<'_> {
         self.core.player_registry_sync_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_position,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_max_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_alive,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_level,
             #[cfg(any(test, feature = "test-fixtures"))]

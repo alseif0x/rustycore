@@ -179,7 +179,18 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
     }
     fn sync_player_registry_state_like_cpp(&mut self) {
         let Some(control) = self.registry.control_binding_if_available_like_cpp() else { return; };
-        let sync = crate::registry_sync::PlayerRegistrySyncContext::new(self.registry.reborrow_like_cpp(), control, self.loot);
+        // The Registry participants are lent by Stats at this final phase, after
+        // every stat mutation, so both capabilities never hold the mutable
+        // vitals simultaneously.
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let inputs = self.stats.registry_sync_inputs_like_cpp();
+        let sync = crate::registry_sync::PlayerRegistrySyncContext::new(
+            self.registry.reborrow_like_cpp(),
+            control,
+            self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            inputs,
+        );
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(hydration) = self.registry_hydration.as_ref() {
             sync.sync_with_fixture_hydration_like_cpp(hydration);

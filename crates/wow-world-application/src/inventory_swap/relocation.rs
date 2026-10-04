@@ -139,4 +139,3 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
         true
     }
 }
-

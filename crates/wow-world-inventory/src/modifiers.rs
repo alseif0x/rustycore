@@ -64,8 +64,7 @@ impl crate::InventoryState {
         item_guid: ObjectGuid,
     ) -> bool {
         let inventory_access = hub.core.owned_inventory_access_like_cpp();
-        let shared = hub.shared();
-        let item_sets = shared.owned_item_set_access_like_cpp();
+        let item_sets = hub.owned_item_set_access_like_cpp();
         self.represented_heirloom_item_set_bonus_over_level_cap_with_access_like_cpp(
             &inventory_access,
             &item_sets,

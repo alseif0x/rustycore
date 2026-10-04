@@ -35,6 +35,7 @@ wow-spell-acquisition = { workspace = true }
 wow-entities = { workspace = true }
 wow-handler = { workspace = true }
 wow-instances = { workspace = true }
+wow-loot = { workspace = true }
 wow-map = { workspace = true }
 wow-social = { workspace = true }
 wow-world-core = { workspace = true }

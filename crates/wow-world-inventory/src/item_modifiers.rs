@@ -3,7 +3,6 @@
 
 //! Item-effect event contracts retained by Session inventory.
 
-#[cfg(any(test, feature = "test-fixtures"))]
 use wow_core::ObjectGuid;
 use wow_entities::ApplyEnchantmentEffectAction;
 

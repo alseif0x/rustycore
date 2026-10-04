@@ -9,8 +9,8 @@ use wow_constants::{InventoryResult, InventoryType, ItemFlags3};
 use wow_core::ObjectGuid;
 use wow_entities::{
     is_buyback_slot, BagTemplateRef, CanEquipItemArgs, CanEquipItemOutcome, EQUIPMENT_SLOT_END,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, InventoryItem, Item,
-    ItemSlotRef, ItemStorageRef, NULL_BAG, NULL_SLOT,
+    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef,
+    ItemStorageRef, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem,
 };
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -473,7 +473,9 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             faction,
             race,
             class,
-            self.catalogs.friendship_rep_reaction_store_like_cpp(),
+            self.catalogs
+                .friendship_rep_reaction_store_like_cpp()
+                .map(AsRef::as_ref),
             #[cfg(any(test, feature = "test-fixtures"))]
             self.player_conditions.reputation_state,
         )

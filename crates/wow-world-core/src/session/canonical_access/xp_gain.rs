@@ -14,7 +14,7 @@ mod rest;
 
 pub(super) fn represented_total_aura_modifier_from_snapshot_like_cpp(
     auras: Option<wow_entities::AuraSubsystem>,
-    effect: crate::session::RepresentedAuraEffectLikeCpp,
+    effect: wow_entities::RepresentedAuraEffectLikeCpp,
 ) -> Option<i32> {
     auras.map(|auras| {
         auras
@@ -504,7 +504,7 @@ impl CoreXPGainAccessLikeCpp<'_> {
 
     pub fn resolved_total_represented_aura_modifier_like_cpp(
         &self,
-        effect: crate::session::RepresentedAuraEffectLikeCpp,
+        effect: wow_entities::RepresentedAuraEffectLikeCpp,
         #[cfg(any(test, feature = "test-fixtures"))] fixtures: &CoreXPGainFixtureRefsLikeCpp<'_>,
     ) -> Option<i32> {
         represented_total_aura_modifier_from_snapshot_like_cpp(
@@ -611,7 +611,7 @@ impl CoreXPGainAccessLikeCpp<'_> {
         let mut delta = Player::new(None, false);
         delta.clear_data_changes();
         if level_changed {
-            delta.unit_mut().set_level(i32::from(level));
+            delta.unit_mut().set_level(level);
             delta.set_next_level_xp(next_level_xp);
         }
         delta.set_xp(xp);

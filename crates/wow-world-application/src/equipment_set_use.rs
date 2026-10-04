@@ -13,9 +13,9 @@ use crate::PlayerRegistrySyncContext;
 use crate::PlayerRegistryHydrationContext;
 use crate::stats::CharacterStatsApplicationCxLikeCpp;
 use wow_core::ObjectGuid;
+use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
 use wow_data::{
-    ItemStatsStore, ItemStore, ScalingStatDistributionStore, ScalingStatValuesStore,
-    ShieldBlockRegularGameTableLikeCpp, SpellShapeshiftFormStore,
+    ItemStatsStore, ItemStore, ShieldBlockRegularGameTableLikeCpp, SpellShapeshiftFormStore,
 };
 use wow_entities::{
     EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
@@ -363,9 +363,6 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         let sync_access = self.owner.player_registry_sync_capabilities_like_cpp(
             self.fixtures.player_position,
-            &*self.fixtures.player_health,
-            &*self.fixtures.player_max_health,
-            &*self.fixtures.player_alive,
             self.fixtures.player_level,
             self.fixtures.player_transport,
         );
@@ -374,7 +371,17 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
         let Some((position, control)) = sync_access else {
             return;
         };
-        let sync = PlayerRegistrySyncContext::new(position, control, self.loot);
+        let sync = PlayerRegistrySyncContext::new(
+            position,
+            control,
+            self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::RegistrySyncInputs::new_like_cpp(
+                self.fixtures.player_health,
+                self.fixtures.player_max_health,
+                self.fixtures.player_alive,
+            ),
+        );
         #[cfg(any(test, feature = "test-fixtures"))]
         let sync = if let Some(hydration) = self.registry_hydration.take() {
             sync.with_fixture_hydration(hydration)

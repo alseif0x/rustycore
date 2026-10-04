@@ -124,12 +124,6 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.movement.player_position,
             #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.combat.player_health_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.combat.player_max_health_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.combat.player_alive_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.identity.player_level,
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.vehicles.player_transport_login_state_like_cpp,
@@ -141,6 +135,12 @@ impl WorldSession {
             position,
             control,
             &self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::RegistrySyncInputs::new_like_cpp(
+                &self.fixtures.combat.player_health_like_cpp,
+                &self.fixtures.combat.player_max_health_like_cpp,
+                &self.fixtures.combat.player_alive_like_cpp,
+            ),
         );
         #[cfg(test)]
         let sync = sync.with_fixture_hydration(

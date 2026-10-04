@@ -391,17 +391,21 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.fixtures.registry_position,
                 #[cfg(any(test, feature = "test-fixtures"))]
-                self.fixtures.registry_health,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                self.fixtures.registry_max_health,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                self.fixtures.registry_alive,
-                #[cfg(any(test, feature = "test-fixtures"))]
                 self.fixtures.registry_level,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.fixtures.registry_transport,
             );
-            let sync = crate::PlayerRegistrySyncContext::new(position, control, self.loot);
+            let sync = crate::PlayerRegistrySyncContext::new(
+                position,
+                control,
+                self.loot,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                wow_world_core::session::RegistrySyncInputs::new_like_cpp(
+                    self.fixtures.registry_health,
+                    self.fixtures.registry_max_health,
+                    self.fixtures.registry_alive,
+                ),
+            );
             #[cfg(any(test, feature = "test-fixtures"))]
             let sync = if self.consumer_test {
                 sync.with_fixture_hydration(crate::PlayerRegistryHydrationContext::new(

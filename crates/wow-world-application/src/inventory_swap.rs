@@ -3,6 +3,9 @@
 
 mod effects;
 pub use effects::InventorySwapEffectsCxLikeCpp;
+mod equip;
+mod equip_contracts;
+pub use equip::InventoryEquipCxLikeCpp;
 mod committed;
 pub use committed::InventoryCommittedSwapCxLikeCpp;
 mod positions;

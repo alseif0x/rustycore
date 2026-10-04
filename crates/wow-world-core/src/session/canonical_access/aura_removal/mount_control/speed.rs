@@ -397,7 +397,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
                 / 100.0;
 
         let speed = stack_bonus.max(not_stack_bonus) * (1.0 + main_mod.max(0) as f32 / 100.0);
-        Some(self.apply_represented_forward_speed_adjustments_like_cpp(presentation, 
+        Some(self.apply_represented_forward_speed_adjustments_like_cpp(presentation,
             UnitMoveTypeLikeCpp::Run,
             speed,
         )?)
@@ -408,7 +408,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
         move_type: UnitMoveTypeLikeCpp,
         mut speed: f32,
     ) -> Option<f32> {
-        let normal_speed_cap = self.max_represented_aura_amount_like_cpp(presentation, 
+        let normal_speed_cap = self.max_represented_aura_amount_like_cpp(presentation,
             RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
         )? as f32
             / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
@@ -416,7 +416,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
             speed = normal_speed_cap;
         }
         if move_type == UnitMoveTypeLikeCpp::Run {
-            let minimum_speed_rate = self.max_represented_aura_amount_like_cpp(presentation, 
+            let minimum_speed_rate = self.max_represented_aura_amount_like_cpp(presentation,
                 RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
             )? as f32
                 / PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()];
@@ -424,7 +424,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
                 speed = minimum_speed_rate;
             }
         }
-        let slow = self.max_negative_represented_aura_amount_like_cpp(presentation, 
+        let slow = self.max_negative_represented_aura_amount_like_cpp(presentation,
             RepresentedAuraEffectLikeCpp::DecreaseSpeed,
         )?;
         if slow < 0 {
@@ -444,18 +444,18 @@ impl AuraMountControlAccessLikeCpp<'_> {
         let mounted = presentation.resolved_player_mounted_like_cpp()?;
         let (flight_mod, flight_always) = if mounted {
             (
-                self.max_represented_aura_amount_like_cpp(presentation, 
+                self.max_represented_aura_amount_like_cpp(presentation,
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
                 )?,
-                self.total_represented_aura_amount_multiplier_like_cpp(presentation, 
+                self.total_represented_aura_amount_multiplier_like_cpp(presentation,
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
                 )?,
             )
         } else {
             (
-                self.total_represented_aura_amount_like_cpp(presentation, 
+                self.total_represented_aura_amount_like_cpp(presentation,
                     RepresentedAuraEffectLikeCpp::FlightSpeed,
-                )? + self.total_represented_aura_amount_like_cpp(presentation, 
+                )? + self.total_represented_aura_amount_like_cpp(presentation,
                     RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
                 )?,
                 1.0,
@@ -463,14 +463,14 @@ impl AuraMountControlAccessLikeCpp<'_> {
         };
         let flight_not_stack = 1.0
             + self
-                .max_represented_aura_amount_like_cpp(presentation, 
+                .max_represented_aura_amount_like_cpp(presentation,
                     RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
                 )?
                 .max(0) as f32
                 / 100.0;
 
         let speed = flight_always.max(flight_not_stack) * (1.0 + flight_mod.max(0) as f32 / 100.0);
-        Some(self.apply_represented_forward_speed_adjustments_like_cpp(presentation, 
+        Some(self.apply_represented_forward_speed_adjustments_like_cpp(presentation,
             UnitMoveTypeLikeCpp::Flight,
             speed,
         )?)
@@ -487,7 +487,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
 
     fn represented_backward_speed_rate_like_cpp(&self, presentation: &PlayerAuraRemovalAccessLikeCpp<'_>) -> Option<f32> {
         let mut speed = 1.0;
-        let slow = self.max_negative_represented_aura_amount_like_cpp(presentation, 
+        let slow = self.max_negative_represented_aura_amount_like_cpp(presentation,
             RepresentedAuraEffectLikeCpp::DecreaseSpeed,
         )?;
         if slow < 0 {

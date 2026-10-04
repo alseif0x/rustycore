@@ -20,7 +20,7 @@ pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
 mod inventory_move_planning;
 pub use inventory_move_planning::{InventoryMovePlanningCxLikeCpp, InventorySwapTargetLikeCpp};
 mod inventory_swap;
-pub use inventory_swap::{InventorySwapEffectsCxLikeCpp, InventoryCommittedSwapCxLikeCpp, InventoryPositionPublicationCxLikeCpp, InventoryCommittedRelocationCxLikeCpp};
+pub use inventory_swap::{InventorySwapEffectsCxLikeCpp, InventoryEquipCxLikeCpp, InventoryCommittedSwapCxLikeCpp, InventoryPositionPublicationCxLikeCpp, InventoryCommittedRelocationCxLikeCpp};
 mod bank;
 pub use bank::{
     can_use_current_bank_with_access_like_cpp, BankSlotFlagApplicationCxLikeCpp,

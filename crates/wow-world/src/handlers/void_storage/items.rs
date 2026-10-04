@@ -159,7 +159,3 @@ impl WorldSession {
         Some((destroyed_guids, changed_quest_ids))
     }
 }
-
-
-
-

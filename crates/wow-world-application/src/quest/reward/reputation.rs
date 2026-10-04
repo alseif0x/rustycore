@@ -72,13 +72,13 @@ impl QuestRewardCx<'_> {
             let player = self.player.xp_gain_access_like_cpp(self.catalogs, self.config);
             #[cfg(any(test, feature = "test-fixtures"))]
             let modifier = player.resolved_total_represented_aura_modifier_from_selected_refs_like_cpp(
-                wow_world_core::session::RepresentedAuraEffectLikeCpp::ModReputationGain,
+                wow_entities::RepresentedAuraEffectLikeCpp::ModReputationGain,
                 fixtures.aura_authority, fixtures.aura_tombstone,
                 fixtures.visible_auras, fixtures.threat_auras,
             )?;
             #[cfg(not(any(test, feature = "test-fixtures")))]
             let modifier = player.resolved_total_represented_aura_modifier_like_cpp(
-                wow_world_core::session::RepresentedAuraEffectLikeCpp::ModReputationGain,
+                wow_entities::RepresentedAuraEffectLikeCpp::ModReputationGain,
             )?;
             modifier as f32
         };

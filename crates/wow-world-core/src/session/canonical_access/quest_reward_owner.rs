@@ -372,6 +372,35 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
             self.core.player_class_with_fixture_like_cpp()
         }
     }
+
+    /// C++ `Player::HasPlayerFlag` for this reward owner's canonical incarnation.
+    pub fn canonical_player_has_player_flag_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+        flag: u32,
+    ) -> Option<bool> {
+        self.core.canonical_player_has_player_flag_like_cpp(guid, flag)
+    }
+
+    /// Resolve one faction's standing through the selected manager, keeping the
+    /// fixture State fallback at the caller's phase.
+    pub fn reputation_for_faction_like_cpp(
+        &self,
+        faction: &wow_data::progression_rewards::FactionEntry,
+        race: u8,
+        class: u8,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture_state: &wow_entities::PlayerReputationStateLikeCpp,
+    ) -> Option<i32> {
+        quest_reputation_for_faction_like_cpp(
+            self.core,
+            faction,
+            race,
+            class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_state,
+        )
+    }
 }
 
 pub(in crate::session::canonical_access) fn quest_reputation_for_faction_like_cpp(
@@ -449,7 +478,9 @@ impl PlayerLevelTransitionAccessLikeCpp<'_> {
                 .get_or_insert_default()
                 .level = level;
             #[cfg(any(test, feature = "test-fixtures"))]
-            *self.player_level = level;
+            {
+                *self.player_level = level;
+            }
         }
 
         self.refresh_represented_talent_points_like_cpp(

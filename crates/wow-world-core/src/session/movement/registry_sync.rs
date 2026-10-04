@@ -8,6 +8,44 @@ use crate::player_directory::PlayerRegistry;
 use crate::session::mailbox::SessionCommand;
 use wow_core::{ObjectGuid, Position};
 
+/// Inert fixture participants lent to the final registry publication.
+///
+/// The builder only carries the selected mutable-vitals inputs; it reads no
+/// canonical or fixture state when constructed. World/Stats lend it at the
+/// publication phase, so Registry keeps its own fresh GUID and registry lookups
+/// without holding a second simultaneous borrow of the fixtures that a
+/// `PlayerStatsAccessLikeCpp` mutates.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub struct RegistrySyncInputs<'a> {
+    fixture_health: &'a u32,
+    fixture_max_health: &'a u32,
+    fixture_alive: &'a bool,
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+impl<'a> RegistrySyncInputs<'a> {
+    pub fn new_like_cpp(
+        fixture_health: &'a u32,
+        fixture_max_health: &'a u32,
+        fixture_alive: &'a bool,
+    ) -> Self {
+        Self {
+            fixture_health,
+            fixture_max_health,
+            fixture_alive,
+        }
+    }
+
+    /// Reborrow the same selected participants without reading state.
+    pub fn reborrow_like_cpp(&self) -> RegistrySyncInputs<'_> {
+        RegistrySyncInputs {
+            fixture_health: self.fixture_health,
+            fixture_max_health: self.fixture_max_health,
+            fixture_alive: self.fixture_alive,
+        }
+    }
+}
+
 /// Borrows the canonical Player and the exact fixture inputs used by registry synchronization.
 /// The fields stay private so callers can perform the operation without receiving a mutable
 /// SessionCore or a general-purpose view of its state.
@@ -16,12 +54,6 @@ pub struct PlayerRegistrySyncAccessLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     fixture_position: &'a Option<Position>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_health: &'a u32,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_max_health: &'a u32,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_alive: &'a bool,
-    #[cfg(any(test, feature = "test-fixtures"))]
     fixture_level: &'a u8,
     #[cfg(any(test, feature = "test-fixtures"))]
     fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
@@ -29,12 +61,12 @@ pub struct PlayerRegistrySyncAccessLikeCpp<'a> {
 
 impl SessionCore {
     /// Build the narrow registry synchronization capability from borrowed fixture values.
+    ///
+    /// The mutable-vitals participants are not captured here: the caller lends
+    /// them through [`RegistrySyncInputs`] at the final publication phase.
     pub fn player_registry_sync_access_like_cpp<'a>(
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<Position>,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_max_health: &'a u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_alive: &'a bool,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
@@ -43,12 +75,6 @@ impl SessionCore {
             core: self,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_position,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_max_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_alive,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_level,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -64,12 +90,6 @@ impl PlayerRegistrySyncAccessLikeCpp<'_> {
             core: self.core,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_position: self.fixture_position,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_health: self.fixture_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_max_health: self.fixture_max_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_alive: self.fixture_alive,
             #[cfg(any(test, feature = "test-fixtures"))]
             fixture_level: self.fixture_level,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -93,14 +113,17 @@ impl PlayerRegistrySyncAccessLikeCpp<'_> {
         )
     }
 
-    fn resolved_player_vitals_like_cpp(&self) -> Option<(u32, u32, bool)> {
+    fn resolved_player_vitals_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] inputs: &RegistrySyncInputs<'_>,
+    ) -> Option<(u32, u32, bool)> {
         self.core.resolved_player_vitals_with_fixture_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixture_health,
+            inputs.fixture_health,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixture_max_health,
+            inputs.fixture_max_health,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixture_alive,
+            inputs.fixture_alive,
         )
     }
 
@@ -111,7 +134,10 @@ impl PlayerRegistrySyncAccessLikeCpp<'_> {
         )
     }
 
-    pub fn update_registry_position(&self) {
+    pub fn update_registry_position(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] inputs: &RegistrySyncInputs<'_>,
+    ) {
         let (Some(guid), Some(pos), Some(reg)) = (
             self.core.player_guid(),
             self.player_position_like_cpp(),
@@ -121,7 +147,10 @@ impl PlayerRegistrySyncAccessLikeCpp<'_> {
         };
         let map_id = self.core.player_map_id_like_cpp();
         let Some(is_alive) = self
-            .resolved_player_vitals_like_cpp()
+            .resolved_player_vitals_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                inputs,
+            )
             .map(|(_, _, is_alive)| is_alive)
         else {
             return;

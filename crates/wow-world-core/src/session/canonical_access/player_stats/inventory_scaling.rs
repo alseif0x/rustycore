@@ -34,12 +34,6 @@ impl PlayerStatsAccessLikeCpp<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             position,
             #[cfg(any(test, feature = "test-fixtures"))]
-            &*self.fixtures.combat.player_health_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &*self.fixtures.combat.player_max_health_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &*self.fixtures.combat.player_alive_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
             self.player_level,
             #[cfg(any(test, feature = "test-fixtures"))]
             transport,

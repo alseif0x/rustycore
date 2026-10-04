@@ -36,4 +36,3 @@ impl OwnedInventoryAccessLikeCpp<'_> {
         });
     }
 }
-

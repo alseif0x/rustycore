@@ -258,4 +258,3 @@ impl WorldSession {
         self.catalogs.creatures.model_data_store = Some(store);
     }
 }
-

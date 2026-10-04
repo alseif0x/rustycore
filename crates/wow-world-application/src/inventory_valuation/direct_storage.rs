@@ -11,6 +11,7 @@ use wow_entities::{
     is_buyback_slot, BagTemplateRef, CanStoreItemArgs, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef,
     ItemStorageRef,
 };
+use wow_world_inventory::is_represented_bag_slot;
 
 use crate::PlayerConditionProjectionCxLikeCpp;
 
@@ -145,8 +146,8 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
             {
                 let placeholder_counter = i64::MAX.saturating_sub(index as i64);
                 let placeholder_guid = ObjectGuid::create_item(realm_id, placeholder_counter);
-                let _ = player.store_top_level_item(*overlay_slot, placeholder_guid);
-                let _ = player.register_bag_storage(
+                let _ = player.store_top_level_item_like_cpp(*overlay_slot, placeholder_guid);
+                let _ = player.register_bag_storage_like_cpp(
                     *overlay_slot,
                     placeholder_guid,
                     template.container_slots,
