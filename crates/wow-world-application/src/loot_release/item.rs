@@ -7,7 +7,8 @@ use wow_entities::{Item, ItemObjectUpdateLikeCpp, INVENTORY_SLOT_BAG_0};
 use wow_packet::packets::update::UpdateObject;
 use wow_packet::packets::item::ItemExpirePurchaseRefund;
 
-fn direct_item_count_after_loot_release_like_cpp(
+/// C++ `Item::GetCount()` after a partial/full loot release consumption.
+pub fn direct_item_count_after_loot_release_like_cpp(
     current_count: u32,
     maximum_destroy_count: Option<u32>,
 ) -> u32 {
@@ -30,7 +31,7 @@ impl LootReleaseCxLikeCpp<'_> {
         self.sync_player_registry_state_like_cpp();
     }
 
-    pub(super) async fn destroy_fully_looted_direct_item(&mut self, item_guid: ObjectGuid) {
+    pub async fn destroy_fully_looted_direct_item(&mut self, item_guid: ObjectGuid) {
         self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None).await;
     }
 

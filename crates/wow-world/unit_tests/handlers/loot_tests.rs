@@ -26,7 +26,7 @@ use super::{
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
     assign_represented_personal_loot_items_like_cpp,
     classify_stored_item_money_reconciliation_like_cpp,
-    creature_loot_is_allowed_to_player_like_cpp, direct_item_count_after_loot_release_like_cpp,
+    creature_loot_is_allowed_to_player_like_cpp,
     generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp,
     loot_item_context, loot_type_for_client_like_cpp,
@@ -39,6 +39,7 @@ use super::{
     start_loot_roll_packet_like_cpp, stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
+use wow_world_application::direct_item_count_after_loot_release_like_cpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
     PlayerSessionRegistrationLikeCpp,

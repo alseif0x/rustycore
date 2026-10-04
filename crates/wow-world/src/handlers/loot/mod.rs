@@ -112,9 +112,7 @@ use wow_loot::{
     loot_item_ui_type_for_player_like_cpp,
 };
 use wow_packet::ServerPacket;
-use wow_packet::packets::item::{
-    ItemExpirePurchaseRefund, ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
-};
+use wow_packet::packets::item::ItemInstance;
 use wow_packet::packets::loot::{
     AELootTargets, AELootTargetsAck, CoinRemoved, CreatureLoot, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
     LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP, LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
@@ -385,15 +383,6 @@ fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
     }
 }
 
-fn direct_item_count_after_loot_release_like_cpp(
-    current_count: u32,
-    maximum_destroy_count: Option<u32>,
-) -> u32 {
-    let destroy_count = maximum_destroy_count
-        .unwrap_or(current_count)
-        .min(current_count);
-    current_count.saturating_sub(destroy_count)
-}
 
 #[cfg(test)]
 fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(

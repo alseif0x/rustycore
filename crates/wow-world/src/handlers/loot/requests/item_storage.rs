@@ -812,7 +812,8 @@ impl WorldSession {
         &mut self,
         item_guid: ObjectGuid,
     ) {
-        self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None)
+        self.loot_release_cx_like_cpp()
+            .destroy_fully_looted_direct_item(item_guid)
             .await;
     }
 }

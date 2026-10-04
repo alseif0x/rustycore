@@ -13,7 +13,8 @@ mod spell_acquisition;
 mod instances;
 mod loot_release;
 pub use loot_release::{
-    LootReleaseCxLikeCpp, queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
+    LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
+    queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,
 };
 mod stats;
