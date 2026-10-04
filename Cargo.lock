@@ -3555,6 +3555,7 @@ dependencies = [
 name = "wow-world-entities"
 version = "0.1.0"
 dependencies = [
+ "num-traits",
  "wow-ai",
  "wow-conditions",
  "wow-constants",

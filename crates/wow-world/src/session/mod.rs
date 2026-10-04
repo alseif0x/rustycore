@@ -226,7 +226,6 @@ pub(crate) use wow_entities::UnitVisibilityDetectionStateLikeCpp;
 use creature_spell_metadata::{CreatureAiSpellTargetLikeCpp, creature_ai_spell_target_like_cpp};
 mod creature_spell_planning;
 use creature_spell_planning::CreatureAiSpellRepresentationRejectionLikeCpp;
-use creature_spell_planning::creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp;
 use creature_spell_planning::creature_ai_spell_plan_like_cpp;
 use creature_spell_planning::creature_ai_spell_requires_projectile_payload_like_cpp;
 use creature_spell_planning::creature_ai_spell_single_unit_topology_like_cpp;
