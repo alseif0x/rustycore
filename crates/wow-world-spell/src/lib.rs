@@ -6,7 +6,7 @@ mod records;
 mod state;
 pub mod player_cast;
 mod session;
-mod spell_cast_adapter;
+pub mod spell_cast_adapter;
 mod spell_acquisition;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
