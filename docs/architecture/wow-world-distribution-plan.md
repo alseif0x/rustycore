@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `68d2fa371` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `edf1b2dcd` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,14 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `edf1b2dcd` (constantes compartidas + enumeración en App) se repitió el
+mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes (la primera invocación de
+`--workspace` agotó otra vez el límite por defecto de 600 s y se repitió con límite ampliado:
+verde, 0 errores); `cargo test -p wow-world --lib` **3.632 passed / 0 failed / 1 ignored**;
+`wow-world-application` 52/52; sin avisos nuevos en los archivos tocados (los avisos que
+aparecen al recompilar `wow-entities`/`wow-ai` son preexistentes y ajenos a este cambio).
 
 Sobre el checkpoint `68d2fa371` (valores de creación de personaje en App) se repitió el mismo
 conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3893,14 +3901,18 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- las 18 constantes de `AtLoginFlags`/`CharacterFlags`/`CharCustomizeFlags`/`PlayerFlags` y
+  clases que vivían en `handlers/character/mod.rs` se movieron a
+  `wow-constants/src/character.rs` (fuente única) y World las reexporta, de modo que los otros
+  archivos que ya las usaban no cambian;
+- con ellas resueltas, las proyecciones de enumeración de personaje
+  (`handlers/character/enumeration_support.rs`, 103 líneas) pasaron a
+  `wow-world-application/src/character_enumeration.rs`; la fachada World reexporta;
 - los valores por defecto de creación de personaje
   (`handlers/character/creation_support.rs`, 79 líneas: posición/zona inicial por raza,
   salud/maná por clase, salud restaurada y poder primario) pasaron a
   `wow-world-application/src/character_creation.rs`; la fachada World reexporta y
-  `primary_power_type_for_class_like_cpp` se toma directamente de Core. Se descartó mover
-  `enumeration_support.rs` en el mismo corte: 7 de sus 17 constantes se usan también en otros
-  archivos de World, así que habría requerido una definición compartida nueva (queda para un
-  corte propio);
+  `primary_power_type_for_class_like_cpp` se toma directamente de Core;
 - los helpers de restauración de ítems en login
   (`handlers/character/item_load_support.rs`, 209 líneas, más el struct y la constante
   `LoadedItemRandomPropertiesLikeCpp`/`ITEM_ENCHANTMENT_DB_FIELDS` que solo usaba él) pasaron
