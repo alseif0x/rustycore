@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `3fa0a9816` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `cbab688f3` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3717,11 +3717,11 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
 
-Sobre el checkpoint `3fa0a9816` (convergencia del cierre diferido de LootRelease) la
+Sobre el checkpoint `cbab688f3` (refresh de visibilidad + gate de autostore en App) la
 verificación del implementador fue: `cargo check --workspace --all-targets` verde,
 `cargo check -p wow-world --all-targets` y `--all-targets --features test-fixtures` verdes,
 `cargo check -p wow-world-application --all-targets` verde, `cargo test -p wow-world --lib`
-**3.685 passed / 0 failed / 1 ignored** (idéntico al baseline), `handlers::loot` 264/264 y
+**3.685 passed / 0 failed / 1 ignored** (idéntico al baseline en las tres rondas) y
 `cargo test -p wow-world-application` 29/29. Sin avisos nuevos de imports sin usar ni de
 código muerto respecto del baseline (comparación de conjuntos de nombres). No se repitieron
 otras suites ni la campaña `final`.
@@ -3775,15 +3775,19 @@ Barreras explícitas que siguen abiertas, sin declarar cierre:
   `hide_...`, `send_gathering_node_...`, `send_creature_loot_release_dynamic_flags_update_...`,
   `remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_...` y el struct
   `AuthoritativeLootReleaseLikeCpp`, con imports de test movidos a `#[cfg(test)]`.
-  Único duplicado que sobrevive: la compuerta `represented_gameobject_can_autostore_loot_item_like_cpp`
-  (+ su `spell_lock_range`) que consume `handlers/loot/handlers/item.rs` (opcode de autostore,
-  operación distinta del release); su convergencia es F6. El módulo App todavía no
-  tiene pruebas propias (la cobertura la aportan hoy las 264 pruebas `handlers::loot` de
-  `wow-world`, que ahora ejercitan el camino App).
+  Tampoco queda duplicado de la compuerta de autostore: se extrajo como provider libre
+  `wow_world_application::represented_gameobject_can_autostore_loot_item_like_cpp` (posición
+  canónica/representada, display box y rango de spell-lock con `known_spells` explícitos) y
+  `handlers/loot/handlers/item.rs` la consume por la fachada World; se retiraron las copias
+  World del gate y de `represented_gameobject_spell_lock_range_like_cpp`. El módulo App
+  todavía no tiene pruebas propias (la cobertura la aportan hoy las 264 pruebas
+  `handlers::loot` de `wow-world`, que ahora ejercitan el camino App).
 - El `QuestGameObjectVisibilityCx` readonly App (`quest/visibility/gameobject_flags.rs`,
-  completions en `quest/objectives.rs`) ya tiene consumidor World: tanto ActivateToQuest como
-  DynamicFlags delegan en el proveedor App; World conserva sus `has_quest`/`is_for_quests`
-  para query/refresh y su retirada es F6.
+  completions en `quest/objectives.rs`) tiene consumidor World completo: ActivateToQuest,
+  DynamicFlags y el refresh `update_visible_gameobjects_like_cpp` (que además usa
+  `represented_has_quest_for_gameobject_like_cpp`/`represented_gameobject_is_for_quests_like_cpp`)
+  delegan en los providers App, ahora `pub`. Las copias World de esas dos consultas quedaron
+  como fachadas finas sobre el mismo provider, sin lógica duplicada.
 - StorageMove/swap/child/offhand como executor completo, Save, compra Trainer, refresh de
   visibilidad y CompleteQuest conservan pendientes.
 - Sin `final`, arquitectura/self-test, inventario de persistencia, capturas ni live; por
