@@ -32,7 +32,7 @@ pub struct SessionSocialLimits {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_subgroup_like_cpp: Option<u8>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) represented_group_update_sequences_like_cpp:
+    pub represented_group_update_sequences_like_cpp:
         [wow_entities::PlayerGroupUpdateSequenceLikeCpp;
             wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
 

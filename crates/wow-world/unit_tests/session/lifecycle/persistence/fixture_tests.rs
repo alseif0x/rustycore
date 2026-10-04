@@ -3,6 +3,25 @@
 #![cfg(test)]
 
 use super::*;
+use wow_entities::{
+    PlayerEquipmentSetTypeLikeCpp as RepresentedEquipmentSetTypeLikeCpp,
+    PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
+};
+use wow_persistence::{
+    PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
+    PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
+    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp,
+    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
+    PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
+    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
+    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp,
+    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
+};
+use wow_world_core::session::RepresentedPlayerSkillStateLikeCpp;
+use wow_world_core::session::persistence_capabilities::character_power_snapshot_values_like_cpp;
+use wow_world_spell::RepresentedPlayerSpellStateLikeCpp;
 
 impl WorldSession {
     #[cfg(test)]

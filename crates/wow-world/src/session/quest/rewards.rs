@@ -431,6 +431,30 @@ impl WorldSession {
             auto_launched,
         });
     }
+
+    /// Apply one quest-reward currency grant and return its committed delta so
+    /// callers can publish it at their own phase.
+    pub(crate) fn add_currency_quest_reward_like_cpp(
+        &mut self,
+        currency_id: u32,
+        amount: u32,
+        gain_source: wow_constants::currency::CurrencyGainSourceLikeCpp,
+    ) -> Result<Option<wow_world_core::session::PlayerCurrencyDelta>, ()> {
+        let player = self.core.quest_reward_player_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_class,
+        );
+        wow_world_application::add_currency_quest_reward_like_cpp(
+            &mut self.inventory,
+            &player,
+            self.catalogs.currency_types_store.as_deref(),
+            currency_id,
+            amount,
+            gain_source,
+        )
+    }
 }
 
 #[cfg(test)]

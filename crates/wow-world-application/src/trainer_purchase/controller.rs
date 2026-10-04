@@ -41,11 +41,11 @@ use wow_world_spell::{
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 
-const TRAINER_LIST_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
+pub const TRAINER_LIST_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 pub const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
     | NPCFlags1::TRAINER_CLASS.bits()
     | NPCFlags1::TRAINER_PROFESSION.bits();
-const TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP: u32 =
+pub const TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP: u32 =
     NPCFlags1::GOSSIP.bits() | TRAINER_BUY_NPC_FLAGS_LIKE_CPP;
 
 pub fn trainer_list_required_npc_flags_like_cpp(

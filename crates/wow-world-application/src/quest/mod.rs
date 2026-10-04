@@ -41,6 +41,7 @@ pub use self::objective_progress::{
     save_changed_quest_statuses_like_cpp, save_quest_to_db_like_cpp,
     MAX_QUEST_LOG_SIZE_LIKE_CPP,
 };
+pub use self::currencies::add_currency_quest_reward_like_cpp;
 pub use self::objectives::QuestObjectiveProgressCx;
 pub use self::dialog_status::{
     QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp,

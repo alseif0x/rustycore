@@ -70,6 +70,7 @@ pub use registry_sync::PlayerRegistryHydrationContext;
 pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::QuestEligibilityCx;
 pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};
+pub use quest::add_currency_quest_reward_like_cpp;
 pub use quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 pub use quest::{
     QuestRewardCommitCx, QuestRewardCx, begin_exclusive_player_money_persistence_like_cpp,
@@ -158,7 +159,8 @@ pub use trainer_purchase::{
     resolve_creature_trainer_like_cpp,
     trainer_list_required_npc_flags_like_cpp,
     trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
-    TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP,
+    TRAINER_LIST_NPC_FLAGS_LIKE_CPP,
     TrainerAcquisitionRuntimeLikeCpp, execute_trainer_acquisition_like_cpp,
     install_player_spell_acquisition_runtime_snapshot_like_cpp,
     install_represented_spell_acquisition_runtime_like_cpp, publish_spell_acquisition_action_like_cpp,

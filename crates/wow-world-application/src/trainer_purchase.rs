@@ -40,7 +40,8 @@ pub use controller::{
     resolve_creature_trainer_like_cpp,
     trainer_list_required_npc_flags_like_cpp,
     trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
-    TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP,
+    TRAINER_LIST_NPC_FLAGS_LIKE_CPP,
 };
 pub use offer::{
     PreparedBattlePetTrainerOfferLikeCpp, TrainerAdmissionProofLikeCpp,

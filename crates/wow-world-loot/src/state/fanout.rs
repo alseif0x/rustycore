@@ -40,7 +40,7 @@ impl LootState {
         );
     }
 
-    fn represented_notify_loot_item_removed_from_snapshot_like_cpp(
+    pub fn represented_notify_loot_item_removed_from_snapshot_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
         owner_guid: ObjectGuid,

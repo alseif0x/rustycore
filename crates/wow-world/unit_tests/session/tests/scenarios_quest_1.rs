@@ -7,7 +7,7 @@ use super::*;
 
 #[tokio::test]
 async fn game_event_quest_complete_notify_reports_missing_sender_like_cpp() {
-    let (session, _, _) = make_session();
+    let (mut session, _, _) = make_session();
 
     let outcome = session.notify_game_event_quest_complete_like_cpp(42).await;
 

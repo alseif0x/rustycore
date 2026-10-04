@@ -154,7 +154,7 @@ async fn grant_quest_reward_currency_like_cpp(
     true
 }
 
-fn add_currency_quest_reward_like_cpp(
+pub fn add_currency_quest_reward_like_cpp(
     inventory: &mut InventoryState,
     player: &QuestRewardPlayerAccessLikeCpp<'_>,
     currency_types: Option<&CurrencyTypesStore>,

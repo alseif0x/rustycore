@@ -6,10 +6,15 @@
 use super::*;
 use wow_constants::ItemFieldFlags2;
 
+#[path = "scenarios_player_items_2/committed_swap.rs"]
 mod committed_swap;
+#[path = "scenarios_player_items_2/committed_relocation.rs"]
 mod committed_relocation;
+#[path = "scenarios_player_items_2/enchantment_persistence.rs"]
 mod enchantment_persistence;
+#[path = "scenarios_player_items_2/item_publication.rs"]
 mod item_publication;
+#[path = "scenarios_player_items_2/position_publication.rs"]
 mod position_publication;
 
 #[test]

@@ -65,7 +65,10 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
         HashSet::from([9001, 9002])
     );
     assert_eq!(
-        session.instances.represented_instance_reset_times_for_test_like_cpp(),
+        session
+            .instances
+            .represented_instance_reset_times_for_test_like_cpp()
+            .clone(),
         BTreeMap::from([(0, 0), (10, 100)])
     );
     assert_eq!(

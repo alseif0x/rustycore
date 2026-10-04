@@ -122,7 +122,7 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/session/player_items/enchantment.rs"),
         include_str!("../../../src/session/player_items/equipment.rs"),
         include_str!("../../../src/session/player_items/equipment_sets.rs"),
-        include_str!("../../../src/session/player_items/equipment_slots.rs"),
+        include_str!("../../../../wow-world-inventory/src/equipment_slots.rs"),
         include_str!("../../../src/session/player_items/items.rs"),
         include_str!("../../../src/session/player_items/modifiers.rs"),
         include_str!("../../../src/session/player_items/offhand.rs"),

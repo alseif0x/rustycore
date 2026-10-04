@@ -25,18 +25,17 @@ impl crate::session::WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.represented_battleground_leave_requests_like_cpp(hub)
+        self.fixtures
+            .battleground
+            .represented_battleground_leave_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn temporary_pet_unsummon_requests_like_cpp(&self) -> u32 {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.temporary_pet_unsummon_requests_like_cpp(hub)
+        self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn movement_jump_proc_requests_like_cpp(&self) -> u32 {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.movement_jump_proc_requests_like_cpp(hub)
+        self.fixtures.movement.movement_jump_proc_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn movement_visibility_refresh_requests_like_cpp(&self) -> u32 {
@@ -45,8 +44,7 @@ impl crate::session::WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn temporary_pet_resummon_requests_like_cpp(&self) -> u32 {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.temporary_pet_resummon_requests_like_cpp(hub)
+        self.fixtures.pets.temporary_pet_resummon_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_timed_quest_removals_like_cpp(&self) -> &[u32] {

@@ -166,7 +166,6 @@ fn quest_bound_withdrawal_plan_consumes_credit_without_physical_item() {
         )
     );
     let planned = session
-        .quest_state
         .finish_item_transfer_quest_persistence_like_cpp(plan);
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].status, QUEST_STATUS_COMPLETE_LIKE_CPP);
