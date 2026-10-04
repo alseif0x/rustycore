@@ -3556,6 +3556,7 @@ name = "wow-world-entities"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "tracing",
  "wow-ai",
  "wow-conditions",
  "wow-constants",
@@ -3568,6 +3569,7 @@ dependencies = [
  "wow-packet",
  "wow-persistence",
  "wow-progression",
+ "wow-recastdetour",
  "wow-world-core",
 ]
 

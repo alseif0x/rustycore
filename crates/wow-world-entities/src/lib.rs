@@ -3,6 +3,7 @@
 mod contracts;
 mod creature_publication;
 pub mod creature_aggro_contracts;
+pub mod creature_movement_adapter;
 pub mod creature_spell_admission;
 pub mod creature_spell_publication;
 pub mod creature_spell_metadata;
