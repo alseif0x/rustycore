@@ -1,5 +1,6 @@
 //! World-session spell state and its application-owned operations.
 
+pub mod aura_effects;
 mod records;
 mod state;
 mod player_cast;
