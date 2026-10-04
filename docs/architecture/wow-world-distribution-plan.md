@@ -2881,9 +2881,15 @@ El mapa source-only de child/offhand identifica StorageMove completo en
 corte asignado es la relocalización committed completa de
 `session/player_items/persistence.rs:15–129` hacia
 `inventory_swap/relocation.rs`, con participantes seleccionados y una operación
-Core finita final. Debe conservar escrituras independientes, snapshots completos,
-children en orden nativo y GUID tardío; sus callers mantienen el rollback temporal
-del redirect. Este corte está asignado, no entregado ni validado. RawEquip,
+Core finita final. El corte ya tiene fachada World, módulo App y hoja Core
+conectados por fuente, conservando escrituras independientes, snapshots completos,
+dos recorridos de children en orden nativo y GUID tardío; sus callers mantienen
+el rollback temporal del redirect. Cinco pruebas escritas cubren posiciones
+iguales/destino ocupado, owner stale con reemplazo del mismo GUID, traslado y
+reversión, bolsa canónica con children y fuente/container ausentes. La salida por
+snapshot de objetos ausente sigue después de las escrituras top-level originales;
+no se convirtió en un preflight nuevo. Revisión por fuente favorable, sin
+ejecución ni aceptación. RawEquip,
 StorageMove y child/offhand completos siguen pendientes dentro de F5.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
