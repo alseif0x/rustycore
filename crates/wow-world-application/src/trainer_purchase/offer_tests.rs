@@ -2,7 +2,7 @@
 mod tests {
     use std::collections::{BTreeMap, HashMap};
 
-    use super::*;
+    use super::super::*;
     use wow_spell_acquisition::{
         PlayerAcquisitionLifecycleLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
     };
@@ -118,7 +118,7 @@ mod tests {
 
     #[test]
     fn price_preserves_every_cpp_rank_and_float_rounding_edges() {
-        use ReputationRankLikeCpp::*;
+        use wow_constants::reputation::ReputationRankLikeCpp::*;
         assert_eq!(
             [
                 Hated, Hostile, Unfriendly, Neutral, Friendly, Honored, Revered, Exalted
@@ -379,4 +379,4 @@ mod tests {
         );
     }
 }
-crates/wow-world/src/lib.rs:39:pub(crate) mod trainer_offer;
+

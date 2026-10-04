@@ -239,7 +239,7 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
         }
         if item_mods_changed {
             #[cfg(any(test, feature = "test-fixtures"))]
-            let stats_access = {
+            let (stats_access, stats_publication) = {
                 let Self {
                     owner,
                     catalogs,
@@ -247,14 +247,18 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
                     fixtures,
                     ..
                 } = self;
-                fixtures.stats_access_like_cpp(owner, catalogs, config)
+                let publication = owner.packet_publication_access_like_cpp();
+                (
+                    fixtures.stats_access_like_cpp(owner, catalogs, config),
+                    publication,
+                )
             };
             #[cfg(not(any(test, feature = "test-fixtures")))]
-            let stats_access = self.owner.player_stats_access_like_cpp(
-                self.catalogs,
-                self.config,
+            let (stats_access, stats_publication) = (
+                self.owner
+                    .player_stats_access_like_cpp(self.catalogs, self.config),
+                self.owner.packet_publication_access_like_cpp(),
             );
-            let stats_publication = self.owner.packet_publication_access_like_cpp();
             let mut stats = CharacterStatsApplicationCxLikeCpp::new(
                 stats_access,
                 &*self.inventory,

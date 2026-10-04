@@ -99,7 +99,8 @@ impl QuestRewardCx<'_> {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.world_test_consumer {
             let caster_selection_unrepresented =
-                (quest.flags & wow_constants::quest_flags::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP)
+                (quest.flags
+                    & wow_constants::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP)
                     == 0;
             if quest.reward_spell > 0 {
                 let can_delay_teleport_like_cpp = self

@@ -9,10 +9,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::session::{
-    state::SessionCore,
-    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
-    canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
-    represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
+    state::SessionCore, RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
+    SKILL_ENCHANTING_LIKE_CPP, canonical_player_skill_record_like_cpp,
+    represented_player_skill_record_like_cpp, represented_skill_records_from_values_like_cpp,
+    represented_skill_values_from_records_like_cpp,
 };
 use wow_data::{FishingBaseSkillStoreLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp};
 use wow_entities::Player;

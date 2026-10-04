@@ -165,10 +165,16 @@ impl crate::session::HubMut<'_> {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
-        self.core.set_player_character_points_with_fixture_like_cpp(
-            Some(&mut self.fixtures.progression.player_character_points_like_cpp),
-            points,
-        )
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_character_points_like_cpp(points);
+            })
+            .is_some();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.progression.player_character_points_like_cpp = points;
+        }
+        canonical || self.core.player_handle_like_cpp.is_none()
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

@@ -67,6 +67,13 @@ pub struct QuestObjectiveProgressCx<'cx, 'session> {
     pub(super) reputation_fixture:
         &'cx mut QuestRewardReputationFixtureRefsLikeCpp<'session>,
     #[cfg(any(test, feature = "test-fixtures"))]
+    pub(super) xp_fixtures: &'cx mut super::super::reward::QuestXpGainFixtureRefsLikeCpp<'session>,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(super) teleport_fixture: &'cx mut wow_world_core::session::state::TeleportState,
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(super) item_planning_fixtures:
+        &'cx super::super::reward::QuestRewardItemPlanningFixtureRefsLikeCpp<'session>,
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::quest) player_game_master_fixture: &'cx bool,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(super) registry_fixtures: QuestObjectiveRegistryFixtureRefsLikeCpp<'cx>,

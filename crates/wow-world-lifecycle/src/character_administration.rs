@@ -111,4 +111,4 @@ mod tests;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[path = "character_administration/test_fixture.rs"]
-mod test_fixture;
+pub(crate) mod test_fixture;

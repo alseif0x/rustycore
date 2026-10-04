@@ -70,7 +70,7 @@ pub struct PlayerConditionProjectionCxLikeCpp<'a> {
     #[cfg(any(test, feature = "test-fixtures"))]
     instances: &'a InstanceState,
     #[cfg(any(test, feature = "test-fixtures"))]
-    battleground_fixture: &'a wow_world_core::session::BattlegroundState,
+    pub(crate) battleground_fixture: &'a wow_world_core::session::BattlegroundState,
     pub(crate) valuation_catalogs: InventoryValuationCatalogViewLikeCpp<'a>,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) reputation_state: &'a wow_entities::PlayerReputationStateLikeCpp,

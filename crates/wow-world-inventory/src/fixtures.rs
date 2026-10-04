@@ -10,6 +10,7 @@ use crate::{
     RepresentedGuildBankTabActionLikeCpp, RepresentedGuildRepairBankWithdrawLikeCpp,
     RepresentedItemBonusActionLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
     RepresentedItemSetAuraRefreshEventLikeCpp, RepresentedItemSetSpellEventLikeCpp,
+    RepresentedTransmogCriteriaEvent,
 };
 use std::collections::HashMap;
 use wow_core::ObjectGuid;

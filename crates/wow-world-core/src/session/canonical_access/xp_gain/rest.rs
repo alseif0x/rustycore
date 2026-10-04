@@ -116,7 +116,7 @@ impl CoreXPGainAccessLikeCpp<'_> {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn resolved_total_represented_aura_modifier_from_selected_refs_like_cpp(
         &self,
-        effect: crate::session::RepresentedAuraEffectLikeCpp,
+        effect: wow_entities::RepresentedAuraEffectLikeCpp,
         aura_authority_complete: &bool,
         aura_spell_hit_tombstoned: &bool,
         visible_auras: &std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,

@@ -32,6 +32,12 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         reputation_fixture:
             &'cx mut super::QuestRewardReputationFixtureRefsLikeCpp<'session>,
         #[cfg(any(test, feature = "test-fixtures"))]
+        xp_fixtures: &'cx mut super::QuestXpGainFixtureRefsLikeCpp<'session>,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        teleport_fixture: &'cx mut wow_world_core::session::state::TeleportState,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        item_planning_fixtures: &'cx super::QuestRewardItemPlanningFixtureRefsLikeCpp<'session>,
+        #[cfg(any(test, feature = "test-fixtures"))]
         player_game_master_fixture: &'cx bool,
         #[cfg(any(test, feature = "test-fixtures"))]
         registry_fixtures: QuestObjectiveRegistryFixtureRefsLikeCpp<'cx>,
@@ -43,13 +49,19 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             #[cfg(any(test, feature = "test-fixtures"))]
             reputation_fixture,
             #[cfg(any(test, feature = "test-fixtures"))]
+            xp_fixtures,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            teleport_fixture,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            item_planning_fixtures,
+            #[cfg(any(test, feature = "test-fixtures"))]
             player_game_master_fixture,
             #[cfg(any(test, feature = "test-fixtures"))]
             registry_fixtures,
         }
     }
 
-    fn current_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
+    pub(in crate::quest) fn current_quest_status_like_cpp(&self, quest_id: u32) -> Option<u8> {
         let owner = self.reward.player.quest_objective_access_like_cpp();
         current_quest_gameplay_snapshot_like_cpp(
             &owner,
@@ -94,6 +106,109 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.reward.world_test_consumer,
         );
+    }
+
+    /// C++ `Player::CompleteQuest` for a quest whose objectives are now met.
+    pub async fn complete_represented_quest_after_add_like_cpp(
+        &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> bool {
+        self.complete_represented_quest_after_objective_like_cpp(quest, 0)
+            .await
+    }
+
+    /// C++ objective-completion path, including the tracking-event auto-reward.
+    pub async fn complete_represented_quest_after_objective_like_cpp(
+        &mut self,
+        quest: &wow_data::quest::QuestTemplate,
+        ignored_objective_id: u32,
+    ) -> bool {
+        let can_complete = {
+            let owner = self.reward.player.quest_objective_access_like_cpp();
+            current_quest_gameplay_snapshot_like_cpp(
+                &owner,
+                self.reward.quest_state,
+                self.reward.world_test_consumer,
+            )
+            .and_then(|state| {
+                let status = state.statuses_like_cpp().get(&quest.id)?;
+                let quest_already_rewarded =
+                    state.rewarded_quest_ids_like_cpp().contains(&quest.id);
+                Some(
+                    wow_entities::represented_can_complete_quest_after_objective_like_cpp(
+                        status,
+                        &quest.objective_rules_like_cpp(),
+                        ignored_objective_id,
+                        quest_already_rewarded,
+                    ),
+                )
+            })
+            .unwrap_or(false)
+        };
+        if !can_complete {
+            return false;
+        }
+
+        let tracking_event =
+            (quest.flags & wow_constants::quest::QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP) != 0;
+        let completed = {
+            let owner = self.reward.player.quest_objective_access_like_cpp();
+            super::completion::complete_represented_quest_status_like_cpp(
+                &owner,
+                self.reward.quest_state,
+                quest.id,
+                tracking_event,
+                self.reward.world_test_consumer,
+            )
+        };
+        if !completed {
+            return false;
+        }
+
+        if tracking_event {
+            let quest_giver_guid = self
+                .reward
+                .player
+                .player_guid_like_cpp()
+                .unwrap_or(ObjectGuid::new(0, 0));
+            let rewarded = self
+                .reward
+                .reward_quest_with_generator_like_cpp(
+                    self.item_guid_generator,
+                    quest,
+                    quest_giver_guid,
+                    0,
+                    wow_constants::quest::QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+                    wow_constants::quest::QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+                    wow_constants::quest::QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    &mut *self.xp_fixtures,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    &mut *self.teleport_fixture,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    self.item_planning_fixtures,
+                    self.loot,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    self.registry_fixtures.transport,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    (
+                        self.registry_fixtures.mount_vehicle,
+                        self.registry_fixtures.vehicle_seat_flags,
+                        self.registry_fixtures.vehicle_seat_id,
+                        self.registry_fixtures.pet_guid,
+                    ),
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    &mut *self.reputation_fixture,
+                )
+                .await;
+            if rewarded {
+                self.reward
+                    .quest_state
+                    .mark_latest_tracking_event_auto_reward_like_cpp(quest.id);
+                Box::pin(self.drain_represented_quest_objective_progress_like_cpp()).await;
+            }
+        }
+        true
     }
 
     pub async fn drain_represented_quest_objective_progress_like_cpp(&mut self) {

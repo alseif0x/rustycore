@@ -139,6 +139,12 @@ impl<'a> StatsFixtureRefs<'a> {
         }
     }
 
+    /// Lend the current health/max-health/alive participants to a selected
+    /// read-only consumer (XP/rest/resurrection projection) at its own phase.
+    pub fn vitals_fixture_refs_like_cpp(&self) -> (&u32, &u32, &bool) {
+        self.combat.health_refs_like_cpp()
+    }
+
 }
 
 /// Borrowed, operation-specific access used while projecting Player stats.

@@ -257,7 +257,8 @@ pub use player_binding::{
 
 pub mod movement_protocol;
 pub use movement_protocol::{
-    creature_movement_spline_speed_opcode_like_cpp, player_movement_speed_opcodes_like_cpp,
+    UnitMoveTypeLikeCpp, creature_movement_spline_speed_opcode_like_cpp,
+    player_movement_speed_opcodes_like_cpp,
 };
 pub mod pets;
 
@@ -269,6 +270,8 @@ pub mod state;
 pub use state::SessionWorldConfig;
 pub use state::{HubMut, HubRef};
 pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use state::BattlegroundState;
 pub use catalogs::InventoryValuationCatalogViewLikeCpp;
 pub use state::hub_support::{default_display_id, player_team_for_race_cpp};
 
