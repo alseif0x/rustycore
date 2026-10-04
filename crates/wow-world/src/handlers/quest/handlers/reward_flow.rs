@@ -241,64 +241,48 @@ impl WorldSession {
             return;
         }
 
-        // Build rewards block
-        let mut rewards = QuestRewardsBlock::default();
-        rewards.money = quest.reward_money_difficulty as i32;
-        for i in 0..4 {
-            rewards.items[i] = (quest.reward_items[i], quest.reward_amounts[i]);
-        }
-        for i in 0..3 {
-            rewards.display_spells[i] = quest.reward_display_spell[i];
-        }
-        rewards.completion_spell = quest.reward_spell as i32;
-        for i in 0..6 {
-            rewards.choice_items[i] = (
-                quest.reward_choice_items[i].0,
-                quest.reward_choice_items[i].1,
-            );
-        }
-        rewards.choice_item_types = quest.reward_choice_item_types;
-
-        // Check if all objectives are done — C++ GetQuestStatus == QUEST_STATUS_COMPLETE.
+        // C++ `GetQuestStatus(packet.QuestID) != QUEST_STATUS_COMPLETE` plus the
+        // `HasQuestObjectiveType(QUEST_OBJECTIVE_ITEM)` dialog choice.
         let is_complete = self
             .player_quest_gameplay_snapshot_like_cpp()
             .and_then(|state| state.statuses_like_cpp().get(&quest_id).map(|qs| qs.status))
             == Some(QUEST_STATUS_COMPLETE_LIKE_CPP);
-
-        if !is_complete {
-            // Not all objectives done — send "you still need X" dialog
-            // Legacy non-canonical note: SendQuestGiverRequestItems(quest, guid, canComplete=false, false)
-            self.send_packet(&QuestGiverRequestItems {
-                giver_guid: guid,
-                giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
-                quest_id,
-                comp_emote_delay: 0,
-                comp_emote_type: 0,
-                quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
-                suggested_party_members: quest.suggested_group_num,
-                money_to_get: 0,
-                collect: Vec::new(),
-                currency: Vec::new(),
-                status_flags: 0xFD,
-                title: quest.log_title.clone(),
-                completion_text: quest.area_description.clone(),
-                auto_launched: false,
-            });
-            return;
+        let can_reward_quest = self.can_reward_quest_represented_bounded_like_cpp(quest);
+        let can_complete_repeatable_quest =
+            self.can_complete_repeatable_quest_represented_bounded_like_cpp(quest);
+        match wow_world_application::represented_quest_complete_dialog_like_cpp(
+            quest,
+            is_complete,
+            can_reward_quest,
+            can_complete_repeatable_quest,
+        ) {
+            wow_world_application::RepresentedQuestCompleteDialogLikeCpp::RequestItems {
+                can_complete,
+                auto_launched,
+            } => {
+                self.send_represented_quest_giver_request_items_with_completion_like_cpp(
+                    guid,
+                    quest,
+                    can_complete,
+                    auto_launched,
+                );
+            }
+            wow_world_application::RepresentedQuestCompleteDialogLikeCpp::OfferReward {
+                auto_launched,
+            } => {
+                self.send_packet(&QuestGiverOfferReward {
+                    giver_guid: guid,
+                    giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
+                    quest_id,
+                    quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+                    suggested_party_members: quest.suggested_group_num,
+                    rewards: wow_world_application::represented_quest_rewards_block_like_cpp(quest),
+                    title: quest.log_title.clone(),
+                    reward_text: quest.quest_completion_log.clone(),
+                    auto_launched,
+                });
+            }
         }
-
-        // All objectives done — show offer reward dialog
-        self.send_packet(&QuestGiverOfferReward {
-            giver_guid: guid,
-            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(guid),
-            quest_id,
-            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
-            suggested_party_members: quest.suggested_group_num,
-            rewards,
-            title: quest.log_title.clone(),
-            reward_text: quest.quest_completion_log.clone(),
-            auto_launched: false,
-        });
     }
 
     /// CMSG_QUEST_GIVER_CHOOSE_REWARD — player clicks "Complete Quest" in reward dialog.

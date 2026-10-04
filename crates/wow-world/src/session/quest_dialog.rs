@@ -6,45 +6,20 @@
 
 use super::{ActiveState, Arc, InventoryResult, ObjectGuid};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
-use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP, QuestListEntry};
+use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QuestListEntry};
 use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect};
 use super::{WorldSession, info, quest};
 
 pub(in crate::session) fn quest_has_represented_item_objective_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
 ) -> bool {
-    quest
-        .objectives
-        .iter()
-        .any(|objective| objective.obj_type == QUEST_OBJECTIVE_ITEM_LIKE_CPP)
+    wow_world_application::represented_quest_has_item_objective_like_cpp(quest)
 }
 
 pub(in crate::session) fn quest_rewards_block_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
 ) -> QuestRewardsBlock {
-    let mut rewards = QuestRewardsBlock {
-        money: quest.reward_money_difficulty as i32,
-        completion_spell: quest.reward_spell as i32,
-        ..QuestRewardsBlock::default()
-    };
-    for (idx, reward_item) in quest.reward_items.iter().enumerate() {
-        if let Some(reward_slot) = rewards.items.get_mut(idx) {
-            let amount = quest.reward_amounts.get(idx).copied().unwrap_or(0);
-            *reward_slot = (*reward_item, amount);
-        }
-    }
-    for (idx, display_spell) in quest.reward_display_spell.iter().enumerate() {
-        if let Some(slot) = rewards.display_spells.get_mut(idx) {
-            *slot = *display_spell;
-        }
-    }
-    for (idx, choice_item) in quest.reward_choice_items.iter().enumerate() {
-        if let Some(slot) = rewards.choice_items.get_mut(idx) {
-            *slot = *choice_item;
-        }
-    }
-    rewards.choice_item_types = quest.reward_choice_item_types;
-    rewards
+    wow_world_application::represented_quest_rewards_block_like_cpp(quest)
 }
 
 pub(in crate::session) fn quest_giver_creature_id_from_source_like_cpp(

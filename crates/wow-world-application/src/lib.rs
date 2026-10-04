@@ -71,6 +71,10 @@ pub use equipment_set_use::{
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use registry_sync::PlayerRegistryHydrationContext;
+pub use quest::{
+    RepresentedQuestCompleteDialogLikeCpp, represented_quest_complete_dialog_like_cpp,
+    represented_quest_has_item_objective_like_cpp, represented_quest_rewards_block_like_cpp,
+};
 pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::QuestEligibilityCx;
 pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};

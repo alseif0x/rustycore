@@ -60,11 +60,15 @@ use wow_packet::packets::query::{
 };
 use wow_packet::packets::quest::{
     AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
-    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverRequestItems,
+    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed,
     QuestGiverStatus, QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse,
-    QuestRewardsBlock, QuestUpdateComplete, WorldQuestUpdateResponse, quest_giver_status,
-    quest_push_reason,
+    QuestRewardsBlock, WorldQuestUpdateResponse, quest_push_reason,
 };
+// Test-only: the quest handler test fixtures read the dialog status
+// discriminators through this module's glob import.
+#[cfg(test)]
+use wow_packet::packets::quest::quest_giver_status;
+
 use wow_packet::packets::update::{
     ItemCreateData, ItemEnchantmentValuesUpdate,
     UpdateObject,

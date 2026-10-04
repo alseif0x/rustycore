@@ -295,3 +295,109 @@ fn chest_quest_id_incomplete_activates_to_quest_like_cpp() {
         "chest with quest in COMPLETE status must not activate"
     );
 }
+
+fn quest_with_item_objective_like_cpp(id: u32) -> wow_data::quest::QuestTemplate {
+    let mut quest = test_quest_template(id);
+    quest.flags = crate::handlers::quest::QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
+    quest.objectives.push(wow_entities::QuestObjective {
+        id: 1,
+        quest_id: id,
+        obj_type: wow_constants::quest::QUEST_OBJECTIVE_ITEM_LIKE_CPP,
+        order: 0,
+        storage_index: 0,
+        object_id: 12_345,
+        amount: 3,
+        flags: 0,
+        flags2: 0,
+        progress_bar_weight: 0.0,
+        description: String::new(),
+    });
+    quest
+}
+
+fn insert_complete_status_like_cpp(
+    session: &mut crate::session::WorldSession,
+    quest_id: u32,
+    status: u8,
+) {
+    session
+        .quest_state
+        .fixture_insert_player_quest_status_like_cpp(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
+}
+
+/// C++ `HandleQuestgiverCompleteQuest`: a COMPLETE quest that still has item
+/// objectives answers with `SendQuestGiverRequestItems`, not the reward offer.
+#[tokio::test]
+async fn quest_giver_complete_item_objective_requests_items_not_offer_reward_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 99);
+    session.set_player_guid(Some(player_guid));
+    session.catalogs.quests.store = Some(Arc::new(
+        wow_data::quest::QuestStore::from_quests_like_cpp([quest_with_item_objective_like_cpp(
+            9_222,
+        )]),
+    ));
+    insert_complete_status_like_cpp(
+        &mut session,
+        9_222,
+        crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP,
+    );
+
+    session
+        .handle_quest_giver_complete_quest(quest_giver_complete_packet_like_cpp(
+            player_guid,
+            9_222,
+            true,
+        ))
+        .await;
+
+    let bytes = send_rx.try_recv().unwrap();
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+        Some(ServerOpcodes::QuestGiverRequestItems)
+    );
+}
+
+/// C++ `HandleQuestgiverCompleteQuest`: an incomplete item turn-in also answers
+/// with `SendQuestGiverRequestItems`.
+#[tokio::test]
+async fn quest_giver_complete_incomplete_item_turn_in_requests_items_like_cpp() {
+    let (mut session, _pkt_tx, send_rx) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 99);
+    session.set_player_guid(Some(player_guid));
+    session.catalogs.quests.store = Some(Arc::new(
+        wow_data::quest::QuestStore::from_quests_like_cpp([quest_with_item_objective_like_cpp(
+            9_223,
+        )]),
+    ));
+    insert_complete_status_like_cpp(
+        &mut session,
+        9_223,
+        crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    );
+
+    session
+        .handle_quest_giver_complete_quest(quest_giver_complete_packet_like_cpp(
+            player_guid,
+            9_223,
+            true,
+        ))
+        .await;
+
+    let bytes = send_rx.try_recv().unwrap();
+    assert_eq!(
+        wow_packet::WorldPacket::from_bytes(&bytes).server_opcode(),
+        Some(ServerOpcodes::QuestGiverRequestItems)
+    );
+}

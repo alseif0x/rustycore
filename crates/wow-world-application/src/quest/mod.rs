@@ -9,6 +9,7 @@ mod reward_plan;
 mod reward_commit;
 mod money_persistence;
 mod completion;
+mod complete;
 mod visibility;
 mod objective_progress;
 mod objectives;
@@ -19,6 +20,10 @@ mod reward;
 mod quest_log;
 mod session_state;
 
+pub use self::complete::{
+    RepresentedQuestCompleteDialogLikeCpp, represented_quest_complete_dialog_like_cpp,
+    represented_quest_has_item_objective_like_cpp, represented_quest_rewards_block_like_cpp,
+};
 pub use self::reward_plan::QuestRewardDurablePlanLikeCpp;
 pub use self::reward_commit::QuestRewardCommitCx;
 pub use self::reward::QuestRewardCx;
