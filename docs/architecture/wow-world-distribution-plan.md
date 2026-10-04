@@ -2854,6 +2854,19 @@ asignado es PositionPublication: sort/dedup → bolsas inmediatas → lecturas
 top-level frescas → Player VALUES → Stats completo, con vista de bolsa canónica
 que conserva su accessor actual (no strict-owned ni fallback nuevo).
 
+PositionPublication ya está conectado por fuente en
+`inventory_swap/positions.rs`, World `inventory_moves.rs` y su constructor
+en `player_items/publication.rs`. App retiene el participante Stats seleccionado;
+se rechazó y retiró una factory Stats añadida al rol Inventory y las referencias
+App al catálogo/config completos. El constructor Stats existente es inerte;
+su nuevo reborrow conserva referencias y las consultas siguen al final después
+de Player VALUES. La vista de slots de bolsa usa el accessor canónico original.
+Tres casos escritos cubren dedup y orden bolsa → Player → Stats, mapa actual
+sin gear/entrada vacía y ausencia de reconstrucción desde fixture sin handle.
+Export normal conectado, revisión por fuente favorable; no hay ejecución ni
+captura nueva. Child/offhand y el executor swap completo siguen pendientes;
+la liberación completa de botín se trabaja como dependencia compartida con Save.
+
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
 y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
