@@ -24,6 +24,8 @@ fn inventory_swap_effects_non_equipment_remove_duration_and_tradeable_refs() {
     let item_guid = ObjectGuid::create_item(1, 30_180);
     let registry = Arc::new(PlayerRegistry::default());
     bind_canonical_test_player_to_registry_like_cpp(&mut session, &registry, guid, Position::ZERO, 571);
+    session.set_player_guid(Some(guid));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
     equip_represented_test_item_like_cpp(&mut session, INVENTORY_SLOT_ITEM_START, item_guid, 30_180, InventoryType::NonEquip);
     session.update_inventory_item_object_like_cpp(item_guid, |item| {
         item.set_expiration(300);

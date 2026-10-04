@@ -37,6 +37,8 @@ fn enchantment_persistence_selected_reads_canonical_duration_and_item_fallback_w
     let owner = ObjectGuid::create_player(1, 30_222);
     let registry = Arc::new(PlayerRegistry::default());
     bind_canonical_test_player_to_registry_like_cpp(&mut session, &registry, owner, Position::ZERO, 571);
+    session.set_player_guid(Some(owner));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
     let guid = ObjectGuid::create_item(1, 30_222);
     equip_represented_test_item_like_cpp(&mut session, EQUIPMENT_SLOT_MAINHAND, guid, 30_222, InventoryType::Weapon);
     session.set_spell_item_enchantment_store(Arc::new(wow_data::SpellItemEnchantmentStore::from_entries([

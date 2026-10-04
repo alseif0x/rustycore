@@ -31,6 +31,8 @@ fn committed_swap_moves_bag_children_and_registers_native_destination_bags() {
     let owner = ObjectGuid::create_player(1, 30_192);
     let registry = Arc::new(PlayerRegistry::default());
     bind_canonical_test_player_to_registry_like_cpp(&mut session, &registry, owner, Position::ZERO, 571);
+    session.set_player_guid(Some(owner));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
     install_remove_spell_offhand_templates_like_cpp(&mut session, &[
         (30_192, InventoryType::Bag, 0, ItemClass::Container, 0),
         (30_193, InventoryType::Bag, 0, ItemClass::Container, 0),
