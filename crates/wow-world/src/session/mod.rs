@@ -130,8 +130,7 @@ pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ObjectMgrCatalogsLi
 pub use catalog_capabilities::{PlayerBootstrapCatalogsLikeCpp, PlayerRestRatePolicyLikeCpp};
 pub use catalog_capabilities::{SessionHandlerCatalogsLikeCpp, SessionIdGeneratorsLikeCpp};
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
-mod character_availability;
-use character_availability::default_available_classes;
+use wow_world_core::session::character_availability::default_available_classes;
 mod character_customization;
 pub(crate) use character_customization::RepresentedAlterAppearanceLikeCpp;
 #[cfg(test)]

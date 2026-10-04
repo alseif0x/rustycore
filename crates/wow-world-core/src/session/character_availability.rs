@@ -1,8 +1,9 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Character availability: private Session responsibility.
-//! Relocated under #1233; canonical state, phase order and public paths are unchanged.
+//! Character availability fallback data.
+//!
+//! Session-independent: moved out of `wow-world` under #1263 F5.
 
 /// Available race/class combinations from `class_expansion_requirement` table.
 ///
@@ -10,7 +11,7 @@
 /// ActiveExpansionLevel/AccountExpansionLevel: 0 for all except Death Knight (class 6)
 /// which requires WotLK (active=2). MinActiveExpansionLevel is the minimum active
 /// expansion across all races for that class.
-pub(in crate::session) fn default_available_classes()
+pub fn default_available_classes()
 -> Vec<wow_packet::packets::auth::RaceClassAvailability> {
     use wow_packet::packets::auth::{ClassAvailability, RaceClassAvailability};
 

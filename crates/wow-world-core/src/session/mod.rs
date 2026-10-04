@@ -10,6 +10,7 @@ pub use prelude::{
     SharedCanonicalMapManager,
 };
 
+pub mod character_availability;
 pub mod battle_pet_adapter;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
