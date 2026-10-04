@@ -19,73 +19,47 @@ impl WorldSession {
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> u32 {
-        let mut dyn_flags = 0_u32;
-        let path_progress = (state.dynamic_flags >> 16) & 0xFFFF;
-        let activate_to_quest =
-            self.represented_gameobject_activate_to_quest_like_cpp(gameobject_entry, state);
-
-        match state.go_type.map(u32::from) {
-            Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
-                        | wow_entities::GO_DYNFLAG_LO_SPARKLE
-                        | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                } else if crate::session::hub_ref(self).player_is_game_master_like_cpp()
-                    == Some(true)
-                {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                    let state_for_player = self
-                        .represented_gameobject_go_state_for_viewer_like_cpp(state, Instant::now());
-                    if state_for_player != wow_entities::GoState::Active {
-                        dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                    }
-                } else if crate::session::hub_ref(self).player_is_game_master_like_cpp()
-                    == Some(true)
-                {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
-                if activate_to_quest {
-                    dyn_flags |=
-                        wow_entities::GO_DYNFLAG_LO_SPARKLE | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
-                        | wow_entities::GO_DYNFLAG_LO_SPARKLE
-                        | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                }
-                let state_for_player =
-                    self.represented_gameobject_go_state_for_viewer_like_cpp(state, Instant::now());
-                if state_for_player == wow_entities::GoState::Active {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_DEPLETED;
-                }
-            }
-            _ => {
-                dyn_flags = state.dynamic_flags & 0xFFFF;
-            }
-        }
-
-        if state
-            .condition_id1
-            .is_some_and(|id| !self.represented_meets_player_condition_id_like_cpp(id))
-        {
-            dyn_flags |= wow_entities::GO_DYNFLAG_LO_NO_INTERACT;
-        }
-
-        (path_progress << 16) | dyn_flags
+        let owner = self.core.quest_objective_access_like_cpp();
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        let player = self.core.quest_eligibility_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.reputation_state_like_cpp,
+        );
+        let conditions = self.player_condition_projection_cx_like_cpp();
+        let eligibility = wow_world_application::QuestEligibilityCx::new(
+            player,
+            &self.quest_state,
+            &self.catalogs,
+            &conditions,
+            cfg!(test),
+        );
+        let player_is_game_master =
+            crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true);
+        wow_world_application::represented_gameobject_dynamic_flags_for_player_like_cpp(
+            &owner,
+            &self.catalogs,
+            &self.quest_state,
+            &self.inventory,
+            &inventory_access,
+            &eligibility,
+            self.player_guid(),
+            player_is_game_master,
+            gameobject_entry,
+            state,
+            cfg!(test),
+        )
     }
     pub(in crate::session) fn gameobject_create_data_from_canonical_like_cpp(
         &self,

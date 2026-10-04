@@ -62,6 +62,7 @@ pub use self::visibility::{
     RepresentedCanSeeSpellClickOutcomeLikeCpp,
     represented_can_see_spell_click_on_like_cpp,
     represented_gameobject_activate_to_quest_like_cpp,
+    represented_gameobject_dynamic_flags_for_player_like_cpp,
     represented_meets_player_condition_id_like_cpp,
     represented_viewer_dependent_creature_npc_flags_like_cpp,
 };
