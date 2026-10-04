@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `edf1b2dcd` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `3fa2b7a07` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,15 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `3fa2b7a07` (localización de login en App) se repitió el mismo conjunto:
+`cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
+`test-fixtures`) y `wow-world-application --all-targets` verdes; `cargo test -p wow-world
+--lib` **3.632 passed / 0 failed / 1 ignored**; `wow-world-application` 52/52; sin avisos
+nuevos. Nota de coste: `cargo check --workspace --all-targets` supera de forma consistente el
+límite por defecto de 600 s del harness desde hace varias rondas y se repite con límite
+ampliado; es coste de comprobación, no fallo, y refuerza que el objetivo de 600 s de la
+campaña de aceptación no se cumple (ya registrado en el issue).
 
 Sobre el checkpoint `edf1b2dcd` (constantes compartidas + enumeración en App) se repitió el
 mismo conjunto: `cargo check --workspace --all-targets`, `wow-world --all-targets` (con y sin
@@ -3901,6 +3910,12 @@ También salieron de `wow-world` dos dueños independientes de sesión completos
   líneas, sin estado de sesión) pasó a
   `wow-world-core/src/session/character_availability.rs`; se elimina el archivo entero del
   crate superior y World solo lo importa;
+- el soporte de localización de login de personaje
+  (`handlers/character/login_support.rs`, 281 líneas: plantillas de worldstate, homebind,
+  cementerio por raza, zona/área, `BindPointUpdate` y datos de battleground de login) pasó a
+  `wow-world-application/src/character_login_support.rs`, junto con la constante
+  `WORLDSTATE_ANY_MAP_LIKE_CPP` que solo él usaba (ahora `pub` para que la fachada la
+  reexporte y la prueba que la usa por el glob siga resolviendo);
 - las 18 constantes de `AtLoginFlags`/`CharacterFlags`/`CharCustomizeFlags`/`PlayerFlags` y
   clases que vivían en `handlers/character/mod.rs` se movieron a
   `wow-constants/src/character.rs` (fuente única) y World las reexporta, de modo que los otros
