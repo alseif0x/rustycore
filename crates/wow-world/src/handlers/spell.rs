@@ -13,7 +13,6 @@
 
 use std::collections::HashMap;
 
-use rand::Rng;
 use tracing::{debug, warn};
 
 use wow_constants::{BagFamilyMask, ClientOpcodes, InventoryResult, ItemFlags, TypeId};

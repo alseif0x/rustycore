@@ -23,6 +23,7 @@ wow-map = { workspace = true }
 wow-module-api = { workspace = true }
 wow-persistence = { workspace = true }
 wow-packet = { workspace = true }
+rand = { workspace = true }
 wow-movement = { workspace = true }
 wow-world-visibility = { workspace = true }
 wow-progression = { workspace = true }
