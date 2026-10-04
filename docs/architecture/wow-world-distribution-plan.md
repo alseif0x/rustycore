@@ -3705,7 +3705,7 @@ La publicación/integración de la fase se registra en #1263 bajo la autoridad c
 P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
 ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
-### Estado F5 en curso — 2026-10-04, checkpoint `4ae932475` (NO VALIDADO)
+### Estado F5 en curso — 2026-10-04, checkpoint `52bea68cb` (NO VALIDADO)
 
 La rama de continuación `1263-f4a-p4b-hub` partía de un WIP que no compilaba en
 `wow-world-core`. Tras reparar conexiones de fuente (montajes/exports, rutas de datos,
@@ -3716,6 +3716,13 @@ worktree, `PROTOC` fijado, sin campaña de aceptación) es:
 - `cargo check --workspace --all-targets`: **verde**.
 - `cargo test -p wow-world --lib`: **3.685 passed / 0 failed / 1 ignored**.
 - `cargo test -p wow-world-application`: 29/29.
+
+Sobre el checkpoint `52bea68cb` (aprendizaje por efecto en App + limpieza del prelude) se
+repitió el mismo conjunto: `cargo check --workspace --all-targets` verde (0 errores, con
+límite ampliado), `wow-world --all-targets` (con y sin `test-fixtures`) y
+`wow-world-application --all-targets` verdes; `cargo test -p wow-world --lib` **3.632 passed /
+0 failed / 1 ignored**; `wow-world-application` 52/52; sin líneas de aviso nuevas respecto del
+baseline previo al corte.
 
 Sobre el checkpoint `4ae932475` (valores de spell click en App) se repitió el mismo conjunto:
 `cargo check --workspace --all-targets` verde (0 errores, con límite ampliado),
@@ -4095,15 +4102,21 @@ Con la característica activada ambas suites pasan (`wow-world-spell` 3/3, `wow-
 workspace/`final`, donde las características se unifican); una ejecución por paquete sin la
 característica no es una configuración soportada de estos crates.
 
-**Intentos evaluados y revertidos en esta ronda** (registrados para no repetirlos):
+- el ejecutor genérico de aprendizaje por efecto
+  (`spell_acquisition/effect_learning.rs`, 337 líneas: trait `EffectLearningRuntimeLikeCpp`,
+  `execute_effect_learning_like_cpp`, aprendizaje base y fallback) pasó a
+  `wow-world-application/src/spell_acquisition/effect_learning.rs`. Al ser su `use super::*`
+  el prelude completo de `spell_acquisition`, el corte exigió la limpieza asociada: se
+  podaron ~20 imports de `spell_acquisition/mod.rs` y 17 reexportaciones de
+  `application.rs`, moviendo a bloques `#[cfg(test)]` las que solo consumen las fixtures
+  (`BTreeSet`, `prepare_player_spell_acquisition_like_cpp` y el resto del seam) y devolviendo
+  `next_spell` a privado al no tener consumidor. La fachada World reexporta el trait y el
+  ejecutor, y bajo `#[cfg(test)]` los dos helpers que usan las pruebas.
+
+**Intento evaluado y revertido en la ronda anterior** (registrado para no repetirlo):
 - `session/spell_click_values.rs` hacia `wow-world-entities`: imposible sin ciclo, porque el
   módulo reexporta un tipo de App (`RepresentedCanSeeSpellClickOutcomeLikeCpp`) y entities está
-  por debajo de App; se resolvió moviéndolo a App;
-- `spell_acquisition/effect_learning.rs` hacia App: la compilación avanzó, pero al ser su
-  `use super::*` el prelude completo de `spell_acquisition`, el traslado dejaba sin uso ~20
-  elementos de `application.rs` y el import de varias listas de `spell_acquisition/mod.rs`;
-  se revirtió por completo para no arrastrar una limpieza amplia fuera de alcance. Queda como
-  corte propio con esa limpieza planificada.
+  por debajo de App; se resolvió moviéndolo a App.
 
 **Límite de este método**: retirar duplicados ya convergidos no alcanza el objetivo de F5
 (20–40k líneas en `wow-world`, hoy ~128k). F5 exige el rediseño de registro descrito en
