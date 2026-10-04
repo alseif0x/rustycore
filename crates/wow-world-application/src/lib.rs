@@ -5,6 +5,7 @@
 //! Application-level operations shared by World adapters.
 
 pub mod vendor;
+pub mod spell_click_values;
 pub mod character_creation;
 pub mod character_enumeration;
 pub mod character_login_support;

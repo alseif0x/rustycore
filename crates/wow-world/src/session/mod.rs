@@ -836,7 +836,9 @@ pub(crate) use wow_constants::quest::QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACT
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
-const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
+pub(crate) use wow_world_application::spell_click_values::MAX_GAMEOBJECT_SLOT_LIKE_CPP;
+#[cfg(test)]
+pub(crate) use wow_world_application::spell_click_values::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
 pub(crate) use wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
@@ -947,7 +949,6 @@ const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a
 // runtime counter, so keep the canonical numeric value here.
-const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 /// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`). `SendSpellStart` and
