@@ -412,7 +412,6 @@ impl WorldSession {
         });
         self.sync_player_registry_state_like_cpp();
     }
-}
 
     pub(crate) fn send_represented_quest_giver_offer_reward_like_cpp(
         &mut self,

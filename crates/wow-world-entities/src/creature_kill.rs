@@ -73,7 +73,7 @@ impl WorldEntitiesState {
         base_gain.max(0) as u32
     }
 
-    fn represented_creature_can_skin_after_death_state_like_cpp(
+    pub fn represented_creature_can_skin_after_death_state_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
         creature_guid: ObjectGuid,

@@ -118,7 +118,8 @@ impl WorldSession {
         &self,
     ) -> Option<u32> {
         wow_world_application::QuestRewardCx::resolved_player_flags_for_rest_state_save_from_access_like_cpp(
-            self.core
+            &self
+                .core
                 .xp_gain_access_like_cpp(&self.catalogs, &self.config),
             &self.lifecycle,
             cfg!(test),

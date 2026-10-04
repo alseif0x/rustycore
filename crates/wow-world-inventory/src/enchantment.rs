@@ -24,7 +24,7 @@ pub struct LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
 }
 
 impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
-    pub(crate) fn append(&mut self, mut other: Self) {
+    pub fn append(&mut self, mut other: Self) {
         self.plans.append(&mut other.plans);
         self.duration_updates.append(&mut other.duration_updates);
         self.send_stat_update |= other.send_stat_update;

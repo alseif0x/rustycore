@@ -47,11 +47,11 @@ impl WorldSession {
     /// Borrow the existing disjoint owners and selected catalogs for one
     /// trainer operation. Fixture mode follows this World consumer's
     /// `cfg(test)` status, even when the shared fixture feature is enabled.
-    pub(crate) fn trainer_buy_context_like_cpp(
-        &mut self,
-        item_guid_generator: &ObjectGuidGenerator,
-        battle_pet_selection: &BattlePetSelectionStoreLikeCpp,
-    ) -> AppTrainerBuyCx<'_> {
+    pub(crate) fn trainer_buy_context_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a ObjectGuidGenerator,
+        battle_pet_selection: &'a BattlePetSelectionStoreLikeCpp,
+    ) -> AppTrainerBuyCx<'a> {
         let catalogs = TrainerAcquisitionCatalogsLikeCpp::new(
             self.catalogs.skill_store(),
             self.catalogs.skill_line_store(),
@@ -337,7 +337,10 @@ impl WorldSession {
         );
         let catalogs = TrainerListCatalogsLikeCpp::new(
             self.catalogs.trainer_store_like_cpp(),
-            self.catalogs.spell_catalogs.spell_acquisition_catalog(),
+            self.catalogs
+                .spell_catalogs
+                .spell_acquisition_catalog()
+                .map(Arc::as_ref),
             self.catalogs.skill_store().map(Arc::as_ref),
             self.catalogs.skill_line_store.as_deref(),
             self.catalogs.condition_store().map(Arc::as_ref),

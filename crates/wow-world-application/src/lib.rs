@@ -20,7 +20,12 @@ pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
 mod inventory_move_planning;
 pub use inventory_move_planning::{InventoryMovePlanningCxLikeCpp, InventorySwapTargetLikeCpp};
 mod inventory_swap;
-pub use inventory_swap::{InventorySwapEffectsCxLikeCpp, InventoryEquipCxLikeCpp, InventoryCommittedSwapCxLikeCpp, InventoryPositionPublicationCxLikeCpp, InventoryCommittedRelocationCxLikeCpp};
+pub use inventory_swap::{
+    InventoryCommittedRelocationCxLikeCpp, InventoryCommittedSwapCxLikeCpp, InventoryEquipCxLikeCpp,
+    InventoryPositionPublicationCxLikeCpp, InventorySwapEffectsCxLikeCpp,
+    bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
+    item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp,
+};
 mod bank;
 pub use bank::{
     can_use_current_bank_with_access_like_cpp, BankSlotFlagApplicationCxLikeCpp,
@@ -64,6 +69,7 @@ pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::QuestEligibilityCx;
+pub use quest::{QuestDialogClassificationLikeCpp, RepresentedQuestGiverStatusSourceLikeCpp};
 pub use quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 pub use quest::{
     QuestRewardCommitCx, QuestRewardCx, begin_exclusive_player_money_persistence_like_cpp,
@@ -95,10 +101,13 @@ pub use quest::{
     QuestRewardItemPlanningFixtureRefsLikeCpp,
     QuestRewardReputationFixtureRefsLikeCpp,
     QuestObjectiveRegistryFixtureRefsLikeCpp,
+    QuestXpGainFixtureRefsLikeCpp,
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
     NO_PRIMARY_PROFESSION_EQUIPMENT_SLOT_LIKE_CPP, PrimaryProfessionCapacityAnalysisLikeCpp,

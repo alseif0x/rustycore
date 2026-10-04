@@ -134,14 +134,14 @@ pub struct WorldSession {
     pub(crate) catalogs: SessionCatalogs,
     /// Immutable world configuration and rate values (C++ `sWorld` config subsets) and the script
     /// dispatchers injected at composition.
-    pub(in crate::session) config: SessionWorldConfig,
+    pub(crate) config: SessionWorldConfig,
     /// Test-only fixture groups (#1241 F3-0): the 11 cfg(test) domain groups, nested unchanged so
     /// an F3 context borrows one member instead of eleven.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixtures: SessionFixtures,
     /// Player items, bank and equipment sets, money and currencies, and the represented bank,
     /// guild-bank and auction request sinks.
-    pub(in crate::session) inventory: InventoryState,
+    pub(crate) inventory: InventoryState,
 
     /// Spell-side represented state shared with the spell and acquisition adapters.
     pub(crate) spell_state: SessionSpellState,

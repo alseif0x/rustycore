@@ -4,9 +4,11 @@
 //! Player condition values: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use std::sync::Arc;
+
 use super::is_player_meeting_condition_like_cpp;
 use super::WorldSession;
-use wow_conditions::PlayerConditionContextLikeCpp;
+use wow_data::PlayerConditionContextLikeCpp;
 
 impl WorldSession {
     /// Select the condition-projection participants without reading them.
@@ -19,7 +21,7 @@ impl WorldSession {
             self.core
                 .player_condition_access_with_selected_fixture_refs_like_cpp(
                     #[cfg(any(test, feature = "test-fixtures"))]
-                    crate::session::PlayerConditionFixtureRefsLikeCpp::new(
+                    wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
                         &self.fixtures.identity.player_race,
                         &self.fixtures.identity.player_class,
                         &self.fixtures.identity.player_level,

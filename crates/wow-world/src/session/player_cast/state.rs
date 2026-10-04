@@ -129,7 +129,7 @@ impl WorldSession {
                     player.request_spell_cast_like_cpp(request);
                 }
             },
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             move |pending| {
                 *pending = Some(request);
             },
@@ -187,7 +187,7 @@ impl WorldSession {
                         casting_unit_guid,
                     )
                 },
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 move |pending| {
                     if pending.as_ref().is_some_and(|current| {
                         current.cast_id == cast_id
