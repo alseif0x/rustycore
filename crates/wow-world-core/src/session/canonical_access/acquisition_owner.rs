@@ -2,7 +2,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use super::{
-    inventory::OwnedInventoryAccessLikeCpp,
+    owned_inventory::OwnedInventoryAccessLikeCpp,
     spell_acquisition::OwnedSpellAcquisitionAccessLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]

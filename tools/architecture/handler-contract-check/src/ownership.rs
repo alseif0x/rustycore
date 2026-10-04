@@ -1575,6 +1575,7 @@ pub(crate) fn audit_package_source_graph(
         BTreeMap<PathBuf, BTreeSet<String>>,
         usize,
         BTreeSet<PathBuf>,
+        BTreeSet<PathBuf>,
     ),
     String,
 > {
@@ -1586,6 +1587,13 @@ pub(crate) fn audit_package_source_graph(
                 .iter()
                 .any(|context| context.production_possible && context.cfg.is_empty())
         })
+        .map(|(source, _)| source.clone())
+        .collect();
+    // A source that no mount context can compile in production is fixture data:
+    // its PacketHandlerEntry constructions cannot own a production registration.
+    let production_impossible: BTreeSet<PathBuf> = mounts
+        .iter()
+        .filter(|(_, contexts)| contexts.iter().all(|context| !context.production_possible))
         .map(|(source, _)| source.clone())
         .collect();
     Ok((
@@ -1603,6 +1611,7 @@ pub(crate) fn audit_package_source_graph(
             .collect(),
         explicit_paths,
         unconditional,
+        production_impossible,
     ))
 }
 
@@ -1781,6 +1790,7 @@ pub(crate) fn audit_package_registration_sources(
         package_name,
         sources,
         unconditional,
+        &BTreeSet::new(),
         std::slice::from_ref(&test_owner),
         false,
     )
@@ -1790,13 +1800,16 @@ pub(crate) fn audit_package_registration_sources_with_owners(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
     unconditional: &BTreeSet<PathBuf>,
+    production_impossible: &BTreeSet<PathBuf>,
     owners: &[CapabilityOwner],
     allow_local_data_module: bool,
 ) -> Result<(), String> {
     let mut errors = Vec::new();
     let mut exact_collectors = 0usize;
     for (source_path, logical_paths) in sources {
-        if is_owned_handler_mount(package_name, logical_paths, owners) {
+        if is_owned_handler_mount(package_name, logical_paths, owners)
+            || production_impossible.contains(source_path)
+        {
             continue;
         }
         let source = fs::read_to_string(source_path)
@@ -1853,7 +1866,7 @@ pub(crate) fn audit_registration_ownership(
     let mut errors = Vec::new();
     let mut package_names = Vec::new();
     for scope in &scopes {
-        let (sources, explicit_paths, unconditional) =
+        let (sources, explicit_paths, unconditional, production_impossible) =
             audit_package_source_graph(&scope.root, &scope.production_roots).map_err(|error| {
                 format!(
                     "invalid production source graph for {}: {error}",
@@ -1970,6 +1983,7 @@ pub(crate) fn audit_registration_ownership(
                 &scope.name,
                 &sources,
                 &unconditional,
+                &production_impossible,
                 owners,
                 allow_local_data_module,
             ) {

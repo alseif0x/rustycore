@@ -8,7 +8,7 @@ use std::time::Duration;
 
 use wow_entities::PlayerCurrency;
 
-use super::inventory::OwnedInventoryAccessLikeCpp;
+use super::owned_inventory::OwnedInventoryAccessLikeCpp;
 use crate::session::{
     PacketPublicationAccessLikeCpp, PlayerMoneyTransactionSessionAccessLikeCpp,
     PlayerGroupOwnerAccessLikeCpp, PlayerStatsAccessLikeCpp, SessionCatalogs, SessionCore,

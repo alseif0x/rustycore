@@ -371,7 +371,8 @@ fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
         | PackageRole::WorldLoot
         | PackageRole::WorldEntities
         | PackageRole::WorldInventory
-        | PackageRole::WorldLifecycle => false,
+        | PackageRole::WorldLifecycle
+        | PackageRole::WorldApplication => false,
         PackageRole::Server => false,
     }
 }
@@ -486,6 +487,7 @@ pub(super) fn collect_items(
                 | PackageRole::WorldEntities
                 | PackageRole::WorldInventory
                 | PackageRole::WorldLifecycle
+                | PackageRole::WorldApplication
         ) {
             match item {
                 Item::Struct(item_struct) if item_struct.ident == WORLD_SESSION_NAME => {

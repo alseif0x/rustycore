@@ -249,7 +249,7 @@ fn ownership_source_graph_follows_cfg_path_and_target_directories() {
     fs::write(&regular_path, "pub fn legitimate() {}\n").expect("write regular path");
     fs::write(&target_path, "pub fn generated() {}\n").expect("write target path");
 
-    let (sources, explicit_paths, _) =
+    let (sources, explicit_paths, ..) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("valid cfg-inactive #[path] modules");
     assert_eq!(explicit_paths, 2);
@@ -362,7 +362,7 @@ fn ownership_is_logical_not_a_physical_handlers_prefix() {
     )
     .expect("write hidden submission");
 
-    let (sources, _, unconditional) =
+    let (sources, _, unconditional, _) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("source graph resolves");
     let shadow = shadow.canonicalize().expect("canonical shadow");
@@ -412,7 +412,7 @@ fn ownership_propagates_every_logical_remount_to_descendants() {
     )
     .expect("write remounted child submission");
 
-    let (sources, explicit_paths, unconditional) =
+    let (sources, explicit_paths, unconditional, _) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("every logical remount is traversed");
     assert_eq!(explicit_paths, 1);
@@ -474,7 +474,7 @@ fn ownership_allows_only_the_exact_registry_module_collector() {
     fs::write(&session_module, "pub mod registry;\n").expect("write session module");
     let bridge = LEGACY_REGISTRY_BRIDGE_SOURCE;
     fs::write(&registry_module, bridge).expect("write exact registry bridge");
-    let (sources, _, unconditional) =
+    let (sources, _, unconditional, _) =
         audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
             .expect("exact registry source graph parses");
 
@@ -669,7 +669,7 @@ fn ownership_rejects_collector_mounted_below_a_conditional_parent() {
         fs::write(&collector_module, LEGACY_REGISTRY_BRIDGE_SOURCE)
             .expect("write nested registry bridge");
 
-        let (sources, _, unconditional) =
+        let (sources, _, unconditional, _) =
             audit_package_source_graph(&fixture, std::slice::from_ref(&crate_root))
                 .expect("cfg-independent graph follows collector module");
         let error = audit_package_registration_sources("wow-world", &sources, &unconditional)

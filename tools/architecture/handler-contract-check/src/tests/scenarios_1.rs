@@ -370,6 +370,7 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
         "wow-world",
         &sources,
         &unconditional,
+        &BTreeSet::new(),
         owners,
         false,
     )
@@ -384,6 +385,7 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
         "wow-world-inventory",
         &unregistered_domain_route,
         &unconditional,
+        &BTreeSet::new(),
         owners,
         false,
     )
