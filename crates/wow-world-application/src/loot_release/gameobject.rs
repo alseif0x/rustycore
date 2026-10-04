@@ -11,33 +11,11 @@ impl LootReleaseCxLikeCpp<'_> {
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        let access = self.owner.transitions_like_cpp();
-        let Some(routing) = access.chest_routing_like_cpp() else {
-            return 0;
-        };
-        let Some(state) = self.world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid) else {
-            return 0;
-        };
-        let Some(source) = state.chest_loot_source else {
-            return 0;
-        };
-        let command = wow_world_core::session::mailbox::SyncChestGameobjectStateAndRefreshLikeCppCommand {
+        queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
+            &self.owner.transitions_like_cpp(),
+            self.world_entities,
             gameobject_guid,
-            map_id: access.player_map_id_like_cpp(),
-            instance_id: access.loot_instance_id_like_cpp(),
-            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
-            loot_state_unit_guid: state.loot_state_unit_guid,
-            chest_loot_id: source.loot_id,
-            chest_personal_loot_id: source.personal_loot_id,
-            chest_push_loot_id: source.push_loot_id,
-            chest_quest_id: source.chest_quest_id,
-            chest_restock_time_secs: source.chest_restock_time_secs,
-            chest_consumable: source.chest_consumable,
-            linked_trap_entry: state.linked_trap_entry,
-            linked_trap_guid: state.linked_trap_guid,
-        };
-        routing.queue_like_cpp(command)
+        )
     }
 
     pub fn apply_represented_gameobject_loot_release_like_cpp(
@@ -535,6 +513,42 @@ impl LootReleaseCxLikeCpp<'_> {
             cfg!(test),
         )
     }
+}
+
+/// C++ chest `GameObject` state publication to the same map: one bounded
+/// command carrying the represented chest facts at the caller's read point.
+pub fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
+    access: &wow_world_core::session::LootReleaseAccessLikeCpp<'_>,
+    world_entities: &wow_world_entities::WorldEntitiesState,
+    gameobject_guid: ObjectGuid,
+) -> usize {
+    let Some(routing) = access.chest_routing_like_cpp() else {
+        return 0;
+    };
+    let Some(state) = world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+    else {
+        return 0;
+    };
+    let Some(source) = state.chest_loot_source else {
+        return 0;
+    };
+    let command = wow_world_core::session::mailbox::SyncChestGameobjectStateAndRefreshLikeCppCommand {
+        gameobject_guid,
+        map_id: access.player_map_id_like_cpp(),
+        instance_id: access.loot_instance_id_like_cpp(),
+        go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
+        loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+        loot_state_unit_guid: state.loot_state_unit_guid,
+        chest_loot_id: source.loot_id,
+        chest_personal_loot_id: source.personal_loot_id,
+        chest_push_loot_id: source.push_loot_id,
+        chest_quest_id: source.chest_quest_id,
+        chest_restock_time_secs: source.chest_restock_time_secs,
+        chest_consumable: source.chest_consumable,
+        linked_trap_entry: state.linked_trap_entry,
+        linked_trap_guid: state.linked_trap_guid,
+    };
+    routing.queue_like_cpp(command)
 }
 
 /// Canonical/represented GameObject facts read by the release gates.

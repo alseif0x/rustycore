@@ -750,37 +750,6 @@ impl crate::session::LootCxRef<'_> {
         })
     }
 
-    fn chest_gameobject_state_refresh_command_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<SyncChestGameobjectStateAndRefreshLikeCppCommand> {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_state_like_cpp(gameobject_guid)?;
-        let source = state.chest_loot_source?;
-        Some(SyncChestGameobjectStateAndRefreshLikeCppCommand {
-            gameobject_guid,
-            map_id: self.hub.core.player_map_id_like_cpp(),
-            instance_id: self
-                .hub
-                .core
-                .current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0),
-            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
-            loot_state_unit_guid: state.loot_state_unit_guid,
-            chest_loot_id: source.loot_id,
-            chest_personal_loot_id: source.personal_loot_id,
-            chest_push_loot_id: source.push_loot_id,
-            chest_quest_id: source.chest_quest_id,
-            chest_restock_time_secs: source.chest_restock_time_secs,
-            chest_consumable: source.chest_consumable,
-            linked_trap_entry: state.linked_trap_entry,
-            linked_trap_guid: state.linked_trap_guid,
-        })
-    }
-
     fn goober_gameobject_state_refresh_command_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
@@ -812,15 +781,11 @@ impl crate::session::LootCxRef<'_> {
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        let access = self.hub.core.loot_release_access_like_cpp();
-        let Some(routing) = access.chest_routing_like_cpp() else {
-            return 0;
-        };
-        let Some(command) = self.chest_gameobject_state_refresh_command_like_cpp(gameobject_guid)
-        else {
-            return 0;
-        };
-        routing.queue_like_cpp(command)
+        wow_world_application::queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
+            &self.hub.core.loot_release_access_like_cpp(),
+            self.world_entities,
+            gameobject_guid,
+        )
     }
 
     pub(crate) fn queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
