@@ -13,6 +13,7 @@ mod persistence_capabilities;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixture;
+pub mod login_transport;
 
 pub use finalization::{
     FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,

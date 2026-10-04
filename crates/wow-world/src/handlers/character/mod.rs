@@ -35,7 +35,6 @@ mod visibility;
 mod world_entry;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::f32::consts::PI;
 use std::sync::Arc;
 
 use rand::Rng;
@@ -69,6 +68,10 @@ use wow_data::{
 // Test-only types whose production users moved to `wow-world-inventory`.
 #[cfg(test)]
 pub(crate) use wow_entities::SocketedGem;
+#[cfg(test)]
+pub(crate) use std::f32::consts::PI;
+#[cfg(test)]
+pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_constants::{EnchantmentSlot, ItemBondingType};
 use wow_entities::{
@@ -104,12 +107,12 @@ use wow_packet::packets::update::*;
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::packets::misc::BindPointUpdate;
 use wow_packet::packets::update::{
-    ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject, UpdateType,
+    ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject,
 };
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp,
 };
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
@@ -408,10 +411,6 @@ pub(crate) use wow_constants::character::{
     CLASS_DEATH_KNIGHT_LIKE_CPP, CLASS_HUNTER_LIKE_CPP, CLASS_WARLOCK_LIKE_CPP,
     PLAYER_FLAGS_GHOST_LIKE_CPP,
 };
-const GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP: u8 = 15;
-const TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP: i32 = 0x1;
-const TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP: i32 = 0x2;
-
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     if is_a_recruiter || recruiter_id != 0 {
         REST_STATE_RAF_LINKED_LIKE_CPP

@@ -3625,11 +3625,13 @@ dependencies = [
  "wow-loot",
  "wow-map",
  "wow-module-api",
+ "wow-movement",
  "wow-packet",
  "wow-persistence",
  "wow-progression",
  "wow-social",
  "wow-world-core",
+ "wow-world-visibility",
 ]
 
 [[package]]
