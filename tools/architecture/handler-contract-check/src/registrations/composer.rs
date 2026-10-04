@@ -763,7 +763,10 @@ pub(crate) fn validate_composition_mounts_with_contracts(
     let contracts = analyzed_direct_registrars(mounts, configured_contracts)?;
     let mut production_composers = 0usize;
     let mut fixture_composers = 0usize;
-    let mut facade_counts = std::collections::BTreeMap::<(String, String), usize>::new();
+    // Keyed by (package, module, registrar): several owner contracts declare their
+    // root facade in the same module, so a (package, module) key would count them
+    // together and could never reach exactly one per declared facade.
+    let mut facade_counts = std::collections::BTreeMap::<(String, String, String), usize>::new();
 
     for mount in mounts {
         let relevant = contracts
@@ -795,14 +798,26 @@ pub(crate) fn validate_composition_mounts_with_contracts(
                 continue;
             };
             for contract in &contracts {
-                if !tree_mentions(&item_use.tree, contract.registrar)
-                    && !tree_mentions(&item_use.tree, &crate_ident(contract.package))
-                {
+                // A cross-package registrar import can never be a facade: the call
+                // must be qualified, and `RegistrarCalls` rejects the aliased path.
+                // The crate-ident clause therefore only applies inside the contract's
+                // own package, where the exact public facade lives. Without that
+                // restriction any ordinary domain import (`use
+                // wow_world_inventory::{EQUIPMENT_SLOT_END}` inside the Application
+                // package) is misread as a facade that can never match.
+                let mentions_registrar = tree_mentions(&item_use.tree, contract.registrar);
+                let mentions_owner_package = mount.package == contract.package
+                    && tree_mentions(&item_use.tree, &crate_ident(contract.package));
+                if !mentions_registrar && !mentions_owner_package {
                     continue;
                 }
                 if let Some(module) = exact_facade(item_use, mount, *contract) {
                     *facade_counts
-                        .entry((contract.package.to_owned(), module.to_owned()))
+                        .entry((
+                            contract.package.to_owned(),
+                            module.to_owned(),
+                            contract.registrar.to_owned(),
+                        ))
                         .or_default() += 1;
                 } else {
                     invalid_use = true;
@@ -899,17 +914,31 @@ pub(crate) fn validate_composition_mounts_with_contracts(
         }
     }
 
-    let facade_mismatch = contracts.iter().any(|contract| {
-        contract.facades.iter().any(|facade| {
-            facade_counts
-                .get(&(contract.package.to_owned(), facade.module.to_owned()))
-                .copied()
-                != Some(1)
+    let mismatched_facades: Vec<String> = contracts
+        .iter()
+        .flat_map(|contract| {
+            contract.facades.iter().filter_map(|facade| {
+                let found = facade_counts
+                    .get(&(
+                        contract.package.to_owned(),
+                        facade.module.to_owned(),
+                        contract.registrar.to_owned(),
+                    ))
+                    .copied()
+                    .unwrap_or(0);
+                (found != 1).then(|| {
+                    format!(
+                        "{}::{} child {} expects exactly one exact facade, found {found}",
+                        contract.package, facade.module, facade.child
+                    )
+                })
+            })
         })
-    });
-    if production_composers != 1 || fixture_composers != 1 || facade_mismatch {
+        .collect();
+    if production_composers != 1 || fixture_composers != 1 || !mismatched_facades.is_empty() {
         return Err(format!(
-            "expected one production and one fixture composer plus every exact registrar facade; found {production_composers} and {fixture_composers} composers"
+            "expected one production and one fixture composer plus every exact registrar facade; found {production_composers} and {fixture_composers} composers; {}",
+            mismatched_facades.join("; ")
         ));
     }
     Ok(())

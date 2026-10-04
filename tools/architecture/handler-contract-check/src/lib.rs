@@ -31,7 +31,8 @@ use dispatcher::{assert_single_dispatch_mechanism, dispatcher_contract_from_moun
 use module_policy::load_handler_module_policy;
 use ownership::{audit_registration_ownership, workspace_source_mounts};
 use registrations::{
-    EXPECTED_REGISTRATION_MACROS, analyze_handler_mounts, validate_composition_mounts,
+    DIRECT_REGISTRAR_CONTRACTS, EXPECTED_REGISTRATION_MACROS, analyze_handler_mounts,
+    validate_composition_mounts,
 };
 use snapshot::parse_snapshot_contract;
 
@@ -80,6 +81,17 @@ pub fn check_repository() -> Result<String, String> {
 
     let source_report = analyze_handler_mounts(&mounts, registration_owners)
         .map_err(|error| format!("invalid handler registration source contract:\n{error}"))?;
+    // The complete finite direct-owner contract set is a property of the
+    // repository scan only: a synthetic or single-owner mount legitimately
+    // contains no registrar for the other owners.
+    if source_report.builder_registrars != DIRECT_REGISTRAR_CONTRACTS.len() {
+        return Err(format!(
+            "handler registration ownership must contain exactly one registrar for each finite \
+             direct-owner contract ({}); found {}",
+            DIRECT_REGISTRAR_CONTRACTS.len(),
+            source_report.builder_registrars
+        ));
+    }
     if source_report.represented_entries() != snapshot.row_count {
         return Err(format!(
             "source registration coverage differs from the linked handler snapshot: \

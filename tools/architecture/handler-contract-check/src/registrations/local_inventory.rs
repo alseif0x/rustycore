@@ -192,6 +192,17 @@ pub(crate) fn registration_alias_violations_with_legacy_wrapper_reexport(
     collect(source, false, allow_exact_wrapper_reexport)
 }
 
+/// Same audit as [`registration_alias_violations_with_legacy_wrapper_reexport`],
+/// with the data-module rule for packages that have no dependency path to the
+/// `inventory` crate: there a local `inventory` module cannot shadow it.
+pub(crate) fn registration_alias_violations_with_context(
+    source: &str,
+    allow_exact_wrapper_reexport: bool,
+    allow_local_data_module: bool,
+) -> Result<Vec<String>, String> {
+    collect(source, allow_local_data_module, allow_exact_wrapper_reexport)
+}
+
 /// Only for packages outside the handler registry closure and without any normal
 /// dependency path to inventory. The caller still audits every source's macros,
 /// includes, exports and registration invocations; this is no package exemption.

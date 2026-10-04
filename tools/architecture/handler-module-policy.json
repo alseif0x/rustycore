@@ -1,34 +1,48 @@
 {
-  "schema_version": 2,
-  "introduced_by_issue": 185,
-  "capability_owners": [
-    {
-      "capability": "handler_registration",
-      "package": "wow-world",
-      "module": "crate::handlers",
-      "allow_descendants": true,
-      "tracking_issue": 153
-    },
-    {
-      "capability": "handler_registration",
-      "package": "wow-world-inventory",
-      "module": "crate::handlers",
-      "allow_descendants": true,
-      "tracking_issue": 1263
-    },
-    {
-      "capability": "handler_registration",
-      "package": "wow-world-application",
-      "module": "crate::instances::registration",
-      "allow_descendants": false,
-      "tracking_issue": 1263
-    },
-    {
-      "capability": "packet_dispatcher",
-      "package": "wow-world",
-      "module": "crate::session",
-      "allow_descendants": true,
-      "tracking_issue": 153
-    }
-  ]
+ "schema_version": 2,
+ "introduced_by_issue": 185,
+ "capability_owners": [
+  {
+   "capability": "handler_registration",
+   "package": "wow-world",
+   "module": "crate::handlers",
+   "allow_descendants": true,
+   "tracking_issue": 153
+  },
+  {
+   "capability": "handler_registration",
+   "package": "wow-world-inventory",
+   "module": "crate::handlers",
+   "allow_descendants": true,
+   "tracking_issue": 1263
+  },
+  {
+   "capability": "handler_registration",
+   "package": "wow-world-application",
+   "module": "crate::instances::registration",
+   "allow_descendants": false,
+   "tracking_issue": 1263
+  },
+  {
+   "capability": "packet_dispatcher",
+   "package": "wow-world",
+   "module": "crate::session",
+   "allow_descendants": true,
+   "tracking_issue": 153
+  },
+  {
+   "capability": "handler_registration",
+   "package": "wow-world-application",
+   "module": "crate::equipment_set_use",
+   "allow_descendants": false,
+   "tracking_issue": 1263
+  },
+  {
+   "capability": "handler_registration",
+   "package": "wow-world-application",
+   "module": "crate::bank",
+   "allow_descendants": false,
+   "tracking_issue": 1263
+  }
+ ]
 }

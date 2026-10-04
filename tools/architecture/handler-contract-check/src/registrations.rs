@@ -21,7 +21,8 @@ mod legacy_registry;
 mod direct_builder;
 mod composer;
 pub(crate) use local_inventory::{
-    data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
+    data_module_alias_violations, inventory_dependency_packages,
+    registration_alias_violations, registration_alias_violations_with_context,
     registration_alias_violations_with_legacy_wrapper_reexport,
 };
 pub(crate) use direct_builder::{
@@ -88,6 +89,11 @@ struct SourceCollection {
 pub(crate) struct RegistrationSourceReport {
     pub(crate) direct_submissions: usize,
     pub(crate) builder_entries: usize,
+    /// How many of the finite direct-owner registrars this scan recognized.
+    ///
+    /// Only the repository scan can require the complete contract set: a
+    /// synthetic or single-owner mount legitimately contains none of them.
+    pub(crate) builder_registrars: usize,
     pub(crate) registration_macro_invocations: usize,
     pub(crate) registration_macro_names: BTreeSet<String>,
 }
@@ -584,6 +590,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
     allow_exact_legacy_registry_bridge: bool,
+    allow_local_data_module: bool,
 ) -> Result<OutsideRegistrationReport, String> {
     // Tokenize the complete source without evaluating cfg predicates. This is
     // intentionally independent of rustc's active target/profile so an
@@ -591,9 +598,10 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     let tokens: TokenStream = source
         .parse()
         .map_err(|error| format!("cannot tokenize {}: {error}", source_path.display()))?;
-    let mut violations = registration_alias_violations_with_legacy_wrapper_reexport(
+    let mut violations = registration_alias_violations_with_context(
         source,
         allow_exact_legacy_registry_bridge,
+        allow_local_data_module,
     )?
         .into_iter()
         .map(|violation| format!("{} {violation}", source_path.display()))
@@ -683,7 +691,7 @@ pub(crate) fn reject_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
 ) -> Result<(), String> {
-    analyze_registration_syntax_outside_handlers(source_path, source, false).map(|_| ())
+    analyze_registration_syntax_outside_handlers(source_path, source, false, false).map(|_| ())
 }
 
 fn path_segments(path: &syn::Path) -> Vec<String> {
@@ -1144,9 +1152,14 @@ fn classify_registration_sources(
     for definition in collection.definitions.iter().filter(|definition| {
         definition.handler_capable && !registration_names.contains(&definition.name)
     }) {
+        let repetition = if definition.contains_repetition {
+            "; it contains a macro repetition, so one PacketHandlerEntry per invocation cannot be proven"
+        } else {
+            ""
+        };
         errors.push(format!(
             "handler-capable macro {} in {} is outside the exact audited registration-macro \
-             grammar",
+             grammar{repetition}",
             definition.name, definition.location
         ));
     }
@@ -1275,6 +1288,7 @@ fn classify_registration_sources(
         Ok(RegistrationSourceReport {
             direct_submissions,
             builder_entries: 0,
+            builder_registrars: 0,
             registration_macro_invocations,
             registration_macro_names: registration_names,
         })
@@ -1319,6 +1333,12 @@ pub(crate) fn analyze_handler_mounts(
             ));
         }
         let context = owner_contexts[0];
+        if !context.production_possible {
+            // A cfg(test)-only mount cannot register a production handler. Its
+            // PacketHandlerEntry constructions are fixture data, not ownership,
+            // so the production grammar and the snapshot counters skip them.
+            continue;
+        }
         let registrar = analyze_owner_source_with_contracts(
             &mount.package,
             &context.logical_module_path,
@@ -1375,14 +1395,9 @@ pub(crate) fn analyze_handler_mounts(
             &mut Vec::new(),
         )?;
     }
-    if builder_registrars != DIRECT_REGISTRAR_CONTRACTS.len() {
-        return Err(format!(
-            "handler registration ownership must contain exactly one registrar for each finite direct-owner contract ({}); found {builder_registrars}",
-            DIRECT_REGISTRAR_CONTRACTS.len()
-        ));
-    }
     let mut report = classify_registration_sources(collection)?;
     report.builder_entries = builder_entries;
+    report.builder_registrars = builder_registrars;
     Ok(report)
 }
 

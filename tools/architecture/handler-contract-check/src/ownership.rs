@@ -1782,6 +1782,7 @@ pub(crate) fn audit_package_registration_sources(
         sources,
         unconditional,
         std::slice::from_ref(&test_owner),
+        false,
     )
 }
 
@@ -1790,6 +1791,7 @@ pub(crate) fn audit_package_registration_sources_with_owners(
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
     unconditional: &BTreeSet<PathBuf>,
     owners: &[CapabilityOwner],
+    allow_local_data_module: bool,
 ) -> Result<(), String> {
     let mut errors = Vec::new();
     let mut exact_collectors = 0usize;
@@ -1804,7 +1806,12 @@ pub(crate) fn audit_package_registration_sources_with_owners(
         let collector_owner = package_name == REGISTRY_PACKAGE_NAME
             && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()])
             && unconditional.contains(source_path);
-        match analyze_registration_syntax_outside_handlers(source_path, &source, collector_owner) {
+        match analyze_registration_syntax_outside_handlers(
+            source_path,
+            &source,
+            collector_owner,
+            allow_local_data_module,
+        ) {
             Ok(report) => exact_collectors += report.exact_legacy_wrapper_collectors,
             Err(error) => errors.push(format!("package {package_name}: {error}")),
         }
@@ -1955,11 +1962,16 @@ pub(crate) fn audit_registration_ownership(
             for source_path in sources.keys() {
                 scanned_files.insert((scope.name.clone(), source_path.clone()));
             }
+            // A package without any dependency path to the `inventory` crate
+            // cannot shadow it, so its local data modules are allowed exactly as
+            // the non-registry-closure audit already allows them.
+            let allow_local_data_module = !inventory_capable.contains(&scope.id);
             if let Err(error) = audit_package_registration_sources_with_owners(
                 &scope.name,
                 &sources,
                 &unconditional,
                 owners,
+                allow_local_data_module,
             ) {
                 errors.push(error);
             }

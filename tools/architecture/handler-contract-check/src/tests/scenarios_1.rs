@@ -371,6 +371,7 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
         &sources,
         &unconditional,
         owners,
+        false,
     )
     .expect_err("registration outside declared policy owner must fail");
     assert!(error.contains("inventory registration macro"), "{error}");
@@ -384,6 +385,7 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
         &unregistered_domain_route,
         &unconditional,
         owners,
+        false,
     )
     .expect_err("a package must not inherit another package's declared owner route");
     assert!(error.contains("inventory registration macro"), "{error}");

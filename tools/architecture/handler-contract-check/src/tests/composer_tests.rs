@@ -452,9 +452,12 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     assert_rejected(&extra_handler_alias, "extra alias in handlers facade");
 
     let mut missing_instances_root_facade = actual_mounts();
-    missing_instances_root_facade[5].source = missing_instances_root_facade[5]
-        .source
-        .replace("    register_instance_handlers_like_cpp,\n", "");
+    // The Application root facade lists this export on the same line as the next
+    // one, so the mutation has to match the real formatting to remove anything.
+    missing_instances_root_facade[5].source = missing_instances_root_facade[5].source.replace(
+        "    register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,\n",
+        "    reset_represented_instances_like_cpp,\n",
+    );
     assert_rejected(&missing_instances_root_facade, "missing Application root facade export");
 
     let mut aliased_instances_module_facade = actual_mounts();

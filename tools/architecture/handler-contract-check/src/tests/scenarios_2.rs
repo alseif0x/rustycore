@@ -952,6 +952,7 @@ fn source_guard_discovers_direct_and_macro_generated_registrations() {
         RegistrationSourceReport {
             direct_submissions: 1,
             builder_entries: 0,
+            builder_registrars: 0,
             registration_macro_invocations: 1,
             registration_macro_names: ["register_handler".to_owned()].into_iter().collect(),
         }
