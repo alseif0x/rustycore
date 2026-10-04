@@ -2892,6 +2892,15 @@ no se convirtió en un preflight nuevo. Revisión por fuente favorable, sin
 ejecución ni aceptación. RawEquip,
 StorageMove y child/offhand completos siguen pendientes dentro de F5.
 
+El contraste de ActivateToQuest conserva dos diferencias adicionales para F6:
+`GameObject.cpp:2218–2265`, SHA target `a5f8da2eb`, consulta en Chest
+`Battleground::CanActivateGO` después de los requisitos de quest/loot, mientras
+Rust no aplica ese gate; Generic consulta el quest ID del template en C++,
+mientras Rust repite HasQuestForGO por objetivos. El inventario de ObjectMgr
+para Generic también depende del quest ID del template (`ObjectMgr.cpp:8780+`).
+El traslado F5 conserva los cuerpos Rust completos y sus consultas frescas;
+no acredita paridad ni introduce esas reparaciones sin el contrato F6.
+
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
 y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
