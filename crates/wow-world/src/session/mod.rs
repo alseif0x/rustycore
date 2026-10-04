@@ -482,7 +482,6 @@ pub(crate) use social_requests::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(test)]
 pub(crate) use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
 use social_requests::party_member_power_kind_from_u8_like_cpp;
-use social_requests::party_member_power_to_u16_like_cpp;
 mod spell_click_values;
 use spell_click_values::NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP;
 use spell_click_values::NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP;
