@@ -494,8 +494,10 @@ fn currency_hydration_remains_before_spell_loading_and_requires_canonical_player
 #[test]
 fn glyph_login_phase_keeps_catalog_filter_and_loaded_marking() {
     let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
-    let glyph_loading =
-        include_str!("../../../src/handlers/character/world_entry/login/glyph_loading.rs");
+    let glyph_loading = concat!(
+        include_str!("../../../src/handlers/character/world_entry/login/glyph_loading.rs"),
+        include_str!("../../../../wow-world-lifecycle/src/state/login_load.rs"),
+    );
     let spell_offset = login
         .find("promote_loaded_character_mount_spells_like_cpp")
         .expect("spell loading precedes glyph hydration");
@@ -527,8 +529,10 @@ fn glyph_login_phase_keeps_catalog_filter_and_loaded_marking() {
 #[test]
 fn action_button_login_phase_keeps_active_configuration_and_packet_projection() {
     let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
-    let action_buttons =
-        include_str!("../../../src/handlers/character/world_entry/login/action_buttons.rs");
+    let action_buttons = concat!(
+        include_str!("../../../src/handlers/character/world_entry/login/action_buttons.rs"),
+        include_str!("../../../../wow-world-lifecycle/src/state/login_load.rs"),
+    );
     let glyph_offset = login
         .find("load_character_glyphs_for_login_like_cpp")
         .expect("glyph loading precedes action buttons");
