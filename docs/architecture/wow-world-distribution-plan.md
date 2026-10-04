@@ -4202,6 +4202,64 @@ Ese rediseño no está iniciado.
 - Sin `final`, arquitectura/self-test, inventario de persistencia, capturas ni live; por
   tanto no hay aceptación de F5/F6 ni cierre de #1263.
 
+### Reparación del gate de arquitectura — 2026-10-04, checkpoint `ca33ae8bf` (NO VALIDADO)
+
+Primera ejecución del gate de arquitectura en esta rama. Aparecieron dos defectos previos,
+introducidos por las propias mudanzas/F5 y no por la ronda de traslados que los descubrió:
+
+1. **La herramienta no compilaba.** `cargo build --release --locked --manifest-path
+   tools/architecture/handler-contract-check/Cargo.toml` daba 5 errores, todos de los commits
+   de registro de F5 (`024fa5841`, `fcaa65781`): `matches!` con guarda anidada en
+   `src/registrations/composer.rs` (E0658 «guard patterns are experimental» en rustc 1.98),
+   `TraitBoundModifier` sin `PartialEq` en `src/registrations/direct_builder.rs` (E0369) y
+   `UseTree::Path::tree` ya boxeado (E0308). Se repararon sin cambiar el conjunto aceptado:
+   guardas como retornos tempranos equivalentes, `matches!` en vez de `==`/`!=` y `&*path.tree`.
+   El target de test tampoco compilaba: `WorkspaceSourceMount` necesitaba `Clone` para
+   `composer_tests.rs`, y se añadió el derive.
+2. **El gate no podía inventariar la fuente.** `check --syntax-only` abortaba en
+   `crates/wow-world/src/phasing.rs:7` por el glob `pub use wow_world_core::phasing::*;`
+   (`ffd67f97b`); la herramienta rechaza los globs cuyo prefijo puede ocultar un alias de
+   registro. El módulo no tenía consumidor de producción — solo lo usaba
+   `unit_tests/session/tests/scenarios_world_entities_9.rs` —, así que se retiraron el fichero
+   y la declaración `pub mod phasing;`, y las tres referencias del test apuntan a
+   `wow_world_core::phasing::…`.
+
+Con eso el inventario avanza y falla en 290 accesos de puente sin resolver. La causa es la
+misma clase: las fachadas World de las mudanzas reexportaban con glob desde crates de dominio
+y el resolvedor solo sigue declaraciones nominales. Se convirtió
+`crates/wow-world/src/session_rules/mod.rs` (`72d9c9a29`, 138 puntos de llamada) de tres globs
+a reexportaciones nominales: 32 nombres de producción y 6 usados solo por las pruebas, en un
+bloque `#[cfg(test)]`. Los fallos bajan de 290 a **172**.
+
+**Evidencia ejecutada** (bucle del implementador; `CARGO_BUILD_JOBS=1`, `CARGO_INCREMENTAL=0`,
+`CARGO_TARGET_DIR=/home/server/rustycore-1241/target`):
+
+| Orden | Resultado |
+| --- | --- |
+| `cargo build --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml` | exit 0 (antes: 5 errores) |
+| `… --bin session-ownership-check -- check --syntax-only` | exit 1; 172 `cannot resolve bridge provenance` (antes 290) |
+| `cargo test --release --locked --manifest-path tools/architecture/handler-contract-check/Cargo.toml` | 443 tests, 434 ok, **9 fallos** |
+| `cargo check -p wow-world --lib` | exit 0, 317 warnings (dos menos, ninguno nuevo) |
+
+Los 9 fallos de la herramienta describen el estado real del rediseño de registro de F5, no
+ruido: `repository_surface_can_be_collected`,
+`world_session_remains_owned_by_world_across_all_extracted_packages`,
+`repository_handler_contract_passes`, `real_runtime_ledger_anchor_definitions_are_present_once`,
+`module_aware_registration_scan_uses_logical_mounts_and_rejects_duplicate_owners`,
+`moved_pending_respawn_bridge_matches_its_exact_reviewed_record` y tres contratos de
+composición/registro directo (`composition_guard_*`, `qualified_legacy_wrapper_*`). Los
+contratos de composición exigen proveedores cualificados exactos y sin alias en sitios como
+`crates/wow-world-application/src/equipment_set_use.rs`; el árbol aún no los cumple.
+
+**Pendiente inmediato**: reconciliar las 172 resoluciones de puente. Dos caminos evaluados:
+(a) nominalizar las fachadas glob restantes de `wow-world` (unos 162 nombres en vendor,
+spell/ítem cargado, lifecycle y otros) o (b) permitir al resolvedor seguir un glob cuyo módulo
+donante esté clasificado como no-autoridad, conservando el rechazo para los donantes que sí
+pueden exponer un registro. Sin esa reconciliación ni `check` ni `final --architecture`
+pueden pasar, así que todavía no hay aceptación posible de F5/F6. Sigue sin haber `final`,
+inventario de persistencia, capturas, live, push ni cierre. Los cambios de esta ronda son del
+gate y de reexportaciones, no de comportamiento: no acreditan paridad.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
