@@ -3115,6 +3115,7 @@ dependencies = [
  "wow-world",
  "wow-world-application",
  "wow-world-inventory",
+ "wow-world-social",
 ]
 
 [[package]]
@@ -3662,8 +3663,11 @@ dependencies = [
 name = "wow-world-social"
 version = "0.1.0"
 dependencies = [
+ "tracing",
+ "wow-constants",
  "wow-core",
  "wow-entities",
+ "wow-handler",
  "wow-packet",
  "wow-social",
  "wow-world-core",

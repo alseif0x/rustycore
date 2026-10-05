@@ -224,8 +224,10 @@
       "wow-world-core"
     ],
     "wow-world-social": [
+      "wow-constants",
       "wow-core",
       "wow-entities",
+      "wow-handler",
       "wow-packet",
       "wow-social",
       "wow-world-core"
@@ -601,7 +603,9 @@
         "build": []
       },
       "wow-world-social": {
-        "normal": [],
+        "normal": [
+          "tracing"
+        ],
         "build": []
       },
       "wow-world-interaction": {

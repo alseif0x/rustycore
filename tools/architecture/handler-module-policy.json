@@ -43,6 +43,13 @@
    "module": "crate::bank",
    "allow_descendants": false,
    "tracking_issue": 1263
+  },
+  {
+   "capability": "handler_registration",
+   "package": "wow-world-social",
+   "module": "crate::handlers",
+   "allow_descendants": false,
+   "tracking_issue": 1263
   }
  ]
 }

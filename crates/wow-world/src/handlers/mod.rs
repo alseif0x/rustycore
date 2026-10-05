@@ -18,7 +18,6 @@ pub mod economy;
 pub mod entities;
 pub mod group;
 pub mod guild;
-pub mod inspect;
 pub mod instances;
 pub mod loot;
 pub mod movement;

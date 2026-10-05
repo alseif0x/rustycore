@@ -6,6 +6,7 @@
 
 mod contracts;
 mod catalogs;
+mod handlers;
 mod chat;
 mod duel_publication;
 mod duel;
@@ -18,6 +19,10 @@ mod group_owner;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
 
+pub use handlers::{
+    InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
+    register_social_inspect_handlers_like_cpp,
+};
 pub use contracts::{
     ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp,
     RepresentedCalendarAddEventLikeCpp, RepresentedCalendarCommunityInviteLikeCpp,

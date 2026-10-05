@@ -29,6 +29,7 @@ wow-module-api = { workspace = true }
 wow-world = { workspace = true }
 wow-world-application = { workspace = true }
 wow-world-inventory = { workspace = true }
+wow-world-social = { workspace = true }
 wow-handler = { workspace = true }
 wow-instances = { workspace = true }
 wow-packet = { workspace = true }

@@ -613,12 +613,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::inspect",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::instances",
           "trait_path": null,
           "cfg": [],
@@ -1111,6 +1105,12 @@
         {
           "module": "crate::session",
           "trait_path": "Runtime",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SocialInspectHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -7829,61 +7829,6 @@
           "name": "handle_guild_set_achievement_tracking",
           "visibility": "pub",
           "signature": "async fn handle_guild_set_achievement_tracking (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::inspect",
-          "trait_path": null,
-          "kind": "const",
-          "name": "INSPECT_DISTANCE_LIKE_CPP",
-          "visibility": "private",
-          "signature": "const INSPECT_DISTANCE_LIKE_CPP : f32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::inspect",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_inspect",
-          "visibility": "pub",
-          "signature": "async fn handle_inspect (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::inspect",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_inspect_achievements",
-          "visibility": "pub",
-          "signature": "async fn handle_query_inspect_achievements (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::inspect",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_honor_stats",
-          "visibility": "pub",
-          "signature": "async fn handle_request_honor_stats (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44831,6 +44776,19 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "SocialInspectHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "inspect_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn inspect_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> InspectHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
           "trait_path": "wow_world_application :: BankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "bank_slot_flag_handler_cx_like_cpp",
@@ -58798,84 +58756,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::inspect",
-          "source": "crates/wow-world/src/handlers/inspect.rs",
-          "enclosing": "impl WorldSession::handle_inspect",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::inspect",
-          "source": "crates/wow-world/src/handlers/inspect.rs",
-          "enclosing": "impl WorldSession::handle_inspect",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "clone()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::inspect",
-          "source": "crates/wow-world/src/handlers/inspect.rs",
-          "enclosing": "impl WorldSession::handle_query_inspect_achievements",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::inspect",
-          "source": "crates/wow-world/src/handlers/inspect.rs",
-          "enclosing": "impl WorldSession::handle_query_inspect_achievements",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "clone()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::inspect",
-          "source": "crates/wow-world/src/handlers/inspect.rs",
-          "enclosing": "impl WorldSession::handle_request_honor_stats",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::inspect",
-          "source": "crates/wow-world/src/handlers/inspect.rs",
-          "enclosing": "impl WorldSession::handle_request_honor_stats",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "clone",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "clone()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::loot",
           "source": "crates/wow-world/src/handlers/loot/mod.rs",
           "enclosing": "fn connected_roll_looters_like_cpp",
@@ -61401,6 +61281,58 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::session::social_handler_contexts",
+          "source": "crates/wow-world/src/session/social_handler_contexts.rs",
+          "enclosing": "impl WorldSession::inspect_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social_handler_contexts",
+          "source": "crates/wow-world/src/session/social_handler_contexts.rs",
+          "enclosing": "impl WorldSession::inspect_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social_handler_contexts",
+          "source": "crates/wow-world/src/session/social_handler_contexts.rs",
+          "enclosing": "impl WorldSession::inspect_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "return",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "InspectHandlerCxLikeCpp :: new (registry , canonical_map_manager , player_map_id , player_position , player_faction_template_id , publication ,)",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::social_handler_contexts",
+          "source": "crates/wow-world/src/session/social_handler_contexts.rs",
+          "enclosing": "impl WorldSession::inspect_handler_cx_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "new",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session::spell_effects::effects_player",
           "source": "crates/wow-world/src/session/spell_effects/effects_player.rs",
           "enclosing": "impl WorldSession::notify_other_players_visibility_changed_like_cpp",
@@ -63542,6 +63474,123 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::handle_inspect",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::handle_inspect",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::handle_query_inspect_achievements",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::handle_query_inspect_achievements",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::handle_request_honor_stats",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "self . registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::handle_request_honor_stats",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "impl InspectHandlerCxLikeCpp::new",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "wow_world_core::session::directory::PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::handlers",
+          "source": "crates/wow-world-social/src/handlers.rs",
+          "enclosing": "struct InspectHandlerCxLikeCpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
           "count": 1
         },
         {
