@@ -50,7 +50,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/account.rs"),
         include_str!("../../../src/handlers/character/account/registrations.rs"),
         include_str!("../../../src/handlers/character/account/registrations/character_setup.rs"),
-        include_str!("../../../src/handlers/character/account/registrations/session_services.rs"),
         include_str!("../../../src/handlers/character/account/registrations/world_queries.rs"),
         include_str!("../../../src/handlers/character/account/registrations/world_services.rs"),
         include_str!("../../../src/handlers/character/account/registrations/inventory_actions.rs"),

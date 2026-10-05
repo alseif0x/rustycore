@@ -21,6 +21,7 @@ mod calendar_handler_contexts;
 mod chat_handler_contexts;
 mod client_state_handler_contexts;
 mod combat;
+mod data_service_handler_contexts;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod account_data_handler_contexts;
 mod effect_learning;

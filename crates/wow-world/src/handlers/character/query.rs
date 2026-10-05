@@ -157,60 +157,23 @@ impl WorldSession {
     /// WDC4/DB2 record bytes, which are not the same wire format. Only typed
     /// stores implemented here may answer Valid; missing typed storage follows
     /// the C++ Invalid branch and lets the client use its local DB2 cache.
-    pub(crate) async fn handle_db_query_bulk_with_tact_keys_like_cpp(
-        &mut self,
-        tact_keys: &wow_data::TactKeyStore,
-        query: wow_packet::packets::misc::DbQueryBulk,
-    ) {
-        info!(
-            "DbQueryBulk: table=0x{:08X}, {} records {:?} for account {}",
-            query.table_hash,
-            query.queries.len(),
-            query.queries,
-            self.core.account_id
-        );
-        for record_id in &query.queries {
-            if query.table_hash == TACT_KEY_TABLE_HASH_LIKE_CPP {
-                let tact_key = (*record_id)
-                    .try_into()
-                    .ok()
-                    .and_then(|id| tact_keys.get(id));
-                if let Some(entry) = tact_key {
-                    debug!(
-                        "DbQueryBulk: TactKey.db2 record={} -> Valid(1), 16-byte typed WriteRecord payload",
-                        record_id
-                    );
-                    self.send_packet_realm(&DBReply::found(
-                        query.table_hash,
-                        *record_id,
-                        entry.key.to_vec(),
-                    ));
-                    continue;
-                }
-                debug!(
-                    "DbQueryBulk: NOT_FOUND TactKey.db2 record={} -> Invalid(3), client may use local DB2 cache",
-                    record_id
-                );
-            } else {
-                info!(
-                    "DbQueryBulk: table=0x{:08X} record={} -> Invalid(3), no typed DB2 storage serializer",
-                    query.table_hash, record_id
-                );
-            }
-            // RecordRemoved(2) would tell the client to delete the record from its cache,
-            // which is wrong for client-local DB2 rows missing from server typed storage.
-            self.send_packet_realm(&DBReply::not_found(query.table_hash, *record_id));
-        }
-    }
 
+    /// Test-only entry point for the DB2 bulk-query handler owned by
+    /// `wow-world-application` (#1263 F5).
     #[cfg(test)]
     pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
         let tact_keys = self
             .tact_key_store_for_test_like_cpp()
             .cloned()
             .unwrap_or_else(|| Arc::new(wow_data::TactKeyStore::from_entries([])));
-        self.handle_db_query_bulk_with_tact_keys_like_cpp(tact_keys.as_ref(), query)
-            .await;
+        let hotfixes = wow_data::HotfixBlobCache::new();
+        wow_world_application::DataServiceHandlerCxLikeCpp::new(
+            crate::session::hub_mut(self),
+            &hotfixes,
+            tact_keys.as_ref(),
+        )
+        .handle_db_query_bulk(query)
+        .await;
     }
 
     /// Handle CMSG_QUERY_CREATURE — client requests creature template data.

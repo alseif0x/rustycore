@@ -8,6 +8,7 @@ pub mod character_creation;
 pub mod character_enumeration;
 pub mod character_login_support;
 mod client_state;
+mod data_service_handlers;
 mod instances;
 mod loot_release;
 mod player_conditions;
@@ -56,6 +57,10 @@ pub use aura_removal::{
 pub use client_state::{
     ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp,
     register_client_state_handlers_like_cpp,
+};
+pub use data_service_handlers::{
+    DataServiceHandlerCxLikeCpp, DataServiceHandlerHostLikeCpp,
+    register_data_service_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;

@@ -85,75 +85,25 @@ impl WorldSession {
     /// Handle CMSG_HOTFIX_REQUEST — client requests hotfix data.
     /// Borrows C++ `sDB2Manager.GetHotfixData()`; Session owns no catalog.
     /// C++ `Handlers/HotfixHandler.cpp:77-135`.
+    /// Test-only entry point for the hotfix handler owned by
+    /// `wow-world-application` (#1263 F5).
+    #[cfg(test)]
     pub async fn handle_hotfix_request(
         &mut self,
         cache: &wow_data::HotfixBlobCache,
         req: wow_packet::packets::misc::HotfixRequest,
     ) {
-        info!(
-            "HotfixRequest: client_build={}, data_build={}, {} hotfixes for account {}, first={:?}, last={:?}",
-            req.client_build,
-            req.data_build,
-            req.hotfixes.len(),
-            self.core.account_id,
-            req.hotfixes.first(),
-            req.hotfixes.last()
-        );
-
-        let mut response = HotfixConnect::empty();
-        let locale_mask = hotfix_locale_mask(&self.core.locale);
-        for push_id in &req.hotfixes {
-            let Some(push) = cache.hotfix_push(*push_id) else {
-                continue;
-            };
-
-            for record in &push.records {
-                if record.available_locales_mask & locale_mask == 0 {
-                    continue;
-                }
-
-                let mut status = record.status as u8;
-                let mut size = 0u32;
-
-                if record.status == HotfixRecordStatus::Valid {
-                    if let Some(blob) = cache.get_hotfix_blob(record.table_hash, record.record_id) {
-                        let start = response.content.len();
-                        response.content.extend_from_slice(blob);
-                        if let Some(optional_entries) = cache.get_optional_data(
-                            record.table_hash,
-                            record.record_id,
-                            &self.core.locale,
-                        ) {
-                            for optional_data in optional_entries {
-                                response
-                                    .content
-                                    .extend_from_slice(&optional_data.key.to_le_bytes());
-                                response.content.extend_from_slice(&optional_data.data);
-                            }
-                        }
-                        size = (response.content.len() - start) as u32;
-                    } else {
-                        // C++ known-store hotfixes use DB2StorageBase::WriteRecord, not raw WDC4
-                        // bytes. Until Rust has that typed serializer, fail closed so the client
-                        // keeps its local DB2 cache instead of parsing a malformed Valid payload.
-                        status = HotfixRecordStatus::Invalid as u8;
-                    }
-                }
-
-                response.hotfixes.push(HotfixConnectData {
-                    id: HotfixId {
-                        push_id: record.id.push_id,
-                        unique_id: record.id.unique_id,
-                    },
-                    table_hash: record.table_hash,
-                    record_id: record.record_id,
-                    size,
-                    status,
-                });
-            }
-        }
-
-        self.send_packet(&response);
+        let tact_keys = self
+            .tact_key_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| Arc::new(wow_data::TactKeyStore::from_entries([])));
+        wow_world_application::DataServiceHandlerCxLikeCpp::new(
+            crate::session::hub_mut(self),
+            cache,
+            tact_keys.as_ref(),
+        )
+        .handle_hotfix_request(req)
+        .await;
     }
 
     /// Handle ConnectToFailed — client couldn't connect to instance port.
