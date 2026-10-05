@@ -4645,6 +4645,47 @@ contratos), contrato de handlers del repositorio **PASS**, escenarios de la fami
 `final` verde de `f7553c7d0` es anterior a este corte y no se relabela: la aceptación completa se
 repetirá al cerrar el tramo F5/F6.
 
+#### F5: familia support/GM-ticket movida a `wow-world-lifecycle` — 2026-10-05, `6458b92b8`
+
+Quinta familia de handlers migrada. Los once opcodes (`CMSG_GM_TICKET_GET_CASE_STATUS`,
+`CMSG_GM_TICKET_GET_SYSTEM_STATUS`, `CMSG_GM_TICKET_ACKNOWLEDGE_SURVEY`, `CMSG_COMPLAINT`,
+`CMSG_SUBMIT_USER_FEEDBACK`, `CMSG_SUPPORT_TICKET_SUBMIT_BUG/_COMPLAINT/_SUGGESTION`,
+`CMSG_BUG_REPORT`, `CMSG_OBJECT_UPDATE_FAILED`, `CMSG_OBJECT_UPDATE_RESCUED`) pasan a
+`wow-world-lifecycle`, que ya albergaba la familia account-data y es dueña del estado de
+lifecycle que consumen (`set_player_logout_like_cpp`, el puerto durable de bug report y el
+estado que evalúa la política de soporte):
+
+- `wow-world-lifecycle/src/support.rs` contiene `SupportHandlerCxLikeCpp` sobre el estado de
+  lifecycle, el hub y la política de soporte del driver, los once handlers con sus cuerpos
+  movidos, el trait host, once thunks genéricos y `register_support_handlers_like_cpp` (octavo
+  contrato directo); `send_packet`/`send_packet_realm` salen del acceso de publicación del hub y
+  el conjunto visible de objetos se toca por `hub.core.client_visible_guids_like_cpp`, así que
+  ninguna referencia a la sesión entra en el handler;
+- `wow-world` conserva el host (`session/support_handler_contexts.rs`, que separa lifecycle del
+  hub y presta la política del catálogo del driver) y once shims `cfg(test)`, que es el gate que
+  ya tenían los wrappers retirados porque `support_feature_policy_for_test_like_cpp` es
+  `#[cfg(test)]`;
+- dos hallazgos reales del guardián: el `#[doc(hidden)]` que pertenecía a `pub use state::{...}`
+  quedó pegado a la nueva fachada y el contrato de composición la rechazó ("must use their exact
+  qualified providers"), corregido colocando la exportación sin atributo; y el gate de los shims
+  tuvo que ser `cfg(test)` para no exigir un accesor solo de test en la configuración
+  `test-fixtures`.
+
+Baselines revisados: impl items **3.161 → 3.156** (salen 17 items de producción de
+`crate::handlers::support`, entran once shims y el impl del host), impl owners **167 → 168**,
+registros directos **674 sin cambios** y bridges **84 sin cambios**; hotspots `session/mod.rs`
++24 producción/+2 test y `world-server` +4 por la llamada de composición. R1 re-registrado:
+`S = 66.739`, `G_move = 100.794`, requisito `30.418,05` → **presupuesto 30.500**.
+
+Evidencia de esta ronda: suite del tool **443/0**; guardián de composición **8/8** (compositores
+reales con los ocho contratos); contrato de handlers del repositorio **PASS**; **25** tests de
+soporte (escenarios y metadata de dispatch) en verde; `cargo check` de
+`wow-world-lifecycle`, `wow-world` (default y `test-fixtures`) y `world-server` con **0
+errores**; `session-ownership-check check --syntax-only` **PASS** (168 owners / 3.156 items /
+674 filas); `check_architecture.py check --self-test` **PASS**; `net_move.py check` **PASS**.
+Quedan **359** registros `register_packet_handler_like_cpp!` en `wow-world` (eran 370). La
+campaña `final` sigue pendiente del cierre del tramo, sin relabelar la de `f7553c7d0`.
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
