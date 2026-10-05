@@ -22,13 +22,16 @@ use wow_handler::{
 };
 use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::item::{GetItemPurchaseData, SetItemPurchaseData};
+use wow_packet::packets::misc::FarSight;
 use wow_packet::packets::misc::{MailNextTimeEntry, MailQueryNextTimeResult, QueryTimeResponse};
 use wow_packet::packets::spell::SetActionButton;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::entity_update_bridge::player_values_update_to_update_object;
 use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
+use wow_world_instances::InstanceState;
 use wow_world_inventory::InventoryState;
 use wow_world_lifecycle::SessionLifecycleState;
+use wow_world_visibility::VisibilityState;
 
 /// C++ `ItemExtendedCostEntry` refund projection for `SMSG_SET_ITEM_PURCHASE_DATA`.
 ///
@@ -88,6 +91,8 @@ pub struct PlayerHandlerCxLikeCpp<'a> {
     quest_state: &'a mut SessionQuestState,
     inventory: &'a mut InventoryState,
     lifecycle: &'a SessionLifecycleState,
+    visibility: &'a mut VisibilityState,
+    instances: &'a InstanceState,
 }
 
 impl<'a> PlayerHandlerCxLikeCpp<'a> {
@@ -96,12 +101,16 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
         quest_state: &'a mut SessionQuestState,
         inventory: &'a mut InventoryState,
         lifecycle: &'a SessionLifecycleState,
+        visibility: &'a mut VisibilityState,
+        instances: &'a InstanceState,
     ) -> Self {
         Self {
             hub,
             quest_state,
             inventory,
             lifecycle,
+            visibility,
+            instances,
         }
     }
 
@@ -168,6 +177,54 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
         }
 
         self.publication_like_cpp().send_packet_realm(&packet);
+    }
+
+    /// CMSG_FAR_SIGHT — switch the represented seer; the forced visibility
+    /// update itself stays with the World session's spawn catalogs and map
+    /// providers and runs through the host seam.
+    pub async fn handle_far_sight(&mut self, mut pkt: WorldPacket) {
+        let far_sight = match FarSight::read(&mut pkt) {
+            Ok(far_sight) => far_sight,
+            Err(err) => {
+                tracing::warn!("Failed to read FarSight: {err}");
+                return;
+            }
+        };
+
+        self.apply_far_sight_like_cpp(far_sight.enable);
+    }
+
+    /// C++ `WorldSession::HandleFarSightOpcode`: does not create or remove the
+    /// viewpoint; it only switches the represented seer.
+    fn apply_far_sight_like_cpp(&mut self, enable: bool) {
+        if !enable {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if let Some(player_guid) = self.hub.shared().core.player_guid() {
+                self.visibility
+                    .set_represented_seer_guid_fixture_like_cpp(Some(player_guid));
+            }
+            return;
+        }
+
+        let Some(target) = self
+            .visibility
+            .current_canonical_farsight_object_like_cpp(self.hub.shared())
+        else {
+            tracing::debug!("CMSG_FAR_SIGHT enable requested with no current viewpoint");
+            return;
+        };
+        if self
+            .instances
+            .canonical_map_has_seer_like_object_like_cpp(self.hub.shared(), target)
+        {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            {
+                self.visibility
+                    .set_represented_seer_guid_fixture_like_cpp(Some(target));
+            }
+        } else {
+            tracing::debug!("CMSG_FAR_SIGHT enable target {:?} is not resoluble", target);
+        }
     }
 
     /// CMSG_GET_ITEM_PURCHASE_DATA — refund window data for one owned item.
@@ -327,6 +384,13 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
 /// Builds a player query handler context from a host's hub.
 pub trait PlayerHandlerHostLikeCpp<C> {
     fn player_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> PlayerHandlerCxLikeCpp<'a>;
+
+    /// Runs the forced visibility refresh after a far-sight switch; the World
+    /// session still owns the spawn catalogs and the map providers.
+    fn force_update_visibility_after_far_sight_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_query_time_thunk<'a, S, C>(
@@ -376,6 +440,26 @@ where
         session
             .player_handler_cx_like_cpp(catalogs)
             .handle_set_selection(pkt)
+            .await;
+    })
+}
+
+fn handle_far_sight_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: PlayerHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .player_handler_cx_like_cpp(catalogs)
+            .handle_far_sight(pkt)
+            .await;
+        session
+            .force_update_visibility_after_far_sight_like_cpp(catalogs)
             .await;
     })
 }
@@ -480,6 +564,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_get_item_purchase_data",
         handler: handle_get_item_purchase_data_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::FarSight,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_far_sight",
+        handler: handle_far_sight_thunk::<S, C>,
     })?;
     Ok(())
 }

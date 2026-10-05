@@ -19,25 +19,6 @@ use crate::entity_update_bridge::player_values_update_to_update_object;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::FarSight,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_far_sight",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_far_sight_with_catalogs_like_cpp(
-                        catalogs.creature_spawns.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::StandStateChange,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -52,33 +33,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 mod test_shims;
 
 impl crate::session::WorldSession {
-    /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
-    /// viewpoint; it only switches the represented seer and forces visibility.
-    pub async fn handle_far_sight_with_catalogs_like_cpp(
-        &mut self,
-        creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
-        let far_sight = match FarSight::read(&mut pkt) {
-            Ok(far_sight) => far_sight,
-            Err(err) => {
-                warn!("Failed to read FarSight: {err}");
-                return;
-            }
-        };
-
-        self.apply_far_sight_like_cpp(far_sight.enable);
-        self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
-            .await;
-    }
-
-    #[cfg(test)]
-    pub async fn handle_far_sight(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.handle_far_sight_with_catalogs_like_cpp(&catalogs, pkt)
-            .await;
-    }
-
     pub async fn handle_stand_state_change(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match StandStateChange::read(&mut pkt) {
             Ok(packet) => packet,

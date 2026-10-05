@@ -128,7 +128,8 @@
       "wow-world-lifecycle",
       "wow-world-loot",
       "wow-world-social",
-      "wow-world-spell"
+      "wow-world-spell",
+      "wow-world-visibility"
     ],
     "wow-world-core": [
       "wow-ai",

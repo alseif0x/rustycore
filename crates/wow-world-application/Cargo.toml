@@ -45,6 +45,7 @@ wow-world-interaction = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 wow-world-loot = { workspace = true }
+wow-world-visibility = { workspace = true }
 wow-world-social = { workspace = true }
 wow-world-spell = { workspace = true }
 

@@ -164,19 +164,23 @@ pub(crate) fn split_lifecycle_ref(s: &WorldSession) -> (&SessionLifecycleState, 
     (&s.lifecycle, hub_ref(s))
 }
 
-/// Quest, inventory and lifecycle state plus the mutable hub, from disjoint fields.
-pub(crate) fn split_quest_state_inventory_lifecycle_mut(
+/// Player-handler state plus the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_player_handler_states_mut(
     s: &mut WorldSession,
 ) -> (
     &mut SessionQuestState,
     &mut InventoryState,
     &SessionLifecycleState,
+    &mut VisibilityState,
+    &InstanceState,
     HubMut<'_>,
 ) {
     (
         &mut s.quest_state,
         &mut s.inventory,
         &s.lifecycle,
+        &mut s.visibility,
+        &s.instances,
         HubMut {
             core: &mut s.core,
             catalogs: &s.catalogs,

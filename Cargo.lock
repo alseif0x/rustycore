@@ -3518,6 +3518,7 @@ dependencies = [
  "wow-world-loot",
  "wow-world-social",
  "wow-world-spell",
+ "wow-world-visibility",
 ]
 
 [[package]]

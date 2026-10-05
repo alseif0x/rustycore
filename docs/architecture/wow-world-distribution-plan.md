@@ -5886,6 +5886,33 @@ errores; composer contracts **8/8**; suite del tool **443/443**; `session-owners
 
 **No validado aún.** Sin campaña `final` nueva; quedan **188 registros literales**.
 
+#### F5: `FarSight` al dueño `ApplicationPlayer` (y dependencia de visibility) — 2026-10-05, `a1e10d826..HEAD`
+
+`FarSight` pasa al dueño `ApplicationPlayer`. El cambio de vidente representado es canónico en el
+dueño: el contexto incorpora los préstamos de `VisibilityState` y `InstanceState` (ambos tipos de
+crate de dominio, no del shell) mediante el split ampliado `split_player_handler_states_mut`, y usa
+`current_canonical_farsight_object_like_cpp` y `canonical_map_has_seer_like_object_like_cpp`. El
+**refresco forzado de visibilidad** sigue siendo seam del host porque los catálogos de spawn los
+instala el runtime: el trait anfitrión recibe de vuelta los catálogos de dispatch
+(`force_update_visibility_after_far_sight_like_cpp(catalogs)`), de modo que World conserva sus
+proveedores y el orden C++ (aplicar far sight → refrescar visibilidad) se mantiene.
+
+**Cambio de política de dependencias:** `wow-world-application` incorpora `wow-world-visibility`
+(añadida a la lista restringida de `dependency-policy.json`), coherente con sus otras dependencias de
+estado de dominio (inventory, instances, loot, social, lifecycle). El chequeo de arquitectura pasa
+con 248 aristas. `entities/player` queda en **1 registro literal** (`StandStateChange`), pendiente
+del puente de *live intent*.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`**, **54 de
+`handlers::entities`** y **42 de `scenarios_visibility`** en verde; `cargo check` de `wow-world` (con
+`test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.138 items / 711 filas, baseline
+sin cambios); `check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado
+(producción 61.157 → 61.178, total 199.341 → 199.362). R1 v2: `S = 72.571`, `G_move = 111.733`,
+requisito `35.233,45` → **presupuesto 35.234**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **187 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

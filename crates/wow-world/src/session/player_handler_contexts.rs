@@ -16,8 +16,25 @@ impl PlayerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> PlayerHandlerCxLikeCpp<'a> {
-        let (quest_state, inventory, lifecycle, hub) =
-            crate::session::split_quest_state_inventory_lifecycle_mut(self);
-        PlayerHandlerCxLikeCpp::new(hub, quest_state, inventory, lifecycle)
+        let (quest_state, inventory, lifecycle, visibility, instances, hub) =
+            crate::session::split_player_handler_states_mut(self);
+        PlayerHandlerCxLikeCpp::new(
+            hub,
+            quest_state,
+            inventory,
+            lifecycle,
+            visibility,
+            instances,
+        )
+    }
+
+    fn force_update_visibility_after_far_sight_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> wow_handler::HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            self.force_update_visibility_with_catalogs_like_cpp(catalogs.creature_spawns.as_ref())
+                .await;
+        })
     }
 }

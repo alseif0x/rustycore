@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35154,
-    "measured_requirement": 35154,
+    "budget": 35234,
+    "measured_requirement": 35234,
     "recorded_at_revision": "a1e10d82628c1676d013f45a17c48d79dd40dab5",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72560, G_move = 111642, ratio and slack credits = 72560 * 1.05 + 300 = 76488, so the requirement is 35154 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72571, G_move = 111733, ratio and slack credits = 72571 * 1.05 + 300 = 76499.55, so the requirement is 35233.45 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -257,6 +257,13 @@
         "destination_growth": 70,
         "new_code": 56,
         "note": "SetTaxiBenchmarkMode moved into the ApplicationTravel owner; the canonical flag transition stays in the owner and it returns whether the World host must re-publish the registry state through a new bounded seam, preserving the C++ order (flag mutation, registry sync). The benchmark flag constant comes from wow-world-core, not wow-movement, so the dependency policy is unchanged. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player far sight (a1e10d826..HEAD)",
+        "shrink": 11,
+        "destination_growth": 91,
+        "new_code": 80,
+        "note": "FarSight moved into the ApplicationPlayer owner. The represented seer switch is canonical in the owner (VisibilityState and InstanceState are domain-crate types), and the forced visibility refresh stays a bounded host seam that receives the dispatch catalogs back because the spawn catalogs are installed by the runtime. wow-world-application gains the wow-world-visibility dependency (added to the restricted-package policy) like its other domain-state peers. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

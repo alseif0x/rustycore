@@ -12,9 +12,23 @@ use crate::session::WorldSession;
 
 impl WorldSession {
     fn player_test_cx_like_cpp(&mut self) -> PlayerHandlerCxLikeCpp<'_> {
-        let (quest_state, inventory, lifecycle, hub) =
-            crate::session::split_quest_state_inventory_lifecycle_mut(self);
-        PlayerHandlerCxLikeCpp::new(hub, quest_state, inventory, lifecycle)
+        let (quest_state, inventory, lifecycle, visibility, instances, hub) =
+            crate::session::split_player_handler_states_mut(self);
+        PlayerHandlerCxLikeCpp::new(
+            hub,
+            quest_state,
+            inventory,
+            lifecycle,
+            visibility,
+            instances,
+        )
+    }
+
+    pub async fn handle_far_sight(&mut self, pkt: WorldPacket) {
+        self.player_test_cx_like_cpp().handle_far_sight(pkt).await;
+        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
+        self.force_update_visibility_with_catalogs_like_cpp(&catalogs)
+            .await;
     }
 
     pub async fn handle_query_time(&mut self) {
