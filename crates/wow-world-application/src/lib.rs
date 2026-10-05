@@ -14,6 +14,7 @@ mod player_save;
 mod profession;
 mod quest;
 mod registry_sync;
+mod reputation;
 mod spell_acquisition;
 pub mod spell_click_values;
 pub mod vendor;
@@ -132,6 +133,9 @@ pub use quest::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use registry_sync::PlayerRegistrySyncContext;
+pub use reputation::{
+    ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp, register_reputation_handlers_like_cpp,
+};
 pub use spell_acquisition::{
     EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
     PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionPublicationFaultPointLikeCpp,

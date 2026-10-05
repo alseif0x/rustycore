@@ -841,10 +841,12 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::progression",
+          "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::quest",
@@ -1107,6 +1109,12 @@
         {
           "module": "crate::session",
           "trait_path": "InventoryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "ReputationHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -10768,86 +10776,98 @@
           ]
         },
         {
-          "module": "crate::handlers::progression",
+          "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_forced_reactions",
-          "visibility": "pub",
-          "signature": "async fn handle_request_forced_reactions (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_request_forced_reactions (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::progression",
+          "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_faction_at_war",
-          "visibility": "pub",
-          "signature": "async fn handle_set_faction_at_war (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_faction_at_war (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::progression",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_faction_at_war_like_cpp",
-          "visibility": "private",
-          "signature": "async fn handle_set_faction_at_war_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , at_war : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::progression",
+          "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_faction_inactive",
-          "visibility": "pub",
-          "signature": "async fn handle_set_faction_inactive (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_faction_inactive (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::progression",
+          "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_faction_not_at_war",
-          "visibility": "pub",
-          "signature": "async fn handle_set_faction_not_at_war (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_faction_not_at_war (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::progression",
+          "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_watched_faction",
-          "visibility": "pub",
-          "signature": "async fn handle_set_watched_faction (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_watched_faction (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::progression::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "reputation_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn reputation_test_cx_like_cpp (& mut self) -> ReputationHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -17976,6 +17996,19 @@
           "name": "build_item_text_query_handler_cx_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn build_item_text_query_handler_cx_like_cpp (& self ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "build_reputation_handler_cx_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn build_reputation_handler_cx_like_cpp (& mut self ,) -> ReputationHandlerCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44567,6 +44600,19 @@
           "name": "item_text_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn item_text_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "ReputationHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "reputation_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn reputation_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ReputationHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

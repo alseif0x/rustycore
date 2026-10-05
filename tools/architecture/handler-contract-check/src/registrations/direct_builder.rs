@@ -199,6 +199,27 @@ pub(crate) const ACCOUNT_DATA_REGISTRAR: DirectRegistrarContract = DirectRegistr
     facades: ACCOUNT_DATA_FACADES,
 };
 
+const REPUTATION_ROOT_EXPORTS: &[&str] = &[
+    "ReputationHandlerCxLikeCpp",
+    "ReputationHandlerHostLikeCpp",
+    "register_reputation_handlers_like_cpp",
+];
+const REPUTATION_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "reputation",
+    exports: REPUTATION_ROOT_EXPORTS,
+}];
+
+pub(crate) const REPUTATION_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationReputation",
+    package: "wow-world-application",
+    module: "crate::reputation",
+    registrar: "register_reputation_handlers_like_cpp",
+    host_trait: "ReputationHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: REPUTATION_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -207,6 +228,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     BANK_REGISTRAR,
     SOCIAL_INSPECT_REGISTRAR,
     ACCOUNT_DATA_REGISTRAR,
+    REPUTATION_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
