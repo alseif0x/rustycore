@@ -4515,6 +4515,38 @@ Evidencia del corte: `cargo check -p wow-world --lib` elimina exactamente los do
 aviso y no añade ninguno; suite completa `wow-world --lib --features test-fixtures` **3634 ok /
 0 fallos / 1 ignorado**; `check --syntax-only` **PASS** (3.162 ítems, 665 registros).
 
+#### F5: primera familia de handlers migrada — `inspect` a `wow-world-social`, 2026-10-04, `23e0bf5f3`
+
+Primer corte de F5 sobre una familia nueva, después de los cuatro registradores directos que ya
+existían (inventory, instances, equipment-set-use, bank). El patrón queda probado de extremo a
+extremo y es el que deben seguir las 380 familias restantes:
+
+- `crates/wow-world-social/src/handlers.rs` posee los tres handlers
+  (`CMSG_INSPECT`, `CMSG_REQUEST_HONOR_STATS`, `CMSG_QUERY_INSPECT_ACHIEVEMENTS`) sobre
+  `InspectHandlerCxLikeCpp`: un contexto prestado construido una vez por invocación a partir del
+  directorio de jugadores, el map manager canónico, el mapa/posición/facción del llamante y el
+  acceso de publicación de paquetes. Incluye el trait host
+  `SocialInspectHandlerHostLikeCpp`, tres thunks genéricos y
+  `register_social_inspect_handlers_like_cpp`.
+- `wow-world` conserva **solo** la implementación del host
+  (`session/social_handler_contexts.rs`, 38 líneas) que enlaza su propio estado con el contexto;
+  se eliminan `handlers/inspect.rs` (218 líneas) y su declaración de módulo.
+- Composición y contrato: quinto `DirectRegistrarContract` (`SOCIAL_INSPECT_REGISTRAR`) con su
+  fachada exacta, llamada en orden en ambos compositores (producción y dispatch de fixture),
+  dueño en `handler-module-policy.json` y entradas de dependencia para social
+  (`wow-constants`, `wow-handler`, `tracing`).
+
+Baselines con el traslado revisado: impl items 3.162 → 3.159, registros directos 665 → 672
+(wow-world −6, social +9, +4 en el nuevo builder del host) y hotspot de `world-server` +4 líneas
+por la sentencia de composición inseparable. El inventario exhaustivo de persistencia **no
+cambia** (7.718 + 2.221 filas), de modo que ninguna evidencia de persistencia se movió.
+
+Evidencia: suite del checker **443/0**; `check --syntax-only` **PASS**; `check` completo
+(incluida persistencia) **PASS**; `check_architecture.py check` todas las secciones **PASS**;
+`wow-world --lib --features test-fixtures` **3634 ok / 0 fallos / 1 ignorado**;
+`world-server --lib` **597 ok**. Quedan **380** registros `register_packet_handler_like_cpp!` en
+`wow-world`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
