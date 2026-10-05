@@ -273,7 +273,10 @@ class NetMoveTests(unittest.TestCase):
         self.assertEqual(policy["shrink_root"], net_move.SHRINK_ROOT)
         self.assertEqual(len(policy["destination_roots"]), 11)
         self.assertGreater(policy["reviewed_new_code"], 0)
-        self.assertEqual(len(policy["duplicates"]), 5)
+        # Four of the original five duplicates were retired into their
+        # admitted owners under #1263 F6; only the aura-removal delegating
+        # wrapper remains until that migration lands.
+        self.assertEqual(len(policy["duplicates"]), 1)
 
     def test_usage_and_git_errors_exit_2(self):
         self.assertEqual(self.run_check("--ratio", "-1")[0], 2)

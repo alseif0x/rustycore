@@ -11,6 +11,8 @@
 // ratchet (see #277).
 use super::*;
 
+use wow_world_lifecycle::loot_template_rules::add_loot_item_stacks_like_cpp;
+
 impl WorldSession {
     pub(super) async fn generate_represented_disenchant_loot_template_entries_like_cpp(
         &mut self,

@@ -15,20 +15,10 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) else {
-            return false;
-        };
-        let Some(snapshot) = authority.snapshot_for_player_like_cpp(player_guid) else {
-            self.loot
-                .discard_represented_personal_loot_cache_for_player_like_cpp(
-                    owner_guid,
-                    player_guid,
-                );
-            return false;
-        };
-        self.loot
-            .cache_represented_owned_loot_snapshot_like_cpp(owner_guid, player_guid, snapshot);
-        true
+        // The admitted application owner holds this transition; the World
+        // shell only builds the borrowed loot-release context (#1263 F6).
+        self.loot_release_cx_like_cpp()
+            .reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid)
     }
 
     pub(super) fn next_represented_loot_object_guid_like_cpp(

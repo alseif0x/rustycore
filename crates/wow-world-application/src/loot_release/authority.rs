@@ -195,7 +195,7 @@ impl LootReleaseCxLikeCpp<'_> {
         Some(())
     }
 
-    pub(super) fn reconcile_represented_loot_cache_like_cpp(
+    pub fn reconcile_represented_loot_cache_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
@@ -216,7 +216,7 @@ impl LootReleaseCxLikeCpp<'_> {
         true
     }
 
-    pub(super) fn represented_loot_authority_pools_like_cpp(
+    pub fn represented_loot_authority_pools_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,

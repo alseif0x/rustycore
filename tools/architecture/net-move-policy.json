@@ -166,34 +166,6 @@
   },
   "duplicates": [
     {
-      "name": "represented_loot_authority_pools_like_cpp",
-      "destination": "crates/wow-world-application/src/loot_release/authority.rs",
-      "origin": "crates/wow-world/src/handlers/loot/authority.rs",
-      "family": "loot_release",
-      "reason": "F5 has not migrated the wow-world loot-release handler family yet; the admitted application owner and the legacy handler copy coexist until that migration retires the origin."
-    },
-    {
-      "name": "reconcile_represented_loot_cache_like_cpp",
-      "destination": "crates/wow-world-application/src/loot_release/authority.rs",
-      "origin": "crates/wow-world/src/handlers/loot/request_cache.rs",
-      "family": "loot_release",
-      "reason": "same pending loot_release migration; the wow-world request cache still serves the legacy handler path."
-    },
-    {
-      "name": "add_loot_item_stacks_like_cpp",
-      "destination": "crates/wow-world-lifecycle/src/loot_template_rules.rs",
-      "origin": "crates/wow-world/src/handlers/loot/mod.rs",
-      "family": "loot_template_rules",
-      "reason": "shared loot-template helper: the migrated generation path uses the lifecycle owner while the wow-world loot generation module keeps its copy until the loot handlers migrate."
-    },
-    {
-      "name": "player_race_mask_like_cpp",
-      "destination": "crates/wow-world-lifecycle/src/loot_template_rules.rs",
-      "origin": "crates/wow-world/src/handlers/loot/mod.rs",
-      "family": "loot_template_rules",
-      "reason": "same loot-template helper family; retirement follows the loot handler migration."
-    },
-    {
       "name": "apply_aura_with_effect_mask_like_cpp",
       "destination": "crates/wow-world-application/src/aura_removal/apply.rs",
       "origin": "crates/wow-world/src/session/spell_state/aura_application.rs",

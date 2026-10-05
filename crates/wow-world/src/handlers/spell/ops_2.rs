@@ -5,6 +5,8 @@
 
 use super::*;
 
+use wow_world_lifecycle::loot_template_rules::player_race_mask_like_cpp;
+
 impl WorldSession {
     pub(super) fn item_loot_allowed_for_player_like_cpp_representable(
         &self,

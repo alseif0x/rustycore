@@ -215,22 +215,6 @@ fn player_class_mask_like_cpp(class_id: u8) -> Option<u32> {
     }
 }
 
-fn player_race_mask_like_cpp(race_id: u8) -> Option<u32> {
-    let bit = match race_id {
-        1..=11 => race_id - 1,
-        22 => 21,
-        24..=32 => race_id - 1,
-        34 => 11,
-        35 => 12,
-        36 => 13,
-        37 => 14,
-        52 => 16,
-        70 => 15,
-        _ => return None,
-    };
-    Some(1_u32 << bit)
-}
-
 fn player_team_for_race_cpp_representable(race: u8) -> u32 {
     match race {
         2 | 5 | 6 | 8 | 9 | 10 | 26 | 27 | 28 | 31 | 35 | 36 | 70 => 67,
@@ -580,32 +564,6 @@ fn represented_disenchant_loot_plain_row_can_roll_like_cpp(
 
 fn represented_disenchant_loot_reference_row_can_roll_like_cpp(row: &LootStoreItem) -> bool {
     row.can_roll_as_reference_entry_like_cpp(LOOT_MODE_DEFAULT_LIKE_CPP)
-}
-
-fn add_loot_item_stacks_like_cpp(
-    loot_items: &mut Vec<LootEntry>,
-    item_id: u32,
-    mut count: u32,
-    max_stack_size: u32,
-    flags: LootEntryFlags,
-) {
-    while count > 0 && loot_items.len() < MAX_NR_LOOT_ITEMS_LIKE_CPP {
-        let quantity = count.min(max_stack_size);
-        loot_items.push(LootEntry {
-            loot_list_id: loot_items.len() as u8,
-            item_id,
-            quantity,
-            random_properties_id: 0,
-            random_properties_seed: 0,
-            item_context: 0,
-            flags,
-            allowed_looters: Vec::new(),
-            roll_winner: ObjectGuid::EMPTY,
-            ffa_looted_by: Vec::new(),
-            taken: false,
-        });
-        count = count.saturating_sub(max_stack_size);
-    }
 }
 
 #[derive(Debug, Clone)]
