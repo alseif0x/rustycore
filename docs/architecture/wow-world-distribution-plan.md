@@ -4792,6 +4792,39 @@ de composición **8/8**; contrato de handlers del repositorio **PASS**; `cargo c
 `check_architecture.py check --self-test` **PASS**; `net_move.py check` **PASS**. Quedan **292**
 invocaciones literales de `register_packet_handler_like_cpp!` en `wow-world` (eran 303).
 
+#### F5: paso habilitante para la familia chat — política en Core — 2026-10-05, `cd41ccff5`
+
+`ChatPolicyCatalogsLikeCpp` (agregado `Copy` de tres configuraciones que ya viven en
+`wow_world_core::session_policy` más cinco booleanos) pasa a `wow-world-core`, junto a
+`SupportFeaturePolicyLikeCpp` y el resto de capacidades de catálogo. `wow-world` conserva la ruta
+`wow_world::session::ChatPolicyCatalogsLikeCpp` mediante reexportación, así que la composición de
+`world-server` no cambia y **no hay arista nueva entre crates**.
+
+Es el paso previo necesario para mover la familia chat a `wow-world-social` (la crate social no
+puede nombrar un tipo definido en `wow-world`). Evidencia: `wow-world-core`, `wow-world` (default
+y `test-fixtures`) y `world-server` compilan con **0 errores**; **71** tests de `handlers::chat`
+en verde; `session-ownership-check check --syntax-only` **PASS** (172 owners / 3.160 items / 674
+filas); `check_architecture.py check --self-test` **PASS**; R1 sigue **PASS** con el presupuesto
+vigente (requisito 31.760,35 < 31.900), sin re-registro.
+
+**Trabajo preparado para la siguiente ronda — familia chat (39 opcodes).** El análisis de cierre
+está hecho y verificado sobre las fuentes actuales: de los 53 métodos definidos en
+`handlers/chat/{channels,ops_1,ops_2,state}.rs`, se mueven **38** y se quedan 15 (el grupo emote
+—`handle_emote`, `handle_text_emote_with_catalogs_like_cpp`, `publish_player_emote_state_like_cpp`,
+`spell_visual_kit_ids_for_emote_command_like_cpp`— y once envoltorios `cfg(test)`); **no hay
+aristas de métodos movidos hacia los que se quedan**. Se trasladan **39 registros** (19 de
+`registrations.rs` tras conservar `Emote` y `SendTextEmote`, 4 literales de `channels.rs` y los
+**14** `register_chat_channel_*_handler!`, que se convierten en entradas explícitas y retiran esa
+macro del guardián del tool). Destino: `crates/wow-world-social/src/chat_handlers.rs` con
+`ChatHandlerCxLikeCpp { hub, social: &mut SessionSocialLimits, policy: &ChatPolicyCatalogsLikeCpp }`.
+Los dos ayudantes compartidos que el grupo emote conservado necesita
+(`player_name_and_guid`, `send_wait_before_speaking_notification_if_muted_like_cpp`) pasan a la
+crate social como funciones `pub` sobre `&HubRef`, de modo que no hay duplicación. El mapa de
+adaptación (hub público/mutable, `publication_like_cpp`, `self.social.*`, `self.hub.core.kick`,
+`self.hub.shared().core.{player_registry,group_registry,resolved_group_guid_like_cpp}`), el
+módulo social generado y el cierre de llamadas quedan registrados aquí para ejecutarlo en una
+sola ronda.
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
