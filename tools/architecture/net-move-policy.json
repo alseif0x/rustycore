@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 33195,
-    "measured_requirement": 33195,
-    "recorded_at_revision": "322710770b0f4a12453b1ca16fda27a8ef80beed",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70425, G_move = 107441, ratio and slack credits = 70425 * 1.05 + 300 = 74246.25, so the requirement is 33194.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33114,
+    "measured_requirement": 33114,
+    "recorded_at_revision": "f3ab6af9781e587a8b28754f02b120ff89279ff4",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70502, G_move = 107441, ratio and slack credits = 70502 * 1.05 + 300 = 74327.1, so the requirement is 33113.9 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -103,6 +103,13 @@
         "destination_growth": 43,
         "new_code": 16,
         "note": "The typed Ping/Pong handler moved from the character world-queries registration and account-data module into the existing application client-state registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F6 loot duplicate tail (322710770..f3ab6af97, four admit-owner retirements)",
+        "shrink": 77,
+        "destination_growth": 0,
+        "new_code": -77,
+        "note": "Four duplicate bodies were retired into their admitted owners: the two World loot authority/cache transitions now delegate to the application LootReleaseCxLikeCpp, and the two loot-template helpers are imported from wow-world-lifecycle; the reviewed duplicate allowlist falls from five entries to one."
       }
     ],
     "areas": [
@@ -162,7 +169,7 @@
         "reason": "NPC interaction and support features."
       }
     ],
-    "review_note": "The reviewed duplication gate below is what proves this growth is not a copy of code still present in crates/wow-world/src: it finds only the five bodies listed there, all of them still-live F5-pending families. Re-measure and re-record this budget whenever destination growth changes; unbudgeted growth fails R1."
+    "review_note": "The reviewed duplication gate below is what proves this growth is not a copy of code still present in crates/wow-world/src: it finds only the one body listed there, the aura-removal delegating wrapper still owned by the pending aura migration. Re-measure and re-record this budget whenever destination growth changes; unbudgeted growth fails R1."
   },
   "duplicates": [
     {

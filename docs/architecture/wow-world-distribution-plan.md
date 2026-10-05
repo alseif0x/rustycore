@@ -5328,6 +5328,34 @@ R1 v2: `S = 70.425`, `G_move = 107.441`, requisito `33.194,75` → **presupuesto
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F6: retirados cuatro duplicados de loot en sus dueños admitidos — 2026-10-05, `f3ab6af97`
+
+Corte de **F6** (no un traslado de registros): la puerta de copias de R1 permitía cinco cuerpos
+duplicados entre `wow-world` y sus destinos; cuatro ya tienen dueño único.
+
+- Las transiciones `represented_loot_authority_pools_like_cpp` y
+  `reconcile_represented_loot_cache_like_cpp` delegan ahora en el `LootReleaseCxLikeCpp` de
+  `wow-world-application` (sus dos métodos pasan a `pub`), y se borran los cuerpos idénticos de
+  `handlers/loot/authority.rs` y `handlers/loot/request_cache.rs`.
+- Los ayudantes de plantilla de loot `add_loot_item_stacks_like_cpp` y
+  `player_race_mask_like_cpp` se borran de `handlers/loot/mod.rs` y se importan de su dueño
+  admitido `wow-world-lifecycle::loot_template_rules` en los cinco puntos de uso (generación de
+  loot, condiciones de criatura y ops de hechizo).
+
+La lista revisada de duplicados de `net-move-policy.json` baja de **cinco a uno** (solo queda el
+envoltorio delegante de aura removal, atado a la migración de auras), con 0 violaciones y 0
+obsoletos; el test de política del tool se actualiza a la nueva cuenta.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **316 tests de loot** y **635 de spell** en verde
+(comportamiento preservado por delegación); `cargo check` de `wow-world`,
+`wow-world-application` y `world-server` sin errores nuevos; suite del tool **443/443** con el
+baseline de ownership sin cambios (ninguna firma ni visibilidad se movió);
+`check_architecture.py check` **PASS**. R1 v2: `S = 70.502`, `G_move = 107.441`, requisito
+`33.113,90` → **presupuesto 33.114** (`recorded_at_revision f3ab6af97`), 0 violaciones /
+**1 permitido** / 0 obsoletos; `test_net_move.py` 16/16.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
