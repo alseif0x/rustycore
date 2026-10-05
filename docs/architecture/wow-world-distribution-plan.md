@@ -4686,6 +4686,42 @@ errores**; `session-ownership-check check --syntax-only` **PASS** (168 owners / 
 Quedan **359** registros `register_packet_handler_like_cpp!` en `wow-world` (eran 370). La
 campaña `final` sigue pendiente del cierre del tramo, sin relabelar la de `f7553c7d0`.
 
+#### F5: familia client-state (59 opcodes) movida a `wow-world-application` — 2026-10-05, `c0f89b023`
+
+Sexta familia de handlers migrada y mayor corte de F5 hasta ahora: **59 opcodes** (41 registros
+directos más los 19 `Move*Ack`/`MoveSetAdvFly*` que expandía la macro local, menos el handler de
+currency flags) pasan a `wow-world-application` con su propio contrato (noveno registrador). La
+familia cubre los acknowledgements de cliente, telemetría, cinemáticas y los ACK de movimiento
+inertes; 30 cuerpos (`WorldSession` → `ClientStateHandlerCxLikeCpp` sobre el hub mutable) se
+trasladan y el resto son no-ops.
+
+- `crates/wow-world-application/src/client_state.rs` contiene el Cx, los 30 handlers y
+  `register_client_state_handlers_like_cpp` con **59 entradas explícitas**. La macro local
+  `register_unhandled_threadsafe_null_handler!` **desaparece**: cada opcode es ahora un
+  `builder.register` con el mismo opcode, status, processing y `handler_name`, así que el
+  mecanismo pasa de `inventory::submit!` a registrador directo;
+- el guardián del tool exigía auditar el cambio de gramática ("audit the expansion shape before
+  updating the guard"): `EXPECTED_REGISTRATION_MACROS` pierde
+  `register_unhandled_threadsafe_null_handler` con la nota de auditoría en el propio tool;
+- `wow-world` conserva `handle_set_currency_flags` (su publicación depende de la cadena
+  currency/condición que sigue en el shell), la entrada tipada de `Ping` (registrada por la
+  familia world-query) y 30 shims `cfg(test)` para los escenarios que ejecutan un handler movido.
+
+Baselines revisados: impl items **3.156 → 3.158** (salen 30 métodos de producción de
+`client_state`, entran 31 shims y el impl del host), impl owners **168 → 170**, registros directos
+**674 sin cambios** y bridges **84 sin cambios**; hotspots `session/mod.rs` +23 producción/+2 test
+y `world-server` +4. R1 re-registrado: `S = 67.229`, `G_move = 101.932`, requisito `31.041,55` →
+**presupuesto 31.200**.
+
+Evidencia de esta ronda: **41** tests de `handlers::account_data` (incluye los escenarios de
+client-state que ejercitan los handlers movidos) en verde; guardián de composición **8/8**;
+contrato de handlers del repositorio **PASS**; `cargo check` de `wow-world-application`,
+`wow-world` (default y `test-fixtures`) y `world-server` con **0 errores**;
+`session-ownership-check check --syntax-only` **PASS** (170 owners / 3.158 items / 674 filas);
+`check_architecture.py check --self-test` **PASS**; `net_move.py check` **PASS** (5 duplicados
+permitidos, 0 violaciones). Quedan **300** registros `register_packet_handler_like_cpp!` en
+`wow-world` (eran 359). La campaña `final` sigue pendiente del cierre del tramo.
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
