@@ -5611,10 +5611,13 @@ de `client_state`** y **1 de `transfer_routing`** en verde; `cargo check` de `wo
 **presupuesto 34.486**, 0 violaciones / 0 permitidos / 0 obsoletos.
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
-Quedan **205 registros literales** en `wow-world`: character/account (57), trade (15), quest (14),
-spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9), vehicle (8), loot
-(7), entities/player (5), dungeon_finding (5), travel (4), void_storage (4), corpse (4), collections
-(3), gameobject (3) y combat (1).
+Medición directa de los registros literales que quedan en `wow-world` (**202** en total; las sumas
+por familia de los cortes anteriores eran una estimación y no cuadraban con el árbol):
+character/account repartido en `world_services` (20), `character_setup` (12), `world_queries` (11),
+`inventory_actions` (7) y `logout` (1); trade (15), quest (14), spell (13), movement (13), guild
+(13), battlegrounds/pvp (13), pets (10), group (9), vehicle (8), loot (7), entities/player (5),
+dungeon_finding (5), travel (4), void_storage (4), corpse (4), collections (3), gameobject (3),
+trainer (2), talent (2), chat/emotes (2), combat (1) y account-data/client-state (1).
 
 ## 9. Herramientas
 
