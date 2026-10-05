@@ -4604,6 +4604,39 @@ Evidencia: checker **443/0**; `check --syntax-only` **PASS**; `check` completo (
 **PASS** en todas sus secciones; `wow-world --lib --features test-fixtures` **3634/0/1**;
 `world-server --lib` **597/0**. `wow-world/src` baja a **120.068** líneas.
 
+#### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
+
+Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
+--logs` en esta rama. Dos hallazgos, ambos registrados:
+
+1. **Primer intento (`2e99512ce`):** falló en el chequeo de espacios
+   (`git diff --check`): `crates/wow-world-application/src/trainer_purchase/offer_tests.rs:382:
+   new blank line at EOF`, un defecto de WIP previo de la rama. Corregido en `9f311e432`
+   (una línea en blanco final eliminada).
+2. **Segundo intento (`9f311e432`):** manifiesto
+   `target/validation-v2/manifests/20261005T020139.059391Z-709107-final.json`, perfil `final`,
+   árbol limpio, head `9f311e432`, Rust 1.98.0, **duración 111,42 s** (por debajo del objetivo
+   de 600 s en caché caliente; los >600 s históricos eran campañas frías/con más ficheros).
+   5 de 6 comandos en verde (fixtures de arquitectura, política física, dependencias,
+   ownership, hotspots y sintaxis de sesión). **Falla el sexto: R1 net-move.**
+
+**R1 net-move (el bloqueo real que queda para `final`):** `S = 66.860` líneas encogidas en
+`crates/wow-world/src/`, `G = 105.413` líneas de crecimiento fuera, `allowance = 70.503`
+(66.860 × 1,05 + 300) → **exceso de 34.910 líneas**. Los mayores crecimientos están en
+`wow-world-application` (quest/objectives +1.044, inventory_valuation +974), la propia
+herramienta de contrato (`direct_builder` +966, `composer` +959, `core_owner` +899),
+`wow-world-core` (entity_update_bridge +959, player_save_owner +952, player_stats +891) y sus
+pruebas trasladadas. Es decir: el crecimiento externo es en parte código trasladado y en parte
+funcionalidad nueva y tooling acumulados por P4a/F4b/F5, no un espejo duplicado de lo que sigue
+en wow-world. La regla, tal como está implementada, no distingue ambos casos y no se relaja sin
+autorización explícita (el issue prohíbe usar la holgura como permiso).
+
+**Conclusión de la campaña:** ninguna aceptación está acreditada. `final` queda a un solo
+hallazgo de pasar —R1 net-move—, y ese hallazgo exige contabilidad/retirada de crecimiento
+externo (F6) o una decisión explícita del propietario sobre la regla. El objetivo #1263 sigue
+abierto: F5 tiene 378 registros `register_packet_handler_like_cpp!` pendientes de migrar y F6
+tiene la pista de comportamiento.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
