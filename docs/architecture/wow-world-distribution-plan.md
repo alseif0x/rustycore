@@ -5309,6 +5309,25 @@ producción, 138.166 → 138.168 test; `world-server/lib.rs` 31.760 → 31.764).
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: ping tipado al registrador client-state — 2026-10-05, `322710770`
+
+`ClientOpcodes::Ping` pasa al registrador directo `ClientState` de `wow-world-application` con su
+cuerpo tipado completo (parse de `Ping`, traza con cuenta y respuesta `Pong` por el mismo serial) a
+través del contexto hub-only ya existente. Se retira la entrada de
+`handlers/character/account/registrations/world_queries.rs` y el método de
+`handlers/account_data/client_state.rs` (junto con su import `trace` ya sin uso). Sin contrato,
+dueño de módulo ni llamada de compositor nuevos; la tabla de despacho mantiene sus 478 opcodes.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 25 tests de `dispatch` y la suite completa de
+`wow-world-application` (52) en verde; `cargo check` de `wow-world`, `wow-world-application` y
+`world-server` sin errores nuevos; suite del tool **442/443** (baseline previo a la reimpresión) y
+**PASS** tras reimprimir; `session-ownership-check check --syntax-only` **PASS** (177 owners /
+3.126 items / 674 filas, exactamente el método retirado); `check_architecture.py check` **PASS**.
+R1 v2: `S = 70.425`, `G_move = 107.441`, requisito `33.194,75` → **presupuesto 33.195**
+(`recorded_at_revision 322710770`), 0 violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

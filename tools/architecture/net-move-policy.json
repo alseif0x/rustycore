@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 33181,
-    "measured_requirement": 33181,
-    "recorded_at_revision": "d39c69b70102edd3b2fb3feb5717768acf152f03",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70398, G_move = 107398, ratio and slack credits = 70398 * 1.05 + 300 = 74217.9, so the requirement is 33180.1 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33195,
+    "measured_requirement": 33195,
+    "recorded_at_revision": "322710770b0f4a12453b1ca16fda27a8ef80beed",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70425, G_move = 107441, ratio and slack credits = 70425 * 1.05 + 300 = 74246.25, so the requirement is 33194.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -96,6 +96,13 @@
         "destination_growth": 250,
         "new_code": 151,
         "note": "The hotfix-request and DB2 bulk-query bodies moved from the character account/query files into a new application data-service registrar, which also retires the now-empty character session-services registration file; the composition keeps all 478 opcodes."
+      },
+      {
+        "phase": "F5 ping tail (d39c69b70..322710770, typed ping)",
+        "shrink": 27,
+        "destination_growth": 43,
+        "new_code": 16,
+        "note": "The typed Ping/Pong handler moved from the character world-queries registration and account-data module into the existing application client-state registrar; no new contract, authority or duplicate."
       }
     ],
     "areas": [
