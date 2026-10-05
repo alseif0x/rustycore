@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 33115,
     "measured_requirement": 33115,
-    "recorded_at_revision": "f3ab6af9781e587a8b28754f02b120ff89279ff4",
+    "recorded_at_revision": "8535fdb9206074198f51a426dfc208af28e6a374",
     "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70501, G_move = 107441, ratio and slack credits = 70501 * 1.05 + 300 = 74326.05, so the requirement is 33114.95 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
@@ -110,6 +110,13 @@
         "destination_growth": 0,
         "new_code": -77,
         "note": "Four duplicate bodies were retired into their admitted owners: the two World loot authority/cache transitions now delegate to the application LootReleaseCxLikeCpp, and the two loot-template helpers are imported from wow-world-lifecycle; the reviewed duplicate allowlist falls from five entries to one."
+      },
+      {
+        "phase": "F6 aura duplicate tail (f3ab6af97..8535fdb92, empty allowlist)",
+        "shrink": -1,
+        "destination_growth": 0,
+        "new_code": 1,
+        "note": "The last allowlisted duplicate, the World aura apply wrapper, now delegates to the admitted application aura owner; the reviewed duplicate list is empty. The delegation itself is inside the shrink root (shrink -1, i.e. one net line added there) and adds no destination growth."
       }
     ],
     "areas": [

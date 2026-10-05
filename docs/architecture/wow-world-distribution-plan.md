@@ -5356,6 +5356,33 @@ baseline de ownership sin cambios (ninguna firma ni visibilidad se movió);
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F6 completado: lista de duplicados de R1 vacía — 2026-10-05, `8535fdb92`
+
+Último duplicado retirado. El envoltorio `WorldSession::apply_aura_with_effect_mask_like_cpp` de
+`session/spell_state/aura_application.rs` ya no reentra en el envoltorio de procedencia de
+`WorldSession`: construye el contexto admitido de la crate de aplicación
+(`player_aura_application_cx_like_cpp()`, alias de `AuraRemovalCxLikeCpp`) y llama directamente a
+su `apply_aura_with_effect_mask_like_cpp`, que es exactamente lo que el envoltorio de procedencia
+hacía (provenance por defecto y `send_update = true`). Con el cuerpo duplicado fuera,
+`net-move-policy.json` retira la **última** excepción: la lista revisada de duplicados queda
+**vacía** (0 violaciones, 0 permitidos, 0 obsoletos) y el test de política del tool pasa de exigir
+una entrada a exigir cero.
+
+Esto cierra el objetivo de **F6** para R1: la puerta de copias ya no necesita ninguna excepción
+para pasar. El ratchet de hotspots registra la única línea neta añadida (el propio cuerpo de
+delegación, dentro del shrink root) con su nota revisada.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **150 tests de aura**, **635 de spell** y 52 de
+`wow-world-application` en verde; `cargo check` de `wow-world`, `wow-world-application` y
+`world-server` sin errores nuevos; suite del tool **443/443** con el baseline de ownership sin
+cambios; `check_architecture.py check` **PASS**; R1 v2 **PASS** con lista de duplicados vacía
+(`S = 70.501`, `G_move = 107.441`, requisito `33.114,95` → **presupuesto 33.115**,
+`recorded_at_revision 8535fdb92`) y `test_net_move.py` 16/16.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Queda todo F5 (las familias grandes listadas arriba), que es lo único que separa a la rama de su
+alcance íntegro.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
