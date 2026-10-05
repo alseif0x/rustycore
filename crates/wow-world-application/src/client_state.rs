@@ -20,6 +20,7 @@ use wow_handler::{
 };
 use wow_packet::ClientPacket;
 use wow_packet::WorldPacket;
+use wow_packet::packets::auth::{Ping, Pong};
 use wow_packet::packets::misc::{
     LoadingScreenNotify, ServerTimeOffset, SetAdvancedCombatLogging, TimeSyncResponse,
     ViolenceLevel,
@@ -58,6 +59,19 @@ impl<'a> ClientStateHandlerCxLikeCpp<'a> {
         self.hub
             .core
             .record_time_sync_response_like_cpp(resp.sequence_index, resp.client_time);
+    }
+
+    /// C++ `WorldSession::HandlePing` — reply with `Pong` on the same serial.
+    pub async fn handle_ping(&mut self, ping: Ping) {
+        trace!(
+            "Ping: serial={}, latency={}ms for account {}",
+            ping.serial,
+            ping.latency,
+            self.account_id_like_cpp()
+        );
+        self.publication_like_cpp().send_packet(&Pong {
+            serial: ping.serial,
+        });
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
@@ -825,6 +839,28 @@ where
     })
 }
 
+fn handle_ping_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match Ping::read(&mut pkt) {
+            Ok(ping) => {
+                session
+                    .client_state_handler_cx_like_cpp(catalogs)
+                    .handle_ping(ping)
+                    .await;
+            }
+            Err(e) => warn!("Failed to read Ping: {e}"),
+        }
+    })
+}
+
 /// Register the client-state packet entries through their application adapter.
 pub fn register_client_state_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -1294,6 +1330,13 @@ where
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_time_sync_response",
         handler: handle_time_sync_response_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::Ping,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_ping",
+        handler: handle_ping_thunk::<S, C>,
     })?;
     Ok(())
 }

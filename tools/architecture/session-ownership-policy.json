@@ -1364,20 +1364,6 @@
           "module": "crate::handlers::account_data::client_state",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_ping",
-          "visibility": "pub",
-          "signature": "async fn handle_ping (& mut self , ping : wow_packet :: packets :: auth :: Ping)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_set_currency_flags",
           "visibility": "pub",
           "signature": "async fn handle_set_currency_flags (& mut self , mut pkt : wow_packet :: WorldPacket)",

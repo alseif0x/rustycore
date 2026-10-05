@@ -11,7 +11,7 @@
 //! every scenario that drives a moved handler keeps a cfg(test) entry point so
 //! it can exercise one handler without composing a dispatch table.
 
-use tracing::{trace, warn};
+use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -32,16 +32,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 }
 
 impl crate::session::WorldSession {
-    pub async fn handle_ping(&mut self, ping: wow_packet::packets::auth::Ping) {
-        trace!(
-            "Ping: serial={}, latency={}ms for account {}",
-            ping.serial, ping.latency, self.core.account_id
-        );
-        self.send_packet(&wow_packet::packets::auth::Pong {
-            serial: ping.serial,
-        });
-    }
-
     pub async fn handle_set_currency_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match SetCurrencyFlags::read(&mut pkt) {
             Ok(packet) => packet,

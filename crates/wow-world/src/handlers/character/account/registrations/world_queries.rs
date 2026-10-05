@@ -159,23 +159,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::Ping,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_ping",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::auth::Ping::read(&mut pkt) {
-                    Ok(ping) => session.handle_ping(ping).await,
-                    Err(e) => tracing::warn!("Failed to read Ping: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::TalkToGossip,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

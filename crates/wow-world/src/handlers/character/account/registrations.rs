@@ -3,7 +3,7 @@
 use super::*;
 
 mod character_setup;
-mod logout;
 mod inventory_actions;
+mod logout;
 mod world_queries;
 mod world_services;
