@@ -5383,6 +5383,37 @@ cambios; `check_architecture.py check` **PASS**; R1 v2 **PASS** con lista de dup
 Queda todo F5 (las familias grandes listadas arriba), que es lo único que separa a la rama de su
 alcance íntegro.
 
+#### F5: primer corte de la familia group (12 opcodes) a `wow-world-social` — 2026-10-05, `054923f7d`
+
+Primer corte grande de F5 tras F6. Doce opcodes de grupo pasan al registrador directo `SocialGroup`
+de `wow-world-social`: `SetLootMethod`, `SilencePartyTalker`, `SetRole`, `InitiateRolePoll`,
+`UpdateRaidTarget`, `RequestPartyJoinUpdates`, `RequestPartyMemberStats`, `DoReadyCheck`,
+`ReadyCheckResponse`, `LowLevelRaid1`, `LowLevelRaid2` y `MinimapPing`, con sus cuerpos (≈500
+líneas). El contexto `SocialGroupHandlerCxLikeCpp { social, hub }` divide el estado social del hub,
+resuelve el guid de grupo por la consulta que ya vive en social
+(`resolved_group_guid_with_access_like_cpp`, con el flag de fixture
+`cfg!(any(test, feature = "test-fixtures"))`) y llama a los constructores de `group_fanout`, ya
+en la crate social; ningún tipo de World ni de lifecycle cruza al handler.
+
+Se quedan en el shell, para cortes posteriores: los handlers de invitación/respuesta/expulsión/
+salida/conversión/subgrupo (que persisten por `SessionLifecycleState`), el de `opt_out_of_loot`
+(estado de loot) y `RandomRoll` (usa `rand`, que la política de dependencias no permite en la crate
+social). El módulo `ops_3` queda vacío y se retira; las suites de grupo conservan delegados
+`cfg(test)` en `handlers/group/test_shims.rs`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **248 tests de grupo** y 25 de `dispatch` (478
+opcodes intactos) en verde; `cargo check` de `wow-world-social`, `wow-world` y `world-server` sin
+errores nuevos; suite del tool **442/443** (baseline previo a la reimpresión) y **PASS** tras
+reimprimir; `session-ownership-check check --syntax-only` **PASS** (178 owners / 3.127 items / 674
+filas, con 12 métodos de `handlers::group::ops_2`, 1 de `ops_3`, los 12 delegados test-fixture, el
+impl host y las filas de registro movidas); `check_architecture.py check` **PASS** (ratchet físico
+3.365 ficheros / 102 techos); hotspots reconciliados (`session/mod.rs` 60.862 → 60.885 producción,
+138.168 → 138.170 test; `world-server/lib.rs` 31.764 → 31.768). R1 v2: `S = 71.045`,
+`G_move = 108.282`, requisito `33.384,75` → **presupuesto 33.385**
+(`recorded_at_revision 054923f7d`), 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

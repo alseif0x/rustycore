@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 33115,
-    "measured_requirement": 33115,
-    "recorded_at_revision": "8535fdb9206074198f51a426dfc208af28e6a374",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70501, G_move = 107441, ratio and slack credits = 70501 * 1.05 + 300 = 74326.05, so the requirement is 33114.95 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33385,
+    "measured_requirement": 33385,
+    "recorded_at_revision": "054923f7dd9bbb4a639a94a6347e3e06bff49122",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71045, G_move = 108282, ratio and slack credits = 71045 * 1.05 + 300 = 74897.25, so the requirement is 33384.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -117,6 +117,13 @@
         "destination_growth": 0,
         "new_code": 1,
         "note": "The last allowlisted duplicate, the World aura apply wrapper, now delegates to the admitted application aura owner; the reviewed duplicate list is empty. The delegation itself is inside the shrink root (shrink -1, i.e. one net line added there) and adds no destination growth."
+      },
+      {
+        "phase": "F5 group first slice (8535fdb92..054923f7d, twelve group handlers)",
+        "shrink": 544,
+        "destination_growth": 841,
+        "new_code": 297,
+        "note": "Twelve group handlers moved from the World shell into the social group registrar (packet bodies, thunks, host context and test delegates); the invite/leave/convert/subgroup, lifecycle persistence and random-roll handlers stay for later slices."
       }
     ],
     "areas": [
