@@ -4775,7 +4775,8 @@ por módulo hermano (`super::auction::handle_x_thunk::<S, C>`) ya existía para
 - `wow-world` conserva `handle_auction_hello_request` (lo registra la familia world-service de
   character/account) y ocho shims `cfg(test)` para los escenarios que ejecutan un handler movido;
 - el contrato de inventario del tool declara la nueva exportación de fachada
-  (`AuctionHandlerCxLikeCpp`) y su fixture sintético se actualiza; la mutación de fachada ausente
+  (`AuctionHandlerCxLikeCpp`), su fixture sintético se actualiza y el test de recuento del
+  registrador de inventario pasa de **5 a 16** entradas revisadas; la mutación de fachada ausente
   se reajusta al formato real (el helper `mutate_fixture` volvió a fallar ruidosamente, como se
   diseñó).
 
