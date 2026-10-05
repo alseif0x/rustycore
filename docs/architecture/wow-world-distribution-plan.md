@@ -5800,6 +5800,31 @@ permitidos / 0 obsoletos.
 
 **No validado todavía.** Sin campaña `final` nueva; quedan **192 registros literales**.
 
+#### F5: `SetTitle` al dueño `ApplicationPlayer` — 2026-10-05, `68ca808fe..HEAD`
+
+`SetTitle` pasa al dueño `ApplicationPlayer`; su contexto añade el préstamo del estado de quest
+(`split_quest_state_mut`) que sirve el fallback de fixture de títulos representados
+(`fixture_has_represented_known_title_like_cpp` / `fixture_set_represented_chosen_title_like_cpp`).
+La transición canónica (`with_owned_player_mut_like_cpp` + `set_canonical_chosen_title_like_cpp`) y
+la publicación de la actualización de valores usan el hub y el puente de Core
+(`entity_update_bridge::player_values_update_to_update_object`).
+
+**Defecto encontrado y corregido por las pruebas:** el fallback de fixture del App se compilaba solo
+con `cfg(test)`, que **no** se activa al compilar el App como dependencia desde los tests de
+`wow-world`; tres pruebas de `set_title` fallaron y se corrigió a
+`cfg(any(test, feature = "test-fixtures"))`, la puerta que la política exige para código que migra.
+`entities/player` queda en **3 registros literales** (far sight, stand state, item purchase data).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**54 de `handlers::entities`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.136 items / 711 filas);
+`check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado (producción 61.127 →
+61.128, total 199.311 → 199.312). R1 v2: `S = 72.437`, `G_move = 111.353`, requisito `34.994,15` →
+**presupuesto 34.995**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; quedan **191 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

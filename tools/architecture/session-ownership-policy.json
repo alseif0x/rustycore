@@ -6946,20 +6946,6 @@
           "module": "crate::handlers::entities::player",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_set_title",
-          "visibility": "pub",
-          "signature": "async fn handle_set_title (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::player",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_stand_state_change",
           "visibility": "pub",
           "signature": "async fn handle_stand_state_change (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -7046,6 +7032,37 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_title",
+          "visibility": "pub",
+          "signature": "async fn handle_set_title (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "player_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_test_cx_like_cpp (& mut self) -> PlayerHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {

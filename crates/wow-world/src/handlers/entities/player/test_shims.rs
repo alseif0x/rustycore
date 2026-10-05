@@ -11,27 +11,34 @@ use wow_world_application::PlayerHandlerCxLikeCpp;
 use crate::session::WorldSession;
 
 impl WorldSession {
+    fn player_test_cx_like_cpp(&mut self) -> PlayerHandlerCxLikeCpp<'_> {
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        PlayerHandlerCxLikeCpp::new(hub, quest_state)
+    }
+
     pub async fn handle_query_time(&mut self) {
-        PlayerHandlerCxLikeCpp::new(crate::session::hub_mut(self))
-            .handle_query_time()
-            .await;
+        self.player_test_cx_like_cpp().handle_query_time().await;
     }
 
     pub async fn handle_query_next_mail_time(&mut self) {
-        PlayerHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        self.player_test_cx_like_cpp()
             .handle_query_next_mail_time()
             .await;
     }
 
     pub async fn handle_set_selection(&mut self, pkt: WorldPacket) {
-        PlayerHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        self.player_test_cx_like_cpp()
             .handle_set_selection(pkt)
             .await;
     }
 
     pub async fn handle_set_action_button(&mut self, pkt: WorldPacket) {
-        PlayerHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        self.player_test_cx_like_cpp()
             .handle_set_action_button(pkt)
             .await;
+    }
+
+    pub async fn handle_set_title(&mut self, pkt: WorldPacket) {
+        self.player_test_cx_like_cpp().handle_set_title(pkt).await;
     }
 }

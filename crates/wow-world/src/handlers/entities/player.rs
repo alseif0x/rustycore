@@ -50,16 +50,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SetTitle,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_set_title",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_title(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::GetItemPurchaseData,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -146,43 +136,6 @@ impl crate::session::WorldSession {
     pub async fn handle_set_raid_difficulty(&mut self, pkt: wow_packet::WorldPacket) {
         let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
         wow_world_application::handle_set_raid_difficulty_like_cpp(&mut cx, pkt).await;
-    }
-
-    pub async fn handle_set_title(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let mut packet = match SetTitle::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetTitle parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        if packet.title_id > 0 {
-            if !self.represented_has_title_like_cpp(packet.title_id as u32) {
-                return;
-            }
-        } else {
-            packet.title_id = 0;
-        }
-
-        self.represented_set_chosen_title_like_cpp(packet.title_id);
-        if let Some(update) = self
-            .core
-            .set_canonical_chosen_title_like_cpp(packet.title_id)
-        {
-            if let Some(player_guid) = self.player_guid() {
-                if let Some(packet) = player_values_update_to_update_object(
-                    player_guid,
-                    self.core.player_map_id_like_cpp(),
-                    &update,
-                ) {
-                    self.send_packet(&packet);
-                }
-            }
-        }
     }
 
     pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {

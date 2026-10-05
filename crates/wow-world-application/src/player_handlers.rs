@@ -12,6 +12,7 @@
 //! they call shell-owned seams (far sight visibility, live-intent stand state,
 //! title persistence, item purchase data).
 
+use crate::SessionQuestState;
 use tracing::info;
 use wow_constants::ClientOpcodes;
 use wow_core::{GameTime, ObjectGuid};
@@ -19,19 +20,22 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::misc::{MailNextTimeEntry, MailQueryNextTimeResult, QueryTimeResponse};
 use wow_packet::packets::spell::SetActionButton;
 use wow_packet::{ClientPacket, WorldPacket};
+use wow_world_core::entity_update_bridge::player_values_update_to_update_object;
 use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
 
 /// Borrowed inputs of one player query handler invocation.
 pub struct PlayerHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
+    quest_state: &'a mut SessionQuestState,
 }
 
 impl<'a> PlayerHandlerCxLikeCpp<'a> {
-    pub fn new(hub: HubMut<'a>) -> Self {
-        Self { hub }
+    pub fn new(hub: HubMut<'a>, quest_state: &'a mut SessionQuestState) -> Self {
+        Self { hub, quest_state }
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
@@ -97,6 +101,74 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
         }
 
         self.publication_like_cpp().send_packet_realm(&packet);
+    }
+
+    /// C++ `Player::HasTitle` + `Player::SetChosenTitle` and the values update.
+    pub async fn handle_set_title(&mut self, mut pkt: WorldPacket) {
+        let mut packet = match SetTitle::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                tracing::warn!(
+                    account = self.hub.shared().core.account_id,
+                    "SetTitle parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if packet.title_id > 0 {
+            if !self.represented_has_title_like_cpp(packet.title_id as u32) {
+                return;
+            }
+        } else {
+            packet.title_id = 0;
+        }
+
+        self.represented_set_chosen_title_like_cpp(packet.title_id);
+        if let Some(update) = self
+            .hub
+            .core
+            .set_canonical_chosen_title_like_cpp(packet.title_id)
+        {
+            if let Some(player_guid) = self.hub.shared().core.player_guid() {
+                if let Some(packet) = player_values_update_to_update_object(
+                    player_guid,
+                    self.hub.shared().core.player_map_id_like_cpp(),
+                    &update,
+                ) {
+                    self.publication_like_cpp().send_packet(&packet);
+                }
+            }
+        }
+    }
+
+    /// C++ `Player::HasTitle`; the represented fixture fallback stays available.
+    fn represented_has_title_like_cpp(&self, title_id: u32) -> bool {
+        let canonical = self
+            .hub
+            .core
+            .with_owned_player_like_cpp(|player| player.has_title_like_cpp(title_id));
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.hub.shared().core.player_handle_like_cpp.is_none() {
+            return self
+                .quest_state
+                .fixture_has_represented_known_title_like_cpp(title_id);
+        }
+        canonical.unwrap_or(false)
+    }
+
+    /// C++ `Player::SetChosenTitle`; the represented fixture fallback stays available.
+    fn represented_set_chosen_title_like_cpp(&mut self, title_id: i32) {
+        let canonical = self
+            .hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_chosen_title_like_cpp(title_id))
+            .is_some();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if !canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
+            self.quest_state
+                .fixture_set_represented_chosen_title_like_cpp(title_id);
+        }
     }
 
     /// CMSG_SET_ACTION_BUTTON — client binds or clears one action button.
@@ -184,6 +256,23 @@ where
     })
 }
 
+fn handle_set_title_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: PlayerHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .player_handler_cx_like_cpp(catalogs)
+            .handle_set_title(pkt)
+            .await;
+    })
+}
+
 fn handle_set_action_button_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -236,6 +325,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_action_button",
         handler: handle_set_action_button_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTitle,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_title",
+        handler: handle_set_title_thunk::<S, C>,
     })?;
     Ok(())
 }
