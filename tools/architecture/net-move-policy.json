@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 32996,
-    "measured_requirement": 32996,
-    "recorded_at_revision": "0c12ef0df377241b402919ff2c690b55465250ce",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70165, G_move = 106969, ratio and slack credits = 70165 * 1.05 + 300 = 73973.25, so the requirement is 32995.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33003,
+    "measured_requirement": 33003,
+    "recorded_at_revision": "b9a0a87e378b10e0a53670dadd87f947cf44e00b",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70244, G_move = 107059, ratio and slack credits = 70244 * 1.05 + 300 = 74056.2, so the requirement is 33002.8 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -75,6 +75,13 @@
         "destination_growth": 76,
         "new_code": 40,
         "note": "Three stateless BattlePay/VAS stub registrations moved from the character account registration file into the existing application client-state registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F5 time-sync tail (0c12ef0df..b9a0a87e3, client time sync)",
+        "shrink": 79,
+        "destination_growth": 90,
+        "new_code": 11,
+        "note": "The server time offset reply and the three TimeSyncResponse aliases moved from the character world-entry/account registration files into the existing application client-state registrar; no new contract, authority or duplicate."
       }
     ],
     "areas": [
@@ -85,7 +92,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 29361,
+        "lines": 29451,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {

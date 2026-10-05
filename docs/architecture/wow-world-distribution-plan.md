@@ -5237,6 +5237,29 @@ de registro del fichero de account baja de 12 a 9 entradas.
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: time sync al registrador client-state — 2026-10-05, `b9a0a87e3`
+
+Mismo patrón que el corte anterior, ahora sobre el servicio de tiempo:
+`ServerTimeOffsetRequest` y los tres alias `TimeSyncResponse`,
+`TimeSyncResponseDropped` y `TimeSyncResponseFailed` pasan al registrador directo `ClientState` de
+`wow-world-application` con sus dos cuerpos (respuesta de offset y traza +
+`SessionCore::record_time_sync_response_like_cpp`), alcanzables con el contexto hub-only ya
+existente. Se retiran las cuatro entradas de
+`handlers/character/account/registrations/session_services.rs` (baja de 9 a 5) y los dos métodos de
+`WorldSession` de `handlers/character/world_entry.rs`; tampoco aquí hay contrato, dueño de módulo
+ni llamada de compositor nuevos.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 25 tests de `dispatch` (incluida la metadata de
+los alias) y la suite completa de `wow-world-application` (52) en verde; `cargo check` de
+`wow-world`, `wow-world-application` y `world-server` sin errores nuevos; suite del tool
+**442/443** (baseline previo a la reimpresión) y **PASS** tras reimprimir;
+`session-ownership-check check --syntax-only` **PASS** (176 owners / 3.129 items / 674 filas, con
+exactamente los dos métodos retirados); `check_architecture.py check` **PASS**. R1 v2:
+`S = 70.244`, `G_move = 107.059`, requisito `33.002,80` → **presupuesto 33.003**
+(`recorded_at_revision b9a0a87e3`), 0 violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
