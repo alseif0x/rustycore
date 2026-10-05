@@ -27,6 +27,7 @@ mod instances;
 mod inventory_handler_contexts;
 mod legacy_runtime;
 mod reputation_handler_contexts;
+mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
 use legacy_runtime::*;

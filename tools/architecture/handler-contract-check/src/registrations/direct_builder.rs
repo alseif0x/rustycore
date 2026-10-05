@@ -305,6 +305,27 @@ pub(crate) const CHAT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContra
     facades: CHAT_FACADES,
 };
 
+const SOCIAL_CONTACTS_ROOT_EXPORTS: &[&str] = &[
+    "SocialContactsHandlerCxLikeCpp",
+    "SocialContactsHandlerHostLikeCpp",
+    "register_social_contacts_handlers_like_cpp",
+];
+const SOCIAL_CONTACTS_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "social_contacts_handlers",
+    exports: SOCIAL_CONTACTS_ROOT_EXPORTS,
+}];
+
+pub(crate) const SOCIAL_CONTACTS_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "SocialContacts",
+    package: "wow-world-social",
+    module: "crate::social_contacts_handlers",
+    registrar: "register_social_contacts_handlers_like_cpp",
+    host_trait: "SocialContactsHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: SOCIAL_CONTACTS_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -318,6 +339,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     CLIENT_STATE_REGISTRAR,
     CALENDAR_REGISTRAR,
     CHAT_REGISTRAR,
+    SOCIAL_CONTACTS_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

@@ -977,6 +977,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::social::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::spell::ops_1",
           "trait_path": null,
           "cfg": [],
@@ -1155,6 +1163,12 @@
         {
           "module": "crate::session",
           "trait_path": "Runtime",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SocialContactsHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -12141,120 +12155,9 @@
           "module": "crate::handlers::social",
           "trait_path": null,
           "kind": "method",
-          "name": "friend_status_for_guid_like_cpp",
-          "visibility": "private",
-          "signature": "fn friend_status_for_guid_like_cpp (& self , guid : ObjectGuid) -> u8",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_accept_social_contract",
-          "visibility": "pub",
-          "signature": "async fn handle_accept_social_contract (& mut self , _accept : AcceptSocialContract)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_account_notification_acknowledged",
-          "visibility": "pub",
-          "signature": "async fn handle_account_notification_acknowledged (& mut self , _packet : AccountNotificationAcknowledged ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_add_friend",
-          "visibility": "pub",
-          "signature": "async fn handle_add_friend (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_add_ignore",
-          "visibility": "pub",
-          "signature": "async fn handle_add_ignore (& mut self , ignore : AddIgnore)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_cancel_represented_trade_command_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_cancel_represented_trade_command_like_cpp (& mut self , command : CancelRepresentedTradeLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_del_friend",
-          "visibility": "pub",
-          "signature": "async fn handle_del_friend (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_del_ignore",
-          "visibility": "pub",
-          "signature": "async fn handle_del_ignore (& mut self , ignore : DelIgnore)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_send_contact_list",
-          "visibility": "pub",
-          "signature": "async fn handle_send_contact_list (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -12294,34 +12197,6 @@
           "module": "crate::handlers::social",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_set_contact_notes",
-          "visibility": "pub",
-          "signature": "async fn handle_set_contact_notes (& mut self , contact : SetContactNotes)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_social_contract_request",
-          "visibility": "pub",
-          "signature": "async fn handle_social_contract_request (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::social",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_unaccept_represented_trade_command_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_unaccept_represented_trade_command_like_cpp (& mut self , command : UnacceptRepresentedTradeLikeCppCommand ,)",
@@ -12333,14 +12208,64 @@
           ]
         },
         {
-          "module": "crate::handlers::social",
+          "module": "crate::handlers::social::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_contact_list_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn send_contact_list_like_cpp (& mut self , flags : u32)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_accept_social_contract",
+          "visibility": "pub",
+          "signature": "async fn handle_accept_social_contract (& mut self , accept : AcceptSocialContract)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::social::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_account_notification_acknowledged",
+          "visibility": "pub",
+          "signature": "async fn handle_account_notification_acknowledged (& mut self , packet : AccountNotificationAcknowledged ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::social::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_del_ignore",
+          "visibility": "pub",
+          "signature": "async fn handle_del_ignore (& mut self , ignore : DelIgnore)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::social::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_social_contract_request",
+          "visibility": "pub",
+          "signature": "async fn handle_social_contract_request (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -34780,6 +34705,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "send_contact_list_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn send_contact_list_like_cpp (& mut self , flags : u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "send_destroyed_group_party_update_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn send_destroyed_group_party_update_like_cpp (& mut self , group_guid : u64 , category : u8 ,)",
@@ -44618,6 +44556,19 @@
           "name": "visual",
           "visibility": "private",
           "signature": "fn visual (& self , spell : & wow_data :: SpellInfo) -> Option < SpellCastVisualLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SocialContactsHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "social_contacts_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn social_contacts_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SocialContactsHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -58996,32 +58947,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::social",
-          "source": "crates/wow-world/src/handlers/social.rs",
-          "enclosing": "impl WorldSession::friend_status_for_guid_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::social",
-          "source": "crates/wow-world/src/handlers/social.rs",
-          "enclosing": "impl WorldSession::friend_status_for_guid_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "return",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "self . player_registry () . and_then (| registry | { registry . social_recipient (guid) . map (| recipient | { if recipient . is_dnd { FRIEND_STATUS_DND_LIKE_CPP } else if recipient . is_afk { FRIEND_STATUS_AFK_LIKE_CPP } else { FRIEND_STATUS_ONLINE_LIKE_CPP } }) }) . unwrap_or (FRIEND_STATUS_OFFLINE_LIKE_CPP)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::player_directory",
           "source": "crates/wow-world/src/lib.rs",
           "enclosing": "module",
@@ -63480,6 +63405,32 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "Option < & 'a Arc < PlayerRegistry > >",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::social_contacts_handlers",
+          "source": "crates/wow-world-social/src/social_contacts_handlers.rs",
+          "enclosing": "impl SocialContactsHandlerCxLikeCpp::friend_status_for_guid_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::social_contacts_handlers",
+          "source": "crates/wow-world-social/src/social_contacts_handlers.rs",
+          "enclosing": "impl SocialContactsHandlerCxLikeCpp::friend_status_for_guid_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "return",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "self . hub . shared () . core . player_registry () . and_then (| registry | { registry . social_recipient (guid) . map (| recipient | { if recipient . is_dnd { FRIEND_STATUS_DND_LIKE_CPP } else if recipient . is_afk { FRIEND_STATUS_AFK_LIKE_CPP } else { FRIEND_STATUS_ONLINE_LIKE_CPP } }) }) . unwrap_or (FRIEND_STATUS_OFFLINE_LIKE_CPP)",
           "count": 1
         },
         {

@@ -17,6 +17,7 @@ mod group_owner;
 mod guild;
 mod handlers;
 mod requests;
+mod social_contacts_handlers;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
@@ -50,6 +51,11 @@ pub use handlers::{
     InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
     register_social_inspect_handlers_like_cpp,
 };
+pub use social_contacts_handlers::{
+    SocialContactsHandlerCxLikeCpp, SocialContactsHandlerHostLikeCpp,
+    register_social_contacts_handlers_like_cpp,
+};
+pub use social_contacts_handlers::normalize_player_name_like_cpp;
 pub use state::SessionSocialLimits;
 
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
