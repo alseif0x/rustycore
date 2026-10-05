@@ -4697,20 +4697,53 @@ líneas duplicadas medidas, y R1 exigiría retirar al menos **33.249 líneas** d
 `crates/wow-world/src` (o 34.910 fuera) para volver al presupuesto, lo que equivaldría a borrar
 los entregables del propio corte (crates nuevos, glue `Cx`/host/registrador, pruebas y tooling).
 El exceso no proviene de copias sin borrar ni de las rondas posteriores a la pausa (+541), sino
-de que la regla actual mide *todo* crecimiento fuera de `wow-world/src` como si fuera destino de
-un traslado, y el programa P4b→F5 es una extracción incremental que además **añade** superficie
-nueva y funcionalidad. Decisión pendiente del propietario (no se cambia la tolerancia sin ella):
-(A) corregir el alcance medido de R1 conforme a su propia documentación (excluir rutas que no
-pueden ser destino de código de `wow-world`, p. ej. `tools/**` y los árboles de pruebas, ~11.000
-líneas) más un registro revisado del crecimiento nuevo de P4b/F4b/F5, o (B) dejar R1 en rojo y
-reportar `final` como no verde por esta regla.
+de que la regla anterior medía *todo* crecimiento fuera de `wow-world/src` como si fuera destino
+de un traslado, y el programa P4b→F5 es una extracción incremental que además **añade**
+superficie nueva y funcionalidad.
+
+**Decisión del propietario y R1 v2 (autorizado y aplicado).** El propietario autorizó la opción
+A: reformular R1 para que mida lo que su propia documentación declara —detectar copias que no
+borran su origen— en lugar del presupuesto global de líneas. `tools/architecture/net_move.py`
+tiene ahora dos partes:
+
+- **Puerta de copias (el objeto real de R1).** Compara los cuerpos de `fn` normalizados (≥ 120
+  caracteres normalizados, sin comentarios ni literales) presentes a la vez en
+  `crates/wow-world/src/` y fuera de él. Una copia sin excepción revisada **falla**, y una
+  excepción registrada que ya no coincide **falla como obsoleta**, de modo que la lista no puede
+  pudrirse. Los árboles de pruebas (`unit_tests/`, `tests/`) no se escanean como destinos.
+- **Presupuesto de destinos.** `S` es el cambio neto de `.rs` de `crates/wow-world/src/` y `G` el
+  crecimiento neto de los destinos declarados en `tools/architecture/net-move-policy.json` (los
+  crates que reciben código de `wow-world`). Falla si `G > S*1,05 + 300 + código nuevo revisado`.
+  El crecimiento restante (tooling, documentación, árboles de prueba, otros crates) se reporta
+  como *accounted growth* y no se cobra, porque no es destino de un traslado. Sin el fichero de
+  política la comprobación conserva la forma estricta original: cobra todo lo que está fuera del
+  shrink root y no admite código nuevo.
+
+Contabilidad registrada en la política (medida con base `origin/3.4.3`, merge-base `24a513855e`,
+en `8a09dde95`): `S = 66.919` (67.971 borradas menos 1.052 añadidas dentro del root),
+`G = 97.421`, créditos de ratio y holgura `66.919 × 0,05 + 300 = 3.645,95`, requisito revisado
+`97.421 − 70.564,95 = 26.856,05` y **presupuesto revisado 27.000**. La revisión por fases queda
+así: P4b encogió 10.462 y creció 11.608 (1.146 nuevas); F4b encogió 46.818 y creció 76.143
+(29.325 nuevas); las rondas posteriores a la pausa encogieron 9.639 y crecieron 9.670 (**31**
+nuevas, es decir traslado neto). Las 7 familias de duplicado medidas se redujeron a **5** tras la
+retirada F6 de esta ronda, todas en familias F5 aún no migradas (`loot_release` ×2,
+`loot_template_rules` ×2, `aura_removal` ×1) y registradas con familia y motivo en la política.
+
+Resultado: `net_move.py check --base origin/3.4.3` → **PASS** (`growth 97421 <= 97564.9`,
+5 duplicados permitidos, 0 violaciones, 0 obsoletos). La regla sigue siendo dura: cualquier
+crecimiento no presupuestado en los destinos o cualquier cuerpo copiado sin excepción vuelve a
+fallar. La suite `test_net_move.py` pasa **16/16** (incluye la puerta de copias, la obsolescencia
+de la lista, el alcance por destinos, el presupuesto revisado y los fallos de política), y
+`tools/validation-v2` planifica R1 también cuando cambia la política.
 
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
   hub, aristas de métodos entre dominios, violaciones del DAG) y métrica R5.
-- `tools/architecture/net_move.py`: comprobación R1 net-move
-  (`python3 tools/architecture/net_move.py check --base origin/3.4.3`).
+- `tools/architecture/net_move.py`: comprobación R1 net-move v2 —puerta de copias por cuerpos de
+  `fn` y presupuesto de destinos— (`python3 tools/architecture/net_move.py check --base origin/3.4.3`).
+- `tools/architecture/net-move-policy.json`: registro revisado de R1 (destinos, presupuesto de
+  código nuevo por fase y excepciones de duplicado con familia y motivo).
 
 ## 10. Aceptación por PR, sin repetir evidencia
 

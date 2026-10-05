@@ -655,8 +655,9 @@ def test_planner_contract(repo: Path) -> None:
     physical_final, _ = runner.validation_commands(repo, "final", 2, "base", physical_groups, None)
     assert ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_physical_files.py"] in physical_final
     assert len({tuple(command) for command in final}) == len(final)
-    # R1 net-move (#1241): planned only in final, only for a wow-world/src change
-    # (including a deletion), never in quick; its own suite only in final.
+    # R1 net-move (#1241/#1263): planned only in final, for a wow-world/src
+    # change (including a deletion) or for the reviewed R1 policy, never in
+    # quick; its own suite only in final.
     net_move = ["python3", "tools/architecture/net_move.py", "check", "--base", "base"]
     net_move_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_net_move.py"]
     assert net_move not in quick and net_move not in final
@@ -667,11 +668,17 @@ def test_planner_contract(repo: Path) -> None:
         for changed in ("crates/wow-world/tests/loot.rs", "crates/wow-map/src/lib.rs", "crates/wow-world/Cargo.toml"):
             planned, _ = runner.validation_commands(repo, mode, 2, "base", runner.grouped_paths([changed]), None)
             assert net_move not in planned, (mode, changed)
+        policy_planned, _ = runner.validation_commands(
+            repo, mode, 2, "base", runner.grouped_paths(["tools/architecture/net-move-policy.json"]), None)
+        assert (net_move in policy_planned) == (mode == "final"), mode
     for changed in ("tools/architecture/net_move.py", "tools/architecture/test_net_move.py"):
         suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
         suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
         assert net_move_suite in suite_final and net_move_suite not in suite_quick, changed
         assert net_move not in suite_final, changed
+    policy_suite, _ = runner.validation_commands(
+        repo, "final", 2, "base", runner.grouped_paths(["tools/architecture/net-move-policy.json"]), None)
+    assert net_move_suite in policy_suite and net_move in policy_suite
 
     # Ignored sources (#1241 F3-6b): final plans the check for any crates/ change,
     # including a deletion; quick never does; its suite follows its own files.

@@ -1,0 +1,141 @@
+{
+  "schema_version": 1,
+  "shrink_root": "crates/wow-world/src/",
+  "destination_roots": [
+    "crates/wow-world-core/src/",
+    "crates/wow-world-application/src/",
+    "crates/wow-world-lifecycle/src/",
+    "crates/wow-world-spell/src/",
+    "crates/wow-world-inventory/src/",
+    "crates/wow-world-instances/src/",
+    "crates/wow-world-entities/src/",
+    "crates/wow-world-loot/src/",
+    "crates/wow-world-social/src/",
+    "crates/wow-world-interaction/src/",
+    "crates/wow-world-visibility/src/"
+  ],
+  "reviewed_new_code": {
+    "budget": 27000,
+    "measured_requirement": 26856,
+    "recorded_at_revision": "8a09dde956287493984f18cd38a7d10be975072c",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 66919 (net shrink of the root: 67971 deleted minus 1052 added inside it), G_move = 97421, ratio and slack credits = 66919 * 0.05 + 300 = 3645.95, so the requirement is 97421 - 70564.95 = 26856.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "phases": [
+      {
+        "phase": "P4b (base..21159a71c)",
+        "shrink": 10462,
+        "destination_growth": 11608,
+        "new_code": 1146,
+        "note": "Core hub scaffolding (SessionCore, HubRef/HubMut, canonical access) is written before the wow-world bodies are deleted."
+      },
+      {
+        "phase": "F4b (21159a71c..969bee686)",
+        "shrink": 46818,
+        "destination_growth": 76143,
+        "new_code": 29325,
+        "note": "Largest phase: the application/lifecycle/spell/inventory owners plus their Cx, host-trait, controller and projection surfaces are new code; only the moved bodies are offset by the shrink."
+      },
+      {
+        "phase": "post-pause (969bee686..HEAD)",
+        "shrink": 9639,
+        "destination_growth": 9670,
+        "new_code": 31,
+        "note": "Destination growth matched the shrink within 31 lines: the F5 registrars, F6 retirements and handler migrations of these rounds were net moves."
+      }
+    ],
+    "areas": [
+      {
+        "area": "crates/wow-world-core/src",
+        "lines": 34127,
+        "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder."
+      },
+      {
+        "area": "crates/wow-world-application/src",
+        "lines": 26215,
+        "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal)."
+      },
+      {
+        "area": "crates/wow-world-inventory/src",
+        "lines": 10110,
+        "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
+      },
+      {
+        "area": "crates/wow-world-lifecycle/src",
+        "lines": 7940,
+        "reason": "lifecycle state, load/finalization owners and account-data handlers."
+      },
+      {
+        "area": "crates/wow-world-spell/src",
+        "lines": 6034,
+        "reason": "spell state, melee rules and spell-acquisition adapters."
+      },
+      {
+        "area": "crates/wow-world-entities/src",
+        "lines": 5270,
+        "reason": "world-entity registries and creature contracts."
+      },
+      {
+        "area": "crates/wow-world-loot/src",
+        "lines": 2706,
+        "reason": "loot state, roll publication and random properties."
+      },
+      {
+        "area": "crates/wow-world-social/src",
+        "lines": 2481,
+        "reason": "social group/duel state plus the inspect handler family and group fanout."
+      },
+      {
+        "area": "crates/wow-world-instances/src",
+        "lines": 1296,
+        "reason": "instance difficulty and lock operations."
+      },
+      {
+        "area": "crates/wow-world-visibility/src",
+        "lines": 663,
+        "reason": "object-update projection."
+      },
+      {
+        "area": "crates/wow-world-interaction/src",
+        "lines": 579,
+        "reason": "NPC interaction and support features."
+      }
+    ],
+    "review_note": "The reviewed duplication gate below is what proves this growth is not a copy of code still present in crates/wow-world/src: it finds only the five bodies listed there, all of them still-live F5-pending families. Re-measure and re-record this budget whenever destination growth changes; unbudgeted growth fails R1."
+  },
+  "duplicates": [
+    {
+      "name": "represented_loot_authority_pools_like_cpp",
+      "destination": "crates/wow-world-application/src/loot_release/authority.rs",
+      "origin": "crates/wow-world/src/handlers/loot/authority.rs",
+      "family": "loot_release",
+      "reason": "F5 has not migrated the wow-world loot-release handler family yet; the admitted application owner and the legacy handler copy coexist until that migration retires the origin."
+    },
+    {
+      "name": "reconcile_represented_loot_cache_like_cpp",
+      "destination": "crates/wow-world-application/src/loot_release/authority.rs",
+      "origin": "crates/wow-world/src/handlers/loot/request_cache.rs",
+      "family": "loot_release",
+      "reason": "same pending loot_release migration; the wow-world request cache still serves the legacy handler path."
+    },
+    {
+      "name": "add_loot_item_stacks_like_cpp",
+      "destination": "crates/wow-world-lifecycle/src/loot_template_rules.rs",
+      "origin": "crates/wow-world/src/handlers/loot/mod.rs",
+      "family": "loot_template_rules",
+      "reason": "shared loot-template helper: the migrated generation path uses the lifecycle owner while the wow-world loot generation module keeps its copy until the loot handlers migrate."
+    },
+    {
+      "name": "player_race_mask_like_cpp",
+      "destination": "crates/wow-world-lifecycle/src/loot_template_rules.rs",
+      "origin": "crates/wow-world/src/handlers/loot/mod.rs",
+      "family": "loot_template_rules",
+      "reason": "same loot-template helper family; retirement follows the loot handler migration."
+    },
+    {
+      "name": "apply_aura_with_effect_mask_like_cpp",
+      "destination": "crates/wow-world-application/src/aura_removal/apply.rs",
+      "origin": "crates/wow-world/src/session/spell_state/aura_application.rs",
+      "family": "aura_removal",
+      "reason": "thin delegating wrapper: the admitted application owner is used by the aura-removal consumers while the wow-world spell_state wrapper remains for the legacy path."
+    }
+  ]
+}
