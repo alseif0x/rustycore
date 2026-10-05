@@ -19,4 +19,8 @@ impl GroupHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
         GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
     }
+
+    fn sync_player_registry_state_after_group_subgroup_like_cpp(&mut self) {
+        self.sync_player_registry_state_like_cpp();
+    }
 }

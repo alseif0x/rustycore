@@ -5646,6 +5646,30 @@ pets (10), group (9), vehicle (8), loot (7), entities/player (5), dungeon_findin
 void_storage (4), corpse (4), collections (3), gameobject (3), trainer (2), talent (2), chat (1),
 combat (1) y account-data/client-state (1).
 
+#### F5: familia group, corte de subgrupos (2 opcodes) al dueño application existente — 2026-10-05, `948fcf263..HEAD`
+
+`ChangeSubGroup` y `SwapSubGroups` pasan al registrador `ApplicationGroup` que ya existe
+(`crates/wow-world-application/src/group_handlers.rs`), sin contrato nuevo. El dueño aplica la
+transición canónica del `GroupRegistry` (`change_member_subgroup_like_cpp` /
+`swap_member_subgroups_like_cpp`), persiste los intents por lifecycle y aplica el subgrupo del propio
+emisor; la publicación de estado de registro que sigue (`sync_player_registry_state_like_cpp`,
+cuyos proveedores de stats/loot/control siguen siendo del shell) se expone como **seam acotado del
+host**: los dos métodos devuelven si cambió el subgrupo del emisor y el thunk llama a
+`sync_player_registry_state_after_group_subgroup_like_cpp` del trait anfitrión. `group` queda en **7
+registros literales** (invite, invite response, uninvite, leave, convert, opt-out, random roll).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos,
+metadata `ThreadUnsafe`/`LoggedIn` y `handler_name` sin cambios) y **248 de `group`** en verde;
+`cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin errores; suite del tool
+**443/443**; `session-ownership-check check --syntax-only` **PASS** (191 owners / 3.133 items / 682
+filas de registro directo); `check_architecture.py check` **PASS** (3.385 ficheros / 102 techos);
+hotspot `session/mod.rs` reconciliado (producción 61.023 → 61.027, total 199.207 → 199.211). R1 v2:
+`S = 71.776`, `G_move = 110.253`, requisito `34.588,20` → **presupuesto 34.589**, 0 violaciones / 0
+permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Medición directa: quedan **199 registros literales** en `wow-world`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

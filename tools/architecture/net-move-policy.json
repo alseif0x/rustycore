@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34525,
-    "measured_requirement": 34525,
+    "budget": 34589,
+    "measured_requirement": 34589,
     "recorded_at_revision": "948fcf2638a01e9b3de1c3cd7d0505f8885d90af",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71635, G_move = 110041, ratio and slack credits = 71635 * 1.05 + 300 = 75516.75, so the requirement is 34524.25 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71776, G_move = 110253, ratio and slack credits = 71776 * 1.05 + 300 = 75664.8, so the requirement is 34588.2 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -180,6 +180,13 @@
         "destination_growth": 58,
         "new_code": 40,
         "note": "The CMSG_EMOTE body moved from the World shell into the existing SocialChat direct registrar in wow-world-social instead of a new contract, so there is no new Cx/trait/registrar boilerplate: only the Cx method, one thunk, one registration and the cfg(test) delegate. SendTextEmote stays because it needs the emote catalogs and the shell-owned aura-interrupt removal. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group subgroup slice (948fcf263..HEAD, two handlers into the existing application group owner)",
+        "shrink": 141,
+        "destination_growth": 212,
+        "new_code": 71,
+        "note": "ChangeSubGroup and SwapSubGroups moved into the existing ApplicationGroup registrar (social + lifecycle + hub) instead of a new contract. The owner applies the canonical group-registry transition and the sender's own subgroup, then returns whether the registry-state publication still runs in the World host through a new bounded trait method (the registry sync keeps its own stats/loot/control providers). The invite/leave/convert/opt-out/random-roll handlers stay. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

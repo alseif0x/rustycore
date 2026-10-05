@@ -126,4 +126,28 @@ impl WorldSession {
             .handle_set_party_assignment(pkt)
             .await;
     }
+
+    pub async fn handle_change_sub_group(&mut self, pkt: WorldPacket) {
+        let changed = {
+            let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+            wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+                .handle_change_sub_group(pkt)
+                .await
+        };
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
+
+    pub async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
+        let changed = {
+            let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+            wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+                .handle_swap_sub_groups(pkt)
+                .await
+        };
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
 }
