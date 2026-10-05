@@ -4547,6 +4547,32 @@ Evidencia: suite del checker **443/0**; `check --syntax-only` **PASS**; `check` 
 `world-server --lib` **597 ok**. Quedan **380** registros `register_packet_handler_like_cpp!` en
 `wow-world`.
 
+#### F5: entrega de grupo movida a `wow-world-social` — 2026-10-04, `61ac1896d`
+
+Segundo corte de la ronda, esta vez sobre funciones puras (sin `WorldSession`): la mitad
+session-independent de `handlers/group/state.rs` (624 líneas) pasa a
+`wow-world-social::group_fanout`. Incluye la búsqueda canónica de grupo (`Player::GetGroup`),
+las proyecciones `PartyPlayerInfo`/`PartyMemberFullState`, el fan-out de `PartyUpdate` y estado
+completo por miembro, los constructores de paquetes de ready-check y marcadores de raid, la
+entrega realm-routed de grupo (con la regla de espera ilimitada propia de la invitación) y la
+cola de refresco de gameobjects/spellclicks visibles. Ninguna necesitaba la sesión: toman la
+instantánea de grupo, el directorio de jugadores y los comandos de paquete/publicación
+directamente.
+
+World conserva una fachada de 45 líneas con las mismas rutas `state::…` más los dos ayudantes
+que sí leen la sesión (`current_player_party_invite_map_instance` y
+`send_party_uninvite_result`). La rama de entrega solo-pruebas usa ahora la puerta de crate
+`cfg(any(test, feature = "test-fixtures"))`, y la política de dependencias registra las aristas
+nuevas (`wow-persistence`, `tokio`).
+
+`wow-world/src` baja de 120.810 a **120.224** líneas. El baseline de session-ownership registra
+solo el traslado revisado de accesos de registro: impl items sin cambios (3.159); filas de
+registro directo 672 → **674** (19 salen de wow-world, 21 aparecen en social). Evidencia:
+`wow-world --lib --features test-fixtures` 3634/0/1 (las pruebas de grupo ejercitan los
+ayudantes movidos), `world-server --lib` 597/0, checker 443/0, `check --syntax-only` PASS,
+`check` completo PASS con el inventario de persistencia sin cambios (7.718 + 2.221) y
+`check_architecture.py check` PASS en todas sus secciones.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
