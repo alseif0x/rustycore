@@ -32,6 +32,7 @@ pub use loot_release::{
     queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,
 };
+pub use player_handlers::item_purchase_contents_from_extended_cost;
 pub use player_handlers::{
     PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };

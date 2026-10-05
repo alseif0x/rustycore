@@ -6890,20 +6890,6 @@
           "module": "crate::handlers::entities::player",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_get_item_purchase_data",
-          "visibility": "pub",
-          "signature": "async fn handle_get_item_purchase_data (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::player",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_set_difficulty_id",
           "visibility": "pub",
           "signature": "async fn handle_set_difficulty_id (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -6965,6 +6951,22 @@
           "signature": "async fn handle_toggle_difficulty (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_get_item_purchase_data",
+          "visibility": "pub",
+          "signature": "async fn handle_get_item_purchase_data (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"

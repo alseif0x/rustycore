@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34995,
-    "measured_requirement": 34995,
+    "budget": 35061,
+    "measured_requirement": 35061,
     "recorded_at_revision": "837b29e8f8f6bcb3d4ed23203a6ff34869aa6d2f",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72437, G_move = 111353, ratio and slack credits = 72437 * 1.05 + 300 = 76358.85, so the requirement is 34994.15 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72516, G_move = 111502, ratio and slack credits = 72516 * 1.05 + 300 = 76441.8, so the requirement is 35060.2 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -236,6 +236,13 @@
         "destination_growth": 96,
         "new_code": 57,
         "note": "SetTitle moved into the ApplicationPlayer owner, whose context now also borrows the quest session state for the represented fixture fallback. The App-side fixture gates use any(test, feature = test-fixtures), matching the cross-crate policy, and a wow-world test caught the cfg(test)-only gate. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 GetItemPurchaseData (837b29e8f..HEAD)",
+        "shrink": 79,
+        "destination_growth": 149,
+        "new_code": 70,
+        "note": "GetItemPurchaseData moved into the ApplicationPlayer owner, whose context adds the inventory and lifecycle borrows through a new quest+inventory+lifecycle split; the pure extended-cost refund projection moved with it and wow-world re-exports it for the vendor path and the unit test. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

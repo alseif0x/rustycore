@@ -12,8 +12,9 @@ use crate::session::WorldSession;
 
 impl WorldSession {
     fn player_test_cx_like_cpp(&mut self) -> PlayerHandlerCxLikeCpp<'_> {
-        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
-        PlayerHandlerCxLikeCpp::new(hub, quest_state)
+        let (quest_state, inventory, lifecycle, hub) =
+            crate::session::split_quest_state_inventory_lifecycle_mut(self);
+        PlayerHandlerCxLikeCpp::new(hub, quest_state, inventory, lifecycle)
     }
 
     pub async fn handle_query_time(&mut self) {
@@ -40,5 +41,11 @@ impl WorldSession {
 
     pub async fn handle_set_title(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp().handle_set_title(pkt).await;
+    }
+
+    pub async fn handle_get_item_purchase_data(&mut self, pkt: WorldPacket) {
+        self.player_test_cx_like_cpp()
+            .handle_get_item_purchase_data(pkt)
+            .await;
     }
 }

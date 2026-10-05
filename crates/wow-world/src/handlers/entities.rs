@@ -14,60 +14,15 @@ mod corpse;
 mod gameobject;
 mod player;
 
-use wow_constants::ItemExtendedCostFlags;
-use wow_packet::packets::item::{
-    ItemPurchaseContents, ItemPurchaseRefundCurrency, ItemPurchaseRefundItem,
-};
-
 fn represented_gameobject_icon_allows_interaction_like_cpp(icon_name: &str) -> bool {
     // C++ `Player::GetGameObjectIfCanInteractWith` rejects exactly this
     // template sentinel before applying the distance check.
     icon_name != "Point"
 }
 
-pub(crate) fn item_purchase_contents_from_extended_cost(
-    extended_cost: &wow_data::item::extended_cost::ItemExtendedCostEntry,
-    money: u64,
-) -> ItemPurchaseContents {
-    let mut contents = ItemPurchaseContents {
-        money,
-        ..Default::default()
-    };
-
-    for i in 0..5 {
-        contents.items[i] = ItemPurchaseRefundItem {
-            item_id: extended_cost.item_id[i] as i32,
-            item_count: extended_cost.item_count[i] as i32,
-        };
-
-        let season_earned = match i {
-            0 => extended_cost
-                .flags
-                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_1),
-            1 => extended_cost
-                .flags
-                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_2),
-            2 => extended_cost
-                .flags
-                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_3),
-            3 => extended_cost
-                .flags
-                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_4),
-            4 => extended_cost
-                .flags
-                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_5),
-            _ => false,
-        };
-        if !season_earned {
-            contents.currencies[i] = ItemPurchaseRefundCurrency {
-                currency_id: extended_cost.currency_id[i] as i32,
-                currency_count: extended_cost.currency_count[i] as i32,
-            };
-        }
-    }
-
-    contents
-}
+#[cfg(test)]
+use wow_constants::ItemExtendedCostFlags;
+pub(crate) use wow_world_application::item_purchase_contents_from_extended_cost;
 
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/entities/tests/mod.rs"]

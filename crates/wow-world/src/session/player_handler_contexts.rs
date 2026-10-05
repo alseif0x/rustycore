@@ -16,7 +16,8 @@ impl PlayerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> PlayerHandlerCxLikeCpp<'a> {
-        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
-        PlayerHandlerCxLikeCpp::new(hub, quest_state)
+        let (quest_state, inventory, lifecycle, hub) =
+            crate::session::split_quest_state_inventory_lifecycle_mut(self);
+        PlayerHandlerCxLikeCpp::new(hub, quest_state, inventory, lifecycle)
     }
 }

@@ -164,6 +164,29 @@ pub(crate) fn split_lifecycle_ref(s: &WorldSession) -> (&SessionLifecycleState, 
     (&s.lifecycle, hub_ref(s))
 }
 
+/// Quest, inventory and lifecycle state plus the mutable hub, from disjoint fields.
+pub(crate) fn split_quest_state_inventory_lifecycle_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionQuestState,
+    &mut InventoryState,
+    &SessionLifecycleState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.quest_state,
+        &mut s.inventory,
+        &s.lifecycle,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Social, lifecycle and loot state plus the mutable hub, borrowed from disjoint fields.
 pub(crate) fn split_social_lifecycle_loot_mut(
     s: &mut WorldSession,

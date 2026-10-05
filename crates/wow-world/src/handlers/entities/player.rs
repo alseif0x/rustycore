@@ -48,18 +48,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GetItemPurchaseData,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_get_item_purchase_data",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_get_item_purchase_data(pkt).await })
-        },
-    }
-}
-
 #[cfg(test)]
 mod test_shims;
 
@@ -136,58 +124,5 @@ impl crate::session::WorldSession {
     pub async fn handle_set_raid_difficulty(&mut self, pkt: wow_packet::WorldPacket) {
         let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
         wow_world_application::handle_set_raid_difficulty_like_cpp(&mut cx, pkt).await;
-    }
-
-    pub async fn handle_get_item_purchase_data(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match GetItemPurchaseData::read(&mut pkt) {
-            Ok(request) => request,
-            Err(e) => {
-                warn!("GetItemPurchaseData parse failed: {e}");
-                return;
-            }
-        };
-        let Some(player_guid) = self.player_guid() else {
-            return;
-        };
-        let current_total_played_time = self.lifecycle.total_played_time_like_cpp().saturating_add(
-            self.lifecycle
-                .login_time_like_cpp()
-                .map(|login_time| login_time.elapsed().as_secs() as u32)
-                .unwrap_or(0),
-        );
-
-        let Some(packet) = (|| {
-            let item = self
-                .resolved_inventory_item_objects_like_cpp()
-                .and_then(|items| items.get(&request.item_guid).cloned())?;
-            if !item.is_refundable() || item.refund_recipient() != player_guid {
-                return None;
-            }
-
-            let played_time = item.played_time(i64::from(current_total_played_time));
-            if played_time > 2 * 60 * 60 {
-                return None;
-            }
-
-            let extended_cost = self
-                .item_extended_cost_store()
-                .and_then(|store| store.get(item.paid_extended_cost()))?;
-            let contents =
-                item_purchase_contents_from_extended_cost(extended_cost, item.paid_money());
-            Some(SetItemPurchaseData {
-                item_guid: request.item_guid,
-                contents,
-                flags: 0,
-                purchase_time: current_total_played_time.saturating_sub(played_time),
-            })
-        })() else {
-            debug!(
-                "GetItemPurchaseData ignored for non-refundable or unknown item {:?}",
-                request.item_guid
-            );
-            return;
-        };
-
-        self.send_packet(&packet);
     }
 }

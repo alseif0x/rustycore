@@ -21,21 +21,88 @@ use wow_handler::{
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::character::SetTitle;
+use wow_packet::packets::item::{GetItemPurchaseData, SetItemPurchaseData};
 use wow_packet::packets::misc::{MailNextTimeEntry, MailQueryNextTimeResult, QueryTimeResponse};
 use wow_packet::packets::spell::SetActionButton;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::entity_update_bridge::player_values_update_to_update_object;
 use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
+use wow_world_inventory::InventoryState;
+use wow_world_lifecycle::SessionLifecycleState;
+
+/// C++ `ItemExtendedCostEntry` refund projection for `SMSG_SET_ITEM_PURCHASE_DATA`.
+///
+/// C++ excludes a season-earned column from the refunded currencies once its
+/// `REQUIRE_SEASON_EARNED_n` flag is set; the item columns always mirror the
+/// extended-cost row.
+pub fn item_purchase_contents_from_extended_cost(
+    extended_cost: &wow_data::item::extended_cost::ItemExtendedCostEntry,
+    money: u64,
+) -> wow_packet::packets::item::ItemPurchaseContents {
+    use wow_constants::ItemExtendedCostFlags;
+    use wow_packet::packets::item::{ItemPurchaseRefundCurrency, ItemPurchaseRefundItem};
+
+    let mut contents = wow_packet::packets::item::ItemPurchaseContents {
+        money,
+        ..Default::default()
+    };
+
+    for i in 0..5 {
+        contents.items[i] = ItemPurchaseRefundItem {
+            item_id: extended_cost.item_id[i] as i32,
+            item_count: extended_cost.item_count[i] as i32,
+        };
+
+        let season_earned = match i {
+            0 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_1),
+            1 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_2),
+            2 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_3),
+            3 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_4),
+            4 => extended_cost
+                .flags
+                .contains(ItemExtendedCostFlags::REQUIRE_SEASON_EARNED_5),
+            _ => false,
+        };
+        if !season_earned {
+            contents.currencies[i] = ItemPurchaseRefundCurrency {
+                currency_id: extended_cost.currency_id[i] as i32,
+                currency_count: extended_cost.currency_count[i] as i32,
+            };
+        }
+    }
+
+    contents
+}
 
 /// Borrowed inputs of one player query handler invocation.
 pub struct PlayerHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
     quest_state: &'a mut SessionQuestState,
+    inventory: &'a mut InventoryState,
+    lifecycle: &'a SessionLifecycleState,
 }
 
 impl<'a> PlayerHandlerCxLikeCpp<'a> {
-    pub fn new(hub: HubMut<'a>, quest_state: &'a mut SessionQuestState) -> Self {
-        Self { hub, quest_state }
+    pub fn new(
+        hub: HubMut<'a>,
+        quest_state: &'a mut SessionQuestState,
+        inventory: &'a mut InventoryState,
+        lifecycle: &'a SessionLifecycleState,
+    ) -> Self {
+        Self {
+            hub,
+            quest_state,
+            inventory,
+            lifecycle,
+        }
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
@@ -101,6 +168,63 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
         }
 
         self.publication_like_cpp().send_packet_realm(&packet);
+    }
+
+    /// CMSG_GET_ITEM_PURCHASE_DATA — refund window data for one owned item.
+    pub async fn handle_get_item_purchase_data(&mut self, mut pkt: WorldPacket) {
+        let request = match GetItemPurchaseData::read(&mut pkt) {
+            Ok(request) => request,
+            Err(e) => {
+                tracing::warn!("GetItemPurchaseData parse failed: {e}");
+                return;
+            }
+        };
+        let Some(player_guid) = self.hub.shared().core.player_guid() else {
+            return;
+        };
+        let current_total_played_time = self.lifecycle.total_played_time_like_cpp().saturating_add(
+            self.lifecycle
+                .login_time_like_cpp()
+                .map(|login_time| login_time.elapsed().as_secs() as u32)
+                .unwrap_or(0),
+        );
+
+        let Some(packet) = (|| {
+            let item = self
+                .inventory
+                .resolved_inventory_item_objects_like_cpp(self.hub.shared())
+                .and_then(|items| items.get(&request.item_guid).cloned())?;
+            if !item.is_refundable() || item.refund_recipient() != player_guid {
+                return None;
+            }
+
+            let played_time = item.played_time(i64::from(current_total_played_time));
+            if played_time > 2 * 60 * 60 {
+                return None;
+            }
+
+            let extended_cost = self
+                .hub
+                .catalogs
+                .item_extended_cost_store()
+                .and_then(|store| store.get(item.paid_extended_cost()))?;
+            let contents =
+                item_purchase_contents_from_extended_cost(extended_cost, item.paid_money());
+            Some(SetItemPurchaseData {
+                item_guid: request.item_guid,
+                contents,
+                flags: 0,
+                purchase_time: current_total_played_time.saturating_sub(played_time),
+            })
+        })() else {
+            tracing::debug!(
+                "GetItemPurchaseData ignored for non-refundable or unknown item {:?}",
+                request.item_guid
+            );
+            return;
+        };
+
+        self.publication_like_cpp().send_packet(&packet);
     }
 
     /// C++ `Player::HasTitle` + `Player::SetChosenTitle` and the values update.
@@ -256,6 +380,23 @@ where
     })
 }
 
+fn handle_get_item_purchase_data_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: PlayerHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .player_handler_cx_like_cpp(catalogs)
+            .handle_get_item_purchase_data(pkt)
+            .await;
+    })
+}
+
 fn handle_set_title_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -332,6 +473,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_title",
         handler: handle_set_title_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::GetItemPurchaseData,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_get_item_purchase_data",
+        handler: handle_get_item_purchase_data_thunk::<S, C>,
     })?;
     Ok(())
 }

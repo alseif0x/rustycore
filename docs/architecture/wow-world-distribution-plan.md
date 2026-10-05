@@ -5825,6 +5825,27 @@ con `cfg(test)`, que **no** se activa al compilar el App como dependencia desde 
 
 **No validado todavía.** Sin campaña `final` nueva; quedan **191 registros literales**.
 
+#### F5: `GetItemPurchaseData` al dueño `ApplicationPlayer` — 2026-10-05, `837b29e8f..HEAD`
+
+`GetItemPurchaseData` pasa al dueño `ApplicationPlayer`. El contexto añade dos préstamos más
+(inventario y lifecycle) mediante un split nuevo `split_quest_state_inventory_lifecycle_mut`; la
+ventana de reembolso usa el tiempo jugado de lifecycle, la tienda de coste extendido del catálogo de
+Core y los objetos de inventario del dueño de inventario. El ayudante puro
+`item_purchase_contents_from_extended_cost` se mueve con el cuerpo y `wow-world` lo reexporta, de modo
+que el camino de vendedor (`handlers/character/vendor.rs`) y la prueba unitaria existente siguen
+compilando sin duplicar la proyección. `entities/player` queda en **2 registros literales** (far
+sight y stand state), ambos pendientes de sus seams de visibilidad y de puente de *live intent*.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**54 de `handlers::entities`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.136 items / 711 filas, baseline
+sin cambios); `check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado
+(producción 61.128 → 61.152, total 199.312 → 199.336). R1 v2: `S = 72.516`, `G_move = 111.502`,
+requisito `35.060,20` → **presupuesto 35.061**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; quedan **190 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
