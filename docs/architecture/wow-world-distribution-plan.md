@@ -5844,7 +5844,26 @@ sin cambios); `check_architecture.py check` **PASS**; hotspot `session/mod.rs` r
 (producción 61.128 → 61.152, total 199.312 → 199.336). R1 v2: `S = 72.516`, `G_move = 111.502`,
 requisito `35.060,20` → **presupuesto 35.061**, 0 violaciones / 0 permitidos / 0 obsoletos.
 
-**No validado todavía.** Sin campaña `final` nueva; quedan **190 registros literales**.
+**No validado aún.** Sin campaña `final` nueva; quedan **190 registros literales**.
+
+#### F5: `CollectionItemSetFavorite` al dueño `ApplicationCollections` — 2026-10-05, `5e2d51daf..HEAD`
+
+La tercera consulta de colecciones se mueve al dueño `ApplicationCollections`, cuyo contexto añade el
+préstamo del inventario (`split_inventory_mut`) para la compuerta de permanencia de apariencia
+(`has_item_appearance_like_cpp`) y la transición de favorito
+(`set_appearance_is_favorite_like_cpp`); el camino TOYBOX sigue usando la transición del hub
+(`toy_set_favorite_like_cpp`). `collections` queda con **2 registros literales** (`AddToy` y
+`UseToy`), que dependen de la ruta de uso/destrucción de item y del ejecutor de hechizos del shell.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**23 de `collections`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server`
+sin errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (191 owners / 3.137 items / 711 filas); `check_architecture.py check`
+**PASS**; hotspot `session/mod.rs` reconciliado (producción 61.152 → 61.153, total 199.336 →
+199.337). R1 v2: `S = 72.546`, `G_move = 111.572`, requisito `35.098,70` → **presupuesto 35.099**,
+0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **189 registros literales**.
 
 ## 9. Herramientas
 

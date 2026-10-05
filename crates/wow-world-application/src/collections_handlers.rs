@@ -21,21 +21,67 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::packets::collection::{
+    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP, CollectionItemSetFavorite,
+};
 use wow_packet::packets::misc::{
     MountSetFavorite, MountSpecial, SpecialMountAnim, ToyClearFanfare,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::HubMut;
 use wow_world_core::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
+use wow_world_inventory::InventoryState;
 
 /// Borrowed inputs of one collection handler invocation.
 pub struct CollectionsHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
+    inventory: &'a mut InventoryState,
 }
 
 impl<'a> CollectionsHandlerCxLikeCpp<'a> {
-    pub fn new(hub: HubMut<'a>) -> Self {
-        Self { hub }
+    pub fn new(hub: HubMut<'a>, inventory: &'a mut InventoryState) -> Self {
+        Self { hub, inventory }
+    }
+
+    /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for supported collections.
+    ///
+    /// C++ forwards TOYBOX ids to `CollectionMgr::ToySetFavorite`, and only
+    /// forwards APPEARANCE ids when `CollectionMgr::HasItemAppearance(id)`
+    /// returns a permanent appearance. Temporary appearances, unknown ids and
+    /// unsupported collection types are ignored.
+    pub async fn handle_collection_item_set_favorite(&mut self, mut pkt: WorldPacket) {
+        let request = match CollectionItemSetFavorite::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "CollectionItemSetFavorite parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        match request.collection_type {
+            COLLECTION_TYPE_TOYBOX_LIKE_CPP => {
+                self.hub
+                    .toy_set_favorite_like_cpp(request.id, request.is_favorite);
+            }
+            COLLECTION_TYPE_APPEARANCE_LIKE_CPP => {
+                let (has_appearance, is_temporary) = self
+                    .inventory
+                    .has_item_appearance_like_cpp(self.hub.shared(), request.id);
+                if !has_appearance || is_temporary {
+                    return;
+                }
+
+                self.inventory.set_appearance_is_favorite_like_cpp(
+                    &mut self.hub,
+                    request.id,
+                    request.is_favorite,
+                );
+            }
+            _ => {}
+        }
     }
 
     /// CMSG_MOUNT_SET_FAVORITE — toggle the account mount favorite flag.
@@ -217,6 +263,23 @@ where
 }
 
 /// Registers the mount and toy collection handlers on the packet registry.
+fn handle_collection_item_set_favorite_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CollectionsHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .collections_handler_cx_like_cpp(catalogs)
+            .handle_collection_item_set_favorite(pkt)
+            .await;
+    })
+}
+
 pub fn register_collections_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -251,6 +314,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_toy_clear_fanfare",
         handler: handle_toy_clear_fanfare_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::CollectionItemSetFavorite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_collection_item_set_favorite",
+        handler: handle_collection_item_set_favorite_thunk::<S, C>,
     })?;
     Ok(())
 }

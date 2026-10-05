@@ -16,6 +16,7 @@ impl CollectionsHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessi
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> CollectionsHandlerCxLikeCpp<'a> {
-        CollectionsHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        let (inventory, hub) = crate::session::split_inventory_mut(self);
+        CollectionsHandlerCxLikeCpp::new(hub, inventory)
     }
 }

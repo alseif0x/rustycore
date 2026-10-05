@@ -22,18 +22,6 @@ use crate::session::{CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, SpellCastMetadata};
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::CollectionItemSetFavorite,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_collection_item_set_favorite",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_collection_item_set_favorite(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::AddToy,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -73,35 +61,6 @@ impl crate::session::WorldSession {
     /// when `CollectionMgr::HasItemAppearance(id)` returns a permanent
     /// appearance. Temporary appearances, unknown ids, and unsupported collection
     /// types are ignored.
-
-    pub async fn handle_collection_item_set_favorite(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match CollectionItemSetFavorite::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "CollectionItemSetFavorite parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        match request.collection_type {
-            COLLECTION_TYPE_TOYBOX_LIKE_CPP => {
-                crate::session::hub_mut(self)
-                    .toy_set_favorite_like_cpp(request.id, request.is_favorite);
-            }
-            COLLECTION_TYPE_APPEARANCE_LIKE_CPP => {
-                let (has_appearance, is_temporary) = self.has_item_appearance_like_cpp(request.id);
-                if !has_appearance || is_temporary {
-                    return;
-                }
-
-                self.set_appearance_is_favorite_like_cpp(request.id, request.is_favorite);
-            }
-            _ => {}
-        }
-    }
 
     /// CMSG_TRANSMOGRIFY_ITEMS — parsed only; full C++ handler is not ported yet.
     ///

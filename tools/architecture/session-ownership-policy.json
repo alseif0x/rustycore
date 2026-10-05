@@ -6002,20 +6002,6 @@
           "module": "crate::handlers::collections",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_collection_item_set_favorite",
-          "visibility": "pub",
-          "signature": "async fn handle_collection_item_set_favorite (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_transmogrify_items",
           "visibility": "pub",
           "signature": "async fn handle_transmogrify_items (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -6051,6 +6037,37 @@
           "signature": "async fn handle_use_toy_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "collections_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn collections_test_cx_like_cpp (& mut self) -> CollectionsHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_collection_item_set_favorite",
+          "visibility": "pub",
+          "signature": "async fn handle_collection_item_set_favorite (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
