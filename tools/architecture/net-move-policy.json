@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 32958,
-    "measured_requirement": 32958,
-    "recorded_at_revision": "62124087370c6653a0627097134f9f15f2bfa2d0",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70129, G_move = 106893, ratio and slack credits = 70129 * 1.05 + 300 = 73935.45, so the requirement is 32957.55 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 32996,
+    "measured_requirement": 32996,
+    "recorded_at_revision": "0c12ef0df377241b402919ff2c690b55465250ce",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70165, G_move = 106969, ratio and slack credits = 70165 * 1.05 + 300 = 73973.25, so the requirement is 32995.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -68,6 +68,13 @@
         "destination_growth": 152,
         "new_code": 126,
         "note": "The two battle.net opcodes and their handlers left wow-world for wow-world-lifecycle's LifecycleBattlenet direct registrar (the owner file with its hub-only Cx, two thunks and the registrar) with the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 purchase-stub tail (621240873..0c12ef0df, client-state stubs)",
+        "shrink": 36,
+        "destination_growth": 76,
+        "new_code": 40,
+        "note": "Three stateless BattlePay/VAS stub registrations moved from the character account registration file into the existing application client-state registrar; no new contract, authority or duplicate."
       }
     ],
     "areas": [
@@ -78,8 +85,8 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 29285,
-        "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state)."
+        "lines": 29361,
+        "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
         "area": "crates/wow-world-inventory/src",

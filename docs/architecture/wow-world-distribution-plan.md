@@ -5217,6 +5217,26 @@ filas de registro nuevas); `check_architecture.py check` y `self-test` **PASS** 
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: stubs de compra (BattlePay/VAS) al registrador client-state — 2026-10-05, `0c12ef0df`
+
+Corte pequeño y barato dentro de la familia `character/account`: los tres registros incondicionales
+sin estado (`BattlePayGetProductList`, `BattlePayGetPurchaseList` → `handle_battle_pay_stub`,
+`UpdateVasPurchaseStates` → `handle_vas_stub`) vivían como closures de traza dentro de
+`handlers/character/account/registrations/session_services.rs`. Pasan al registrador directo
+`ClientState` de `wow-world-application` (que ya posee los otros handlers inertes de cliente) como
+tres thunks de traza; **no se añade contrato, dueño de módulo ni llamada de compositor**, y el
+baseline de ownership no cambia porque eran closures inline, no métodos de `WorldSession`. La fila
+de registro del fichero de account baja de 12 a 9 entradas.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 25 tests de `dispatch` y la suite completa de
+`wow-world-application` (52) en verde; `cargo check` de `wow-world`, `wow-world-application` y
+`world-server` sin errores nuevos; suite del tool **443/443** con baseline sin reimprimir;
+`check_architecture.py check` **PASS** (ratchet físico y de hotspots sin cambios). R1 v2:
+`S = 70.165`, `G_move = 106.969`, requisito `32.995,75` → **presupuesto 32.996**
+(`recorded_at_revision 0c12ef0df`), 0 violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
