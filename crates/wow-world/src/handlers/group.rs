@@ -10,7 +10,6 @@ use crate::session::mailbox::{
     ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand, SendPartyUpdateLikeCppCommand,
     SendRealmPacketLikeCppCommand, SessionCommand,
 };
-use rand::Rng;
 use std::time::Duration;
 use tracing::{info, warn};
 use wow_constants::ClientOpcodes;
@@ -77,28 +76,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 )
                 .await
         }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::OptOutOfLoot,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_opt_out_of_loot",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_opt_out_of_loot(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RandomRoll,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_random_roll",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_random_roll(pkt).await })
-        },
     }
 }
 

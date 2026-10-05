@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34776,
-    "measured_requirement": 34776,
+    "budget": 34854,
+    "measured_requirement": 34854,
     "recorded_at_revision": "0a26d52c1b9daea8d9bf1feb0cec9fb7da6ac141",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72307, G_move = 110998, ratio and slack credits = 72307 * 1.05 + 300 = 76222.35, so the requirement is 34775.65 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72375, G_move = 111147, ratio and slack credits = 72375 * 1.05 + 300 = 76293.75, so the requirement is 34853.25 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -208,6 +208,13 @@
         "destination_growth": 195,
         "new_code": 38,
         "note": "PartyInviteResponse moved into the existing ApplicationGroup registrar with a new async tail variant (visibility only when the accepted invite joined an existing raid group, then the accepted-invite persistence, then the party update) so the World seam runs mid-sequence in C++ order. PartyInvite stays because its body needs the invite policy catalog plus the shell-owned invite map/instance and dungeon-difficulty helpers. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group random-roll/opt-out (0a26d52c1..HEAD)",
+        "shrink": 68,
+        "destination_growth": 149,
+        "new_code": 81,
+        "note": "RandomRoll and OptOutOfLoot moved into the existing ApplicationGroup registrar, which now also borrows the loot state through a new social+lifecycle+loot split helper; rand moves with the roll. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

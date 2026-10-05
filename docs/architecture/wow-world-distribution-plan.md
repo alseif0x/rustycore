@@ -5738,6 +5738,27 @@ errores; composer contracts **8/8**; suite del tool **443/443**; `session-owners
 
 **No validado todavía.** Sin campaña `final` nueva; quedan **195 registros literales**.
 
+#### F5: group, corte de tirada aleatoria y opt-out de botín — 2026-10-05, `0a26d52c1..HEAD`
+
+`RandomRoll` y `OptOutOfLoot` pasan al registrador `ApplicationGroup`, que ahora también toma prestado
+el estado de loot mediante un nuevo split `split_social_lifecycle_loot_mut` (social + lifecycle +
+loot + hub, campos disjuntos). `rand` viaja con la tirada (ya permitido en
+`wow-world-application`); el opt-out usa `set_pass_on_group_loot_like_cpp` del dueño de loot. `group`
+queda en **1 registro literal** (`PartyInvite`, que necesita el catálogo `group_invite_policy` en el
+Cx y los ayudantes de mapa/instancia y dificultad del shell). El `session/mod.rs` se compactó una
+línea para no superar su techo físico (1.052).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos),
+**248 de `group`** y **316 de `loot`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.135 items / 711 filas);
+`check_architecture.py check` **PASS** (ratchet físico 3.385 ficheros / 102 techos); hotspot
+`session/mod.rs` reconciliado (producción 61.103 → 61.127, total 199.287 → 199.311). R1 v2:
+`S = 72.375`, `G_move = 111.147`, requisito `34.853,25` → **presupuesto 34.854**, 0 violaciones / 0
+permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; quedan **193 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

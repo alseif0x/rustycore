@@ -14,15 +14,18 @@
 //! convert/subgroup handlers and their registry-sync helper stay in the World
 //! shell for later slices.
 
+use rand::Rng;
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
+use wow_core::guid::HighGuid;
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
-    ChangeSubGroup, ConvertRaid, GroupDecline, PartyCommandResult, PartyUninvite,
+    ChangeSubGroup, ConvertRaid, GroupDecline, OptOutOfLoot, PartyCommandResult, PartyUninvite,
     SetAssistantLeader, SetEveryoneIsAssistant, SetPartyAssignment, SetPartyLeader, SwapSubGroups,
     party_result,
 };
@@ -39,6 +42,7 @@ use wow_world_core::session::mailbox::{
 };
 use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
 use wow_world_lifecycle::SessionLifecycleState;
+use wow_world_loot::LootState;
 use wow_world_social::SessionSocialLimits;
 use wow_world_social::group_fanout::{
     connected_group_members_like_cpp, current_group_guid_like_cpp,
@@ -81,6 +85,7 @@ pub enum GroupPublicationTailLikeCpp {
 pub struct GroupHandlerCxLikeCpp<'a> {
     social: &'a mut SessionSocialLimits,
     lifecycle: &'a SessionLifecycleState,
+    loot: &'a mut LootState,
     hub: HubMut<'a>,
 }
 
@@ -88,11 +93,13 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
     pub fn new(
         social: &'a mut SessionSocialLimits,
         lifecycle: &'a SessionLifecycleState,
+        loot: &'a mut LootState,
         hub: HubMut<'a>,
     ) -> Self {
         Self {
             social,
             lifecycle,
+            loot,
             hub,
         }
     }
@@ -697,6 +704,100 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
         GroupPublicationTailLikeCpp::VisibilityOnly
     }
 
+    /// C++ `WorldSession::HandleRandomRollOpcode`.
+    pub async fn handle_random_roll(&mut self, mut pkt: WorldPacket) {
+        let roll = match RandomRollClient::read(&mut pkt) {
+            Ok(roll) => roll,
+            Err(e) => {
+                warn!("Bad RandomRoll: {e}");
+                return;
+            }
+        };
+
+        if roll.min > roll.max || roll.max > 1_000_000 {
+            return;
+        }
+
+        let Some(sender_guid) = self.hub.shared().core.player_guid() else {
+            return;
+        };
+
+        let result = rand::thread_rng().gen_range(roll.min..=roll.max);
+        let response = RandomRoll {
+            roller: sender_guid,
+            roller_wow_account: ObjectGuid::new(
+                (HighGuid::WowAccount as i64) << 58,
+                i64::from(self.hub.shared().core.account_id),
+            ),
+            min: roll.min,
+            max: roll.max,
+            result,
+        };
+        let bytes = response.to_bytes();
+
+        let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
+            self.publication_like_cpp().send_packet(&response);
+            return;
+        };
+
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
+            self.publication_like_cpp().send_packet(&response);
+            return;
+        };
+
+        let Some(group) = group_reg.get(&group_guid) else {
+            self.publication_like_cpp().send_packet(&response);
+            return;
+        };
+
+        let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
+            self.publication_like_cpp().send_packet(&response);
+            return;
+        };
+
+        let mut sent_to_sender = false;
+        // C++ `group->BroadcastPacket(randomRoll.Write(), false)` includes the roller.
+        for member_guid in &group.members {
+            if let Some(member) = registry.group_presence(*member_guid) {
+                let _ = registry.send_current_packet(member.registration, bytes.clone());
+                if *member_guid == sender_guid {
+                    sent_to_sender = true;
+                }
+            }
+        }
+
+        if !sent_to_sender {
+            self.publication_like_cpp().send_packet(&response);
+        }
+    }
+
+    /// C++ `WorldSession::HandleOptOutOfLootOpcode`.
+    pub async fn handle_opt_out_of_loot(&mut self, mut pkt: WorldPacket) {
+        let opt_out = match OptOutOfLoot::read(&mut pkt) {
+            Ok(opt_out) => opt_out,
+            Err(e) => {
+                warn!("Bad OptOutOfLoot: {e}");
+                return;
+            }
+        };
+
+        if self.hub.shared().core.player_guid().is_none() {
+            if opt_out.pass_on_loot {
+                warn!("CMSG_OPT_OUT_OF_LOOT value<>0 for not-loaded character");
+            }
+            return;
+        }
+
+        let _ = self
+            .loot
+            .set_pass_on_group_loot_like_cpp(&mut self.hub, opt_out.pass_on_loot);
+    }
+
     /// C++ `WorldSession::HandlePartyInviteResponseOpcode`.
     pub async fn handle_party_invite_response(
         &mut self,
@@ -1242,6 +1343,40 @@ where
     })
 }
 
+fn handle_random_roll_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GroupHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .group_handler_cx_like_cpp(catalogs)
+            .handle_random_roll(pkt)
+            .await;
+    })
+}
+
+fn handle_opt_out_of_loot_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GroupHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .group_handler_cx_like_cpp(catalogs)
+            .handle_opt_out_of_loot(pkt)
+            .await;
+    })
+}
+
 pub fn register_group_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -1318,6 +1453,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_party_invite_response",
         handler: handle_party_invite_response_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::RandomRoll,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_random_roll",
+        handler: handle_random_roll_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::OptOutOfLoot,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_opt_out_of_loot",
+        handler: handle_opt_out_of_loot_thunk::<S, C>,
     })?;
     Ok(())
 }

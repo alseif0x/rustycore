@@ -3,8 +3,7 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! `WorldSession` — per-player session that receives packets from the
-//! [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
+//! `WorldSession` — per-player session that receives packets from the [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
 
 mod admission;
 mod appearance;
@@ -557,9 +556,10 @@ pub(crate) use state::{
     cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_instances_mut, split_instances_ref,
     split_interaction, split_interaction_ref, split_inventory_mut, split_inventory_ref,
     split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
-    split_quest_state_mut, split_quest_state_ref, split_social_lifecycle_mut, split_social_mut,
-    split_social_ref, split_spell_state_mut, split_spell_state_ref, split_visibility_mut,
-    split_visibility_ref, split_world_entities_mut, split_world_entities_ref,
+    split_quest_state_mut, split_quest_state_ref, split_social_lifecycle_loot_mut,
+    split_social_lifecycle_mut, split_social_mut, split_social_ref, split_spell_state_mut,
+    split_spell_state_ref, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;

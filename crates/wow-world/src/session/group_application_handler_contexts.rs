@@ -18,8 +18,8 @@ impl GroupHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> GroupHandlerCxLikeCpp<'a> {
-        let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
-        GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+        let (social, lifecycle, loot, hub) = crate::session::split_social_lifecycle_loot_mut(self);
+        GroupHandlerCxLikeCpp::new(social, lifecycle, loot, hub)
     }
 
     fn run_group_publication_tail_like_cpp<'a>(
