@@ -24,6 +24,7 @@ mod combat;
 mod data_service_handler_contexts;
 mod group_application_handler_contexts;
 mod group_handler_contexts;
+mod guild_handler_contexts;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod account_data_handler_contexts;
 mod effect_learning;

@@ -635,6 +635,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::instances",
           "trait_path": null,
           "cfg": [],
@@ -1169,6 +1177,12 @@
         {
           "module": "crate::session",
           "trait_path": "GroupHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "GuildHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -7457,20 +7471,6 @@
           "module": "crate::handlers::guild",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_accept_guild_invite",
-          "visibility": "pub",
-          "signature": "async fn handle_accept_guild_invite (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_auto_guild_bank_item",
           "visibility": "pub",
           "signature": "async fn handle_auto_guild_bank_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -7650,28 +7650,48 @@
           ]
         },
         {
-          "module": "crate::handlers::guild",
+          "module": "crate::handlers::guild::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_guild_decline_invitation",
+          "name": "handle_accept_guild_invite",
           "visibility": "pub",
-          "signature": "async fn handle_guild_decline_invitation (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_accept_guild_invite (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::guild",
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_decline_invitation",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_decline_invitation (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_set_achievement_tracking",
           "visibility": "pub",
-          "signature": "async fn handle_guild_set_achievement_tracking (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_guild_set_achievement_tracking (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -13819,19 +13839,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "accept_guild_invitation_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn accept_guild_invitation_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "accept_represented_trade_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn accept_represented_trade_like_cpp (& mut self , state_index : u32)",
@@ -19573,19 +19580,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "decline_guild_invitation_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn decline_guild_invitation_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -44276,6 +44270,19 @@
           "name": "group_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn group_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GroupHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "GuildHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "guild_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn guild_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GuildHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

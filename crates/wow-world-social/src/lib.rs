@@ -17,6 +17,7 @@ pub mod group_fanout;
 mod group_handlers;
 mod group_owner;
 mod guild;
+mod guild_handlers;
 mod handlers;
 mod requests;
 mod social_contacts_handlers;
@@ -55,7 +56,13 @@ pub use group_handlers::{
     SocialGroupHandlerCxLikeCpp, SocialGroupHandlerHostLikeCpp,
     register_social_group_handlers_like_cpp,
 };
-pub use guild::{player_guild_state_snapshot_like_cpp, resolved_represented_guild_id_like_cpp};
+pub use guild::{
+    mutate_player_guild_state_for_test_like_cpp, player_guild_state_snapshot_like_cpp,
+    resolved_represented_guild_id_like_cpp,
+};
+pub use guild_handlers::{
+    GuildHandlerCxLikeCpp, GuildHandlerHostLikeCpp, register_guild_handlers_like_cpp,
+};
 pub use handlers::{
     InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
     register_social_inspect_handlers_like_cpp,

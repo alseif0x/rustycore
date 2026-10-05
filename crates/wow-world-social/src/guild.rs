@@ -79,6 +79,18 @@ impl SessionSocialLimits {
 
 /// Snapshot the represented guild membership from the canonical Player, or from
 /// the fixture state when the session has no player handle under a fixture build.
+/// Test-only mutation of the represented guild snapshot, shared by the World
+/// shell and the social guild handler context so neither duplicates it.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn mutate_player_guild_state_for_test_like_cpp<R>(
+    hub: &HubRef<'_>,
+    social: &mut SessionSocialLimits,
+    f: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,
+) -> Option<R> {
+    let state = player_guild_state_snapshot_like_cpp(hub, social)?;
+    Some(social.mutate_represented_guild_state_for_test_like_cpp(state, f))
+}
+
 pub fn player_guild_state_snapshot_like_cpp(
     hub: &HubRef<'_>,
     social: &SessionSocialLimits,

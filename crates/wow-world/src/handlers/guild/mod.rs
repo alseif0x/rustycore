@@ -18,48 +18,12 @@ use wow_packet::packets::misc::{
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildSetAchievementTracking,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_set_achievement_tracking",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_set_achievement_tracking(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::DeclineGuildInvites,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_decline_guild_invites",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_decline_guild_invites(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildDeclineInvitation,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_decline_invitation",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_decline_invitation(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AcceptGuildInvite,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_accept_guild_invite",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_accept_guild_invite(pkt).await })
         },
     }
 }
@@ -208,24 +172,10 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
+#[cfg(test)]
+mod test_shims;
+
 impl crate::session::WorldSession {
-    pub async fn handle_guild_set_achievement_tracking(
-        &mut self,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
-        if let Err(error) = GuildSetAchievementTracking::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "GuildSetAchievementTracking parse failed: {error}"
-            );
-            return;
-        }
-
-        // C++ only delegates when GetPlayer()->GetGuild() resolves a live guild.
-        // Rust has no represented guild-achievement manager here yet, so the
-        // no-guild branch remains silent.
-    }
-
     pub async fn handle_decline_guild_invites(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match DeclineGuildInvites::read(&mut pkt) {
             Ok(request) => request,
@@ -239,22 +189,6 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_auto_decline_guild_invites_like_cpp(request.allow);
-    }
-
-    pub async fn handle_guild_decline_invitation(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.decline_guild_invitation_like_cpp();
-    }
-
-    pub async fn handle_accept_guild_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = AcceptGuildInvite::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "AcceptGuildInvite parse failed: {error}"
-            );
-            return;
-        }
-
-        self.accept_guild_invitation_like_cpp();
     }
 
     pub async fn handle_guild_bank_remaining_withdraw_money_query(
