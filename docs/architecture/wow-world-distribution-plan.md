@@ -4603,6 +4603,48 @@ Evidencia: checker **443/0**; `check --syntax-only` **PASS**; `check` completo (
 **PASS** en todas sus secciones; `wow-world --lib --features test-fixtures` **3634/0/1**;
 `world-server --lib` **597/0**. `wow-world/src` baja a **120.068** líneas.
 
+#### F5: familia reputation movida a `wow-world-application` — 2026-10-05, `8b71fbd21`
+
+Cuarta familia de handlers migrada con el patrón probado. Los cinco opcodes
+(`CMSG_REQUEST_FORCED_REACTIONS`, `CMSG_SET_FACTION_ATWAR`, `CMSG_SET_FACTION_NOTATWAR`,
+`CMSG_SET_FACTION_INACTIVE`, `CMSG_SET_WATCHED_FACTION`) pasan a `wow-world-application`, el
+host que ya alberga las familias cuyo dueño es una operación de Core más catálogos (bank,
+equipment-set use, instances):
+
+- `wow-world-application/src/reputation.rs` contiene `ReputationHandlerCxLikeCpp` sobre un
+  `HubMut` más los dos catálogos de facciones, los cinco handlers con sus cuerpos movidos
+  (incluido `handle_set_faction_at_war_like_cpp`), el trait host, cinco thunks genéricos y
+  `register_reputation_handlers_like_cpp`; el `FactionStore` ausente conserva el warn y el
+  retorno tempranos, y `RequestForcedReactions` publica por el mismo canal de instancia que
+  antes (`send_packet` → `SessionCore::send_packet`);
+- `wow-world` conserva solo el host (`session/reputation_handler_contexts.rs`, que separa el hub
+  de los catálogos y clona los dos `Arc` como ya hacía el handler anterior) y cinco shims
+  `cfg(any(test, feature = "test-fixtures"))` en `handlers/progression/mod.rs`; ninguna
+  referencia a la sesión entra en el handler;
+- ambos compositores llaman al séptimo registrador en orden de contrato; el contrato
+  `REPUTATION_REGISTRAR` con su fachada exacta vive en el tool, el módulo queda autorizado como
+  dueño `handler_registration` en la política de módulos, y `wow-world` no gana aristas nuevas.
+
+Baselines revisados: impl items **3.159 → 3.161**, impl owners **166 → 167** (salen los cinco
+handlers de producción y su helper privado de `crate::handlers::progression`; entran el impl del
+host, su builder y los shims cfg-gated), registros directos **674 sin cambios** y bridges **84
+sin cambios**; hotspots `session/mod.rs` +41 producción/+2 test y `world-server` +4 por la
+llamada de composición. R1 re-registrado con el nuevo candidato: `S = 66.404`, `G_move = 100.222`,
+requisito `30.197,8` → **presupuesto 30.300**. La trayectoria del presupuesto revisado
+(27.000 → 30.100 → 30.300) crece con cada familia porque el corte añade la glue `Cx`/host/llamada
+de composición; la puerta de duplicados sigue siendo la comprobación real de "mover, nunca
+copiar" (5 permitidos, 0 violaciones).
+
+Evidencia de esta ronda (focused, aún sin campaña `final` sobre este candidato): tests de
+composición del tool **8/8** (incluye la aceptación de ambos compositores reales con los siete
+contratos), contrato de handlers del repositorio **PASS**, escenarios de la familia
+**4/4** (`handlers::progression::tests::reputation`), `cargo check` de `wow-world-application`,
+`wow-world` (default y `test-fixtures`) y `world-server` con **0 errores**,
+`session-ownership-check check --syntax-only` **PASS** (167 owners / 3.161 items / 674 filas),
+`check_architecture.py check --self-test` **PASS** y `net_move.py check` **PASS**. La campaña
+`final` verde de `f7553c7d0` es anterior a este corte y no se relabela: la aceptación completa se
+repetirá al cerrar el tramo F5/F6.
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
