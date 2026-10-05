@@ -8,6 +8,7 @@ pub mod character_creation;
 pub mod character_enumeration;
 pub mod character_login_support;
 mod client_state;
+mod collections_handlers;
 mod combat_handlers;
 mod data_service_handlers;
 mod group_handlers;
@@ -65,6 +66,10 @@ pub use aura_removal::{
 pub use client_state::{
     ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp,
     register_client_state_handlers_like_cpp,
+};
+pub use collections_handlers::{
+    CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
+    register_collections_handlers_like_cpp,
 };
 pub use combat_handlers::{
     CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp, register_combat_handlers_like_cpp,

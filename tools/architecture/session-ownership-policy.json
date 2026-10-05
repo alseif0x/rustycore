@@ -545,6 +545,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::collections::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::combat",
           "trait_path": null,
           "cfg": [],
@@ -1183,6 +1191,12 @@
         {
           "module": "crate::session",
           "trait_path": "ClientStateHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "CollectionsHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -5986,62 +6000,6 @@
           "module": "crate::handlers::collections",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_mount_clear_fanfare",
-          "visibility": "pub",
-          "signature": "async fn handle_mount_clear_fanfare (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_mount_set_favorite",
-          "visibility": "pub",
-          "signature": "async fn handle_mount_set_favorite (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_mount_special_anim",
-          "visibility": "pub",
-          "signature": "async fn handle_mount_special_anim (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_toy_clear_fanfare",
-          "visibility": "pub",
-          "signature": "async fn handle_toy_clear_fanfare (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::collections",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_transmogrify_items",
           "visibility": "pub",
           "signature": "async fn handle_transmogrify_items (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -6083,16 +6041,67 @@
           ]
         },
         {
-          "module": "crate::handlers::collections",
+          "module": "crate::handlers::collections::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_mount_special_anim_to_visible_set_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_mount_special_anim_to_visible_set_like_cpp (& self , source_guid : ObjectGuid , packet_bytes : Vec < u8 > ,)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_mount_clear_fanfare",
+          "visibility": "pub",
+          "signature": "async fn handle_mount_clear_fanfare (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
-            "external_impl"
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_mount_set_favorite",
+          "visibility": "pub",
+          "signature": "async fn handle_mount_set_favorite (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_mount_special_anim",
+          "visibility": "pub",
+          "signature": "async fn handle_mount_special_anim (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::collections::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_toy_clear_fanfare",
+          "visibility": "pub",
+          "signature": "async fn handle_toy_clear_fanfare (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
           ]
         },
         {
@@ -44193,6 +44202,19 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "CollectionsHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "collections_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn collections_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> CollectionsHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
           "trait_path": "CombatHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "combat_handler_cx_like_cpp",
@@ -56860,32 +56882,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::collections",
-          "source": "crates/wow-world/src/handlers/collections/mod.rs",
-          "enclosing": "impl WorldSession::send_mount_special_anim_to_visible_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::collections",
-          "source": "crates/wow-world/src/handlers/collections/mod.rs",
-          "enclosing": "impl WorldSession::send_mount_special_anim_to_visible_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::group",
           "source": "crates/wow-world/src/handlers/group.rs",
           "enclosing": "module",
@@ -60408,6 +60404,32 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::collections_handlers",
+          "source": "crates/wow-world-application/src/collections_handlers.rs",
+          "enclosing": "impl CollectionsHandlerCxLikeCpp::send_mount_special_anim_to_visible_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::collections_handlers",
+          "source": "crates/wow-world-application/src/collections_handlers.rs",
+          "enclosing": "impl CollectionsHandlerCxLikeCpp::send_mount_special_anim_to_visible_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {

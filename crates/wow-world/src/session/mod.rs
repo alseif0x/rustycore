@@ -20,6 +20,7 @@ mod battlenet_handler_contexts;
 mod calendar_handler_contexts;
 mod chat_handler_contexts;
 mod client_state_handler_contexts;
+mod collections_handler_contexts;
 mod combat;
 mod combat_handler_contexts;
 mod data_service_handler_contexts;

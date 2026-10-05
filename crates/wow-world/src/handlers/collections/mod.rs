@@ -5,7 +5,6 @@
 
 use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, InventoryResult, SpellCastResult};
-use wow_core::ObjectGuid;
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
@@ -14,38 +13,12 @@ use wow_packet::packets::collection::{
     CollectionItemSetFavorite, TransmogrifyItems,
 };
 use wow_packet::packets::item::InventoryChangeFailure;
-use wow_packet::packets::misc::{
-    AddToy, MountSetFavorite, MountSpecial, SpecialMountAnim, ToyClearFanfare, UseToy,
-};
+use wow_packet::packets::misc::{AddToy, UseToy};
 use wow_packet::packets::spell::{CastFailed, SpellCastVisual, SpellPreparePkt, SpellStartPkt};
 use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::session::{CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, SpellCastMetadata};
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MountSetFavorite,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_mount_set_favorite",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_mount_set_favorite(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MountSpecialAnim,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_mount_special_anim",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_mount_special_anim(pkt).await })
-        },
-    }
-}
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -61,35 +34,11 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::MountClearFanfare,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_mount_clear_fanfare",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_mount_clear_fanfare(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::AddToy,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_add_toy",
         handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_add_toy(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ToyClearFanfare,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_toy_clear_fanfare",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_toy_clear_fanfare(pkt).await })
-        },
     }
 }
 
@@ -113,95 +62,10 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
+#[cfg(test)]
+mod test_shims;
+
 impl crate::session::WorldSession {
-    /// CMSG_MOUNT_SET_FAVORITE — toggle the favorite bit on a known account mount.
-    ///
-    /// C++ ref: `WorldSession::HandleMountSetFavorite` delegates to
-    /// `CollectionMgr::MountSetFavorite`, which silently ignores unknown mounts
-    /// and sends a partial `SMSG_ACCOUNT_MOUNT_UPDATE` for the changed mount.
-    pub async fn handle_mount_set_favorite(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match MountSetFavorite::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "MountSetFavorite parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::hub_mut(self)
-            .mount_set_favorite_like_cpp(request.mount_spell_id, request.is_favorite);
-    }
-
-    /// CMSG_MOUNT_SPECIAL_ANIM — forward the requested mount animation packet.
-    ///
-    /// C++ ref: `WorldSession::HandleMountSpecialAnimOpcode` copies the
-    /// client-provided visual kit ids and sequence variation into
-    /// `SMSG_SPECIAL_MOUNT_ANIM`, sets `UnitGUID` to the player, and calls
-    /// `SendMessageToSet(..., false)`. C++ `MessageDistDeliverer` still skips
-    /// the source player (`player == i_source`) and then applies `HaveAtClient`
-    /// for nearby receivers, so Rust queues the packet to other sessions via
-    /// the existing `SendIfVisibleLikeCpp` per-session gate.
-
-    pub async fn handle_mount_special_anim(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match MountSpecial::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "MountSpecial parse failed: {error}"
-                );
-                return;
-            }
-        };
-        let Some(unit_guid) = self.player_guid() else {
-            return;
-        };
-
-        let packet_bytes = SpecialMountAnim {
-            unit_guid,
-            spell_visual_kit_ids: request.spell_visual_kit_ids,
-            sequence_variation: request.sequence_variation,
-        }
-        .to_bytes();
-
-        self.send_mount_special_anim_to_visible_set_like_cpp(unit_guid, packet_bytes);
-    }
-
-    fn send_mount_special_anim_to_visible_set_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        packet_bytes: Vec<u8>,
-    ) {
-        let Some(registry) = self.player_registry() else {
-            return;
-        };
-        let map_id = self.core.player_map_id_like_cpp();
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-
-        for registration in registry.same_map_movement_recipients(source_guid, map_id, instance_id)
-        {
-            let _ = registry.try_send_current_command(
-                registration,
-                crate::session::mailbox::SessionCommand::SendIfVisibleLikeCpp(
-                    crate::session::mailbox::SendIfVisibleLikeCppCommand {
-                        queued_at: std::time::Instant::now(),
-                        source_guid,
-                        map_id,
-                        instance_id,
-                        packet_bytes: packet_bytes.clone(),
-                    },
-                ),
-            );
-        }
-    }
-
     /// CMSG_COLLECTION_ITEM_SET_FAVORITE — toggle favorite state for supported collections.
     ///
     /// C++ ref: `WorldSession::HandleCollectionItemSetFavorite` forwards TOYBOX
@@ -265,32 +129,6 @@ impl crate::session::WorldSession {
             current_spec_only = request.current_spec_only,
             "TransmogrifyItems parsed; full C++ transmogrification application is pending"
         );
-    }
-
-    /// CMSG_MOUNT_CLEAR_FANFARE — C++ currently logs only.
-
-    pub async fn handle_mount_clear_fanfare(&mut self, _pkt: wow_packet::WorldPacket) {
-        debug!(account = self.core.account_id, "Mount fanfare cleared");
-    }
-
-    /// CMSG_TOY_CLEAR_FANFARE — clear the account toy fanfare bit.
-    ///
-    /// C++ ref: `WorldSession::HandleToyClearFanfare` forwards only the item id
-    /// to `CollectionMgr::ToyClearFanfare`, which silently ignores unknown toys.
-
-    pub async fn handle_toy_clear_fanfare(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match ToyClearFanfare::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "ToyClearFanfare parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::hub_mut(self).toy_clear_fanfare_like_cpp(request.item_id);
     }
 
     /// CMSG_USE_TOY — bounded C++ guard path before spell execution.

@@ -5558,6 +5558,34 @@ spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9),
 entities/player (5), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4),
 corpse (4), gameobject (3) y combat (1).
 
+#### F5: familia collections, corte monturas/juguetes (4 opcodes) a `wow-world-application` — 2026-10-05, `ea3a183c0..HEAD`
+
+`MountSetFavorite`, `MountSpecialAnim`, `MountClearFanfare` y `ToyClearFanfare` pasan al registrador
+directo `ApplicationCollections` (`crates/wow-world-application/src/collections_handlers.rs`), otra
+vez con contexto hub-only: el estado de colección (`mount_set_favorite_like_cpp`,
+`toy_clear_fanfare_like_cpp`), el directorio de receptores de movimiento
+(`same_map_movement_recipients`) y la entrega diferida (`SendIfVisibleLikeCpp`) ya viven en el hub de
+Core. El fanout de `MountSpecialAnim` replica el orden C++ (saltar al emisor, compuerta
+`HaveAtClient` por sesión) sin introducir estado nuevo. `collections` queda en **3 registros
+literales** (`CollectionItemSetFavorite`, `AddToy`, `UseToy`), que permanecen mientras tocan
+inventario o spell.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos,
+metadata `Inplace`/`ThreadUnsafe` y `handler_name` sin cambios) y **23 de `collections`** en verde;
+`cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin errores; suite del tool
+**443/443**; `session-ownership-check check --syntax-only` **PASS** (189 owners / 3.130 items / 674
+filas); `check_architecture.py check` **PASS** (3.382 ficheros / 102 techos); hotspots reconciliados
+(`session/mod.rs`: producción 60.977 → 60.999, test 138.180 → 138.182, total 199.157 → 199.181;
+`world-server/lib.rs`: producción 31.788 → 31.792, total 60.499 → 60.503). R1 v2: `S = 71.563`,
+`G_move = 109.767`, requisito `34.325,85` → **presupuesto 34.326**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Quedan **208 registros literales** en `wow-world`: character/account (57), trade (15), quest (14),
+spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9), vehicle (8), travel
+(7), loot (7), entities/player (5), dungeon_finding (5), void_storage (4), corpse (4), collections
+(3), gameobject (3) y combat (1).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
