@@ -20,8 +20,8 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
-use wow_packet::packets::misc::{NewWorld, TaxiNodeStatusPkt};
-use wow_packet::{ServerPacket, WorldPacket};
+use wow_packet::packets::misc::{NewWorld, SetTaxiBenchmarkMode, TaxiNodeStatusPkt};
+use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::{HubMut, SessionState};
 use wow_world_lifecycle::SessionLifecycleState;
 
@@ -121,11 +121,54 @@ impl<'a> TravelHandlerCxLikeCpp<'a> {
     /// CMSG_UPDATE_AREA_TRIGGER_VISUAL — C++ registers it as
     /// STATUS_UNHANDLED/Handle_NULL.
     pub async fn handle_update_area_trigger_visual(&mut self, _pkt: WorldPacket) {}
+
+    /// CMSG_SET_TAXI_BENCHMARK_MODE — toggles the represented benchmark flag.
+    ///
+    /// Returns whether the registry state must be re-published by the host; the
+    /// World session still owns that sequence. C++ `Player::SetTaxiBenchmarkMode`
+    /// reads the flag back after the update, but the handler ignores the result.
+    pub async fn handle_set_taxi_benchmark_mode(&mut self, mut pkt: WorldPacket) -> bool {
+        let packet = match SetTaxiBenchmarkMode::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "SetTaxiBenchmarkMode parse failed: {error}"
+                );
+                return false;
+            }
+        };
+
+        let Some(guid) = self.hub.shared().core.player_guid() else {
+            return false;
+        };
+        let changed = self
+            .hub
+            .core
+            .mutate_canonical_player_like_cpp(|player| {
+                if packet.enable {
+                    player.set_player_flag(
+                        wow_world_core::session::PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP,
+                    );
+                } else {
+                    player.remove_player_flag(
+                        wow_world_core::session::PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP,
+                    );
+                }
+            })
+            .is_some();
+        let _ = guid;
+        changed
+    }
 }
 
 /// Builds a travel handler context from a host's lifecycle state and hub.
 pub trait TravelHandlerHostLikeCpp<C> {
     fn travel_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> TravelHandlerCxLikeCpp<'a>;
+
+    /// Re-publishes the registry state after a taxi benchmark flag change; the
+    /// World session still owns the registry-sync providers.
+    fn sync_player_registry_state_after_taxi_benchmark_change_like_cpp(&mut self);
 }
 
 fn handle_suspend_token_response_thunk<'a, S, C>(
@@ -180,6 +223,26 @@ where
 }
 
 /// Registers the travel handlers on the packet registry.
+fn handle_set_taxi_benchmark_mode_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TravelHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let changed = session
+            .travel_handler_cx_like_cpp(catalogs)
+            .handle_set_taxi_benchmark_mode(pkt)
+            .await;
+        if changed {
+            session.sync_player_registry_state_after_taxi_benchmark_change_like_cpp();
+        }
+    })
+}
+
 pub fn register_travel_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -207,6 +270,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_update_area_trigger_visual",
         handler: handle_update_area_trigger_visual_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTaxiBenchmarkMode,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_taxi_benchmark_mode",
+        handler: handle_set_taxi_benchmark_mode_thunk::<S, C>,
     })?;
     Ok(())
 }

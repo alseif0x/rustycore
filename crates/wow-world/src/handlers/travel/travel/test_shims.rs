@@ -33,4 +33,14 @@ impl WorldSession {
             .handle_update_area_trigger_visual(pkt)
             .await;
     }
+
+    pub async fn handle_set_taxi_benchmark_mode(&mut self, pkt: WorldPacket) {
+        let changed = self
+            .travel_test_cx_like_cpp()
+            .handle_set_taxi_benchmark_mode(pkt)
+            .await;
+        if changed {
+            self.sync_player_registry_state_like_cpp();
+        }
+    }
 }

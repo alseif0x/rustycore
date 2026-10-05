@@ -5865,6 +5865,27 @@ sin errores; composer contracts **8/8**; suite del tool **443/443**; `session-ow
 
 **No validado aún.** Sin campaña `final` nueva; quedan **189 registros literales**.
 
+#### F5: `SetTaxiBenchmarkMode` al dueño `ApplicationTravel` — 2026-10-05, `1a5a085bd..HEAD`
+
+`SetTaxiBenchmarkMode` pasa al dueño `ApplicationTravel`. El dueño aplica la transición canónica de
+la bandera (`mutate_canonical_player_like_cpp` con `PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP`, tomada de
+`wow-world-core` para no tocar la política de dependencias) y devuelve si el host debe republicar el
+estado de registro; el thunk llama al **seam acotado** nuevo
+`sync_player_registry_state_after_taxi_benchmark_change_like_cpp`, preservando el orden C++
+(mutación de bandera → sincronización de registro). `travel` queda con **3 registros literales**
+(activación de taxi, area trigger y world-port), que necesitan los ejecutores de taxi/teleport del
+shell.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**12 de `travel`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (191 owners / 3.138 items / 711 filas); `check_architecture.py check`
+**PASS**; hotspot `session/mod.rs` reconciliado (producción 61.153 → 61.157, total 199.337 →
+199.341). R1 v2: `S = 72.560`, `G_move = 111.642`, requisito `35.154,00` → **presupuesto 35.154**,
+0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **188 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

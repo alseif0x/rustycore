@@ -20,4 +20,8 @@ impl TravelHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
         TravelHandlerCxLikeCpp::new(hub, lifecycle)
     }
+
+    fn sync_player_registry_state_after_taxi_benchmark_change_like_cpp(&mut self) {
+        self.sync_player_registry_state_like_cpp();
+    }
 }

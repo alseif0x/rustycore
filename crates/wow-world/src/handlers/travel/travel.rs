@@ -65,18 +65,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetTaxiBenchmarkMode,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_set_taxi_benchmark_mode",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_taxi_benchmark_mode(pkt).await })
-        },
-    }
-}
-
 #[cfg(test)]
 mod test_shims;
 
@@ -594,21 +582,5 @@ impl crate::session::WorldSession {
                 preferred_mount_display,
             },
         );
-    }
-
-    /// CMSG_SET_TAXI_BENCHMARK_MODE — toggles the represented benchmark flag.
-    pub async fn handle_set_taxi_benchmark_mode(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetTaxiBenchmarkMode::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetTaxiBenchmarkMode parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.represented_set_taxi_benchmark_mode_like_cpp(packet.enable);
     }
 }

@@ -13354,20 +13354,6 @@
           "module": "crate::handlers::travel::travel",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_set_taxi_benchmark_mode",
-          "visibility": "pub",
-          "signature": "async fn handle_set_taxi_benchmark_mode (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_world_port_response",
           "visibility": "pub",
           "signature": "async fn handle_world_port_response (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -13403,6 +13389,22 @@
           "signature": "async fn send_player_self_create_for_teleport_like_cpp (& mut self , trait_node_entries : & wow_data :: trait_tree :: TraitNodeEntryStore ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_taxi_benchmark_mode",
+          "visibility": "pub",
+          "signature": "async fn handle_set_taxi_benchmark_mode (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44920,6 +44922,19 @@
           "name": "support_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn support_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SupportHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sync_player_registry_state_after_taxi_benchmark_change_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_registry_state_after_taxi_benchmark_change_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35099,
-    "measured_requirement": 35099,
+    "budget": 35154,
+    "measured_requirement": 35154,
     "recorded_at_revision": "1a5a085bd20eef229fa068567e0e6f98bfcd5d52",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72546, G_move = 111572, ratio and slack credits = 72546 * 1.05 + 300 = 76473.3, so the requirement is 35098.7 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72560, G_move = 111642, ratio and slack credits = 72560 * 1.05 + 300 = 76488, so the requirement is 35154 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -250,6 +250,13 @@
         "destination_growth": 70,
         "new_code": 40,
         "note": "CollectionItemSetFavorite moved into the existing ApplicationCollections registrar, whose context now also borrows the inventory state (split_inventory_mut) for the appearance permanence gate and favorite transition; the toybox path keeps the hub transition. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 travel benchmark mode (1a5a085bd..HEAD)",
+        "shrink": 14,
+        "destination_growth": 70,
+        "new_code": 56,
+        "note": "SetTaxiBenchmarkMode moved into the ApplicationTravel owner; the canonical flag transition stays in the owner and it returns whether the World host must re-publish the registry state through a new bounded seam, preserving the C++ order (flag mutation, registry sync). The benchmark flag constant comes from wow-world-core, not wow-movement, so the dependency policy is unchanged. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [
