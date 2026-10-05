@@ -2680,20 +2680,6 @@
           "module": "crate::handlers::character::account",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_request_played_time",
-          "visibility": "pub",
-          "signature": "async fn handle_request_played_time (& mut self , trigger_event : bool)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::account",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_connect_to",
           "visibility": "pub (super)",
           "signature": "fn send_connect_to (& mut self , serial : ConnectToSerial)",
@@ -5011,20 +4997,6 @@
           "name": "fallback_direct_login",
           "visibility": "pub (super)",
           "signature": "fn fallback_direct_login (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_logout_cancel",
-          "visibility": "pub",
-          "signature": "async fn handle_logout_cancel (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -11,7 +11,7 @@
 //! own the session lifecycle state and the represented durability operation;
 //! the World session only splits its state into the borrowed context (#1263 F5).
 
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_handler::{
@@ -238,6 +238,46 @@ impl<'a> AccountDataHandlerCxLikeCpp<'a> {
             _ => false,
         }
     }
+    /// C++ `WorldSession::HandleRequestPlayedTime`.
+    pub async fn handle_request_played_time(&mut self, trigger_event: bool) {
+        use wow_packet::packets::misc::PlayedTime;
+
+        // Session time elapsed since login (seconds).
+        let session_secs: u32 = self
+            .lifecycle
+            .login_time_like_cpp()
+            .map(|t| t.elapsed().as_secs() as u32)
+            .unwrap_or(0);
+
+        // Add session time on top of DB-loaded base values.
+        let total_time = self
+            .lifecycle
+            .total_played_time_like_cpp()
+            .saturating_add(session_secs);
+        let level_time = self
+            .lifecycle
+            .level_played_time_like_cpp()
+            .saturating_add(session_secs);
+
+        self.hub
+            .core
+            .packet_publication_access_like_cpp()
+            .send_packet(&PlayedTime {
+                total_time,
+                level_time,
+                trigger_event,
+            });
+    }
+
+    /// C++ `WorldSession::HandleLogoutCancel`.
+    pub async fn handle_logout_cancel(&mut self) {
+        info!("LogoutCancel from account {}", self.hub.core.account_id);
+        self.lifecycle.clear_logout_time();
+        self.hub
+            .core
+            .packet_publication_access_like_cpp()
+            .send_packet(&wow_packet::packets::misc::LogoutCancelAck);
+    }
 }
 
 /// Builds the account-data handler context from a host's session state.
@@ -330,6 +370,41 @@ where
     })
 }
 
+fn handle_request_played_time_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: AccountDataHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let trigger = pkt.read_uint8().unwrap_or(0) != 0;
+        session
+            .account_data_handler_cx_like_cpp(catalogs)
+            .handle_request_played_time(trigger)
+            .await;
+    })
+}
+
+fn handle_logout_cancel_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    _pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: AccountDataHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .account_data_handler_cx_like_cpp(catalogs)
+            .handle_logout_cancel()
+            .await;
+    })
+}
+
 /// Register the account-data packet entries through their lifecycle owner.
 pub fn register_account_data_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -372,6 +447,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_tutorial",
         handler: handle_tutorial_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::RequestPlayedTime,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_request_played_time",
+        handler: handle_request_played_time_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::LogoutCancel,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_logout_cancel",
+        handler: handle_logout_cancel_thunk::<S, C>,
     })?;
     Ok(())
 }

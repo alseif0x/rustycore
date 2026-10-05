@@ -82,33 +82,6 @@ impl WorldSession {
     /// Client sends this when the player types `/played`.
     /// We respond with total and level played time in seconds.
     /// `trigger_event` mirrors the client flag (TriggerScriptEvent).
-    pub async fn handle_request_played_time(&mut self, trigger_event: bool) {
-        use wow_packet::packets::misc::PlayedTime;
-
-        // Session time elapsed since login (seconds).
-        let session_secs: u32 = self
-            .lifecycle
-            .login_time_like_cpp()
-            .map(|t| t.elapsed().as_secs() as u32)
-            .unwrap_or(0);
-
-        // Add session time on top of DB-loaded base values.
-        let total_time = self
-            .lifecycle
-            .total_played_time_like_cpp()
-            .saturating_add(session_secs);
-        let level_time = self
-            .lifecycle
-            .level_played_time_like_cpp()
-            .saturating_add(session_secs);
-
-        self.send_packet(&PlayedTime {
-            total_time,
-            level_time,
-            trigger_event,
-        });
-    }
-
     /// Handle CMSG_HOTFIX_REQUEST — client requests hotfix data.
     /// Borrows C++ `sDB2Manager.GetHotfixData()`; Session owns no catalog.
     /// C++ `Handlers/HotfixHandler.cpp:77-135`.

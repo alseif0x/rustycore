@@ -139,12 +139,6 @@ impl WorldSession {
     }
 
     /// Handle CMSG_LOGOUT_CANCEL — player cancels a pending logout.
-    pub async fn handle_logout_cancel(&mut self) {
-        info!("LogoutCancel from account {}", self.core.account_id);
-        self.lifecycle.clear_logout_time();
-        self.send_packet(&LogoutCancelAck);
-    }
-
     /// Build the self CreateObject combat snapshot after C++ login has loaded
     /// persisted auras and applied all equipped-item modifiers.
     pub(super) fn player_login_combat_stats_like_cpp(

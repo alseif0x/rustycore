@@ -2,18 +2,6 @@ use super::*;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestPlayedTime,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_played_time",
- handler: |session, _catalogs, mut pkt| {
-     Box::pin(async move { let trigger = pkt.read_uint8().unwrap_or(0) != 0; session.handle_request_played_time(trigger).await })
- },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::DbQueryBulk,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,
@@ -74,15 +62,5 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 }
             })
         },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::LogoutCancel,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_logout_cancel",
-        handler: |session, _catalogs, _pkt| Box::pin(async move { session.handle_logout_cancel().await }),
     }
 }
