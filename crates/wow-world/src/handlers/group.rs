@@ -49,14 +49,13 @@ use crate::session::{GroupInvitePolicyLikeCpp, WorldSession, player_team_for_rac
 mod commands;
 mod ops_1;
 mod ops_2;
-mod ops_3;
 mod state;
+#[cfg(test)]
+mod test_shims;
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]
 pub use ops_2::*;
-#[allow(unused_imports)]
-pub use ops_3::*;
 #[allow(unused_imports)]
 pub use state::*;
 
@@ -145,16 +144,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SetLootMethod,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_loot_method",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_loot_method(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::SetPartyLeader,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -189,104 +178,12 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SilencePartyTalker,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_silence_party_talker",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_silence_party_talker(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::SetPartyAssignment,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_party_assignment",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_party_assignment(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetRole,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_role",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_role(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::InitiateRolePoll,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_initiate_role_poll",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_initiate_role_poll(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UpdateRaidTarget,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_update_raid_target",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_update_raid_target(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestPartyJoinUpdates,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_party_join_updates",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_party_join_updates(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestPartyMemberStats,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_party_member_stats",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_party_member_stats(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::DoReadyCheck,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_do_ready_check",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_do_ready_check(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ReadyCheckResponse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_ready_check_response",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_ready_check_response(pkt).await })
         },
     }
 }
@@ -303,41 +200,13 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::LowLevelRaid1,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_low_level_raid1",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_low_level_raid1(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::LowLevelRaid2,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_low_level_raid2",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_low_level_raid2(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MinimapPing,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_minimap_ping",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_minimap_ping(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::RandomRoll,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_random_roll",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_random_roll(pkt).await }),
+        handler: |session, _catalogs, pkt| {
+            Box::pin(async move { session.handle_random_roll(pkt).await })
+        },
     }
 }
 

@@ -325,145 +325,6 @@ impl WorldSession {
 
         send_party_update(&outcome.group, &registry, vra);
     }
-    /// CMSG_SILENCE_PARTY_TALKER.
-    ///
-    /// C++ parses a full `ObjectGuid Target` followed by one `Silent` bit, then
-    /// returns unless the sender is in a group and is the group leader or an
-    /// assistant. The live silence mutation is still a TODO in the C++ legacy
-    /// source, so Rust records only the represented request at the same boundary.
-    pub async fn handle_silence_party_talker(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let silence = match SilencePartyTalker::read(&mut pkt) {
-            Ok(silence) => silence,
-            Err(e) => {
-                warn!("Bad SilencePartyTalker: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-
-        let Some(group_guid) = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            None,
-        ) else {
-            return;
-        };
-        let Some(group) = group_reg.get(&group_guid) else {
-            return;
-        };
-        if !group.is_leader_like_cpp(sender_guid) && !group.is_assistant_like_cpp(sender_guid) {
-            return;
-        }
-
-        self.social
-            .record_represented_silence_party_talker_like_cpp(silence.target, silence.silent);
-    }
-    /// CMSG_DO_READY_CHECK.
-    ///
-    /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, returns when no
-    /// group exists, requires leader or assistant, then calls
-    /// `Group::StartReadyCheck`. Rust represents PartyIndex over the current
-    /// GroupRegistry group and approximates offline/no-session via missing
-    /// PlayerRegistry entries. Timeout expiry is handled by the shared
-    /// `tick_all_group_ready_checks_like_cpp` loop driven from world-server
-    /// main. PartyIndex BG/BF/original-group remains a boundary if open.
-    pub async fn handle_do_ready_check(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let ready_check = match DoReadyCheck::read(&mut pkt) {
-            Ok(ready_check) => ready_check,
-            Err(e) => {
-                warn!("Bad DoReadyCheck: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-        let registry = match self.player_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-
-        let Some(group_guid) = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            ready_check.party_index,
-        ) else {
-            return;
-        };
-
-        let connected = group_reg
-            .get(&group_guid)
-            .map(|group| connected_group_members_like_cpp(&group, &registry))
-            .unwrap_or_default();
-        let outcome = match group_reg.start_ready_check_transition_like_cpp(
-            group_guid,
-            sender_guid,
-            connected,
-        ) {
-            Ok(outcome) => outcome,
-            Err(_) => return,
-        };
-        send_ready_check_events_like_cpp(&outcome.facts, &outcome.group, &registry);
-    }
-    /// CMSG_READY_CHECK_RESPONSE.
-    ///
-    /// C++ resolves the group and calls `Group::SetMemberReadyCheck` with no
-    /// leader/assistant gate. Rust preserves that represented ownership and
-    /// returns with no fanout/state change when no ready check is active.
-    pub async fn handle_ready_check_response(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let response = match ReadyCheckResponseClient::read(&mut pkt) {
-            Ok(response) => response,
-            Err(e) => {
-                warn!("Bad ReadyCheckResponse: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-        let registry = match self.player_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-
-        let Some(group_guid) = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            response.party_index,
-        ) else {
-            return;
-        };
-
-        let outcome = match group_reg.respond_ready_check_transition_like_cpp(
-            group_guid,
-            sender_guid,
-            response.is_ready,
-        ) {
-            Ok(outcome) => outcome,
-            Err(_) => return,
-        };
-        send_ready_check_events_like_cpp(&outcome.facts, &outcome.group, &registry);
-    }
     /// CMSG_SET_PARTY_ASSIGNMENT.
     ///
     /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, requires leader
@@ -521,182 +382,6 @@ impl WorldSession {
 
         send_party_update(&outcome.group, &registry, vra);
     }
-    /// CMSG_SET_ROLE.
-    ///
-    /// C++ resolves `GetPlayer()->GetGroup(packet.PartyIndex)`, compares the
-    /// target's current in-memory LFG roles, broadcasts `RoleChangedInform` to
-    /// the group before `SetLfgRoles`, or sends only to the caller when no group
-    /// exists. Rust represents PartyIndex as the current `GroupRegistry` group
-    /// boundary and keeps `GroupInfo.member_slots.roles` as the in-memory role
-    /// source of truth without DB persistence.
-    pub async fn handle_set_role(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let set_role = match SetRole::read(&mut pkt) {
-            Ok(set_role) => set_role,
-            Err(e) => {
-                warn!("Bad SetRole: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => {
-                if set_role.role == 0 {
-                    return;
-                }
-                self.send_packet(&RoleChangedInform {
-                    party_index: GROUP_CATEGORY_HOME_LIKE_CPP,
-                    from: sender_guid,
-                    changed_unit: set_role.target_guid,
-                    old_role: 0,
-                    new_role: set_role.role,
-                });
-                return;
-            }
-        };
-
-        let group_guid = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            set_role.party_index,
-        );
-
-        let Some(group_guid) = group_guid else {
-            if set_role.role == 0 {
-                return;
-            }
-            self.send_packet(&RoleChangedInform {
-                party_index: GROUP_CATEGORY_HOME_LIKE_CPP,
-                from: sender_guid,
-                changed_unit: set_role.target_guid,
-                old_role: 0,
-                new_role: set_role.role,
-            });
-            return;
-        };
-
-        let registry = self.player_registry().map(std::sync::Arc::clone);
-        let outcome = match group_reg.set_lfg_role_transition_like_cpp(
-            group_guid,
-            set_role.target_guid,
-            set_role.role,
-        ) {
-            Ok(outcome) => outcome,
-            Err(_) => return,
-        };
-        let (old_role, lfg_roles_mutated_existing_target) = outcome.facts;
-        let recipients = registry
-            .as_ref()
-            .map(|registry| connected_group_member_txs_like_cpp(&outcome.group, registry))
-            .unwrap_or_default();
-        let bytes = role_changed_inform_like_cpp(
-            outcome.group.group_category_like_cpp(),
-            sender_guid,
-            set_role.target_guid,
-            old_role,
-            set_role.role,
-        );
-
-        // C++ broadcasts RoleChangedInform, then Group::SetLfgRoles mutates an
-        // existing member slot and calls SendUpdate(). Keep both fanouts outside
-        // the mutable guard and only send PartyUpdate when the slot existed.
-        if let Some(registry) = registry.as_ref() {
-            send_group_packet_bytes_like_cpp(registry, bytes, &recipients);
-        }
-
-        if lfg_roles_mutated_existing_target {
-            if let Some(registry) = registry.as_ref() {
-                let vra = self.core.virtual_realm_address();
-                send_party_update(&outcome.group, registry, vra);
-            }
-        }
-    }
-    /// CMSG_UPDATE_RAID_TARGET.
-    ///
-    /// C++ anchor: `WorldSession::HandleUpdateRaidTargetOpcode` resolves
-    /// `GetPlayer()->GetGroup(packet.PartyIndex)`. `Symbol == -1` sends only the
-    /// caller a full target icon list. Other symbols call `Group::SetTargetIcon`;
-    /// only raid groups gate the action to leader/assistant. Rust keeps
-    /// `GroupInfo.target_icons` as canonical represented runtime state. Boundary:
-    /// full ObjectAccessor/hostility checks are not represented; connected player
-    /// GUID targets are accepted only when present in `PlayerRegistry`, non-player
-    /// targets remain pass-through object GUIDs.
-    pub async fn handle_update_raid_target(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let update = match UpdateRaidTarget::read(&mut pkt) {
-            Ok(update) => update,
-            Err(e) => {
-                warn!("Bad UpdateRaidTarget: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-        let Some(group_guid) = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            update.party_index,
-        ) else {
-            return;
-        };
-
-        if update.symbol == -1 {
-            if let Some(group) = group_reg.get(&group_guid) {
-                self.send_raw_packet(&raid_target_update_all_like_cpp(&group));
-            }
-            return;
-        }
-
-        let Ok(symbol) = u8::try_from(update.symbol) else {
-            return;
-        };
-        let registry = match self.player_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-
-        if update.target.is_player()
-            && !update.target.is_empty()
-            && registry.group_presence(update.target).is_none()
-        {
-            return;
-        }
-
-        let outcome = match group_reg.set_target_icon_transition_like_cpp(
-            group_guid,
-            sender_guid,
-            symbol,
-            update.target,
-        ) {
-            Ok(outcome) => outcome,
-            Err(_) => return,
-        };
-        let recipients = connected_group_member_txs_like_cpp(&outcome.group, &registry);
-        let party_index = outcome.group.group_category_like_cpp();
-
-        for (changed_symbol, target) in outcome.facts {
-            send_group_packet_bytes_like_cpp(
-                &registry,
-                raid_target_update_single_like_cpp(
-                    party_index,
-                    changed_symbol,
-                    target,
-                    sender_guid,
-                ),
-                &recipients,
-            );
-        }
-    }
     /// CMSG_CLEAR_RAID_MARKER.
     ///
     /// C++ `WorldSession::HandleClearRaidMarker` resolves the player's current
@@ -744,119 +429,6 @@ impl WorldSession {
 
         send_group_packet_bytes_like_cpp(&registry, bytes, &recipients);
     }
-    /// CMSG_REQUEST_PARTY_JOIN_UPDATES.
-    ///
-    /// C++ sends current target icons and raid markers for the requested party
-    /// index. Rust represents raid target icons and raid marker state from
-    /// `GroupInfo`.
-    pub async fn handle_request_party_join_updates(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match RequestPartyJoinUpdates::read(&mut pkt) {
-            Ok(request) => request,
-            Err(e) => {
-                warn!("Bad RequestPartyJoinUpdates: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-        let Some(group_guid) = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            request.party_index,
-        ) else {
-            return;
-        };
-        if let Some(group) = group_reg.get(&group_guid) {
-            self.send_raw_packet(&raid_target_update_all_like_cpp(&group));
-            self.send_raw_packet(&raid_markers_changed_like_cpp(&group));
-        }
-    }
-    /// CMSG_REQUEST_PARTY_MEMBER_STATS.
-    ///
-    /// C++ `HandleRequestPartyMemberStatsOpcode` always replies to the requester
-    /// with `SMSG_PARTY_MEMBER_FULL_STATE`: `ObjectAccessor::FindConnectedPlayer`
-    /// drives online/offline status. `PartyIndex` is parsed by the packet layer in
-    /// the same bit/GUID/index order as C++, but the C++ handler ignores it.
-    pub async fn handle_request_party_member_stats(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match RequestPartyMemberStats::read(&mut pkt) {
-            Ok(request) => request,
-            Err(e) => {
-                warn!("Bad RequestPartyMemberStats: {e}");
-                return;
-            }
-        };
-
-        let registry = self.player_registry().map(std::sync::Arc::clone);
-        let state = party_member_full_state_like_cpp(request.target_guid, registry.as_deref());
-        self.send_packet_realm(&state);
-    }
-    /// CMSG_INITIATE_ROLE_POLL.
-    ///
-    /// C++ resolves the current group, returns when sender is neither leader nor
-    /// assistant, and broadcasts `RolePollInform` to the group with no state
-    /// mutation. Rust keeps the same represented current-group boundary and uses
-    /// connected PlayerRegistry recipients instead of full ObjectAccessor/sWorld.
-    pub async fn handle_initiate_role_poll(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let role_poll = match InitiateRolePoll::read(&mut pkt) {
-            Ok(role_poll) => role_poll,
-            Err(e) => {
-                warn!("Bad InitiateRolePoll: {e}");
-                return;
-            }
-        };
-        let sender_guid = match self.player_guid() {
-            Some(guid) => guid,
-            None => return,
-        };
-        let group_reg = match self.group_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-        let registry = match self.player_registry() {
-            Some(registry) => std::sync::Arc::clone(registry),
-            None => return,
-        };
-
-        let Some(group_guid) = current_group_guid_like_cpp(
-            &group_reg,
-            self.resolved_group_guid_like_cpp(),
-            sender_guid,
-            role_poll.party_index,
-        ) else {
-            return;
-        };
-
-        let Some((bytes, recipients)) = group_reg.get(&group_guid).and_then(|group| {
-            if !sender_can_start_ready_check_like_cpp(&group, sender_guid) {
-                return None;
-            }
-            Some((
-                role_poll_inform_like_cpp(group.group_category_like_cpp() as i8, sender_guid),
-                connected_group_member_txs_like_cpp(&group, &registry),
-            ))
-        }) else {
-            return;
-        };
-
-        send_group_packet_bytes_like_cpp(&registry, bytes, &recipients);
-    }
-    /// CMSG_SET_LOOT_METHOD.
-    ///
-    /// This Trinity branch parses the packet but has the entire mutation block
-    /// disabled with `// not allowed to change`, so represented Rust preserves
-    /// that no-op behavior.
-    pub async fn handle_set_loot_method(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(e) = SetLootMethod::read(&mut pkt) {
-            warn!("Bad SetLootMethod: {e}");
-        }
-    }
     /// CMSG_OPT_OUT_OF_LOOT — toggle automatic pass on group-loot rolls.
     pub async fn handle_opt_out_of_loot(&mut self, mut pkt: wow_packet::WorldPacket) {
         let opt_out = match OptOutOfLoot::read(&mut pkt) {
@@ -876,26 +448,75 @@ impl WorldSession {
 
         let _ = self.set_pass_on_group_loot_like_cpp(opt_out.pass_on_loot);
     }
-    /// CMSG_LOW_LEVEL_RAID1 — no-op, C++ only logs at DEBUG level.
-    /// C++ anchor: GroupHandler.cpp:740-745
-    pub async fn handle_low_level_raid1(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(e) = LowLevelRaid1::read(&mut pkt) {
-            warn!("Bad LowLevelRaid1: {e}");
+
+    pub async fn handle_random_roll(&mut self, mut pkt: wow_packet::WorldPacket) {
+        let roll = match RandomRollClient::read(&mut pkt) {
+            Ok(roll) => roll,
+            Err(e) => {
+                warn!("Bad RandomRoll: {e}");
+                return;
+            }
+        };
+
+        if roll.min > roll.max || roll.max > 1_000_000 {
             return;
         }
-        if let Some(guid) = self.player_guid() {
-            tracing::debug!("HandleLowLevelRaid1 - Player {:?}", guid);
-        }
-    }
-    /// CMSG_LOW_LEVEL_RAID2 — no-op, C++ only logs at DEBUG level.
-    /// C++ anchor: GroupHandler.cpp:747-751
-    pub async fn handle_low_level_raid2(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(e) = LowLevelRaid2::read(&mut pkt) {
-            warn!("Bad LowLevelRaid2: {e}");
+
+        let Some(sender_guid) = self.player_guid() else {
             return;
+        };
+
+        let result = rand::thread_rng().gen_range(roll.min..=roll.max);
+        let response = RandomRoll {
+            roller: sender_guid,
+            roller_wow_account: ObjectGuid::new(
+                (HighGuid::WowAccount as i64) << 58,
+                i64::from(self.core.account_id),
+            ),
+            min: roll.min,
+            max: roll.max,
+            result,
+        };
+        let bytes = response.to_bytes();
+
+        let Some(group_reg) = self.group_registry().map(std::sync::Arc::clone) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            None,
+        ) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let Some(group) = group_reg.get(&group_guid) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let Some(registry) = self.player_registry().map(std::sync::Arc::clone) else {
+            self.send_packet(&response);
+            return;
+        };
+
+        let mut sent_to_sender = false;
+        // C++ `group->BroadcastPacket(randomRoll.Write(), false)` includes the roller.
+        for member_guid in &group.members {
+            if let Some(member) = registry.group_presence(*member_guid) {
+                let _ = registry.send_current_packet(member.registration, bytes.clone());
+                if *member_guid == sender_guid {
+                    sent_to_sender = true;
+                }
+            }
         }
-        if let Some(guid) = self.player_guid() {
-            tracing::debug!("HandleLowLevelRaid2 - Player {:?}", guid);
+
+        if !sent_to_sender {
+            self.send_packet(&response);
         }
     }
 }

@@ -14,6 +14,7 @@ mod duel;
 mod duel_publication;
 mod group;
 pub mod group_fanout;
+mod group_handlers;
 mod group_owner;
 mod guild;
 mod handlers;
@@ -49,6 +50,10 @@ pub use contracts::{
     RepresentedCalendarCommunityInviteLikeCpp, RepresentedCalendarRemoveEventLikeCpp,
     RepresentedDeclinePetitionLikeCpp, RepresentedQueryPetitionLikeCpp,
     RepresentedSignPetitionLikeCpp,
+};
+pub use group_handlers::{
+    SocialGroupHandlerCxLikeCpp, SocialGroupHandlerHostLikeCpp,
+    register_social_group_handlers_like_cpp,
 };
 pub use guild::{player_guild_state_snapshot_like_cpp, resolved_represented_guild_id_like_cpp};
 pub use handlers::{

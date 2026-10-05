@@ -96,6 +96,13 @@
     {
       "capability": "handler_registration",
       "package": "wow-world-social",
+      "module": "crate::group_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
       "module": "crate::arena_team_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
