@@ -6,11 +6,7 @@ use wow_world_core::session::{
 };
 
 impl crate::InventoryState {
-    pub fn set_player_gold_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        gold: u64,
-    ) -> bool {
+    pub fn set_player_gold_like_cpp(&mut self, hub: &mut HubMut<'_>, gold: u64) -> bool {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.set_player_gold_with_access_like_cpp(&access, gold)
     }
@@ -49,14 +45,10 @@ impl crate::InventoryState {
     ) -> bool {
         self.set_player_gold_with_access_like_cpp(&access.inventory_like_cpp(), gold)
     }
-
 }
 
 impl crate::InventoryState {
-    pub fn resolved_player_money_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u64> {
+    pub fn resolved_player_money_like_cpp(&self, hub: HubRef<'_>) -> Option<u64> {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.resolved_player_money_with_access_like_cpp(&access)
     }

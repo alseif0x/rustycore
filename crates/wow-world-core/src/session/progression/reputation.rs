@@ -138,7 +138,8 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn canonical_player_reputation_standing_like_cpp(&self, faction_id: u32) -> Option<i32> {
-        self.core.canonical_player_reputation_standing_like_cpp(faction_id)
+        self.core
+            .canonical_player_reputation_standing_like_cpp(faction_id)
     }
 
     pub fn reputation_reward_rate_for_source_like_cpp(
@@ -146,7 +147,8 @@ impl crate::session::HubRef<'_> {
         source: ReputationGainSourceLikeCpp,
         faction_id: u32,
     ) -> Option<f32> {
-        self.catalogs.reputation_reward_rate_for_source_like_cpp(source, faction_id)
+        self.catalogs
+            .reputation_reward_rate_for_source_like_cpp(source, faction_id)
     }
 }
 
@@ -270,7 +272,9 @@ impl crate::session::SessionCore {
         faction_id: u32,
     ) -> Option<i32> {
         self.canonical_player_snapshot_like_cpp(|player| {
-            player.reputation_like_cpp().factions_like_cpp()
+            player
+                .reputation_like_cpp()
+                .factions_like_cpp()
                 .find_map(|state| (state.faction_id == faction_id).then_some(state.standing))
                 .unwrap_or(0)
         })
@@ -293,9 +297,7 @@ impl crate::session::SessionCore {
         }
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
-            let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
-                fixture,
-            );
+            let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(fixture);
             return Some(operation.take().expect("reputation mutation is available")(
                 &mut manager,
             ));

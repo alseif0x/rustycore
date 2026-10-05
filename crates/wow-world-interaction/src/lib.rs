@@ -5,8 +5,8 @@ mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
 
-pub use state::{InteractionState, VendorItemCount};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use state::VendorBuyItemTestOverrideLikeCpp;
+pub use state::{InteractionState, VendorItemCount};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use test_support::SupportFeatureTestFixtureLikeCpp;

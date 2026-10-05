@@ -109,9 +109,9 @@ pub(crate) struct SeasonalQuestStatusDbRowLikeCpp {
 
 pub(crate) use wow_world_application::{
     RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
-    RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
-    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
-    RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
+    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
+    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    RepresentedQuestPushResultResponseLikeCpp,
 };
 pub(crate) use wow_world_instances::RepresentedAdventureMapStartQuestLikeCpp;
 
@@ -227,13 +227,14 @@ impl WorldSession {
         gameobject_entry: u32,
         source: wow_entities::QuestgiverUseSource,
     ) -> bool {
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::SendGossip {
-                gameobject_guid,
-                player_guid,
-                gossip_id: source.gossip_id,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::SendGossip {
+                    gameobject_guid,
+                    player_guid,
+                    gossip_id: source.gossip_id,
+                },
+            );
 
         let Some(quest_store) = self.catalogs.quests.store.as_ref().map(Arc::clone) else {
             return true;

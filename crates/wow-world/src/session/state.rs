@@ -14,13 +14,13 @@ use super::BTreeMap;
 use super::BTreeSet;
 use super::ClientOpcodes;
 use super::HashMap;
+use super::Instant;
 use super::OwnedLootAuthority;
 use super::RepresentedAdventureMapStartQuestLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::RepresentedLootRollCriteriaEvent;
-use super::Instant;
 #[cfg(test)]
 use super::RepresentedAreaZoneCriteriaLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::RepresentedLootRollCriteriaEvent;
 use super::{RepresentedLootRollState, RepresentedPendingBind};
 
 pub(crate) use wow_world_spell::SessionSpellState;
@@ -63,12 +63,11 @@ pub(crate) use visibility::VisibilityState;
 mod interaction;
 pub(crate) use interaction::InteractionState;
 
-pub(crate) use wow_world_social::SessionSocialLimits;
 pub(crate) use wow_world_application::SessionQuestState;
 pub(crate) use wow_world_application::{
-    RepresentedQuestCompleteStatusUpdateLikeCpp,
-    RepresentedQuestObjectiveProgressEventLikeCpp,
+    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
 };
+pub(crate) use wow_world_social::SessionSocialLimits;
 
 /// The session's view of the world it is in: the active area trigger, the taxi
 /// travel map lookup, the combat-tick bookkeeping and the realm PvP flags.

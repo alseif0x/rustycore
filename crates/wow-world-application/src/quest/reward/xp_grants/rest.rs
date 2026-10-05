@@ -10,29 +10,34 @@ use wow_world_core::session::{CoreXPGainAccessLikeCpp, SessionWorldConfig};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_social::SessionSocialLimits;
 
+use super::super::QuestRewardCx;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::QuestXpGainFixtureRefsLikeCpp;
-use super::super::QuestRewardCx;
 
 impl QuestRewardCx<'_> {
     pub fn take_represented_xp_rest_bonus_for_gain_like_cpp(
         &mut self,
         xp: u32,
         victim: wow_core::ObjectGuid,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &mut QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut QuestXpGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) -> (u32, u8) {
         if victim.is_empty() {
             return (0, 0);
         }
 
         #[cfg(any(test, feature = "test-fixtures"))]
-        if self.world_test_consumer && self.xp_gain_access_like_cpp().owner_handle_absent_like_cpp() {
+        if self.world_test_consumer
+            && self
+                .xp_gain_access_like_cpp()
+                .owner_handle_absent_like_cpp()
+        {
             let current_rest_bonus = {
                 let player = self.xp_gain_access_like_cpp();
-                let Some(bonus) = player.resolved_xp_rest_bonus_like_cpp(
-                    fixtures.core.rest_mgr_fixture_like_cpp(),
-                ) else {
+                let Some(bonus) = player
+                    .resolved_xp_rest_bonus_like_cpp(fixtures.core.rest_mgr_fixture_like_cpp())
+                else {
                     return (0, 0);
                 };
                 bonus
@@ -166,7 +171,9 @@ impl QuestRewardCx<'_> {
             state.install_loaded_rest_like_cpp(rest_state, rest_bonus);
             player.replace_rest_state_for_fixture_like_cpp(state, fixture_rest)
         } else {
-            player.install_rest_state_like_cpp(rest_state, rest_bonus).is_some()
+            player
+                .install_rest_state_like_cpp(rest_state, rest_bonus)
+                .is_some()
         };
         if !replaced {
             return 0;
@@ -197,10 +204,7 @@ impl QuestRewardCx<'_> {
         fixture_rest: &mut wow_world_core::session::RestMgrTestFixtureLikeCpp,
         aura_authority_complete: &bool,
         aura_spell_hit_tombstoned: &bool,
-        visible_auras: &std::collections::HashMap<
-            u8,
-            wow_entities::AuraApplicationLikeCpp,
-        >,
+        visible_auras: &std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
         threat_aura_snapshots: &std::collections::HashMap<
             u8,
             wow_entities::AuraThreatSnapshotLikeCpp,
@@ -215,8 +219,8 @@ impl QuestRewardCx<'_> {
             return (0, 0);
         };
         let rested_bonus = (current_rest_bonus as u32).min(xp);
-        let Some(rested_consumption_modifier) =
-            player.resolved_total_represented_aura_modifier_from_selected_refs_like_cpp(
+        let Some(rested_consumption_modifier) = player
+            .resolved_total_represented_aura_modifier_from_selected_refs_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
                 aura_authority_complete,
                 aura_spell_hit_tombstoned,

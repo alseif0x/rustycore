@@ -111,8 +111,8 @@ impl LootReleaseCxLikeCpp<'_> {
         self.owner
             .refresh_owned_loot_summary_like_cpp(route.owner_guid);
         if self.player_guid() == Some(route.player_guid) {
-            let _ = self
-                .reconcile_represented_loot_cache_like_cpp(route.owner_guid, route.player_guid);
+            let _ =
+                self.reconcile_represented_loot_cache_like_cpp(route.owner_guid, route.player_guid);
         }
         self.finalize_unviewed_durable_loot_owner_like_cpp(route);
         true

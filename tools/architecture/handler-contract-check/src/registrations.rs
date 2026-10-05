@@ -16,24 +16,23 @@ use syn::{Attribute, Expr, Item, ItemMacro, Lit, Meta, UseTree};
 use crate::module_policy::CapabilityOwner;
 use crate::ownership::WorkspaceSourceMount;
 
-mod local_inventory;
-mod legacy_registry;
-mod direct_builder;
 mod composer;
-pub(crate) use local_inventory::{
-    data_module_alias_violations, inventory_dependency_packages,
-    registration_alias_violations, registration_alias_violations_with_context,
-    registration_alias_violations_with_legacy_wrapper_reexport,
-};
-pub(crate) use direct_builder::{
-    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
-    ACCOUNT_DATA_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, SOCIAL_INSPECT_REGISTRAR,
-    RegistrarFacadeContract, RegistrarReport,
-    analyze_contract_source, analyze_owner_source, analyze_owner_source_with_contracts,
-    unowned_entry_literal_violation,
-};
+mod direct_builder;
+mod legacy_registry;
+mod local_inventory;
 pub(crate) use composer::{
     validate_composition_mounts, validate_composition_mounts_with_contracts,
+};
+pub(crate) use direct_builder::{
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract,
+    EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, RegistrarFacadeContract,
+    RegistrarReport, SOCIAL_INSPECT_REGISTRAR, analyze_contract_source, analyze_owner_source,
+    analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+};
+pub(crate) use local_inventory::{
+    data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
+    registration_alias_violations_with_context,
+    registration_alias_violations_with_legacy_wrapper_reexport,
 };
 
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
@@ -437,14 +436,18 @@ fn use_tree_can_alias_inventory_submit(tree: &UseTree) -> bool {
 fn use_tree_can_alias_expected_registration_macro(tree: &UseTree) -> bool {
     match tree {
         UseTree::Path(path) => use_tree_can_alias_expected_registration_macro(&path.tree),
-        UseTree::Name(name) => EXPECTED_REGISTRATION_MACROS
-            .iter()
-            .any(|expected| ident_is(&name.ident, expected))
-            || legacy_registry::is_wrapper_macro_name(&name.ident),
-        UseTree::Rename(rename) => EXPECTED_REGISTRATION_MACROS.iter().any(|expected| {
-            ident_is(&rename.ident, expected) || ident_is(&rename.rename, expected)
-        }) || legacy_registry::is_wrapper_macro_name(&rename.ident)
-            || legacy_registry::is_wrapper_macro_name(&rename.rename),
+        UseTree::Name(name) => {
+            EXPECTED_REGISTRATION_MACROS
+                .iter()
+                .any(|expected| ident_is(&name.ident, expected))
+                || legacy_registry::is_wrapper_macro_name(&name.ident)
+        }
+        UseTree::Rename(rename) => {
+            EXPECTED_REGISTRATION_MACROS.iter().any(|expected| {
+                ident_is(&rename.ident, expected) || ident_is(&rename.rename, expected)
+            }) || legacy_registry::is_wrapper_macro_name(&rename.ident)
+                || legacy_registry::is_wrapper_macro_name(&rename.rename)
+        }
         UseTree::Group(group) => group
             .items
             .iter()
@@ -604,9 +607,9 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
         allow_exact_legacy_registry_bridge,
         allow_local_data_module,
     )?
-        .into_iter()
-        .map(|violation| format!("{} {violation}", source_path.display()))
-        .collect::<Vec<_>>();
+    .into_iter()
+    .map(|violation| format!("{} {violation}", source_path.display()))
+    .collect::<Vec<_>>();
     if token_stream_mentions_ident(&tokens, "PacketHandlerEntry") {
         if let Some(violation) = direct_builder::unowned_entry_literal_violation(source)? {
             violations.push(format!("{} {violation}", source_path.display()));
@@ -1305,18 +1308,17 @@ pub(crate) fn analyze_handler_mounts(
     let mut collection = SourceCollection::default();
     let mut builder_entries = 0;
     let mut builder_registrars = 0;
-    for mount in mounts.iter().filter(|mount| {
-        owners
-            .iter()
-            .any(|owner| owner.package == mount.package)
-    }) {
+    for mount in mounts
+        .iter()
+        .filter(|mount| owners.iter().any(|owner| owner.package == mount.package))
+    {
         let owner_contexts: Vec<_> = mount
             .contexts
             .iter()
             .filter(|context| {
-                owners.iter().any(|owner| {
-                    owner.owns_module(&mount.package, &context.logical_module_path)
-                })
+                owners
+                    .iter()
+                    .any(|owner| owner.owns_module(&mount.package, &context.logical_module_path))
             })
             .collect();
         if owner_contexts.is_empty() {

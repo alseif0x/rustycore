@@ -108,8 +108,10 @@ impl WorldSession {
             self.loot
                 .ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
 
-            let Some((cached_entry, dungeon_encounter_id)) =
-                self.loot.cached_loot_for_owner_like_cpp(owner_guid).and_then(|loot| {
+            let Some((cached_entry, dungeon_encounter_id)) = self
+                .loot
+                .cached_loot_for_owner_like_cpp(owner_guid)
+                .and_then(|loot| {
                     loot.items
                         .iter()
                         .find(|entry| {

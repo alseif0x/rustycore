@@ -1,18 +1,15 @@
 //! Represented duel operations owned by the Social boundary.
 
-use crate::{
-    SPELL_DUEL_LIKE_CPP, SPELL_MOUNTED_DUEL_LIKE_CPP, SessionSocialLimits,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::{
     RepresentedCanDuelSpellCastLikeCpp, RepresentedDuelAcceptedLikeCpp,
     RepresentedDuelCancelOutcomeLikeCpp, RepresentedDuelCancelledLikeCpp,
-    RepresentedDuelRequestedLikeCpp,
-    SPELL_DUEL_BEG_LIKE_CPP,
+    RepresentedDuelRequestedLikeCpp, SPELL_DUEL_BEG_LIKE_CPP,
 };
+use crate::{SPELL_DUEL_LIKE_CPP, SPELL_MOUNTED_DUEL_LIKE_CPP, SessionSocialLimits};
 use std::sync::Arc;
 use wow_core::ObjectGuid;
-use wow_world_core::session::{mailbox::SessionCommand, HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, mailbox::SessionCommand};
 
 impl SessionSocialLimits {
     pub fn canonical_player_duel_in_progress_like_cpp(
@@ -154,11 +151,7 @@ impl SessionSocialLimits {
             .flatten()
     }
 
-    fn clear_represented_duel_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        player_guid: ObjectGuid,
-    ) {
+    fn clear_represented_duel_like_cpp(&mut self, hub: &mut HubMut<'_>, player_guid: ObjectGuid) {
         let _ = hub
             .core
             .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {

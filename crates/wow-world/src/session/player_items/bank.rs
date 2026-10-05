@@ -13,7 +13,9 @@ impl WorldSession {
         discount: f32,
         repair_cost_rate: f32,
     ) -> bool {
-        let Some(guild_bank_state) = self.inventory.represented_guild_repair_bank_state_like_cpp()
+        let Some(guild_bank_state) = self
+            .inventory
+            .represented_guild_repair_bank_state_like_cpp()
         else {
             return false;
         };
@@ -91,7 +93,13 @@ impl WorldSession {
     ) -> Option<(InventoryResult, Vec<ItemPosCount>)> {
         let conditions = self.player_condition_projection_cx_like_cpp();
         wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
-            .plan_bank_existing_inventory_item_at_like_cpp(source_bag, source_slot, destination_bag, destination_slot, swap)
+            .plan_bank_existing_inventory_item_at_like_cpp(
+                source_bag,
+                source_slot,
+                destination_bag,
+                destination_slot,
+                swap,
+            )
     }
     pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);

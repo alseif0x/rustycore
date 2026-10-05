@@ -9,10 +9,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use crate::session::{
-    state::SessionCore, RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
-    SKILL_ENCHANTING_LIKE_CPP, canonical_player_skill_record_like_cpp,
-    represented_player_skill_record_like_cpp, represented_skill_records_from_values_like_cpp,
-    represented_skill_values_from_records_like_cpp,
+    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp, SKILL_ENCHANTING_LIKE_CPP,
+    canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
+    represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
+    state::SessionCore,
 };
 use wow_data::{FishingBaseSkillStoreLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp};
 use wow_entities::Player;
@@ -176,10 +176,7 @@ impl crate::session::HubMut<'_> {
             occupied_slots,
             tombstones,
             (
-                &mut self
-                    .fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
                 &mut self.fixtures.progression.represented_enchanting_skill,
             ),
         )
@@ -357,8 +354,10 @@ impl crate::session::state::SessionCatalogs {
 impl SessionCore {
     pub(crate) fn resolved_player_skill_records_for_publication_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_records: &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_records: &HashMap<
+            u16,
+            RepresentedPlayerSkillLikeCpp,
+        >,
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
         let canonical = self.with_owned_player_like_cpp(|player| {
             player
@@ -382,8 +381,7 @@ impl SessionCore {
         skill_store: Option<&Arc<SkillStore>>,
         skill_lines: Option<&Arc<SkillLineStore>>,
         skill_tiers: Option<&Arc<SkillTiersStoreLikeCpp>>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_inputs: (
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_inputs: (
             &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
             &u8,
             &u8,
@@ -409,27 +407,29 @@ impl crate::session::HubRef<'_> {
     /// image instead of leaving the client on its pre-purchase ranks.
     pub fn send_complete_player_skill_values_update_like_cpp(&self) {
         #[cfg(any(test, feature = "test-fixtures"))]
-        self.core.send_complete_player_skill_values_update_with_inputs_like_cpp(
-            self.catalogs.skill_store(),
-            self.catalogs.skill_line_store(),
-            self.catalogs.skill_tiers_store(),
-            (
-                &self
-                    .fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp
-                    .player_skill_records_like_cpp,
-                &self.fixtures.identity.player_race,
-                &self.fixtures.identity.player_class,
-                &self.fixtures.identity.player_level,
-            ),
-        );
+        self.core
+            .send_complete_player_skill_values_update_with_inputs_like_cpp(
+                self.catalogs.skill_store(),
+                self.catalogs.skill_line_store(),
+                self.catalogs.skill_tiers_store(),
+                (
+                    &self
+                        .fixtures
+                        .progression
+                        .player_skill_test_fixture_like_cpp
+                        .player_skill_records_like_cpp,
+                    &self.fixtures.identity.player_race,
+                    &self.fixtures.identity.player_class,
+                    &self.fixtures.identity.player_level,
+                ),
+            );
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        self.core.send_complete_player_skill_values_update_with_inputs_like_cpp(
-            self.catalogs.skill_store(),
-            self.catalogs.skill_line_store(),
-            self.catalogs.skill_tiers_store(),
-        );
+        self.core
+            .send_complete_player_skill_values_update_with_inputs_like_cpp(
+                self.catalogs.skill_store(),
+                self.catalogs.skill_line_store(),
+                self.catalogs.skill_tiers_store(),
+            );
     }
 
     pub fn resolved_player_skill_max_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
@@ -540,13 +540,14 @@ impl crate::session::HubRef<'_> {
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.resolved_player_skill_records_for_publication_like_cpp(
-                &self
-                    .fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp
-                    .player_skill_records_like_cpp,
-            )
+            self.core
+                .resolved_player_skill_records_for_publication_like_cpp(
+                    &self
+                        .fixtures
+                        .progression
+                        .player_skill_test_fixture_like_cpp
+                        .player_skill_records_like_cpp,
+                )
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {

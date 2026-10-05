@@ -10,83 +10,96 @@ mod spell_hit_authority;
 
 fn attack_speed_multipliers_like_cpp(
     mut query: impl FnMut(i32) -> Option<Vec<(i32, i32)>>,
-    ) -> [f32; 3] {
-        use wow_data::spell::aura_types::{
-            SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_ATTACKSPEED, SPELL_AURA_MOD_MELEE_HASTE,
-            SPELL_AURA_MOD_MELEE_HASTE_2, SPELL_AURA_MOD_MELEE_HASTE_3,
-            SPELL_AURA_MOD_MELEE_RANGED_HASTE, SPELL_AURA_MOD_MELEE_RANGED_HASTE_2,
-            SPELL_AURA_MOD_RANGED_HASTE, SPELL_AURA_MOD_SPEED_SLOW_ALL,
-        };
+) -> [f32; 3] {
+    use wow_data::spell::aura_types::{
+        SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_ATTACKSPEED, SPELL_AURA_MOD_MELEE_HASTE,
+        SPELL_AURA_MOD_MELEE_HASTE_2, SPELL_AURA_MOD_MELEE_HASTE_3,
+        SPELL_AURA_MOD_MELEE_RANGED_HASTE, SPELL_AURA_MOD_MELEE_RANGED_HASTE_2,
+        SPELL_AURA_MOD_RANGED_HASTE, SPELL_AURA_MOD_SPEED_SLOW_ALL,
+    };
 
-        let mut multipliers = [1.0_f32; 3];
-        let mut apply = |aura_type: i32, attacks: &[usize]| {
-            for (_, amount) in query(aura_type)
-                .unwrap_or_default()
-            {
-                let amount = amount as f32;
-                let factor = if amount > 0.0 {
-                    100.0 / (100.0 + amount)
-                } else {
-                    (100.0 - amount) / 100.0
-                };
-                for attack in attacks {
-                    if let Some(slot) = multipliers.get_mut(*attack) {
-                        *slot *= factor;
-                    }
+    let mut multipliers = [1.0_f32; 3];
+    let mut apply = |aura_type: i32, attacks: &[usize]| {
+        for (_, amount) in query(aura_type).unwrap_or_default() {
+            let amount = amount as f32;
+            let factor = if amount > 0.0 {
+                100.0 / (100.0 + amount)
+            } else {
+                (100.0 - amount) / 100.0
+            };
+            for attack in attacks {
+                if let Some(slot) = multipliers.get_mut(*attack) {
+                    *slot *= factor;
                 }
             }
-        };
-        apply(SPELL_AURA_MOD_ATTACKSPEED, &[0]);
-        apply(SPELL_AURA_MOD_MELEE_HASTE, &[0, 1]);
-        apply(SPELL_AURA_MOD_MELEE_HASTE_2, &[0, 1]);
-        apply(SPELL_AURA_MOD_MELEE_HASTE_3, &[0, 1]);
-        apply(SPELL_AURA_MOD_RANGED_HASTE, &[2]);
-        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE, &[0, 1, 2]);
-        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE_2, &[0, 1, 2]);
-        apply(SPELL_AURA_MELEE_SLOW, &[0, 1, 2]);
-        apply(SPELL_AURA_MOD_SPEED_SLOW_ALL, &[0, 1, 2]);
-        multipliers
-    }
+        }
+    };
+    apply(SPELL_AURA_MOD_ATTACKSPEED, &[0]);
+    apply(SPELL_AURA_MOD_MELEE_HASTE, &[0, 1]);
+    apply(SPELL_AURA_MOD_MELEE_HASTE_2, &[0, 1]);
+    apply(SPELL_AURA_MOD_MELEE_HASTE_3, &[0, 1]);
+    apply(SPELL_AURA_MOD_RANGED_HASTE, &[2]);
+    apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE, &[0, 1, 2]);
+    apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE_2, &[0, 1, 2]);
+    apply(SPELL_AURA_MELEE_SLOW, &[0, 1, 2]);
+    apply(SPELL_AURA_MOD_SPEED_SLOW_ALL, &[0, 1, 2]);
+    multipliers
+}
 
 /// C++ `SPELLFAMILY_MAGE` (`SharedDefines.h:6438`).
 const SPELL_FAMILY_MAGE_LIKE_CPP: i32 = 3;
 
 impl SessionSpellState {
     pub fn sync_shapeshift_form_ownership_with_access_like_cpp(
-        &self, player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
-        spell_store: Option<&std::sync::Arc<wow_data::SpellStore>>, mutated_spell_id: i32,
+        &self,
+        player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+        spell_store: Option<&std::sync::Arc<wow_data::SpellStore>>,
+        mutated_spell_id: i32,
         consumer_test: bool,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_form: &mut u32,
     ) -> Option<RepresentedShapeshiftMutationLikeCpp> {
-        let Some(store) = spell_store.cloned() else { return None; };
-        if !self.represented_spell_has_mod_shapeshift_effect_with_store_like_cpp(spell_store.map(|store| store.as_ref()), mutated_spell_id) {
+        let Some(store) = spell_store.cloned() else {
+            return None;
+        };
+        if !self.represented_spell_has_mod_shapeshift_effect_with_store_like_cpp(
+            spell_store.map(|store| store.as_ref()),
+            mutated_spell_id,
+        ) {
             return None;
         }
-        let mutated_form = store.get(mutated_spell_id).and_then(shapeshift_form_of_spell_like_cpp);
+        let mutated_form = store
+            .get(mutated_spell_id)
+            .and_then(shapeshift_form_of_spell_like_cpp);
         if player.player_has_visible_aura_spell_like_cpp(mutated_spell_id) == Some(true) {
             let form_id = mutated_form?;
-            player.set_shapeshift_form_like_cpp(form_id, consumer_test,
-                #[cfg(any(test, feature = "test-fixtures"))] fixture_form,
+            player.set_shapeshift_form_like_cpp(
+                form_id,
+                consumer_test,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixture_form,
             );
             return Some(RepresentedShapeshiftMutationLikeCpp::Applied { form_id });
         }
-        let remaining_form = player.visible_auras_snapshot_like_cpp().unwrap_or_default()
-            .into_values().find_map(|aura| shapeshift_form_of_spell_like_cpp(store.get(aura.spell_id)?));
+        let remaining_form = player
+            .visible_auras_snapshot_like_cpp()
+            .unwrap_or_default()
+            .into_values()
+            .find_map(|aura| shapeshift_form_of_spell_like_cpp(store.get(aura.spell_id)?));
         let new_form = remaining_form.unwrap_or(0);
-        player.set_shapeshift_form_like_cpp(new_form, consumer_test,
-            #[cfg(any(test, feature = "test-fixtures"))] fixture_form,
+        player.set_shapeshift_form_like_cpp(
+            new_form,
+            consumer_test,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_form,
         );
         Some(RepresentedShapeshiftMutationLikeCpp::Removed {
-            removed_form: mutated_form.unwrap_or(0), new_form,
+            removed_form: mutated_form.unwrap_or(0),
+            new_form,
         })
     }
     /// C++ `Unit::HasAuraState(flag)` for the represented Caster: the union of
     /// the unit's aura-driven state bits and its health-derived bits.
-    pub fn represented_has_aura_state_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        aura_state: u32,
-    ) -> bool {
+    pub fn represented_has_aura_state_like_cpp(&self, hub: HubRef<'_>, aura_state: u32) -> bool {
         let Some(flag) = u8::try_from(aura_state).ok().filter(|flag| *flag != 0) else {
             return false;
         };
@@ -105,10 +118,7 @@ impl SessionSpellState {
     ///
     /// `None` when the canonical Player owner is unavailable, so callers fail
     /// closed instead of reading an empty mask as an authoritative zero.
-    pub fn represented_player_aura_state_mask_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u32> {
+    pub fn represented_player_aura_state_mask_like_cpp(&self, hub: HubRef<'_>) -> Option<u32> {
         let aura_driven = hub.core.canonical_player_snapshot_like_cpp(|player| {
             player.unit().subsystems().auras.aura_state_mask
         })?;
@@ -130,7 +140,10 @@ impl SessionSpellState {
         hub: HubRef<'_>,
         spell_id: i32,
     ) -> bool {
-        self.represented_spell_has_mod_shapeshift_effect_with_store_like_cpp(hub.catalogs.spell_store().map(|store| store.as_ref()), spell_id)
+        self.represented_spell_has_mod_shapeshift_effect_with_store_like_cpp(
+            hub.catalogs.spell_store().map(|store| store.as_ref()),
+            spell_id,
+        )
     }
 
     pub fn represented_spell_has_mod_shapeshift_effect_with_store_like_cpp(
@@ -160,26 +173,32 @@ impl SessionSpellState {
     /// `SPELL_AURA_MOD_MELEE_HASTE`/`MELEE_SLOW` needs the spell-group tables
     /// that the represented session does not load yet, so every active effect is
     /// multiplied here.
-    pub fn represented_attack_speed_multipliers_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> [f32; 3] {
-        attack_speed_multipliers_like_cpp(|aura_type| hub.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type))
+    pub fn represented_attack_speed_multipliers_like_cpp(&self, hub: HubRef<'_>) -> [f32; 3] {
+        attack_speed_multipliers_like_cpp(|aura_type| {
+            hub.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+        })
     }
 
     pub fn represented_attack_speed_multipliers_with_access_like_cpp(
-        &self, player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+        &self,
+        player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
         spell_store: Option<&wow_data::SpellStore>,
     ) -> [f32; 3] {
-        attack_speed_multipliers_like_cpp(|aura_type| player.aura_effects_by_spell_aura_type_like_cpp(spell_store, aura_type))
+        attack_speed_multipliers_like_cpp(|aura_type| {
+            player.aura_effects_by_spell_aura_type_like_cpp(spell_store, aura_type)
+        })
     }
 
     pub fn sync_attack_speed_with_access_like_cpp(
-        &self, player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+        &self,
+        player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
         spell_store: Option<&wow_data::SpellStore>,
     ) {
-        let multipliers = self.represented_attack_speed_multipliers_with_access_like_cpp(player, spell_store);
-        let autoattack = player.autoattack_damage_multiplier_like_cpp(spell_store).max(0.0);
+        let multipliers =
+            self.represented_attack_speed_multipliers_with_access_like_cpp(player, spell_store);
+        let autoattack = player
+            .autoattack_damage_multiplier_like_cpp(spell_store)
+            .max(0.0);
         player.apply_attack_speed_multipliers_like_cpp(multipliers, autoattack);
     }
 
@@ -196,10 +215,7 @@ impl SessionSpellState {
     /// A total of `1000` or more is C++'s `SetInstantCast(true)`, represented as
     /// a zero multiplier. Boundary: the spell-group de-duplication and the
     /// `ModHasteRegen` cooldown-recovery consumer remain unrepresented.
-    pub fn represented_cast_speed_multiplier_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> f32 {
+    pub fn represented_cast_speed_multiplier_like_cpp(&self, hub: HubRef<'_>) -> f32 {
         use wow_data::spell::aura_types::{
             SPELL_AURA_HASTE_SPELLS, SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
             SPELL_AURA_MOD_SPEED_SLOW_ALL,
@@ -263,7 +279,9 @@ impl SessionSpellState {
     ) -> bool {
         let spell_store = hub.catalogs.spell_store().map(AsRef::as_ref);
         self.apply_represented_transform_aura_with_access_like_cpp(
-            &mut hub.player_aura_removal_access_like_cpp(), spell_store, aura,
+            &mut hub.player_aura_removal_access_like_cpp(),
+            spell_store,
+            aura,
         )
     }
 
@@ -283,7 +301,8 @@ impl SessionSpellState {
             let Some(new_spell) = store.get(aura.spell_id) else {
                 return false;
             };
-            let current = player.aura_subsystem_snapshot_like_cpp()
+            let current = player
+                .aura_subsystem_snapshot_like_cpp()
                 .map_or(0, |auras| auras.transform_spell_like_cpp());
             // C++ resolves the current transform through
             // `sSpellMgr->GetSpellInfo(GetTransformSpell(), difficulty)`, so a
@@ -300,7 +319,9 @@ impl SessionSpellState {
         };
         let spell_id = aura.spell_id;
         let mutated = player.apply_transform_canonical_like_cpp(
-            spell_id, new_is_positive, current_is_positive,
+            spell_id,
+            new_is_positive,
+            current_is_positive,
         );
         #[cfg(any(test, feature = "test-fixtures"))]
         if !mutated && player.player_handle_absent_like_cpp() {
@@ -324,7 +345,8 @@ impl SessionSpellState {
         aura: &AuraApplication,
     ) -> bool {
         self.remove_represented_transform_aura_with_access_like_cpp(
-            &mut hub.player_aura_removal_access_like_cpp(), aura,
+            &mut hub.player_aura_removal_access_like_cpp(),
+            aura,
         )
     }
 
@@ -334,7 +356,8 @@ impl SessionSpellState {
         aura: &AuraApplication,
     ) -> bool {
         let spell_id = aura.spell_id;
-        let owns_transform = player.aura_subsystem_snapshot_like_cpp()
+        let owns_transform = player
+            .aura_subsystem_snapshot_like_cpp()
             .is_some_and(|auras| auras.transform_spell_like_cpp() == spell_id);
         if !owns_transform {
             return false;
@@ -356,10 +379,7 @@ impl SessionSpellState {
     /// MAGE family branch (`SpellInfo.cpp:2665-2671`): family
     /// `SPELLFAMILY_MAGE` (3), family flag `0x1000000` and effect 0 applying
     /// `SPELL_AURA_MOD_CONFUSE`.
-    pub fn represented_player_is_polymorphed_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<bool> {
+    pub fn represented_player_is_polymorphed_like_cpp(&self, hub: HubRef<'_>) -> Option<bool> {
         let transform_spell = hub
             .player_aura_subsystem_snapshot_like_cpp()?
             .transform_spell_like_cpp();

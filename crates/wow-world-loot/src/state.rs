@@ -1,15 +1,15 @@
 use std::collections::{HashMap, HashSet};
-use std::time::Duration;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::{Arc, atomic::AtomicUsize};
+use std::time::Duration;
 
 use wow_core::ObjectGuid;
 use wow_loot::OwnedLootAuthority;
 use wow_packet::packets::loot::CreatureLoot;
 
-use crate::RepresentedLootRollState;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedLootRollCriteriaEvent;
+use crate::RepresentedLootRollState;
 
 mod active_views;
 mod authority;

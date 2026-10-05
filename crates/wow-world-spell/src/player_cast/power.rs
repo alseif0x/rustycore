@@ -3,11 +3,11 @@
 use crate::SessionSpellState;
 use num_traits::FromPrimitive;
 use std::sync::OnceLock;
+use tracing::info;
 use wow_constants::{PowerType, SpellCastResult};
 use wow_core::ObjectGuid;
 use wow_packet::packets::spell::{CastFailed, SpellCastVisual};
-use wow_world_core::session::{game_time_ms_like_cpp, HubMut};
-use tracing::info;
+use wow_world_core::session::{HubMut, game_time_ms_like_cpp};
 
 const SPELL_POWER_TRACE_ENV_LIKE_CPP: &str = "RUSTYCORE_SPELL_POWER_TRACE";
 
@@ -227,9 +227,7 @@ impl SessionSpellState {
                 {
                     player
                         .unit_mut()
-                        .set_mp5_regeneration_interrupt_start_like_cpp(
-                            game_time_ms_like_cpp(),
-                        );
+                        .set_mp5_regeneration_interrupt_start_like_cpp(game_time_ms_like_cpp());
                 }
                 let after_power = power_costs
                     .iter()

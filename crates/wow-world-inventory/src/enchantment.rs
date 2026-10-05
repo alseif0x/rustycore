@@ -2,7 +2,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use crate::RepresentedItemBonusActionLikeCpp;
-use wow_constants::{item::EnchantmentSlot, SpellItemEnchantmentFlags};
+use wow_constants::{SpellItemEnchantmentFlags, item::EnchantmentSlot};
 use wow_core::ObjectGuid;
 use wow_entities::{
     ApplyEnchantmentArgs, ApplyEnchantmentPlan, EQUIPMENT_SLOT_END, PlayerEnchantTimeUpdate,
@@ -54,11 +54,20 @@ impl crate::InventoryState {
         let inventory = hub.core.owned_inventory_access_like_cpp();
         let owner = hub.core.owned_item_enchantment_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
-            &hub.fixtures.progression.player_skill_test_fixture_like_cpp.player_skill_records_like_cpp,
+            &hub.fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
         );
         let catalogs = ItemEnchantmentCatalogsLikeCpp::new(
-            hub.catalogs.spell_catalogs.spell_item_enchantment_store.as_deref(),
-            hub.catalogs.spell_catalogs.spell_item_enchantment_condition_store.as_deref(),
+            hub.catalogs
+                .spell_catalogs
+                .spell_item_enchantment_store
+                .as_deref(),
+            hub.catalogs
+                .spell_catalogs
+                .spell_item_enchantment_condition_store
+                .as_deref(),
             hub.catalogs.items.store.as_ref(),
             hub.catalogs.items.stats_store.as_ref(),
             hub.catalogs.gem_properties_store.as_deref(),
@@ -74,7 +83,8 @@ impl crate::InventoryState {
     ) -> Option<wow_entities::Item> {
         self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
             inventory.remove_item_object_like_cpp(item_guid)
-        }).flatten()
+        })
+        .flatten()
     }
 
     /// C++ `_StoreItem` merge branch calls `AddEnchantmentDurations(pItem2)`
@@ -113,7 +123,10 @@ impl crate::InventoryState {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.inventory_remove_enchantment_persistence_with_access_like_cpp(
             &access,
-            hub.catalogs.spell_catalogs.spell_item_enchantment_store.as_deref(),
+            hub.catalogs
+                .spell_catalogs
+                .spell_item_enchantment_store
+                .as_deref(),
             item_guid,
             clear_mainhand_only,
         )
@@ -126,7 +139,8 @@ impl crate::InventoryState {
         item_guid: ObjectGuid,
         clear_mainhand_only: bool,
     ) -> Option<(String, Vec<EnchantmentSlot>)> {
-        let item = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)?;
+        let item =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)?;
         let current_durations = access
             .inventory_enchantment_durations_snapshot_like_cpp(item_guid)
             .unwrap_or_default();
@@ -140,9 +154,7 @@ impl crate::InventoryState {
             };
             let enchantment_entry = u32::try_from(enchantment.id)
                 .ok()
-                .and_then(|id| {
-                    enchantment_store?.get(id)
-                })
+                .and_then(|id| enchantment_store?.get(id))
                 .copied();
             let clear_mainhand = clear_mainhand_only
                 && enchantment_entry.is_some_and(|entry| {
@@ -241,10 +253,7 @@ impl crate::InventoryState {
         }
     }
 
-    pub fn resolved_enchanting_skill_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u16> {
+    pub fn resolved_enchanting_skill_like_cpp(&self, hub: HubRef<'_>) -> Option<u16> {
         let canonical = hub.core.with_owned_player_like_cpp(|player| {
             player.enchanting_skill_value_like_cpp(SKILL_ENCHANTING_LIKE_CPP)
         });

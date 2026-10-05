@@ -284,67 +284,101 @@ async fn trainer_list_evaluates_wrapper_offer_after_full_feign_removal() {
         req_ability: [0; 3],
         req_level: 1,
     };
-    assert!(matches!(
-        fixture.session.trainer_offer_decision_like_cpp(
-            DEFAULT_TRAINER_ID, &trainer_spell, 1,
+    assert!(
+        matches!(
+            fixture
+                .session
+                .trainer_offer_decision_like_cpp(DEFAULT_TRAINER_ID, &trainer_spell, 1,),
+            TrainerOfferDecisionLikeCpp::Unavailable(_)
         ),
-        TrainerOfferDecisionLikeCpp::Unavailable(_)
-    ), "the active aura without cast metadata must fail the fresh wrapper proof");
+        "the active aura without cast metadata must fail the fresh wrapper proof"
+    );
     assert!(canonical_player_has_died_state(&mut fixture.session));
     assert!(fixture.send_rx.try_recv().is_err());
 
-    fixture.session.handle_trainer_list(wow_packet::packets::gossip::Hello {
-        unit: fixture.trainer,
-    }).await;
+    fixture
+        .session
+        .handle_trainer_list(wow_packet::packets::gossip::Hello {
+            unit: fixture.trainer,
+        })
+        .await;
 
-    assert_eq!(fixture.send_rx.try_recv().unwrap(),
+    assert_eq!(
+        fixture.send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::AuraUpdate {
             unit_guid: fixture.session.player_guid().expect("active player"),
             update_all: false,
             auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
-                slot: 6, aura_data: None,
+                slot: 6,
+                aura_data: None,
             }],
-        }.to_bytes());
-    assert_eq!(fixture.send_rx.try_recv().unwrap(), TrainerListPacket {
-        trainer_guid: fixture.trainer,
-        trainer_type: 2,
-        trainer_id: DEFAULT_TRAINER_ID as i32,
-        spells: vec![TrainerListSpell {
-            spell_id: WRAPPER_TRAINER_SPELL,
-            money_cost: 25,
-            req_skill_line: 0,
-            req_skill_rank: 0,
-            req_ability: [0; 3],
-            usable: TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
-            req_level: 1,
-        }],
-        greeting: "Train".to_string(),
-    }.to_bytes());
+        }
+        .to_bytes()
+    );
+    assert_eq!(
+        fixture.send_rx.try_recv().unwrap(),
+        TrainerListPacket {
+            trainer_guid: fixture.trainer,
+            trainer_type: 2,
+            trainer_id: DEFAULT_TRAINER_ID as i32,
+            spells: vec![TrainerListSpell {
+                spell_id: WRAPPER_TRAINER_SPELL,
+                money_cost: 25,
+                req_skill_line: 0,
+                req_skill_rank: 0,
+                req_ability: [0; 3],
+                usable: TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+                req_level: 1,
+            }],
+            greeting: "Train".to_string(),
+        }
+        .to_bytes()
+    );
     assert!(!canonical_player_has_died_state(&mut fixture.session));
-    assert!(!fixture.session.resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner").contains_key(&6));
-    assert!(fixture.session.player_trainer_interaction_matches_like_cpp(
-        fixture.trainer, DEFAULT_TRAINER_ID as i32,
-    ));
+    assert!(
+        !fixture
+            .session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&6)
+    );
+    assert!(
+        fixture.session.player_trainer_interaction_matches_like_cpp(
+            fixture.trainer,
+            DEFAULT_TRAINER_ID as i32,
+        )
+    );
     assert!(fixture.send_rx.try_recv().is_err());
 }
 
 #[tokio::test]
 async fn trainer_list_invalid_npc_preserves_feign_binding_and_sends_nothing() {
     let mut fixture = trainer_fixture();
-    fixture.session.set_player_trainer_interaction_like_cpp(fixture.other_trainer, 17);
+    fixture
+        .session
+        .set_player_trainer_interaction_like_cpp(fixture.other_trainer, 17);
     seed_feign_death(&mut fixture.session, 6);
 
-    fixture.session.handle_trainer_list(wow_packet::packets::gossip::Hello {
-        unit: fixture.vendor,
-    }).await;
+    fixture
+        .session
+        .handle_trainer_list(wow_packet::packets::gossip::Hello {
+            unit: fixture.vendor,
+        })
+        .await;
 
     assert!(canonical_player_has_died_state(&mut fixture.session));
-    assert!(fixture.session.resolved_player_visible_auras_like_cpp()
-        .expect("canonical Player aura owner").contains_key(&6));
-    assert!(fixture.session.player_trainer_interaction_matches_like_cpp(
-        fixture.other_trainer, 17,
-    ));
+    assert!(
+        fixture
+            .session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&6)
+    );
+    assert!(
+        fixture
+            .session
+            .player_trainer_interaction_matches_like_cpp(fixture.other_trainer, 17,)
+    );
     assert!(fixture.send_rx.try_recv().is_err());
 }
 

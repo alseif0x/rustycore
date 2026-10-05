@@ -21,26 +21,28 @@ impl WorldSession {
         creature_guid: ObjectGuid,
     ) -> RepresentedCanSeeSpellClickOutcomeLikeCpp {
         let owner = self.core.quest_objective_access_like_cpp();
-        let npc_access = self.core.npc_interaction_access_with_selected_refs_like_cpp(
-            self.catalogs.factions.store.as_deref(),
-            self.catalogs.factions.template_store.as_deref(),
-            self.catalogs.friendship_rep_reaction_store.as_deref(),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_core::session::NpcInteractionFixtureRefsLikeCpp::new(
-                &self.fixtures.movement.player_position,
-                &self.fixtures.identity.player_faction_template_like_cpp,
-                &self.fixtures.identity.player_race,
-                &self.fixtures.identity.player_class,
-                &self.fixtures.combat.player_health_like_cpp,
-                &self.fixtures.combat.player_max_health_like_cpp,
-                &self.fixtures.combat.player_alive_like_cpp,
-                &self.fixtures.progression.reputation_state_like_cpp,
-                &self.fixtures.vehicles.taxi_destinations_like_cpp,
-                &self.fixtures.vehicles.taxi_flight_state_like_cpp,
-                &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
-                &self.fixtures.vehicles.taxi_mounted_like_cpp,
-            ),
-        );
+        let npc_access = self
+            .core
+            .npc_interaction_access_with_selected_refs_like_cpp(
+                self.catalogs.factions.store.as_deref(),
+                self.catalogs.factions.template_store.as_deref(),
+                self.catalogs.friendship_rep_reaction_store.as_deref(),
+                #[cfg(any(test, feature = "test-fixtures"))]
+                wow_world_core::session::NpcInteractionFixtureRefsLikeCpp::new(
+                    &self.fixtures.movement.player_position,
+                    &self.fixtures.identity.player_faction_template_like_cpp,
+                    &self.fixtures.identity.player_race,
+                    &self.fixtures.identity.player_class,
+                    &self.fixtures.combat.player_health_like_cpp,
+                    &self.fixtures.combat.player_max_health_like_cpp,
+                    &self.fixtures.combat.player_alive_like_cpp,
+                    &self.fixtures.progression.reputation_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_destinations_like_cpp,
+                    &self.fixtures.vehicles.taxi_flight_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
+                    &self.fixtures.vehicles.taxi_mounted_like_cpp,
+                ),
+            );
         let player_access = self
             .core
             .player_condition_access_with_selected_fixture_refs_like_cpp(
@@ -96,7 +98,10 @@ impl WorldSession {
             &self.social,
             self.catalogs.chr.specialization_store.as_deref(),
             creature_guid,
-            self.catalogs.spell_catalogs.npc_spell_click_store.as_deref(),
+            self.catalogs
+                .spell_catalogs
+                .npc_spell_click_store
+                .as_deref(),
             self.catalogs.condition_store.as_deref(),
             self.catalogs.player_condition_store.as_ref(),
             self.catalogs.area_table_store.as_ref(),

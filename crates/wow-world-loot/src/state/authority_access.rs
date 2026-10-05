@@ -23,7 +23,9 @@ impl LootState {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        hub.core.loot_release_access_like_cpp().read_legacy_creature_loot_authority_on_map_like_cpp(guid, map_key)
+        hub.core
+            .loot_release_access_like_cpp()
+            .read_legacy_creature_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
     pub fn read_canonical_creature_loot_authority_like_cpp(
@@ -45,7 +47,9 @@ impl LootState {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        hub.core.loot_release_access_like_cpp().read_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key)
+        hub.core
+            .loot_release_access_like_cpp()
+            .read_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
     pub fn rebind_canonical_creature_loot_authority_like_cpp(
@@ -80,7 +84,15 @@ impl LootState {
         expected_stamp: OwnedLootAuthorityStamp,
         authority: OwnedLootAuthority,
     ) -> Option<bool> {
-        hub.core.loot_release_access_like_cpp().rebind_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key, expected, expected_stamp, authority)
+        hub.core
+            .loot_release_access_like_cpp()
+            .rebind_canonical_creature_loot_authority_on_map_like_cpp(
+                guid,
+                map_key,
+                expected,
+                expected_stamp,
+                authority,
+            )
     }
 
     pub fn read_canonical_gameobject_loot_authority_like_cpp(
@@ -102,7 +114,9 @@ impl LootState {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        hub.core.loot_release_access_like_cpp().read_canonical_gameobject_loot_authority_on_map_like_cpp(guid, map_key)
+        hub.core
+            .loot_release_access_like_cpp()
+            .read_canonical_gameobject_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
     pub fn rebind_canonical_gameobject_loot_authority_like_cpp(

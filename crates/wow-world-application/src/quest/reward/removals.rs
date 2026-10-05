@@ -5,13 +5,13 @@
 
 //! Ordered quest turn-in removal and its pre-commit publication.
 
-use super::QuestRewardCx;
 use super::super::QuestRewardDurablePlanLikeCpp;
+use super::QuestRewardCx;
 use wow_constants::quest::QUEST_OBJECTIVE_ITEM_LIKE_CPP;
 use wow_packet::packets::misc::SetCurrency;
-use wow_world_inventory::ExtendedCostItemTurninChange;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::StatsFixtureRefs;
+use wow_world_inventory::ExtendedCostItemTurninChange;
 
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_FLAGS_REMOVE_SURPLUS_ITEMS_LIKE_CPP: u32 = 0x0200_0000;
@@ -24,30 +24,35 @@ impl QuestRewardCx<'_> {
         player_guid: wow_core::ObjectGuid,
         map_id: u16,
         changes: &[ExtendedCostItemTurninChange],
-        #[cfg(any(test, feature = "test-fixtures"))]
-        stats_fixtures: StatsFixtureRefs<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] stats_fixtures: StatsFixtureRefs<'_>,
     ) {
         let access = self.player.inventory_like_cpp();
         let publication = self.player.packet_publication_access_like_cpp();
-        let send_stat_update = self.inventory.apply_item_turnin_changes_with_access_like_cpp(
-            &access,
-            &publication,
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-            player_guid,
-            map_id,
-            changes,
-        );
+        let send_stat_update = self
+            .inventory
+            .apply_item_turnin_changes_with_access_like_cpp(
+                &access,
+                &publication,
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+                player_guid,
+                map_id,
+                changes,
+            );
         if send_stat_update {
             #[cfg(any(test, feature = "test-fixtures"))]
             let player = self.player.stats_access_like_cpp(
-                self.catalogs, self.config, &*self.player_level, stats_fixtures,
+                self.catalogs,
+                self.config,
+                &*self.player_level,
+                stats_fixtures,
             );
             #[cfg(not(any(test, feature = "test-fixtures")))]
-            let player = self.player.stats_access_like_cpp(self.catalogs, self.config);
-            crate::CharacterStatsApplicationCxLikeCpp::new(
-                player, self.inventory, publication,
-            ).send_stat_update_like_cpp();
+            let player = self
+                .player
+                .stats_access_like_cpp(self.catalogs, self.config);
+            crate::CharacterStatsApplicationCxLikeCpp::new(player, self.inventory, publication)
+                .send_stat_update_like_cpp();
         }
     }
 
@@ -55,15 +60,15 @@ impl QuestRewardCx<'_> {
         &mut self,
         plan: &mut QuestRewardDurablePlanLikeCpp,
         quest: &wow_data::quest::QuestTemplate,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        stats_fixtures: StatsFixtureRefs<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] stats_fixtures: StatsFixtureRefs<'_>,
     ) -> bool {
         let Some(player_guid) = self.player.player_guid_like_cpp() else {
             return false;
         };
         let map_id = self.player.player_map_id_like_cpp();
         let mut item_changes = Vec::new();
-        let Some(currency_snapshot) = self.inventory
+        let Some(currency_snapshot) = self
+            .inventory
             .player_currencies_with_quest_reward_access_like_cpp(&self.player)
         else {
             return false;
@@ -81,8 +86,8 @@ impl QuestRewardCx<'_> {
                     } else {
                         u32::try_from(objective.amount).unwrap_or(u32::MAX)
                     };
-                    let Some(mut changes) = self
-                        .plan_quest_reward_item_removal_like_cpp(item_entry, count)
+                    let Some(mut changes) =
+                        self.plan_quest_reward_item_removal_like_cpp(item_entry, count)
                     else {
                         return false;
                     };
@@ -96,28 +101,29 @@ impl QuestRewardCx<'_> {
                         return false;
                     };
                     let access = self.player.currency_like_cpp();
-                    let Some(before) = self.inventory
+                    let Some(before) = self
+                        .inventory
                         .player_currency_quantity_with_access_like_cpp(&access, currency_id)
                     else {
-                        self.inventory.set_player_currencies_with_access_like_cpp(
-                            &access, currency_snapshot,
-                        );
+                        self.inventory
+                            .set_player_currencies_with_access_like_cpp(&access, currency_snapshot);
                         return false;
                     };
                     if !self.inventory.remove_currency_with_access_like_cpp(
-                        &access, currency_id, amount,
+                        &access,
+                        currency_id,
+                        amount,
                     ) {
-                        self.inventory.set_player_currencies_with_access_like_cpp(
-                            &access, currency_snapshot,
-                        );
+                        self.inventory
+                            .set_player_currencies_with_access_like_cpp(&access, currency_snapshot);
                         return false;
                     }
-                    let Some(after) = self.inventory
+                    let Some(after) = self
+                        .inventory
                         .player_currency_quantity_with_access_like_cpp(&access, currency_id)
                     else {
-                        self.inventory.set_player_currencies_with_access_like_cpp(
-                            &access, currency_snapshot,
-                        );
+                        self.inventory
+                            .set_player_currencies_with_access_like_cpp(&access, currency_snapshot);
                         return false;
                     };
                     let removed = before.saturating_sub(after);
@@ -135,12 +141,14 @@ impl QuestRewardCx<'_> {
                     continue;
                 }
                 let count = if *count == 0 { u32::MAX } else { *count };
-                let Some(mut changes) = self
-                    .plan_quest_reward_item_removal_like_cpp(*item_entry, count)
+                let Some(mut changes) =
+                    self.plan_quest_reward_item_removal_like_cpp(*item_entry, count)
                 else {
-                    self.inventory.set_player_currencies_with_quest_reward_access_like_cpp(
-                        &self.player, currency_snapshot,
-                    );
+                    self.inventory
+                        .set_player_currencies_with_quest_reward_access_like_cpp(
+                            &self.player,
+                            currency_snapshot,
+                        );
                     return false;
                 };
                 item_changes.append(&mut changes);
@@ -182,7 +190,9 @@ impl QuestRewardCx<'_> {
         }
 
         self.apply_item_turnin_changes_like_cpp(
-            player_guid, map_id, &item_changes,
+            player_guid,
+            map_id,
+            &item_changes,
             #[cfg(any(test, feature = "test-fixtures"))]
             stats_fixtures,
         );

@@ -8,25 +8,23 @@ pub use inputs::PlayerConditionProjectionInputsLikeCpp;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use wow_conditions::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-};
+use wow_conditions::{QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP};
 use wow_data::{
     AreaTableStore, ChrSpecializationStore, ConditionEntriesByTypeStore, ItemStore,
     PlayerConditionAuraLikeCpp, PlayerConditionContextLikeCpp, PlayerConditionCountLikeCpp,
     PlayerConditionPartyStatusLikeCpp, PlayerConditionQuestKillLikeCpp,
     PlayerConditionReputationLikeCpp, PlayerConditionSkillLikeCpp, PlayerConditionStore,
 };
-use wow_world_core::session::PlayerConditionAccessLikeCpp;
-use wow_world_core::session::InventoryValuationCatalogViewLikeCpp;
-use wow_world_social::SessionSocialLimits;
 use wow_entities::{
-    AuraApplicationLikeCpp, PlayerCurrency, PlayerInventoryItem, PlayerQuestGameplayState,
-    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
+    AuraApplicationLikeCpp, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PlayerCurrency,
+    PlayerInventoryItem, PlayerQuestGameplayState,
 };
-use wow_world_inventory::InventoryState;
+use wow_world_core::session::InventoryValuationCatalogViewLikeCpp;
+use wow_world_core::session::PlayerConditionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_instances::InstanceState;
+use wow_world_inventory::InventoryState;
+use wow_world_social::SessionSocialLimits;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_spell::SessionSpellState;
 
@@ -91,25 +89,18 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
         inventory: &'a InventoryState,
         social: &'a SessionSocialLimits,
         chr_specializations: Option<&'a ChrSpecializationStore>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        spell_state: &'a SessionSpellState,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        quest_state: &'a crate::SessionQuestState,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        instances: &'a InstanceState,
+        #[cfg(any(test, feature = "test-fixtures"))] spell_state: &'a SessionSpellState,
+        #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+        #[cfg(any(test, feature = "test-fixtures"))] instances: &'a InstanceState,
         #[cfg(any(test, feature = "test-fixtures"))]
         battleground_fixture: &'a wow_world_core::session::BattlegroundState,
         valuation_catalogs: InventoryValuationCatalogViewLikeCpp<'a>,
         #[cfg(any(test, feature = "test-fixtures"))]
         reputation_state: &'a wow_entities::PlayerReputationStateLikeCpp,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        battleground_status: &'a Option<u8>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        player_skill_records_complete: &'a bool,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        in_combat: &'a bool,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        consumer_test: bool,
+        #[cfg(any(test, feature = "test-fixtures"))] battleground_status: &'a Option<u8>,
+        #[cfg(any(test, feature = "test-fixtures"))] player_skill_records_complete: &'a bool,
+        #[cfg(any(test, feature = "test-fixtures"))] in_combat: &'a bool,
+        #[cfg(any(test, feature = "test-fixtures"))] consumer_test: bool,
     ) -> Self {
         Self {
             player,
@@ -144,7 +135,9 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
 
     pub(crate) fn complete_player_skill_records_like_cpp(
         &self,
-    ) -> Option<std::collections::HashMap<u16, wow_world_core::session::RepresentedPlayerSkillLikeCpp>> {
+    ) -> Option<
+        std::collections::HashMap<u16, wow_world_core::session::RepresentedPlayerSkillLikeCpp>,
+    > {
         self.player.complete_player_skill_records_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             *self.player_skill_records_complete,
@@ -157,9 +150,7 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
     pub(crate) fn known_spells_for_item_use_like_cpp(&self) -> Vec<i32> {
         let canonical = self.player.known_spells_snapshot_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if self.consumer_test
-            && canonical.is_none()
-            && self.player.player_handle_absent_like_cpp()
+        if self.consumer_test && canonical.is_none() && self.player.player_handle_absent_like_cpp()
         {
             return self
                 .spell_state
@@ -238,17 +229,20 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.consumer_test,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.instances.represented_explored_zones_for_test_like_cpp(),
+            self.instances
+                .represented_explored_zones_for_test_like_cpp(),
         )?;
         values.project_explored_zones_like_cpp(
             &explored_zones,
             area_id,
-            self.valuation_catalogs.area_table_store_like_cpp().map(Arc::as_ref),
+            self.valuation_catalogs
+                .area_table_store_like_cpp()
+                .map(Arc::as_ref),
         );
 
-        let inventory_items =
-            self.inventory
-                .resolved_inventory_items_with_access_like_cpp(&inventory_access)?;
+        let inventory_items = self
+            .inventory
+            .resolved_inventory_items_with_access_like_cpp(&inventory_access)?;
         values.project_mainhand_weapon_subclass_like_cpp(
             &inventory_items,
             self.valuation_catalogs.item_store_like_cpp(),
@@ -296,9 +290,7 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
         let Some(player_condition_context) = self.project_like_cpp() else {
             return crate::TrainerAdmissionProofLikeCpp::Indeterminate;
         };
-        let Some(player_unit_snapshot) = self
-            .player
-            .condition_player_unit_snapshot_like_cpp()
+        let Some(player_unit_snapshot) = self.player.condition_player_unit_snapshot_like_cpp()
         else {
             return crate::TrainerAdmissionProofLikeCpp::Indeterminate;
         };
@@ -365,7 +357,11 @@ impl RepresentedPlayerConditionContextLikeCpp {
     }
 
     fn project_quest_gameplay_like_cpp(&mut self, quests: &PlayerQuestGameplayState) {
-        self.completed_quests = quests.rewarded_quest_ids_like_cpp().iter().copied().collect();
+        self.completed_quests = quests
+            .rewarded_quest_ids_like_cpp()
+            .iter()
+            .copied()
+            .collect();
         self.current_quests = quests
             .statuses_like_cpp()
             .iter()
@@ -384,10 +380,7 @@ impl RepresentedPlayerConditionContextLikeCpp {
             .collect();
     }
 
-    fn project_visible_auras_like_cpp(
-        &mut self,
-        auras: HashMap<u8, AuraApplicationLikeCpp>,
-    ) {
+    fn project_visible_auras_like_cpp(&mut self, auras: HashMap<u8, AuraApplicationLikeCpp>) {
         self.auras = auras
             .into_values()
             .filter_map(|aura| {

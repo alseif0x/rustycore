@@ -1,11 +1,11 @@
 use super::LootState;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::{Arc, atomic::AtomicUsize};
+#[cfg(any(test, feature = "test-fixtures"))]
+use tokio::sync::Notify;
 use wow_constants::ItemFieldFlags;
 use wow_entities::{INVENTORY_SLOT_BAG_0, Item, is_bag_pos, make_item_pos};
 use wow_world_core::session::HubRef;
-#[cfg(any(test, feature = "test-fixtures"))]
-use tokio::sync::Notify;
 
 impl LootState {
     /// Apply the item state established by C++ `Player::StoreNewItem` and

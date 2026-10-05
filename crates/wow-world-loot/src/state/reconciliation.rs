@@ -13,6 +13,8 @@ impl LootState {
         map_key: MapKey,
         canonical_player_was_present: bool,
     ) -> bool {
-        hub.core.loot_release_access_like_cpp().loot_reconciliation_map_key_still_valid_like_cpp(map_key, canonical_player_was_present)
+        hub.core
+            .loot_release_access_like_cpp()
+            .loot_reconciliation_map_key_still_valid_like_cpp(map_key, canonical_player_was_present)
     }
 }

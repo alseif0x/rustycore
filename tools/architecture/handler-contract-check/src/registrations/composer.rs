@@ -9,10 +9,10 @@ use syn::punctuated::Punctuated;
 use syn::visit::Visit;
 use syn::{Expr, Item, ItemFn, ItemUse, Meta, Stmt, Token, Type, UseTree, Visibility};
 
-use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use super::direct_builder::{
     DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, analyze_contract_source,
 };
+use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 
 fn crate_ident(package: &str) -> String {
     package.replace('-', "_")
@@ -68,7 +68,10 @@ fn has_exact_legacy_import(items: &[Item]) -> bool {
         let mut leaves = Vec::new();
         collect_use_tree(&item_use.tree, &mut Vec::new(), &mut leaves);
         for (path, local, renamed) in leaves {
-            if path.last().is_none_or(|name| name != "register_remaining_handlers_like_cpp") {
+            if path
+                .last()
+                .is_none_or(|name| name != "register_remaining_handlers_like_cpp")
+            {
                 continue;
             }
             matching += 1;
@@ -79,7 +82,10 @@ fn has_exact_legacy_import(items: &[Item]) -> bool {
                 "register_remaining_handlers_like_cpp",
             ];
             invalid |= path.len() != expected.len()
-                || !path.iter().zip(expected).all(|(actual, expected)| actual == expected)
+                || !path
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| actual == expected)
                 || local != "register_remaining_handlers_like_cpp"
                 || renamed
                 || !item_use.attrs.is_empty()
@@ -147,7 +153,8 @@ fn exact_cfg_fixture(attribute: &syn::Attribute) -> bool {
     if !cfg.path.is_ident("cfg") {
         return false;
     }
-    let Ok(outer) = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(cfg.tokens.clone()) else {
+    let Ok(outer) = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(cfg.tokens.clone())
+    else {
         return false;
     };
     if outer.len() != 1 {
@@ -159,7 +166,8 @@ fn exact_cfg_fixture(attribute: &syn::Attribute) -> bool {
     if !any.path.is_ident("any") {
         return false;
     }
-    let Ok(inner) = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(any.tokens.clone()) else {
+    let Ok(inner) = Punctuated::<Meta, Token![,]>::parse_terminated.parse2(any.tokens.clone())
+    else {
         return false;
     };
     // Only the canonical `#[cfg(any(test, feature = "test-fixtures"))]` shape is
@@ -314,7 +322,7 @@ fn fixture_expect_call(statement: &Stmt, expected_path: &[&str], domain: bool) -
     let Expr::MethodCall(expect) = expression else {
         return false;
     };
-        if expect.method != "expect"
+    if expect.method != "expect"
         || expect.turbofish.is_some()
         || !expect.attrs.is_empty()
         || expect.args.len() != 1
@@ -360,10 +368,13 @@ fn is_builder_result(statement: &Stmt) -> bool {
         return false;
     };
     if !ok_call.attrs.is_empty()
-        || !path_is(match &*ok_call.func {
-        Expr::Path(path) if path.attrs.is_empty() => &path.path,
-        _ => return false,
-    }, &["Ok"])
+        || !path_is(
+            match &*ok_call.func {
+                Expr::Path(path) if path.attrs.is_empty() => &path.path,
+                _ => return false,
+            },
+            &["Ok"],
+        )
         || ok_call.args.len() != 1
     {
         return false;
@@ -372,10 +383,13 @@ fn is_builder_result(statement: &Stmt) -> bool {
         return false;
     };
     if !arc_call.attrs.is_empty()
-        || !path_is(match &*arc_call.func {
-        Expr::Path(path) if path.attrs.is_empty() => &path.path,
-        _ => return false,
-    }, &["Arc", "new"])
+        || !path_is(
+            match &*arc_call.func {
+                Expr::Path(path) if path.attrs.is_empty() => &path.path,
+                _ => return false,
+            },
+            &["Arc", "new"],
+        )
         || arc_call.args.len() != 1
     {
         return false;
@@ -399,10 +413,13 @@ fn is_fixture_builder_result(statement: &Stmt) -> bool {
         return false;
     };
     if !arc_call.attrs.is_empty()
-        || !path_is(match &*arc_call.func {
-        Expr::Path(path) if path.attrs.is_empty() => &path.path,
-        _ => return false,
-    }, &["Arc", "new"])
+        || !path_is(
+            match &*arc_call.func {
+                Expr::Path(path) if path.attrs.is_empty() => &path.path,
+                _ => return false,
+            },
+            &["Arc", "new"],
+        )
         || arc_call.args.len() != 1
     {
         return false;
@@ -418,15 +435,9 @@ fn is_fixture_builder_result(statement: &Stmt) -> bool {
             if path.attrs.is_empty() && path.path.is_ident("builder"))
 }
 
-fn exact_body(
-    function: &ItemFn,
-    fixture: bool,
-    contracts: &[DirectRegistrarContract],
-) -> bool {
+fn exact_body(function: &ItemFn, fixture: bool, contracts: &[DirectRegistrarContract]) -> bool {
     let statements = &function.block.stmts;
-    if statements.len() != contracts.len() + 3
-        || !is_builder_initializer(&statements[0])
-    {
+    if statements.len() != contracts.len() + 3 || !is_builder_initializer(&statements[0]) {
         return false;
     }
     let legacy_registration = &statements[contracts.len() + 1];
@@ -462,11 +473,7 @@ fn exact_body(
         }
 }
 
-fn exact_function(
-    function: &ItemFn,
-    fixture: bool,
-    contracts: &[DirectRegistrarContract],
-) -> bool {
+fn exact_function(function: &ItemFn, fixture: bool, contracts: &[DirectRegistrarContract]) -> bool {
     let name = if fixture {
         "build_dispatch_table"
     } else {
@@ -544,7 +551,9 @@ impl<'a> RegistrarCalls<'a> {
     }
 
     fn saw_call(&self) -> bool {
-        self.counts.values().any(|count| count.calls != 0 || count.references != 0)
+        self.counts
+            .values()
+            .any(|count| count.calls != 0 || count.references != 0)
     }
 }
 
@@ -552,7 +561,8 @@ impl<'ast> Visit<'ast> for RegistrarCalls<'_> {
     fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
         // A `#[path]` test child arrives spliced inside its parent and calls
         // registrars for its own fixtures; those calls are not composition.
-        if !crate::registrations::direct_builder::attributes_are_production(&item.attrs, &self.cfg) {
+        if !crate::registrations::direct_builder::attributes_are_production(&item.attrs, &self.cfg)
+        {
             return;
         }
         let previous = self.cfg.len();
@@ -624,7 +634,9 @@ fn exact_facade_tree(tree: &UseTree, child: &str, expected_exports: &[&str]) -> 
     let actual: std::collections::BTreeSet<_> = actual_names.iter().cloned().collect();
     actual_names.len() == expected_exports.len()
         && actual.len() == expected_exports.len()
-        && expected_exports.iter().all(|expected| actual.contains(*expected))
+        && expected_exports
+            .iter()
+            .all(|expected| actual.contains(*expected))
 }
 
 fn exact_facade(
@@ -638,7 +650,9 @@ fn exact_facade(
     {
         return None;
     }
-    let context = (mount.contexts.len() == 1).then(|| mount.contexts.iter().next()).flatten()?;
+    let context = (mount.contexts.len() == 1)
+        .then(|| mount.contexts.iter().next())
+        .flatten()?;
     if mount.package != contract.package
         || !context.production_possible
         || !context.cfg.is_empty()
@@ -694,9 +708,13 @@ fn analyzed_direct_registrars(
             ));
         }
         let mut declarations = 0usize;
-        for mount in mounts.iter().filter(|mount| mount.package == contract.package) {
-            let syntax = syn::parse_file(&mount.source)
-                .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+        for mount in mounts
+            .iter()
+            .filter(|mount| mount.package == contract.package)
+        {
+            let syntax = syn::parse_file(&mount.source).map_err(|error| {
+                format!("cannot parse {}: {error}", mount.source_path.display())
+            })?;
             let count = syntax
                 .items
                 .iter()
@@ -729,7 +747,11 @@ fn analyzed_direct_registrars(
             )?;
             declarations += report.registrar_count;
             if report.registrar_count == 1 {
-                result.push(report.contract.expect("analyzed registrar carries its contract"));
+                result.push(
+                    report
+                        .contract
+                        .expect("analyzed registrar carries its contract"),
+                );
             }
         }
         if declarations != 1 {
@@ -841,9 +863,10 @@ pub(crate) fn validate_composition_mounts_with_contracts(
         let mut calls = RegistrarCalls::new(&contracts);
         calls.visit_file(&syntax);
         let bad_calls = calls.ambiguous_name
-            || calls.counts.values().any(|count| {
-                count.wrong_path || count.references != count.calls
-            });
+            || calls
+                .counts
+                .values()
+                .any(|count| count.wrong_path || count.references != count.calls);
         if invalid_use || bad_calls {
             return Err(format!(
                 "direct registrar references in {} must use their exact qualified providers and no aliases",

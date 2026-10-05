@@ -593,7 +593,10 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
 
     assert!(session.represented_set_currency_flags_like_cpp(395, 0x04));
 
-    let currency = session.inventory.player_currency_for_test_like_cpp(&395).unwrap();
+    let currency = session
+        .inventory
+        .player_currency_for_test_like_cpp(&395)
+        .unwrap();
     assert_eq!(currency.flags, 0x04);
     assert_eq!(currency.state, PlayerCurrencyState::New);
     assert_eq!(
@@ -720,9 +723,20 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     session.handle_loot_money(pkt).await;
 
     assert_eq!(session.inventory.player_gold_for_test_like_cpp(), 137);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(active_guid).unwrap().coins, 0);
     assert_eq!(
-        session.loot.cached_loot_for_owner_like_cpp(inactive_guid).unwrap().coins,
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(active_guid)
+            .unwrap()
+            .coins,
+        0
+    );
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(inactive_guid)
+            .unwrap()
+            .coins,
         91
     );
 

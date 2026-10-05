@@ -1,6 +1,4 @@
-use wow_entities::{
-    SpellCastLocationLikeCpp, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp,
-};
+use wow_entities::{SpellCastLocationLikeCpp, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp};
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData, TargetLocation};
 
 pub fn present_visual(value: SpellCastVisualLikeCpp) -> SpellCastVisual {

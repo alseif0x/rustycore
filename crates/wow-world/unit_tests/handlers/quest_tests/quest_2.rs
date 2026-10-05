@@ -667,17 +667,8 @@ async fn quest_giver_choose_reward_sets_daily_lockout_status_like_cpp() {
             .quest_state
             .fixture_has_daily_quest_like_cpp(quest_id)
     );
-    assert!(
-        !session
-            .quest_state
-            .fixture_has_df_quest_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_last_daily_quest_time_like_cpp()
-            > 0
-    );
+    assert!(!session.quest_state.fixture_has_df_quest_like_cpp(quest_id));
+    assert!(session.quest_state.fixture_last_daily_quest_time_like_cpp() > 0);
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_sets_df_lockout_in_daily_table_like_cpp() {
@@ -717,17 +708,8 @@ async fn quest_giver_choose_reward_sets_df_lockout_in_daily_table_like_cpp() {
             .quest_state
             .fixture_has_daily_quest_like_cpp(quest_id)
     );
-    assert!(
-        session
-            .quest_state
-            .fixture_has_df_quest_like_cpp(quest_id)
-    );
-    assert!(
-        session
-            .quest_state
-            .fixture_last_daily_quest_time_like_cpp()
-            > 0
-    );
+    assert!(session.quest_state.fixture_has_df_quest_like_cpp(quest_id));
+    assert!(session.quest_state.fixture_last_daily_quest_time_like_cpp() > 0);
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_sets_weekly_and_monthly_lockouts_like_cpp() {
@@ -827,7 +809,8 @@ async fn quest_giver_choose_reward_sets_seasonal_lockout_status_like_cpp() {
     assert!(
         session
             .quest_state
-            .fixture_seasonal_quest_time_like_cpp(event_id, quest_id).is_some()
+            .fixture_seasonal_quest_time_like_cpp(event_id, quest_id)
+            .is_some()
     );
     assert!(
         session

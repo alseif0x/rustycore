@@ -46,12 +46,13 @@ impl WorldSession {
     ) {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_state.install_spell_runtime_script_authority_like_cpp(
-            exact_spell_ids,
-            all_rank_root_spell_ids,
-            legacy_spell_ids,
-            rejected_linked_trigger_spell_ids,
-        );
+        self.spell_state
+            .install_spell_runtime_script_authority_like_cpp(
+                exact_spell_ids,
+                all_rank_root_spell_ids,
+                legacy_spell_ids,
+                rejected_linked_trigger_spell_ids,
+            );
     }
     pub(in crate::session) fn player_target_spell_is_hit_inert_like_cpp(
         &self,
@@ -716,7 +717,6 @@ impl WorldSession {
         interrupted
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/spell/f3_shims.rs"]

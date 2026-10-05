@@ -21,7 +21,9 @@ async fn set_difficulty_id_group_lfg_is_silent_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         2,
@@ -203,7 +205,9 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
         Some(LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP)
     );
 
-    session.quest_state.fixture_set_rewarded_quest_like_cpp(42, true);
+    session
+        .quest_state
+        .fixture_set_rewarded_quest_like_cpp(42, true);
     install_requirement(
         &mut session,
         wow_data::AccessRequirementLikeCpp {
@@ -239,7 +243,9 @@ fn lfg_reward_uses_other_quest_when_df_first_quest_on_cooldown_like_cpp() {
         first.clone(),
         other.clone(),
     ])));
-    session.quest_state.fixture_set_df_quest_like_cpp(first.id, true);
+    session
+        .quest_state
+        .fixture_set_df_quest_like_cpp(first.id, true);
 
     let mut info =
         wow_packet::packets::misc::LfgPlayerDungeonInfo::random_dungeon_like_cpp(100_663_552);
@@ -364,7 +370,9 @@ async fn reset_instances_lfg_group_is_silent_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_map_position_like_cpp(0, Position::ZERO);
     session.set_map_store(Arc::new(MapStore::from_entries([

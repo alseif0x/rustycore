@@ -23,7 +23,9 @@ impl WorldSession {
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let player = self.core.quest_reward_player_access_like_cpp();
-        player.notify_game_event_quest_complete_like_cpp(quest_id).await
+        player
+            .notify_game_event_quest_complete_like_cpp(quest_id)
+            .await
     }
     pub(crate) fn record_represented_rewarded_quest_row_like_cpp(&mut self, quest_id: u32) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
@@ -174,9 +176,9 @@ impl WorldSession {
             self.quest_state
                 .fixture_record_quest_reward_talent_points_like_cpp(
                     RepresentedQuestRewardTalentPointsLikeCpp {
-                    quest_id,
-                    points,
-                    init_talent_for_level_unrepresented: true,
+                        quest_id,
+                        points,
+                        init_talent_for_level_unrepresented: true,
                     },
                 );
             return true;
@@ -210,7 +212,8 @@ impl WorldSession {
             .unwrap_or(false);
         #[cfg(test)]
         if hub.core.player_handle_like_cpp.is_none() {
-            let changed = !quest_state.fixture_has_represented_quest_completed_bit_like_cpp(quest_bit);
+            let changed =
+                !quest_state.fixture_has_represented_quest_completed_bit_like_cpp(quest_bit);
             quest_state.fixture_set_represented_quest_completed_bit_like_cpp(quest_bit, true);
             return changed;
         }
@@ -238,7 +241,8 @@ impl WorldSession {
             .unwrap_or(false);
         #[cfg(test)]
         if hub.core.player_handle_like_cpp.is_none() {
-            let changed = quest_state.fixture_has_represented_quest_completed_bit_like_cpp(quest_bit);
+            let changed =
+                quest_state.fixture_has_represented_quest_completed_bit_like_cpp(quest_bit);
             quest_state.fixture_set_represented_quest_completed_bit_like_cpp(quest_bit, false);
             return changed;
         }

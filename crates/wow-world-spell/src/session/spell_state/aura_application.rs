@@ -1,7 +1,5 @@
 use crate::SessionSpellState;
-pub fn unit_owned_apply_aura_effect_mask_like_cpp(
-    spell: &wow_data::SpellInfo,
-) -> u32 {
+pub fn unit_owned_apply_aura_effect_mask_like_cpp(spell: &wow_data::SpellInfo) -> u32 {
     use wow_data::spell::spell_effect_types::{
         SPELL_EFFECT_APPLY_AREA_AURA_ENEMY, SPELL_EFFECT_APPLY_AREA_AURA_FRIEND,
         SPELL_EFFECT_APPLY_AREA_AURA_OWNER, SPELL_EFFECT_APPLY_AREA_AURA_PARTY,
@@ -43,7 +41,8 @@ impl SessionSpellState {
         slot: u8,
     ) -> Option<AuraApplication> {
         self.remove_player_visible_aura_with_access_like_cpp(
-            &mut hub.player_aura_removal_access_like_cpp(), slot,
+            &mut hub.player_aura_removal_access_like_cpp(),
+            slot,
         )
     }
 
@@ -57,7 +56,9 @@ impl SessionSpellState {
 
     pub fn send_aura_update_removed(&self, hub: HubRef<'_>, slot: u8) {
         self.send_aura_update_removed_with_publication_like_cpp(
-            hub.core.player_guid(), &hub.core.packet_publication_access_like_cpp(), slot,
+            hub.core.player_guid(),
+            &hub.core.packet_publication_access_like_cpp(),
+            slot,
         );
     }
 
@@ -71,12 +72,12 @@ impl SessionSpellState {
             return;
         };
         publication.send_packet(&wow_packet::packets::misc::AuraUpdate {
-                unit_guid: target_guid,
-                update_all: false,
-                auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
-                    slot,
-                    aura_data: None,
-                }],
-            });
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                slot,
+                aura_data: None,
+            }],
+        });
     }
 }

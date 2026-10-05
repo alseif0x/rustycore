@@ -39,7 +39,6 @@ use std::sync::Arc;
 
 use rand::Rng;
 pub(crate) use stats::RepresentedPlayerGearStatsLikeCpp;
-pub(crate) use wow_world_inventory::ExtendedCostItemTurninChange;
 use tracing::{debug, info, trace, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
@@ -47,10 +46,9 @@ use wow_constants::unit::{
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, InventoryResult,
-    InventoryType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
-    ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId, TypeMask,
-    UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, InventoryResult, InventoryType,
+    ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState,
+    ItemVendorType, PowerType, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -65,29 +63,29 @@ use wow_data::{
     calculate_player_stat_system_like_cpp, hotfix_locale_mask,
     is_player_meeting_condition_like_cpp,
 };
+pub(crate) use wow_world_inventory::ExtendedCostItemTurninChange;
 // Test-only types whose production users moved to `wow-world-inventory`.
-#[cfg(test)]
-pub(crate) use wow_entities::SocketedGem;
 #[cfg(test)]
 pub(crate) use std::f32::consts::PI;
 #[cfg(test)]
-pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
-#[cfg(test)]
 pub(crate) use wow_constants::{EnchantmentSlot, ItemBondingType};
+#[cfg(test)]
+pub(crate) use wow_entities::SocketedGem;
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
-    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, InventoryStorageMovePlanLikeCpp, MAX_BAG_SIZE, MAX_MONEY_AMOUNT,
-    MovementGeneratorType, NULL_BAG, NULL_SLOT,
+    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
+    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, InventoryStorageMovePlanLikeCpp,
+    MAX_BAG_SIZE, MAX_MONEY_AMOUNT, MovementGeneratorType, NULL_BAG, NULL_SLOT,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan,
-    SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos,
-    is_inventory_pos, item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SwapItemPreflightResult,
+    WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
+    item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
+#[cfg(test)]
+pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
 
 use crate::session::hub_support::player_team_for_race_cpp;
 use crate::session::registry::PacketHandlerEntry;
@@ -106,9 +104,7 @@ use wow_packet::packets::update::*;
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::packets::misc::BindPointUpdate;
-use wow_packet::packets::update::{
-    ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject,
-};
+use wow_packet::packets::update::{ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject};
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
@@ -387,7 +383,6 @@ fn inventory_storage_move_quest_directions_like_cpp(
     (moving_to_bank, moving_from_bank)
 }
 
-
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
@@ -398,18 +393,18 @@ pub(crate) use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 const CHAR_CREATE_NAME_IN_USE_LIKE_CPP: u8 = 27;
 pub(crate) use wow_constants::character::{
-    CHAR_NAME_INVALID_CHARACTER_LIKE_CPP, CHAR_NAME_NO_NAME_LIKE_CPP, CHAR_NAME_TOO_LONG_LIKE_CPP,
-    CHAR_NAME_TOO_SHORT_LIKE_CPP,
-};
-pub(crate) use wow_constants::character::{
-    AT_LOGIN_CHANGE_FACTION_LIKE_CPP, AT_LOGIN_CHANGE_RACE_LIKE_CPP,
-    AT_LOGIN_CUSTOMIZE_LIKE_CPP, AT_LOGIN_FIRST_LIKE_CPP, AT_LOGIN_RENAME_LIKE_CPP,
-    AT_LOGIN_RESURRECT_LIKE_CPP, CHARACTER_FLAG_DECLINED_LIKE_CPP, CHARACTER_FLAG_GHOST_LIKE_CPP,
-    CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP, CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP,
-    CHARACTER_FLAG_RENAME_LIKE_CPP, CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP,
-    CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP, CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP,
+    AT_LOGIN_CHANGE_FACTION_LIKE_CPP, AT_LOGIN_CHANGE_RACE_LIKE_CPP, AT_LOGIN_CUSTOMIZE_LIKE_CPP,
+    AT_LOGIN_FIRST_LIKE_CPP, AT_LOGIN_RENAME_LIKE_CPP, AT_LOGIN_RESURRECT_LIKE_CPP,
+    CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP, CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP,
+    CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP, CHARACTER_FLAG_DECLINED_LIKE_CPP,
+    CHARACTER_FLAG_GHOST_LIKE_CPP, CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP,
+    CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP, CHARACTER_FLAG_RENAME_LIKE_CPP,
     CLASS_DEATH_KNIGHT_LIKE_CPP, CLASS_HUNTER_LIKE_CPP, CLASS_WARLOCK_LIKE_CPP,
     PLAYER_FLAGS_GHOST_LIKE_CPP,
+};
+pub(crate) use wow_constants::character::{
+    CHAR_NAME_INVALID_CHARACTER_LIKE_CPP, CHAR_NAME_NO_NAME_LIKE_CPP, CHAR_NAME_TOO_LONG_LIKE_CPP,
+    CHAR_NAME_TOO_SHORT_LIKE_CPP,
 };
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     if is_a_recruiter || recruiter_id != 0 {
@@ -588,7 +583,9 @@ fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     equipment
 }
 
-use wow_world_application::{bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp};
+use wow_world_application::{
+    bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
+};
 
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
@@ -681,7 +678,9 @@ fn destroy_item_count_action(current_count: u32, requested_count: u32) -> Destro
     DestroyItemCountAction::FullStack
 }
 
-use wow_world_application::{item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp};
+use wow_world_application::{
+    item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp,
+};
 
 fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
     item.loot_generated()

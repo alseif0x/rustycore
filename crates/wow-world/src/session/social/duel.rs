@@ -120,14 +120,12 @@ impl WorldSession {
 
         #[cfg(test)]
         self.social
-            .record_represented_duel_request_for_test_like_cpp(
-                RepresentedDuelRequestedLikeCpp {
-                    target_guid,
-                    arbiter_guid,
-                    gameobject_entry: gameobject_entry as u32,
-                    to_the_death: false,
-                },
-            );
+            .record_represented_duel_request_for_test_like_cpp(RepresentedDuelRequestedLikeCpp {
+                target_guid,
+                arbiter_guid,
+                gameobject_entry: gameobject_entry as u32,
+                to_the_death: false,
+            });
         true
     }
     fn handle_duel_accepted_like_cpp(&mut self, arbiter_guid: ObjectGuid) -> bool {
@@ -182,13 +180,11 @@ impl WorldSession {
         };
         #[cfg(test)]
         self.social
-            .record_represented_duel_accept_for_test_like_cpp(
-                RepresentedDuelAcceptedLikeCpp {
-                    opponent_guid,
-                    arbiter_guid,
-                    countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-                },
-            );
+            .record_represented_duel_accept_for_test_like_cpp(RepresentedDuelAcceptedLikeCpp {
+                opponent_guid,
+                arbiter_guid,
+                countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
+            });
         true
     }
     pub(crate) fn handle_duel_response_like_cpp(

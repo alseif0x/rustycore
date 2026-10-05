@@ -18,10 +18,7 @@ use super::stored_item_loot_contracts::{
 };
 
 impl SessionLifecycleState {
-    pub async fn load_wrapped_gift_row_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> WrappedGiftLoad {
+    pub async fn load_wrapped_gift_row_like_cpp(&self, item_guid: ObjectGuid) -> WrappedGiftLoad {
         let Some(port) = self.stored_item_persistence_port_like_cpp() else {
             return WrappedGiftLoad::Unavailable;
         };

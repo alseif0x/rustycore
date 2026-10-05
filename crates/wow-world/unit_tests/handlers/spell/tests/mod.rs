@@ -5,8 +5,8 @@ use std::time::Instant;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use wow_constants::{
-    DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState, PowerType,
-    ServerOpcodes, SpellCastResult,
+    DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState, PowerType, ServerOpcodes,
+    SpellCastResult,
 };
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_entities::{

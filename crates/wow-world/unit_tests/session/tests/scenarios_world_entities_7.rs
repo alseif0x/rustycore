@@ -40,7 +40,8 @@ fn visible_gameobjects_create_uses_per_player_go_state_like_cpp() {
     );
     {
         let state = session
-            .world_entities.represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
+            .world_entities
+            .represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
             .expect("represented state");
         state.go_state = Some(wow_entities::GoState::Ready);
         state.per_player_state_player_guid = Some(player_guid);
@@ -66,7 +67,8 @@ fn visible_gameobjects_create_uses_per_player_go_state_like_cpp() {
     );
 
     session
-        .world_entities.represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
         .expect("represented state")
         .per_player_go_state_until = Some(Instant::now() - Duration::from_secs(1));
 
@@ -129,7 +131,9 @@ fn visible_gameobjects_falls_back_to_typed_canonical_data_like_cpp() {
     assert_eq!(visible[0].scale, 1.75);
     assert!(
         !session
-            .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid).is_some(),
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
+            .is_some(),
         "C++ AddToMap-visible GameObjects are real map objects; visibility must not require session-local represented state"
     );
 }

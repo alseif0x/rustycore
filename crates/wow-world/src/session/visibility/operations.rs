@@ -199,10 +199,7 @@ impl WorldSession {
                 return Some(farsight);
             }
             #[cfg(test)]
-            if let Some(seer_guid) = self
-                .visibility
-                .represented_seer_guid_fixture_like_cpp()
-            {
+            if let Some(seer_guid) = self.visibility.represented_seer_guid_fixture_like_cpp() {
                 // Detached fixtures can model the short C++ ordering window
                 // between writing FarsightObject and SetSeer(this).
                 if !seer_guid.is_empty() && seer_guid != player_guid {
@@ -213,9 +210,7 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        return self
-            .visibility
-            .represented_seer_guid_fixture_like_cpp();
+        return self.visibility.represented_seer_guid_fixture_like_cpp();
 
         #[cfg(not(test))]
         None

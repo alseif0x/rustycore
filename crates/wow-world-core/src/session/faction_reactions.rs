@@ -3,8 +3,8 @@
 
 //! Canonical faction-reaction inputs and Hub adapters shared with World.
 
-use wow_progression::ReputationMgrLikeCpp;
 use crate::session::{HubRef, NpcInteractionAccessLikeCpp};
+use wow_progression::ReputationMgrLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedFactionReactionInputLikeCpp {

@@ -8,7 +8,8 @@
 use wow_constants::{UnitFlags, UnitState};
 use wow_core::ObjectGuid;
 use wow_world_core::session::{
-    LegacyCreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, SharedCanonicalMapManager,
+    LegacyCreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
+    SharedCanonicalMapManager,
 };
 
 use crate::creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;

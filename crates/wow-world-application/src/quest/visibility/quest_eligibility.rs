@@ -4,12 +4,10 @@
 
 //! Selected quest eligibility predicates used by quest-dialog visibility.
 
-use crate::quest::{
-    QuestObjectiveProgressCx, QuestRewardCx, SessionQuestState,
-};
 use crate::PlayerConditionProjectionCxLikeCpp;
-use wow_world_core::session::{QuestEligibilityAccessLikeCpp, SessionCatalogs};
+use crate::quest::{QuestObjectiveProgressCx, QuestRewardCx, SessionQuestState};
 use wow_data::quest::QuestTemplate;
+use wow_world_core::session::{QuestEligibilityAccessLikeCpp, SessionCatalogs};
 
 /// Read-only participants for the complete quest-admission predicate.
 pub struct QuestEligibilityCx<'a> {
@@ -42,10 +40,7 @@ impl<'a> QuestEligibilityCx<'a> {
     ) -> Option<wow_entities::PlayerQuestGameplayState> {
         let canonical = self.player.player_quest_gameplay_snapshot_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none()
-            && self.consumer_test
-            && self.player.owner_handle_absent_like_cpp()
-        {
+        if canonical.is_none() && self.consumer_test && self.player.owner_handle_absent_like_cpp() {
             return Some(self.quest_state.player_quest_gameplay_fixture_like_cpp());
         }
         canonical
@@ -53,10 +48,7 @@ impl<'a> QuestEligibilityCx<'a> {
 }
 
 impl QuestObjectiveProgressCx<'_, '_> {
-    pub(super) fn satisfy_quest_level_represented_like_cpp(
-        &self,
-        quest: &QuestTemplate,
-    ) -> bool {
+    pub(super) fn satisfy_quest_level_represented_like_cpp(&self, quest: &QuestTemplate) -> bool {
         satisfy_quest_level_like_cpp(&self.reward, quest)
     }
 
@@ -114,24 +106,13 @@ fn quest_status_like_cpp(reward: &QuestRewardCx<'_>, quest_id: u32) -> Option<u8
 }
 
 fn can_see_start_quest_like_cpp(reward: &QuestRewardCx<'_>, quest: &QuestTemplate) -> bool {
-    if reward
-        .catalogs
-        .disable_mgr()
-        .is_some_and(|disable_mgr| {
-            disable_mgr.is_disabled_for_like_cpp(
-                wow_data::DISABLE_TYPE_QUEST,
-                quest.id,
-                None,
-                0,
-                None,
-            )
-        })
-    {
+    if reward.catalogs.disable_mgr().is_some_and(|disable_mgr| {
+        disable_mgr.is_disabled_for_like_cpp(wow_data::DISABLE_TYPE_QUEST, quest.id, None, 0, None)
+    }) {
         return false;
     }
 
-    if quest_status_like_cpp(reward, quest.id) != Some(wow_conditions::QUEST_STATUS_NONE_LIKE_CPP)
-    {
+    if quest_status_like_cpp(reward, quest.id) != Some(wow_conditions::QUEST_STATUS_NONE_LIKE_CPP) {
         return false;
     }
 
@@ -158,9 +139,7 @@ fn can_see_start_quest_like_cpp(reward: &QuestRewardCx<'_>, quest: &QuestTemplat
         } else if !recurrence
             .statuses_like_cpp()
             .get(&prev_id)
-            .is_some_and(|status| {
-                status.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
-            })
+            .is_some_and(|status| status.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
         {
             return false;
         }
@@ -202,9 +181,7 @@ pub(super) fn satisfy_quest_exclusive_group_like_cpp(
         if peer.is_daily_like_cpp() && recurrence.daily_quest_ids_like_cpp().contains(&peer.id) {
             return false;
         }
-        if peer.is_weekly_like_cpp()
-            && recurrence.weekly_quest_ids_like_cpp().contains(&peer.id)
-        {
+        if peer.is_weekly_like_cpp() && recurrence.weekly_quest_ids_like_cpp().contains(&peer.id) {
             return false;
         }
         if peer.is_seasonal_like_cpp() && !recurrence.seasonal_quests_like_cpp().is_empty() {
@@ -257,8 +234,7 @@ pub(super) fn satisfy_quest_reputation_like_cpp(
             .and_then(|store| store.get(quest.required_min_rep_faction))
         {
             Some(faction_entry) => {
-                let Some(reputation) =
-                    player.quest_reputation_for_faction_like_cpp(faction_entry)
+                let Some(reputation) = player.quest_reputation_for_faction_like_cpp(faction_entry)
                 else {
                     return false;
                 };
@@ -277,8 +253,7 @@ pub(super) fn satisfy_quest_reputation_like_cpp(
             .and_then(|store| store.get(quest.required_max_rep_faction))
         {
             Some(faction_entry) => {
-                let Some(reputation) =
-                    player.quest_reputation_for_faction_like_cpp(faction_entry)
+                let Some(reputation) = player.quest_reputation_for_faction_like_cpp(faction_entry)
                 else {
                     return false;
                 };
@@ -295,23 +270,16 @@ pub(super) fn satisfy_quest_reputation_like_cpp(
 }
 
 impl QuestEligibilityCx<'_> {
-    pub fn can_take_quest_like_cpp(
-        &self,
-        quest: &QuestTemplate,
-    ) -> bool {
-        if self
-            .catalogs
-            .disable_mgr()
-            .is_some_and(|disable_mgr| {
-                disable_mgr.is_disabled_for_like_cpp(
-                    wow_data::DISABLE_TYPE_QUEST,
-                    quest.id,
-                    None,
-                    0,
-                    None,
-                )
-            })
-        {
+    pub fn can_take_quest_like_cpp(&self, quest: &QuestTemplate) -> bool {
+        if self.catalogs.disable_mgr().is_some_and(|disable_mgr| {
+            disable_mgr.is_disabled_for_like_cpp(
+                wow_data::DISABLE_TYPE_QUEST,
+                quest.id,
+                None,
+                0,
+                None,
+            )
+        }) {
             tracing::debug!(
                 account = self.player.account_id_like_cpp(),
                 quest_id = quest.id,
@@ -368,11 +336,7 @@ impl QuestEligibilityCx<'_> {
             return false;
         }
 
-        if !satisfy_quest_reputation_like_cpp(
-            &self.player,
-            self.catalogs,
-            quest,
-        ) {
+        if !satisfy_quest_reputation_like_cpp(&self.player, self.catalogs, quest) {
             tracing::debug!(
                 account = self.player.account_id_like_cpp(),
                 quest_id = quest.id,
@@ -437,8 +401,7 @@ impl QuestEligibilityCx<'_> {
             .map(|(&quest_id, status)| (quest_id, status.status))
             .collect();
         if Self::represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
-            quest,
-            &statuses,
+            quest, &statuses,
         ) {
             tracing::debug!(
                 account = self.player.account_id_like_cpp(),
@@ -507,13 +470,16 @@ impl QuestEligibilityCx<'_> {
         }
 
         let quest_owner = self.player.quest_objective_access_like_cpp();
-        if !self.conditions.represented_quest_available_conditions_meet_like_cpp(
-            &quest_owner,
-            self.quest_state,
-            self.catalogs,
-            quest.id,
-            self.consumer_test,
-        ) {
+        if !self
+            .conditions
+            .represented_quest_available_conditions_meet_like_cpp(
+                &quest_owner,
+                self.quest_state,
+                self.catalogs,
+                quest.id,
+                self.consumer_test,
+            )
+        {
             tracing::debug!(
                 account = self.player.account_id_like_cpp(),
                 quest_id = quest.id,
@@ -558,9 +524,7 @@ impl QuestEligibilityCx<'_> {
                 for exclusive_quest_id in quest_store
                     .quests
                     .values()
-                    .filter(|candidate| {
-                        candidate.exclusive_group == previous_quest.exclusive_group
-                    })
+                    .filter(|candidate| candidate.exclusive_group == previous_quest.exclusive_group)
                     .map(|candidate| candidate.id)
                 {
                     if exclusive_quest_id != prev_id

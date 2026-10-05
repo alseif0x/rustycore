@@ -111,12 +111,13 @@ impl WorldSession {
     ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
         let access = self.core.owned_inventory_access_like_cpp();
         let publication = self.core.packet_publication_access_like_cpp();
-        self.inventory.player_values_update_snapshot_with_access_like_cpp(
-            &access,
-            &publication,
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-        )
+        self.inventory
+            .player_values_update_snapshot_with_access_like_cpp(
+                &access,
+                &publication,
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+            )
     }
     pub(crate) fn send_player_values_update_from_entity_bridge(
         &self,
@@ -128,17 +129,18 @@ impl WorldSession {
     ) -> bool {
         let access = self.core.owned_inventory_access_like_cpp();
         let publication = self.core.packet_publication_access_like_cpp();
-        self.inventory.send_player_values_update_from_entity_bridge_with_access_like_cpp(
-            &access,
-            &publication,
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-            inv_slot_changes,
-            visible_item_changes,
-            virtual_item_changes,
-            buyback_changes,
-            coinage,
-        )
+        self.inventory
+            .send_player_values_update_from_entity_bridge_with_access_like_cpp(
+                &access,
+                &publication,
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+                inv_slot_changes,
+                visible_item_changes,
+                virtual_item_changes,
+                buyback_changes,
+                coinage,
+            )
     }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
         if crate::session::hub_ref(self)

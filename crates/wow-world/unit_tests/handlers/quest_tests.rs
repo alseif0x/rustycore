@@ -871,7 +871,8 @@ fn mark_visible_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGu
     let mut state = crate::session::RepresentedGameObjectUseState::default();
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
     session
-        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(guid, state);
+        .world_entities
+        .insert_represented_gameobject_use_state_for_test_like_cpp(guid, state);
     mark_visible(session, guid);
 }
 

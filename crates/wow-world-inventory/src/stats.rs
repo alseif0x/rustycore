@@ -14,9 +14,11 @@ pub const CR_HIT_MELEE_LIKE_CPP: u8 = 5;
 
 impl crate::InventoryState {
     pub fn apply_represented_shapeshift_base_attack_time_with_access_like_cpp(
-        &self, player: &wow_world_core::session::PlayerStatsAccessLikeCpp<'_>,
+        &self,
+        player: &wow_world_core::session::PlayerStatsAccessLikeCpp<'_>,
     ) -> bool {
-        let regular = self.represented_player_gear_stats_with_access_like_cpp(player)
+        let regular = self
+            .represented_player_gear_stats_with_access_like_cpp(player)
             .map(|gear| gear.base_attack_time);
         let combat_round_time = player.represented_shapeshift_combat_round_time_like_cpp();
         player.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
@@ -271,10 +273,7 @@ impl crate::InventoryState {
         let armor_penetration_rating = crate::CR_ARMOR_PENETRATION_LIKE_CPP;
         let armor_penetration_pct = (gear.combat_ratings[usize::from(armor_penetration_rating)]
             as f32
-            * access.combat_rating_multiplier_like_cpp(
-                level,
-                u32::from(armor_penetration_rating),
-            ))
+            * access.combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
         .clamp(0.0, 100.0);
         // C++ `Player::UpdateMeleeHitChances` (`StatSystem.cpp:743-746`).
         let melee_hit_chance_pct = 7.5
@@ -290,8 +289,8 @@ impl crate::InventoryState {
             access.player_class_like_cpp(),
             projection.stats,
         ) * access.mana_regen_aura_multiplier_like_cpp();
-        let mana_regen_combat =
-            mana_regen_mp5 + mana_regen_from_spirit * access.mana_regen_interrupt_modifier_like_cpp();
+        let mana_regen_combat = mana_regen_mp5
+            + mana_regen_from_spirit * access.mana_regen_interrupt_modifier_like_cpp();
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -457,6 +456,7 @@ impl crate::InventoryState {
         let combat_round_time = hub
             .shared()
             .represented_shapeshift_combat_round_time_like_cpp();
-        hub.core.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
+        hub.core
+            .apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
     }
 }

@@ -10,7 +10,10 @@ impl WorldSession {
     /// coordination remains separate; this method never waits for a DB worker.
     pub fn process_ready_character_rename_callbacks_like_cpp(&mut self) {
         self.lifecycle.character_rename_process_ready_like_cpp();
-        if self.lifecycle.character_rename_has_worker_failure_like_cpp() {
+        if self
+            .lifecycle
+            .character_rename_has_worker_failure_like_cpp()
+        {
             // Join failure is not an ordinary DB rejection or proven rollback.
             // Retire this Session and let composition drain/classify remaining work.
             self.kick("Character rename worker failed; completion unproven");
@@ -30,7 +33,10 @@ impl WorldSession {
             self.lifecycle
                 .character_rename_enqueue_pending_delivery_like_cpp(delivery);
         }
-        if self.lifecycle.character_rename_poll_pending_deliveries_like_cpp() {
+        if self
+            .lifecycle
+            .character_rename_poll_pending_deliveries_like_cpp()
+        {
             self.kick("Character rename response channel closed");
             return;
         }

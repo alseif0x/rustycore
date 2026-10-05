@@ -35,8 +35,7 @@ impl<'a> SkillValuesPublicationCxLikeCpp<'a> {
         skill_store: Option<&'a Arc<SkillStore>>,
         skill_lines: Option<&'a Arc<SkillLineStore>>,
         skill_tiers: Option<&'a Arc<SkillTiersStoreLikeCpp>>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_inputs: (
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_inputs: (
             &'a HashMap<u16, RepresentedPlayerSkillLikeCpp>,
             &'a u8,
             &'a u8,

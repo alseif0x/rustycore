@@ -78,8 +78,7 @@ pub async fn save_quest_to_db_like_cpp(
         quest_id,
         status,
         fixture_fallback,
-    )
-    else {
+    ) else {
         return;
     };
 
@@ -112,13 +111,14 @@ pub async fn save_changed_quest_statuses_like_cpp(
     quest_ids.dedup();
     for quest_id in quest_ids.drain(..) {
         if let Some(status) =
-            current_quest_gameplay_snapshot_like_cpp(owner, quest_state, fixture_fallback)
-                .and_then(|state| {
+            current_quest_gameplay_snapshot_like_cpp(owner, quest_state, fixture_fallback).and_then(
+                |state| {
                     state
                         .statuses_like_cpp()
                         .get(&quest_id)
                         .map(|status| status.status)
-                })
+                },
+            )
         {
             save_quest_to_db_like_cpp(
                 owner,
@@ -201,12 +201,8 @@ pub fn update_objective_count_like_cpp(
         return Some(current);
     }
 
-    let canonical = owner.update_objective_count_like_cpp(
-        quest_id,
-        objective_index,
-        required,
-        add_count,
-    );
+    let canonical =
+        owner.update_objective_count_like_cpp(quest_id, objective_index, required, add_count);
     #[cfg(any(test, feature = "test-fixtures"))]
     if world_test_consumer
         && canonical.is_some()

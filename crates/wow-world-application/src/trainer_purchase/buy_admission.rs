@@ -5,12 +5,12 @@
 //! Target NPCHandler.cpp:132–202 validates NPC, removes FeignDeath, then
 //! checks trainer-window provenance. Durable acquisition remains a later phase.
 
-use super::controller::{find_trainer_buy_spell_like_cpp, TrainerBuyAdmissionLikeCpp};
 use super::TRAINER_BUY_NPC_FLAGS_LIKE_CPP;
+use super::controller::{TrainerBuyAdmissionLikeCpp, find_trainer_buy_spell_like_cpp};
 use crate::PlayerAuraApplicationCxLikeCpp;
 use wow_data::TrainerStoreLikeCpp;
-use wow_packet::{ClientPacket, WorldPacket};
 use wow_packet::packets::trainer::{TrainerBuyFailed, TrainerBuySpellRequest};
+use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::{
     AuraNpcAccessBuilderLikeCpp, PacketPublicationAccessLikeCpp,
     TrainerInteractionRoleAccessLikeCpp,
@@ -39,10 +39,21 @@ impl<'a> AppTrainerBuyAdmissionCxLikeCpp<'a> {
         publication: PacketPublicationAccessLikeCpp<'a>,
         account_id: u32,
     ) -> Self {
-        Self { aura, npc, interaction, role, trainer_store, publication, account_id }
+        Self {
+            aura,
+            npc,
+            interaction,
+            role,
+            trainer_store,
+            publication,
+            account_id,
+        }
     }
 
-    pub fn admit_packet_like_cpp(&mut self, mut pkt: WorldPacket) -> Option<TrainerBuySpellRequest> {
+    pub fn admit_packet_like_cpp(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> Option<TrainerBuySpellRequest> {
         let req = match TrainerBuySpellRequest::read(&mut pkt) {
             Ok(r) => r,
             Err(e) => {
@@ -57,13 +68,19 @@ impl<'a> AppTrainerBuyAdmissionCxLikeCpp<'a> {
         let trainer_id = req.trainer_id;
         let spell_id = req.spell_id;
         tracing::info!(
-            account = self.account_id, trainer_id = trainer_id, spell_id = spell_id,
+            account = self.account_id,
+            trainer_id = trainer_id,
+            spell_id = spell_id,
             "CMSG_TRAINER_BUY_SPELL"
         );
 
-        let Some(_access) = self.aura.trainer_npc_view_like_cpp(&self.npc)
+        let Some(_access) = self
+            .aura
+            .trainer_npc_view_like_cpp(&self.npc)
             .represented_npc_can_interact_with_like_cpp(
-                trainer_guid, TRAINER_BUY_NPC_FLAGS_LIKE_CPP, 0,
+                trainer_guid,
+                TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+                0,
             )
         else {
             tracing::warn!(
@@ -73,13 +90,19 @@ impl<'a> AppTrainerBuyAdmissionCxLikeCpp<'a> {
             return None;
         };
 
-        self.aura.remove_represented_feign_death_if_needed_like_cpp();
+        self.aura
+            .remove_represented_feign_death_if_needed_like_cpp();
 
         // Fresh provenance precedes the immutable store/member lookup.
         let admission = find_trainer_buy_spell_like_cpp(
-            self.interaction, &self.role, self.trainer_store,
-            trainer_guid, trainer_id, spell_id as u32,
-        ).map(|_| ());
+            self.interaction,
+            &self.role,
+            self.trainer_store,
+            trainer_guid,
+            trainer_id,
+            spell_id as u32,
+        )
+        .map(|_| ());
         match admission {
             Err(TrainerBuyAdmissionLikeCpp::InteractionMismatch) => {
                 tracing::warn!(
@@ -96,15 +119,21 @@ impl<'a> AppTrainerBuyAdmissionCxLikeCpp<'a> {
                 );
                 None
             }
-            Err(TrainerBuyAdmissionLikeCpp::TrainerStoreUnavailable
-                | TrainerBuyAdmissionLikeCpp::TrainerUnavailable) => None,
+            Err(
+                TrainerBuyAdmissionLikeCpp::TrainerStoreUnavailable
+                | TrainerBuyAdmissionLikeCpp::TrainerUnavailable,
+            ) => None,
             Err(TrainerBuyAdmissionLikeCpp::SpellUnavailable) => {
                 tracing::warn!(
-                    account = self.account_id, trainer_id = trainer_id, spell_id = spell_id,
+                    account = self.account_id,
+                    trainer_id = trainer_id,
+                    spell_id = spell_id,
                     "Spell not in trainer's loaded C++ spell set"
                 );
                 self.publication.send_packet_realm(&TrainerBuyFailed {
-                    trainer_guid, spell_id, reason: 0,
+                    trainer_guid,
+                    spell_id,
+                    reason: 0,
                 });
                 None
             }

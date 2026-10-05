@@ -1582,7 +1582,9 @@ pub(crate) fn audit_package_source_graph(
     let mut unconditional = BTreeSet::new();
     let mut production_impossible = BTreeSet::new();
     for (source, contexts) in &mounts {
-        let production = contexts.iter().any(|c| c.production_possible && c.cfg.is_empty());
+        let production = contexts
+            .iter()
+            .any(|c| c.production_possible && c.cfg.is_empty());
         if production {
             unconditional.insert(source.clone());
         }

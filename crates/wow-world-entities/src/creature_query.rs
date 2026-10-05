@@ -1,7 +1,7 @@
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_world_core::session::{
-    power_type_from_u8_like_cpp, HubMut, HubRef, RepresentedCreatureAccessLikeCpp,
+    HubMut, HubRef, RepresentedCreatureAccessLikeCpp, power_type_from_u8_like_cpp,
 };
 
 use crate::{CreatureCreateStatsLikeCpp, CreatureSpawnCatalogsLikeCpp, WorldEntitiesState};

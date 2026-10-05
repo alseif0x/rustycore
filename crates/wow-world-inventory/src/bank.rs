@@ -45,11 +45,7 @@ impl crate::InventoryState {
         )
     }
 
-    pub fn send_player_bank_bag_slots_update_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        count: u8,
-    ) {
+    pub fn send_player_bank_bag_slots_update_like_cpp(&self, hub: HubRef<'_>, count: u8) {
         let Some(guid) = hub.core.player_guid() else {
             return;
         };
@@ -76,8 +72,12 @@ impl crate::InventoryState {
         let access = hub.core.owned_inventory_access_like_cpp();
         let publication = hub.core.packet_publication_access_like_cpp();
         self.send_player_bank_bag_slot_flag_update_with_access_like_cpp(
-            &access, &publication, hub.catalogs.items.store.as_ref(),
-            hub.catalogs.items.stats_store.as_ref(), slot, value,
+            &access,
+            &publication,
+            hub.catalogs.items.store.as_ref(),
+            hub.catalogs.items.stats_store.as_ref(),
+            slot,
+            value,
         );
     }
 
@@ -94,7 +94,10 @@ impl crate::InventoryState {
             return;
         };
         let Some(mut player) = self.player_values_update_snapshot_with_access_like_cpp(
-            access, publication, item_store, item_stats_store,
+            access,
+            publication,
+            item_store,
+            item_stats_store,
         ) else {
             return;
         };
@@ -138,10 +141,7 @@ impl crate::InventoryState {
         self.represented_guild_repair_bank_state_like_cpp
     }
 
-    pub fn resolved_player_bank_bag_slot_count_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u8> {
+    pub fn resolved_player_bank_bag_slot_count_like_cpp(&self, hub: HubRef<'_>) -> Option<u8> {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.resolved_player_bank_bag_slot_count_with_access_like_cpp(&access)
     }
@@ -162,10 +162,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn player_bank_bag_slot_count_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> u8 {
+    pub fn player_bank_bag_slot_count_like_cpp(&self, hub: HubRef<'_>) -> u8 {
         self.resolved_player_bank_bag_slot_count_like_cpp(hub)
             .expect("test Player bank-bag-slot owner must resolve")
     }

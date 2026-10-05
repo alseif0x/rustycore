@@ -30,7 +30,8 @@ impl WorldSession {
     ) -> Option<bool> {
         #[cfg(any(test, feature = "test-fixtures"))]
         let player = self.core.player_stats_access_with_fixture_refs_like_cpp(
-            &self.catalogs, &self.config,
+            &self.catalogs,
+            &self.config,
             &self.fixtures.identity.player_race,
             &self.fixtures.identity.player_class,
             &self.fixtures.identity.player_level,
@@ -46,14 +47,19 @@ impl WorldSession {
                 wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
                     &self.fixtures.auras.represented_shapeshift_form_like_cpp,
                     &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-                    &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                    &self
+                        .fixtures
+                        .auras
+                        .player_spell_hit_aura_authority_tombstoned_like_cpp,
                     &self.fixtures.auras.visible_auras,
                     &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
                 ),
             ),
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        let player = self.core.player_stats_access_like_cpp(&self.catalogs, &self.config);
+        let player = self
+            .core
+            .player_stats_access_like_cpp(&self.catalogs, &self.config);
         wow_world_application::InventoryScalingApplicationCxLikeCpp::new(
             &mut self.inventory,
             player,
@@ -93,20 +99,22 @@ impl WorldSession {
                 ),
                 cfg!(test),
             ),
-        ).update_item_level_area_based_scaling_like_cpp(publish)
+        )
+        .update_item_level_area_based_scaling_like_cpp(publish)
     }
     /// C++ `Player::GetAverageItemLevel`.
     pub(crate) fn represented_average_item_level_like_cpp(&self) -> Option<f32> {
-        self.inventory.represented_average_item_level_with_access_like_cpp(
-            &self.core.owned_inventory_access_like_cpp(),
-            &self.core.inventory_valuation_access_like_cpp(),
-            &self.core.owned_item_modifiers_access_like_cpp(),
-            &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
-            Self::MIN_ITEM_LEVEL_LIKE_CPP,
-            Self::MAX_ITEM_LEVEL_LIKE_CPP,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-        )
+        self.inventory
+            .represented_average_item_level_with_access_like_cpp(
+                &self.core.owned_inventory_access_like_cpp(),
+                &self.core.inventory_valuation_access_like_cpp(),
+                &self.core.owned_item_modifiers_access_like_cpp(),
+                &self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+                Self::MIN_ITEM_LEVEL_LIKE_CPP,
+                Self::MAX_ITEM_LEVEL_LIKE_CPP,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+            )
     }
     pub(in crate::session) fn represented_item_level_like_cpp(
         &self,
@@ -129,8 +137,6 @@ impl WorldSession {
         )
     }
 }
-
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/valuation/f3_shims.rs"]

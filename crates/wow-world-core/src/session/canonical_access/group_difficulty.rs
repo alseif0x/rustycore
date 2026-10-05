@@ -25,7 +25,11 @@ impl SessionCore {
 
 impl GroupDifficultyAccessLikeCpp<'_> {
     pub fn group_snapshot_like_cpp(&self, group_guid: u64) -> Option<GroupInfo> {
-        self.core.directory.group_registry.as_ref()?.get(&group_guid)
+        self.core
+            .directory
+            .group_registry
+            .as_ref()?
+            .get(&group_guid)
     }
 
     pub fn set_difficulty_transition_like_cpp(
@@ -57,13 +61,11 @@ impl GroupDifficultyAccessLikeCpp<'_> {
         if let Some(member) = player_registry.group_presence(member_guid) {
             let _ = player_registry.deliver_group_state_command_like_cpp(
                 member.registration,
-                SessionCommand::ApplyGroupDifficultyLikeCpp(
-                    ApplyGroupDifficultyLikeCppCommand {
-                        group_guid,
-                        difficulty_id,
-                        kind,
-                    },
-                ),
+                SessionCommand::ApplyGroupDifficultyLikeCpp(ApplyGroupDifficultyLikeCppCommand {
+                    group_guid,
+                    difficulty_id,
+                    kind,
+                }),
             );
         } else {
             player_registry.mark_group_state_reconciliation_like_cpp(member_guid);

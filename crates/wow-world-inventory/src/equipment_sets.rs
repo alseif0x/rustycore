@@ -3,9 +3,7 @@
 
 use std::sync::Arc;
 
-use crate::{
-    MAX_EQUIPMENT_SET_INDEX_LIKE_CPP, RepresentedEquipmentSetSavedLikeCpp,
-};
+use crate::{MAX_EQUIPMENT_SET_INDEX_LIKE_CPP, RepresentedEquipmentSetSavedLikeCpp};
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid};
 use wow_entities::{
     PlayerEquipmentSetLikeCpp as RepresentedEquipmentSetLikeCpp,
@@ -19,8 +17,9 @@ pub fn represented_equipment_set_from_packet_like_cpp(
     guid: u64,
     state: wow_entities::PlayerEquipmentSetUpdateStateLikeCpp,
 ) -> Option<wow_entities::PlayerEquipmentSetLikeCpp> {
-    let set_type =
-        wow_entities::PlayerEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(set.set_type)?;
+    let set_type = wow_entities::PlayerEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(
+        set.set_type,
+    )?;
     Some(wow_entities::PlayerEquipmentSetLikeCpp {
         raw_set_type: set.set_type,
         set_type,
@@ -61,10 +60,8 @@ impl crate::InventoryState {
             .catalogs
             .item_modified_appearance_store()
             .map(Arc::as_ref);
-        let spell_item_enchantment_store = hub
-            .catalogs
-            .spell_item_enchantment_store()
-            .map(Arc::as_ref);
+        let spell_item_enchantment_store =
+            hub.catalogs.spell_item_enchantment_store().map(Arc::as_ref);
         let publication = hub.core.packet_publication_access_like_cpp();
         crate::EquipmentSetsSaveCxLikeCpp::new(
             self,
@@ -131,17 +128,11 @@ impl crate::InventoryState {
         });
     }
 
-    pub fn clear_represented_equipment_sets_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn clear_represented_equipment_sets_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _ = self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.clear_like_cpp());
     }
 
-    pub fn mark_represented_equipment_sets_loaded_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn mark_represented_equipment_sets_loaded_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _ =
             self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.mark_loaded_like_cpp());
     }
@@ -274,10 +265,7 @@ impl crate::InventoryState {
     /// (`Player.cpp:26409-26500`): after persistence statements are queued,
     /// surviving rows become unchanged and deleted rows are removed.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn mark_equipment_sets_saved_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn mark_equipment_sets_saved_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _ = self
             .with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.mark_sets_saved_like_cpp());
     }

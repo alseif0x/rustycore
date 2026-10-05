@@ -3,10 +3,10 @@
 //! Moved out of the Session root under #601. Behaviour is preserved; the
 //! canonical owner of this state is unchanged.
 
+use crate::SessionSpellState;
 use crate::records::{
     RepresentedCharacterSpellChargeLikeCpp, RepresentedCharacterSpellCooldownLikeCpp,
 };
-use crate::SessionSpellState;
 use wow_packet::packets::misc::{SpellChargeEntry, SpellHistoryEntry};
 use wow_world_core::session::{HubMut, HubRef};
 
@@ -164,10 +164,7 @@ impl SessionSpellState {
         })
     }
 
-    pub fn reset_represented_character_spell_cooldowns_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn reset_represented_character_spell_cooldowns_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _ = self.mutate_player_spell_history_like_cpp(hub, |history| {
             history.cooldowns.clear();
             history.cooldowns_loaded = false;
@@ -225,7 +222,6 @@ impl SessionSpellState {
             self.represented_spell_history_packets_like_cpp = (history, charges);
         }
     }
-
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn spell_history_packets_for_test_like_cpp(

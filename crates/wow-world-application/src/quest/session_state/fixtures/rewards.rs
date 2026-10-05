@@ -5,7 +5,7 @@
 
 //! Private quest reward evidence fixture operations for quest state.
 
-use super::super::{contracts, SessionQuestState};
+use super::super::{SessionQuestState, contracts};
 
 impl SessionQuestState {
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -15,7 +15,9 @@ impl SessionQuestState {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn fixture_represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
-        &self.fixtures.represented_quest_reward_skill_updates_like_cpp
+        &self
+            .fixtures
+            .represented_quest_reward_skill_updates_like_cpp
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -54,14 +56,18 @@ impl SessionQuestState {
         &mut self,
         title: contracts::RepresentedQuestRewardTitleLikeCpp,
     ) {
-        self.fixtures.represented_quest_reward_titles_like_cpp.push(title);
+        self.fixtures
+            .represented_quest_reward_titles_like_cpp
+            .push(title);
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn fixture_represented_quest_reward_talent_points_like_cpp(
         &self,
     ) -> &[contracts::RepresentedQuestRewardTalentPointsLikeCpp] {
-        &self.fixtures.represented_quest_reward_talent_points_like_cpp
+        &self
+            .fixtures
+            .represented_quest_reward_talent_points_like_cpp
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -86,7 +92,9 @@ impl SessionQuestState {
         &mut self,
         mail: contracts::RepresentedQuestRewardMailLikeCpp,
     ) {
-        self.fixtures.represented_quest_reward_mails_like_cpp.push(mail);
+        self.fixtures
+            .represented_quest_reward_mails_like_cpp
+            .push(mail);
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

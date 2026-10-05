@@ -620,7 +620,9 @@ async fn quest_giver_choose_reward_gameobject_no_relation_rejects_like_cpp() {
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session.quest_state.fixture_has_rewarded_quest_like_cpp(9_225)
+        !session
+            .quest_state
+            .fixture_has_rewarded_quest_like_cpp(9_225)
     );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert!(send_rx.try_recv().is_err());

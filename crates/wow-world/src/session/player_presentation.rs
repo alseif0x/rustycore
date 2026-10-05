@@ -27,7 +27,8 @@ impl WorldSession {
     /// readers.
     pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) -> bool {
         self.core.set_shapeshift_form_with_fixture_like_cpp(
-            form_id, cfg!(test),
+            form_id,
+            cfg!(test),
             #[cfg(any(test, feature = "test-fixtures"))]
             &mut self.fixtures.auras.represented_shapeshift_form_like_cpp,
         )

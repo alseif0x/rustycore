@@ -2,9 +2,9 @@ use wow_core::ObjectGuid;
 use wow_loot::LootStoreKind;
 use wow_world_core::session::{HubMut, HubRef};
 
-use crate::{PendingCreatureKillRewardLikeCpp, WorldEntitiesState};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedCreatureKillEventLikeCpp;
+use crate::{PendingCreatureKillRewardLikeCpp, WorldEntitiesState};
 
 impl WorldEntitiesState {
     /// Queue one creature kill for the loot and reward phases, deduplicated.

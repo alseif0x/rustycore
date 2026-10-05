@@ -17,7 +17,8 @@ impl LootState {
         loot_obj: ObjectGuid,
         loot_list_id: u8,
     ) -> Option<&mut RepresentedLootRollState> {
-        self.represented_loot_rolls.get_mut(&(loot_obj, loot_list_id))
+        self.represented_loot_rolls
+            .get_mut(&(loot_obj, loot_list_id))
     }
 
     pub fn insert_represented_loot_roll_like_cpp(
@@ -33,7 +34,8 @@ impl LootState {
         loot_obj: ObjectGuid,
         loot_list_id: u8,
     ) -> Option<RepresentedLootRollState> {
-        self.represented_loot_rolls.remove(&(loot_obj, loot_list_id))
+        self.represented_loot_rolls
+            .remove(&(loot_obj, loot_list_id))
     }
 
     pub fn represented_loot_roll_keys_snapshot_like_cpp(&self) -> Vec<(ObjectGuid, u8)> {

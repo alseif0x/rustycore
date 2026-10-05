@@ -50,7 +50,8 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>,
     ) {
-        self.lifecycle.set_stored_item_persistence_port_like_cpp(port);
+        self.lifecycle
+            .set_stored_item_persistence_port_like_cpp(port);
     }
 
     pub fn set_character_administration_persistence_port_like_cpp(

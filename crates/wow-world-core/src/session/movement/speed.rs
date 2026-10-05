@@ -148,7 +148,6 @@ impl crate::session::HubMut<'_> {
         let (presentation, mut control) = self.aura_removal_mount_accesses_like_cpp();
         control.set_player_movement_speed_rate_and_notify_like_cpp(&presentation, move_type, rate);
     }
-
 }
 impl crate::session::HubRef<'_> {
     pub fn resolved_player_movement_speed_rate_like_cpp(
@@ -176,9 +175,4 @@ impl crate::session::HubRef<'_> {
                 * self.resolved_player_movement_speed_rate_like_cpp(move_type)?,
         )
     }
-
-
-
-
-
 }

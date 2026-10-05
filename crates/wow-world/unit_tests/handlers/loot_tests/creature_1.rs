@@ -674,7 +674,14 @@ async fn loot_money_non_allowed_active_creature_does_not_take_coins_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert_eq!(session.player_gold_like_cpp(), 0);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().coins, 7);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .coins,
+        7
+    );
 }
 #[tokio::test]
 async fn loot_item_creature_too_far_uses_cpp_error() {
@@ -728,7 +735,14 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
         loot_response_failure_reason(&sent),
         LOOT_ERROR_TOO_FAR_LIKE_CPP
     );
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -784,7 +798,14 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
         loot_response_failure_reason(&sent),
         LOOT_ERROR_TOO_FAR_LIKE_CPP
     );
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -816,13 +837,19 @@ async fn loot_item_creature_pickup_refreshes_canonical_owned_loot_like_cpp() {
     );
 
     mark_loot_item_looted_for_player_like_cpp(
-        session.loot.cached_loot_for_owner_mut_like_cpp(loot_guid).unwrap(),
+        session
+            .loot
+            .cached_loot_for_owner_mut_like_cpp(loot_guid)
+            .unwrap(),
         0,
         player_guid,
     );
     session.refresh_represented_loot_owner_canonical_summary_like_cpp(loot_guid, player_guid);
 
-    let loot = session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap();
+    let loot = session
+        .loot
+        .cached_loot_for_owner_like_cpp(loot_guid)
+        .unwrap();
     assert!(loot.items[0].is_looted_for_player_like_cpp(player_guid));
     assert_eq!(loot.unlooted_count, 0);
     let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
@@ -879,6 +906,13 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
         loot_response_failure_reason(&sent),
         LOOT_ERROR_NO_LOOT_LIKE_CPP
     );
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }

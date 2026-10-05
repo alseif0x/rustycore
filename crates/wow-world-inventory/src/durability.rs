@@ -5,9 +5,9 @@ use std::collections::HashSet;
 
 use wow_core::ObjectGuid;
 use wow_entities::{
-    is_equipment_packed_pos, make_item_pos, EQUIPMENT_SLOT_END, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END,
-    INVENTORY_SLOT_ITEM_START, INVENTORY_DEFAULT_SIZE, MAX_BAG_SIZE, PLAYER_SLOT_END,
+    EQUIPMENT_SLOT_END, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE,
+    PLAYER_SLOT_END, is_equipment_packed_pos, make_item_pos,
 };
 use wow_world_core::session::HubRef;
 
@@ -111,10 +111,7 @@ impl crate::InventoryState {
 
 impl crate::InventoryState {
     /// C++ `GetTotalAuraMultiplier(SPELL_AURA_MOD_DURABILITY_LOSS)`.
-    pub fn represented_durability_loss_aura_multiplier_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> f32 {
+    pub fn represented_durability_loss_aura_multiplier_like_cpp(&self, hub: HubRef<'_>) -> f32 {
         hub.resolved_aura_effects_by_spell_aura_type_like_cpp(
             wow_data::spell::aura_types::SPELL_AURA_MOD_DURABILITY_LOSS,
         )
@@ -124,10 +121,7 @@ impl crate::InventoryState {
     }
 
     /// C++ `HasAuraType(SPELL_AURA_PREVENT_DURABILITY_LOSS)`.
-    pub fn represented_prevent_durability_loss_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn represented_prevent_durability_loss_like_cpp(&self, hub: HubRef<'_>) -> bool {
         hub.resolved_aura_effects_by_spell_aura_type_like_cpp(
             wow_data::spell::aura_types::SPELL_AURA_PREVENT_DURABILITY_LOSS,
         )
@@ -137,10 +131,7 @@ impl crate::InventoryState {
     /// C++ `Player::InBattleground` (`Player.h:2335`) read through the canonical
     /// Player's represented battleground state.
     #[must_use]
-    pub fn represented_player_in_battleground_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn represented_player_in_battleground_like_cpp(&self, hub: HubRef<'_>) -> bool {
         hub.core
             .with_owned_player_like_cpp(|player| {
                 player

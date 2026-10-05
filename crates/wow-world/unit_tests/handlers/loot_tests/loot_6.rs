@@ -48,13 +48,21 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), secondary_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(session.loot.is_active_loot_guid(primary_guid));
-    assert!(session.loot.has_active_loot_view_owner_like_cpp(primary_guid));
+    assert!(
+        session
+            .loot
+            .has_active_loot_view_owner_like_cpp(primary_guid)
+    );
     assert!(
         !session
             .loot
             .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
-    assert!(session.loot.cached_loot_contains_owner_like_cpp(secondary_guid));
+    assert!(
+        session
+            .loot
+            .cached_loot_contains_owner_like_cpp(secondary_guid)
+    );
 }
 #[test]
 fn looted_corpse_decay_uses_cpp_rate_and_ignore_flag() {
@@ -180,7 +188,8 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
 
     assert!(send_rx.try_recv().is_ok());
     let hole_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(fishing_hole)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(fishing_hole)
         .unwrap();
     assert_eq!(hole_state.personal_loot_uses, 1);
     assert_eq!(hole_state.loot_state, Some(LootState::JustDeactivated));
@@ -241,7 +250,8 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
         wow_constants::ServerOpcodes::LootRelease as u16
     );
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gathering_node)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gathering_node)
         .unwrap();
     assert_eq!(state.go_state, Some(GoState::Active));
     assert_eq!(state.loot_state, None);
@@ -305,7 +315,8 @@ fn partial_gathering_node_release_does_not_run_on_loot_release_state_like_cpp() 
     );
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gathering_node)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gathering_node)
         .unwrap();
     assert_ne!(state.go_state, Some(GoState::Active));
     assert_eq!(state.loot_state, Some(LootState::Activated));

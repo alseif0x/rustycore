@@ -12,37 +12,37 @@ use crate::{
     SessionPersistencePortsLikeCpp, default_account_data_like_cpp,
 };
 
-mod persistence_ports;
-mod collections;
-mod battle_pet_login;
-mod module_login;
-mod money_persistence;
-mod login_claims;
-mod finalization;
-mod cleanup;
-mod logout;
-mod corpses;
-mod save;
-mod money_plans;
 mod account;
-mod group;
-mod pet_load;
+mod battle_pet_login;
 mod bootstrap;
-mod rename_callbacks;
-mod stored_item_loot;
-mod stored_item_loot_contracts;
-mod item_loot;
-mod homebind;
+mod cleanup;
+mod collections;
+mod corpses;
+mod finalization;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
-mod transfer;
+mod group;
+mod homebind;
+mod item_loot;
 mod load;
-mod playtime;
-mod runtime;
+mod login_claims;
 mod login_load;
+mod logout;
+mod module_login;
+mod money_persistence;
+mod money_plans;
+mod persistence_ports;
+mod pet_load;
+mod playtime;
+mod rename_callbacks;
+mod runtime;
+mod save;
+mod stored_item_loot;
+mod stored_item_loot_contracts;
+mod transfer;
 
-pub use money_plans::{LootMoneyPersistenceErrorLikeCpp, RepresentedTalentResetStatePlanLikeCpp};
 pub use group::group_persistence_command_like_cpp;
+pub use money_plans::{LootMoneyPersistenceErrorLikeCpp, RepresentedTalentResetStatePlanLikeCpp};
 pub use stored_item_loot_contracts::{
     LootTemplateRow, LootTemplateTable, WrappedGiftLoad, WrappedGiftRow,
 };
@@ -59,14 +59,12 @@ pub const DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP: u32 = 15 * 60 * 1000;
 pub struct SessionLifecycleState {
     /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
     pub(crate) account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
-    pub(crate) battle_pet_account_attachment_like_cpp:
-        Option<BattlePetAccountAttachmentLikeCpp>,
+    pub(crate) battle_pet_account_attachment_like_cpp: Option<BattlePetAccountAttachmentLikeCpp>,
     pub(crate) character_rename_callbacks: RenameCallbacks,
     /// Detached durable loot grants and their post-commit runtime
     /// publications. This covers claimed world-owner items plus Item-owner
     /// items/money; Item owners have no map-owned loot authority.
-    pub(crate) durable_item_loot_persistence_like_cpp:
-        DurableItemLootPersistenceTrackerLikeCpp,
+    pub(crate) durable_item_loot_persistence_like_cpp: DurableItemLootPersistenceTrackerLikeCpp,
     /// Per-character fence published to remote loot sources before they begin
     /// mutating this character's durable balance.
     pub(crate) durable_loot_money_persistence_like_cpp:

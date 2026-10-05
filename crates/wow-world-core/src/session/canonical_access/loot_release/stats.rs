@@ -1,10 +1,10 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use crate::session::{PlayerStatsAccessLikeCpp, SessionCatalogs, SessionWorldConfig};
+use super::LootReleaseOwnerAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::StatsFixtureRefs;
-use super::LootReleaseOwnerAccessLikeCpp;
+use crate::session::{PlayerStatsAccessLikeCpp, SessionCatalogs, SessionWorldConfig};
 
 /// Inert catalogs/config inputs, kept separate from the release's mutable Core
 /// borrow. The cfg(test) stats fixtures stay with the caller so one mutable
@@ -45,13 +45,19 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.core.player_stats_access_with_fixture_refs_like_cpp(
-                inputs.catalogs, inputs.config, race, class, level, fixtures,
+                inputs.catalogs,
+                inputs.config,
+                race,
+                class,
+                level,
+                fixtures,
             )
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             let _ = &mut *inputs;
-            self.core.player_stats_access_like_cpp(inputs.catalogs, inputs.config)
+            self.core
+                .player_stats_access_like_cpp(inputs.catalogs, inputs.config)
         }
     }
 }

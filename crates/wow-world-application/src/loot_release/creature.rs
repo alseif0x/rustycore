@@ -17,7 +17,9 @@ impl LootReleaseCxLikeCpp<'_> {
         // C++ forces the viewer-dependent DynamicFlags field after every
         // creature release, including a selected personal pool that completed
         // while another pool remains.
-        let forced_values_update = self.owner.force_creature_loot_release_dynamic_flags_like_cpp(owner_guid);
+        let forced_values_update = self
+            .owner
+            .force_creature_loot_release_dynamic_flags_like_cpp(owner_guid);
 
         if !whole_object_fully_looted {
             if let Some(values_update) = forced_values_update.as_ref() {
@@ -50,9 +52,13 @@ impl LootReleaseCxLikeCpp<'_> {
             owner_guid,
             whole_object_fully_skinned,
             corpse_decay_looted_rate,
-            authoritative_release.map(|release| (
-                &release.authority, release.object_generation, release.lifecycle_revision,
-            )),
+            authoritative_release.map(|release| {
+                (
+                    &release.authority,
+                    release.object_generation,
+                    release.lifecycle_revision,
+                )
+            }),
         );
 
         if let Some((_, values_update)) = lifecycle_update.as_ref() {

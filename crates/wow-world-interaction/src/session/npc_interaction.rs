@@ -22,8 +22,7 @@ impl InteractionState {
                 .set_trainer(source_guid, trainer_id);
         }
         canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && role.player_handle_absent_like_cpp()
+            || cfg!(any(test, feature = "test-fixtures")) && role.player_handle_absent_like_cpp()
     }
 
     /// Re-read the current trainer role through Core on every call. A prior
@@ -65,8 +64,9 @@ impl InteractionState {
         if canonical || hub.core.player_handle_like_cpp.is_none() {
             self.player_interaction_data_like_cpp.reset();
         }
-        canonical || cfg!(any(test, feature = "test-fixtures"))
-            && hub.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && hub.core.player_handle_like_cpp.is_none()
     }
 
     pub fn set_player_interaction_source_like_cpp(
@@ -85,8 +85,9 @@ impl InteractionState {
             self.player_interaction_data_like_cpp
                 .set_source(source_guid);
         }
-        canonical || cfg!(any(test, feature = "test-fixtures"))
-            && hub.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && hub.core.player_handle_like_cpp.is_none()
     }
 
     pub fn set_player_trainer_interaction_like_cpp(
@@ -117,10 +118,7 @@ impl InteractionState {
         canonical.unwrap_or(false)
     }
 
-    pub fn player_interaction_source_guid_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<ObjectGuid> {
+    pub fn player_interaction_source_guid_like_cpp(&self, hub: HubRef<'_>) -> Option<ObjectGuid> {
         let access = hub.trainer_npc_interaction_access_like_cpp();
         self.player_interaction_source_guid_with_access_like_cpp(&access)
     }
@@ -133,10 +131,7 @@ impl InteractionState {
         (!interaction.source_guid.is_empty()).then_some(interaction.source_guid)
     }
 
-    pub fn resolved_player_interaction_trainer_id_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u32> {
+    pub fn resolved_player_interaction_trainer_id_like_cpp(&self, hub: HubRef<'_>) -> Option<u32> {
         let access = hub.trainer_npc_interaction_access_like_cpp();
         self.resolved_player_interaction_trainer_id_with_access_like_cpp(&access)
     }
@@ -162,10 +157,6 @@ impl InteractionState {
         trainer_id: i32,
     ) -> bool {
         let role = hub.core.trainer_interaction_role_access_like_cpp();
-        self.trainer_interaction_role_matches_with_access_like_cpp(
-            &role,
-            source_guid,
-            trainer_id,
-        )
+        self.trainer_interaction_role_matches_with_access_like_cpp(&role, source_guid, trainer_id)
     }
 }

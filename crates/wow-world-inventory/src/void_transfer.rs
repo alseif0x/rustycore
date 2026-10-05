@@ -3,10 +3,12 @@
 
 use std::collections::HashMap;
 
+use crate::{
+    EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
+};
 use wow_constants::{EnchantmentSlot, ItemModifier};
 use wow_entities::{INVENTORY_SLOT_BAG_0, PlayerInventoryItem as InventoryItem};
 use wow_world_core::session::HubRef;
-use crate::{EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp};
 
 impl crate::InventoryState {
     pub fn plan_void_storage_destroyed_items_like_cpp(

@@ -6,9 +6,8 @@
 
 use wow_data::{DifficultyStore, MapDifficultyStore, MapStore};
 use wow_world_core::session::{
-    GroupDifficultyAccessLikeCpp, InstanceLockManagerAccessLikeCpp,
-    InstancePlayerAccessLikeCpp, PacketPublicationAccessLikeCpp,
-    PlayerGroupOwnerAccessLikeCpp,
+    GroupDifficultyAccessLikeCpp, InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp,
+    PacketPublicationAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
 };
 use wow_world_instances::InstanceState;
 use wow_world_lifecycle::SessionLifecycleState;
@@ -74,10 +73,8 @@ impl<'a> InstanceLockOperationsHandlerCxLikeCpp<'a> {
         map_difficulty_store: Option<&'a MapDifficultyStore>,
         difficulty_store: Option<&'a DifficultyStore>,
         consumer_test: bool,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        game_master_fixture: &'a bool,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        rejected_response_counter: &'a mut u32,
+        #[cfg(any(test, feature = "test-fixtures"))] game_master_fixture: &'a bool,
+        #[cfg(any(test, feature = "test-fixtures"))] rejected_response_counter: &'a mut u32,
     ) -> Self {
         Self {
             instances,

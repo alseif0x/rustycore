@@ -17,12 +17,12 @@ use wow_packet::packets::misc::{PhaseShiftChange, PhaseShiftDataPhase};
 #[cfg(test)]
 use wow_packet::packets::party::PartyMemberPhase;
 
-use super::{PhaseShiftPacketBuildError, phase_flags_for_id_like_cpp};
 #[cfg(test)]
 use super::{
     PHASE_USE_FLAGS_ALWAYS_VISIBLE, PHASE_USE_FLAGS_INVERSE, init_db_phase_shift_like_cpp,
     init_db_visible_map_id_like_cpp, party_member_phase_states_like_cpp,
 };
+use super::{PhaseShiftPacketBuildError, phase_flags_for_id_like_cpp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PhaseVisibilityUpdate {

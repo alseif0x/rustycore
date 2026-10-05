@@ -18,7 +18,8 @@ pub struct QuestObjectiveRegistryFixtureRefsLikeCpp<'a> {
     pub(super) health: &'a u32,
     pub(super) max_health: &'a u32,
     pub(super) alive: &'a bool,
-    pub(super) transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
+    pub(super) transport:
+        &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
     pub(super) mount_vehicle: &'a Option<wow_entities::Vehicle>,
     pub(super) vehicle_seat_flags: &'a Option<i32>,
     pub(super) vehicle_seat_id: &'a Option<u32>,
@@ -64,8 +65,7 @@ pub struct QuestObjectiveProgressCx<'cx, 'session> {
     pub(super) loot: &'cx LootState,
     pub(super) item_guid_generator: &'cx ObjectGuidGenerator,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(super) reputation_fixture:
-        &'cx mut QuestRewardReputationFixtureRefsLikeCpp<'session>,
+    pub(super) reputation_fixture: &'cx mut QuestRewardReputationFixtureRefsLikeCpp<'session>,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(super) xp_fixtures: &'cx mut super::super::reward::QuestXpGainFixtureRefsLikeCpp<'session>,
     #[cfg(any(test, feature = "test-fixtures"))]

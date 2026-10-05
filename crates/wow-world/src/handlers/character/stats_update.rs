@@ -34,10 +34,7 @@ impl WorldSession {
     }
 
     /// C++ `HandleModTotalPercentStat` application entrypoint.
-    pub(crate) fn send_total_stat_percentage_update_like_cpp(
-        &mut self,
-        preserve_health_pct: bool,
-    ) {
+    pub(crate) fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
         self.stats_application_cx_like_cpp()
             .send_total_stat_percentage_update_like_cpp(preserve_health_pct);
     }

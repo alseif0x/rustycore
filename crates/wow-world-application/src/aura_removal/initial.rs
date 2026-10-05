@@ -12,11 +12,13 @@ pub(super) fn remove_initial_phase_like_cpp(
     spell_store: Option<&wow_data::SpellStore>,
     slot: u8,
 ) -> Result<RemovedAuraLikeCpp, &'static str> {
-    let mounted_aura = player.visible_auras_snapshot_like_cpp()
+    let mounted_aura = player
+        .visible_auras_snapshot_like_cpp()
         .and_then(|auras| auras.get(&slot).cloned())
         .is_some_and(|aura| aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted));
     let was_mounted = if mounted_aura {
-        player.resolved_player_mounted_like_cpp()
+        player
+            .resolved_player_mounted_like_cpp()
             .ok_or("Missing Player presentation owner")?
     } else {
         false
@@ -31,5 +33,9 @@ pub(super) fn remove_initial_phase_like_cpp(
     // C++ AuraEffect::HandleAuraTransform removal clears only the transform
     // owned by the application that is already gone (2129–2131).
     let _ = spell.remove_represented_transform_aura_with_access_like_cpp(player, &aura);
-    Ok(RemovedAuraLikeCpp { aura, mounted_aura, was_mounted })
+    Ok(RemovedAuraLikeCpp {
+        aura,
+        mounted_aura,
+        was_mounted,
+    })
 }

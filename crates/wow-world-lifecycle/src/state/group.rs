@@ -133,9 +133,7 @@ pub fn group_persistence_command_like_cpp(
                 GroupDifficultyKindLikeCpp::Dungeon => {
                     RepresentedGroupDifficultyKindLikeCpp::Dungeon
                 }
-                GroupDifficultyKindLikeCpp::Raid => {
-                    RepresentedGroupDifficultyKindLikeCpp::Raid
-                }
+                GroupDifficultyKindLikeCpp::Raid => RepresentedGroupDifficultyKindLikeCpp::Raid,
                 GroupDifficultyKindLikeCpp::LegacyRaid => {
                     RepresentedGroupDifficultyKindLikeCpp::LegacyRaid
                 }

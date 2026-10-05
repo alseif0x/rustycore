@@ -120,16 +120,19 @@ impl CoreXPGainAccessLikeCpp<'_> {
         aura_authority_complete: &bool,
         aura_spell_hit_tombstoned: &bool,
         visible_auras: &std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
-        threat_aura_snapshots:
-            &std::collections::HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
+        threat_aura_snapshots: &std::collections::HashMap<
+            u8,
+            wow_entities::AuraThreatSnapshotLikeCpp,
+        >,
     ) -> Option<i32> {
         super::represented_total_aura_modifier_from_snapshot_like_cpp(
-            self.core.player_aura_subsystem_snapshot_with_fixture_refs_like_cpp(
-                aura_authority_complete,
-                aura_spell_hit_tombstoned,
-                visible_auras,
-                threat_aura_snapshots,
-            ),
+            self.core
+                .player_aura_subsystem_snapshot_with_fixture_refs_like_cpp(
+                    aura_authority_complete,
+                    aura_spell_hit_tombstoned,
+                    visible_auras,
+                    threat_aura_snapshots,
+                ),
             effect,
         )
     }
@@ -159,8 +162,7 @@ impl CoreXPGainAccessLikeCpp<'_> {
         fixture_rest.represented_rest_flag_mask_like_cpp = state.rest_flag_mask_like_cpp();
         fixture_rest.represented_rest_location_initialized_like_cpp =
             state.is_location_initialized_like_cpp();
-        fixture_rest.represented_defer_rest_flag_sync_like_cpp =
-            state.defers_flag_sync_like_cpp();
+        fixture_rest.represented_defer_rest_flag_sync_like_cpp = state.defers_flag_sync_like_cpp();
         fixture_rest.represented_deferred_rest_flag_update_dirty_like_cpp =
             state.deferred_flag_update_dirty_like_cpp();
         fixture_rest.represented_inn_area_trigger_id_like_cpp = state.inn_trigger_id_like_cpp();
@@ -177,9 +179,7 @@ impl CoreXPGainAccessLikeCpp<'_> {
     }
 }
 
-fn can_gain_rest_bonus_from_next_level_xp_like_cpp(
-    next_level_xp: Option<u32>,
-) -> Option<bool> {
+fn can_gain_rest_bonus_from_next_level_xp_like_cpp(next_level_xp: Option<u32>) -> Option<bool> {
     let next_level_xp = next_level_xp?;
     Some(next_level_xp != 0 && next_level_xp != u32::MAX)
 }

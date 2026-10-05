@@ -79,9 +79,7 @@ impl WorldSession {
             .core
             .with_owned_player_like_cpp(|player| player.data().player_title);
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .quest_state
-                .fixture_represented_chosen_title_like_cpp();
+            return self.quest_state.fixture_represented_chosen_title_like_cpp();
         }
         canonical.expect("test Player title owner must resolve")
     }

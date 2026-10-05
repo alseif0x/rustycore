@@ -60,19 +60,16 @@ use wow_packet::packets::query::{
 };
 use wow_packet::packets::quest::{
     AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
-    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed,
-    QuestGiverStatus, QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse,
-    QuestRewardsBlock, WorldQuestUpdateResponse, quest_push_reason,
+    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverStatus,
+    QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse, QuestRewardsBlock,
+    WorldQuestUpdateResponse, quest_push_reason,
 };
 // Test-only: the quest handler test fixtures read the dialog status
 // discriminators through this module's glob import.
 #[cfg(test)]
 use wow_packet::packets::quest::quest_giver_status;
 
-use wow_packet::packets::update::{
-    ItemCreateData, ItemEnchantmentValuesUpdate,
-    UpdateObject,
-};
+use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 
 use crate::handlers::character::ExtendedCostItemTurninChange;
 use crate::session::{
@@ -399,8 +396,8 @@ fn build_quest_poi_store_like_cpp(
 
 // ── Handler registrations ────────────────────────────────────────────────────
 
-pub(crate) use wow_world_application::RepresentedQuestGiverStatusSourceLikeCpp;
 pub(crate) use wow_world_application::MAX_QUEST_LOG_SIZE_LIKE_CPP;
+pub(crate) use wow_world_application::RepresentedQuestGiverStatusSourceLikeCpp;
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/quest_tests.rs"]

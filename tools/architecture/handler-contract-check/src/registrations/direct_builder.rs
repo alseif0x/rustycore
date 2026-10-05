@@ -11,8 +11,8 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::visit::Visit;
 use syn::{
-    Attribute, Expr, FnArg, Item, ItemFn, Lit, Meta, Pat, Stmt, Type, TypeParamBound,
-    UseTree, Visibility, WherePredicate,
+    Attribute, Expr, FnArg, Item, ItemFn, Lit, Meta, Pat, Stmt, Type, TypeParamBound, UseTree,
+    Visibility, WherePredicate,
 };
 
 use super::ident_is;
@@ -200,15 +200,14 @@ pub(crate) const ACCOUNT_DATA_REGISTRAR: DirectRegistrarContract = DirectRegistr
 };
 
 /// Exact direct registrars which exist in the current source tree.
-pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] =
-    &[
-        INVENTORY_REGISTRAR,
-        INSTANCES_REGISTRAR,
-        EQUIPMENT_SET_USE_REGISTRAR,
-        BANK_REGISTRAR,
-        SOCIAL_INSPECT_REGISTRAR,
-        ACCOUNT_DATA_REGISTRAR,
-    ];
+pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
+    INVENTORY_REGISTRAR,
+    INSTANCES_REGISTRAR,
+    EQUIPMENT_SET_USE_REGISTRAR,
+    BANK_REGISTRAR,
+    SOCIAL_INSPECT_REGISTRAR,
+    ACCOUNT_DATA_REGISTRAR,
+];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct RegistrarReport {
@@ -276,11 +275,14 @@ fn inspect_imports(items: &[Item]) -> Result<ImportBindings, String> {
                 continue;
             };
             let binding = match provider_type.as_str() {
-                "PacketHandlerEntry" => Some(("PacketHandlerEntry", &mut bindings.packet_handler_entry)),
-                "RegistryBuilder" => Some(("RegistryBuilder", &mut bindings.registry_builder)),
-                "DuplicateHandlerRegistrationLikeCpp" => {
-                    Some(("DuplicateHandlerRegistrationLikeCpp", &mut bindings.duplicate_error))
+                "PacketHandlerEntry" => {
+                    Some(("PacketHandlerEntry", &mut bindings.packet_handler_entry))
                 }
+                "RegistryBuilder" => Some(("RegistryBuilder", &mut bindings.registry_builder)),
+                "DuplicateHandlerRegistrationLikeCpp" => Some((
+                    "DuplicateHandlerRegistrationLikeCpp",
+                    &mut bindings.duplicate_error,
+                )),
                 _ => None,
             };
             let Some((expected, count)) = binding else {
@@ -304,7 +306,10 @@ fn inspect_imports(items: &[Item]) -> Result<ImportBindings, String> {
     for (name, count) in [
         ("PacketHandlerEntry", bindings.packet_handler_entry),
         ("RegistryBuilder", bindings.registry_builder),
-        ("DuplicateHandlerRegistrationLikeCpp", bindings.duplicate_error),
+        (
+            "DuplicateHandlerRegistrationLikeCpp",
+            bindings.duplicate_error,
+        ),
     ] {
         if count != 1 {
             bindings.errors.push(format!(
@@ -346,9 +351,12 @@ struct EntryLiteralFinder<'a> {
 
 impl<'ast> Visit<'ast> for EntryLiteralFinder<'_> {
     fn visit_expr_struct(&mut self, expression: &'ast syn::ExprStruct) {
-        if expression.path.segments.last().is_some_and(|segment| {
-            self.entry_names.contains(&segment.ident.to_string())
-        }) {
+        if expression
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| self.entry_names.contains(&segment.ident.to_string()))
+        {
             self.found = true;
         }
         syn::visit::visit_expr_struct(self, expression);
@@ -397,9 +405,12 @@ impl<'ast> Visit<'ast> for EntryAndRegisterVisitor {
     }
 
     fn visit_expr_struct(&mut self, expression: &'ast syn::ExprStruct) {
-        if expression.path.segments.last().is_some_and(|segment| {
-            self.entry_names.contains(&segment.ident.to_string())
-        }) {
+        if expression
+            .path
+            .segments
+            .last()
+            .is_some_and(|segment| self.entry_names.contains(&segment.ident.to_string()))
+        {
             self.entry_literals += 1;
         }
         syn::visit::visit_expr_struct(self, expression);
@@ -450,9 +461,12 @@ fn entry_type_bindings(items: &[Item]) -> BTreeSet<String> {
             }
             impl<'ast> Visit<'ast> for ReferencedEntry<'_> {
                 fn visit_type_path(&mut self, path: &'ast syn::TypePath) {
-                    if path.path.segments.last().is_some_and(|segment| {
-                        self.names.contains(&segment.ident.to_string())
-                    }) {
+                    if path
+                        .path
+                        .segments
+                        .last()
+                        .is_some_and(|segment| self.names.contains(&segment.ident.to_string()))
+                    {
                         self.found = true;
                     }
                     syn::visit::visit_type_path(self, path);
@@ -514,16 +528,13 @@ fn is_builder_parameter(argument: &FnArg) -> bool {
     let Type::Reference(reference) = &*argument.ty else {
         return false;
     };
-    if reference.mutability.is_none()
-        || reference.lifetime.is_some()
-    {
+    if reference.mutability.is_none() || reference.lifetime.is_some() {
         return false;
     }
     let Type::Path(builder_path) = &*reference.elem else {
         return false;
     };
-    if builder_path.qself.is_some()
-        || !path_has_only_segment(&builder_path.path, "RegistryBuilder")
+    if builder_path.qself.is_some() || !path_has_only_segment(&builder_path.path, "RegistryBuilder")
     {
         return false;
     }
@@ -557,15 +568,24 @@ fn is_registrar_signature(function: &ItemFn, contract: DirectRegistrarContract) 
         && function.sig.abi.is_none()
         && function.sig.variadic.is_none()
         && function.sig.generics.params.len() == 2
-        && function.sig.generics.params.iter().enumerate().all(|(index, parameter)| {
-            matches!(parameter, syn::GenericParam::Type(parameter)
+        && function
+            .sig
+            .generics
+            .params
+            .iter()
+            .enumerate()
+            .all(|(index, parameter)| {
+                matches!(parameter, syn::GenericParam::Type(parameter)
                 if parameter.attrs.is_empty()
                     && parameter.bounds.is_empty()
                     && parameter.default.is_none()
                     && ident_is(&parameter.ident, if index == 0 { "S" } else { "C" }))
-        })
+            })
         && function.sig.generics.where_clause.is_some()
-        && is_host_where_clause(function.sig.generics.where_clause.as_ref(), contract.host_trait)
+        && is_host_where_clause(
+            function.sig.generics.where_clause.as_ref(),
+            contract.host_trait,
+        )
         && function.sig.inputs.len() == 1
         && is_builder_parameter(&function.sig.inputs[0])
         && is_registrar_output(&function.sig.output)
@@ -579,8 +599,7 @@ fn is_plain_type_path(ty: &Type, expected: &str) -> bool {
 }
 
 fn where_type_name(predicate: &syn::PredicateType, expected: &str) -> bool {
-    predicate.lifetimes.is_none()
-        && is_plain_type_path(&predicate.bounded_ty, expected)
+    predicate.lifetimes.is_none() && is_plain_type_path(&predicate.bounded_ty, expected)
 }
 
 fn trait_bound_name(bound: &TypeParamBound, expected: &str) -> bool {
@@ -644,7 +663,10 @@ fn is_host_where_clause(clause: Option<&syn::WhereClause>, host_trait: &str) -> 
             .is_some_and(|bound| trait_bound_name(bound, "Send"))
         && where_type_name(catalogs, "C")
         && catalogs.bounds.len() == 1
-        && catalogs.bounds.iter().all(|bound| trait_bound_name(bound, "Sync"))
+        && catalogs
+            .bounds
+            .iter()
+            .all(|bound| trait_bound_name(bound, "Sync"))
 }
 
 fn is_registrar_output(output: &syn::ReturnType) -> bool {
@@ -654,9 +676,7 @@ fn is_registrar_output(output: &syn::ReturnType) -> bool {
     let Type::Path(result) = &**ty else {
         return false;
     };
-    if result.qself.is_some()
-        || !path_has_only_segment(&result.path, "Result")
-    {
+    if result.qself.is_some() || !path_has_only_segment(&result.path, "Result") {
         return false;
     }
     let Some(arguments) = type_arguments(ty) else {
@@ -688,14 +708,10 @@ fn is_entry_literal(expression: &Expr) -> bool {
         && entry.qself.is_none()
         && entry.path.leading_colon.is_none()
         && entry.path.segments.len() == 1
-        && entry
-            .path
-            .segments
-            .first()
-            .is_some_and(|segment| {
-                ident_is(&segment.ident, "PacketHandlerEntry")
-                    && matches!(&segment.arguments, syn::PathArguments::None)
-            })
+        && entry.path.segments.first().is_some_and(|segment| {
+            ident_is(&segment.ident, "PacketHandlerEntry")
+                && matches!(&segment.arguments, syn::PathArguments::None)
+        })
         && entry.rest.is_none()
         && entry.fields.len() == fields.len()
         && entry.fields.iter().zip(fields).all(|(field, expected)| {
@@ -759,7 +775,11 @@ fn opcode_key(entry: &syn::ExprStruct) -> Option<String> {
             && path.qself.is_none()
             && path.path.leading_colon.is_none()
             && path.path.segments.len() == 2
-            && path.path.segments.first().is_some_and(|segment| ident_is(&segment.ident, "ClientOpcodes")))
+            && path
+                .path
+                .segments
+                .first()
+                .is_some_and(|segment| ident_is(&segment.ident, "ClientOpcodes")))
         .then(|| path.to_token_stream().to_string())
     })
 }
@@ -798,7 +818,10 @@ fn analyze_registrar(
             )
         })?;
         if !opcodes.insert(opcode.clone()) {
-            return Err(format!("duplicate {} handler opcode entry {opcode}", contract.owner));
+            return Err(format!(
+                "duplicate {} handler opcode entry {opcode}",
+                contract.owner
+            ));
         }
     }
     if opcodes.is_empty() {
@@ -824,7 +847,9 @@ pub(crate) fn analyze_contract_source(
         .items
         .iter()
         .filter_map(|item| match item {
-            Item::Fn(function) if ident_is(&function.sig.ident, contract.registrar) => Some(function),
+            Item::Fn(function) if ident_is(&function.sig.ident, contract.registrar) => {
+                Some(function)
+            }
             _ => None,
         })
         .collect();
@@ -841,9 +866,11 @@ pub(crate) fn analyze_contract_source(
         }
         return Ok(RegistrarReport::default());
     }
-    if syntax.attrs.iter().any(|attribute| {
-        attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
-    }) {
+    if syntax
+        .attrs
+        .iter()
+        .any(|attribute| attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr"))
+    {
         return Err(format!(
             "{} direct registrar source file must not be conditionally compiled",
             contract.owner
@@ -890,7 +917,9 @@ pub(crate) fn analyze_contract_source(
         return Err(format!(
             "{} source contains {} PacketHandlerEntry literals, {} entry-bearing register calls, and {} total register calls, but its exact registrar accounts for {entries}",
             contract.owner,
-            occurrences.entry_literals, occurrences.register_calls, occurrences.all_register_calls
+            occurrences.entry_literals,
+            occurrences.register_calls,
+            occurrences.all_register_calls
         ));
     }
     Ok(RegistrarReport {
@@ -952,7 +981,8 @@ pub(crate) fn analyze_owner_source_with_contracts(
 
 /// Reject a direct generic handler entry constructed outside an authorized registrar.
 pub(crate) fn unowned_entry_literal_violation(source: &str) -> Result<Option<String>, String> {
-    let syntax = syn::parse_file(source).map_err(|error| format!("cannot parse source: {error}"))?;
+    let syntax =
+        syn::parse_file(source).map_err(|error| format!("cannot parse source: {error}"))?;
     let entry_names = entry_type_bindings(&syntax.items);
     let mut occurrences = EntryAndRegisterVisitor::new(entry_names);
     occurrences.visit_file(&syntax);

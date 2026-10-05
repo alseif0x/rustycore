@@ -17,9 +17,7 @@ impl SessionLifecycleState {
         self.player_loading = None;
     }
 
-    pub fn tutorial_flags_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::TutorialFlags {
+    pub fn tutorial_flags_packet_like_cpp(&self) -> wow_packet::packets::misc::TutorialFlags {
         wow_packet::packets::misc::TutorialFlags {
             tutorial_data: self.tutorials_like_cpp,
         }

@@ -4,23 +4,23 @@
 //! Item modifiers: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use super::ItemSubClassArmor;
+use super::ShieldBlockRegularGameTableLikeCpp;
 #[cfg(test)]
 use super::TitanGripPenaltyAction;
 use super::{Arc, BANK_SLOT_BAG_START};
 use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START};
 #[cfg(test)]
 use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
-use super::ItemSubClassArmor;
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
-use super::ShieldBlockRegularGameTableLikeCpp;
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
-pub(crate) use wow_world_inventory::{
-    RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
-    RepresentedItemSetSpellEventLikeCpp,
-};
 #[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
+};
+pub(crate) use wow_world_inventory::{
+    RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
+    RepresentedItemSetSpellEventLikeCpp,
 };
 
 pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;

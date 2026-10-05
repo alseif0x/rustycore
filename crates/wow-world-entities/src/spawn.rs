@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use wow_data::character_progression::PowerTypeStore;
 use wow_data::{
-    CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
-    CreatureDifficultyStoreLikeCpp, CreatureEquipmentStoreLikeCpp,
+    CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp, CreatureDifficultyStoreLikeCpp,
+    CreatureEquipmentStoreLikeCpp,
 };
 use wow_world_core::map_manager::PendingRespawn;
 use wow_world_core::session::{HubMut, HubRef};
@@ -101,5 +101,4 @@ impl WorldEntitiesState {
             .map(|store| store.despawn_delay_ms_like_cpp(vehicle_kit.creature_entry()))
             .unwrap_or(1)
     }
-
 }

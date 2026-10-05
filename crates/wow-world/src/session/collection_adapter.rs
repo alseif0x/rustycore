@@ -6,12 +6,12 @@
 
 use super::WorldSession;
 
+pub(in crate::session) use wow_world_inventory::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_inventory::RepresentedTransmogCriteriaEvent;
 pub(crate) use wow_world_inventory::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
 };
-pub(in crate::session) use wow_world_inventory::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 
 pub(crate) use wow_world_lifecycle::{
     AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp,

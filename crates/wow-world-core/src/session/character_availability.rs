@@ -11,8 +11,7 @@
 /// ActiveExpansionLevel/AccountExpansionLevel: 0 for all except Death Knight (class 6)
 /// which requires WotLK (active=2). MinActiveExpansionLevel is the minimum active
 /// expansion across all races for that class.
-pub fn default_available_classes()
--> Vec<wow_packet::packets::auth::RaceClassAvailability> {
+pub fn default_available_classes() -> Vec<wow_packet::packets::auth::RaceClassAvailability> {
     use wow_packet::packets::auth::{ClassAvailability, RaceClassAvailability};
 
     // (race_id, &[(class_id, active_expansion_level, account_expansion_level)])

@@ -140,10 +140,7 @@ impl WorldSession {
         let new_money = mutation(old_money);
 
         #[cfg(test)]
-        if let Some(success) = self
-            .lifecycle
-            .loot_money_persistence_test_result_like_cpp()
-        {
+        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp() {
             if !success {
                 return None;
             }

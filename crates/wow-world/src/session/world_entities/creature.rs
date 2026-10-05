@@ -297,8 +297,6 @@ impl WorldSession {
     }
 }
 
-
-
 pub(in crate::session) use wow_world_entities::RepresentedCreatureAuraLikeCpp;
 
 impl WorldSession {
@@ -569,8 +567,6 @@ impl WorldSession {
         }
     }
 }
-
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/world_entities/creature/f3_shims.rs"]

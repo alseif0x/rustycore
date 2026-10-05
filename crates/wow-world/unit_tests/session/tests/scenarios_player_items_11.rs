@@ -109,17 +109,15 @@ fn direct_inventory_store_plan_counts_represented_bag_contents_for_limit_categor
         },
     ])));
 
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            INVENTORY_SLOT_BAG_START,
-            InventoryItem {
-                guid: bag_guid,
-                entry_id: 600,
-                db_guid: 800,
-                inventory_type: Some(InventoryType::Bag as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        INVENTORY_SLOT_BAG_START,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: 600,
+            db_guid: 800,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
     let bag = session.make_inventory_item_object(
         bag_guid,
         600,
@@ -232,17 +230,15 @@ fn direct_inventory_store_plan_allocates_represented_bag_slot_like_cpp() {
         (701, sparse(InventoryType::NonEquip, 20, 0)),
     ])));
 
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            INVENTORY_SLOT_BAG_START,
-            InventoryItem {
-                guid: bag_guid,
-                entry_id: 600,
-                db_guid: 850,
-                inventory_type: Some(InventoryType::Bag as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        INVENTORY_SLOT_BAG_START,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: 600,
+            db_guid: 850,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
     let bag = session.make_inventory_item_object(
         bag_guid,
         600,
@@ -258,17 +254,15 @@ fn direct_inventory_store_plan_allocates_represented_bag_slot_like_cpp() {
         let slot = INVENTORY_SLOT_ITEM_START + slot_offset;
         let db_guid = 900 + u64::from(slot_offset);
         let guid = ObjectGuid::create_item(1, db_guid as i64);
-        session
-            .inventory
-            .insert_inventory_item_for_test_like_cpp(
-                slot,
-                InventoryItem {
-                    guid,
-                    entry_id: 701,
-                    db_guid,
-                    inventory_type: None,
-                },
-            );
+        session.inventory.insert_inventory_item_for_test_like_cpp(
+            slot,
+            InventoryItem {
+                guid,
+                entry_id: 701,
+                db_guid,
+                inventory_type: None,
+            },
+        );
         let item = session.make_inventory_item_object(
             guid,
             701,

@@ -206,14 +206,15 @@ impl WorldSession {
         player_guid: ObjectGuid,
         source: wow_entities::ItemForgeUseSource,
     ) -> bool {
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::ItemForgeUsed {
-                gameobject_guid,
-                player_guid,
-                condition_id: source.condition_id,
-                forge_type: source.forge_type,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::ItemForgeUsed {
+                    gameobject_guid,
+                    player_guid,
+                    condition_id: source.condition_id,
+                    forge_type: source.forge_type,
+                },
+            );
 
         true
     }

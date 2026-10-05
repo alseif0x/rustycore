@@ -402,7 +402,8 @@ impl WorldSession {
     }
 
     pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
-        self.build_item_text_query_handler_cx_like_cpp().handle_item_text_query(query);
+        self.build_item_text_query_handler_cx_like_cpp()
+            .handle_item_text_query(query);
     }
 
     /// CMSG_QUERY_PET_NAME — resolve an in-world pet name.

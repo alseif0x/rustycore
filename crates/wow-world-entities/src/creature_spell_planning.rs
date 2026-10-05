@@ -26,8 +26,7 @@ use crate::creature_spell_metadata::{
 pub struct CreatureSpellCasterIncarnationLikeCpp {
     pub spawn_id: u64,
     pub authority: OwnedLootAuthority,
-    pub health_state_revision_authority:
-        wow_entities::HealthStateRevisionAuthorityLikeCpp,
+    pub health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
 }
 
 impl CreatureSpellCasterIncarnationLikeCpp {

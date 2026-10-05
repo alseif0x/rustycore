@@ -5,8 +5,6 @@
 
 use super::*;
 
-
-
 impl WorldSession {
     /// Set the item appearance store for this session.
     pub fn set_item_appearance_store(&mut self, store: Arc<ItemAppearanceStore>) {
@@ -500,8 +498,6 @@ impl WorldSession {
             .represented_alter_appearance_requests_like_cpp
     }
 }
-
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/appearance/f3_shims.rs"]

@@ -44,7 +44,9 @@ impl<'a> NpcInteractionFixtureRefsLikeCpp<'a> {
         player_alive: &'a bool,
         reputation_state: &'a wow_entities::PlayerReputationStateLikeCpp,
         taxi_destinations: &'a Vec<u32>,
-        taxi_flight_state: &'a Option<crate::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp>,
+        taxi_flight_state: &'a Option<
+            crate::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp,
+        >,
         taxi_unit_flags: &'a UnitFlags,
         taxi_mounted: &'a bool,
     ) -> Self {
@@ -82,8 +84,7 @@ impl SessionCore {
         faction_store: Option<&'a FactionStore>,
         faction_template_store: Option<&'a FactionTemplateStore>,
         friendship_rep_reaction_store: Option<&'a FriendshipRepReactionStore>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: NpcInteractionFixtureRefsLikeCpp<'a>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: NpcInteractionFixtureRefsLikeCpp<'a>,
     ) -> NpcInteractionAccessLikeCpp<'a> {
         NpcInteractionAccessLikeCpp {
             core: self,
@@ -98,35 +99,37 @@ impl SessionCore {
 
 impl HubRef<'_> {
     /// Select the exact catalog and fixture inputs for one NPC check.
-    pub fn trainer_npc_interaction_access_like_cpp(
-        &self,
-    ) -> NpcInteractionAccessLikeCpp<'_> {
-        self.core.npc_interaction_access_with_selected_refs_like_cpp(
-            self.catalogs.factions.store.as_deref(),
-            self.catalogs.factions.template_store.as_deref(),
-            self.catalogs.friendship_rep_reaction_store.as_deref(),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            NpcInteractionFixtureRefsLikeCpp::new(
-                &self.fixtures.movement.player_position,
-                &self.fixtures.identity.player_faction_template_like_cpp,
-                &self.fixtures.identity.player_race,
-                &self.fixtures.identity.player_class,
-                &self.fixtures.combat.player_health_like_cpp,
-                &self.fixtures.combat.player_max_health_like_cpp,
-                &self.fixtures.combat.player_alive_like_cpp,
-                &self.fixtures.progression.reputation_state_like_cpp,
-                &self.fixtures.vehicles.taxi_destinations_like_cpp,
-                &self.fixtures.vehicles.taxi_flight_state_like_cpp,
-                &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
-                &self.fixtures.vehicles.taxi_mounted_like_cpp,
-            ),
-        )
+    pub fn trainer_npc_interaction_access_like_cpp(&self) -> NpcInteractionAccessLikeCpp<'_> {
+        self.core
+            .npc_interaction_access_with_selected_refs_like_cpp(
+                self.catalogs.factions.store.as_deref(),
+                self.catalogs.factions.template_store.as_deref(),
+                self.catalogs.friendship_rep_reaction_store.as_deref(),
+                #[cfg(any(test, feature = "test-fixtures"))]
+                NpcInteractionFixtureRefsLikeCpp::new(
+                    &self.fixtures.movement.player_position,
+                    &self.fixtures.identity.player_faction_template_like_cpp,
+                    &self.fixtures.identity.player_race,
+                    &self.fixtures.identity.player_class,
+                    &self.fixtures.combat.player_health_like_cpp,
+                    &self.fixtures.combat.player_max_health_like_cpp,
+                    &self.fixtures.combat.player_alive_like_cpp,
+                    &self.fixtures.progression.reputation_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_destinations_like_cpp,
+                    &self.fixtures.vehicles.taxi_flight_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
+                    &self.fixtures.vehicles.taxi_mounted_like_cpp,
+                ),
+            )
     }
 }
 
 impl NpcInteractionAccessLikeCpp<'_> {
-    pub fn player_interaction_data_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerInteractionDataLikeCpp> {
-        self.core.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp())
+    pub fn player_interaction_data_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerInteractionDataLikeCpp> {
+        self.core
+            .with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp())
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -195,9 +198,9 @@ impl NpcInteractionAccessLikeCpp<'_> {
             return Some(
                 wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
                     self.fixtures.taxi_destinations.clone(),
-                    self.fixtures
-                        .taxi_flight_state
-                        .map(crate::session::movement_protocol::canonical_taxi_flight_state_like_cpp),
+                    self.fixtures.taxi_flight_state.map(
+                        crate::session::movement_protocol::canonical_taxi_flight_state_like_cpp,
+                    ),
                     self.fixtures.taxi_unit_flags.bits(),
                     *self.fixtures.taxi_mounted,
                 )

@@ -1,8 +1,8 @@
 //! Read-ready/write admission contract used by the production rename operation.
 //! Controlled port futures prove staging, not real SQL cancellation or durability.
 
-use super::*;
 use super::test_fixture::{candidate, fixture};
+use super::*;
 use std::future::Future;
 use std::task::{Context, Poll, Waker};
 

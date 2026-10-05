@@ -49,12 +49,13 @@ impl WorldSession {
         }
 
         let Some(slot) = nearest_slot else {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::ChairNoFreeSlot {
-                    gameobject_guid,
-                    player_guid,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::ChairNoFreeSlot {
+                        gameobject_guid,
+                        player_guid,
+                    },
+                );
             return false;
         };
 
@@ -64,23 +65,25 @@ impl WorldSession {
         crate::session::hub_mut(self).set_player_stand_state_like_cpp(
             wow_entities::chair_stand_state_like_cpp(source.chair_height),
         );
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::ChairUsed {
-                gameobject_guid,
-                player_guid,
-                slot: slot as u32,
-                teleport_position: nearest_position,
-                stand_state,
-            },
-        );
-        if source.triggered_event_id != 0 {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TriggerGameEvent {
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::ChairUsed {
                     gameobject_guid,
                     player_guid,
-                    event_id: source.triggered_event_id,
+                    slot: slot as u32,
+                    teleport_position: nearest_position,
+                    stand_state,
                 },
             );
+        if source.triggered_event_id != 0 {
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerGameEvent {
+                        gameobject_guid,
+                        player_guid,
+                        event_id: source.triggered_event_id,
+                    },
+                );
         }
 
         true
@@ -95,16 +98,17 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::misc::EnableBarberShop {
             customization_scope: source.customization_scope.min(u32::from(u8::MAX)) as u8,
         });
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::BarberChairUsed {
-                gameobject_guid,
-                player_guid,
-                customization_scope: source.customization_scope,
-                teleport_position: gameobject_position,
-                stand_state: 4_u32.saturating_add(source.chair_height),
-                sit_anim_kit: source.sit_anim_kit,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::BarberChairUsed {
+                    gameobject_guid,
+                    player_guid,
+                    customization_scope: source.customization_scope,
+                    teleport_position: gameobject_position,
+                    stand_state: 4_u32.saturating_add(source.chair_height),
+                    sit_anim_kit: source.sit_anim_kit,
+                },
+            );
         crate::session::hub_mut(self).set_player_position_like_cpp(gameobject_position);
         crate::session::hub_mut(self).set_player_stand_state_like_cpp(
             wow_entities::chair_stand_state_like_cpp(source.chair_height),
@@ -141,12 +145,13 @@ impl WorldSession {
             if !owner_guid.is_some_and(|owner_guid| {
                 self.represented_player_is_same_raid_with_like_cpp(player_guid, owner_guid)
             }) {
-                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::SpellcasterPartyOnlyRejected {
-                        gameobject_guid,
-                        player_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::SpellcasterPartyOnlyRejected {
+                            gameobject_guid,
+                            player_guid,
+                        },
+                    );
                 return false;
             }
         }
@@ -154,12 +159,13 @@ impl WorldSession {
         if !self.remove_represented_mounted_auras_by_type_like_cpp() {
             return false;
         }
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::RemoveMountedAuras {
-                gameobject_guid,
-                player_guid,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::RemoveMountedAuras {
+                    gameobject_guid,
+                    player_guid,
+                },
+            );
 
         let use_count = {
             let state = self
@@ -172,12 +178,13 @@ impl WorldSession {
             state.use_count = state.use_count.saturating_add(1);
             state.use_count
         };
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::GameObjectUseCountIncremented {
-                gameobject_guid,
-                use_count,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::GameObjectUseCountIncremented {
+                    gameobject_guid,
+                    use_count,
+                },
+            );
 
         self.apply_represented_gameobject_post_use_spell_like_cpp(
             gameobject_guid,
@@ -200,23 +207,25 @@ impl WorldSession {
     ) -> bool {
         if source.cinematic_id != 0 {
             self.send_represented_cinematic_start_like_cpp(source.cinematic_id);
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TriggerCinematic {
-                    gameobject_guid,
-                    player_guid,
-                    cinematic_id: source.cinematic_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerCinematic {
+                        gameobject_guid,
+                        player_guid,
+                        cinematic_id: source.cinematic_id,
+                    },
+                );
         }
 
         if source.event_id != 0 {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TriggerGameEvent {
-                    gameobject_guid,
-                    player_guid,
-                    event_id: source.event_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerGameEvent {
+                        gameobject_guid,
+                        player_guid,
+                        event_id: source.event_id,
+                    },
+                );
         }
 
         true

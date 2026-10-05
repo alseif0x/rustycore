@@ -2,8 +2,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use std::collections::HashMap;
-use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 use wow_data::CurrencyTypesStore;
+use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 
 pub fn plan_player_currency_save_for_store_like_cpp(
     store: Option<&CurrencyTypesStore>,

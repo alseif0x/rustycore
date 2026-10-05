@@ -135,19 +135,21 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn resolved_player_xp_for_level_like_cpp(&self, level: u8) -> Option<u32> {
-        self.core.resolved_player_xp_for_level_with_fixture_like_cpp(
-            self.catalogs,
-            level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.progression.player_next_level_xp,
-        )
+        self.core
+            .resolved_player_xp_for_level_with_fixture_like_cpp(
+                self.catalogs,
+                level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.progression.player_next_level_xp,
+            )
     }
 
     pub fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
-        self.core.resolved_player_next_level_xp_with_fixture_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.progression.player_next_level_xp,
-        )
+        self.core
+            .resolved_player_next_level_xp_with_fixture_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.progression.player_next_level_xp,
+            )
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

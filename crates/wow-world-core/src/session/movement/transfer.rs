@@ -197,14 +197,16 @@ impl crate::session::HubMut<'_> {
     ) -> bool {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.update_player_teleport_state_with_fixture_like_cpp(
-                &mut self.fixtures.teleport,
-                update,
-            )
+            self.core
+                .update_player_teleport_state_with_fixture_like_cpp(
+                    &mut self.fixtures.teleport,
+                    update,
+                )
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
-            self.core.update_player_teleport_state_with_fixture_like_cpp(update)
+            self.core
+                .update_player_teleport_state_with_fixture_like_cpp(update)
         }
     }
 
@@ -265,8 +267,7 @@ impl crate::session::SessionCore {
             fixture.represented_far_teleport_pending_like_cpp = state.far_pending;
             fixture.near_teleport_destination_like_cpp = state.near_destination;
             fixture.represented_delayed_teleport_like_cpp = state.delayed;
-            fixture.near_teleport_destination_zone_area_like_cpp =
-                state.near_destination_zone_area;
+            fixture.near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
             true
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]

@@ -15,9 +15,12 @@ impl OwnedItemSetAccessLikeCpp<'_> {
             curve_store: self.curve_store,
             curve_point_store: self.curve_point_store,
             content_tuning_store: self.content_tuning_store,
-            #[cfg(any(test, feature = "test-fixtures"))] player_skill_records: self.player_skill_records,
-            #[cfg(any(test, feature = "test-fixtures"))] player_level: self.player_level,
-            #[cfg(any(test, feature = "test-fixtures"))] primary_specialization_id: self.primary_specialization_id,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_skill_records: self.player_skill_records,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_level: self.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            primary_specialization_id: self.primary_specialization_id,
         }
     }
 }

@@ -326,10 +326,7 @@ impl WorldSession {
         // Process pending creature/gameobject spawn (async DB query)
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
-        if let Some(spawn) = self
-            .world_entities
-            .take_pending_creature_spawn_like_cpp()
-        {
+        if let Some(spawn) = self.world_entities.take_pending_creature_spawn_like_cpp() {
             self.send_nearby_creatures_with_catalogs_like_cpp(
                 catalogs.creature_spawns.as_ref(),
                 spawn.map_id,

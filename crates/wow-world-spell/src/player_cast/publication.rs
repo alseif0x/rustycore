@@ -3,8 +3,8 @@ use wow_constants::SpellCastResult;
 use wow_core::ObjectGuid;
 use wow_entities::{SpellCastMetadata, SpellCastState};
 use wow_packet::packets::spell::CastFailed;
-use wow_world_core::session::mailbox::SendPlayerSpellIfVisibleLikeCppCommand;
 use wow_world_core::session::HubMut;
+use wow_world_core::session::mailbox::SendPlayerSpellIfVisibleLikeCppCommand;
 
 impl SessionSpellState {
     pub fn publish_player_cast_interruption_like_cpp(

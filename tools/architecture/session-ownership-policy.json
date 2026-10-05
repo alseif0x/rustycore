@@ -4428,7 +4428,7 @@
           "kind": "method",
           "name": "send_total_stat_percentage_update_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn send_total_stat_percentage_update_like_cpp (& mut self , preserve_health_pct : bool ,)",
+          "signature": "fn send_total_stat_percentage_update_like_cpp (& mut self , preserve_health_pct : bool)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17238,7 +17238,7 @@
           "kind": "method",
           "name": "bank_interaction_access_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn bank_interaction_access_like_cpp (& self) -> wow_world_core :: session :: NpcInteractionAccessLikeCpp < '_ >",
+          "signature": "fn bank_interaction_access_like_cpp (& self ,) -> wow_world_core :: session :: NpcInteractionAccessLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17858,7 +17858,7 @@
           "kind": "method",
           "name": "build_bank_slot_flag_handler_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn build_bank_slot_flag_handler_cx_like_cpp (& mut self) -> wow_world_application :: BankSlotFlagApplicationCxLikeCpp < '_ >",
+          "signature": "fn build_bank_slot_flag_handler_cx_like_cpp (& mut self ,) -> wow_world_application :: BankSlotFlagApplicationCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17962,7 +17962,7 @@
           "kind": "method",
           "name": "build_item_enchantment_handler_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn build_item_enchantment_handler_cx_like_cpp (& mut self) -> wow_world_inventory :: ItemEnchantmentApplicationCxLikeCpp < '_ >",
+          "signature": "fn build_item_enchantment_handler_cx_like_cpp (& mut self ,) -> wow_world_inventory :: ItemEnchantmentApplicationCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17975,7 +17975,7 @@
           "kind": "method",
           "name": "build_item_text_query_handler_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn build_item_text_query_handler_cx_like_cpp (& self) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < '_ >",
+          "signature": "fn build_item_text_query_handler_cx_like_cpp (& self ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -21223,7 +21223,7 @@
           "kind": "method",
           "name": "give_xp",
           "visibility": "pub (crate)",
-          "signature": "async fn give_xp (& mut self , xp : u32 , victim : wow_core :: ObjectGuid , group_rate : f32 ,)",
+          "signature": "async fn give_xp (& mut self , xp : u32 , victim : wow_core :: ObjectGuid , group_rate : f32)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22310,7 +22310,7 @@
           "kind": "method",
           "name": "inventory_equip_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn inventory_equip_cx_like_cpp (& mut self) -> wow_world_application :: InventoryEquipCxLikeCpp < '_ >",
+          "signature": "fn inventory_equip_cx_like_cpp (& mut self ,) -> wow_world_application :: InventoryEquipCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22353,7 +22353,7 @@
           "kind": "method",
           "name": "inventory_position_publication_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn inventory_position_publication_cx_like_cpp (& mut self) -> wow_world_application :: InventoryPositionPublicationCxLikeCpp < '_ >",
+          "signature": "fn inventory_position_publication_cx_like_cpp (& mut self ,) -> wow_world_application :: InventoryPositionPublicationCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -22379,7 +22379,7 @@
           "kind": "method",
           "name": "inventory_swap_effects_cx_like_cpp",
           "visibility": "private",
-          "signature": "fn inventory_swap_effects_cx_like_cpp (& mut self) -> wow_world_application :: InventorySwapEffectsCxLikeCpp < '_ >",
+          "signature": "fn inventory_swap_effects_cx_like_cpp (& mut self ,) -> wow_world_application :: InventorySwapEffectsCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -26987,7 +26987,7 @@
           "kind": "method",
           "name": "quest_xp_gain_context_like_cpp",
           "visibility": "private",
-          "signature": "fn quest_xp_gain_context_like_cpp (& mut self ,) -> wow_world_application :: QuestRewardCx < '_ >",
+          "signature": "fn quest_xp_gain_context_like_cpp (& mut self) -> wow_world_application :: QuestRewardCx < '_ >",
           "cfg": [
             "cfg (not (any (test , feature = \"test-fixtures\")))"
           ],
@@ -44304,7 +44304,7 @@
           "kind": "method",
           "name": "with_pending_spell_cast_owner_like_cpp",
           "visibility": "private",
-          "signature": "fn with_pending_spell_cast_owner_like_cpp < R > (& mut self , canonical : impl FnOnce (& mut wow_entities :: Player) -> R , # [cfg (any (test , feature = \"test-fixtures\"))] fallback : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp >) -> R ,) -> Option < R >",
+          "signature": "fn with_pending_spell_cast_owner_like_cpp < R > (& mut self , canonical : impl FnOnce (& mut wow_entities :: Player) -> R , # [cfg (any (test , feature = \"test-fixtures\"))] fallback : impl FnOnce (& mut Option < RepresentedPendingSpellCastRequestLikeCpp > ,) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -47837,7 +47837,7 @@
           "kind": "method",
           "name": "aura_mount_control_access_like_cpp",
           "visibility": "pub",
-          "signature": "fn aura_mount_control_access_like_cpp < 'a > (& 'a self , display_store : Option < & 'a wow_data :: CreatureDisplayInfoStore > , model_store : Option < & 'a wow_data :: CreatureModelDataStore > , # [cfg (any (test , feature = \"test-fixtures\"))] fixtures : AuraMountControlFixtureRefsLikeCpp < 'a > ,) -> AuraMountControlAccessLikeCpp < 'a >",
+          "signature": "fn aura_mount_control_access_like_cpp < 'a > (& 'a self , display_store : Option < & 'a wow_data :: CreatureDisplayInfoStore > , model_store : Option < & 'a wow_data :: CreatureModelDataStore > , # [cfg (any (test , feature = \"test-fixtures\"))] fixtures : AuraMountControlFixtureRefsLikeCpp < 'a , > ,) -> AuraMountControlAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -47972,7 +47972,7 @@
           "kind": "method",
           "name": "aura_condition_access_builder_like_cpp",
           "visibility": "pub",
-          "signature": "fn aura_condition_access_builder_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] race : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] class : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] gender : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] primary_specialization_id : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] position : & 'a Option < wow_core :: Position > , # [cfg (any (test , feature = \"test-fixtures\"))] zone_id : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] area_id : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] zone_area_authority_complete : & 'a bool , # [cfg (any (test , feature = \"test-fixtures\"))] pvp_hostile : & 'a bool , # [cfg (any (test , feature = \"test-fixtures\"))] pvp_end_timer : & 'a Option < i64 > , # [cfg (any (test , feature = \"test-fixtures\"))] contested_pvp_timer : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] is_outdoors : & 'a Option < bool > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_destinations : & 'a Vec < u32 > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_flight_state : & 'a Option < crate :: session :: movement_protocol :: RepresentedTaxiFlightStateLikeCpp > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_unit_flags : & 'a wow_constants :: UnitFlags , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_mounted : & 'a bool , # [cfg (any (test , feature = \"test-fixtures\"))] player_skill_records : & 'a std :: collections :: HashMap < u16 , crate :: session :: RepresentedPlayerSkillLikeCpp > ,) -> AuraConditionAccessBuilderLikeCpp < 'a >",
+          "signature": "fn aura_condition_access_builder_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] race : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] class : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] gender : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] primary_specialization_id : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] position : & 'a Option < wow_core :: Position > , # [cfg (any (test , feature = \"test-fixtures\"))] zone_id : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] area_id : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] zone_area_authority_complete : & 'a bool , # [cfg (any (test , feature = \"test-fixtures\"))] pvp_hostile : & 'a bool , # [cfg (any (test , feature = \"test-fixtures\"))] pvp_end_timer : & 'a Option < i64 > , # [cfg (any (test , feature = \"test-fixtures\"))] contested_pvp_timer : & 'a u32 , # [cfg (any (test , feature = \"test-fixtures\"))] is_outdoors : & 'a Option < bool > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_destinations : & 'a Vec < u32 > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_flight_state : & 'a Option < crate :: session :: movement_protocol :: RepresentedTaxiFlightStateLikeCpp , > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_unit_flags : & 'a wow_constants :: UnitFlags , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_mounted : & 'a bool , # [cfg (any (test , feature = \"test-fixtures\"))] player_skill_records : & 'a std :: collections :: HashMap < u16 , crate :: session :: RepresentedPlayerSkillLikeCpp , > ,) -> AuraConditionAccessBuilderLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -47987,7 +47987,7 @@
           "kind": "method",
           "name": "aura_npc_access_builder_like_cpp",
           "visibility": "pub",
-          "signature": "fn aura_npc_access_builder_like_cpp < 'a > (& 'a self , faction_store : Option < & 'a wow_data :: progression_rewards :: FactionStore > , faction_template_store : Option < & 'a wow_data :: progression_rewards :: FactionTemplateStore > , friendship_store : Option < & 'a wow_data :: progression_rewards :: FriendshipRepReactionStore > , # [cfg (any (test , feature = \"test-fixtures\"))] position : & 'a Option < wow_core :: Position > , # [cfg (any (test , feature = \"test-fixtures\"))] faction_template_id : & 'a Option < u32 > , # [cfg (any (test , feature = \"test-fixtures\"))] player_race : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] player_class : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] reputation_state : & 'a wow_entities :: PlayerReputationStateLikeCpp , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_destinations : & 'a Vec < u32 > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_flight_state : & 'a Option < crate :: session :: movement_protocol :: RepresentedTaxiFlightStateLikeCpp > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_unit_flags : & 'a wow_constants :: UnitFlags , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_mounted : & 'a bool ,) -> AuraNpcAccessBuilderLikeCpp < 'a >",
+          "signature": "fn aura_npc_access_builder_like_cpp < 'a > (& 'a self , faction_store : Option < & 'a wow_data :: progression_rewards :: FactionStore > , faction_template_store : Option < & 'a wow_data :: progression_rewards :: FactionTemplateStore > , friendship_store : Option < & 'a wow_data :: progression_rewards :: FriendshipRepReactionStore > , # [cfg (any (test , feature = \"test-fixtures\"))] position : & 'a Option < wow_core :: Position > , # [cfg (any (test , feature = \"test-fixtures\"))] faction_template_id : & 'a Option < u32 > , # [cfg (any (test , feature = \"test-fixtures\"))] player_race : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] player_class : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] reputation_state : & 'a wow_entities :: PlayerReputationStateLikeCpp , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_destinations : & 'a Vec < u32 > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_flight_state : & 'a Option < crate :: session :: movement_protocol :: RepresentedTaxiFlightStateLikeCpp , > , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_unit_flags : & 'a wow_constants :: UnitFlags , # [cfg (any (test , feature = \"test-fixtures\"))] taxi_mounted : & 'a bool ,) -> AuraNpcAccessBuilderLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -48152,7 +48152,7 @@
           "kind": "method",
           "name": "owned_item_enchantment_access_like_cpp",
           "visibility": "pub",
-          "signature": "fn owned_item_enchantment_access_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] skill_records : & 'a std :: collections :: HashMap < u16 , RepresentedPlayerSkillLikeCpp > ,) -> OwnedItemEnchantmentAccessLikeCpp < 'a >",
+          "signature": "fn owned_item_enchantment_access_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] skill_records : & 'a std :: collections :: HashMap < u16 , RepresentedPlayerSkillLikeCpp , > ,) -> OwnedItemEnchantmentAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -48182,7 +48182,7 @@
           "kind": "method",
           "name": "owned_item_set_access_like_cpp",
           "visibility": "pub",
-          "signature": "fn owned_item_set_access_like_cpp < 'a > (& 'a self , item_set_store : Option < & 'a wow_data :: ItemSetStore > , item_set_spell_store : Option < & 'a wow_data :: ItemSetSpellStore > , spell_store : Option < & 'a SpellStore > , heirloom_store : Option < & 'a HeirloomStore > , item_stats_store : Option < & 'a ItemStatsStore > , curve_store : Option < & 'a CurveStore > , curve_point_store : Option < & 'a CurvePointStore > , content_tuning_store : Option < & 'a ContentTuningStore > , # [cfg (any (test , feature = \"test-fixtures\"))] player_skill_records : & 'a HashMap < u16 , RepresentedPlayerSkillLikeCpp > , # [cfg (any (test , feature = \"test-fixtures\"))] player_level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] primary_specialization_id : & 'a u32 ,) -> OwnedItemSetAccessLikeCpp < 'a >",
+          "signature": "fn owned_item_set_access_like_cpp < 'a > (& 'a self , item_set_store : Option < & 'a wow_data :: ItemSetStore > , item_set_spell_store : Option < & 'a wow_data :: ItemSetSpellStore > , spell_store : Option < & 'a SpellStore > , heirloom_store : Option < & 'a HeirloomStore > , item_stats_store : Option < & 'a ItemStatsStore > , curve_store : Option < & 'a CurveStore > , curve_point_store : Option < & 'a CurvePointStore > , content_tuning_store : Option < & 'a ContentTuningStore > , # [cfg (any (test , feature = \"test-fixtures\"))] player_skill_records : & 'a HashMap < u16 , RepresentedPlayerSkillLikeCpp , > , # [cfg (any (test , feature = \"test-fixtures\"))] player_level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] primary_specialization_id : & 'a u32 ,) -> OwnedItemSetAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -48439,7 +48439,7 @@
           "kind": "method",
           "name": "player_condition_access_with_selected_fixture_refs_like_cpp",
           "visibility": "pub",
-          "signature": "fn player_condition_access_with_selected_fixture_refs_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] fixtures : PlayerConditionFixtureRefsLikeCpp < 'a > ,) -> PlayerConditionAccessLikeCpp < 'a >",
+          "signature": "fn player_condition_access_with_selected_fixture_refs_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] fixtures : PlayerConditionFixtureRefsLikeCpp < 'a , > ,) -> PlayerConditionAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -48503,7 +48503,7 @@
           "kind": "method",
           "name": "quest_eligibility_access_like_cpp",
           "visibility": "pub",
-          "signature": "fn quest_eligibility_access_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] race : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] class : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] skill_records : & 'a HashMap < u16 , crate :: session :: RepresentedPlayerSkillLikeCpp > , # [cfg (any (test , feature = \"test-fixtures\"))] reputation : & 'a PlayerReputationStateLikeCpp ,) -> QuestEligibilityAccessLikeCpp < 'a >",
+          "signature": "fn quest_eligibility_access_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] race : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] class : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] skill_records : & 'a HashMap < u16 , crate :: session :: RepresentedPlayerSkillLikeCpp , > , # [cfg (any (test , feature = \"test-fixtures\"))] reputation : & 'a PlayerReputationStateLikeCpp ,) -> QuestEligibilityAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -49772,7 +49772,7 @@
           "kind": "method",
           "name": "player_registry_sync_access_like_cpp",
           "visibility": "pub",
-          "signature": "fn player_registry_sync_access_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_position : & 'a Option < Position > , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_transport : & 'a Option < Box < crate :: session :: PlayerTransportLoginStateLikeCpp > > ,) -> PlayerRegistrySyncAccessLikeCpp < 'a >",
+          "signature": "fn player_registry_sync_access_like_cpp < 'a > (& 'a self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_position : & 'a Option < Position > , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_level : & 'a u8 , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_transport : & 'a Option < Box < crate :: session :: PlayerTransportLoginStateLikeCpp > , > ,) -> PlayerRegistrySyncAccessLikeCpp < 'a >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -49896,7 +49896,7 @@
           "kind": "method",
           "name": "represented_pet_position_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn represented_pet_position_like_cpp (& self , pet_guid : ObjectGuid) -> Option < Position >",
+          "signature": "fn represented_pet_position_like_cpp (& self , pet_guid : ObjectGuid ,) -> Option < Position >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -50301,7 +50301,7 @@
           "kind": "method",
           "name": "resolved_player_skill_records_for_publication_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn resolved_player_skill_records_for_publication_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_records : & HashMap < u16 , RepresentedPlayerSkillLikeCpp > ,) -> Option < HashMap < u16 , RepresentedPlayerSkillLikeCpp > >",
+          "signature": "fn resolved_player_skill_records_for_publication_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_records : & HashMap < u16 , RepresentedPlayerSkillLikeCpp , > ,) -> Option < HashMap < u16 , RepresentedPlayerSkillLikeCpp > >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -50618,7 +50618,7 @@
           "kind": "method",
           "name": "player_aura_subsystem_snapshot_with_fixture_refs_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_aura_subsystem_snapshot_with_fixture_refs_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] player_aura_authority_complete_like_cpp : & bool , # [cfg (any (test , feature = \"test-fixtures\"))] player_spell_hit_aura_authority_tombstoned_like_cpp : & bool , # [cfg (any (test , feature = \"test-fixtures\"))] visible_auras_like_cpp : & HashMap < u8 , wow_entities :: AuraApplicationLikeCpp > , # [cfg (any (test , feature = \"test-fixtures\"))] canonical_threat_aura_snapshots_like_cpp : & HashMap < u8 , wow_entities :: AuraThreatSnapshotLikeCpp > ,) -> Option < wow_entities :: AuraSubsystem >",
+          "signature": "fn player_aura_subsystem_snapshot_with_fixture_refs_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] player_aura_authority_complete_like_cpp : & bool , # [cfg (any (test , feature = \"test-fixtures\"))] player_spell_hit_aura_authority_tombstoned_like_cpp : & bool , # [cfg (any (test , feature = \"test-fixtures\"))] visible_auras_like_cpp : & HashMap < u8 , wow_entities :: AuraApplicationLikeCpp , > , # [cfg (any (test , feature = \"test-fixtures\"))] canonical_threat_aura_snapshots_like_cpp : & HashMap < u8 , wow_entities :: AuraThreatSnapshotLikeCpp , > ,) -> Option < wow_entities :: AuraSubsystem >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -50663,7 +50663,7 @@
           "kind": "method",
           "name": "player_transport_info_with_fixture_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_transport_info_with_fixture_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_transport : & Option < Box < crate :: session :: PlayerTransportLoginStateLikeCpp > > ,) -> Option < wow_packet :: packets :: movement :: TransportInfo >",
+          "signature": "fn player_transport_info_with_fixture_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_transport : & Option < Box < crate :: session :: PlayerTransportLoginStateLikeCpp > , > ,) -> Option < wow_packet :: packets :: movement :: TransportInfo >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -50678,7 +50678,7 @@
           "kind": "method",
           "name": "player_transport_state_with_fixture_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn player_transport_state_with_fixture_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_transport : & Option < Box < crate :: session :: PlayerTransportLoginStateLikeCpp > > ,) -> Option < Option < wow_entities :: PlayerTransportState > >",
+          "signature": "fn player_transport_state_with_fixture_like_cpp (& self , # [cfg (any (test , feature = \"test-fixtures\"))] fixture_transport : & Option < Box < crate :: session :: PlayerTransportLoginStateLikeCpp > , > ,) -> Option < Option < wow_entities :: PlayerTransportState > >",
           "cfg": [],
           "availability": {
             "production": true,
@@ -74517,7 +74517,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:LootReleaseAccessLikeCpp < '_ >::fn represented_creature_is_dead_for_loot_visibility_like_cpp (& self , creature_guid : ObjectGuid ,) -> bool|body=fnv1a64x2:3a7e2c99a5f0b18a8cad9361b8a90fcd:len=875|evidence=fnv1a64x2:a4a6b3d0474508564e25b2622127487d:len=812",
+          "fingerprint": "signature=impl:LootReleaseAccessLikeCpp < '_ >::fn represented_creature_is_dead_for_loot_visibility_like_cpp (& self , creature_guid : ObjectGuid ,) -> bool|body=fnv1a64x2:f61216fa4ee189a6fca62aab5c8ad1c9:len=877|evidence=fnv1a64x2:a4a6b3d0474508564e25b2622127487d:len=812",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75430,7 +75430,7 @@
               "side": "legacy",
               "kind": "function_call",
               "symbol": "from_canonical",
-              "fingerprint": "fnv1a64x2:5230b7576ea5184d0cac58e82fab82de:len=49",
+              "fingerprint": "fnv1a64x2:6f21bf906d74806370ec4c3196b48c60:len=49",
               "multiplicity": 1
             },
             {
@@ -75448,7 +75448,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldEntitiesState::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , hub : & mut HubMut < '_ > , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:d710ccdafcea370b3bf2b2da10bf74cc:len=7731|evidence=fnv1a64x2:799ec6e72245382de18fbc900c93698c:len=16486",
+          "fingerprint": "signature=impl:WorldEntitiesState::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , hub : & mut HubMut < '_ > , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:7286e86b4869fbbf5f5fcebb6cfc66a0:len=7729|evidence=fnv1a64x2:f948b246dc1cfe97d774dab512ad351a:len=16486",
           "cfg": [],
           "multiplicity": 1
         },

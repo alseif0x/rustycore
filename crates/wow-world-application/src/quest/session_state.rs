@@ -67,11 +67,7 @@ impl SessionQuestState {
         self.quest_low_level_hide_diff_like_cpp = value;
     }
 
-    pub fn player_quest_level_like_cpp(
-        &self,
-        player_level: u8,
-        quest: &QuestTemplate,
-    ) -> i32 {
+    pub fn player_quest_level_like_cpp(&self, player_level: u8, quest: &QuestTemplate) -> i32 {
         if quest.quest_level > 0 {
             quest.quest_level
         } else {
@@ -222,5 +218,4 @@ impl SessionQuestState {
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = (record_test_evidence, outcome);
     }
-
 }

@@ -14,11 +14,17 @@ fn dismount_without_pet_still_clears_temporary_react_like_cpp() {
         temporary_mount_react_state: Some(2),
         ..Default::default()
     };
-    assert!(crate::session::hub_mut(&mut session).update_player_pet_lifecycle_state_like_cpp(|current| *current = state.clone()));
+    assert!(
+        crate::session::hub_mut(&mut session)
+            .update_player_pet_lifecycle_state_like_cpp(|current| *current = state.clone())
+    );
     crate::session::hub_mut(&mut session).enable_pet_controls_on_dismount_like_cpp();
     let mut expected = state;
     expected.temporary_mount_react_state = None;
-    assert_eq!(session.player_pet_lifecycle_state_snapshot_like_cpp(), Some(expected));
+    assert_eq!(
+        session.player_pet_lifecycle_state_snapshot_like_cpp(),
+        Some(expected)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -97,7 +103,10 @@ fn canonical_player_pet_lifecycle_follows_active_detached_and_stale_ownership_li
     {
         let mut hub = crate::session::hub_mut(&mut session);
         let (presentation, mut control) = hub.aura_removal_mount_accesses_like_cpp();
-        assert_eq!(presentation.player_unit_presentation_snapshot_like_cpp(), None);
+        assert_eq!(
+            presentation.player_unit_presentation_snapshot_like_cpp(),
+            None
+        );
         control.send_movement_set_collision_height_like_cpp(&presentation, 0);
     }
     assert_eq!(session.fixtures.movement.movement_counter_like_cpp, 17);
@@ -382,7 +391,11 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
 
     crate::session::cx_pets(&mut session).begin_represented_character_pet_authority_load_like_cpp();
 
-    assert!(session.lifecycle.pet_load_spells_are_empty_for_test_like_cpp());
+    assert!(
+        session
+            .lifecycle
+            .pet_load_spells_are_empty_for_test_like_cpp()
+    );
     assert!(
         session
             .lifecycle
@@ -393,7 +406,11 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
             .lifecycle
             .pet_load_spell_charges_are_empty_for_test_like_cpp()
     );
-    assert!(session.lifecycle.pet_load_auras_are_empty_for_test_like_cpp());
+    assert!(
+        session
+            .lifecycle
+            .pet_load_auras_are_empty_for_test_like_cpp()
+    );
     assert!(
         session
             .lifecycle

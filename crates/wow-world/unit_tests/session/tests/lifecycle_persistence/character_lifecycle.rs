@@ -179,7 +179,8 @@ async fn character_save_does_not_reapply_save_destination_or_progression_to_runt
             })
             .unwrap();
         assert_eq!(
-            session.lifecycle.tutorials_changed_like_cpp(), remains_dirty,
+            session.lifecycle.tutorials_changed_like_cpp(),
+            remains_dirty,
             "only confirmed commit cleans dirty groups"
         );
     }

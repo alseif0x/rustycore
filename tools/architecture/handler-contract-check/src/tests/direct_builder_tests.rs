@@ -5,9 +5,9 @@
 use std::path::Path;
 
 use crate::registrations::{
-    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
-    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, analyze_contract_source, analyze_owner_source,
-    analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+    BANK_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract,
+    EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, analyze_contract_source,
+    analyze_owner_source, analyze_owner_source_with_contracts, unowned_entry_literal_violation,
 };
 
 const INVENTORY_PACKAGE: &str = "wow-world-inventory";
@@ -16,22 +16,53 @@ const INVENTORY_PACKAGE: &str = "wow-world-inventory";
 fn direct_bank_registrar_requires_exact_owner_host_and_unaliased_entry() {
     const SOURCE: &str = include_str!("../../../../../crates/wow-world-application/src/bank.rs");
     let report = analyze_owner_source_with_contracts(
-        BANK_REGISTRAR.package, BANK_REGISTRAR.module, Path::new("bank.rs"),
-        SOURCE, DIRECT_REGISTRAR_CONTRACTS,
-    ).expect("finite Bank registrar");
+        BANK_REGISTRAR.package,
+        BANK_REGISTRAR.module,
+        Path::new("bank.rs"),
+        SOURCE,
+        DIRECT_REGISTRAR_CONTRACTS,
+    )
+    .expect("finite Bank registrar");
     assert_eq!(report.entries, 1);
     assert_eq!(report.registrar_count, 1);
     assert_eq!(report.contract, Some(BANK_REGISTRAR));
     for (module, source, contracts) in [
-        ("crate::bank::other", SOURCE.to_owned(), DIRECT_REGISTRAR_CONTRACTS),
-        (BANK_REGISTRAR.module, SOURCE.replace("BankHandlerHostLikeCpp", "OtherHost"), DIRECT_REGISTRAR_CONTRACTS),
-        (BANK_REGISTRAR.module, SOURCE.replace("PacketHandlerEntry,", "PacketHandlerEntry as Entry,")
-            .replace("builder.register(PacketHandlerEntry", "builder.register(Entry"), DIRECT_REGISTRAR_CONTRACTS),
-        (BANK_REGISTRAR.module, SOURCE.to_owned(), &[INVENTORY_REGISTRAR][..]),
+        (
+            "crate::bank::other",
+            SOURCE.to_owned(),
+            DIRECT_REGISTRAR_CONTRACTS,
+        ),
+        (
+            BANK_REGISTRAR.module,
+            SOURCE.replace("BankHandlerHostLikeCpp", "OtherHost"),
+            DIRECT_REGISTRAR_CONTRACTS,
+        ),
+        (
+            BANK_REGISTRAR.module,
+            SOURCE
+                .replace("PacketHandlerEntry,", "PacketHandlerEntry as Entry,")
+                .replace(
+                    "builder.register(PacketHandlerEntry",
+                    "builder.register(Entry",
+                ),
+            DIRECT_REGISTRAR_CONTRACTS,
+        ),
+        (
+            BANK_REGISTRAR.module,
+            SOURCE.to_owned(),
+            &[INVENTORY_REGISTRAR][..],
+        ),
     ] {
-        assert!(analyze_owner_source_with_contracts(
-            BANK_REGISTRAR.package, module, Path::new("bank.rs"), &source, contracts,
-        ).is_err());
+        assert!(
+            analyze_owner_source_with_contracts(
+                BANK_REGISTRAR.package,
+                module,
+                Path::new("bank.rs"),
+                &source,
+                contracts,
+            )
+            .is_err()
+        );
     }
 }
 const INVENTORY_MODULE: &str = "crate::handlers::equipment_sets";
@@ -68,21 +99,27 @@ fn analyze(source: &str) -> Result<crate::registrations::RegistrarReport, String
 
 #[test]
 fn direct_inventory_registrar_accepts_current_source_and_counts_entries() {
-    let report = analyze(include_str!("../../../../../crates/wow-world-inventory/src/handlers/equipment_sets.rs"))
-        .expect("the production Inventory registrar matches its direct-builder grammar");
+    let report = analyze(include_str!(
+        "../../../../../crates/wow-world-inventory/src/handlers/equipment_sets.rs"
+    ))
+    .expect("the production Inventory registrar matches its direct-builder grammar");
     assert_eq!(report.entries, 5);
     assert_eq!(report.registrar_count, 1);
     assert_eq!(analyze(ONE_ENTRY).expect("single direct entry").entries, 1);
-    let harmless_text = format!("{ONE_ENTRY}\nconst DOC: &str = \"PacketHandlerEntry RegistryBuilder\";");
+    let harmless_text =
+        format!("{ONE_ENTRY}\nconst DOC: &str = \"PacketHandlerEntry RegistryBuilder\";");
     assert_eq!(
-        analyze(&harmless_text).expect("text mentioning provider names is not source syntax").entries,
+        analyze(&harmless_text)
+            .expect("text mentioning provider names is not source syntax")
+            .entries,
         1
     );
 }
 
 #[test]
 fn direct_instances_registrar_accepts_exact_seven_entry_source() {
-    const SOURCE: &str = include_str!("../../../../../crates/wow-world-application/src/instances/registration.rs");
+    const SOURCE: &str =
+        include_str!("../../../../../crates/wow-world-application/src/instances/registration.rs");
     let report = analyze_owner_source_with_contracts(
         INSTANCES_REGISTRAR.package,
         INSTANCES_REGISTRAR.module,
@@ -94,21 +131,23 @@ fn direct_instances_registrar_accepts_exact_seven_entry_source() {
     assert_eq!(report.entries, 7);
     assert_eq!(report.registrar_count, 1);
     assert_eq!(report.contract, Some(INSTANCES_REGISTRAR));
-    assert!(analyze_owner_source_with_contracts(
-        INSTANCES_REGISTRAR.package,
-        INSTANCES_REGISTRAR.module,
-        Path::new("registration.rs"),
-        SOURCE,
-        &[INVENTORY_REGISTRAR],
-    )
-    .is_err(), "a direct owner omitted from the finite contract set is rejected");
+    assert!(
+        analyze_owner_source_with_contracts(
+            INSTANCES_REGISTRAR.package,
+            INSTANCES_REGISTRAR.module,
+            Path::new("registration.rs"),
+            SOURCE,
+            &[INVENTORY_REGISTRAR],
+        )
+        .is_err(),
+        "a direct owner omitted from the finite contract set is rejected"
+    );
 }
 
 #[test]
 fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliases() {
-    const SOURCE: &str = include_str!(
-        "../../../../../crates/wow-world-application/src/equipment_set_use.rs"
-    );
+    const SOURCE: &str =
+        include_str!("../../../../../crates/wow-world-application/src/equipment_set_use.rs");
     let report = analyze_owner_source_with_contracts(
         EQUIPMENT_SET_USE_REGISTRAR.package,
         EQUIPMENT_SET_USE_REGISTRAR.module,
@@ -123,54 +162,76 @@ fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliase
 
     let aliased_entry = SOURCE
         .replace("PacketHandlerEntry,", "PacketHandlerEntry as Entry,")
-        .replace("builder.register(PacketHandlerEntry", "builder.register(Entry");
-    assert!(analyze_owner_source_with_contracts(
-        EQUIPMENT_SET_USE_REGISTRAR.package,
-        EQUIPMENT_SET_USE_REGISTRAR.module,
-        Path::new("equipment_set_use.rs"),
-        &aliased_entry,
-        DIRECT_REGISTRAR_CONTRACTS,
-    )
-    .is_err(), "a renamed PacketHandlerEntry binding cannot satisfy the owner contract");
+        .replace(
+            "builder.register(PacketHandlerEntry",
+            "builder.register(Entry",
+        );
+    assert!(
+        analyze_owner_source_with_contracts(
+            EQUIPMENT_SET_USE_REGISTRAR.package,
+            EQUIPMENT_SET_USE_REGISTRAR.module,
+            Path::new("equipment_set_use.rs"),
+            &aliased_entry,
+            DIRECT_REGISTRAR_CONTRACTS,
+        )
+        .is_err(),
+        "a renamed PacketHandlerEntry binding cannot satisfy the owner contract"
+    );
 
-    assert!(analyze_owner_source_with_contracts(
-        EQUIPMENT_SET_USE_REGISTRAR.package,
-        "crate::equipment_set_use::other",
-        Path::new("equipment_set_use.rs"),
-        SOURCE,
-        DIRECT_REGISTRAR_CONTRACTS,
-    )
-    .is_err(), "the registrar cannot be moved under a different logical module");
+    assert!(
+        analyze_owner_source_with_contracts(
+            EQUIPMENT_SET_USE_REGISTRAR.package,
+            "crate::equipment_set_use::other",
+            Path::new("equipment_set_use.rs"),
+            SOURCE,
+            DIRECT_REGISTRAR_CONTRACTS,
+        )
+        .is_err(),
+        "the registrar cannot be moved under a different logical module"
+    );
 
-    assert!(analyze_owner_source_with_contracts(
-        EQUIPMENT_SET_USE_REGISTRAR.package,
-        EQUIPMENT_SET_USE_REGISTRAR.module,
-        Path::new("equipment_set_use.rs"),
-        SOURCE,
-        &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR],
-    )
-    .is_err(), "an owner omitted from the finite contract set is rejected");
+    assert!(
+        analyze_owner_source_with_contracts(
+            EQUIPMENT_SET_USE_REGISTRAR.package,
+            EQUIPMENT_SET_USE_REGISTRAR.module,
+            Path::new("equipment_set_use.rs"),
+            SOURCE,
+            &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR],
+        )
+        .is_err(),
+        "an owner omitted from the finite contract set is rejected"
+    );
 }
 
 #[test]
 fn direct_inventory_registrar_rejects_aliases_control_flow_forwarders_and_wrong_receivers() {
     let aliased = ONE_ENTRY
-        .replace("PacketHandlerEntry, RegistryBuilder", "PacketHandlerEntry as Entry, RegistryBuilder")
-        .replace("builder.register(PacketHandlerEntry", "builder.register(Entry");
-    let conditional = ONE_ENTRY.replace(
-        "    builder.register(PacketHandlerEntry {",
-        "    if true { builder.register(PacketHandlerEntry {",
-    ).replace(
-        "        handler: only_entry,\n    })?;",
-        "        handler: only_entry,\n    })?; }",
-    );
-    let nested = ONE_ENTRY.replace(
-        "    builder.register(PacketHandlerEntry {",
-        "    fn nested() { builder.register(PacketHandlerEntry {",
-    ).replace(
-        "        handler: only_entry,\n    })?;",
-        "        handler: only_entry,\n    })?; }",
-    );
+        .replace(
+            "PacketHandlerEntry, RegistryBuilder",
+            "PacketHandlerEntry as Entry, RegistryBuilder",
+        )
+        .replace(
+            "builder.register(PacketHandlerEntry",
+            "builder.register(Entry",
+        );
+    let conditional = ONE_ENTRY
+        .replace(
+            "    builder.register(PacketHandlerEntry {",
+            "    if true { builder.register(PacketHandlerEntry {",
+        )
+        .replace(
+            "        handler: only_entry,\n    })?;",
+            "        handler: only_entry,\n    })?; }",
+        );
+    let nested = ONE_ENTRY
+        .replace(
+            "    builder.register(PacketHandlerEntry {",
+            "    fn nested() { builder.register(PacketHandlerEntry {",
+        )
+        .replace(
+            "        handler: only_entry,\n    })?;",
+            "        handler: only_entry,\n    })?; }",
+        );
     let forwarded = ONE_ENTRY.replace(
         "builder.register(PacketHandlerEntry {\n        opcode: ClientOpcodes::OnlyEntry,\n        status: SessionStatus::LoggedIn,\n        processing: PacketProcessing::Inplace,\n        handler_name: \"only_entry\",\n        handler: only_entry,\n    })?;",
         "register_entries(builder)?;",
@@ -194,7 +255,10 @@ fn direct_inventory_registrar_rejects_duplicate_entries_and_nonowner_provider_bi
         "    Ok(())",
         "    builder.register(PacketHandlerEntry {\n        opcode: ClientOpcodes::OnlyEntry,\n        status: SessionStatus::LoggedIn,\n        processing: PacketProcessing::Inplace,\n        handler_name: \"only_entry\",\n        handler: only_entry,\n    })?;\n    Ok(())",
     );
-    assert!(analyze(&duplicate).is_err(), "duplicate opcode must fail closed");
+    assert!(
+        analyze(&duplicate).is_err(),
+        "duplicate opcode must fail closed"
+    );
 
     let alias = "type HiddenEntry<S, C> = wow_handler::PacketHandlerEntry<S, C>;";
     assert!(
@@ -210,7 +274,8 @@ fn direct_inventory_registrar_rejects_duplicate_entries_and_nonowner_provider_bi
             .is_some(),
         "an aliased entry literal outside the registrar must be reported"
     );
-    let imported_alias = "use wow_handler::PacketHandlerEntry as Entry; fn outside() { let _ = Entry {}; }";
+    let imported_alias =
+        "use wow_handler::PacketHandlerEntry as Entry; fn outside() { let _ = Entry {}; }";
     assert!(
         unowned_entry_literal_violation(imported_alias)
             .expect("renamed provider binding parses")
@@ -313,62 +378,89 @@ where
         Some(SECOND_OWNER),
     );
 
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "fixture-owner",
-        "crate::other",
-        Path::new("other.rs"),
-        SOURCE,
-    )
-    .is_err(), "the same registrar is rejected at a different logical module");
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "fixture-owner",
-        "crate::handler_boundary",
-        Path::new("handler_boundary.rs"),
-        &SOURCE.replace("FixtureHandlerHostLikeCpp", "DifferentHostLikeCpp"),
-    )
-    .is_err(), "a host-trait substitution is rejected");
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "other-owner",
-        "crate::handler_boundary",
-        Path::new("handler_boundary.rs"),
-        SOURCE,
-    )
-    .is_err(), "a registrar cannot be mounted under another package");
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "fixture-owner",
-        "crate::handler_boundary",
-        Path::new("handler_boundary.rs"),
-        &SOURCE.replace("pub fn register_fixture_handlers_like_cpp", "#[cfg(test)]\npub fn register_fixture_handlers_like_cpp"),
-    )
-    .is_err(), "a conditional registrar declaration is rejected");
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "fixture-owner",
-        "crate::handler_boundary",
-        Path::new("handler_boundary.rs"),
-        &format!("#![cfg(test)]\n{SOURCE}"),
-    )
-    .is_err(), "a conditional source module cannot own the registrar");
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "fixture-owner",
-        "crate::handler_boundary",
-        Path::new("handler_boundary.rs"),
-        &SOURCE.replace("register_fixture_handlers_like_cpp", "register_unowned_handlers_like_cpp"),
-    )
-    .is_err(), "entry construction without the named registrar is rejected");
-    assert!(analyze_contract_source(
-        SECOND_OWNER,
-        "fixture-owner",
-        "crate::handler_boundary",
-        Path::new("handler_boundary.rs"),
-        &format!("{SOURCE}\n{SOURCE}"),
-    )
-    .is_err(), "a duplicate direct registrar declaration is rejected");
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "fixture-owner",
+            "crate::other",
+            Path::new("other.rs"),
+            SOURCE,
+        )
+        .is_err(),
+        "the same registrar is rejected at a different logical module"
+    );
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "fixture-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            &SOURCE.replace("FixtureHandlerHostLikeCpp", "DifferentHostLikeCpp"),
+        )
+        .is_err(),
+        "a host-trait substitution is rejected"
+    );
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "other-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            SOURCE,
+        )
+        .is_err(),
+        "a registrar cannot be mounted under another package"
+    );
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "fixture-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            &SOURCE.replace(
+                "pub fn register_fixture_handlers_like_cpp",
+                "#[cfg(test)]\npub fn register_fixture_handlers_like_cpp"
+            ),
+        )
+        .is_err(),
+        "a conditional registrar declaration is rejected"
+    );
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "fixture-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            &format!("#![cfg(test)]\n{SOURCE}"),
+        )
+        .is_err(),
+        "a conditional source module cannot own the registrar"
+    );
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "fixture-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            &SOURCE.replace(
+                "register_fixture_handlers_like_cpp",
+                "register_unowned_handlers_like_cpp"
+            ),
+        )
+        .is_err(),
+        "entry construction without the named registrar is rejected"
+    );
+    assert!(
+        analyze_contract_source(
+            SECOND_OWNER,
+            "fixture-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            &format!("{SOURCE}\n{SOURCE}"),
+        )
+        .is_err(),
+        "a duplicate direct registrar declaration is rejected"
+    );
     assert_eq!(
         analyze_owner_source(
             INVENTORY_REGISTRAR.package,

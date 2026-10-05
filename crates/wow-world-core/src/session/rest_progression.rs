@@ -4,23 +4,24 @@
 impl crate::session::state::SessionCore {
     pub(crate) fn player_rest_state_snapshot_with_fixture_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture: &RestMgrTestFixtureLikeCpp,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture: &RestMgrTestFixtureLikeCpp,
     ) -> Option<wow_entities::PlayerRestState> {
-        let canonical = self
-            .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
+        let canonical =
+            self.with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerRestState::from_represented_parts_like_cpp(
-                fixture.represented_rest_state_xp_like_cpp,
-                fixture.represented_rest_bonus_xp_like_cpp,
-                fixture.represented_rest_flag_mask_like_cpp,
-                fixture.represented_rest_location_initialized_like_cpp,
-                fixture.represented_defer_rest_flag_sync_like_cpp,
-                fixture.represented_deferred_rest_flag_update_dirty_like_cpp,
-                fixture.represented_inn_area_trigger_id_like_cpp,
-                fixture.represented_rest_time_secs_like_cpp,
-            ));
+            return Some(
+                wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                    fixture.represented_rest_state_xp_like_cpp,
+                    fixture.represented_rest_bonus_xp_like_cpp,
+                    fixture.represented_rest_flag_mask_like_cpp,
+                    fixture.represented_rest_location_initialized_like_cpp,
+                    fixture.represented_defer_rest_flag_sync_like_cpp,
+                    fixture.represented_deferred_rest_flag_update_dirty_like_cpp,
+                    fixture.represented_inn_area_trigger_id_like_cpp,
+                    fixture.represented_rest_time_secs_like_cpp,
+                ),
+            );
         }
         canonical
     }

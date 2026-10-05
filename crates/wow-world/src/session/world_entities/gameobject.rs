@@ -471,14 +471,15 @@ impl WorldSession {
                     state.per_player_state_player_guid = None;
                 }
             }
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::GameObjectPerPlayerStateExpired {
-                    gameobject_guid: guid,
-                    player_guid,
-                    despawned,
-                    needs_state_update,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectPerPlayerStateExpired {
+                        gameobject_guid: guid,
+                        player_guid,
+                        despawned,
+                        needs_state_update,
+                    },
+                );
         }
         for guid in expired_despawn_delay_guids {
             let linked_trap_guid = self
@@ -526,13 +527,14 @@ impl WorldSession {
                 state.use_count = 0;
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
             }
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
-                    gameobject_guid: guid,
-                    max_charges,
-                    loot_state: wow_entities::LootState::JustDeactivated,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
+                        gameobject_guid: guid,
+                        max_charges,
+                        loot_state: wow_entities::LootState::JustDeactivated,
+                    },
+                );
         }
         for guid in not_ready_bomb_trap_guids {
             if let Some(state) = self
@@ -570,12 +572,13 @@ impl WorldSession {
                 state.loot_state = Some(wow_entities::LootState::Ready);
             }
             if !owner_guid.is_empty() {
-                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::FishingBobberReady {
-                        gameobject_guid: guid,
-                        owner_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::FishingBobberReady {
+                            gameobject_guid: guid,
+                            owner_guid,
+                        },
+                    );
             }
         }
         for guid in restocked_chests {
@@ -607,21 +610,23 @@ impl WorldSession {
                 state.loot_state = Some(wow_entities::LootState::Activated);
                 state.loot_state_unit_guid = target_guid;
             }
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TrapTargetActivated {
-                    gameobject_guid: guid,
-                    target_guid,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TrapTargetActivated {
+                        gameobject_guid: guid,
+                        target_guid,
+                    },
+                );
         }
         for (guid, source) in activated_bomb_traps {
             if source.spell_id != 0 {
-                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::TrapBombSpellCast {
-                        gameobject_guid: guid,
-                        spell_id: source.spell_id,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::TrapBombSpellCast {
+                            gameobject_guid: guid,
+                            spell_id: source.spell_id,
+                        },
+                    );
             }
             if let Some(state) = self
                 .world_entities
@@ -632,14 +637,15 @@ impl WorldSession {
         }
         for (guid, source, target_guid, original_caster_guid) in activated_non_bomb_traps {
             if source.spell_id != 0 {
-                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::TrapTargetSpellCast {
-                        gameobject_guid: guid,
-                        target_guid,
-                        spell_id: source.spell_id,
-                        original_caster_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::TrapTargetSpellCast {
+                            gameobject_guid: guid,
+                            target_guid,
+                            spell_id: source.spell_id,
+                            original_caster_guid,
+                        },
+                    );
             }
             if let Some(state) = self
                 .world_entities
@@ -721,12 +727,13 @@ impl WorldSession {
                 if let Some(trap_guid) = linked_trap_guid {
                     self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
                 }
-                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
-                        gameobject_guid: guid,
-                        trap_entry,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
+                            gameobject_guid: guid,
+                            trap_entry,
+                        },
+                    );
             }
             self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             let mut delete_after_clear = delete_after_clear;
@@ -748,12 +755,13 @@ impl WorldSession {
                         state.loot_state = Some(wow_entities::LootState::Ready);
                     }
                 }
-                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                    RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
-                        gameobject_guid: guid,
-                        deleted: false,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
+                            gameobject_guid: guid,
+                            deleted: false,
+                        },
+                    );
                 continue;
             }
             if let Some(state) = self
@@ -788,12 +796,13 @@ impl WorldSession {
                 self.core.client_visible_guids_like_cpp.remove(&guid);
                 self.send_represented_gameobject_delete_packets_like_cpp(guid);
             }
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
-                    gameobject_guid: guid,
-                    deleted: delete_after_clear,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
+                        gameobject_guid: guid,
+                        deleted: delete_after_clear,
+                    },
+                );
         }
     }
 }

@@ -7,26 +7,46 @@ use wow_loot::rebuild_represented_personal_loot_counts_preserving_consumed_like_
 
 impl LootReleaseCxLikeCpp<'_> {
     pub(super) fn canonical_creature_fully_looted_after_represented_sync_like_cpp(
-        &mut self, guid: ObjectGuid, player_guid: ObjectGuid, fallback_fully_looted: bool,
+        &mut self,
+        guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        fallback_fully_looted: bool,
     ) -> bool {
-        if self.sync_represented_creature_loot_to_canonical_like_cpp(guid, player_guid).is_some() {
-            return self.owner.canonical_creature_is_fully_looted_like_cpp(guid)
+        if self
+            .sync_represented_creature_loot_to_canonical_like_cpp(guid, player_guid)
+            .is_some()
+        {
+            return self
+                .owner
+                .canonical_creature_is_fully_looted_like_cpp(guid)
                 .unwrap_or(fallback_fully_looted);
         }
         fallback_fully_looted
     }
 
     pub(super) fn canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
-        &mut self, guid: ObjectGuid, player_guid: ObjectGuid, fallback_fully_looted: bool,
+        &mut self,
+        guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        fallback_fully_looted: bool,
     ) -> bool {
-        if self.sync_represented_gameobject_loot_to_canonical_like_cpp(guid, player_guid).is_some() {
-            return self.owner.transitions_like_cpp().canonical_gameobject_is_fully_looted_like_cpp(guid)
+        if self
+            .sync_represented_gameobject_loot_to_canonical_like_cpp(guid, player_guid)
+            .is_some()
+        {
+            return self
+                .owner
+                .transitions_like_cpp()
+                .canonical_gameobject_is_fully_looted_like_cpp(guid)
                 .unwrap_or(fallback_fully_looted);
         }
         fallback_fully_looted
     }
 
-    pub(super) fn represented_owned_loot_authority_like_cpp(&mut self, guid: ObjectGuid) -> Option<OwnedLootAuthority> {
+    pub(super) fn represented_owned_loot_authority_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<OwnedLootAuthority> {
         self.owner.represented_owned_loot_authority_like_cpp(guid)
     }
 
@@ -34,12 +54,25 @@ impl LootReleaseCxLikeCpp<'_> {
         self.owner.refresh_owned_loot_summary_like_cpp(guid);
     }
 
-    fn next_represented_loot_object_guid_like_cpp(&mut self, owner: ObjectGuid) -> Option<ObjectGuid> {
+    fn next_represented_loot_object_guid_like_cpp(
+        &mut self,
+        owner: ObjectGuid,
+    ) -> Option<ObjectGuid> {
         let canonical = self.owner.next_canonical_loot_object_guid_like_cpp(owner);
         if self.consumer_test {
-            canonical.or_else(|| (!owner.is_empty()).then(|| ObjectGuid::create_world_object(
-                wow_core::guid::HighGuid::LootObject, 0, owner.realm_id(), owner.map_id(), 0, 0, owner.counter(),
-            )))
+            canonical.or_else(|| {
+                (!owner.is_empty()).then(|| {
+                    ObjectGuid::create_world_object(
+                        wow_core::guid::HighGuid::LootObject,
+                        0,
+                        owner.realm_id(),
+                        owner.map_id(),
+                        0,
+                        0,
+                        owner.counter(),
+                    )
+                })
+            })
         } else {
             canonical
         }
@@ -87,7 +120,9 @@ impl LootReleaseCxLikeCpp<'_> {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
         else {
             return (self.consumer_test
-                && self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid))
+                && self
+                    .loot
+                    .cached_loot_contains_owner_like_cpp(gameobject_guid))
             .then_some(());
         };
         let loot = self
@@ -109,7 +144,8 @@ impl LootReleaseCxLikeCpp<'_> {
                 .snapshot_for_player_like_cpp(player_guid)
                 .is_none()
         {
-            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             self.loot
                 .remove_cached_loot_generation_like_cpp(gameobject_guid);
             return None;
@@ -148,7 +184,8 @@ impl LootReleaseCxLikeCpp<'_> {
                 .snapshot_for_player_like_cpp(_player_guid)
                 .is_none()
         {
-            self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(creature_guid);
             self.loot
                 .remove_cached_loot_generation_like_cpp(creature_guid);
             return None;

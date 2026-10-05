@@ -106,15 +106,11 @@ pub fn apply_loaded_item_storage_mutable_fields_like_cpp(
     expiration_needs_save
 }
 
-pub fn loaded_item_slot_applies_equipped_enchantments_like_cpp(
-    slot: u8,
-) -> bool {
+pub fn loaded_item_slot_applies_equipped_enchantments_like_cpp(slot: u8) -> bool {
     slot < INVENTORY_SLOT_BAG_END
 }
 
-pub fn loaded_socketed_gems_like_cpp(
-    fields: [(i32, String, u8); 3],
-) -> Vec<SocketedGem> {
+pub fn loaded_socketed_gems_like_cpp(fields: [(i32, String, u8); 3]) -> Vec<SocketedGem> {
     let Some(last_populated_socket) = fields.iter().rposition(|(item_id, _, _)| *item_id > 0)
     else {
         return Vec::new();

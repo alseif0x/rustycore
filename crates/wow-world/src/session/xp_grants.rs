@@ -89,9 +89,7 @@ impl WorldSession {
     }
 
     #[cfg(not(any(test, feature = "test-fixtures")))]
-    fn quest_xp_gain_context_like_cpp(
-        &mut self,
-    ) -> wow_world_application::QuestRewardCx<'_> {
+    fn quest_xp_gain_context_like_cpp(&mut self) -> wow_world_application::QuestRewardCx<'_> {
         let player = self.core.quest_reward_player_access_like_cpp();
         wow_world_application::QuestRewardCx::new(
             &mut self.inventory,
@@ -127,12 +125,7 @@ impl WorldSession {
 
     /// Give XP and retain the existing persistence boundary after all runtime
     /// publication phases complete.
-    pub(crate) async fn give_xp(
-        &mut self,
-        xp: u32,
-        victim: wow_core::ObjectGuid,
-        group_rate: f32,
-    ) {
+    pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
             let (mut operation, mut fixtures) = self.quest_xp_gain_context_like_cpp();
@@ -145,5 +138,4 @@ impl WorldSession {
             .give_xp_like_cpp(xp, victim, group_rate)
             .await;
     }
-
 }

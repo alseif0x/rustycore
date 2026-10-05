@@ -120,10 +120,7 @@ impl crate::session::PetsCx<'_> {
     ) -> usize {
         self.hub
             .invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spells: Vec<_> = rows
-            .into_iter()
-            .filter(|row| row.spell_id != 0)
-            .collect();
+        let spells: Vec<_> = rows.into_iter().filter(|row| row.spell_id != 0).collect();
         let loaded = spells.len();
         if loaded == 0 {
             self.lifecycle

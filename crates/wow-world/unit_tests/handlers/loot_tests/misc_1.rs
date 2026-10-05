@@ -566,7 +566,9 @@ async fn represented_gathering_node_first_use_records_effects_like_cpp() {
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,
@@ -597,7 +599,9 @@ async fn represented_fishing_hole_updates_catch_criteria_like_cpp() {
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
                 gameobject_guid,
@@ -636,7 +640,8 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
         .await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("represented gathering use records GO state");
     assert_eq!(state.personal_loot_uses, 1);
     assert_eq!(state.go_state, Some(GoState::Active));
@@ -649,7 +654,9 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
     assert_eq!(state.despawn_delay_secs, Some(15));
     assert!(state.despawn_delay_until.is_some());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                 gameobject_guid,
@@ -708,7 +715,8 @@ async fn gathering_node_state_sync_command_updates_receiver_before_refresh_like_
         .await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("synced gathering node state");
     assert_eq!(
         state.go_type,

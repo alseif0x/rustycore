@@ -2,13 +2,12 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use super::{
+    TrainerAcquisitionPublicationLikeCpp, TrainerAcquisitionRuntimeLikeCpp, context::AppTrainerCx,
+};
 use crate::spell_acquisition::{
     PreparedPlayerSpellAcquisitionLikeCpp,
     commit_exclusive_player_money_and_spell_acquisition_like_cpp,
-};
-use super::{
-    TrainerAcquisitionPublicationLikeCpp, TrainerAcquisitionRuntimeLikeCpp,
-    context::AppTrainerCx,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::spell::PlaySpellVisualKit;

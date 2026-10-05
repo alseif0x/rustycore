@@ -4,15 +4,15 @@
 use wow_constants::item::EnchantmentSlot;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    ItemDataUpdate, ItemValuesUpdate, UpdateMask, VisibleItemValues, BUYBACK_SLOT_COUNT,
-    BUYBACK_SLOT_END, BUYBACK_SLOT_START, ITEM_DATA_BITS, ITEM_DATA_DYNAMIC_FLAGS_BIT,
-    ITEM_DATA_PARENT_BIT, PLAYER_SLOT_END, TYPEID_ITEM,
+    BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, ITEM_DATA_BITS,
+    ITEM_DATA_DYNAMIC_FLAGS_BIT, ITEM_DATA_PARENT_BIT, ItemDataUpdate, ItemValuesUpdate,
+    PLAYER_SLOT_END, TYPEID_ITEM, UpdateMask, VisibleItemValues,
 };
 use wow_world_core::{
     entity_update_bridge::player_values_update_to_update_object,
     session::{
         HubRef, InventoryPlayerProjectionLikeCpp, OwnedInventoryAccessLikeCpp,
-        PacketPublicationAccessLikeCpp, PLAYER_FLAGS_RESTING_LIKE_CPP,
+        PLAYER_FLAGS_RESTING_LIKE_CPP, PacketPublicationAccessLikeCpp,
     },
 };
 
@@ -59,14 +59,14 @@ struct InventoryPublicationCx<'a, 'core, 'packet> {
 }
 
 impl<'a, 'core, 'packet> InventoryPublicationCx<'a, 'core, 'packet> {
-    fn whole_player_values_update_snapshot(
-        &self,
-    ) -> Option<InventoryPlayerProjectionLikeCpp> {
-        let mut player = self.inventory.direct_inventory_player_snapshot_with_access_like_cpp(
-            self.access,
-            self.item_store,
-            self.item_stats_store,
-        )?;
+    fn whole_player_values_update_snapshot(&self) -> Option<InventoryPlayerProjectionLikeCpp> {
+        let mut player = self
+            .inventory
+            .direct_inventory_player_snapshot_with_access_like_cpp(
+                self.access,
+                self.item_store,
+                self.item_stats_store,
+            )?;
         player.set_money_like_cpp(
             self.inventory
                 .resolved_player_money_with_access_like_cpp(self.access)?,
@@ -229,7 +229,10 @@ impl crate::InventoryState {
         self.send_item_storage_fields_values_update_with_access_like_cpp(
             &hub.core.owned_inventory_access_like_cpp(),
             &hub.core.packet_publication_access_like_cpp(),
-            item_guid, contained_in_changed, dynamic_flags2_changed, changed_enchantments,
+            item_guid,
+            contained_in_changed,
+            dynamic_flags2_changed,
+            changed_enchantments,
         );
     }
 
@@ -242,7 +245,12 @@ impl crate::InventoryState {
         cleared_enchantments: &[EnchantmentSlot],
     ) {
         self.send_item_storage_fields_values_update_with_access_like_cpp(
-            access, publication, item_guid, true, dynamic_flags2_changed, cleared_enchantments,
+            access,
+            publication,
+            item_guid,
+            true,
+            dynamic_flags2_changed,
+            cleared_enchantments,
         );
     }
 
@@ -255,7 +263,9 @@ impl crate::InventoryState {
         dynamic_flags2_changed: bool,
         changed_enchantments: &[EnchantmentSlot],
     ) {
-        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid) else {
+        let Some(item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
+        else {
             return;
         };
         let update = crate::item_storage_fields_values_update_like_cpp(
@@ -274,7 +284,8 @@ impl crate::InventoryState {
     ) {
         self.send_item_dynamic_flags_values_update_with_access_like_cpp(
             &hub.core.owned_inventory_access_like_cpp(),
-            &hub.core.packet_publication_access_like_cpp(), item_guid,
+            &hub.core.packet_publication_access_like_cpp(),
+            item_guid,
         );
     }
 
@@ -284,7 +295,9 @@ impl crate::InventoryState {
         publication: &PacketPublicationAccessLikeCpp<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid) else {
+        let Some(item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
+        else {
             return;
         };
         let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
@@ -303,7 +316,10 @@ impl crate::InventoryState {
 }
 
 impl crate::InventoryState {
-    pub fn player_values_update_snapshot(&self, hub: HubRef<'_>) -> Option<InventoryPlayerProjectionLikeCpp> {
+    pub fn player_values_update_snapshot(
+        &self,
+        hub: HubRef<'_>,
+    ) -> Option<InventoryPlayerProjectionLikeCpp> {
         let access = hub.core.owned_inventory_access_like_cpp();
         let publication = hub.core.packet_publication_access_like_cpp();
         self.player_values_update_snapshot_with_access_like_cpp(
@@ -385,10 +401,7 @@ impl crate::InventoryState {
         )
     }
 
-    pub fn send_represented_resting_player_flag_update_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn send_represented_resting_player_flag_update_like_cpp(&self, hub: HubRef<'_>) -> bool {
         let Some(guid) = hub.core.player_guid() else {
             return false;
         };
@@ -404,10 +417,13 @@ impl crate::InventoryState {
             return false;
         };
         if is_resting {
-            player.replace_all_player_flags_like_cpp(canonical_flags & !PLAYER_FLAGS_RESTING_LIKE_CPP);
+            player.replace_all_player_flags_like_cpp(
+                canonical_flags & !PLAYER_FLAGS_RESTING_LIKE_CPP,
+            );
             player.set_player_flag_like_cpp(PLAYER_FLAGS_RESTING_LIKE_CPP);
         } else {
-            player.replace_all_player_flags_like_cpp(canonical_flags | PLAYER_FLAGS_RESTING_LIKE_CPP);
+            player
+                .replace_all_player_flags_like_cpp(canonical_flags | PLAYER_FLAGS_RESTING_LIKE_CPP);
             player.remove_player_flag_like_cpp(PLAYER_FLAGS_RESTING_LIKE_CPP);
         }
         let update = player.values_update_like_cpp(true);

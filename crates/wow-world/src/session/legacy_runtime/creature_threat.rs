@@ -271,6 +271,5 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
     }
 }
 pub(in crate::session) use wow_world_entities::{
-    creature_threat_value_on_map_like_cpp,
-    mirror_creature_threat_from_attacker_on_map_like_cpp,
+    creature_threat_value_on_map_like_cpp, mirror_creature_threat_from_attacker_on_map_like_cpp,
 };

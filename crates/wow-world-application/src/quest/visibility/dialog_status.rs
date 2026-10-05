@@ -39,11 +39,14 @@ impl QuestEligibilityCx<'_> {
             };
             match status {
                 wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP => {
-                    result |= self.dialog_classification_like_cpp(quest, quest_info)
+                    result |= self
+                        .dialog_classification_like_cpp(quest, quest_info)
                         .reward_complete();
                 }
                 wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP => {
-                    result |= self.dialog_classification_like_cpp(quest, quest_info).reward();
+                    result |= self
+                        .dialog_classification_like_cpp(quest, quest_info)
+                        .reward();
                 }
                 _ => {}
             }
@@ -73,13 +76,16 @@ impl QuestEligibilityCx<'_> {
 
         for quest in start_quests {
             let owner = self.player.quest_objective_access_like_cpp();
-            if !self.conditions.represented_quest_available_conditions_meet_like_cpp(
-                &owner,
-                self.quest_state,
-                self.catalogs,
-                quest.id,
-                self.consumer_test,
-            ) {
+            if !self
+                .conditions
+                .represented_quest_available_conditions_meet_like_cpp(
+                    &owner,
+                    self.quest_state,
+                    self.catalogs,
+                    quest.id,
+                    self.consumer_test,
+                )
+            {
                 continue;
             }
 
@@ -95,7 +101,8 @@ impl QuestEligibilityCx<'_> {
 
             if self.satisfy_quest_level_like_cpp(quest) {
                 let classification = self.dialog_classification_like_cpp(quest, quest_info);
-                result |= classification.available(self.represented_quest_is_trivial_like_cpp(quest));
+                result |=
+                    classification.available(self.represented_quest_is_trivial_like_cpp(quest));
             } else {
                 result |= self
                     .dialog_classification_like_cpp(quest, quest_info)
@@ -150,8 +157,7 @@ impl QuestEligibilityCx<'_> {
             return false;
         }
 
-        if self.quest_status_like_cpp(quest.id)
-            != Some(wow_conditions::QUEST_STATUS_NONE_LIKE_CPP)
+        if self.quest_status_like_cpp(quest.id) != Some(wow_conditions::QUEST_STATUS_NONE_LIKE_CPP)
         {
             return false;
         }

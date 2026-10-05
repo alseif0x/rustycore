@@ -20,24 +20,24 @@ use wow_persistence::{
     PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
     PlayerCharacterCommittedGroupsLikeCpp, PlayerCharacterSaveRequestLikeCpp,
     PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp,
-    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
-    PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
-    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp,
-    PlayerPositionSaveLikeCpp, PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp,
-    PlayerSpellChargeSaveLikeCpp, PlayerSpellCooldownSaveLikeCpp,
-    PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp, PlayerSpellStateLikeCpp,
-    PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp, PlayerVoidStorageSaveLikeCpp,
-    PlayerVoidStorageSlotSaveLikeCpp,
+    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
+    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
+    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerTutorialsSaveLikeCpp,
+    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
 };
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::persistence_capabilities::CharacterPowerSnapshotLikeCpp;
 use crate::session::persistence_capabilities::{
     PlayerSaveToDbSnapshotLikeCpp, character_power_snapshot_values_like_cpp,
     loaded_character_power_snapshot_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::persistence_capabilities::CharacterPowerSnapshotLikeCpp;
-use crate::session::{RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp};
+use crate::session::{
+    RepresentedPlayerSkillStateLikeCpp, SessionCore, represented_player_skill_record_like_cpp,
+};
 
 /// Lifecycle-owned values that join the canonical Player projection in one save request.
 pub struct PlayerSaveSessionInputsLikeCpp<'a> {
@@ -189,9 +189,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
     }
 
     /// Borrow the established money owner for the save's pre-capture phases.
-    pub fn inventory_access_like_cpp(
-        &self,
-    ) -> crate::session::OwnedInventoryAccessLikeCpp<'_> {
+    pub fn inventory_access_like_cpp(&self) -> crate::session::OwnedInventoryAccessLikeCpp<'_> {
         self.core.owned_inventory_access_like_cpp()
     }
 
@@ -209,7 +207,9 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
         }
         let manager = core.canonical_map_manager.as_ref()?.lock().ok()?;
         let residence = manager.player_residence_like_cpp(handle)?;
-        manager.with_player_like_cpp(handle, |player| player_save_header_like_cpp(player, residence))
+        manager.with_player_like_cpp(handle, |player| {
+            player_save_header_like_cpp(player, residence)
+        })
     }
 
     /// Resolve the legacy ownerless test fixture's canonical map projection without
@@ -288,8 +288,7 @@ impl<'a> PlayerSaveOwnerAccessLikeCpp<'a> {
             reputation: expected.reputation && committed.reputation,
         };
         let handle = receipt.handle;
-        if core.player_handle_like_cpp != Some(handle)
-            || core.player_guid() != Some(handle.guid())
+        if core.player_handle_like_cpp != Some(handle) || core.player_guid() != Some(handle.guid())
         {
             return None;
         }
@@ -351,12 +350,8 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
         &self,
         inputs: PlayerSaveSessionInputsLikeCpp<'_>,
     ) -> Option<CapturedPlayerSaveLikeCpp> {
-        PlayerSaveOwnerAccessLikeCpp::new_like_cpp(
-            &*self.core,
-            self.talent_store,
-            self.spell_store,
-        )
-        .capture_like_cpp(inputs)
+        PlayerSaveOwnerAccessLikeCpp::new_like_cpp(&*self.core, self.talent_store, self.spell_store)
+            .capture_like_cpp(inputs)
     }
 
     /// Apply a committed receipt through the existing incarnation-bound owner.
@@ -365,11 +360,7 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
         receipt: PlayerSaveReceiptLikeCpp,
         committed: &PlayerCharacterCommittedGroupsLikeCpp,
     ) -> Option<AcknowledgedPlayerSaveLikeCpp> {
-        PlayerSaveOwnerAccessLikeCpp::acknowledge_like_cpp(
-            &*self.core,
-            receipt,
-            committed,
-        )
+        PlayerSaveOwnerAccessLikeCpp::acknowledge_like_cpp(&*self.core, receipt, committed)
     }
 
     /// Resolve the selected session Player GUID without exposing Core state.
@@ -383,9 +374,7 @@ impl PlayerSaveOperationAccessLikeCpp<'_> {
     }
 
     /// Borrow the established money owner for a save-operation phase.
-    pub fn inventory_access_like_cpp(
-        &self,
-    ) -> crate::session::OwnedInventoryAccessLikeCpp<'_> {
+    pub fn inventory_access_like_cpp(&self) -> crate::session::OwnedInventoryAccessLikeCpp<'_> {
         self.core.owned_inventory_access_like_cpp()
     }
 
@@ -455,7 +444,11 @@ fn player_save_header_like_cpp(
     let health = match residence {
         PlayerResidenceLikeCpp::Active(_) => {
             let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
-            if unit.is_alive() && health > 0 { health } else { 0 }
+            if unit.is_alive() && health > 0 {
+                health
+            } else {
+                0
+            }
         }
         PlayerResidenceLikeCpp::Detached => unit.data().health.min(u64::from(max_health)) as u32,
     };
@@ -534,32 +527,33 @@ fn request(
     };
 
     let spell_runtime = Some(&game.spells);
-    let spells = if let Some(spells) =
-        (game.spells.rows_loaded_like_cpp() && game.spells.rows_complete_like_cpp()).then(|| {
-            game.spells
-                .rows_like_cpp()
-                .iter()
-                .map(|(&id, row)| {
-                    (
-                        id,
-                        PlayerSpellSaveLikeCpp {
-                            spell_id: row.spell_id,
-                            active: row.active,
-                            disabled: row.disabled,
-                            dependent: row.dependent,
-                            favorite: row.favorite,
-                            state: match row.state {
-                                PlayerSpellLoadState::Unchanged => PlayerSpellStateLikeCpp::Unchanged,
-                                PlayerSpellLoadState::Changed => PlayerSpellStateLikeCpp::Changed,
-                                PlayerSpellLoadState::New => PlayerSpellStateLikeCpp::New,
-                                PlayerSpellLoadState::Removed => PlayerSpellStateLikeCpp::Removed,
-                                PlayerSpellLoadState::Temporary => PlayerSpellStateLikeCpp::Temporary,
-                            },
+    let spells = if let Some(spells) = (game.spells.rows_loaded_like_cpp()
+        && game.spells.rows_complete_like_cpp())
+    .then(|| {
+        game.spells
+            .rows_like_cpp()
+            .iter()
+            .map(|(&id, row)| {
+                (
+                    id,
+                    PlayerSpellSaveLikeCpp {
+                        spell_id: row.spell_id,
+                        active: row.active,
+                        disabled: row.disabled,
+                        dependent: row.dependent,
+                        favorite: row.favorite,
+                        state: match row.state {
+                            PlayerSpellLoadState::Unchanged => PlayerSpellStateLikeCpp::Unchanged,
+                            PlayerSpellLoadState::Changed => PlayerSpellStateLikeCpp::Changed,
+                            PlayerSpellLoadState::New => PlayerSpellStateLikeCpp::New,
+                            PlayerSpellLoadState::Removed => PlayerSpellStateLikeCpp::Removed,
+                            PlayerSpellLoadState::Temporary => PlayerSpellStateLikeCpp::Temporary,
                         },
-                    )
-                })
-                .collect::<std::collections::BTreeMap<_, _>>()
-        }) {
+                    },
+                )
+            })
+            .collect::<std::collections::BTreeMap<_, _>>()
+    }) {
         Some(PlayerSpellSaveGroupLikeCpp::Complete {
             rows: spells.into_values().collect(),
             fallback_rows_were_present: spell_runtime
@@ -658,8 +652,7 @@ fn request(
                     spell_store,
                     *talent_id,
                     *rank,
-                )
-                {
+                ) {
                     rows.push(PlayerTalentSaveLikeCpp {
                         talent_id: *talent_id,
                         rank: *rank,
@@ -944,9 +937,5 @@ fn represented_talent_for_save_like_cpp(
     let Some(spell_store) = spell_store else {
         return true;
     };
-    wow_data::represented_spell_valid_with_seen_like_cpp(
-        spell_store,
-        spell_id,
-        &mut HashSet::new(),
-    )
+    wow_data::represented_spell_valid_with_seen_like_cpp(spell_store, spell_id, &mut HashSet::new())
 }

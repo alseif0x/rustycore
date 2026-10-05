@@ -14,13 +14,11 @@ use wow_persistence::{
     PersistenceOutcomeLikeCpp, PlayerCharacterCommittedGroupsLikeCpp,
     PlayerCharacterSaveRequestLikeCpp,
 };
-use wow_world_lifecycle::{
-    PlayerMoneyCommitCancellationFenceLikeCpp, SessionLifecycleState,
-};
 use wow_world_core::session::{
-    AcknowledgedPlayerSaveLikeCpp, CapturedPlayerSaveLikeCpp,
-    PlayerSaveOperationAccessLikeCpp, PlayerSaveOwnerAccessLikeCpp,
+    AcknowledgedPlayerSaveLikeCpp, CapturedPlayerSaveLikeCpp, PlayerSaveOperationAccessLikeCpp,
+    PlayerSaveOwnerAccessLikeCpp,
 };
+use wow_world_lifecycle::{PlayerMoneyCommitCancellationFenceLikeCpp, SessionLifecycleState};
 
 pub enum PlayerSavePersistenceResultLikeCpp {
     Applied {
@@ -29,11 +27,17 @@ pub enum PlayerSavePersistenceResultLikeCpp {
         committed: PlayerCharacterCommittedGroupsLikeCpp,
         registry_sync_required: bool,
     },
-    Failed { reason: String },
-    Unknown { reason: String },
+    Failed {
+        reason: String,
+    },
+    Unknown {
+        reason: String,
+    },
     SnapshotUnavailable,
     Unavailable,
-    Quarantined { reason: &'static str },
+    Quarantined {
+        reason: &'static str,
+    },
 }
 
 pub fn capture_player_save_request_like_cpp(
@@ -75,10 +79,7 @@ pub async fn persist_player_save_request_like_cpp(
     request: PlayerCharacterSaveRequestLikeCpp,
 ) -> PlayerSavePersistenceResultLikeCpp {
     let account_id = request.account_id;
-    let Some(port) = lifecycle
-        .player_lifecycle_port_like_cpp()
-        .map(Arc::clone)
-    else {
+    let Some(port) = lifecycle.player_lifecycle_port_like_cpp().map(Arc::clone) else {
         warn!(
             account = account_id,
             player_guid = ?player_guid,
@@ -89,8 +90,7 @@ pub async fn persist_player_save_request_like_cpp(
 
     let tracker = lifecycle.durable_loot_money_persistence_tracker_like_cpp();
     if tracker.is_indeterminate_like_cpp() {
-        let reason =
-            "player persistence became indeterminate before the full-save semantic snapshot; aborting the entire save";
+        let reason = "player persistence became indeterminate before the full-save semantic snapshot; aborting the entire save";
         owner.quarantine_like_cpp(reason);
         return PlayerSavePersistenceResultLikeCpp::Quarantined { reason };
     }
@@ -150,13 +150,10 @@ pub async fn save_canonical_player_like_cpp(
     };
     let (request, header, receipt) = captured.into_parts_like_cpp();
     let player_guid = header.guid;
-    let result =
-        persist_player_save_request_like_cpp(lifecycle, owner, player_guid, request).await;
+    let result = persist_player_save_request_like_cpp(lifecycle, owner, player_guid, request).await;
     match result {
         PlayerSavePersistenceResultLikeCpp::Applied {
-            rows,
-            committed,
-            ..
+            rows, committed, ..
         } => {
             let acknowledged = owner.acknowledge_like_cpp(receipt, &committed);
             let registry_sync_required =

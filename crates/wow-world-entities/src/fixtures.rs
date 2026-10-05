@@ -3,7 +3,9 @@ use std::time::Instant;
 use wow_core::ObjectGuid;
 use wow_entities::PhaseShift;
 
-use crate::{RepresentedGameObjectCriteriaEvent, RepresentedGameObjectUseState, WorldEntitiesState};
+use crate::{
+    RepresentedGameObjectCriteriaEvent, RepresentedGameObjectUseState, WorldEntitiesState,
+};
 
 impl WorldEntitiesState {
     pub fn set_creature_tick_for_test_like_cpp(&mut self, tick: u32) {

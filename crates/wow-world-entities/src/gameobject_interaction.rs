@@ -94,7 +94,8 @@ impl WorldEntitiesState {
         wow_entities::LootState,
         wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
     )> {
-        hub.core.loot_release_access_like_cpp()
+        hub.core
+            .loot_release_access_like_cpp()
             .release_canonical_fishing_hole_like_cpp(guid, max_opens)
     }
 

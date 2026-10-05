@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
 use crate::{
-    DIFFICULTY_10_N_LIKE_CPP, DIFFICULTY_NORMAL_LIKE_CPP,
-    DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+    DIFFICULTY_10_N_LIKE_CPP, DIFFICULTY_NORMAL_LIKE_CPP, DIFFICULTY_NORMAL_RAID_LIKE_CPP,
 };
 
 /// Handle-less test inputs for Player-owned difficulty and recent-instance state.

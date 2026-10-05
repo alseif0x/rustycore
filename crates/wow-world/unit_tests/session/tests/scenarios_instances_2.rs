@@ -92,7 +92,8 @@ fn canonical_visibility_uses_player_instance() {
     );
     add_canonical_test_gameobject_on_map(&canonical, instance_guid, 49_601, position, 571, 7);
     session
-        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
+        .world_entities
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             default_instance_guid,
             RepresentedGameObjectUseState {
                 display_id: Some(7_600),
@@ -103,7 +104,8 @@ fn canonical_visibility_uses_player_instance() {
             },
         );
     session
-        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
+        .world_entities
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             instance_guid,
             RepresentedGameObjectUseState {
                 display_id: Some(7_601),

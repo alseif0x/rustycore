@@ -117,7 +117,8 @@ fn represented_gameobject_runtime_state_captures_canonical_linked_trap_guid_like
 
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(guid)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(guid)
             .and_then(|state| state.linked_trap_guid),
         Some(trap_guid)
     );
@@ -337,7 +338,8 @@ fn represented_gameobject_phase_shift_applies_db_phase_and_visible_map_like_cpp(
     );
 
     let phase_shift = session
-        .world_entities.represented_gameobject_phase_shift_like_cpp(guid)
+        .world_entities
+        .represented_gameobject_phase_shift_like_cpp(guid)
         .unwrap();
     assert!(phase_shift.is_db_phase_shift_like_cpp());
     assert!(phase_shift.has_phase_like_cpp(20));

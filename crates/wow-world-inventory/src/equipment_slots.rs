@@ -64,8 +64,7 @@ impl crate::InventoryState {
             WeaponAttackType::Max => return None,
         };
         let inventory_access = access.owned_inventory_access_like_cpp();
-        let item = self
-            .resolved_inventory_item_with_access_like_cpp(&inventory_access, slot)?;
+        let item = self.resolved_inventory_item_with_access_like_cpp(&inventory_access, slot)?;
         self.resolved_inventory_item_object_with_access_like_cpp(&inventory_access, item.guid)
             .is_some_and(|object| !object.is_broken())
             .then_some(item.entry_id)
@@ -101,10 +100,8 @@ impl crate::InventoryState {
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-                        && access.represented_aura_spell_fits_weapon_like_cpp(
-                            *spell_id,
-                            weapon_item_id,
-                        )
+                        && access
+                            .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
                 })
                 .fold(1.0_f32, |acc, (_, _, amount)| {
                     acc * (1.0 + *amount as f32 / 100.0)
@@ -136,10 +133,8 @@ impl crate::InventoryState {
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-                        && access.represented_aura_spell_fits_weapon_like_cpp(
-                            *spell_id,
-                            weapon_item_id,
-                        )
+                        && access
+                            .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
                 })
                 .map(|(_, _, amount)| *amount)
                 .sum::<i32>();
@@ -168,17 +163,15 @@ impl crate::InventoryState {
             WeaponAttackType::Max => return 0.0,
         };
         let inventory_access = access.owned_inventory_access_like_cpp();
-        let Some(inventory_item) = self
-            .resolved_inventory_item_with_access_like_cpp(&inventory_access, slot)
+        let Some(inventory_item) =
+            self.resolved_inventory_item_with_access_like_cpp(&inventory_access, slot)
         else {
             return 0.0;
         };
-        let Some(item) = self
-            .resolved_inventory_item_object_with_access_like_cpp(
-                &inventory_access,
-                inventory_item.guid,
-            )
-        else {
+        let Some(item) = self.resolved_inventory_item_object_with_access_like_cpp(
+            &inventory_access,
+            inventory_item.guid,
+        ) else {
             return 0.0;
         };
         let Some(enchantment_store) = access.spell_item_enchantment_store_like_cpp() else {

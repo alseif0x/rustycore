@@ -1,13 +1,13 @@
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::BTreeMap;
 
-use crate::RepresentedPendingBind;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::InstanceTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedAdventureMapStartQuestLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedAreaZoneCriteriaLikeCpp;
+use crate::RepresentedPendingBind;
 
 /// `WorldSession::instances` sub-state (#1241 F2): moved fields, no logic.
 ///
@@ -53,8 +53,8 @@ impl InstanceState {
             #[cfg(any(test, feature = "test-fixtures"))]
             represented_instance_reset_times_like_cpp: BTreeMap::new(),
             #[cfg(any(test, feature = "test-fixtures"))]
-            represented_explored_zones_like_cpp:
-                [0; wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
+            represented_explored_zones_like_cpp: [0;
+                wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
             #[cfg(any(test, feature = "test-fixtures"))]
             represented_reveal_world_map_overlay_criteria_like_cpp: Vec::new(),
             #[cfg(any(test, feature = "test-fixtures"))]

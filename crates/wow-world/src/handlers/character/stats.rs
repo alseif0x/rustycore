@@ -43,7 +43,9 @@ impl WorldSession {
                 wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
                     &hub.fixtures.auras.represented_shapeshift_form_like_cpp,
                     &hub.fixtures.auras.player_aura_authority_complete_like_cpp,
-                    &hub.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                    &hub.fixtures
+                        .auras
+                        .player_spell_hit_aura_authority_tombstoned_like_cpp,
                     &hub.fixtures.auras.visible_auras,
                     &hub.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
                 ),
@@ -81,6 +83,4 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.apply_represented_shapeshift_base_attack_time_like_cpp(&mut hub)
     }
-
-
 }

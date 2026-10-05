@@ -20,7 +20,8 @@ impl WorldSession {
     /// (`ApplyItemEquipSpell(item, true, true)`) and replay the item-set auras
     /// under the new form. Returns the number of applied or removed effects.
     pub(crate) fn refresh_represented_item_effects_at_form_change_like_cpp(&mut self) -> usize {
-        self.player_aura_application_cx_like_cpp().refresh_item_effects_at_form_change_like_cpp()
+        self.player_aura_application_cx_like_cpp()
+            .refresh_item_effects_at_form_change_like_cpp()
     }
     pub(crate) fn apply_initial_equipped_item_equip_auras_like_cpp(&mut self) -> Option<usize> {
         let mut equipped: Vec<_> = self
@@ -41,7 +42,8 @@ impl WorldSession {
         &mut self,
         item_guid: ObjectGuid,
     ) -> usize {
-        self.player_aura_application_cx_like_cpp().apply_initial_item_equip_auras_like_cpp(item_guid)
+        self.player_aura_application_cx_like_cpp()
+            .apply_initial_item_equip_auras_like_cpp(item_guid)
     }
     pub(in crate::session) fn inventory_equip_capabilities_like_cpp(&self) -> Option<(bool, bool)> {
         let (state, hub) = crate::session::split_inventory_ref(self);
@@ -121,7 +123,12 @@ impl WorldSession {
     ) -> Option<(InventoryResult, u16)> {
         let conditions = self.player_condition_projection_cx_like_cpp();
         wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
-            .plan_equip_existing_inventory_item_like_cpp(source_bag, source_slot, requested_slot, swap)
+            .plan_equip_existing_inventory_item_like_cpp(
+                source_bag,
+                source_slot,
+                requested_slot,
+                swap,
+            )
     }
     #[allow(clippy::too_many_arguments)]
     fn can_equip_inventory_item_like_cpp(
@@ -153,20 +160,19 @@ impl WorldSession {
         let valuation_access = self.core.inventory_valuation_access_like_cpp();
         let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
         let catalogs = self.catalogs.inventory_valuation_catalog_view_like_cpp();
-        self.inventory.represented_avg_equipped_item_level_with_access_like_cpp(
-            &inventory_access,
-            &valuation_access,
-            &modifier_access,
-            &catalogs,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-            Self::MIN_ITEM_LEVEL_LIKE_CPP,
-            Self::MAX_ITEM_LEVEL_LIKE_CPP,
-        )
+        self.inventory
+            .represented_avg_equipped_item_level_with_access_like_cpp(
+                &inventory_access,
+                &valuation_access,
+                &modifier_access,
+                &catalogs,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+                Self::MIN_ITEM_LEVEL_LIKE_CPP,
+                Self::MAX_ITEM_LEVEL_LIKE_CPP,
+            )
     }
 }
-
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]

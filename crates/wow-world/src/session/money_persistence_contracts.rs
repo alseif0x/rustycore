@@ -4,14 +4,13 @@
 //! Money persistence contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+pub(in crate::session) use wow_world_lifecycle::{
+    AbsolutePlayerMoneyCommitReconciliationLikeCpp, RepresentedTalentResetStatePlanLikeCpp,
+    reconcile_absolute_player_money_commit_like_cpp,
+};
 pub(crate) use wow_world_lifecycle::{
     ExclusivePlayerMoneyPersistenceLikeCpp, LootMoneyPersistenceErrorLikeCpp,
     PlayerMoneyCommitCancellationFenceLikeCpp,
-};
-pub(in crate::session) use wow_world_lifecycle::{
-    AbsolutePlayerMoneyCommitReconciliationLikeCpp,
-    RepresentedTalentResetStatePlanLikeCpp,
-    reconcile_absolute_player_money_commit_like_cpp,
 };
 
 /// A successfully committed reset whose covered runtime state still has to be

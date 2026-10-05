@@ -90,12 +90,10 @@ impl WorldSession {
         state.represented_spell_has_mod_shapeshift_effect_like_cpp(hub, spell_id)
     }
 
-
     pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_cast_speed_multiplier_like_cpp(hub)
     }
-
 
     pub(in crate::session) fn calculate_represented_mounted_aura_amount_like_cpp(
         &self,
@@ -372,7 +370,6 @@ impl WorldSession {
         state.represented_player_is_polymorphed_like_cpp(hub)
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/aura/f3_shims.rs"]

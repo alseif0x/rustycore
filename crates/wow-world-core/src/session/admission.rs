@@ -268,9 +268,7 @@ pub fn packet_spoof_max_packet_counter_allowed_like_cpp(opcode: ClientOpcodes) -
         | ClientOpcodes::GameObjUse
         | ClientOpcodes::DeclinePetition => 50,
 
-        ClientOpcodes::QuestPoiQuery => {
-            crate::session::MAX_QUEST_LOG_SIZE_LIKE_CPP as u32
-        }
+        ClientOpcodes::QuestPoiQuery => crate::session::MAX_QUEST_LOG_SIZE_LIKE_CPP as u32,
 
         ClientOpcodes::SpellClick | ClientOpcodes::MoveDismissVehicle => 20,
 

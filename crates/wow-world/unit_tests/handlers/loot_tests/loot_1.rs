@@ -426,7 +426,9 @@ async fn full_loot_response_queue_rolls_back_open_without_blocking_authority_lik
     loot.loot_guid = represented_loot_object_guid_like_cpp(owner_guid);
     loot.allowed_looters = vec![player_guid];
     loot.items[0].allowed_looters = vec![player_guid];
-    session.loot.insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
+    session
+        .loot
+        .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
     let authority = session
         .represented_owned_loot_authority_like_cpp(owner_guid)
@@ -434,7 +436,10 @@ async fn full_loot_response_queue_rolls_back_open_without_blocking_authority_lik
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         player_guid,
     );
 
@@ -488,7 +493,9 @@ async fn successful_loot_open_queues_response_before_claim_removal_like_cpp() {
     loot.loot_guid = represented_loot_object_guid_like_cpp(owner_guid);
     loot.allowed_looters = vec![player_guid];
     loot.items[0].allowed_looters = vec![player_guid];
-    session.loot.insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
+    session
+        .loot
+        .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
     let authority = session
         .represented_owned_loot_authority_like_cpp(owner_guid)
@@ -496,7 +503,10 @@ async fn successful_loot_open_queues_response_before_claim_removal_like_cpp() {
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         player_guid,
     );
 
@@ -802,7 +812,9 @@ fn pickpocket_money_is_not_shared_with_the_group_like_cpp() {
     let mut loot = authoritative_test_loot_like_cpp(8, false);
     loot.loot_type = LOOT_TYPE_PICKPOCKETING_LIKE_CPP;
     loot.allowed_looters = vec![player_guid, member_guid];
-    session.loot.insert_cached_loot_for_owner_like_cpp(owner, loot);
+    session
+        .loot
+        .insert_cached_loot_for_owner_like_cpp(owner, loot);
 
     assert_eq!(
         session.represented_loot_money_recipients_like_cpp(owner),
@@ -836,7 +848,9 @@ fn vehicle_corpse_money_shares_and_pool_allowed_looters_control_membership_like_
     let mut loot = authoritative_test_loot_like_cpp(8, false);
     loot.loot_type = LOOT_TYPE_CORPSE_LIKE_CPP;
     loot.allowed_looters = vec![player_guid];
-    session.loot.insert_cached_loot_for_owner_like_cpp(owner, loot);
+    session
+        .loot
+        .insert_cached_loot_for_owner_like_cpp(owner, loot);
     assert_eq!(
         session.represented_loot_money_recipients_like_cpp(owner),
         vec![player_guid]

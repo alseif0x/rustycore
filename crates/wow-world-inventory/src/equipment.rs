@@ -3,8 +3,8 @@
 
 use wow_constants::{InventoryResult, SpellCastResult};
 use wow_entities::{
-    is_bag_pos, is_equipment_packed_pos, make_item_pos, CanUnequipItemArgs, Item,
-    ItemStorageTemplate,
+    CanUnequipItemArgs, Item, ItemStorageTemplate, is_bag_pos, is_equipment_packed_pos,
+    make_item_pos,
 };
 use wow_world_core::session::{
     HubRef, InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -57,8 +57,7 @@ impl crate::InventoryState {
         source_is_not_empty_bag: bool,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixture_battleground: &wow_world_core::session::BattlegroundState,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_in_combat: &bool,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_in_combat: &bool,
     ) -> InventoryResult {
         let pos = make_item_pos(bag, slot);
         if !is_equipment_packed_pos(pos) && !is_bag_pos(pos) {
@@ -81,9 +80,7 @@ impl crate::InventoryState {
             .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
             && catalogs
                 .map_store_like_cpp()
-                .and_then(|store| {
-                    store.get(u32::from(valuation_access.player_map_id_like_cpp()))
-                })
+                .and_then(|store| store.get(u32::from(valuation_access.player_map_id_like_cpp())))
                 .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
 
         let Some(is_in_combat) = valuation_access.resolved_in_combat_like_cpp(
@@ -114,8 +111,12 @@ impl crate::InventoryState {
     ) -> bool {
         self.equip_spell_fits_shapeshift_like_cpp(
             hub.catalogs.spell_catalogs.spell_store.as_deref(),
-            hub.catalogs.spell_catalogs.spell_shapeshift_form_store.as_deref(),
-            spell_id, || hub.represented_shapeshift_form_like_cpp(),
+            hub.catalogs
+                .spell_catalogs
+                .spell_shapeshift_form_store
+                .as_deref(),
+            spell_id,
+            || hub.represented_shapeshift_form_like_cpp(),
         )
     }
 
@@ -127,16 +128,14 @@ impl crate::InventoryState {
         spell_id: u32,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_form: &u32,
     ) -> bool {
-        self.equip_spell_fits_shapeshift_like_cpp(
-            spell_store, form_store, spell_id, || {
-                let canonical = player.shapeshift_form_snapshot_like_cpp();
-                #[cfg(any(test, feature = "test-fixtures"))]
-                if canonical.is_none() && player.owner_handle_absent_like_cpp() {
-                    return Some(*fixture_form);
-                }
-                canonical
-            },
-        )
+        self.equip_spell_fits_shapeshift_like_cpp(spell_store, form_store, spell_id, || {
+            let canonical = player.shapeshift_form_snapshot_like_cpp();
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if canonical.is_none() && player.owner_handle_absent_like_cpp() {
+                return Some(*fixture_form);
+            }
+            canonical
+        })
     }
 
     fn equip_spell_fits_shapeshift_like_cpp(
@@ -164,10 +163,7 @@ impl crate::InventoryState {
             == SpellCastResult::Success
     }
 
-    pub fn inventory_equip_capabilities_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<(bool, bool)> {
+    pub fn inventory_equip_capabilities_like_cpp(&self, hub: HubRef<'_>) -> Option<(bool, bool)> {
         let access = hub.core.inventory_valuation_access_like_cpp();
         self.inventory_equip_capabilities_with_access_like_cpp(&access)
     }
@@ -194,5 +190,4 @@ impl crate::InventoryState {
             .player_item_test_fixture_like_cpp
             .represented_avg_equipped_item_level_updates_like_cpp
     }
-
 }

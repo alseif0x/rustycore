@@ -8,7 +8,6 @@
 use super::*;
 
 impl WorldSession {
-
     pub(crate) fn get_represented_quest_giver_status_with_catalog_like_cpp(
         &self,
         quest_info: Option<&wow_data::progression_rewards::QuestInfoStore>,
@@ -221,7 +220,9 @@ impl WorldSession {
     /// This keeps the current represented Rust gate order; `SatisfyQuestTimed`
     /// remains unrepresented, so this is not a full-parity claim.
     pub fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
-        self.with_quest_eligibility_cx_like_cpp(|operation| operation.can_take_quest_like_cpp(quest))
+        self.with_quest_eligibility_cx_like_cpp(|operation| {
+            operation.can_take_quest_like_cpp(quest)
+        })
     }
 
     /// C++ anchor: `Player::CanSeeStartQuest` (Player.cpp:14073–14085).
@@ -275,13 +276,7 @@ impl WorldSession {
             .catalogs
             .disable_mgr()
             .is_some_and(|disable_mgr| {
-                disable_mgr.is_disabled_for_like_cpp(
-                    DISABLE_TYPE_QUEST,
-                    quest_id,
-                    None,
-                    0,
-                    None,
-                )
+                disable_mgr.is_disabled_for_like_cpp(DISABLE_TYPE_QUEST, quest_id, None, 0, None)
             })
     }
 }

@@ -5,11 +5,11 @@ use std::sync::Arc;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_packet::packets::misc::{SpellChargeEntry, SpellHistoryEntry};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp;
 use wow_spell_acquisition::{
     SpellAcquisitionCastAuthorityLikeCpp, SpellAcquisitionCraftValidityAuthorityLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::records::{
@@ -200,11 +200,12 @@ impl SessionSpellState {
         {
             return &mut self.represented_spell_execute_log_effects_like_cpp[index];
         }
-        self.represented_spell_execute_log_effects_like_cpp
-            .push(wow_packet::packets::combat::SpellLogEffect {
+        self.represented_spell_execute_log_effects_like_cpp.push(
+            wow_packet::packets::combat::SpellLogEffect {
                 effect,
                 ..Default::default()
-            });
+            },
+        );
         let index = self.represented_spell_execute_log_effects_like_cpp.len() - 1;
         &mut self.represented_spell_execute_log_effects_like_cpp[index]
     }
@@ -220,7 +221,9 @@ impl SessionSpellState {
     }
 
     pub fn has_represented_spell_execute_log_effects_like_cpp(&self) -> bool {
-        !self.represented_spell_execute_log_effects_like_cpp.is_empty()
+        !self
+            .represented_spell_execute_log_effects_like_cpp
+            .is_empty()
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -235,7 +238,8 @@ impl SessionSpellState {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn has_represented_self_res_spell_for_test_like_cpp(&self, spell_id: i32) -> bool {
-        self.represented_self_res_spells_like_cpp.contains(&spell_id)
+        self.represented_self_res_spells_like_cpp
+            .contains(&spell_id)
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -267,7 +271,8 @@ impl SessionSpellState {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn clear_spell_acquisition_post_commit_actions_for_test_like_cpp(&mut self) {
-        self.represented_spell_acquisition_post_commit_actions_like_cpp.clear();
+        self.represented_spell_acquisition_post_commit_actions_like_cpp
+            .clear();
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

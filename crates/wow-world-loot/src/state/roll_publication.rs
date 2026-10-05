@@ -1,11 +1,11 @@
-use super::LootState;
 use super::DISENCHANT_LOOT_ROLL_CRITERIA_SPELL_LIKE_CPP;
+use super::LootState;
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedLootRollCriteriaEvent;
 use crate::{
     LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
     RepresentedLootRollState, loot_roll_broadcast_item_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::RepresentedLootRollCriteriaEvent;
 use wow_core::ObjectGuid;
 use wow_loot::{
     ROLL_VOTE_DISENCHANT_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
@@ -64,11 +64,12 @@ impl LootState {
         _quantity: u32,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
-        self.represented_loot_roll_criteria_events
-            .push(RepresentedLootRollCriteriaEvent::RollAnyNeed {
+        self.represented_loot_roll_criteria_events.push(
+            RepresentedLootRollCriteriaEvent::RollAnyNeed {
                 player_guid: _player_guid,
                 quantity: _quantity,
-            });
+            },
+        );
     }
 
     pub(crate) fn record_represented_roll_any_greed_criteria_like_cpp(
@@ -77,11 +78,12 @@ impl LootState {
         _quantity: u32,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
-        self.represented_loot_roll_criteria_events
-            .push(RepresentedLootRollCriteriaEvent::RollAnyGreed {
+        self.represented_loot_roll_criteria_events.push(
+            RepresentedLootRollCriteriaEvent::RollAnyGreed {
                 player_guid: _player_guid,
                 quantity: _quantity,
-            });
+            },
+        );
     }
 
     pub(crate) fn record_represented_roll_need_criteria_like_cpp(
@@ -91,12 +93,13 @@ impl LootState {
         _roll_number: u8,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
-        self.represented_loot_roll_criteria_events
-            .push(RepresentedLootRollCriteriaEvent::RollNeed {
+        self.represented_loot_roll_criteria_events.push(
+            RepresentedLootRollCriteriaEvent::RollNeed {
                 player_guid: _player_guid,
                 item_id: _item_id,
                 roll_number: _roll_number,
-            });
+            },
+        );
     }
 
     pub(crate) fn record_represented_roll_greed_criteria_like_cpp(
@@ -106,12 +109,13 @@ impl LootState {
         _roll_number: u8,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
-        self.represented_loot_roll_criteria_events
-            .push(RepresentedLootRollCriteriaEvent::RollGreed {
+        self.represented_loot_roll_criteria_events.push(
+            RepresentedLootRollCriteriaEvent::RollGreed {
                 player_guid: _player_guid,
                 item_id: _item_id,
                 roll_number: _roll_number,
-            });
+            },
+        );
     }
 
     pub fn send_represented_loot_roll_final_values_like_cpp(

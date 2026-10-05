@@ -544,7 +544,6 @@ impl crate::session::QuestStateCxRef<'_> {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/quest/giver/f3_shims.rs"]
 mod f3_shims;

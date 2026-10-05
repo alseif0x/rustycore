@@ -200,7 +200,11 @@ impl WorldSession {
             return (0, 0);
         }
         #[cfg(test)]
-        if self.core.with_owned_player_for_rest_like_cpp(|_| ()).is_none() {
+        if self
+            .core
+            .with_owned_player_for_rest_like_cpp(|_| ())
+            .is_none()
+        {
             return self.fixture_take_xp_rest_bonus_like_cpp(xp, victim);
         }
         let Some(pct) = crate::session::hub_ref(self)

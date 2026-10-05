@@ -8,9 +8,9 @@ use std::collections::HashMap;
 use wow_constants::{InventoryResult, InventoryType, ItemFlags3};
 use wow_core::ObjectGuid;
 use wow_entities::{
-    is_buyback_slot, BagTemplateRef, CanEquipItemArgs, CanEquipItemOutcome, EQUIPMENT_SLOT_END,
+    BagTemplateRef, CanEquipItemArgs, CanEquipItemOutcome, EQUIPMENT_SLOT_END,
     EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef,
-    ItemStorageRef, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem,
+    ItemStorageRef, NULL_BAG, NULL_SLOT, PlayerInventoryItem as InventoryItem, is_buyback_slot,
 };
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -244,7 +244,9 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             MIN_ITEM_LEVEL_LIKE_CPP,
             MAX_ITEM_LEVEL_LIKE_CPP,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.player_conditions.player_access_like_cpp().fixture_player_level_like_cpp(),
+            self.player_conditions
+                .player_access_like_cpp()
+                .fixture_player_level_like_cpp(),
         ) else {
             return;
         };
@@ -316,11 +318,14 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         runtime_item: Option<&Item>,
         not_loading: bool,
     ) -> InventoryResult {
-        let Some(player) = self.inventory.direct_inventory_player_snapshot_with_access_like_cpp(
-            &self.inventory_access,
-            self.catalogs.item_store_like_cpp(),
-            self.catalogs.item_stats_store_like_cpp(),
-        ) else {
+        let Some(player) = self
+            .inventory
+            .direct_inventory_player_snapshot_with_access_like_cpp(
+                &self.inventory_access,
+                self.catalogs.item_store_like_cpp(),
+                self.catalogs.item_stats_store_like_cpp(),
+            )
+        else {
             return InventoryResult::ItemNotFound;
         };
         let proto = self.catalogs.item_storage_template_like_cpp(item.entry_id);
@@ -369,13 +374,11 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         };
         let required_spell = search.map_or(0, |entry| entry.required_ability);
         let has_required_spell = required_spell == 0
-            || i32::try_from(required_spell)
-                .ok()
-                .is_some_and(|spell_id| {
-                    self.player_conditions
-                        .known_spells_for_item_use_like_cpp()
-                        .contains(&spell_id)
-                });
+            || i32::try_from(required_spell).ok().is_some_and(|spell_id| {
+                self.player_conditions
+                    .known_spells_for_item_use_like_cpp()
+                    .contains(&spell_id)
+            });
         let base_required_level = search
             .and_then(|entry| u8::try_from(entry.required_level.max(0)).ok())
             .unwrap_or(0);
@@ -511,12 +514,13 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             Some(values) => Some(self.player_conditions.condition_context_like_cpp(values)?),
             None => None,
         };
-        self.inventory.item_limit_category_template_with_context_like_cpp(
-            entry,
-            condition_store,
-            player_condition_store,
-            context,
-        )
+        self.inventory
+            .item_limit_category_template_with_context_like_cpp(
+                entry,
+                condition_store,
+                player_condition_store,
+                context,
+            )
     }
 
     fn can_equip_unique_item_like_cpp(
@@ -525,11 +529,14 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         runtime_item: &Item,
         except_slot: u8,
     ) -> InventoryResult {
-        let Some(player) = self.inventory.direct_inventory_player_snapshot_with_access_like_cpp(
-            &self.inventory_access,
-            self.catalogs.item_store_like_cpp(),
-            self.catalogs.item_stats_store_like_cpp(),
-        ) else {
+        let Some(player) = self
+            .inventory
+            .direct_inventory_player_snapshot_with_access_like_cpp(
+                &self.inventory_access,
+                self.catalogs.item_store_like_cpp(),
+                self.catalogs.item_stats_store_like_cpp(),
+            )
+        else {
             return InventoryResult::ItemNotFound;
         };
         let Some(proto) = self.catalogs.item_storage_template_like_cpp(entry_id) else {
@@ -607,7 +614,8 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                     .iter()
                     .filter_map(|source_gem| u32::try_from(source_gem.item_id).ok())
                     .filter_map(|source_gem_entry| {
-                        self.catalogs.item_storage_template_like_cpp(source_gem_entry)
+                        self.catalogs
+                            .item_storage_template_like_cpp(source_gem_entry)
                     })
                     .filter(|source_gem_template| {
                         source_gem_template.item_limit_category == gem_template.item_limit_category
@@ -617,8 +625,8 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             let unique_equippable = gem_template
                 .flags
                 .contains(wow_constants::ItemFlags::UNIQUE_EQUIPPABLE);
-            let limit_category = self
-                .item_limit_category_template_like_cpp(gem_template.item_limit_category);
+            let limit_category =
+                self.item_limit_category_template_like_cpp(gem_template.item_limit_category);
             socketed_gem_templates.push((
                 gem_template,
                 unique_equippable,
@@ -640,8 +648,7 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         let unique_equippable = proto
             .flags
             .contains(wow_constants::ItemFlags::UNIQUE_EQUIPPABLE);
-        let limit_category =
-            self.item_limit_category_template_like_cpp(proto.item_limit_category);
+        let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
         player.can_equip_unique_item_like_cpp(wow_entities::CanEquipUniqueItemArgs {
             source_item: Some(runtime_item),
             proto: Some(&proto),
@@ -696,11 +703,14 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         can_dual_wield: bool,
         can_titan_grip: bool,
     ) -> wow_entities::CanEquipItemOutcome {
-        let Some(mut player) = self.inventory.direct_inventory_player_snapshot_with_access_like_cpp(
-            &self.inventory_access,
-            self.catalogs.item_store_like_cpp(),
-            self.catalogs.item_stats_store_like_cpp(),
-        ) else {
+        let Some(mut player) = self
+            .inventory
+            .direct_inventory_player_snapshot_with_access_like_cpp(
+                &self.inventory_access,
+                self.catalogs.item_store_like_cpp(),
+                self.catalogs.item_stats_store_like_cpp(),
+            )
+        else {
             return item_not_found_can_equip_outcome_like_cpp();
         };
         let entry_id = inventory_item.entry_id;
@@ -786,22 +796,22 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             })
             .collect();
 
-        let mainhand_item = self.inventory.get_inventory_item_by_pos_with_access_like_cpp(
-            &self.inventory_access,
-            self.catalogs.item_store_like_cpp(),
-            self.catalogs.item_stats_store_like_cpp(),
-            INVENTORY_SLOT_BAG_0,
-            EQUIPMENT_SLOT_MAINHAND,
-        );
+        let mainhand_item = self
+            .inventory
+            .get_inventory_item_by_pos_with_access_like_cpp(
+                &self.inventory_access,
+                self.catalogs.item_store_like_cpp(),
+                self.catalogs.item_stats_store_like_cpp(),
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_MAINHAND,
+            );
         let mainhand_template = mainhand_item
             .as_ref()
             .and_then(|item| self.catalogs.item_storage_template_like_cpp(item.entry_id));
-        let is_two_hand_used = player.is_two_hand_used_template_like_cpp(mainhand_template.as_ref());
-        let can_use_result = self.can_use_item_like_cpp(
-            inventory_item,
-            Some(runtime_item),
-            not_loading,
-        );
+        let is_two_hand_used =
+            player.is_two_hand_used_template_like_cpp(mainhand_template.as_ref());
+        let can_use_result =
+            self.can_use_item_like_cpp(inventory_item, Some(runtime_item), not_loading);
         let proto_always_allow_dual_wield = self
             .catalogs
             .item_stats_store_like_cpp()
@@ -809,33 +819,29 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
             .is_some_and(|template| {
                 (template.flags[2] & ItemFlags3::AlwaysAllowDualWield as u32) != 0
             });
-        let limit_category =
-            self.item_limit_category_template_like_cpp(proto.item_limit_category);
+        let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
         let (is_stunned, is_charmed) = self.valuation_access.stunned_and_charmed_like_cpp();
         let is_in_progress_arena = self.is_in_progress_arena_like_cpp();
 
-        let offhand_item = self.inventory.get_inventory_item_by_pos_with_access_like_cpp(
-            &self.inventory_access,
-            self.catalogs.item_store_like_cpp(),
-            self.catalogs.item_stats_store_like_cpp(),
-            INVENTORY_SLOT_BAG_0,
-            EQUIPMENT_SLOT_OFFHAND,
-        );
+        let offhand_item = self
+            .inventory
+            .get_inventory_item_by_pos_with_access_like_cpp(
+                &self.inventory_access,
+                self.catalogs.item_store_like_cpp(),
+                self.catalogs.item_stats_store_like_cpp(),
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_OFFHAND,
+            );
         let offhand_runtime = offhand_item
             .as_ref()
             .and_then(|item| item_objects.get(&item.guid));
         let offhand_proto = offhand_item
             .as_ref()
             .and_then(|item| template_cache.get(&item.entry_id));
-        let source_is_not_empty_bag = offhand_item
-            .as_ref()
-            .is_some_and(|item| {
-                self.inventory
-                    .direct_item_contains_items_with_access_like_cpp(
-                        &self.inventory_access,
-                        item.guid,
-                    )
-            });
+        let source_is_not_empty_bag = offhand_item.as_ref().is_some_and(|item| {
+            self.inventory
+                .direct_item_contains_items_with_access_like_cpp(&self.inventory_access, item.guid)
+        });
         let offhand_can_unequip_result = self.can_unequip_inventory_item_like_cpp(
             offhand_runtime,
             offhand_proto,
@@ -844,13 +850,14 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         let offhand_can_store_result = offhand_item
             .as_ref()
             .and_then(|_| {
-                self.inventory.get_inventory_item_by_pos_with_access_like_cpp(
-                    &self.inventory_access,
-                    self.catalogs.item_store_like_cpp(),
-                    self.catalogs.item_stats_store_like_cpp(),
-                    INVENTORY_SLOT_BAG_0,
-                    EQUIPMENT_SLOT_OFFHAND,
-                )
+                self.inventory
+                    .get_inventory_item_by_pos_with_access_like_cpp(
+                        &self.inventory_access,
+                        self.catalogs.item_store_like_cpp(),
+                        self.catalogs.item_stats_store_like_cpp(),
+                        INVENTORY_SLOT_BAG_0,
+                        EQUIPMENT_SLOT_OFFHAND,
+                    )
             })
             .and_then(|item| {
                 self.inventory
@@ -859,17 +866,18 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
                         item.guid,
                     )
                     .and_then(|source_item| {
-                        self.player_conditions.plan_store_direct_inventory_item_like_cpp(
-                            self.valuation_access.realm_id_like_cpp(),
-                            item.entry_id,
-                            source_item.count(),
-                            NULL_BAG,
-                            NULL_SLOT,
-                            Some(&source_item),
-                            false,
-                            &[],
-                            &[],
-                        )
+                        self.player_conditions
+                            .plan_store_direct_inventory_item_like_cpp(
+                                self.valuation_access.realm_id_like_cpp(),
+                                item.entry_id,
+                                source_item.count(),
+                                NULL_BAG,
+                                NULL_SLOT,
+                                Some(&source_item),
+                                false,
+                                &[],
+                                &[],
+                            )
                     })
             })
             .map_or(InventoryResult::Ok, |(result, _, _)| result);
@@ -922,21 +930,22 @@ impl<'a> InventoryValuationApplicationCxLikeCpp<'a> {
         proto: Option<&wow_entities::ItemStorageTemplate>,
         source_is_not_empty_bag: bool,
     ) -> InventoryResult {
-        self.inventory.can_unequip_inventory_item_at_with_access_like_cpp(
-            &self.valuation_access,
-            &self.inventory_access,
-            &self.catalogs,
-            INVENTORY_SLOT_BAG_0,
-            EQUIPMENT_SLOT_OFFHAND,
-            false,
-            source_item,
-            proto,
-            source_is_not_empty_bag,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.player_conditions.battleground_fixture,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.player_conditions.in_combat,
-        )
+        self.inventory
+            .can_unequip_inventory_item_at_with_access_like_cpp(
+                &self.valuation_access,
+                &self.inventory_access,
+                &self.catalogs,
+                INVENTORY_SLOT_BAG_0,
+                EQUIPMENT_SLOT_OFFHAND,
+                false,
+                source_item,
+                proto,
+                source_is_not_empty_bag,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.player_conditions.battleground_fixture,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.player_conditions.in_combat,
+            )
     }
 
     fn is_in_progress_arena_like_cpp(&self) -> bool {

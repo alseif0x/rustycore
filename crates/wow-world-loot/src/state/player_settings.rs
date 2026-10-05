@@ -13,11 +13,7 @@ impl LootState {
         canonical
     }
 
-    pub fn set_pass_on_group_loot_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        value: bool,
-    ) -> bool {
+    pub fn set_pass_on_group_loot_like_cpp(&mut self, hub: &mut HubMut<'_>, value: bool) -> bool {
         let canonical = hub
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_pass_on_group_loot_like_cpp(value))

@@ -6,10 +6,10 @@ use std::collections::HashMap;
 
 mod equip;
 
-use crate::session::state::{HubRef, SessionCore};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::RepresentedPlayerSkillLikeCpp;
 use crate::session::represented_skill_values_from_records_like_cpp;
+use crate::session::state::{HubRef, SessionCore};
 use wow_data::progression_rewards::{ContentTuningStore, CurvePointStore, CurveStore};
 use wow_data::{HeirloomStore, ItemSetEntry, ItemSetSpellEntry, ItemStatsStore, SpellStore};
 use wow_entities::Player;
@@ -48,12 +48,12 @@ impl SessionCore {
         curve_store: Option<&'a CurveStore>,
         curve_point_store: Option<&'a CurvePointStore>,
         content_tuning_store: Option<&'a ContentTuningStore>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        player_skill_records: &'a HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        player_level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        primary_specialization_id: &'a u32,
+        #[cfg(any(test, feature = "test-fixtures"))] player_skill_records: &'a HashMap<
+            u16,
+            RepresentedPlayerSkillLikeCpp,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] player_level: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] primary_specialization_id: &'a u32,
     ) -> OwnedItemSetAccessLikeCpp<'a> {
         OwnedItemSetAccessLikeCpp {
             core: self,
@@ -106,8 +106,7 @@ impl HubRef<'_> {
 
 impl OwnedItemSetAccessLikeCpp<'_> {
     pub fn item_set_for_item_id_like_cpp(&self, item_id: u32) -> Option<&ItemSetEntry> {
-        self.item_set_store?
-            .item_set_for_item_id_like_cpp(item_id)
+        self.item_set_store?.item_set_for_item_id_like_cpp(item_id)
     }
 
     pub fn item_set_spells_like_cpp(&self, item_set_id: u32) -> Vec<&ItemSetSpellEntry> {
@@ -125,10 +124,12 @@ impl OwnedItemSetAccessLikeCpp<'_> {
     }
 
     pub fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        let records = self.core.resolved_player_skill_records_for_publication_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.player_skill_records,
-        )?;
+        let records = self
+            .core
+            .resolved_player_skill_records_for_publication_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.player_skill_records,
+            )?;
         Some(
             represented_skill_values_from_records_like_cpp(&records)
                 .get(&skill_id)
@@ -137,10 +138,7 @@ impl OwnedItemSetAccessLikeCpp<'_> {
         )
     }
 
-    pub fn primary_specialization_id_like_cpp(
-        &self,
-        consumer_test: bool,
-    ) -> Option<u32> {
+    pub fn primary_specialization_id_like_cpp(&self, consumer_test: bool) -> Option<u32> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp);
@@ -156,7 +154,8 @@ impl OwnedItemSetAccessLikeCpp<'_> {
     pub fn player_level_like_cpp(&self) -> u8 {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.player_level_with_fixture_like_cpp(self.player_level)
+            self.core
+                .player_level_with_fixture_like_cpp(self.player_level)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {

@@ -3,9 +3,9 @@
 
 use super::*;
 use tracing::warn;
-use wow_entities::{Item, ItemObjectUpdateLikeCpp, INVENTORY_SLOT_BAG_0};
-use wow_packet::packets::update::UpdateObject;
+use wow_entities::{INVENTORY_SLOT_BAG_0, Item, ItemObjectUpdateLikeCpp};
 use wow_packet::packets::item::ItemExpirePurchaseRefund;
+use wow_packet::packets::update::UpdateObject;
 
 /// C++ `Item::GetCount()` after a partial/full loot release consumption.
 pub fn direct_item_count_after_loot_release_like_cpp(
@@ -21,18 +21,28 @@ pub fn direct_item_count_after_loot_release_like_cpp(
 impl LootReleaseCxLikeCpp<'_> {
     fn remove_fully_looted_runtime_item(&mut self, bag: u8, slot: u8, item_guid: ObjectGuid) {
         if bag == INVENTORY_SLOT_BAG_0
-            && self.inventory.quest_reward_inventory_item_from_runtime_with_access_like_cpp(
-                &self.owner.inventory_like_cpp(), slot,
-            ).is_some_and(|item| item.guid == item_guid)
+            && self
+                .inventory
+                .quest_reward_inventory_item_from_runtime_with_access_like_cpp(
+                    &self.owner.inventory_like_cpp(),
+                    slot,
+                )
+                .is_some_and(|item| item.guid == item_guid)
         {
-            self.inventory.remove_inventory_item_with_access_like_cpp(&self.owner.inventory_like_cpp(), slot);
+            self.inventory
+                .remove_inventory_item_with_access_like_cpp(&self.owner.inventory_like_cpp(), slot);
         }
-        self.inventory.remove_inventory_item_object_with_access_like_cpp(&self.owner.inventory_like_cpp(), item_guid);
+        self.inventory
+            .remove_inventory_item_object_with_access_like_cpp(
+                &self.owner.inventory_like_cpp(),
+                item_guid,
+            );
         self.sync_player_registry_state_like_cpp();
     }
 
     pub async fn destroy_fully_looted_direct_item(&mut self, item_guid: ObjectGuid) {
-        self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None).await;
+        self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None)
+            .await;
     }
 
     pub(super) async fn destroy_direct_item_count_after_loot_release_like_cpp(

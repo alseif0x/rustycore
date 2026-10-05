@@ -19,8 +19,8 @@ impl crate::InventoryState {
         if let Some(condition_store) = condition_store {
             let context = context?;
             for condition in condition_store.conditions_for_parent_like_cpp(entry.id) {
-                let player_condition =
-                    player_condition_store.and_then(|store| store.get(condition.player_condition_id));
+                let player_condition = player_condition_store
+                    .and_then(|store| store.get(condition.player_condition_id));
                 if player_condition.is_none_or(|condition| {
                     is_player_meeting_condition_like_cpp(condition, &context)
                 }) {

@@ -50,8 +50,6 @@ impl WorldSession {
         })
     }
 
-
-
     fn commit_represented_loot_item_claim_like_cpp(
         &mut self,
         claim: &LootClaimLease,
@@ -345,7 +343,6 @@ impl WorldSession {
             .await;
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/loot/persistence/f3_shims.rs"]

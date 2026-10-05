@@ -12,7 +12,8 @@ pub(crate) mod test_fixtures;
 impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_support_tickets_enabled_like_cpp(&self) -> bool {
-        self.interaction.represented_support_tickets_enabled_like_cpp()
+        self.interaction
+            .represented_support_tickets_enabled_like_cpp()
     }
 
     #[cfg(test)]

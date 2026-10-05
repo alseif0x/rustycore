@@ -70,7 +70,10 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.identity.player_level,
             #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.progression.represented_primary_specialization_id_like_cpp,
+            &self
+                .fixtures
+                .progression
+                .represented_primary_specialization_id_like_cpp,
         );
         let item_mods = wow_world_application::EquipmentSetUseItemModsStoresLikeCpp::new(
             self.catalogs.items.store.as_ref(),
@@ -81,20 +84,18 @@ impl WorldSession {
             self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
         );
         #[cfg(test)]
-        let registry_hydration = Some(
-            wow_world_application::PlayerRegistryHydrationContext::new(
-                self.core.player_registry_hydration_access_like_cpp(),
-                &self.spell_state,
-                &self.quest_state,
-                (
-                    &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
-                    &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
-                    &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
-                    &self.fixtures.pets.represented_pet_guid_like_cpp,
-                ),
-                true,
+        let registry_hydration = Some(wow_world_application::PlayerRegistryHydrationContext::new(
+            self.core.player_registry_hydration_access_like_cpp(),
+            &self.spell_state,
+            &self.quest_state,
+            (
+                &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                &self.fixtures.pets.represented_pet_guid_like_cpp,
             ),
-        );
+            true,
+        ));
         #[cfg(all(not(test), feature = "test-fixtures"))]
         let registry_hydration = None;
 
@@ -124,7 +125,10 @@ impl WorldSession {
                 &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
                 &self.fixtures.auras.represented_shapeshift_form_like_cpp,
                 &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-                &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &self
+                    .fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
                 &self.fixtures.auras.visible_auras,
                 &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
                 &self.fixtures.vehicles.player_transport_login_state_like_cpp,
@@ -151,9 +155,10 @@ impl WorldSession {
     }
 }
 
-impl wow_world_application::EquipmentSetUseHandlerHostLikeCpp<
-    crate::session::SessionHandlerCatalogsLikeCpp,
-> for WorldSession
+impl
+    wow_world_application::EquipmentSetUseHandlerHostLikeCpp<
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    > for WorldSession
 {
     fn equipment_set_use_handler_cx_like_cpp<'a>(
         &'a mut self,
@@ -162,8 +167,6 @@ impl wow_world_application::EquipmentSetUseHandlerHostLikeCpp<
         self.build_equipment_set_use_context_like_cpp()
     }
 }
-
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/equipment_sets/f3_shims.rs"]

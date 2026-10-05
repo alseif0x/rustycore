@@ -7,18 +7,18 @@ use super::{
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::PlayerSkillTestFixtureLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::RepresentedPlayerSkillLikeCpp;
 use crate::session::{
     PacketPublicationAccessLikeCpp, PlayerMoneyTransactionSessionAccessLikeCpp,
     PlayerRegistryControlBindingLikeCpp, PlayerRegistryHydrationAccessLikeCpp,
     PlayerRegistrySyncAccessLikeCpp, SessionCore,
 };
-use std::sync::Arc;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::{BTreeSet, HashMap};
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::RepresentedPlayerSkillLikeCpp;
-use wow_data::{SkillLineStore, SkillStore, SkillTiersStoreLikeCpp};
+use std::sync::Arc;
 use wow_core::ObjectGuid;
+use wow_data::{SkillLineStore, SkillStore, SkillTiersStoreLikeCpp};
 
 /// Borrowed coordinator access to the existing canonical owners used by a
 /// player spell acquisition. It exposes only short-lived, typed reborrows.
@@ -122,12 +122,13 @@ impl PlayerAcquisitionOwnerAccessLikeCpp<'_> {
     /// `RegistrySyncInputs` at the final publication phase.
     pub fn registry_sync<'a>(
         &'a self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_position: &'a Option<wow_core::Position>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<
+            wow_core::Position,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &'a Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> PlayerRegistrySyncAccessLikeCpp<'a> {
         self.core.player_registry_sync_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -160,21 +161,21 @@ impl PlayerAcquisitionOwnerAccessLikeCpp<'_> {
         skill_store: Option<&Arc<SkillStore>>,
         skill_lines: Option<&Arc<SkillLineStore>>,
         skill_tiers: Option<&Arc<SkillTiersStoreLikeCpp>>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_inputs: (
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_inputs: (
             &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
             &u8,
             &u8,
             &u8,
         ),
     ) {
-        self.core.send_complete_player_skill_values_update_with_inputs_like_cpp(
-            skill_store,
-            skill_lines,
-            skill_tiers,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_inputs,
-        );
+        self.core
+            .send_complete_player_skill_values_update_with_inputs_like_cpp(
+                skill_store,
+                skill_lines,
+                skill_tiers,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixture_inputs,
+            );
     }
 
     /// Replace the handle-less skill fixture through Core's existing exact

@@ -1,26 +1,26 @@
 //! Lifecycle-domain state shared with the World session adapter.
 
-mod collection_contracts;
-mod money_persistence;
-mod finalization;
 mod character_administration;
-mod rename_callbacks;
+mod collection_contracts;
 mod durable_item_loot;
-mod value_contracts;
-mod save_contracts;
-mod pet_load;
-mod persistence_capabilities;
-mod state;
-pub mod handlers;
+mod finalization;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixture;
+pub mod handlers;
+mod money_persistence;
+mod persistence_capabilities;
+mod pet_load;
+mod rename_callbacks;
+mod save_contracts;
+mod state;
+mod value_contracts;
 pub use handlers::{
     AccountDataHandlerCxLikeCpp, AccountDataHandlerHostLikeCpp,
     register_account_data_handlers_like_cpp,
 };
+pub mod login_transport;
 pub mod loot_delivery_contracts;
 pub mod loot_template_rules;
-pub mod login_transport;
 
 pub use finalization::{
     FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,
@@ -35,15 +35,14 @@ pub use collection_contracts::{
 #[doc(hidden)]
 pub use money_persistence::{
     AbsolutePlayerMoneyCommitReconciliationLikeCpp, ExclusivePlayerMoneyPersistenceLikeCpp,
-    PlayerMoneyCommitCancellationFenceLikeCpp,
-    reconcile_absolute_player_money_commit_like_cpp,
+    PlayerMoneyCommitCancellationFenceLikeCpp, reconcile_absolute_player_money_commit_like_cpp,
 };
 
 #[doc(hidden)]
 pub use finalization::SessionFinalization;
 
 pub use character_administration::{
-    prepare_rename, PreparedRename, RenameFailure, RenameOutcome, RenamePreparation, RenameRequest,
+    PreparedRename, RenameFailure, RenameOutcome, RenamePreparation, RenameRequest, prepare_rename,
 };
 
 #[doc(hidden)]
@@ -57,7 +56,7 @@ pub use durable_item_loot::{
 
 #[doc(hidden)]
 pub use value_contracts::{
-    AccountDataLikeCpp, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, GLOBAL_CACHE_MASK_LIKE_CPP,
+    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
     HomebindPersistenceJobLikeCpp, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
     default_account_data_like_cpp,
 };
@@ -82,9 +81,9 @@ pub use persistence_capabilities::{
 
 #[doc(hidden)]
 pub use state::{
-    group_persistence_command_like_cpp, DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-    LootMoneyPersistenceErrorLikeCpp, LootTemplateRow, LootTemplateTable,
-    RepresentedTalentResetStatePlanLikeCpp, SessionLifecycleState, WrappedGiftLoad, WrappedGiftRow,
+    DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP, LootMoneyPersistenceErrorLikeCpp, LootTemplateRow,
+    LootTemplateTable, RepresentedTalentResetStatePlanLikeCpp, SessionLifecycleState,
+    WrappedGiftLoad, WrappedGiftRow, group_persistence_command_like_cpp,
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -98,7 +97,7 @@ pub use value_contracts::RepresentedAtLoginFlagRemovalLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 #[doc(hidden)]
 pub use character_administration::test_fixture::{
+    RenameCandidateFixtureLikeCpp, RenamePersistencePortFixtureLikeCpp,
     candidate as character_administration_rename_candidate_fixture_like_cpp,
-    fixture as character_administration_rename_fixture_like_cpp, RenameCandidateFixtureLikeCpp,
-    RenamePersistencePortFixtureLikeCpp,
+    fixture as character_administration_rename_fixture_like_cpp,
 };

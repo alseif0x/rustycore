@@ -78,5 +78,4 @@ impl LootState {
         self.represented_locked_dungeon_encounters
             .insert((player_guid, dungeon_encounter_id))
     }
-
 }

@@ -323,7 +323,9 @@ async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
     group_registry.register_group_like_cpp(home_group_guid, home_group);
 
     session.set_player_guid(Some(leaving_guid));
-    session.social.set_group_guid_for_test_like_cpp(Some(home_group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(home_group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -341,7 +343,10 @@ async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
             .contains(&leaving_guid),
         "PartyIndex INSTANCE must not resolve and leave the HOME group"
     );
-    assert_eq!(session.social.group_guid_for_test_like_cpp(), Some(home_group_guid));
+    assert_eq!(
+        session.social.group_guid_for_test_like_cpp(),
+        Some(home_group_guid)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -399,7 +404,9 @@ async fn party_uninvite_disband_sends_destroyed_party_update_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(
         Arc::clone(&group_registry),
@@ -481,7 +488,9 @@ async fn party_uninvite_non_leader_rejects_with_cpp_result() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(sender));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -528,7 +537,9 @@ async fn party_uninvite_removes_pending_group_invite_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(Arc::clone(&group_registry), Arc::clone(&pending_invites));
 
@@ -687,7 +698,9 @@ async fn raid_target_symbol_out_of_range_does_not_mutate_or_fanout_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -733,7 +746,9 @@ async fn raid_target_non_raid_regular_member_can_set_icon_like_cpp() {
     );
 
     session.set_player_guid(Some(member));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -791,7 +806,9 @@ async fn raid_target_raid_regular_member_rejected_but_assistant_allowed_like_cpp
     );
 
     session.set_player_guid(Some(assistant));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -850,7 +867,9 @@ async fn raid_target_duplicate_target_clears_old_icon_before_final_update_like_c
     );
 
     session.set_player_guid(Some(leader));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 

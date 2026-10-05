@@ -3,17 +3,17 @@
 
 //! Selected synchronous map/loot transitions; no guard escapes the operation.
 
+use crate::session::SessionCore;
 use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_loot::OwnedLootAuthority;
-use crate::session::SessionCore;
 
 mod authority;
 mod creature;
 pub use creature::looted_corpse_decay_secs_like_cpp;
 mod corpse;
-mod stats;
 mod publication;
+mod stats;
 pub use stats::LootReleaseStatsInputsLikeCpp;
 
 /// Mutable execution owner; selected reborrows end before later release phases.
@@ -33,25 +33,34 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
     ) -> Option<crate::session::PlayerRegistryControlBindingLikeCpp<'_>> {
         let guid = self.core.player_guid()?;
         let registry = self.core.player_registry()?;
-        Some(self.core.player_registry_control_binding_like_cpp(guid, registry))
+        Some(
+            self.core
+                .player_registry_control_binding_like_cpp(guid, registry),
+        )
     }
 
     pub fn registry_sync_like_cpp<'a>(
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] position: &'a Option<wow_core::Position>,
         #[cfg(any(test, feature = "test-fixtures"))] level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] transport: &'a Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> crate::session::PlayerRegistrySyncAccessLikeCpp<'a> {
         self.core.player_registry_sync_access_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))] position,
-            #[cfg(any(test, feature = "test-fixtures"))] level,
-            #[cfg(any(test, feature = "test-fixtures"))] transport,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            position,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            transport,
         )
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn registry_hydration_like_cpp(&self) -> crate::session::PlayerRegistryHydrationAccessLikeCpp<'_> {
+    pub fn registry_hydration_like_cpp(
+        &self,
+    ) -> crate::session::PlayerRegistryHydrationAccessLikeCpp<'_> {
         self.core.player_registry_hydration_access_like_cpp()
     }
 
@@ -135,24 +144,38 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         if owner_guid.is_creature_or_vehicle() {
             if let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) {
                 let _ = self.core.rebind_legacy_creature_loot_authority_like_cpp(
-                    owner_guid, &authority, authority.stamp_like_cpp(), authority.clone(),
+                    owner_guid,
+                    &authority,
+                    authority.stamp_like_cpp(),
+                    authority.clone(),
                 );
                 let authority_stamp = authority.stamp_like_cpp();
-                let _ = self.transitions_like_cpp().rebind_canonical_creature_loot_authority_like_cpp(
-                    owner_guid, &authority, authority_stamp, authority.clone(),
-                );
+                let _ = self
+                    .transitions_like_cpp()
+                    .rebind_canonical_creature_loot_authority_like_cpp(
+                        owner_guid,
+                        &authority,
+                        authority_stamp,
+                        authority.clone(),
+                    );
             }
         } else if owner_guid.is_game_object() {
             if let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) {
-                let _ = self.transitions_like_cpp().rebind_canonical_gameobject_loot_authority_like_cpp(
-                    owner_guid, &authority, authority.stamp_like_cpp(), authority.clone(),
-                );
+                let _ = self
+                    .transitions_like_cpp()
+                    .rebind_canonical_gameobject_loot_authority_like_cpp(
+                        owner_guid,
+                        &authority,
+                        authority.stamp_like_cpp(),
+                        authority.clone(),
+                    );
             }
         }
     }
 
     pub fn force_creature_loot_release_dynamic_flags_like_cpp(
-        &mut self, guid: ObjectGuid,
+        &mut self,
+        guid: ObjectGuid,
     ) -> Option<wow_entities::UnitValuesUpdate> {
         self.core.mutate_world_creature(guid, |creature| {
             creature.force_dynamic_flags_update_like_cpp();
@@ -173,9 +196,11 @@ impl SessionCore {
 
 impl LootReleaseAccessLikeCpp<'_> {
     pub fn canonical_gameobject_is_fully_looted_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
-        let map_key = self.core.canonical_object_lookup_map_key_like_cpp(
-            u32::from(self.core.player_map_id_like_cpp()),
-        )?;
+        let map_key = self
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                self.core.player_map_id_like_cpp(),
+            ))?;
         let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
         let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
@@ -193,7 +218,8 @@ impl LootReleaseAccessLikeCpp<'_> {
         wow_entities::LootState,
         wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
     )> {
-        let map_key = self.core
+        let map_key = self
+            .core
             .canonical_object_lookup_map_key_like_cpp(u32::from(
                 self.core.player_map_id_like_cpp(),
             ))?;
@@ -231,7 +257,8 @@ impl LootReleaseAccessLikeCpp<'_> {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_key = self.core
+        let map_key = self
+            .core
             .canonical_object_lookup_map_key_like_cpp(u32::from(
                 self.core.player_map_id_like_cpp(),
             ))?;
@@ -265,7 +292,8 @@ impl LootReleaseAccessLikeCpp<'_> {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_key = self.core
+        let map_key = self
+            .core
             .canonical_object_lookup_map_key_like_cpp(u32::from(
                 self.core.player_map_id_like_cpp(),
             ))?;
@@ -312,7 +340,8 @@ impl LootReleaseAccessLikeCpp<'_> {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_key = self.core
+        let map_key = self
+            .core
             .canonical_object_lookup_map_key_like_cpp(u32::from(
                 self.core.player_map_id_like_cpp(),
             ))?;

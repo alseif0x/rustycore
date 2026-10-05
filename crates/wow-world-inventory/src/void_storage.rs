@@ -30,10 +30,7 @@ impl crate::InventoryState {
         None
     }
 
-    pub fn clear_represented_void_storage_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn clear_represented_void_storage_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         if hub
             .core
             .with_owned_player_mut_like_cpp(|player| player.clear_void_storage_like_cpp())
@@ -48,10 +45,7 @@ impl crate::InventoryState {
         }
     }
 
-    pub fn represented_void_storage_free_slots_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<usize> {
+    pub fn represented_void_storage_free_slots_like_cpp(&self, hub: HubRef<'_>) -> Option<usize> {
         self.with_owned_void_storage_like_cpp(hub, |items, _| {
             items.iter().filter(|item| item.is_none()).count()
         })

@@ -3,7 +3,10 @@ use std::time::Instant;
 
 use wow_core::{ObjectGuid, Position};
 use wow_loot::{OwnedLootAuthority, OwnedLootScope, RepresentedLootRollVote};
-use wow_packet::packets::{item::ItemInstance, loot::{LootEntry, LootItemData}};
+use wow_packet::packets::{
+    item::ItemInstance,
+    loot::{LootEntry, LootItemData},
+};
 use wow_world_core::session::mailbox::LootRollCommandIdentityLikeCpp;
 
 pub const LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP: u8 = 0;

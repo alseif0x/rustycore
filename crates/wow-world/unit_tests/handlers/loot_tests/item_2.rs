@@ -39,7 +39,14 @@ async fn failed_item_persistence_publishes_no_removal_or_release_like_cpp() {
 
     assert!(!session.is_disconnecting());
     assert!(session.loot.is_active_loot_guid(owner_guid));
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(
         !drain_server_opcodes_like_cpp(&send_rx)
             .contains(&(wow_constants::ServerOpcodes::LootRelease as u16))
@@ -93,7 +100,14 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     session.wait_for_active_loot_persistence_like_cpp().await;
     assert!(durable_source_row.load(Ordering::Acquire));
     assert_eq!(session.player_gold_like_cpp(), 100);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().coins, 7);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .coins,
+        7
+    );
     assert!(!first_runtime_applied.load(Ordering::Acquire));
 
     let retry_source = Arc::clone(&durable_source_row);
@@ -131,7 +145,14 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     session.wait_for_active_loot_persistence_like_cpp().await;
     assert!(!durable_source_row.load(Ordering::Acquire));
     assert_eq!(session.player_gold_like_cpp(), 107);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().coins, 0);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .coins,
+        0
+    );
     assert!(retry_runtime_applied.load(Ordering::Acquire));
     assert!(session.loot.is_active_loot_guid(owner_guid));
 }
@@ -217,7 +238,14 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
         .await;
 
     assert_eq!(session.player_gold_like_cpp(), 107);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().coins, 0);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .coins,
+        0
+    );
     assert!(balance_applied.load(Ordering::Acquire));
     assert!(publication_applied.load(Ordering::Acquire));
     assert!(
@@ -286,7 +314,14 @@ async fn stored_item_money_delete_cas_allows_exactly_one_durable_grant_like_cpp(
     assert_eq!(successes, 1);
     assert_eq!(durable_grants.load(Ordering::SeqCst), 1);
     assert_eq!(session.player_gold_like_cpp(), 107);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().coins, 0);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .coins,
+        0
+    );
     assert_eq!(
         drain_server_opcodes_like_cpp(&send_rx)
             .into_iter()

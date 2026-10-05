@@ -158,13 +158,13 @@ pub fn represented_gameobject_activate_to_quest_like_cpp(
                 fixture_fallback,
             )
         }
-        Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => state.goober_use_source.is_some_and(
-            |source| {
+        Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => {
+            state.goober_use_source.is_some_and(|source| {
                 source.quest_id != 0
                     && current_status(source.quest_id)
                         == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-            },
-        ),
+            })
+        }
         Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => state
             .gathering_node_loot_id
             .is_some_and(|loot_id| loot_ids_have_quest_loot(vec![loot_id])),

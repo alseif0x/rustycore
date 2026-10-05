@@ -74,11 +74,7 @@ fn empty_handler<'a>(
 
 #[test]
 fn copied_entry_invokes_future_borrowing_nonclone_host_and_catalog() {
-    let entry = handler_entry(
-        ClientOpcodes::QueryTime,
-        "borrowed_probe",
-        mutate_host,
-    );
+    let entry = handler_entry(ClientOpcodes::QueryTime, "borrowed_probe", mutate_host);
     let copied_entry = entry;
     let cloned_entry = entry.clone();
 
@@ -94,7 +90,10 @@ fn copied_entry_invokes_future_borrowing_nonclone_host_and_catalog() {
         WorldPacket::new_empty(),
     ));
     assert!(matches!(future.as_mut().poll(&mut context), Poll::Pending));
-    assert!(matches!(future.as_mut().poll(&mut context), Poll::Ready(())));
+    assert!(matches!(
+        future.as_mut().poll(&mut context),
+        Poll::Ready(())
+    ));
     drop(future);
 
     assert_eq!(host.observed, vec![13, 26]);
@@ -138,7 +137,10 @@ fn registry_lookup_preserves_metadata_and_invokes_registered_future() {
         WorldPacket::new_empty(),
     ));
     assert!(matches!(future.as_mut().poll(&mut context), Poll::Pending));
-    assert!(matches!(future.as_mut().poll(&mut context), Poll::Ready(())));
+    assert!(matches!(
+        future.as_mut().poll(&mut context),
+        Poll::Ready(())
+    ));
     drop(future);
     assert_eq!(host.observed, vec![7, 14]);
 }

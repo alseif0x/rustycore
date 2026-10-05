@@ -29,15 +29,14 @@ impl QuestRewardCx<'_> {
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.world_test_consumer && quest.reward_title_id != 0 {
-            self.quest_state
-                .fixture_record_quest_reward_title_like_cpp(
-                    super::super::RepresentedQuestRewardTitleLikeCpp {
-                        quest_id: quest.id,
-                        title_id: quest.reward_title_id,
-                        char_title_lookup_unrepresented: true,
-                        set_title_runtime_unrepresented: true,
-                    },
-                );
+            self.quest_state.fixture_record_quest_reward_title_like_cpp(
+                super::super::RepresentedQuestRewardTitleLikeCpp {
+                    quest_id: quest.id,
+                    title_id: quest.reward_title_id,
+                    char_title_lookup_unrepresented: true,
+                    set_title_runtime_unrepresented: true,
+                },
+            );
         }
 
         if quest.reward_skill_points == 0 {
@@ -70,21 +69,20 @@ impl QuestRewardCx<'_> {
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.world_test_consumer && quest.reward_mail_template_id != 0 {
-            self.quest_state
-                .fixture_record_quest_reward_mail_like_cpp(
-                    super::super::RepresentedQuestRewardMailLikeCpp {
-                        quest_id: quest.id,
-                        mail_template_id: quest.reward_mail_template_id,
-                        delay_secs: quest.reward_mail_delay_secs,
-                        sender_entry: (quest.reward_mail_sender_entry != 0)
-                            .then_some(quest.reward_mail_sender_entry),
-                        quest_giver_guid: (quest.reward_mail_sender_entry == 0)
-                            .then_some(quest_giver_guid),
-                        mail_template_lookup_unrepresented: true,
-                        mail_draft_runtime_unrepresented: true,
-                        character_db_transaction_unrepresented: true,
-                    },
-                );
+            self.quest_state.fixture_record_quest_reward_mail_like_cpp(
+                super::super::RepresentedQuestRewardMailLikeCpp {
+                    quest_id: quest.id,
+                    mail_template_id: quest.reward_mail_template_id,
+                    delay_secs: quest.reward_mail_delay_secs,
+                    sender_entry: (quest.reward_mail_sender_entry != 0)
+                        .then_some(quest.reward_mail_sender_entry),
+                    quest_giver_guid: (quest.reward_mail_sender_entry == 0)
+                        .then_some(quest_giver_guid),
+                    mail_template_lookup_unrepresented: true,
+                    mail_draft_runtime_unrepresented: true,
+                    character_db_transaction_unrepresented: true,
+                },
+            );
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = (quest, quest_giver_guid);
@@ -98,10 +96,9 @@ impl QuestRewardCx<'_> {
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.world_test_consumer {
-            let caster_selection_unrepresented =
-                (quest.flags
-                    & wow_constants::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP)
-                    == 0;
+            let caster_selection_unrepresented = (quest.flags
+                & wow_constants::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP)
+                == 0;
             if quest.reward_spell > 0 {
                 let can_delay_teleport_like_cpp = self
                     .player

@@ -2,10 +2,11 @@ use wow_constants::{SheathState, UnitPvpFlags, UnitStandStateType, WeaponAttackT
 use wow_core::ObjectGuid;
 use wow_entities::{AccessorObjectKind, CreatureAddonLifecycleRecordLikeCpp};
 use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle};
-use wow_world_core::map_manager::{world_to_grid_coords, WorldCreature};
+use wow_world_core::map_manager::{WorldCreature, world_to_grid_coords};
 use wow_world_core::session::{
-    power_type_from_u8_like_cpp, reconcile_creature_loot_authority_mirrors_like_cpp,
-    remove_canonical_creature_map_object_on_map_like_cpp, HubMut, SharedCanonicalMapManager,
+    HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp,
+    reconcile_creature_loot_authority_mirrors_like_cpp,
+    remove_canonical_creature_map_object_on_map_like_cpp,
 };
 
 use crate::WorldEntitiesState;
@@ -329,10 +330,8 @@ impl WorldEntitiesState {
         if let Some(manager) = &hub.core.map_manager {
             let (grid_x, grid_y) = world_to_grid_coords(position.x, position.y);
             let waypoint_path_resolver = hub.catalogs.waypoint_path_resolver_like_cpp.clone();
-            let mut world_creature = WorldCreature::from_canonical(
-                canonical_creature,
-                create_data.clone(),
-            );
+            let mut world_creature =
+                WorldCreature::from_canonical(canonical_creature, create_data.clone());
             if world_creature.creature.default_movement_type()
                 == wow_entities::MovementGeneratorType::Waypoint
             {

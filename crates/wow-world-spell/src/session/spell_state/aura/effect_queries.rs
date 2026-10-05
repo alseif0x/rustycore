@@ -96,7 +96,10 @@ impl SessionSpellState {
         hub: HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        self.aura_has_total_stat_percentage_effect_with_store_like_cpp(hub.catalogs.spell_store().map(|store| store.as_ref()), aura)
+        self.aura_has_total_stat_percentage_effect_with_store_like_cpp(
+            hub.catalogs.spell_store().map(|store| store.as_ref()),
+            aura,
+        )
     }
 
     pub fn aura_has_total_stat_percentage_effect_with_store_like_cpp(
@@ -121,7 +124,10 @@ impl SessionSpellState {
         hub: HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        self.total_stat_percentage_aura_preserves_health_pct_with_store_like_cpp(hub.catalogs.spell_store().map(|store| store.as_ref()), aura)
+        self.total_stat_percentage_aura_preserves_health_pct_with_store_like_cpp(
+            hub.catalogs.spell_store().map(|store| store.as_ref()),
+            aura,
+        )
     }
 
     pub fn total_stat_percentage_aura_preserves_health_pct_with_store_like_cpp(

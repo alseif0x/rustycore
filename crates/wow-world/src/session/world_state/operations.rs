@@ -167,7 +167,11 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(*self.instances.represented_explored_zones_for_test_like_cpp());
+            return Some(
+                *self
+                    .instances
+                    .represented_explored_zones_for_test_like_cpp(),
+            );
         }
         canonical
     }

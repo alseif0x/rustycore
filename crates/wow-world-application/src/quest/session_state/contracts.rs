@@ -3,8 +3,8 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_core::ObjectGuid;
 use wow_constants::InventoryResult;
+use wow_core::ObjectGuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedQuestCompleteStatusUpdateLikeCpp {
@@ -23,11 +23,20 @@ pub struct RepresentedQuestCompleteStatusUpdateLikeCpp {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepresentedQuestObjectiveProgressEventLikeCpp {
-    MoneyChanged { old_money: u64, new_money: u64 },
+    MoneyChanged {
+        old_money: u64,
+        new_money: u64,
+    },
     #[allow(dead_code)]
-    CurrencyChanged { currency_id: u32, change: i32 },
+    CurrencyChanged {
+        currency_id: u32,
+        change: i32,
+    },
     #[allow(dead_code)]
-    ReputationChanged { faction_id: u32, change: i32 },
+    ReputationChanged {
+        faction_id: u32,
+        change: i32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

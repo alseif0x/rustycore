@@ -156,7 +156,9 @@ pub(in crate::session::tests) fn represented_vehicle_interact_session_like_cpp(
     session.set_player_map_position_like_cpp(571, Position::new(0.0, 0.0, 0.0, 0.0));
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_map_store(represented_vehicle_interact_map_store_like_cpp(
         map_instance_type,

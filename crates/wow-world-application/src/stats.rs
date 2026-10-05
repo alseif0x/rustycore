@@ -5,18 +5,18 @@
 
 //! Character stat application operations.
 
+use wow_constants::WeaponAttackType;
 use wow_data::PlayerStatsStore;
 use wow_data::{
     PlayerStatSystemInputLikeCpp, PlayerStatSystemProjectionLikeCpp,
     calculate_player_stat_system_like_cpp,
 };
-use wow_constants::WeaponAttackType;
+use wow_world_core::session::state::hub_support::{
+    RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+};
 use wow_world_core::session::{
     PacketPublicationAccessLikeCpp, PlayerStatsAccessLikeCpp,
     primary_power_type_for_player_class_like_cpp,
-};
-use wow_world_core::session::state::hub_support::{
-    RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
 };
 use wow_world_inventory::InventoryState;
 
@@ -49,10 +49,7 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
             .represented_player_gear_stats_with_access_like_cpp(&self.player)
     }
 
-    pub fn level_up_stat_deltas_like_cpp(
-        &self,
-        new_level: u8,
-    ) -> Option<(i32, [i32; 5])> {
+    pub fn level_up_stat_deltas_like_cpp(&self, new_level: u8) -> Option<(i32, [i32; 5])> {
         let store = self.player.player_stats_store_like_cpp()?;
         let race = self.player.player_race_like_cpp();
         let class = self.player.player_class_like_cpp();
@@ -69,7 +66,10 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
         level: u8,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
-        let base = *self.player.player_stats_store_like_cpp()?.get(race, class, level)?;
+        let base = *self
+            .player
+            .player_stats_store_like_cpp()?
+            .get(race, class, level)?;
         let (attack_power_per_strength, attack_power_per_agility, ranged_attack_power_per_agility) =
             self.player
                 .player_class_attack_power_coefficients_like_cpp(class)?;
@@ -79,9 +79,7 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
                     .player
                     .combat_rating_multiplier_like_cpp(level, index as u32)
         });
-        let (can_parry, can_block) = self
-            .player
-            .canonical_player_parry_block_snapshot_like_cpp();
+        let (can_parry, can_block) = self.player.canonical_player_parry_block_snapshot_like_cpp();
         let spell_bonus = self
             .inventory
             .represented_spell_bonus_like_cpp(&self.player, gear);
@@ -128,18 +126,24 @@ impl<'a> CharacterStatsApplicationCxLikeCpp<'a> {
             spell_block_pct: self.player.represented_total_aura_modifier_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
             ),
-            crit_mainhand_aura_pct: self.inventory.represented_weapon_crit_aura_modifier_like_cpp(
-                &self.player,
-                WeaponAttackType::BaseAttack,
-            ),
-            crit_offhand_aura_pct: self.inventory.represented_weapon_crit_aura_modifier_like_cpp(
-                &self.player,
-                WeaponAttackType::OffAttack,
-            ),
-            crit_ranged_aura_pct: self.inventory.represented_weapon_crit_aura_modifier_like_cpp(
-                &self.player,
-                WeaponAttackType::RangedAttack,
-            ),
+            crit_mainhand_aura_pct: self
+                .inventory
+                .represented_weapon_crit_aura_modifier_like_cpp(
+                    &self.player,
+                    WeaponAttackType::BaseAttack,
+                ),
+            crit_offhand_aura_pct: self
+                .inventory
+                .represented_weapon_crit_aura_modifier_like_cpp(
+                    &self.player,
+                    WeaponAttackType::OffAttack,
+                ),
+            crit_ranged_aura_pct: self
+                .inventory
+                .represented_weapon_crit_aura_modifier_like_cpp(
+                    &self.player,
+                    WeaponAttackType::RangedAttack,
+                ),
             spell_crit_aura_pct: self.player.represented_total_aura_modifier_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE,
             ) + self.player.represented_total_aura_modifier_like_cpp(
@@ -214,8 +218,7 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         }
 
         let gear = self.represented_player_gear_stats_like_cpp()?;
-        let projection =
-            self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
+        let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
         self.inventory.publish_effective_stats_like_cpp(
             &self.player,
             level,
@@ -234,7 +237,8 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
-            self.player.represented_shapeshift_combat_round_time_like_cpp(),
+            self.player
+                .represented_shapeshift_combat_round_time_like_cpp(),
         );
 
         // Power for slot 0 (mana/rage/energy/runic). Keep current power from
@@ -301,11 +305,9 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
             })
             .unwrap_or_else(|| {
                 (
-                    self.player.mana_regen_from_stats_like_cpp(
-                        level,
-                        class,
-                        projection.stats,
-                    ) + represented_mana_regen_per_second,
+                    self.player
+                        .mana_regen_from_stats_like_cpp(level, class, projection.stats)
+                        + represented_mana_regen_per_second,
                     represented_mana_regen_per_second,
                     0.0,
                 )
@@ -515,17 +517,13 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         let gear = self.represented_player_gear_stats_like_cpp()?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
         self.inventory
-            .publish_player_effective_combat_stats_like_cpp(
-                &self.player,
-                level,
-                projection,
-                &gear,
-            );
+            .publish_player_effective_combat_stats_like_cpp(&self.player, level, projection, &gear);
         let weapon_damage = wow_data::player::effective_weapon_damage_ranges_like_cpp(
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
-            self.player.represented_shapeshift_combat_round_time_like_cpp(),
+            self.player
+                .represented_shapeshift_combat_round_time_like_cpp(),
         );
         let school_resistances = self.player.represented_school_resistances_like_cpp(&gear);
         Some((gear, projection, weapon_damage, school_resistances))
@@ -538,11 +536,7 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         level: u8,
         saved_health: Option<u32>,
         saved_power0: i32,
-    ) -> Option<(
-        wow_packet::packets::update::PlayerCombatStats,
-        i32,
-        i32,
-    )> {
+    ) -> Option<(wow_packet::packets::update::PlayerCombatStats, i32, i32)> {
         let (gear, projection, weapon_damage, school_resistances) =
             self.player_login_combat_projection_like_cpp(race, class, level)?;
         let min_damage = weapon_damage[0][0];
@@ -551,12 +545,8 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
         let max_ranged_damage = weapon_damage[2][1];
         let combat = wow_packet::packets::update::PlayerCombatStats {
             health: saved_health
-                .map(|health| {
-                    i64::from(health.min(max_health_u32_like_cpp(projection.max_health)))
-                })
-                .unwrap_or_else(|| {
-                    i64::from(max_health_u32_like_cpp(projection.max_health))
-                }),
+                .map(|health| i64::from(health.min(max_health_u32_like_cpp(projection.max_health))))
+                .unwrap_or_else(|| i64::from(max_health_u32_like_cpp(projection.max_health))),
             max_health: projection.max_health,
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -593,10 +583,8 @@ impl CharacterStatsApplicationCxLikeCpp<'_> {
             mod_target_resistance: projection.mod_target_resistance,
             mod_target_physical_resistance: projection.mod_target_physical_resistance,
             versatility_bonus: projection.versatility_bonus,
-            override_spell_power_by_ap_percent: projection
-                .override_spell_power_by_ap_percent,
-            override_ap_by_spell_power_percent: projection
-                .override_ap_by_spell_power_percent,
+            override_spell_power_by_ap_percent: projection.override_spell_power_by_ap_percent,
+            override_ap_by_spell_power_percent: projection.override_ap_by_spell_power_percent,
         };
         let max_power0 = primary_max_power_for_class_like_cpp(class, combat.max_mana);
         Some((

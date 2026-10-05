@@ -193,25 +193,31 @@ async fn quest_giver_status_combines_ender_and_starter_flags() {
     let ender_quest_id = 1018;
     let starter_quest_id = 1019;
     let mut store = store_with_quests(&[ender_quest_id, starter_quest_id]);
-    store.ender_quests.entry(9018).or_default().push(ender_quest_id);
+    store
+        .ender_quests
+        .entry(9018)
+        .or_default()
+        .push(ender_quest_id);
     store
         .starter_quests
         .entry(9018)
         .or_default()
         .push(starter_quest_id);
     session.set_quest_store(Arc::new(store));
-    session.quest_state.fixture_insert_player_quest_status_like_cpp(
-        ender_quest_id,
-        PlayerQuestStatus {
-            quest_id: ender_quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+    session
+        .quest_state
+        .fixture_insert_player_quest_status_like_cpp(
+            ender_quest_id,
+            PlayerQuestStatus {
+                quest_id: ender_quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
     let guid = creature_guid(9018, 18);
     let mut manager = wow_map::MapManager::default();
     insert_creature(&mut manager, guid, 9018);
@@ -235,22 +241,28 @@ async fn quest_giver_status_prefers_canonical_owner_state_over_test_fixture() {
     let mut store = store_with_quests(&[quest_id]);
     store.ender_quests.entry(9020).or_default().push(quest_id);
     session.set_quest_store(Arc::new(store));
-    session.quest_state.fixture_insert_player_quest_status_like_cpp(
-        quest_id,
-        PlayerQuestStatus {
+    session
+        .quest_state
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     let player_guid = session.player_guid().expect("test Player guid");
     let mut player = Box::new(Player::new(Some(1), false));
-    player.unit_mut().world_mut().object_mut().create(player_guid);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
     let mut manager = wow_map::MapManager::default();
     let handle = manager
         .install_detached_player_like_cpp(player)
@@ -273,18 +285,20 @@ async fn quest_giver_status_rejects_fixture_fallback_after_owner_stales() {
     let mut store = store_with_quests(&[quest_id]);
     store.ender_quests.entry(9021).or_default().push(quest_id);
     session.set_quest_store(Arc::new(store));
-    session.quest_state.fixture_insert_player_quest_status_like_cpp(
-        quest_id,
-        PlayerQuestStatus {
+    session
+        .quest_state
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
-            status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs: 0,
-            end_time_secs: 0,
-            objective_counts: Vec::new(),
-            slot: 0,
-        },
-    );
+            PlayerQuestStatus {
+                quest_id,
+                status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: Vec::new(),
+                slot: 0,
+            },
+        );
 
     let player_guid = session.player_guid().expect("test Player guid");
     let mut manager = wow_map::MapManager::default();

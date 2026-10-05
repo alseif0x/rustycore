@@ -27,8 +27,7 @@ pub async fn commit_exclusive_player_money_and_spell_acquisition_like_cpp(
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
     money_before: u64,
     money_after: u64,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_result: Option<bool>,
+    #[cfg(any(test, feature = "test-fixtures"))] fixture_result: Option<bool>,
 ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
     #[cfg(any(test, feature = "test-fixtures"))]
     if let Some(success) = fixture_result {
@@ -72,21 +71,20 @@ impl TrainerSpellAcquisitionCommitContextLikeCpp<'_, '_> {
         ));
         let mut operation_token = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut operation_token);
-        let request =
-            match player_spell_acquisition_persistence_request_like_cpp(
-                guid_counter,
-                prepared,
-                money_before,
-                money_after,
-                operation_token,
-            ) {
-                Ok(request) => request,
-                Err(error) => {
-                    cancellation_fence.disarm_like_cpp();
-                    warn!(%error, "trainer purchase request was not persistence-safe");
-                    return None;
-                }
-            };
+        let request = match player_spell_acquisition_persistence_request_like_cpp(
+            guid_counter,
+            prepared,
+            money_before,
+            money_after,
+            operation_token,
+        ) {
+            Ok(request) => request,
+            Err(error) => {
+                cancellation_fence.disarm_like_cpp();
+                warn!(%error, "trainer purchase request was not persistence-safe");
+                return None;
+            }
+        };
         match persist_player_spell_acquisition_through_port_like_cpp(&*port, request).await {
             Outcome::Applied => {
                 cancellation_fence.disarm_like_cpp();
@@ -107,8 +105,9 @@ impl TrainerSpellAcquisitionCommitContextLikeCpp<'_, '_> {
                     .durable_loot_money_persistence_tracker_like_cpp()
                     .mark_indeterminate_like_cpp();
                 cancellation_fence.disarm_like_cpp();
-                self.core_access
-                    .quarantine_like_cpp("trainer purchase COMMIT outcome is unknown; relog required");
+                self.core_access.quarantine_like_cpp(
+                    "trainer purchase COMMIT outcome is unknown; relog required",
+                );
                 warn!(error = %reason, "trainer COMMIT outcome remains indeterminate; session quarantined");
                 None
             }

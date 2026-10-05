@@ -5,7 +5,7 @@
 
 //! Private quest-sharing evidence fixture operations for quest state.
 
-use super::super::{contracts, SessionQuestState};
+use super::super::{SessionQuestState, contracts};
 
 impl SessionQuestState {
     #[cfg(any(test, feature = "test-fixtures"))]

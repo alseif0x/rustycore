@@ -19,7 +19,7 @@ pub use difficulty::{
     handle_set_raid_difficulty_like_cpp, handle_toggle_difficulty_like_cpp,
 };
 pub use lock_operations::{
-    InstanceResetMethodLikeCpp, InstanceLockResponseOutcomeLikeCpp,
+    InstanceLockResponseOutcomeLikeCpp, InstanceResetMethodLikeCpp,
     handle_instance_lock_response_like_cpp, handle_reset_instances_like_cpp,
     handle_set_saved_instance_extend_like_cpp, reset_represented_instances_like_cpp,
 };

@@ -384,7 +384,11 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
     assert!(error.contains("inventory registration macro"), "{error}");
 
     let unregistered_domain_route = BTreeMap::from([(
-        sources.keys().next().expect("synthetic source path").clone(),
+        sources
+            .keys()
+            .next()
+            .expect("synthetic source path")
+            .clone(),
         BTreeSet::from(["crate::outside".to_owned()]),
     )]);
     let error = audit_package_registration_sources_with_owners(
@@ -448,7 +452,10 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
     );
     let error = parse_handler_module_policy(&duplicate_registration_owner)
         .expect_err("an exact owner row must not be declared twice");
-    assert!(error.contains("duplicate owner for capability handler_registration"), "{error}");
+    assert!(
+        error.contains("duplicate owner for capability handler_registration"),
+        "{error}"
+    );
 
     let overlapping_capabilities = valid.replace(
         r#"{"capability":"handler_registration","package":"wow-world","module":"crate::installers","allow_descendants":true,"tracking_issue":153}"#,
@@ -483,7 +490,10 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
     );
     let error = parse_handler_module_policy(&duplicate_dispatcher)
         .expect_err("packet dispatch must retain exactly one declared owner");
-    assert!(error.contains("packet_dispatcher must have exactly one owner"), "{error}");
+    assert!(
+        error.contains("packet_dispatcher must have exactly one owner"),
+        "{error}"
+    );
 }
 
 #[test]

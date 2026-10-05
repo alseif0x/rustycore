@@ -3,9 +3,11 @@
 
 //! Thin compatibility entry points for the application-owned instance handlers.
 
-pub(crate) use wow_world_application::InstanceResetMethodLikeCpp as RepresentedInstanceResetMethodLikeCpp;
 use wow_packet::packets::misc::SetSavedInstanceExtend;
+pub(crate) use wow_world_application::InstanceResetMethodLikeCpp as RepresentedInstanceResetMethodLikeCpp;
 
+#[cfg(test)]
+use crate::session::registry::PacketHandlerEntry;
 #[cfg(test)]
 use tracing::{info, warn};
 #[cfg(test)]
@@ -24,11 +26,7 @@ use wow_packet::packets::instance::{
 #[cfg(test)]
 use wow_packet::packets::misc::{CalendarRaidLockoutAdded, CalendarRaidLockoutUpdated};
 #[cfg(test)]
-use wow_persistence::{
-    InstanceLockPersistenceOutcomeLikeCpp, InstanceLockPersistencePlanLikeCpp,
-};
-#[cfg(test)]
-use crate::session::registry::PacketHandlerEntry;
+use wow_persistence::{InstanceLockPersistenceOutcomeLikeCpp, InstanceLockPersistencePlanLikeCpp};
 
 impl crate::session::WorldSession {
     pub async fn handle_request_raid_info(&mut self, pkt: wow_packet::WorldPacket) {

@@ -9,7 +9,9 @@ impl OwnedInventoryAccessLikeCpp<'_> {
         item_guid: wow_core::ObjectGuid,
     ) -> Option<Vec<wow_entities::PlayerEnchantDuration>> {
         self.core.canonical_player_snapshot_like_cpp(|player| {
-            player.enchant_durations().iter()
+            player
+                .enchant_durations()
+                .iter()
                 .filter(|duration| duration.item_guid == item_guid)
                 .copied()
                 .collect::<Vec<_>>()

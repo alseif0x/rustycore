@@ -7,39 +7,37 @@ use super::offer::{
     TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerProductLikeCpp,
     prepare_trainer_offer_like_cpp, trainer_price_like_cpp,
 };
-use super::{TrainerAdmissionProofLikeCpp, TrainerOfferDecisionLikeCpp};
 use super::{
     PreparedTrainerOfferLikeCpp, TrainerAcquisitionCompletionLikeCpp,
     TrainerAcquisitionPublicationLikeCpp, execute_trainer_acquisition_like_cpp,
 };
+use super::{TrainerAdmissionProofLikeCpp, TrainerOfferDecisionLikeCpp};
+use crate::PlayerConditionProjectionCxLikeCpp;
+use wow_constants::unit::NPCFlags1;
 use wow_core::ObjectGuid;
 use wow_core::ObjectGuidGenerator;
-use wow_constants::unit::NPCFlags1;
 use wow_data::{
     BattlePetClassificationLikeCpp, ConditionEntriesByTypeStore, PlayerConditionStore,
     SkillLineAbilityCoverageLikeCpp, SkillLineAbilityRecord,
-    SkillRaceClassInfoMatchCoverageLikeCpp, SkillStore,
-    TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
-    TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerLikeCpp, TrainerSpellLikeCpp,
-    TrainerStoreLikeCpp, SpellAcquisitionCatalogLikeCpp,
-    SpellAcquisitionEffectsLookupLikeCpp, battle_pet_selection::BattlePetSelectionStoreLikeCpp,
+    SkillRaceClassInfoMatchCoverageLikeCpp, SkillStore, SpellAcquisitionCatalogLikeCpp,
+    SpellAcquisitionEffectsLookupLikeCpp, TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+    TRAINER_SPELL_STATE_KNOWN_LIKE_CPP, TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerLikeCpp,
+    TrainerSpellLikeCpp, TrainerStoreLikeCpp, battle_pet_selection::BattlePetSelectionStoreLikeCpp,
 };
-use wow_world_core::session::{
-    NpcInteractionAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
-    PacketPublicationAccessLikeCpp,
-    TrainerInteractionRoleAccessLikeCpp,
-};
-use crate::PlayerConditionProjectionCxLikeCpp;
-use wow_world_interaction::InteractionState;
 use wow_packet::packets::trainer::{TrainerListPacket, TrainerListSpell};
 use wow_spell_acquisition::PlayerSpellAcquisitionSnapshotLikeCpp;
+use wow_world_core::session::{
+    NpcInteractionAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
+    PacketPublicationAccessLikeCpp, TrainerInteractionRoleAccessLikeCpp,
+};
+use wow_world_interaction::InteractionState;
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 use wow_world_spell::{
     RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellStateLikeCpp, SessionSpellState,
     represented_player_spell_record_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 
 pub const TRAINER_LIST_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits();
 pub const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
@@ -48,9 +46,7 @@ pub const TRAINER_BUY_NPC_FLAGS_LIKE_CPP: u32 = NPCFlags1::TRAINER.bits()
 pub const TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP: u32 =
     NPCFlags1::GOSSIP.bits() | TRAINER_BUY_NPC_FLAGS_LIKE_CPP;
 
-pub fn trainer_list_required_npc_flags_like_cpp(
-    gossip_option: Option<(u32, u32)>,
-) -> u32 {
+pub fn trainer_list_required_npc_flags_like_cpp(gossip_option: Option<(u32, u32)>) -> u32 {
     if gossip_option.is_some() {
         // Retain the target fork's combined gossip/trainer interaction route.
         TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP
@@ -226,7 +222,8 @@ impl<'a> AppTrainerListCx<'a> {
         session_locale_name: &'a str,
         #[cfg(any(test, feature = "test-fixtures"))] skill_fixture_complete: &'a bool,
         #[cfg(any(test, feature = "test-fixtures"))] skill_fixture_occupied: &'a Option<u16>,
-        #[cfg(any(test, feature = "test-fixtures"))] skill_fixture_tombstones: &'a std::collections::BTreeSet<u16>,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        skill_fixture_tombstones: &'a std::collections::BTreeSet<u16>,
         #[cfg(any(test, feature = "test-fixtures"))] skill_fixture_loaded: &'a bool,
         max_primary_trade_skills: &'a u8,
     ) -> Self {
@@ -269,7 +266,9 @@ impl<'a> AppTrainerListCx<'a> {
         );
 
         let required_npc_flags = trainer_list_required_npc_flags_like_cpp(gossip_option);
-        let access = match self.aura.trainer_npc_view_like_cpp(&self.npc)
+        let access = match self
+            .aura
+            .trainer_npc_view_like_cpp(&self.npc)
             .represented_npc_can_interact_with_like_cpp(trainer_guid, required_npc_flags, 0)
         {
             Some(access) => access,
@@ -303,7 +302,8 @@ impl<'a> AppTrainerListCx<'a> {
 
         // The full effect sequence is owned by the selected aura operation,
         // and intentionally remains between trainer resolution and spell reads.
-        self.aura.remove_represented_feign_death_if_needed_like_cpp();
+        self.aura
+            .remove_represented_feign_death_if_needed_like_cpp();
 
         let mut offers = Vec::new();
         for trainer_spell in trainer.spells_like_cpp() {
@@ -331,12 +331,7 @@ impl<'a> AppTrainerListCx<'a> {
 
         let spell_count = offers
             .iter()
-            .filter(|offer| {
-                !matches!(
-                    &offer.decision,
-                    TrainerOfferDecisionLikeCpp::Hidden(_)
-                )
-            })
+            .filter(|offer| !matches!(&offer.decision, TrainerOfferDecisionLikeCpp::Hidden(_)))
             .count();
 
         tracing::info!(
@@ -361,11 +356,15 @@ impl<'a> AppTrainerListCx<'a> {
 
 impl AppTrainerListCx<'_> {
     fn offer_view_like_cpp(&self) -> TrainerOfferCxLikeCpp<'_> {
-        let (spell_state, npc, player_conditions) = self.aura
+        let (spell_state, npc, player_conditions) = self
+            .aura
             .trainer_offer_views_like_cpp(&self.npc, &self.player_conditions);
         TrainerOfferCxLikeCpp {
-            npc, spell_access: &self.spell_access, spell_state,
-            player_conditions, catalogs: &self.catalogs,
+            npc,
+            spell_access: &self.spell_access,
+            spell_state,
+            player_conditions,
+            catalogs: &self.catalogs,
             #[cfg(any(test, feature = "test-fixtures"))]
             skill_fixture_complete: self.skill_fixture_complete,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -386,7 +385,9 @@ impl AppTrainerListCx<'_> {
         faction_template_id: u32,
     ) -> TrainerOfferDecisionLikeCpp {
         self.offer_view_like_cpp().trainer_offer_decision_like_cpp(
-            trainer_id, trainer_spell, faction_template_id,
+            trainer_id,
+            trainer_spell,
+            faction_template_id,
         )
     }
 }
@@ -417,7 +418,8 @@ impl TrainerOfferCxLikeCpp<'_> {
             && self.spell_access.player_handle_absent_like_cpp()
         {
             let runtime = canonical_player_spell_runtime_like_cpp(
-                self.spell_state.represented_spell_runtime_fixture_like_cpp(),
+                self.spell_state
+                    .represented_spell_runtime_fixture_like_cpp(),
             );
             return complete_rows(&runtime);
         }
@@ -521,12 +523,14 @@ impl TrainerOfferCxLikeCpp<'_> {
             source_spell_id: trainer_spell.spell_id,
             is_exact_member: true,
             class_race: self.class_race_proof_like_cpp(trainer_spell.spell_id),
-            condition: self.player_conditions.trainer_spell_condition_proof_like_cpp(
-                self.catalogs.condition_store,
-                self.catalogs.player_condition_store,
-                trainer_id,
-                trainer_spell.spell_id,
-            ),
+            condition: self
+                .player_conditions
+                .trainer_spell_condition_proof_like_cpp(
+                    self.catalogs.condition_store,
+                    self.catalogs.player_condition_store,
+                    trainer_id,
+                    trainer_spell.spell_id,
+                ),
             directly_known: knows_spell(trainer_spell.spell_id),
             required_skill,
             skill_rows,
@@ -550,7 +554,6 @@ impl TrainerOfferCxLikeCpp<'_> {
             }
         }
     }
-
 }
 
 impl AppTrainerListCx<'_> {
@@ -641,12 +644,14 @@ fn trainer_list_spell_like_cpp(
         TrainerOfferDecisionLikeCpp::Unavailable(_) => {
             (TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, fallback_price)
         }
-        TrainerOfferDecisionLikeCpp::Available(offer) => {
-            (TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, offer.effective_price)
-        }
-        TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => {
-            (TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, offer.effective_price)
-        }
+        TrainerOfferDecisionLikeCpp::Available(offer) => (
+            TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+            offer.effective_price,
+        ),
+        TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => (
+            TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP,
+            offer.effective_price,
+        ),
     };
     Some(TrainerListSpell {
         spell_id: trainer_spell.spell_id as i32,

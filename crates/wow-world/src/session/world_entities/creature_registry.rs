@@ -245,8 +245,6 @@ impl WorldSession {
     }
 }
 
-
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/world_entities/creature_registry/f3_shims.rs"]
 mod f3_shims;

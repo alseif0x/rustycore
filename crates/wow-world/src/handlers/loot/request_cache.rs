@@ -54,7 +54,8 @@ impl WorldSession {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        self.core.loot_release_owner_access_like_cpp()
+        self.core
+            .loot_release_owner_access_like_cpp()
             .next_canonical_loot_object_guid_like_cpp(owner_guid)
     }
 

@@ -3,36 +3,33 @@
 
 use std::sync::Arc;
 
-use wow_constants::ClientOpcodes;
-use wow_handler::{
-    DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry,
-    PacketProcessing, RegistryBuilder, SessionStatus,
-};
-use crate::PlayerRegistrySyncContext;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::PlayerRegistryHydrationContext;
+use crate::PlayerRegistrySyncContext;
 use crate::stats::CharacterStatsApplicationCxLikeCpp;
+use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
 use wow_data::{
     ItemStatsStore, ItemStore, ShieldBlockRegularGameTableLikeCpp, SpellShapeshiftFormStore,
 };
 use wow_entities::{
-    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    INVENTORY_SLOT_BAG_0,
+    EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, INVENTORY_SLOT_BAG_0,
 };
-use wow_packet::{ClientPacket, WorldPacket};
+use wow_handler::{
+    DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
+    RegistryBuilder, SessionStatus,
+};
 use wow_packet::packets::misc::{UseEquipmentSet, UseEquipmentSetResult};
-use wow_world_core::session::{
-    EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp,
-    OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp, OwnedItemSetAccessLikeCpp,
-    PacketPublicationAccessLikeCpp, SessionCatalogs, SessionWorldConfig,
-};
+use wow_packet::{ClientPacket, WorldPacket};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::PlayerStatsAccessLikeCpp;
-use wow_world_inventory::{
-    InventoryState, represented_player_stat_changes_like_cpp,
+use wow_world_core::session::{
+    EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp, OwnedInventoryAccessLikeCpp,
+    OwnedItemModifiersAccessLikeCpp, OwnedItemSetAccessLikeCpp, PacketPublicationAccessLikeCpp,
+    SessionCatalogs, SessionWorldConfig,
 };
+use wow_world_inventory::{InventoryState, represented_player_stat_changes_like_cpp};
 use wow_world_loot::LootState;
 
 /// Selected item-modifier stores retained without cloning their owning Arcs.
@@ -64,7 +61,6 @@ impl<'a> EquipmentSetUseItemModsStoresLikeCpp<'a> {
             spell_shapeshift_form_store,
         }
     }
-
 }
 
 /// Only the Session fixture references read or written by this operation.
@@ -86,8 +82,7 @@ pub struct EquipmentSetUseFixtureRefsLikeCpp<'a> {
     visible_auras: &'a std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
     canonical_threat_aura_snapshots:
         &'a std::collections::HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
-    player_transport:
-        &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
+    player_transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -108,10 +103,13 @@ impl<'a> EquipmentSetUseFixtureRefsLikeCpp<'a> {
         aura_authority_complete: &'a bool,
         spell_hit_aura_tombstoned: &'a bool,
         visible_auras: &'a std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
-        canonical_threat_aura_snapshots:
-            &'a std::collections::HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
-        player_transport:
-            &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
+        canonical_threat_aura_snapshots: &'a std::collections::HashMap<
+            u8,
+            wow_entities::AuraThreatSnapshotLikeCpp,
+        >,
+        player_transport: &'a Option<
+            Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> Self {
         Self {
             player_position,
@@ -199,9 +197,12 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
         config: &'a SessionWorldConfig,
         publication: PacketPublicationAccessLikeCpp<'a>,
         loot: &'a LootState,
-        #[cfg(any(test, feature = "test-fixtures"))] fixtures: EquipmentSetUseFixtureRefsLikeCpp<'a>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        registry_hydration: Option<PlayerRegistryHydrationContext<'a>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: EquipmentSetUseFixtureRefsLikeCpp<
+            'a,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] registry_hydration: Option<
+            PlayerRegistryHydrationContext<'a>,
+        >,
         consumer_test: bool,
     ) -> Self {
         Self {
@@ -276,10 +277,7 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
         });
     }
 
-    fn apply_equipment_set_like_cpp(
-        &mut self,
-        request: &UseEquipmentSet,
-    ) -> (bool, bool) {
+    fn apply_equipment_set_like_cpp(&mut self, request: &UseEquipmentSet) -> (bool, bool) {
         let ignored_guid = wow_core::ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64);
         let mut changed_equipment = false;
         let mut item_mods_changed = false;
@@ -297,7 +295,8 @@ impl<'a> EquipmentSetUseContextLikeCpp<'a> {
                 continue;
             }
 
-            if let Some((src, _item)) = self.inventory
+            if let Some((src, _item)) = self
+                .inventory
                 .represented_direct_inventory_slot_by_guid_for_equipment_set_like_cpp(
                     &self.inventory_access,
                     self.item_mods.item_store,

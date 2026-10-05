@@ -36,8 +36,7 @@ pub struct PlayerItemTestFixtureLikeCpp {
         Vec<RepresentedItemModsReapplyEventLikeCpp>,
     pub(crate) represented_item_bonus_actions_like_cpp: Vec<RepresentedItemBonusActionLikeCpp>,
     pub(crate) represented_item_modifier_runtime_like_cpp: PlayerItemModifierRuntimeStateLikeCpp,
-    pub(crate) represented_item_set_spell_events_like_cpp:
-        Vec<RepresentedItemSetSpellEventLikeCpp>,
+    pub(crate) represented_item_set_spell_events_like_cpp: Vec<RepresentedItemSetSpellEventLikeCpp>,
     pub(crate) represented_item_set_aura_refresh_events_like_cpp:
         Vec<RepresentedItemSetAuraRefreshEventLikeCpp>,
     pub(crate) represented_combat_stat_recalculations_like_cpp:
@@ -105,10 +104,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn player_currency_for_test_like_cpp(
-        &self,
-        currency_id: &u32,
-    ) -> Option<&PlayerCurrency> {
+    pub fn player_currency_for_test_like_cpp(&self, currency_id: &u32) -> Option<&PlayerCurrency> {
         self.player_currencies.get(currency_id)
     }
 
@@ -122,10 +118,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn inventory_item_object_for_test_like_cpp(
-        &self,
-        item_guid: &ObjectGuid,
-    ) -> Option<&Item> {
+    pub fn inventory_item_object_for_test_like_cpp(&self, item_guid: &ObjectGuid) -> Option<&Item> {
         self.inventory_item_objects.get(item_guid)
     }
 
@@ -138,10 +131,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn inventory_item_object_contains_for_test_like_cpp(
-        &self,
-        item_guid: &ObjectGuid,
-    ) -> bool {
+    pub fn inventory_item_object_contains_for_test_like_cpp(&self, item_guid: &ObjectGuid) -> bool {
         self.inventory_item_objects.contains_key(item_guid)
     }
 
@@ -228,9 +218,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_auction_place_bids_like_cpp(
-        &self,
-    ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
+    pub fn represented_auction_place_bids_like_cpp(&self) -> &[RepresentedAuctionPlaceBidLikeCpp] {
         &self.represented_auction_place_bids_like_cpp
     }
 

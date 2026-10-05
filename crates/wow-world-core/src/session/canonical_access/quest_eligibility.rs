@@ -32,16 +32,14 @@ impl SessionCore {
     /// Select the Core owner and optional read-only fixture inputs without taking snapshots.
     pub fn quest_eligibility_access_like_cpp<'a>(
         &'a self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        race: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        class: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        skill_records: &'a HashMap<u16, crate::session::RepresentedPlayerSkillLikeCpp>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        reputation: &'a PlayerReputationStateLikeCpp,
+        #[cfg(any(test, feature = "test-fixtures"))] race: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] class: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] level: &'a u8,
+        #[cfg(any(test, feature = "test-fixtures"))] skill_records: &'a HashMap<
+            u16,
+            crate::session::RepresentedPlayerSkillLikeCpp,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] reputation: &'a PlayerReputationStateLikeCpp,
     ) -> QuestEligibilityAccessLikeCpp<'a> {
         QuestEligibilityAccessLikeCpp {
             core: self,
@@ -102,10 +100,12 @@ impl QuestEligibilityAccessLikeCpp<'_> {
     }
 
     pub fn resolved_quest_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        let records = self.core.resolved_player_skill_records_for_publication_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.skill_records,
-        )?;
+        let records = self
+            .core
+            .resolved_player_skill_records_for_publication_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.skill_records,
+            )?;
         Some(
             crate::session::represented_skill_values_from_records_like_cpp(&records)
                 .get(&skill_id)
@@ -114,10 +114,7 @@ impl QuestEligibilityAccessLikeCpp<'_> {
         )
     }
 
-    pub fn quest_reputation_for_faction_like_cpp(
-        &self,
-        faction: &FactionEntry,
-    ) -> Option<i32> {
+    pub fn quest_reputation_for_faction_like_cpp(&self, faction: &FactionEntry) -> Option<i32> {
         super::quest_reward_owner::quest_reputation_for_faction_like_cpp(
             self.core,
             faction,
@@ -142,5 +139,4 @@ impl QuestEligibilityAccessLikeCpp<'_> {
     pub fn owner_handle_absent_like_cpp(&self) -> bool {
         self.core.player_handle_like_cpp.is_none()
     }
-
 }

@@ -73,10 +73,7 @@ impl LootMoneyDeliveryAddressLikeCpp {
 
 /// C++ `Player::ModifyMoney` accepts the whole positive delta or leaves the
 /// balance unchanged when it would cross `MAX_MONEY_AMOUNT`.
-pub fn loot_money_durable_outcome_like_cpp(
-    current_money: u64,
-    requested_delta: u64,
-) -> (u64, u64) {
+pub fn loot_money_durable_outcome_like_cpp(current_money: u64, requested_delta: u64) -> (u64, u64) {
     current_money
         .checked_add(requested_delta)
         .filter(|new_money| *new_money <= MAX_MONEY_AMOUNT)

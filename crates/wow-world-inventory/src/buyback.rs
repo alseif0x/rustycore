@@ -11,11 +11,7 @@ impl crate::InventoryState {
         });
     }
 
-    pub fn set_current_buyback_slot_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        slot: u8,
-    ) {
+    pub fn set_current_buyback_slot_like_cpp(&mut self, hub: &mut HubMut<'_>, slot: u8) {
         self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
             inventory.set_current_buyback_slot(slot);
         });
@@ -37,11 +33,7 @@ impl crate::InventoryState {
         });
     }
 
-    pub fn clear_buyback_slot_metadata_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        slot: u8,
-    ) {
+    pub fn clear_buyback_slot_metadata_like_cpp(&mut self, hub: &mut HubMut<'_>, slot: u8) {
         self.set_buyback_slot_metadata_like_cpp(hub, slot, 0, 0);
     }
 
@@ -112,12 +104,8 @@ impl crate::InventoryState {
             .map(|inventory| *inventory.buyback_timestamp())
     }
 
-    pub fn resolved_current_buyback_slot_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u8> {
+    pub fn resolved_current_buyback_slot_like_cpp(&self, hub: HubRef<'_>) -> Option<u8> {
         self.resolved_player_inventory_runtime_like_cpp(hub)
             .map(|inventory| inventory.current_buyback_slot())
     }
-
 }

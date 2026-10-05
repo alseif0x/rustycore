@@ -3,17 +3,14 @@
 
 use std::sync::Arc;
 
+use wow_data::ItemStore;
 use wow_data::progression_rewards::{
     ScalingStatDistributionEntry, ScalingStatDistributionStore, ScalingStatValuesStore,
 };
-use wow_data::ItemStore;
 use wow_world_core::session::{HubRef, RepresentedScalingStatContextLikeCpp};
 
 impl crate::InventoryState {
-    pub fn find_free_backpack_slot_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u8> {
+    pub fn find_free_backpack_slot_like_cpp(&self, hub: HubRef<'_>) -> Option<u8> {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.find_free_backpack_slot_for_equipment_set_like_cpp(&access)
     }
@@ -45,19 +42,13 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_total_stat_multipliers_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> [f32; 5] {
+    pub fn represented_total_stat_multipliers_like_cpp(&self, hub: HubRef<'_>) -> [f32; 5] {
         hub.resolved_represented_total_stat_multipliers_like_cpp()
             .expect("test Player aura owner must resolve")
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> [f32; 5] {
+    pub fn represented_total_stat_buff_multipliers_like_cpp(&self, hub: HubRef<'_>) -> [f32; 5] {
         hub.resolved_represented_total_stat_buff_multipliers_like_cpp()
             .expect("test Player aura owner must resolve")
     }

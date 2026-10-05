@@ -7,8 +7,6 @@
 use super::*;
 
 impl WorldSession {
-
-
     pub(crate) fn sync_represented_display_power_like_cpp(&mut self) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.sync_represented_display_power_like_cpp(&mut hub)
@@ -21,5 +19,4 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_spell_has_power_display_effect_like_cpp(hub, spell_id)
     }
-
 }

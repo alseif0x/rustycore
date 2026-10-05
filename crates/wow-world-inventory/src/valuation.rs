@@ -87,10 +87,7 @@ impl crate::InventoryState {
         false
     }
 
-    pub fn resolved_using_pvp_item_levels_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<bool> {
+    pub fn resolved_using_pvp_item_levels_like_cpp(&self, hub: HubRef<'_>) -> Option<bool> {
         let access = hub.core.inventory_valuation_access_like_cpp();
         self.resolved_using_pvp_item_levels_with_access_like_cpp(&access)
     }
@@ -111,10 +108,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_using_pvp_item_levels_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn represented_using_pvp_item_levels_like_cpp(&self, hub: HubRef<'_>) -> bool {
         self.resolved_using_pvp_item_levels_like_cpp(hub)
             .expect("test Player PvP item-level owner must resolve")
     }

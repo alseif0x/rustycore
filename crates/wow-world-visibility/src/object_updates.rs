@@ -243,10 +243,11 @@ impl VisibilityState {
             {
                 continue;
             }
-            let fingerprint = represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
-                source_guid,
-                &bytes,
-            );
+            let fingerprint =
+                represented_dynamic_object_values_update_delivery_fingerprint_like_cpp(
+                    source_guid,
+                    &bytes,
+                );
             if !self
                 .represented_player_unit_values_updates_delivered_like_cpp
                 .insert((

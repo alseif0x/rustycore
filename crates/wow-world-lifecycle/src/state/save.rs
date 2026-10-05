@@ -1,14 +1,12 @@
 use wow_packet::packets::misc::{CufProfile, MAX_CUF_PROFILES_LIKE_CPP};
-use wow_world_core::session::{
-    HubMut, HubRef, TOY_FLAG_FAVORITE_LIKE_CPP, TOY_FLAG_HAS_FANFARE_LIKE_CPP,
-    PlayerSaveOperationAccessLikeCpp, player_cuf_profile_from_packet_like_cpp,
-};
 use wow_world_core::session::PlayerSaveSessionInputsLikeCpp;
+use wow_world_core::session::{
+    HubMut, HubRef, PlayerSaveOperationAccessLikeCpp, TOY_FLAG_FAVORITE_LIKE_CPP,
+    TOY_FLAG_HAS_FANFARE_LIKE_CPP, player_cuf_profile_from_packet_like_cpp,
+};
 
 use super::SessionLifecycleState;
-use crate::{
-    AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp,
-};
+use crate::{AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
 
 impl SessionLifecycleState {
     pub fn player_save_session_inputs_like_cpp(
@@ -32,9 +30,7 @@ impl SessionLifecycleState {
         &mut self,
         hub: &mut HubMut<'_>,
     ) -> Option<crate::PlayerSaveOutcomeLikeCpp> {
-        let mut owner = hub
-            .core
-            .player_save_operation_access_like_cpp(None, None);
+        let mut owner = hub.core.player_save_operation_access_like_cpp(None, None);
         self.defer_player_save_for_transfer_with_owner_like_cpp(&mut owner)
     }
 
@@ -183,8 +179,7 @@ impl SessionLifecycleState {
 
         #[cfg(any(test, feature = "test-fixtures"))]
         if hub.core.player_handle_like_cpp.is_none() {
-            hub.fixtures.presentation.cuf_profiles_like_cpp =
-                vec![None; MAX_CUF_PROFILES_LIKE_CPP];
+            hub.fixtures.presentation.cuf_profiles_like_cpp = vec![None; MAX_CUF_PROFILES_LIKE_CPP];
             for (slot, profile) in fixture_profiles.into_iter().enumerate() {
                 hub.fixtures.presentation.cuf_profiles_like_cpp[slot] = Some(profile);
             }

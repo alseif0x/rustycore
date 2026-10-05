@@ -343,11 +343,10 @@ async fn quest_giver_complete_item_objective_requests_items_not_offer_reward_lik
     let (mut session, _pkt_tx, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 99);
     session.set_player_guid(Some(player_guid));
-    session.catalogs.quests.store = Some(Arc::new(
-        wow_data::quest::QuestStore::from_quests_like_cpp([quest_with_item_objective_like_cpp(
-            9_222,
-        )]),
-    ));
+    session.catalogs.quests.store =
+        Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest_with_item_objective_like_cpp(9_222)],
+        )));
     insert_complete_status_like_cpp(
         &mut session,
         9_222,
@@ -376,11 +375,10 @@ async fn quest_giver_complete_incomplete_item_turn_in_requests_items_like_cpp() 
     let (mut session, _pkt_tx, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 99);
     session.set_player_guid(Some(player_guid));
-    session.catalogs.quests.store = Some(Arc::new(
-        wow_data::quest::QuestStore::from_quests_like_cpp([quest_with_item_objective_like_cpp(
-            9_223,
-        )]),
-    ));
+    session.catalogs.quests.store =
+        Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest_with_item_objective_like_cpp(9_223)],
+        )));
     insert_complete_status_like_cpp(
         &mut session,
         9_223,
@@ -412,11 +410,10 @@ async fn quest_giver_complete_visible_quest_without_status_requests_items_like_c
     let (mut session, _pkt_tx, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 99);
     session.set_player_guid(Some(player_guid));
-    session.catalogs.quests.store = Some(Arc::new(
-        wow_data::quest::QuestStore::from_quests_like_cpp([quest_with_item_objective_like_cpp(
-            9_240,
-        )]),
-    ));
+    session.catalogs.quests.store =
+        Some(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+            [quest_with_item_objective_like_cpp(9_240)],
+        )));
 
     session
         .handle_quest_giver_complete_quest(quest_giver_complete_packet_like_cpp(

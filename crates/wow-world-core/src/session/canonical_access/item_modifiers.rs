@@ -151,12 +151,14 @@ impl OwnedItemModifiersAccessLikeCpp<'_> {
         attack_type: WeaponAttackType,
     ) -> Option<bool> {
         match attack_type {
-            WeaponAttackType::BaseAttack => self.core.canonical_player_snapshot_like_cpp(|player| {
-                !player
-                    .unit()
-                    .unit_flags_like_cpp()
-                    .contains(UnitFlags::DISARMED)
-            }),
+            WeaponAttackType::BaseAttack => {
+                self.core.canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags_like_cpp()
+                        .contains(UnitFlags::DISARMED)
+                })
+            }
             WeaponAttackType::OffAttack => self.core.canonical_player_snapshot_like_cpp(|player| {
                 !player
                     .unit()

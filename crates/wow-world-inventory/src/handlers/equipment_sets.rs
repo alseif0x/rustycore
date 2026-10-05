@@ -1,6 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+pub use super::item_text::ItemTextQueryHandlerCxLikeCpp;
 use wow_constants::ClientOpcodes;
 use wow_entities::PlayerEquipmentSetsLikeCpp;
 use wow_handler::{
@@ -9,11 +10,8 @@ use wow_handler::{
 };
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::OwnedEquipmentSetsAccessLikeCpp;
-pub use super::item_text::ItemTextQueryHandlerCxLikeCpp;
 
-use crate::{
-    EquipmentSetsSaveCxLikeCpp, InventoryState, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
-};
+use crate::{EquipmentSetsSaveCxLikeCpp, InventoryState, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP};
 
 /// Private-state context for packet handlers that mutate equipment sets.
 pub struct EquipmentSetsHandlerCxLikeCpp<'a> {
@@ -25,10 +23,7 @@ pub struct EquipmentSetsHandlerCxLikeCpp<'a> {
 impl<'a> EquipmentSetsHandlerCxLikeCpp<'a> {
     /// Borrow an InventoryState and its canonical-player capability for one
     /// synchronous equipment-set operation.
-    pub fn new(
-        _state: &'a mut InventoryState,
-        owner: OwnedEquipmentSetsAccessLikeCpp<'a>,
-    ) -> Self {
+    pub fn new(_state: &'a mut InventoryState, owner: OwnedEquipmentSetsAccessLikeCpp<'a>) -> Self {
         Self {
             #[cfg(any(test, feature = "test-fixtures"))]
             state: _state,
@@ -40,9 +35,7 @@ impl<'a> EquipmentSetsHandlerCxLikeCpp<'a> {
         &mut self,
         mut f: impl FnMut(&mut PlayerEquipmentSetsLikeCpp) -> R,
     ) -> Option<R> {
-        let canonical = self
-            .owner
-            .with_equipment_sets_mut_like_cpp(|sets| f(sets));
+        let canonical = self.owner.with_equipment_sets_mut_like_cpp(|sets| f(sets));
         if canonical.is_some() {
             return canonical;
         }
@@ -87,10 +80,8 @@ impl<'a> EquipmentSetsHandlerCxLikeCpp<'a> {
             }
         };
 
-        let _assigned = self.assign_represented_equipment_set_to_spec_like_cpp(
-            request.set_id,
-            request.spec_index,
-        );
+        let _assigned = self
+            .assign_represented_equipment_set_to_spec_like_cpp(request.set_id, request.spec_index);
     }
 
     /// Decode and apply CMSG_DELETE_EQUIPMENT_SET synchronously.

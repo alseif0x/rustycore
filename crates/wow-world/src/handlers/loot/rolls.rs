@@ -7,7 +7,6 @@
 
 use super::*;
 
-
 impl WorldSession {
     pub(super) fn route_represented_remote_loot_roll_vote_to_owner_like_cpp(
         &self,
@@ -794,8 +793,7 @@ impl WorldSession {
         }
 
         for roll in pending_rolls {
-            self.loot
-                .insert_represented_loot_roll_like_cpp(roll);
+            self.loot.insert_represented_loot_roll_like_cpp(roll);
         }
         self.publish_represented_loot_roll_ownership_like_cpp();
 
@@ -889,12 +887,16 @@ impl WorldSession {
             }
 
             let owner_guid = state.owner_guid;
-            let Some(entry) = self.loot.cached_loot_for_owner_like_cpp(owner_guid).and_then(|loot| {
-                loot.items
-                    .iter()
-                    .find(|entry| entry.loot_list_id == loot_list_id)
-                    .cloned()
-            }) else {
+            let Some(entry) = self
+                .loot
+                .cached_loot_for_owner_like_cpp(owner_guid)
+                .and_then(|loot| {
+                    loot.items
+                        .iter()
+                        .find(|entry| entry.loot_list_id == loot_list_id)
+                        .cloned()
+                })
+            else {
                 self.loot
                     .remove_represented_loot_roll_like_cpp(loot_obj, loot_list_id);
                 self.publish_represented_loot_roll_ownership_like_cpp();

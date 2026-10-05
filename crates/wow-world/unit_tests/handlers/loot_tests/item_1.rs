@@ -325,8 +325,10 @@ fn durable_item_fanout_uses_precommit_union_exact_commit_cut_like_cpp() {
     let during = ObjectGuid::create_player(1, 42);
     let after = ObjectGuid::create_player(1, 43);
 
-    let viewers =
-        wow_world_application::durable_loot_item_fanout_viewers_like_cpp(&[before], &[before, during]);
+    let viewers = wow_world_application::durable_loot_item_fanout_viewers_like_cpp(
+        &[before],
+        &[before, during],
+    );
 
     assert_eq!(viewers, HashSet::from([before, during]));
     assert!(
@@ -770,7 +772,10 @@ async fn durable_item_completion_auto_releases_only_after_items_and_coins_are_em
             !should_release
         );
         if !should_release {
-            let loot = session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap();
+            let loot = session
+                .loot
+                .cached_loot_for_owner_like_cpp(owner_guid)
+                .unwrap();
             assert!(loot.items[0].taken);
             assert_eq!(loot.coins, coins);
         }

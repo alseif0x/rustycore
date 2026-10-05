@@ -380,7 +380,9 @@ async fn battlemaster_join_arena_requires_group_leader_like_cpp() {
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_battlemaster_list_store(Arc::new(wow_data::BattlemasterListStore::from_entries([
         battlemaster_entry_like_cpp(
@@ -412,7 +414,9 @@ async fn battlemaster_join_arena_records_represented_rated_queue_intent_like_cpp
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_battlemaster_list_store(Arc::new(wow_data::BattlemasterListStore::from_entries([
         battlemaster_entry_like_cpp(
@@ -519,7 +523,9 @@ async fn battlemaster_join_skirmish_group_request_requires_group_leader_like_cpp
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_battlemaster_list_store(Arc::new(wow_data::BattlemasterListStore::from_entries([
         battlemaster_entry_like_cpp(
@@ -551,7 +557,9 @@ async fn battlemaster_join_skirmish_records_solo_and_group_intents_like_cpp() {
 
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(player));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_battlemaster_list_store(Arc::new(wow_data::BattlemasterListStore::from_entries([
         battlemaster_entry_like_cpp(
@@ -736,7 +744,9 @@ async fn accept_wargame_invite_missing_inviter_is_silent_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(player_guid));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -779,7 +789,9 @@ async fn accept_wargame_invite_records_ready_to_queue_when_groups_match_like_cpp
 
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_name_like_cpp("Player".to_string());
-    session.social.set_group_guid_for_test_like_cpp(Some(player_group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(player_group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

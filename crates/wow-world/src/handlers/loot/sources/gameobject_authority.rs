@@ -9,7 +9,9 @@ impl WorldSession {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
         else {
             return (represented_local_loot_fixture_allowed_like_cpp()
-                && self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid))
+                && self
+                    .loot
+                    .cached_loot_contains_owner_like_cpp(gameobject_guid))
             .then_some(());
         };
         let loot = self
@@ -31,7 +33,8 @@ impl WorldSession {
                 .snapshot_for_player_like_cpp(player_guid)
                 .is_none()
         {
-            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             self.loot
                 .remove_cached_loot_generation_like_cpp(gameobject_guid);
             return None;
@@ -229,7 +232,6 @@ impl crate::session::LootCx<'_> {
             )
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../../../unit_tests/handlers/loot/sources/gameobject_authority/f3_shims.rs"]

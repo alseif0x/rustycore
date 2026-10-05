@@ -1,14 +1,13 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::StatsFixtureRefs;
 use crate::session::state::SessionCore;
 use crate::session::{
     PacketPublicationAccessLikeCpp, PlayerRegistryControlBindingLikeCpp,
-    PlayerRegistrySyncAccessLikeCpp, PlayerStatsAccessLikeCpp, SessionCatalogs,
-    SessionWorldConfig,
+    PlayerRegistrySyncAccessLikeCpp, PlayerStatsAccessLikeCpp, SessionCatalogs, SessionWorldConfig,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::StatsFixtureRefs;
 use wow_core::Position;
 
 /// Read the canonical combat state used while selecting an equipment-set move.
@@ -73,8 +72,9 @@ impl EquipmentSetUseAccessLikeCpp<'_> {
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<Position>,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &'a Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> Option<(
         PlayerRegistrySyncAccessLikeCpp<'a>,
         PlayerRegistryControlBindingLikeCpp<'a>,
@@ -123,5 +123,4 @@ impl EquipmentSetUseAccessLikeCpp<'_> {
             fixtures,
         )
     }
-
 }

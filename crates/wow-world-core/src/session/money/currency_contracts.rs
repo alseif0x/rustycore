@@ -16,10 +16,7 @@ pub struct PlayerCurrencyDelta {
     pub suppress_chat_log: bool,
 }
 
-pub fn currency_max_quantity_cpp(
-    entry: &CurrencyTypesEntry,
-    currency: &PlayerCurrency,
-) -> u32 {
+pub fn currency_max_quantity_cpp(entry: &CurrencyTypesEntry, currency: &PlayerCurrency) -> u32 {
     if !entry.has_max_quantity(false, false) {
         return 0;
     }

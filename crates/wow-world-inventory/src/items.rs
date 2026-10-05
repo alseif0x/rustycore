@@ -5,24 +5,24 @@ use std::collections::HashMap;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
 
-use wow_constants::{InventoryResult, ItemClass, ItemFlags, ItemModifier, ItemQuality};
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_constants::unit::WeaponAttackType;
-use wow_core::ObjectGuid;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_core::{guid::HighGuid, ObjectGuidGenerator};
-use wow_data::SpellEquippedItemsEntry;
-use wow_entities::{
-    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, Item, ItemStorageTemplate,
-    PlayerInventoryItem as InventoryItem, SpellCastBattlePetItemModifiersLikeCpp,
-};
-use crate::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionSellItemLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedItemModsReapplyEventLikeCpp;
 use crate::RepresentedItemSetSpellEventLikeCpp;
+use crate::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionSellItemLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_constants::unit::WeaponAttackType;
+use wow_constants::{InventoryResult, ItemClass, ItemFlags, ItemModifier, ItemQuality};
+use wow_core::ObjectGuid;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_core::{ObjectGuidGenerator, guid::HighGuid};
+use wow_data::SpellEquippedItemsEntry;
+use wow_entities::{
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
+    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS,
+    EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    Item, ItemStorageTemplate, PlayerInventoryItem as InventoryItem,
+    SpellCastBattlePetItemModifiersLikeCpp,
+};
 use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
 
 impl crate::InventoryState {
@@ -108,11 +108,7 @@ impl crate::InventoryState {
         )
     }
 
-    pub fn direct_item_contains_items(
-        &self,
-        hub: HubRef<'_>,
-        item_guid: ObjectGuid,
-    ) -> bool {
+    pub fn direct_item_contains_items(&self, hub: HubRef<'_>, item_guid: ObjectGuid) -> bool {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.direct_item_contains_items_with_access_like_cpp(&access, item_guid)
     }
@@ -333,11 +329,7 @@ impl crate::InventoryState {
         )
     }
 
-    pub fn item_drop_rate_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        item_id: u32,
-    ) -> f32 {
+    pub fn item_drop_rate_like_cpp(&self, hub: HubRef<'_>, item_id: u32) -> f32 {
         let quality = hub
             .catalogs
             .item_template_quality(item_id)
@@ -355,11 +347,7 @@ impl crate::InventoryState {
     }
 
     /// C++ `Item::IsBoundAccountWide` template-flag predicate.
-    pub fn is_item_bound_account_wide(
-        &self,
-        hub: HubRef<'_>,
-        item_id: u32,
-    ) -> bool {
+    pub fn is_item_bound_account_wide(&self, hub: HubRef<'_>, item_id: u32) -> bool {
         hub.catalogs
             .item_template_flags(item_id)
             .is_some_and(|flags| flags.contains(ItemFlags::IS_BOUND_TO_ACCOUNT))
@@ -402,9 +390,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_auction_sell_items_like_cpp(
-        &self,
-    ) -> &[RepresentedAuctionSellItemLikeCpp] {
+    pub fn represented_auction_sell_items_like_cpp(&self) -> &[RepresentedAuctionSellItemLikeCpp] {
         &self.represented_auction_sell_items_like_cpp
     }
 

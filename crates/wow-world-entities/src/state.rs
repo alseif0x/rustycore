@@ -37,7 +37,8 @@ pub struct WorldEntitiesState {
     pub(crate) represented_gameobject_use_effects: Vec<RepresentedGameObjectUseEffect>,
     /// Session-local represented GameObject use state until canonical gameobject runtime ownership lands.
     /// Deterministic iteration order by GUID (not a strict C++ ordering guarantee).
-    pub(crate) represented_gameobject_use_states: BTreeMap<ObjectGuid, RepresentedGameObjectUseState>,
+    pub(crate) represented_gameobject_use_states:
+        BTreeMap<ObjectGuid, RepresentedGameObjectUseState>,
     /// Login-start delivery guard for creature movement packets.
     ///
     /// The C++ 3.4.3 login baseline does not deliver `SMSG_ON_MONSTER_MOVE`

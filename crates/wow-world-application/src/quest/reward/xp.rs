@@ -7,15 +7,15 @@
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::{BTreeMap, HashMap};
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::StatsFixtureRefs;
 use wow_world_core::session::{
     QuestRewardPlayerAccessLikeCpp, SessionCatalogs, SessionWorldConfig,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_core::session::StatsFixtureRefs;
 use wow_world_inventory::InventoryState;
 
-use super::QuestRewardCx;
 use super::super::SessionQuestState;
+use super::QuestRewardCx;
 
 /// The synchronous XP stats phase borrows the mutable level and, in fixture
 /// builds, every selected stats fixture reference required to project it.
@@ -37,8 +37,7 @@ impl<'access, 'player> QuestXpStatsUpdateCx<'access, 'player> {
         catalogs: &'access SessionCatalogs,
         config: &'access SessionWorldConfig,
         inventory: &'access InventoryState,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        stats_fixture_refs: StatsFixtureRefs<'access>,
+        #[cfg(any(test, feature = "test-fixtures"))] stats_fixture_refs: StatsFixtureRefs<'access>,
     ) -> Self {
         Self {
             player,
@@ -62,7 +61,9 @@ impl<'access, 'player> QuestXpStatsUpdateCx<'access, 'player> {
             self.stats_fixture_refs.reborrow_like_cpp(),
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        let player_stats = self.player.stats_access_like_cpp(self.catalogs, self.config);
+        let player_stats = self
+            .player
+            .stats_access_like_cpp(self.catalogs, self.config);
         let mut application = crate::CharacterStatsApplicationCxLikeCpp::new(
             player_stats,
             self.inventory,
@@ -81,8 +82,7 @@ impl super::QuestRewardCx<'_> {
         catalogs: &SessionCatalogs,
         config: &SessionWorldConfig,
         inventory: &InventoryState,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        stats_fixture_refs: StatsFixtureRefs<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] stats_fixture_refs: StatsFixtureRefs<'_>,
     ) {
         let mut application = QuestXpStatsUpdateCx::new(
             player,
@@ -203,10 +203,7 @@ impl QuestRewardCx<'_> {
         }
     }
 
-    pub fn quest_xp_reward_like_cpp(
-        &self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> u32 {
+    pub fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
         let Some(quests) = self.quest_gameplay_snapshot_like_cpp() else {
             return 0;
         };

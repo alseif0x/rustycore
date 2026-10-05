@@ -21,8 +21,12 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
         self.apply_quest_reward_item_grant_like_cpp(
-            plan, item_guid_generator, quest, QuestRewardItemGrantLikeCpp::Fixed,
-        ).await
+            plan,
+            item_guid_generator,
+            quest,
+            QuestRewardItemGrantLikeCpp::Fixed,
+        )
+        .await
     }
 
     pub(super) async fn store_chosen_quest_reward_item_like_cpp(
@@ -33,8 +37,12 @@ impl WorldSession {
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
         self.apply_quest_reward_item_grant_like_cpp(
-            plan, item_guid_generator, quest, QuestRewardItemGrantLikeCpp::Chosen(choice),
-        ).await
+            plan,
+            item_guid_generator,
+            quest,
+            QuestRewardItemGrantLikeCpp::Chosen(choice),
+        )
+        .await
     }
 
     pub(super) async fn store_quest_package_reward_items_like_cpp(
@@ -45,8 +53,12 @@ impl WorldSession {
         choice: QuestChoiceItemLikeCpp,
     ) -> bool {
         self.apply_quest_reward_item_grant_like_cpp(
-            plan, item_guid_generator, quest, QuestRewardItemGrantLikeCpp::Package(choice),
-        ).await
+            plan,
+            item_guid_generator,
+            quest,
+            QuestRewardItemGrantLikeCpp::Package(choice),
+        )
+        .await
     }
 
     async fn apply_quest_reward_item_grant_like_cpp(
@@ -57,35 +69,56 @@ impl WorldSession {
         grant: QuestRewardItemGrantLikeCpp,
     ) -> bool {
         #[cfg(any(test, feature = "test-fixtures"))]
-        let fixtures = wow_world_application::QuestRewardItemPlanningFixtureRefsLikeCpp::new_like_cpp(
-            &self.fixtures.identity.player_race,
-            &self.fixtures.identity.player_class,
-            &self.fixtures.identity.player_gender,
-            &self.fixtures.progression.represented_primary_specialization_id_like_cpp,
-            &self.fixtures.movement.player_position,
-            &self.fixtures.identity.player_zone_id_like_cpp,
-            &self.fixtures.identity.player_area_id_like_cpp,
-            &self.fixtures.identity.player_zone_area_authority_complete_like_cpp,
-            &self.fixtures.combat.player_pvp_hostile_like_cpp,
-            &self.fixtures.combat.player_pvp_end_timer_like_cpp,
-            &self.fixtures.combat.player_contested_pvp_timer_like_cpp,
-            &self.fixtures.identity.represented_is_outdoors_like_cpp,
-            &self.fixtures.vehicles.taxi_destinations_like_cpp,
-            &self.fixtures.vehicles.taxi_flight_state_like_cpp,
-            &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
-            &self.fixtures.vehicles.taxi_mounted_like_cpp,
-            &self.fixtures.auras.visible_auras,
-            &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-            &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
-            &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
-            &self.fixtures.progression.player_skill_test_fixture_like_cpp.player_skill_records_like_cpp,
-            &self.spell_state,
-            &self.instances,
-            &self.fixtures.battleground,
-            &self.fixtures.battleground.represented_battleground_status_like_cpp,
-            &self.fixtures.progression.player_skill_test_fixture_like_cpp.player_skill_records_complete_like_cpp,
-            &self.fixtures.combat.in_combat,
-        );
+        let fixtures =
+            wow_world_application::QuestRewardItemPlanningFixtureRefsLikeCpp::new_like_cpp(
+                &self.fixtures.identity.player_race,
+                &self.fixtures.identity.player_class,
+                &self.fixtures.identity.player_gender,
+                &self
+                    .fixtures
+                    .progression
+                    .represented_primary_specialization_id_like_cpp,
+                &self.fixtures.movement.player_position,
+                &self.fixtures.identity.player_zone_id_like_cpp,
+                &self.fixtures.identity.player_area_id_like_cpp,
+                &self
+                    .fixtures
+                    .identity
+                    .player_zone_area_authority_complete_like_cpp,
+                &self.fixtures.combat.player_pvp_hostile_like_cpp,
+                &self.fixtures.combat.player_pvp_end_timer_like_cpp,
+                &self.fixtures.combat.player_contested_pvp_timer_like_cpp,
+                &self.fixtures.identity.represented_is_outdoors_like_cpp,
+                &self.fixtures.vehicles.taxi_destinations_like_cpp,
+                &self.fixtures.vehicles.taxi_flight_state_like_cpp,
+                &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
+                &self.fixtures.vehicles.taxi_mounted_like_cpp,
+                &self.fixtures.auras.visible_auras,
+                &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &self
+                    .fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                &self
+                    .fixtures
+                    .progression
+                    .player_skill_test_fixture_like_cpp
+                    .player_skill_records_like_cpp,
+                &self.spell_state,
+                &self.instances,
+                &self.fixtures.battleground,
+                &self
+                    .fixtures
+                    .battleground
+                    .represented_battleground_status_like_cpp,
+                &self
+                    .fixtures
+                    .progression
+                    .player_skill_test_fixture_like_cpp
+                    .player_skill_records_complete_like_cpp,
+                &self.fixtures.combat.in_combat,
+            );
         #[cfg(any(test, feature = "test-fixtures"))]
         let vitals = (
             &self.fixtures.combat.player_health_like_cpp,
@@ -113,35 +146,57 @@ impl WorldSession {
             cfg!(test),
         );
         match grant {
-            QuestRewardItemGrantLikeCpp::Fixed => operation.store_fixed_quest_reward_items_like_cpp(
-                plan, item_guid_generator, quest,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &fixtures,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                vitals,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.progression.reputation_state_like_cpp,
-            ).await,
-            QuestRewardItemGrantLikeCpp::Chosen(choice) => operation.store_chosen_quest_reward_item_like_cpp(
-                plan, item_guid_generator, quest, choice.item_id, choice.loot_item_type,
-                QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &fixtures,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                vitals,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.progression.reputation_state_like_cpp,
-            ).await,
-            QuestRewardItemGrantLikeCpp::Package(choice) => operation.store_quest_package_reward_items_like_cpp(
-                plan, item_guid_generator, quest, choice.item_id, choice.loot_item_type,
-                QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &fixtures,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                vitals,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.progression.reputation_state_like_cpp,
-            ).await,
+            QuestRewardItemGrantLikeCpp::Fixed => {
+                operation
+                    .store_fixed_quest_reward_items_like_cpp(
+                        plan,
+                        item_guid_generator,
+                        quest,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &fixtures,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        vitals,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &self.fixtures.progression.reputation_state_like_cpp,
+                    )
+                    .await
+            }
+            QuestRewardItemGrantLikeCpp::Chosen(choice) => {
+                operation
+                    .store_chosen_quest_reward_item_like_cpp(
+                        plan,
+                        item_guid_generator,
+                        quest,
+                        choice.item_id,
+                        choice.loot_item_type,
+                        QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &fixtures,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        vitals,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &self.fixtures.progression.reputation_state_like_cpp,
+                    )
+                    .await
+            }
+            QuestRewardItemGrantLikeCpp::Package(choice) => {
+                operation
+                    .store_quest_package_reward_items_like_cpp(
+                        plan,
+                        item_guid_generator,
+                        quest,
+                        choice.item_id,
+                        choice.loot_item_type,
+                        QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &fixtures,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        vitals,
+                        #[cfg(any(test, feature = "test-fixtures"))]
+                        &self.fixtures.progression.reputation_state_like_cpp,
+                    )
+                    .await
+            }
         }
     }
 }

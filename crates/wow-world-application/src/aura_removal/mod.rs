@@ -5,18 +5,18 @@
 //! Effect phases remain private and recursive transitions reuse this owner.
 
 mod initial;
-mod threat;
+mod item_effects;
 mod mount_control;
 mod movement_speeds;
 mod publication;
 mod shapeshift;
-mod item_effects;
+mod threat;
 pub use item_effects::plan_item_set_aura_refresh_with_access_like_cpp;
 mod apply;
-mod remove;
-mod item_scaling;
 mod context;
 mod feign_death;
+mod item_scaling;
+mod remove;
 mod trainer_views;
 pub use context::AuraApplicationCatalogsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]

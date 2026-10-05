@@ -1,8 +1,7 @@
 use crate::InstanceState;
 use wow_constants::object::TypeId;
 use wow_data::{
-    DisableWorldObjectRefLikeCpp, DISABLE_TYPE_MAP, MAP_ARENA_LIKE_CPP,
-    MAP_BATTLEGROUND_LIKE_CPP,
+    DISABLE_TYPE_MAP, DisableWorldObjectRefLikeCpp, MAP_ARENA_LIKE_CPP, MAP_BATTLEGROUND_LIKE_CPP,
 };
 use wow_world_core::session::HubRef;
 
@@ -84,11 +83,7 @@ impl InstanceState {
         )
     }
 
-    pub fn is_map_disabled_for_player_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        map_id: u32,
-    ) -> bool {
+    pub fn is_map_disabled_for_player_like_cpp(&self, hub: HubRef<'_>, map_id: u32) -> bool {
         self.is_disabled_map_type_for_player_like_cpp(hub, DISABLE_TYPE_MAP, map_id)
     }
 }

@@ -312,7 +312,9 @@ fn player_save_plan_marks_dirty_state_only_after_commit_like_cpp() {
     session
         .lifecycle
         .set_tutorials_loaded_coherently_for_test_like_cpp(true);
-    session.lifecycle.set_tutorials_loaded_from_db_like_cpp(false);
+    session
+        .lifecycle
+        .set_tutorials_loaded_from_db_like_cpp(false);
     session.lifecycle.set_tutorials_changed_like_cpp(true);
 
     session.mark_represented_equipment_sets_loaded_like_cpp();

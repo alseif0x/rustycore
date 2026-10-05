@@ -6,8 +6,8 @@
 
 use std::sync::Arc;
 
-use super::is_player_meeting_condition_like_cpp;
 use super::WorldSession;
+use super::is_player_meeting_condition_like_cpp;
 use wow_data::PlayerConditionContextLikeCpp;
 
 impl WorldSession {
@@ -64,9 +64,7 @@ impl WorldSession {
                 ),
             &self.inventory,
             &self.social,
-            self.catalogs
-                .chr_specialization_store()
-                .map(Arc::as_ref),
+            self.catalogs.chr_specialization_store().map(Arc::as_ref),
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.spell_state,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -79,7 +77,10 @@ impl WorldSession {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.progression.reputation_state_like_cpp,
             #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.battleground.represented_battleground_status_like_cpp,
+            &self
+                .fixtures
+                .battleground
+                .represented_battleground_status_like_cpp,
             #[cfg(any(test, feature = "test-fixtures"))]
             &self
                 .fixtures

@@ -62,7 +62,14 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
         "the closed session view is a discardable cache; the creature authority keeps loot"
     );
     assert!(session.reconcile_represented_loot_cache_like_cpp(loot_guid, player_guid));
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(loot_guid).expect("loot cache entry should be seeded").coins, 7);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .expect("loot cache entry should be seeded")
+            .coins,
+        7
+    );
     assert!(session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
@@ -137,7 +144,14 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     );
     assert!(!canonical.is_fully_looted_like_cpp());
     assert!(session.reconcile_represented_loot_cache_like_cpp(loot_guid, player_guid));
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(loot_guid).expect("loot cache entry should be seeded").coins, 7);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .expect("loot cache entry should be seeded")
+            .coins,
+        7
+    );
     assert!(session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
@@ -268,7 +282,10 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         first_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, first_player, response);
@@ -295,7 +312,10 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         second_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, second_player, response);
@@ -645,7 +665,10 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
     fixture
         .session
         .loot
-        .insert_active_loot_view_generation_for_test_like_cpp(fixture.owner_guid, opened.generation);
+        .insert_active_loot_view_generation_for_test_like_cpp(
+            fixture.owner_guid,
+            opened.generation,
+        );
     fixture
         .session
         .loot
@@ -667,13 +690,18 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
         !fixture
             .session
             .loot
-            .represented_loot_cache_generation_for_test_like_cpp(fixture.owner_guid).is_some()
+            .represented_loot_cache_generation_for_test_like_cpp(fixture.owner_guid)
+            .is_some()
     );
     assert!(
         !fixture
             .session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(fixture.owner_guid, fixture.first_tapper).is_some()
+            .personal_loot_money_for_owner_and_player_like_cpp(
+                fixture.owner_guid,
+                fixture.first_tapper
+            )
+            .is_some()
     );
     let after_release = authority
         .snapshot_for_player_like_cpp(fixture.first_tapper)
@@ -708,7 +736,10 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
         fixture
             .session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(fixture.owner_guid, fixture.first_tapper),
+            .personal_loot_money_for_owner_and_player_like_cpp(
+                fixture.owner_guid,
+                fixture.first_tapper
+            ),
         Some(&7)
     );
     authority

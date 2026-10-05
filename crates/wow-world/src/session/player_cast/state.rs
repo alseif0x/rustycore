@@ -92,7 +92,9 @@ impl WorldSession {
     fn with_pending_spell_cast_owner_like_cpp<R>(
         &mut self,
         canonical: impl FnOnce(&mut wow_entities::Player) -> R,
-        #[cfg(any(test, feature = "test-fixtures"))] fallback: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
+        #[cfg(any(test, feature = "test-fixtures"))] fallback: impl FnOnce(
+            &mut Option<RepresentedPendingSpellCastRequestLikeCpp>,
+        ) -> R,
     ) -> Option<R> {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {

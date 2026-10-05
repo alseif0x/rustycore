@@ -8,11 +8,11 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use wow_entities::PlayerQuestStatusRecord;
 
 use super::contracts::{
-    RepresentedPendingQuestSharingLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
-    RepresentedQuestPushResultResponseLikeCpp, RepresentedQuestRewardMailLikeCpp,
-    RepresentedQuestRewardReputationLikeCpp, RepresentedQuestRewardSpellCastLikeCpp,
-    RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
-    RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestPushResultResponseLikeCpp,
+    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
+    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardTalentPointsLikeCpp,
+    RepresentedQuestRewardTitleLikeCpp,
 };
 
 pub(super) struct QuestTestFixtureLikeCpp {

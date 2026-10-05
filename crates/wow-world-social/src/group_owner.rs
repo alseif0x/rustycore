@@ -17,10 +17,7 @@ impl SessionSocialLimits {
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = consumer_test;
         #[cfg(any(test, feature = "test-fixtures"))]
-        if consumer_test
-            && canonical_group_guid.is_none()
-            && owner.owner_handle_absent_like_cpp()
-        {
+        if consumer_test && canonical_group_guid.is_none() && owner.owner_handle_absent_like_cpp() {
             return self.group_guid_for_test_like_cpp();
         }
         canonical_group_guid.flatten()

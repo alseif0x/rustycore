@@ -106,9 +106,7 @@ mod tests {
         }
     }
 
-    fn decide_without_late_work(
-        input: TrainerOfferInputLikeCpp,
-    ) -> TrainerOfferDecisionLikeCpp {
+    fn decide_without_late_work(input: TrainerOfferInputLikeCpp) -> TrainerOfferDecisionLikeCpp {
         decide_trainer_offer_like_cpp(
             input,
             |_| panic!("an earlier admission gate must short-circuit projection"),

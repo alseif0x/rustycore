@@ -59,7 +59,8 @@ impl InstancePlayerAccessLikeCpp<'_> {
     }
 
     pub fn game_master_with_fixture_like_cpp(&self, fixture_value: &bool) -> Option<bool> {
-        self.core.player_is_game_master_with_fixture_like_cpp(fixture_value)
+        self.core
+            .player_is_game_master_with_fixture_like_cpp(fixture_value)
     }
 
     pub fn canonical_game_master_like_cpp(&self) -> Option<bool> {
@@ -71,11 +72,7 @@ impl InstancePlayerAccessLikeCpp<'_> {
         self.core.player_handle_like_cpp.is_none()
     }
 
-    pub fn canonical_map_difficulty_like_cpp(
-        &self,
-        map_id: u32,
-        instance_id: u32,
-    ) -> Option<u8> {
+    pub fn canonical_map_difficulty_like_cpp(&self, map_id: u32, instance_id: u32) -> Option<u8> {
         let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         manager

@@ -158,28 +158,24 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
             data: 1.25,
         },
     ])));
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            EQUIPMENT_SLOT_OFFHAND,
-            InventoryItem {
-                guid: weapon_guid,
-                entry_id: 100,
-                db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Shield as u8),
-            },
-        );
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            INVENTORY_SLOT_BAG_START,
-            InventoryItem {
-                guid: bag_guid,
-                entry_id: 200,
-                db_guid: bag_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Bag as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        EQUIPMENT_SLOT_OFFHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: 100,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Shield as u8),
+        },
+    );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        INVENTORY_SLOT_BAG_START,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: 200,
+            db_guid: bag_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
     let weapon = session.make_inventory_item_object(
         weapon_guid,
         100,
@@ -395,17 +391,15 @@ fn equip_durability_test_weapon_like_cpp(
             )],
         ),
     ));
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            EQUIPMENT_SLOT_MAINHAND,
-            InventoryItem {
-                guid: weapon_guid,
-                entry_id: 300,
-                db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Weapon as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        EQUIPMENT_SLOT_MAINHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: 300,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Weapon as u8),
+        },
+    );
     let weapon = session.make_inventory_item_object(
         weapon_guid,
         300,

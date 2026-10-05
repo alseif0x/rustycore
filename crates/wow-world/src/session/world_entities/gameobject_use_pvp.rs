@@ -42,13 +42,14 @@ impl WorldSession {
             .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .map(|state| state.capture_point_assault_ai_returns_true)
             .unwrap_or(false);
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::CapturePointAssaultAi {
-                gameobject_guid,
-                player_guid,
-                handled: ai_handled,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::CapturePointAssaultAi {
+                    gameobject_guid,
+                    player_guid,
+                    handled: ai_handled,
+                },
+            );
         if ai_handled {
             return true;
         }
@@ -60,16 +61,17 @@ impl WorldSession {
             return false;
         }
 
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::CapturePointAssaultRequested {
-                gameobject_guid,
-                player_guid,
-                capture_time_ms: source.capture_time_ms,
-                world_state_id: source.world_state_id,
-                contested_event_horde: source.contested_event_horde,
-                contested_event_alliance: source.contested_event_alliance,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::CapturePointAssaultRequested {
+                    gameobject_guid,
+                    player_guid,
+                    capture_time_ms: source.capture_time_ms,
+                    world_state_id: source.world_state_id,
+                    contested_event_horde: source.contested_event_horde,
+                    contested_event_alliance: source.contested_event_alliance,
+                },
+            );
 
         let player_team =
             player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
@@ -182,21 +184,23 @@ impl WorldSession {
         {
             return false;
         }
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
-                gameobject_guid,
-                player_guid,
-            },
-        );
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::BattlegroundFlagStandClicked {
-                gameobject_guid,
-                player_guid,
-                pickup_spell_id: source.pickup_spell_id,
-                return_aura_id: source.return_aura_id,
-                return_spell_id: source.return_spell_id,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
+                    gameobject_guid,
+                    player_guid,
+                },
+            );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::BattlegroundFlagStandClicked {
+                    gameobject_guid,
+                    player_guid,
+                    pickup_spell_id: source.pickup_spell_id,
+                    return_aura_id: source.return_aura_id,
+                    return_spell_id: source.return_spell_id,
+                },
+            );
 
         true
     }
@@ -241,31 +245,34 @@ impl WorldSession {
         {
             return false;
         }
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
-                gameobject_guid,
-                player_guid,
-            },
-        );
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::BattlegroundFlagDropClicked {
-                gameobject_guid,
-                player_guid,
-                gameobject_entry,
-                click_target,
-                event_id: source.event_id,
-                pickup_spell_id: source.pickup_spell_id,
-                expire_duration_ms: source.expire_duration_ms,
-            },
-        );
-        if source.event_id != 0 {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TriggerGameEvent {
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                     gameobject_guid,
                     player_guid,
-                    event_id: source.event_id,
                 },
             );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::BattlegroundFlagDropClicked {
+                    gameobject_guid,
+                    player_guid,
+                    gameobject_entry,
+                    click_target,
+                    event_id: source.event_id,
+                    pickup_spell_id: source.pickup_spell_id,
+                    expire_duration_ms: source.expire_duration_ms,
+                },
+            );
+        if source.event_id != 0 {
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerGameEvent {
+                        gameobject_guid,
+                        player_guid,
+                        event_id: source.event_id,
+                    },
+                );
         }
         self.send_represented_gameobject_delete_packets_like_cpp(gameobject_guid);
         self.world_entities
@@ -304,19 +311,20 @@ impl WorldSession {
             state.new_flag_entry = Some(gameobject_entry);
         }
 
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::NewFlagPickupRequested {
-                gameobject_guid,
-                player_guid,
-                pickup_spell_id: source.pickup_spell_id,
-                expire_duration_ms: source.expire_duration_ms,
-                respawn_time_ms: source.respawn_time_ms,
-                flag_drop_entry: source.flag_drop_entry,
-                exclusive_category: source.exclusive_category,
-                world_state_id: source.world_state_id,
-                return_on_defender_interact: source.return_on_defender_interact,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::NewFlagPickupRequested {
+                    gameobject_guid,
+                    player_guid,
+                    pickup_spell_id: source.pickup_spell_id,
+                    expire_duration_ms: source.expire_duration_ms,
+                    respawn_time_ms: source.respawn_time_ms,
+                    flag_drop_entry: source.flag_drop_entry,
+                    exclusive_category: source.exclusive_category,
+                    world_state_id: source.world_state_id,
+                    return_on_defender_interact: source.return_on_defender_interact,
+                },
+            );
 
         self.apply_represented_gameobject_post_use_spell_like_cpp(
             gameobject_guid,
@@ -343,13 +351,14 @@ impl WorldSession {
             return false;
         }
 
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::NewFlagDropInteracted {
-                gameobject_guid,
-                player_guid,
-                spawn_vignette_id: source.spawn_vignette_id,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::NewFlagDropInteracted {
+                    gameobject_guid,
+                    player_guid,
+                    spawn_vignette_id: source.spawn_vignette_id,
+                },
+            );
 
         let owner_guid = self
             .world_entities

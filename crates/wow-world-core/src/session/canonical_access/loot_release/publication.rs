@@ -21,11 +21,16 @@ impl ChestLootReleaseRoutingLikeCpp<'_> {
         command: crate::session::mailbox::SyncChestGameobjectStateAndRefreshLikeCppCommand,
     ) -> usize {
         let current_map_id = self.core.player_map_id_like_cpp();
-        let current_instance_id = self.core.current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id).unwrap_or(0);
+        let current_instance_id = self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
         let mut queued = 0;
         for registration in self.registry.same_map_loot_recipients(
-            self.player_guid, current_map_id, current_instance_id,
+            self.player_guid,
+            current_map_id,
+            current_instance_id,
         ) {
             if self.registry.try_send_current_command(
                 registration,
@@ -43,7 +48,9 @@ impl LootReleaseAccessLikeCpp<'_> {
         let player_guid = self.core.player_guid()?;
         let registry = self.core.player_registry()?;
         Some(ChestLootReleaseRoutingLikeCpp {
-            core: self.core, registry: registry.as_ref(), player_guid,
+            core: self.core,
+            registry: registry.as_ref(),
+            player_guid,
         })
     }
 
@@ -56,8 +63,10 @@ impl LootReleaseAccessLikeCpp<'_> {
     }
 
     pub fn loot_instance_id_like_cpp(&self) -> u32 {
-        self.core.current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id).unwrap_or(0)
+        self.core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0)
     }
 
     pub fn creature_is_client_visible_like_cpp(&self, guid: ObjectGuid) -> bool {
@@ -156,8 +165,11 @@ impl LootReleaseAccessLikeCpp<'_> {
             return !creature.is_alive();
         }
 
-        let Some(map_key) = self.core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.core.player_map_id_like_cpp()))
+        let Some(map_key) = self
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                self.core.player_map_id_like_cpp(),
+            ))
         else {
             return false;
         };

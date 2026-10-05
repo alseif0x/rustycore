@@ -108,7 +108,8 @@ impl InventoryState {
     ) -> bool {
         self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
             inventory.apply_item_object_updates_like_cpp(item_guid, updates)
-        }).unwrap_or(false)
+        })
+        .unwrap_or(false)
     }
 
     pub fn insert_quest_reward_inventory_item_with_access_like_cpp(
@@ -119,7 +120,8 @@ impl InventoryState {
     ) -> Option<wow_entities::PlayerInventoryItem> {
         self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
             inventory.store_item_in_slot_like_cpp(slot, item)
-        }).flatten()
+        })
+        .flatten()
     }
 
     pub fn insert_quest_reward_item_object_with_access_like_cpp(
@@ -129,7 +131,8 @@ impl InventoryState {
     ) -> Option<wow_entities::Item> {
         self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
             inventory.store_item_object_like_cpp(item)
-        }).flatten()
+        })
+        .flatten()
     }
 
     /// Clone one runtime item through the same full inventory projection used by
@@ -191,9 +194,7 @@ impl InventoryState {
             entry_id,
         )
         .map(|template| template.inventory_type as u8)
-        .filter(|&inventory_type| {
-            inventory_type != wow_constants::InventoryType::NonEquip as u8
-        });
+        .filter(|&inventory_type| inventory_type != wow_constants::InventoryType::NonEquip as u8);
 
         Some(wow_entities::PlayerInventoryItem {
             guid,
@@ -246,10 +247,7 @@ impl InventoryState {
                 .filter_map(|inventory_item| {
                     self.resolved_player_inventory_runtime_with_access_like_cpp(access)
                         .and_then(|inventory| {
-                            inventory
-                                .item_objects()
-                                .get(&inventory_item.guid)
-                                .cloned()
+                            inventory.item_objects().get(&inventory_item.guid).cloned()
                         })
                         .filter(|item| !item.is_in_trade())
                         .map(|item| item.count())

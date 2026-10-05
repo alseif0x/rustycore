@@ -18,7 +18,8 @@ async fn process_pending_ticks_default_not_ready_gameobject_to_ready_like_cpp() 
         (chest_guid, wow_entities::GAMEOBJECT_TYPE_CHEST),
     ] {
         let state = session
-            .world_entities.ensure_represented_gameobject_use_state_like_cpp(guid);
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
         state.go_type = Some(go_type as u8);
         state.loot_state = Some(wow_entities::LootState::NotReady);
     }
@@ -27,21 +28,24 @@ async fn process_pending_ticks_default_not_ready_gameobject_to_ready_like_cpp() 
 
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(chair_guid)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(chair_guid)
             .unwrap()
             .loot_state,
         Some(wow_entities::LootState::Ready)
     );
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(camera_guid)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(camera_guid)
             .unwrap()
             .loot_state,
         Some(wow_entities::LootState::Ready)
     );
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(chest_guid)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(chest_guid)
             .unwrap()
             .loot_state,
         Some(wow_entities::LootState::NotReady)
@@ -69,11 +73,15 @@ fn gameobject_use_chair_picks_nearest_free_slot_like_cpp() {
 
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .len(),
         2
     );
-    match session.world_entities.represented_gameobject_use_effects_since_like_cpp(0)[0] {
+    match session
+        .world_entities
+        .represented_gameobject_use_effects_since_like_cpp(0)[0]
+    {
         RepresentedGameObjectUseEffect::ChairUsed {
             gameobject_guid: effect_gameobject_guid,
             player_guid: effect_player_guid,
@@ -93,7 +101,9 @@ fn gameobject_use_chair_picks_nearest_free_slot_like_cpp() {
         other => panic!("unexpected chair effect: {other:?}"),
     }
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0)[1],
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)[1],
         RepresentedGameObjectUseEffect::TriggerGameEvent {
             gameobject_guid,
             player_guid,
@@ -102,7 +112,8 @@ fn gameobject_use_chair_picks_nearest_free_slot_like_cpp() {
     );
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .unwrap()
             .chair_slots[2],
         Some(player_guid)
@@ -125,7 +136,8 @@ fn gameobject_use_chair_rejects_when_all_represented_slots_are_occupied() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 18);
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .chair_slots = vec![Some(other_guid)];
 
     assert!(!session.use_represented_gameobject_chair_like_cpp(
@@ -141,7 +153,9 @@ fn gameobject_use_chair_rejects_when_all_represented_slots_are_occupied() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::ChairNoFreeSlot {
             gameobject_guid,
             player_guid,
@@ -167,7 +181,9 @@ fn gameobject_use_barber_chair_records_ui_teleport_and_stand_state_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::BarberChairUsed {
             gameobject_guid,
             player_guid,
@@ -204,7 +220,9 @@ fn gameobject_use_ui_link_records_interaction_type_like_cpp() {
         wow_entities::UiLinkUseSource { ui_link_type: 2 },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::UiLinkOpened {
             gameobject_guid,
             player_guid,
@@ -220,14 +238,17 @@ fn gameobject_use_ui_link_records_interaction_type_like_cpp() {
     assert_eq!(send_rx.try_recv().unwrap(), expected);
 
     session
-        .world_entities.clear_represented_gameobject_use_effects_for_test_like_cpp();
+        .world_entities
+        .clear_represented_gameobject_use_effects_for_test_like_cpp();
     assert!(session.use_represented_gameobject_ui_link_like_cpp(
         gameobject_guid,
         player_guid,
         wow_entities::UiLinkUseSource { ui_link_type: 99 },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::UiLinkOpened {
             gameobject_guid,
             player_guid,
@@ -252,7 +273,9 @@ fn gameobject_use_item_forge_records_condition_checked_noop_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::ItemForgeUsed {
             gameobject_guid,
             player_guid,
@@ -269,7 +292,8 @@ fn gameobject_use_capture_point_records_assault_hook_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 25);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_AB_LIKE_CPP);
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .position = Some(Position::new(12.5, 34.25, 56.0, 1.0));
 
     assert!(session.use_represented_gameobject_capture_point_like_cpp(
@@ -284,7 +308,9 @@ fn gameobject_use_capture_point_records_assault_hook_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::CapturePointAssaultAi {
                 gameobject_guid,
@@ -323,7 +349,8 @@ fn gameobject_use_capture_point_records_assault_hook_like_cpp() {
     assert_eq!(&packet[27..31], &60_000_u32.to_le_bytes());
     assert_eq!(&packet[31..35], &60_000_u32.to_le_bytes());
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(
         state.capture_point_state,
@@ -350,7 +377,9 @@ fn gameobject_use_capture_point_requires_battleground_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::CapturePointAssaultAi {
             gameobject_guid,
             player_guid,
@@ -365,7 +394,8 @@ fn gameobject_use_capture_point_ai_can_handle_before_battleground_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 44);
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .capture_point_assault_ai_returns_true = true;
 
     assert!(session.use_represented_gameobject_capture_point_like_cpp(
@@ -380,7 +410,9 @@ fn gameobject_use_capture_point_ai_can_handle_before_battleground_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::CapturePointAssaultAi {
             gameobject_guid,
             player_guid,
@@ -397,7 +429,8 @@ fn gameobject_use_capture_point_respects_team_state_gate_like_cpp() {
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_AB_LIKE_CPP);
     session.fixtures.identity.player_race = 1;
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .capture_point_state = Some(RepresentedCapturePointStateLikeCpp::AllianceCaptured);
 
     assert!(!session.use_represented_gameobject_capture_point_like_cpp(
@@ -413,7 +446,8 @@ fn gameobject_use_capture_point_respects_team_state_gate_like_cpp() {
     ));
     assert!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 
@@ -448,7 +482,9 @@ fn gameobject_use_flagstand_records_battleground_click_hook_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                 gameobject_guid,
@@ -483,7 +519,9 @@ fn gameobject_use_flagstand_rejects_vehicle_before_bg_click_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -510,7 +548,9 @@ fn gameobject_use_flagstand_rejects_missing_battleground_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -602,7 +642,9 @@ fn gameobject_use_flagdrop_triggers_event_and_delete_like_cpp() {
             .to_bytes()
     );
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                 gameobject_guid,
@@ -645,7 +687,9 @@ fn gameobject_use_flagdrop_requires_matching_battleground_type_for_click_like_cp
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                 gameobject_guid,
@@ -688,7 +732,9 @@ fn gameobject_use_flagdrop_rejects_missing_battleground_before_delete_like_cpp()
     ));
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -719,7 +765,9 @@ fn gameobject_use_flagdrop_rejects_vehicle_before_delete_like_cpp() {
     ));
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
@@ -748,7 +796,9 @@ fn gameobject_use_flagdrop_unknown_entry_keeps_delete_without_bg_click_like_cpp(
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::RemoveStealthOrInvisibilityAuras {
                 gameobject_guid,
@@ -789,7 +839,9 @@ fn gameobject_use_new_flag_records_pickup_request_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::NewFlagPickupRequested {
                 gameobject_guid,
@@ -828,7 +880,8 @@ fn gameobject_use_new_flag_records_pickup_request_like_cpp() {
         ]
     );
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(
         state.new_flag_state,
@@ -845,7 +898,8 @@ fn gameobject_use_new_flag_rejects_non_in_base_state_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 36);
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .new_flag_state = Some(RepresentedNewFlagStateRequest::Taken);
 
     assert!(!session.use_represented_gameobject_new_flag_like_cpp(
@@ -864,7 +918,8 @@ fn gameobject_use_new_flag_rejects_non_in_base_state_like_cpp() {
     ));
     assert!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 }

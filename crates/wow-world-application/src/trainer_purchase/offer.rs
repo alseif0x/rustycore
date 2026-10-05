@@ -240,16 +240,17 @@ pub fn prepare_trainer_offer_like_cpp(
         TrainerProductLikeCpp::Direct => {
             SpellAcquisitionRootLikeCpp::DirectLearn(input.source_spell_id)
         }
-        TrainerProductLikeCpp::Wrapper { valid_learn_targets } => {
+        TrainerProductLikeCpp::Wrapper {
+            valid_learn_targets,
+        } => {
             if valid_learn_targets.is_empty() {
                 return Preflight::Decision(TrainerOfferDecisionLikeCpp::Unavailable(
                     TrainerUnavailableReasonLikeCpp::InvalidOrUnsupportedWrapper,
                 ));
             }
-            if valid_learn_targets
-                .iter()
-                .all(|spell_id| represented_trainer_spell_known_like_cpp(&input.spell_rows, *spell_id))
-            {
+            if valid_learn_targets.iter().all(|spell_id| {
+                represented_trainer_spell_known_like_cpp(&input.spell_rows, *spell_id)
+            }) {
                 return Preflight::Decision(TrainerOfferDecisionLikeCpp::Known(
                     TrainerKnownReasonLikeCpp::AllValidWrapperTargets,
                 ));
@@ -267,15 +268,13 @@ pub fn prepare_trainer_offer_like_cpp(
         TrainerBattlePetProofLikeCpp::NotBattlePet => None,
         TrainerBattlePetProofLikeCpp::Species(species_id) => {
             if matches!(root, SpellAcquisitionRootLikeCpp::DirectLearn(_)) {
-                return Preflight::Decision(
-                    TrainerOfferDecisionLikeCpp::AvailableBattlePet(
-                        PreparedBattlePetTrainerOfferLikeCpp {
-                            source_spell_id: input.source_spell_id,
-                            effective_price: input.effective_price,
-                            species_id,
-                        },
-                    ),
-                );
+                return Preflight::Decision(TrainerOfferDecisionLikeCpp::AvailableBattlePet(
+                    PreparedBattlePetTrainerOfferLikeCpp {
+                        source_spell_id: input.source_spell_id,
+                        effective_price: input.effective_price,
+                        species_id,
+                    },
+                ));
             }
             Some(species_id)
         }
@@ -302,10 +301,7 @@ pub fn finish_trainer_offer_after_projection_like_cpp(
     battle_pet_species_id: Option<u32>,
     outcome: SpellAcquisitionOutcomeLikeCpp,
     capacity: Option<
-        Result<
-            PrimaryProfessionCapacityPlanLikeCpp,
-            PrimaryProfessionCapacityPlanErrorLikeCpp,
-        >,
+        Result<PrimaryProfessionCapacityPlanLikeCpp, PrimaryProfessionCapacityPlanErrorLikeCpp>,
     >,
 ) -> TrainerOfferDecisionLikeCpp {
     let plan = match outcome {

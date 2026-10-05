@@ -48,7 +48,6 @@ impl WorldSession {
     }
 }
 
-
 impl WorldSession {
     pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
         self.catalogs

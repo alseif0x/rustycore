@@ -25,7 +25,14 @@ impl WorldSession {
     ) -> Option<(InventoryResult, InventorySwapTargetLikeCpp)> {
         let conditions = self.player_condition_projection_cx_like_cpp();
         wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
-            .validate_inventory_swap_target_like_cpp(source_bag, source_slot, destination_bag, destination_slot, swap, require_exact_destination)
+            .validate_inventory_swap_target_like_cpp(
+                source_bag,
+                source_slot,
+                destination_bag,
+                destination_slot,
+                swap,
+                require_exact_destination,
+            )
     }
 
     pub(crate) async fn execute_inventory_swap_positions_like_cpp(
@@ -695,6 +702,7 @@ impl WorldSession {
     }
 
     pub(crate) fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
-        self.inventory_position_publication_cx_like_cpp().publish_inventory_position_changes_like_cpp(positions);
+        self.inventory_position_publication_cx_like_cpp()
+            .publish_inventory_position_changes_like_cpp(positions);
     }
 }

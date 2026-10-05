@@ -20,14 +20,16 @@ pub struct QuestRewardItemPlanningFixtureRefsLikeCpp<'a> {
     contested_pvp: &'a u32,
     outdoors: &'a Option<bool>,
     taxi_destinations: &'a Vec<u32>,
-    taxi_flight: &'a Option<wow_world_core::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp>,
+    taxi_flight:
+        &'a Option<wow_world_core::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp>,
     taxi_flags: &'a wow_constants::UnitFlags,
     taxi_mounted: &'a bool,
     visible_auras: &'a std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
     aura_authority: &'a bool,
     aura_tombstone: &'a bool,
     threat_auras: &'a std::collections::HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
-    skills: &'a std::collections::HashMap<u16, wow_world_core::session::RepresentedPlayerSkillLikeCpp>,
+    skills:
+        &'a std::collections::HashMap<u16, wow_world_core::session::RepresentedPlayerSkillLikeCpp>,
     spell_state: &'a wow_world_spell::SessionSpellState,
     instances: &'a wow_world_instances::InstanceState,
     battleground: &'a wow_world_core::session::BattlegroundState,
@@ -67,14 +69,19 @@ impl<'a> QuestRewardItemPlanningFixtureRefsLikeCpp<'a> {
         contested_pvp: &'a u32,
         outdoors: &'a Option<bool>,
         taxi_destinations: &'a Vec<u32>,
-        taxi_flight: &'a Option<wow_world_core::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp>,
+        taxi_flight: &'a Option<
+            wow_world_core::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp,
+        >,
         taxi_flags: &'a wow_constants::UnitFlags,
         taxi_mounted: &'a bool,
         visible_auras: &'a std::collections::HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
         aura_authority: &'a bool,
         aura_tombstone: &'a bool,
         threat_auras: &'a std::collections::HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
-        skills: &'a std::collections::HashMap<u16, wow_world_core::session::RepresentedPlayerSkillLikeCpp>,
+        skills: &'a std::collections::HashMap<
+            u16,
+            wow_world_core::session::RepresentedPlayerSkillLikeCpp,
+        >,
         spell_state: &'a wow_world_spell::SessionSpellState,
         instances: &'a wow_world_instances::InstanceState,
         battleground: &'a wow_world_core::session::BattlegroundState,
@@ -83,11 +90,33 @@ impl<'a> QuestRewardItemPlanningFixtureRefsLikeCpp<'a> {
         in_combat: &'a bool,
     ) -> Self {
         Self {
-            race, class, gender, specialization, position, zone, area, zone_authority,
-            pvp_hostile, pvp_end, contested_pvp, outdoors, taxi_destinations, taxi_flight,
-            taxi_flags, taxi_mounted, visible_auras, aura_authority, aura_tombstone,
-            threat_auras, skills, spell_state, instances, battleground,
-            battleground_status, skills_complete, in_combat,
+            race,
+            class,
+            gender,
+            specialization,
+            position,
+            zone,
+            area,
+            zone_authority,
+            pvp_hostile,
+            pvp_end,
+            contested_pvp,
+            outdoors,
+            taxi_destinations,
+            taxi_flight,
+            taxi_flags,
+            taxi_mounted,
+            visible_auras,
+            aura_authority,
+            aura_tombstone,
+            threat_auras,
+            skills,
+            spell_state,
+            instances,
+            battleground,
+            battleground_status,
+            skills_complete,
+            in_combat,
         }
     }
 }
@@ -99,28 +128,51 @@ impl QuestRewardCx<'_> {
         count: u32,
         #[cfg(any(test, feature = "test-fixtures"))]
         fixtures: &QuestRewardItemPlanningFixtureRefsLikeCpp<'_>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        vitals: (&u32, &u32, &bool),
+        #[cfg(any(test, feature = "test-fixtures"))] vitals: (&u32, &u32, &bool),
         #[cfg(any(test, feature = "test-fixtures"))]
         reputation: &wow_entities::PlayerReputationStateLikeCpp,
-    ) -> Option<(wow_constants::InventoryResult, Vec<wow_entities::ItemPosCount>, Option<u32>)> {
+    ) -> Option<(
+        wow_constants::InventoryResult,
+        Vec<wow_entities::ItemPosCount>,
+        Option<u32>,
+    )> {
         let player = self.player.item_planning_condition_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
-                fixtures.race, fixtures.class, &*self.player_level, fixtures.gender,
-                fixtures.specialization, fixtures.position, fixtures.zone, fixtures.area,
-                fixtures.zone_authority, fixtures.pvp_hostile, fixtures.pvp_end,
-                fixtures.contested_pvp, fixtures.outdoors, vitals.0, vitals.1, vitals.2,
-                fixtures.taxi_destinations, fixtures.taxi_flight, fixtures.taxi_flags,
-                fixtures.taxi_mounted, fixtures.visible_auras, fixtures.aura_authority,
-                fixtures.aura_tombstone, fixtures.threat_auras, fixtures.skills,
+                fixtures.race,
+                fixtures.class,
+                &*self.player_level,
+                fixtures.gender,
+                fixtures.specialization,
+                fixtures.position,
+                fixtures.zone,
+                fixtures.area,
+                fixtures.zone_authority,
+                fixtures.pvp_hostile,
+                fixtures.pvp_end,
+                fixtures.contested_pvp,
+                fixtures.outdoors,
+                vitals.0,
+                vitals.1,
+                vitals.2,
+                fixtures.taxi_destinations,
+                fixtures.taxi_flight,
+                fixtures.taxi_flags,
+                fixtures.taxi_mounted,
+                fixtures.visible_auras,
+                fixtures.aura_authority,
+                fixtures.aura_tombstone,
+                fixtures.threat_auras,
+                fixtures.skills,
             ),
         );
         let conditions = crate::PlayerConditionProjectionCxLikeCpp::new(
             player,
             self.inventory,
             self.social,
-            self.catalogs.chr_specialization_store().map(std::sync::Arc::as_ref),
+            self.catalogs
+                .chr_specialization_store()
+                .map(std::sync::Arc::as_ref),
             #[cfg(any(test, feature = "test-fixtures"))]
             fixtures.spell_state,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -142,8 +194,15 @@ impl QuestRewardCx<'_> {
             self.world_test_consumer,
         );
         conditions.plan_store_direct_inventory_item_like_cpp(
-            self.player.item_planning_realm_id_like_cpp(), entry_id, count,
-            wow_entities::NULL_BAG, wow_entities::NULL_SLOT, None, false, &[], &[],
+            self.player.item_planning_realm_id_like_cpp(),
+            entry_id,
+            count,
+            wow_entities::NULL_BAG,
+            wow_entities::NULL_SLOT,
+            None,
+            false,
+            &[],
+            &[],
         )
     }
 }

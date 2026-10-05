@@ -16,7 +16,8 @@ impl WorldSession {
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
         let access = self.core.owned_player_currency_access_like_cpp();
-        self.inventory.player_currency_quantity_with_access_like_cpp(&access, currency_id)
+        self.inventory
+            .player_currency_quantity_with_access_like_cpp(&access, currency_id)
     }
     /// C++ `Player::HasCurrency`.
     pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
@@ -179,9 +180,7 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        let test_result = self
-            .lifecycle
-            .loot_money_persistence_test_result_like_cpp();
+        let test_result = self.lifecycle.loot_money_persistence_test_result_like_cpp();
         #[cfg(not(test))]
         let test_result: Option<bool> = None;
 

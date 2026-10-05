@@ -3,7 +3,7 @@
 //! The World session remains the admission and delivery coordinator. Read workers
 //! only prepare outcomes; submitted commit workers stay retained until joined.
 
-use crate::{prepare_rename, RenameFailure, RenameOutcome, RenamePreparation, RenameRequest};
+use crate::{RenameFailure, RenameOutcome, RenamePreparation, RenameRequest, prepare_rename};
 use flume::r#async::SendFut;
 use std::collections::VecDeque;
 use std::future::Future;

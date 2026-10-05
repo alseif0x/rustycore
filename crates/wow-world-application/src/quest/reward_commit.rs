@@ -189,10 +189,7 @@ impl<'a, 'player> QuestRewardCommitCx<'a, 'player> {
         if let Some(money) = money
             && !self
                 .inventory
-                .set_player_gold_with_quest_reward_access_like_cpp(
-                    &self.player,
-                    money.money_after,
-                )
+                .set_player_gold_with_quest_reward_access_like_cpp(&self.player, money.money_after)
         {
             self.player.quarantine_like_cpp(
                 "canonical Player money owner became unavailable after durable COMMIT",
@@ -202,10 +199,7 @@ impl<'a, 'player> QuestRewardCommitCx<'a, 'player> {
         if let Some(currencies) = currencies
             && !self
                 .inventory
-                .set_player_currencies_with_quest_reward_access_like_cpp(
-                    &self.player,
-                    currencies,
-                )
+                .set_player_currencies_with_quest_reward_access_like_cpp(&self.player, currencies)
         {
             self.player.quarantine_like_cpp(
                 "canonical Player currency owner became unavailable after durable COMMIT",

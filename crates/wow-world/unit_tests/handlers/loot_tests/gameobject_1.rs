@@ -392,7 +392,11 @@ async fn represented_empty_personal_encounter_chest_does_not_install_or_open_lik
             .personal_snapshots_like_cpp()
             .is_empty()
     );
-    assert!(!session.loot.cached_loot_contains_owner_like_cpp(gameobject_guid));
+    assert!(
+        !session
+            .loot
+            .cached_loot_contains_owner_like_cpp(gameobject_guid)
+    );
     assert!(
         !session
             .loot
@@ -401,7 +405,8 @@ async fn represented_empty_personal_encounter_chest_does_not_install_or_open_lik
     assert!(
         !session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, player_guid).is_some()
+            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, player_guid)
+            .is_some()
     );
     assert!(!session.loot.is_active_loot_guid(gameobject_guid));
     assert!(send_rx.try_recv().is_err());
@@ -512,7 +517,8 @@ async fn represented_gameobject_personal_encounter_loot_uses_current_player_when
     assert!(
         session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, player_guid).is_some()
+            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, player_guid)
+            .is_some()
     );
 }
 #[tokio::test]
@@ -523,15 +529,17 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
     let non_player_tapper = ObjectGuid::create_item(1, 900);
     let gameobject_guid = test_gameobject_guid(91_009);
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
-    session.loot.insert_represented_gameobject_tap_list_for_test_like_cpp(
-        gameobject_guid,
-        vec![
-            second_tapper,
-            non_player_tapper,
-            first_tapper,
-            second_tapper,
-        ],
-    );
+    session
+        .loot
+        .insert_represented_gameobject_tap_list_for_test_like_cpp(
+            gameobject_guid,
+            vec![
+                second_tapper,
+                non_player_tapper,
+                first_tapper,
+                second_tapper,
+            ],
+        );
     let source = GameObjectLootSource {
         loot_id: 0,
         use_group_loot_rules: false,
@@ -568,12 +576,14 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
     assert!(
         session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, first_tapper).is_some()
+            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, first_tapper)
+            .is_some()
     );
     assert!(
         session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, second_tapper).is_some()
+            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, second_tapper)
+            .is_some()
     );
 }
 #[tokio::test]
@@ -585,7 +595,10 @@ async fn represented_gameobject_personal_encounter_loot_skips_locked_tappers_lik
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
     session
         .loot
-        .insert_represented_gameobject_tap_list_for_test_like_cpp(gameobject_guid, vec![locked_tapper, open_tapper]);
+        .insert_represented_gameobject_tap_list_for_test_like_cpp(
+            gameobject_guid,
+            vec![locked_tapper, open_tapper],
+        );
     session
         .loot
         .insert_locked_dungeon_encounter_for_test_like_cpp(locked_tapper, 733);
@@ -630,7 +643,10 @@ async fn represented_gameobject_personal_encounter_open_does_not_auto_allow_non_
         .insert(gameobject_guid);
     session
         .loot
-        .insert_represented_gameobject_tap_list_for_test_like_cpp(gameobject_guid, vec![other_tapper]);
+        .insert_represented_gameobject_tap_list_for_test_like_cpp(
+            gameobject_guid,
+            vec![other_tapper],
+        );
     let source = GameObjectLootSource {
         loot_id: 0,
         use_group_loot_rules: false,
@@ -775,7 +791,11 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
         Some(&456)
     );
     assert_eq!(
-        session.loot.cached_loot_for_owner_like_cpp(gameobject_guid).unwrap().coins,
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(gameobject_guid)
+            .unwrap()
+            .coins,
         999
     );
 }
@@ -877,7 +897,9 @@ async fn represented_gameobject_chest_first_generation_records_use_effects_like_
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,

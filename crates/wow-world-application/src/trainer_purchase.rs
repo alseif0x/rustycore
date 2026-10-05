@@ -9,10 +9,10 @@
 
 use std::future::Future;
 
+use crate::PrimaryProfessionCapacityPlanLikeCpp;
 use crate::spell_acquisition::{
     PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
-    PreparedPlayerSpellAcquisitionLikeCpp,
-    PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
+    PreparedPlayerSpellAcquisitionLikeCpp, PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
     apply_prepared_player_spell_acquisition_actions_like_cpp,
     install_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     install_prepared_player_spell_acquisition_runtime_like_cpp,
@@ -20,12 +20,11 @@ use crate::spell_acquisition::{
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
-use crate::PrimaryProfessionCapacityPlanLikeCpp;
-use wow_spell_acquisition::{SpellAcquisitionPlanLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp};
+use wow_spell_acquisition::{PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionPlanLikeCpp};
 
+mod buy_admission;
 mod context;
 mod controller;
-mod buy_admission;
 pub use buy_admission::AppTrainerBuyAdmissionCxLikeCpp;
 mod offer;
 mod projection;
@@ -33,27 +32,25 @@ pub use projection::TrainerProjectionCatalogsLikeCpp;
 mod publication;
 mod runtime_install;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use context::TrainerAcquisitionFixturesLikeCpp;
 pub use context::{AppTrainerCx, TrainerAcquisitionCatalogsLikeCpp};
 pub use controller::{
-    AppTrainerBuyCx, AppTrainerListCx, TrainerBuyAdmissionLikeCpp,
-    TrainerListCatalogsLikeCpp, TrainerListOfferResultLikeCpp,
-    resolve_creature_trainer_like_cpp,
-    trainer_list_required_npc_flags_like_cpp,
-    trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
-    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP,
-    TRAINER_LIST_NPC_FLAGS_LIKE_CPP,
+    AppTrainerBuyCx, AppTrainerListCx, TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+    TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP, TRAINER_LIST_NPC_FLAGS_LIKE_CPP, TrainerBuyAdmissionLikeCpp,
+    TrainerListCatalogsLikeCpp, TrainerListOfferResultLikeCpp, resolve_creature_trainer_like_cpp,
+    trainer_list_required_npc_flags_like_cpp, trainer_spell_class_race_fit_like_cpp,
+    trainer_spell_product_like_cpp,
 };
 pub use offer::{
     PreparedBattlePetTrainerOfferLikeCpp, TrainerAdmissionProofLikeCpp,
     TrainerBattlePetProofLikeCpp, TrainerHiddenReasonLikeCpp, TrainerKnownReasonLikeCpp,
     TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp,
-    TrainerOfferProjectionLikeCpp, TrainerProductLikeCpp,
-    TrainerUnavailableReasonLikeCpp, decide_trainer_offer_like_cpp,
-    finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
-    trainer_condition_admission_proof_like_cpp, trainer_price_like_cpp,
+    TrainerOfferProjectionLikeCpp, TrainerProductLikeCpp, TrainerUnavailableReasonLikeCpp,
+    decide_trainer_offer_like_cpp, finish_trainer_offer_after_projection_like_cpp,
+    prepare_trainer_offer_like_cpp, trainer_condition_admission_proof_like_cpp,
+    trainer_price_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use context::TrainerAcquisitionFixturesLikeCpp;
 pub use runtime_install::{
     install_player_spell_acquisition_runtime_snapshot_like_cpp,
     install_represented_spell_acquisition_runtime_like_cpp,
@@ -83,9 +80,7 @@ pub struct TrainerAcquisitionPublicationLikeCpp {
 
 /// Capabilities of the existing admitted trainer operation, not a new owner.
 /// No synchronous Player/Map guard is returned or retained across these awaits.
-pub trait TrainerAcquisitionRuntimeLikeCpp:
-    PlayerSpellAcquisitionRuntimeLikeCpp
-{
+pub trait TrainerAcquisitionRuntimeLikeCpp: PlayerSpellAcquisitionRuntimeLikeCpp {
     type MoneyExclusion: Send;
     fn commit_acquisition(
         &mut self,

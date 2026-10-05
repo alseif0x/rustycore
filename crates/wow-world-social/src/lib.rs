@@ -4,31 +4,31 @@
 
 //! Social ownership for the world-session application boundary.
 
-mod contracts;
 mod catalogs;
-mod handlers;
 mod chat;
-mod duel_publication;
+mod contracts;
 mod duel;
+mod duel_publication;
 mod group;
 pub mod group_fanout;
-mod state;
-mod requests;
-mod trade;
-mod guild;
 mod group_owner;
+mod guild;
+mod handlers;
+mod requests;
+mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
+mod trade;
 
+pub use contracts::{
+    ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, RepresentedCalendarAddEventLikeCpp,
+    RepresentedCalendarCommunityInviteLikeCpp, RepresentedCalendarRemoveEventLikeCpp,
+    RepresentedDeclinePetitionLikeCpp, RepresentedQueryPetitionLikeCpp,
+    RepresentedSignPetitionLikeCpp,
+};
 pub use handlers::{
     InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
     register_social_inspect_handlers_like_cpp,
-};
-pub use contracts::{
-    ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp,
-    RepresentedCalendarAddEventLikeCpp, RepresentedCalendarCommunityInviteLikeCpp,
-    RepresentedCalendarRemoveEventLikeCpp, RepresentedDeclinePetitionLikeCpp,
-    RepresentedQueryPetitionLikeCpp, RepresentedSignPetitionLikeCpp,
 };
 pub use state::SessionSocialLimits;
 

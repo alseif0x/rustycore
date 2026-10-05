@@ -31,8 +31,18 @@ impl<'a> AuraApplicationCatalogsLikeCpp<'a> {
         map_store: Option<&'a wow_data::map::MapStore>,
         item_mod_catalogs: wow_world_inventory::ItemModsCatalogsViewLikeCpp<'a>,
     ) -> Self {
-        Self { mount_capabilities, spell_store, classes_store, difficulty_store,
-            item_store, item_stats, item_effects, form_store, map_store, item_mod_catalogs }
+        Self {
+            mount_capabilities,
+            spell_store,
+            classes_store,
+            difficulty_store,
+            item_store,
+            item_stats,
+            item_effects,
+            form_store,
+            map_store,
+            item_mod_catalogs,
+        }
     }
 }
 
@@ -48,23 +58,41 @@ pub struct AuraApplicationFixtureRefsLikeCpp<'a> {
 #[cfg(any(test, feature = "test-fixtures"))]
 impl<'a> AuraApplicationFixtureRefsLikeCpp<'a> {
     pub fn new(
-        form: &'a mut u32, class: &'a u8, level: &'a u8,
+        form: &'a mut u32,
+        class: &'a u8,
+        level: &'a u8,
         quests: &'a crate::SessionQuestState,
-        seat_flags: &'a Option<i32>, seat_id: &'a Option<u32>,
+        seat_flags: &'a Option<i32>,
+        seat_id: &'a Option<u32>,
         transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
-        vehicle_id: &'a mut u32, accessories: &'a mut Vec<wow_entities::VehicleAccessory>,
-        seat_count: &'a mut u8, usable_seat_count: &'a mut u8,
-        vehicle_remove_requests: &'a mut u32, pet_control_enable_requests: &'a mut u32,
-        pet_resummon_requests: &'a mut u32, collision_update_requests: &'a mut u32,
+        vehicle_id: &'a mut u32,
+        accessories: &'a mut Vec<wow_entities::VehicleAccessory>,
+        seat_count: &'a mut u8,
+        usable_seat_count: &'a mut u8,
+        vehicle_remove_requests: &'a mut u32,
+        pet_control_enable_requests: &'a mut u32,
+        pet_resummon_requests: &'a mut u32,
+        collision_update_requests: &'a mut u32,
     ) -> Self {
         Self {
-            form, class, level,
+            form,
+            class,
+            level,
             scaling: super::item_scaling::AuraScalingFixtureRefsLikeCpp {
-                quests, vehicle_seat_flags: seat_flags, vehicle_seat_id: seat_id, transport,
+                quests,
+                vehicle_seat_flags: seat_flags,
+                vehicle_seat_id: seat_id,
+                transport,
             },
             mount: super::mount_control::MountRemovalEvidenceRefsLikeCpp {
-                vehicle_id, accessories, seat_count, usable_seat_count, vehicle_remove_requests,
-                pet_control_enable_requests, pet_resummon_requests, collision_update_requests,
+                vehicle_id,
+                accessories,
+                seat_count,
+                usable_seat_count,
+                vehicle_remove_requests,
+                pet_control_enable_requests,
+                pet_resummon_requests,
+                collision_update_requests,
             },
         }
     }
@@ -78,22 +106,42 @@ impl<'a> AuraRemovalCxLikeCpp<'a> {
         mount: wow_world_core::session::AuraMountControlAccessLikeCpp<'a>,
         stats: wow_world_core::session::AuraStatsAccessBuilderLikeCpp<'a>,
         item_sets: wow_world_core::session::OwnedItemSetAccessLikeCpp<'a>,
-        catalogs: AuraApplicationCatalogsLikeCpp<'a>, loot: &'a wow_world_loot::LootState,
+        catalogs: AuraApplicationCatalogsLikeCpp<'a>,
+        loot: &'a wow_world_loot::LootState,
         consumer_test: bool,
-        #[cfg(any(test, feature = "test-fixtures"))] fixtures: AuraApplicationFixtureRefsLikeCpp<'a>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: AuraApplicationFixtureRefsLikeCpp<
+            'a,
+        >,
     ) -> Self {
         Self {
-            spell, inventory, player, mount, stats, item_sets, loot, consumer_test,
-            mount_capabilities: catalogs.mount_capabilities, spell_store: catalogs.spell_store,
-            classes_store: catalogs.classes_store, difficulty_store: catalogs.difficulty_store,
-            item_store: catalogs.item_store, item_stats: catalogs.item_stats,
-            item_effects: catalogs.item_effects, form_store: catalogs.form_store,
-            map_store: catalogs.map_store, item_mod_catalogs: catalogs.item_mod_catalogs,
-            #[cfg(any(test, feature = "test-fixtures"))] shapeshift_form: fixtures.form,
-            #[cfg(any(test, feature = "test-fixtures"))] player_class: fixtures.class,
-            #[cfg(any(test, feature = "test-fixtures"))] player_level: fixtures.level,
-            #[cfg(any(test, feature = "test-fixtures"))] scaling_fixture: fixtures.scaling,
-            #[cfg(any(test, feature = "test-fixtures"))] mount_evidence: fixtures.mount,
+            spell,
+            inventory,
+            player,
+            mount,
+            stats,
+            item_sets,
+            loot,
+            consumer_test,
+            mount_capabilities: catalogs.mount_capabilities,
+            spell_store: catalogs.spell_store,
+            classes_store: catalogs.classes_store,
+            difficulty_store: catalogs.difficulty_store,
+            item_store: catalogs.item_store,
+            item_stats: catalogs.item_stats,
+            item_effects: catalogs.item_effects,
+            form_store: catalogs.form_store,
+            map_store: catalogs.map_store,
+            item_mod_catalogs: catalogs.item_mod_catalogs,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            shapeshift_form: fixtures.form,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_class: fixtures.class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_level: fixtures.level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            scaling_fixture: fixtures.scaling,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            mount_evidence: fixtures.mount,
         }
     }
 }

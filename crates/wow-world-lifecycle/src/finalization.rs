@@ -210,10 +210,7 @@ impl SessionFinalization {
             .find(|step| self.report.outcome(*step) == FinalizationOutcome::NotAttempted)
     }
 
-    pub fn retain_collection(
-        &mut self,
-        request: wow_persistence::AccountCollectionSaveLikeCpp,
-    ) {
+    pub fn retain_collection(&mut self, request: wow_persistence::AccountCollectionSaveLikeCpp) {
         self.retained_collection = Some(request);
     }
 

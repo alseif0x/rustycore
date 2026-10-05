@@ -90,8 +90,7 @@ fn represented_current_player_has_incomplete_quest_objective_for_item_like_cpp(
     let Ok(item_object_id) = i32::try_from(item_id) else {
         return false;
     };
-    let Some(quests) =
-        current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
+    let Some(quests) = current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
     else {
         return false;
     };
@@ -117,8 +116,7 @@ fn represented_current_player_has_incomplete_quest_item_drop_for_item_like_cpp(
     let Some(quest_store) = catalogs.quests.store.as_ref() else {
         return false;
     };
-    let Some(quests) =
-        current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
+    let Some(quests) = current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
     else {
         return false;
     };

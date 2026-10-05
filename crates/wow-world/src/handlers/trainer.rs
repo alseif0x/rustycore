@@ -30,30 +30,25 @@ use std::sync::Arc;
 
 use tracing::{debug, info, warn};
 
-use wow_data::{
-    BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp,
-};
+use wow_data::{BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp};
 
 #[cfg(test)]
 use wow_packet::packets::spell::PlaySpellVisualKit;
 use wow_packet::packets::trainer::TrainerBuyFailed;
 
 use crate::session::WorldSession;
+use wow_conditions as conditions;
 use wow_world_application::{
-    TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerBuyAdmissionLikeCpp,
-    TrainerOfferDecisionLikeCpp, TrainerOfferPreflightLikeCpp,
-    TrainerOfferInputLikeCpp, TrainerProductLikeCpp, TrainerUnavailableReasonLikeCpp,
-    TrainerListOfferResultLikeCpp,
-    finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
-    resolve_creature_trainer_like_cpp,
-    trainer_condition_admission_proof_like_cpp,
-    trainer_list_required_npc_flags_like_cpp,
+    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp,
+    TrainerBuyAdmissionLikeCpp, TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp,
+    TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerProductLikeCpp,
+    TrainerUnavailableReasonLikeCpp, finish_trainer_offer_after_projection_like_cpp,
+    prepare_trainer_offer_like_cpp, resolve_creature_trainer_like_cpp,
+    trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
     trainer_price_like_cpp,
     trainer_spell_class_race_fit_like_cpp as fit_trainer_spell_class_race_rows_like_cpp,
     trainer_spell_product_like_cpp as classify_trainer_spell_product_like_cpp,
-    TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
 };
-use wow_conditions as conditions;
 
 fn trainer_spell_class_race_fit_like_cpp(
     session: &WorldSession,
@@ -164,11 +159,7 @@ impl WorldSession {
         faction_template_id: u32,
     ) -> TrainerOfferDecisionLikeCpp {
         self.trainer_list_publication_context_like_cpp()
-            .trainer_offer_decision_like_cpp(
-                trainer_id,
-                trainer_spell,
-                faction_template_id,
-            )
+            .trainer_offer_decision_like_cpp(trainer_id, trainer_spell, faction_template_id)
     }
 
     /// Handle `CMSG_TRAINER_LIST` (0x34ad).
@@ -208,7 +199,8 @@ impl WorldSession {
         battle_pet_selection_store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
         pkt: wow_packet::WorldPacket,
     ) {
-        let Some(req) = self.trainer_buy_admission_context_like_cpp()
+        let Some(req) = self
+            .trainer_buy_admission_context_like_cpp()
             .admit_packet_like_cpp(pkt)
         else {
             return;
@@ -367,25 +359,23 @@ impl WorldSession {
             return;
         };
         let completion = {
-            let mut runtime = self.trainer_buy_context_like_cpp(
-                item_guid_generator,
-                battle_pet_selection_store,
-            );
+            let mut runtime =
+                self.trainer_buy_context_like_cpp(item_guid_generator, battle_pet_selection_store);
             runtime
                 .execute_admitted_acquisition_like_cpp(
-                money_persistence,
-                &offer,
-                &current_snapshot,
-                old_money,
-                new_money,
-                &crate::spell_acquisition::TrainerAcquisitionPublicationLikeCpp {
-                    trainer_guid,
-                    player_guid,
-                    trainer_position: fresh_access.position,
-                    suppress_visuals: offer.battle_pet_species_id.is_some(),
-                },
-            )
-            .await
+                    money_persistence,
+                    &offer,
+                    &current_snapshot,
+                    old_money,
+                    new_money,
+                    &crate::spell_acquisition::TrainerAcquisitionPublicationLikeCpp {
+                        trainer_guid,
+                        player_guid,
+                        trainer_position: fresh_access.position,
+                        suppress_visuals: offer.battle_pet_species_id.is_some(),
+                    },
+                )
+                .await
         };
         use crate::spell_acquisition::TrainerAcquisitionResultLikeCpp as Result;
         match completion.result {

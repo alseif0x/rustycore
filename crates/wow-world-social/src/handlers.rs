@@ -235,7 +235,9 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        session.inspect_handler_cx_like_cpp(catalogs).handle_inspect(pkt);
+        session
+            .inspect_handler_cx_like_cpp(catalogs)
+            .handle_inspect(pkt);
     })
 }
 

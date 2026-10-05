@@ -28,9 +28,15 @@ impl LootState {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        hub.core.loot_release_access_like_cpp().set_canonical_gameobject_loot_state_like_cpp(
-            guid, state, unit_guid, chest_restock_time_secs, shared_loot_is_changed_like_cpp,
-        )
+        hub.core
+            .loot_release_access_like_cpp()
+            .set_canonical_gameobject_loot_state_like_cpp(
+                guid,
+                state,
+                unit_guid,
+                chest_restock_time_secs,
+                shared_loot_is_changed_like_cpp,
+            )
     }
 
     /// Applies the global fully-looted transition only if the exact authority
@@ -50,9 +56,18 @@ impl LootState {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        hub.core.loot_release_access_like_cpp().set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
-            guid, authority, object_generation, lifecycle_revision, state, unit_guid, chest_restock_time_secs, shared_loot_is_changed_like_cpp,
-        )
+        hub.core
+            .loot_release_access_like_cpp()
+            .set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
+                guid,
+                authority,
+                object_generation,
+                lifecycle_revision,
+                state,
+                unit_guid,
+                chest_restock_time_secs,
+                shared_loot_is_changed_like_cpp,
+            )
     }
 
     /// Detached durable-claim completion may transition the object only when
@@ -70,8 +85,17 @@ impl LootState {
         chest_restock_time_secs: u32,
         shared_loot_is_changed_like_cpp: bool,
     ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        hub.core.loot_release_access_like_cpp().set_canonical_gameobject_loot_state_if_unviewed_fully_looted_observation_like_cpp(
-            guid, authority, object_generation, lifecycle_revision, state, unit_guid, chest_restock_time_secs, shared_loot_is_changed_like_cpp,
-        )
+        hub.core
+            .loot_release_access_like_cpp()
+            .set_canonical_gameobject_loot_state_if_unviewed_fully_looted_observation_like_cpp(
+                guid,
+                authority,
+                object_generation,
+                lifecycle_revision,
+                state,
+                unit_guid,
+                chest_restock_time_secs,
+                shared_loot_is_changed_like_cpp,
+            )
     }
 }

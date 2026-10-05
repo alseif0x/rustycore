@@ -3,8 +3,8 @@
 
 //! Quest-completion visibility refreshes using selected Core and entity access.
 
-mod gameobject_flags;
 mod dialog_status;
+mod gameobject_flags;
 mod quest_eligibility;
 
 pub use self::quest_eligibility::QuestEligibilityCx;
@@ -18,19 +18,19 @@ pub use self::gameobject_flags::{
 
 use std::sync::Arc;
 
+use crate::PlayerConditionProjectionCxLikeCpp;
+use wow_core::ObjectGuid;
+use wow_data::{
+    AreaTableStore, ChrSpecializationStore, ConditionEntriesByTypeStore, NpcSpellClickStoreLikeCpp,
+    PlayerConditionStore,
+};
 use wow_world_core::session::{
     NpcInteractionAccessLikeCpp, PlayerConditionAccessLikeCpp, QuestObjectiveAccessLikeCpp,
     RepresentedGetReactionInputLikeCpp, SessionCatalogs,
 };
-use crate::PlayerConditionProjectionCxLikeCpp;
 use wow_world_entities::RepresentedGameObjectUseState;
-use wow_world_social::SessionSocialLimits;
 use wow_world_entities::WorldEntitiesState;
-use wow_core::ObjectGuid;
-use wow_data::{
-    AreaTableStore, ChrSpecializationStore, ConditionEntriesByTypeStore,
-    NpcSpellClickStoreLikeCpp, PlayerConditionStore,
-};
+use wow_world_social::SessionSocialLimits;
 
 use super::{SessionQuestState, objective_progress::current_quest_gameplay_snapshot_like_cpp};
 
@@ -71,21 +71,21 @@ impl PlayerConditionProjectionCxLikeCpp<'_> {
         let Some(player_object) = self.player.build_condition_player_object_like_cpp() else {
             return false;
         };
-        let Some(recurrence) = current_quest_gameplay_snapshot_like_cpp(
-            owner,
-            quest_state,
-            consumer_test,
-        ) else {
+        let Some(recurrence) =
+            current_quest_gameplay_snapshot_like_cpp(owner, quest_state, consumer_test)
+        else {
             return false;
         };
 
         let quest_statuses: Vec<_> = recurrence
             .statuses_like_cpp()
             .iter()
-            .map(|(&quest_id, status)| wow_conditions::ConditionQuestStatusSnapshot {
-                quest_id,
-                status: status.status,
-            })
+            .map(
+                |(&quest_id, status)| wow_conditions::ConditionQuestStatusSnapshot {
+                    quest_id,
+                    status: status.status,
+                },
+            )
             .collect();
         let quest_store = catalogs.quests.store.as_ref();
         let quest_objective_progress: Vec<_> = quest_store
@@ -135,10 +135,7 @@ impl PlayerConditionProjectionCxLikeCpp<'_> {
         let Some(player_condition_context) = self.project_like_cpp() else {
             return false;
         };
-        let area_table_store = self
-            .valuation_catalogs
-            .area_table_store_like_cpp()
-            .cloned();
+        let area_table_store = self.valuation_catalogs.area_table_store_like_cpp().cloned();
 
         let mut source_info =
             wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
@@ -221,8 +218,8 @@ pub fn represented_can_see_spell_click_on_like_cpp(
     let Some(condition_store) = condition_store else {
         return Outcome::ExactContextUnrepresented;
     };
-    let Some(creature) = world_entities
-        .represented_spell_click_creature_snapshot_like_cpp(owner, creature_guid)
+    let Some(creature) =
+        world_entities.represented_spell_click_creature_snapshot_like_cpp(owner, creature_guid)
     else {
         return Outcome::ExactContextUnrepresented;
     };
@@ -230,8 +227,7 @@ pub fn represented_can_see_spell_click_on_like_cpp(
         return Outcome::Hidden;
     }
 
-    if (u64::from(creature.npc_flags)
-        & wow_data::spell_click::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP)
+    if (u64::from(creature.npc_flags) & wow_data::spell_click::UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP)
         == 0
     {
         return Outcome::Hidden;
@@ -282,8 +278,7 @@ pub fn represented_can_see_spell_click_on_like_cpp(
     for click_info in click_bounds {
         match click_info.user_type {
             wow_data::SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
-                let player_faction_template =
-                    npc_access.player_faction_template_id_like_cpp();
+                let player_faction_template = npc_access.player_faction_template_id_like_cpp();
                 if creature.is_summon
                     || !npc_access.has_faction_template_store_like_cpp()
                     || player_faction_template.is_none()
@@ -449,9 +444,7 @@ pub fn represented_gameobject_is_for_quests_like_cpp(
             .goober_use_source
             .is_some_and(|source| source.quest_id != 0),
         Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => catalogs
-            .represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-                state.gathering_node_loot_id,
-            ),
+            .represented_gameobject_loot_ids_have_quest_loot_like_cpp(state.gathering_node_loot_id),
         _ => false,
     }
 }

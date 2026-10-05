@@ -1,5 +1,5 @@
-use wow_core::ObjectGuid;
 use wow_constants::BagFamilyMask;
+use wow_core::ObjectGuid;
 use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
 
 use super::{

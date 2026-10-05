@@ -253,7 +253,6 @@ impl crate::session::LifecycleCx<'_> {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/lifecycle_ops/operations/f3_shims.rs"]
 mod f3_shims;

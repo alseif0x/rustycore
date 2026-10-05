@@ -5,8 +5,7 @@ use std::sync::Arc;
 
 use wow_constants::ItemBonusType;
 use wow_data::progression_rewards::{
-    ContentTuningStore, CurvePointStore, CurveStore, FactionStore,
-    FriendshipRepReactionStore,
+    ContentTuningStore, CurvePointStore, CurveStore, FactionStore, FriendshipRepReactionStore,
 };
 use wow_data::{
     AreaTableStore, ChrSpecializationStore, ItemBonusDb2Store, ItemEffectStore,

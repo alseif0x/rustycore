@@ -25,8 +25,13 @@ impl WorldSession {
             self.core.owned_inventory_access_like_cpp(),
             self.catalogs.items.store.as_ref(),
             self.catalogs.items.stats_store.as_ref(),
-        ).apply_committed_inventory_item_relocation_like_cpp(
-            source_bag, source_slot, destination_bag, destination_slot, moved_count,
+        )
+        .apply_committed_inventory_item_relocation_like_cpp(
+            source_bag,
+            source_slot,
+            destination_bag,
+            destination_slot,
+            moved_count,
         )
     }
     /// Publish a committed C++ real swap after both database positions were
@@ -45,8 +50,12 @@ impl WorldSession {
             self.core.owned_inventory_access_like_cpp(),
             self.catalogs.items.store.as_ref(),
             self.catalogs.items.stats_store.as_ref(),
-        ).apply_committed_inventory_item_swap_like_cpp(
-            source_bag, source_slot, destination_bag, destination_slot,
+        )
+        .apply_committed_inventory_item_swap_like_cpp(
+            source_bag,
+            source_slot,
+            destination_bag,
+            destination_slot,
         )
     }
     /// Remove a source item after its complete stack was merged into existing
@@ -185,7 +194,13 @@ impl WorldSession {
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         let conditions = self.player_condition_projection_cx_like_cpp();
         wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
-            .plan_store_existing_inventory_item_at_like_cpp(source_bag, source_slot, destination_bag, destination_slot, swap)
+            .plan_store_existing_inventory_item_at_like_cpp(
+                source_bag,
+                source_slot,
+                destination_bag,
+                destination_slot,
+                swap,
+            )
     }
     fn plan_store_direct_inventory_item_like_cpp(
         &self,
@@ -200,7 +215,9 @@ impl WorldSession {
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         self.player_condition_projection_cx_like_cpp()
             .plan_store_direct_inventory_item_like_cpp(
-                self.core.inventory_valuation_access_like_cpp().realm_id_like_cpp(),
+                self.core
+                    .inventory_valuation_access_like_cpp()
+                    .realm_id_like_cpp(),
                 entry_id,
                 count,
                 bag,
@@ -216,7 +233,8 @@ impl WorldSession {
         &mut self,
         gate: Arc<tokio::sync::Notify>,
     ) {
-        self.loot.set_loot_item_store_test_commit_gate_like_cpp(gate);
+        self.loot
+            .set_loot_item_store_test_commit_gate_like_cpp(gate);
     }
     pub fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
         let packet = crate::session::item_push_result_from_send_new_item_plan(plan);
@@ -276,8 +294,7 @@ impl crate::session::InventoryCxRef<'_> {
     pub(crate) fn take_durable_item_loot_completions_like_cpp(
         &self,
     ) -> Vec<DurableItemLootCompletionLikeCpp> {
-        self.lifecycle
-            .take_durable_item_loot_completions_like_cpp()
+        self.lifecycle.take_durable_item_loot_completions_like_cpp()
     }
 }
 

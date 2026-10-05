@@ -35,10 +35,7 @@ pub const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 
 pub const MAP_ARENA_LIKE_CPP: i8 = 4;
 
-pub fn normalize_item_money_loot_bounds_like_cpp(
-    min_money: u32,
-    max_money: u32,
-) -> (u32, u32) {
+pub fn normalize_item_money_loot_bounds_like_cpp(min_money: u32, max_money: u32) -> (u32, u32) {
     if min_money > max_money {
         (max_money, min_money)
     } else {

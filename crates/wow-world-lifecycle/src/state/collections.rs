@@ -1,6 +1,6 @@
 use tracing::warn;
-use wow_data::HeirloomEntry;
 use wow_constants::opcodes::ServerOpcodes;
+use wow_data::HeirloomEntry;
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountToy, AccountToyUpdate,
 };
@@ -27,10 +27,7 @@ pub(crate) fn heirloom_bonus_for_flags_like_cpp(heirloom: &HeirloomEntry, flags:
 
 impl SessionLifecycleState {
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
-    pub fn account_heirloom_rows_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Vec<(u32, u32)> {
+    pub fn account_heirloom_rows_like_cpp(&self, hub: HubRef<'_>) -> Vec<(u32, u32)> {
         hub.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
@@ -54,10 +51,7 @@ impl SessionLifecycleState {
     }
 
     /// C++ `CollectionMgr::GetAccountHeirlooms` full update payload.
-    pub fn account_heirloom_packet_rows_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Vec<AccountHeirloom> {
+    pub fn account_heirloom_packet_rows_like_cpp(&self, hub: HubRef<'_>) -> Vec<AccountHeirloom> {
         hub.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
@@ -75,10 +69,7 @@ impl SessionLifecycleState {
     }
 
     /// C++ `CollectionMgr::LoadHeirlooms` active-player create data order.
-    pub fn account_heirloom_active_player_rows_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Vec<(i32, u32)> {
+    pub fn account_heirloom_active_player_rows_like_cpp(&self, hub: HubRef<'_>) -> Vec<(i32, u32)> {
         hub.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
@@ -112,11 +103,10 @@ impl SessionLifecycleState {
         flags: u32,
     ) -> bool {
         hub.mutate_player_collection_state_like_cpp(|collections| {
-            collections
-                .add_heirloom_like_cpp(
-                    item_id,
-                    wow_entities::PlayerAccountHeirloomDataLikeCpp { flags, bonus_id: 0 },
-                )
+            collections.add_heirloom_like_cpp(
+                item_id,
+                wow_entities::PlayerAccountHeirloomDataLikeCpp { flags, bonus_id: 0 },
+            )
         })
         .unwrap_or(false)
     }
@@ -172,10 +162,7 @@ impl SessionLifecycleState {
     }
 
     /// C++ `CollectionMgr::SaveAccountToys`.
-    pub fn account_toy_rows_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Vec<(u32, bool, bool)> {
+    pub fn account_toy_rows_like_cpp(&self, hub: HubRef<'_>) -> Vec<(u32, bool, bool)> {
         hub.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
                 collections
@@ -301,10 +288,7 @@ impl SessionLifecycleState {
         .unwrap_or(false)
     }
 
-    pub fn expand_account_mount_faction_definitions_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn expand_account_mount_faction_definitions_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let Some(mounts) = hub
             .shared()
             .player_collection_state_snapshot_like_cpp()

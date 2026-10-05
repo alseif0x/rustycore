@@ -33,8 +33,8 @@ pub async fn reconcile_durable_loot_money_before_save_like_cpp(
         {
             continue;
         }
-        let Some(old_money) = inventory
-            .resolved_player_money_with_quest_reward_access_like_cpp(player)
+        let Some(old_money) =
+            inventory.resolved_player_money_with_quest_reward_access_like_cpp(player)
         else {
             player.quarantine_like_cpp(
                 "canonical Player money owner is unavailable during durable reconciliation",
@@ -88,13 +88,8 @@ pub async fn begin_exclusive_player_money_persistence_like_cpp(
     let tracker = Arc::clone(lifecycle.durable_loot_money_persistence_tracker_like_cpp());
     let save_fence = tracker.close_admission_for_save_like_cpp();
     tracker.wait_until_idle_like_cpp().await;
-    if !reconcile_durable_loot_money_before_save_like_cpp(
-        lifecycle,
-        inventory,
-        quest_state,
-        player,
-    )
-    .await
+    if !reconcile_durable_loot_money_before_save_like_cpp(lifecycle, inventory, quest_state, player)
+        .await
     {
         return None;
     }

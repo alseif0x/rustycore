@@ -3,9 +3,11 @@
 
 use std::sync::Arc;
 use wow_core::ObjectGuid;
-use wow_data::{ItemStore, ItemStatsStore};
+use wow_data::{ItemStatsStore, ItemStore};
 use wow_entities::{INVENTORY_SLOT_BAG_0, PlayerInventoryItem};
-use wow_world_core::session::{OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp, PlayerStatsAccessLikeCpp};
+use wow_world_core::session::{
+    OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp, PlayerStatsAccessLikeCpp,
+};
 use wow_world_inventory::InventoryState;
 
 pub struct InventoryPositionPublicationCxLikeCpp<'a> {
@@ -27,33 +29,68 @@ impl<'a> InventoryPositionPublicationCxLikeCpp<'a> {
         item_stats_store: Option<&'a Arc<ItemStatsStore>>,
         stats_player: PlayerStatsAccessLikeCpp<'a>,
     ) -> Self {
-        Self { inventory, access, publication, item_store, item_stats_store, stats_player }
+        Self {
+            inventory,
+            access,
+            publication,
+            item_store,
+            item_stats_store,
+            stats_player,
+        }
     }
 
     fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<PlayerInventoryItem> {
-        self.inventory.get_inventory_item_by_pos_with_access_like_cpp(&self.access, self.item_store, self.item_stats_store, bag, slot)
+        self.inventory
+            .get_inventory_item_by_pos_with_access_like_cpp(
+                &self.access,
+                self.item_store,
+                self.item_stats_store,
+                bag,
+                slot,
+            )
     }
 
     fn send_bag_slot_values_update_like_cpp(&self, bag: u8, slot: u8) {
-        self.inventory.send_bag_slot_values_update_with_access_like_cpp(&self.access, &self.publication, bag, slot);
+        self.inventory
+            .send_bag_slot_values_update_with_access_like_cpp(
+                &self.access,
+                &self.publication,
+                bag,
+                slot,
+            );
     }
 
     fn send_player_values_update_from_entity_bridge(
         &self,
-        top: &[(u8, ObjectGuid)], visible: &[(u8, i32, u16, u16)], virtual_items: &[(u8, i32, u16, u16)],
-        buyback: &[(u8, u32, i64)], coinage: Option<u64>,
+        top: &[(u8, ObjectGuid)],
+        visible: &[(u8, i32, u16, u16)],
+        virtual_items: &[(u8, i32, u16, u16)],
+        buyback: &[(u8, u32, i64)],
+        coinage: Option<u64>,
     ) {
-        let _ = self.inventory.send_player_values_update_from_entity_bridge_with_access_like_cpp(
-            &self.access, &self.publication, self.item_store, self.item_stats_store,
-            top, visible, virtual_items, buyback, coinage,
-        );
+        let _ = self
+            .inventory
+            .send_player_values_update_from_entity_bridge_with_access_like_cpp(
+                &self.access,
+                &self.publication,
+                self.item_store,
+                self.item_stats_store,
+                top,
+                visible,
+                virtual_items,
+                buyback,
+                coinage,
+            );
     }
 
     fn send_stat_update(&mut self) {
         let player = self.stats_player.reborrow_like_cpp();
         let _ = crate::stats::CharacterStatsApplicationCxLikeCpp::new(
-            player, self.inventory, self.publication.reborrow_like_cpp(),
-        ).send_stat_update_like_cpp();
+            player,
+            self.inventory,
+            self.publication.reborrow_like_cpp(),
+        )
+        .send_stat_update_like_cpp();
     }
 
     pub fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {

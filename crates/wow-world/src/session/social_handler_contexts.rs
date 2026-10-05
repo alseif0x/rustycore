@@ -18,8 +18,8 @@ impl SocialInspectHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSes
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> InspectHandlerCxLikeCpp<'a> {
         let player_position = crate::session::hub_ref(self).player_position_like_cpp();
-        let player_faction_template_id = crate::session::hub_ref(self)
-            .player_faction_template_id_like_cpp();
+        let player_faction_template_id =
+            crate::session::hub_ref(self).player_faction_template_id_like_cpp();
         let player_map_id = self.core.player_map_id_like_cpp();
         let registry = self.core.player_registry();
         let canonical_map_manager = self.core.canonical_map_manager.as_ref();

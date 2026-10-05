@@ -31,47 +31,51 @@ pub use connection_identity::{
 };
 
 mod canonical_access;
-pub use canonical_access::{PlayerAuraRemovalAccessLikeCpp, AuraMountControlAccessLikeCpp, AuraStatsAccessBuilderLikeCpp};
-pub use canonical_access::{AuraNpcAccessBuilderLikeCpp, AuraConditionAccessBuilderLikeCpp};
-pub use canonical_access::QuestEligibilityAccessLikeCpp;
-pub use canonical_access::{OwnedItemEnchantmentAccessLikeCpp, apply_enchantment_template_from_store_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]
-pub use canonical_access::{AuraRemovalFixtureRefsLikeCpp, AuraMountControlFixtureRefsLikeCpp, AuraDismountPetFixtureRefsLikeCpp};
+pub use canonical_access::NpcInteractionFixtureRefsLikeCpp;
+pub use canonical_access::QuestEligibilityAccessLikeCpp;
+pub use canonical_access::{AuraConditionAccessBuilderLikeCpp, AuraNpcAccessBuilderLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{
-    InventoryPlayerProjectionLikeCpp, OwnedCollectionsAccessLikeCpp,
-    OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
-    InventoryValuationAccessLikeCpp,
-    OwnedItemModifiersAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
-    OwnedItemSetAccessLikeCpp,
-    InstanceLockManagerAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
-    InstancePlayerAccessLikeCpp, GroupDifficultyAccessLikeCpp,
-    OwnedPlayerCurrencyAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
-    PlayerRegistryHydrationAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
-    TrainerInteractionRoleAccessLikeCpp, PlayerStatsAccessLikeCpp,
-    NpcInteractionAccessLikeCpp, QuestObjectiveAccessLikeCpp, LootReleaseAccessLikeCpp, LootReleaseOwnerAccessLikeCpp, LootReleaseStatsInputsLikeCpp, looted_corpse_decay_secs_like_cpp,
-    EquipmentSetCombatAccessLikeCpp,
-    EquipmentSetUseAccessLikeCpp,
-    PlayerConditionAccessLikeCpp, CoreXPGainAccessLikeCpp,
+    AuraDismountPetFixtureRefsLikeCpp, AuraMountControlFixtureRefsLikeCpp,
+    AuraRemovalFixtureRefsLikeCpp,
+};
+pub use canonical_access::{
+    AuraMountControlAccessLikeCpp, AuraStatsAccessBuilderLikeCpp, PlayerAuraRemovalAccessLikeCpp,
+};
+pub use canonical_access::{
+    CoreXPGainAccessLikeCpp, EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp,
+    GroupDifficultyAccessLikeCpp, InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp,
+    InventoryPlayerProjectionLikeCpp, InventoryValuationAccessLikeCpp, LootReleaseAccessLikeCpp,
+    LootReleaseOwnerAccessLikeCpp, LootReleaseStatsInputsLikeCpp, NpcInteractionAccessLikeCpp,
+    OwnedCollectionsAccessLikeCpp, OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
+    OwnedItemModifiersAccessLikeCpp, OwnedItemSetAccessLikeCpp, OwnedPlayerCurrencyAccessLikeCpp,
+    OwnedSpellAcquisitionAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
+    PlayerConditionAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
+    PlayerRegistryHydrationAccessLikeCpp, PlayerStatsAccessLikeCpp, QuestObjectiveAccessLikeCpp,
+    QuestRewardPlayerAccessLikeCpp, TrainerInteractionRoleAccessLikeCpp,
+    looted_corpse_decay_secs_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use canonical_access::{CoreXPGainFixtureRefsLikeCpp, PlayerConditionFixtureRefsLikeCpp};
+pub use canonical_access::{
+    OwnedItemEnchantmentAccessLikeCpp, apply_enchantment_template_from_store_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use canonical_access::NpcInteractionFixtureRefsLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use canonical_access::{PlayerConditionFixtureRefsLikeCpp, CoreXPGainFixtureRefsLikeCpp};
 mod catalogs;
 mod connection;
 mod construction;
 mod instances;
 mod money;
-pub use money::{currency_max_quantity_cpp, PlayerCurrencyDelta};
+pub use money::{PlayerCurrencyDelta, currency_max_quantity_cpp};
 mod movement;
 mod runtime_policy_access;
 mod world_state;
 pub use movement::MovementTransportMembershipLikeCpp;
-pub use movement::{PlayerRegistryControlBindingLikeCpp, PlayerRegistrySyncAccessLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use movement::RegistrySyncInputs;
+pub use movement::{PlayerRegistryControlBindingLikeCpp, PlayerRegistrySyncAccessLikeCpp};
 mod condition_objects;
 mod player_presentation;
 mod visibility;
@@ -130,7 +134,6 @@ pub use player_save_owner::{
     PlayerSaveOwnerAccessLikeCpp, PlayerSaveReceiptLikeCpp, PlayerSaveSessionInputsLikeCpp,
 };
 mod publication;
-pub use publication::PacketPublicationAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
 pub use battleground_adapter::{
@@ -139,6 +142,7 @@ pub use battleground_adapter::{
     RepresentedBattlemasterJoinArenaLikeCpp, RepresentedBattlemasterJoinLikeCpp,
     RepresentedBattlemasterJoinSkirmishLikeCpp, battleground_queue_type_id_from_packed_like_cpp,
 };
+pub use publication::PacketPublicationAccessLikeCpp;
 
 mod social_requests;
 pub use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
@@ -271,13 +275,13 @@ pub use time_synchronization::{TimeSynchronizationStateLikeCpp, game_time_ms_lik
 
 pub mod mailbox;
 pub mod state;
-pub use state::SessionWorldConfig;
-pub use state::{HubMut, HubRef};
-pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
+pub use catalogs::InventoryValuationCatalogViewLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use state::BattlegroundState;
-pub use catalogs::InventoryValuationCatalogViewLikeCpp;
+pub use state::SessionWorldConfig;
 pub use state::hub_support::{default_display_id, player_team_for_race_cpp};
+pub use state::{HubMut, HubRef};
+pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
 
 pub mod map_admission;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};

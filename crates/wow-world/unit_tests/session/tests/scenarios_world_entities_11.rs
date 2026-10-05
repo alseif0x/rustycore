@@ -314,7 +314,9 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
 
     assert!(session.loot.cached_loot_for_owner_like_cpp(guid).is_none());
     assert_eq!(
-        session.world_entities.pending_creature_kill_loot_for_test_like_cpp(),
+        session
+            .world_entities
+            .pending_creature_kill_loot_for_test_like_cpp(),
         &[guid]
     );
 

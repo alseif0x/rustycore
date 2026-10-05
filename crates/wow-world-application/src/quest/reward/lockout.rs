@@ -6,9 +6,9 @@
 
 use wow_world_core::session::QuestRewardPlayerAccessLikeCpp;
 
-use super::QuestRewardCx;
 use super::super::QuestRewardDurablePlanLikeCpp;
 use super::super::SessionQuestState;
+use super::QuestRewardCx;
 
 #[derive(Clone, Copy)]
 enum RepresentedQuestRecurrenceLikeCpp {
@@ -136,11 +136,13 @@ impl QuestRewardCx<'_> {
                 .iter()
                 .flat_map(|(event_id, quests)| {
                     quests.iter().filter_map(|(quest_id, completed_time)| {
-                        Some(wow_persistence::PlayerQuestSeasonalCompletionPersistenceLikeCpp {
-                            quest_id: *quest_id,
-                            event_id: *event_id,
-                            completed_time: i64::try_from(*completed_time).ok()?,
-                        })
+                        Some(
+                            wow_persistence::PlayerQuestSeasonalCompletionPersistenceLikeCpp {
+                                quest_id: *quest_id,
+                                event_id: *event_id,
+                                completed_time: i64::try_from(*completed_time).ok()?,
+                            },
+                        )
                     })
                 })
                 .collect();
@@ -223,7 +225,8 @@ impl QuestRewardCx<'_> {
         };
         if recorded {
             #[cfg(any(test, feature = "test-fixtures"))]
-            if world_test_consumer && !player.owner_handle_absent_like_cpp()
+            if world_test_consumer
+                && !player.owner_handle_absent_like_cpp()
                 && let Some(state) = player.quest_gameplay_snapshot_like_cpp()
             {
                 quest_state.apply_player_quest_core_compatibility_like_cpp(&state);

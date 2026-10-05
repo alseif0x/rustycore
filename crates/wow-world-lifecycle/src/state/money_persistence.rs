@@ -1,6 +1,6 @@
-use std::sync::Arc;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::BTreeSet;
+use std::sync::Arc;
 
 use super::SessionLifecycleState;
 use crate::{
@@ -8,9 +8,9 @@ use crate::{
     PlayerMoneyCommitCancellationFenceLikeCpp, reconcile_absolute_player_money_commit_like_cpp,
 };
 use tracing::warn;
-use wow_world_core::session::{HubMut, PlayerMoneyTransactionSessionAccessLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::HubRef;
+use wow_world_core::session::{HubMut, PlayerMoneyTransactionSessionAccessLikeCpp};
 
 impl SessionLifecycleState {
     pub fn durable_loot_money_persistence_tracker_like_cpp(
@@ -92,10 +92,7 @@ impl SessionLifecycleState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn player_skill_non_durable_tombstones_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> BTreeSet<u16> {
+    pub fn player_skill_non_durable_tombstones_like_cpp(&self, hub: HubRef<'_>) -> BTreeSet<u16> {
         hub.resolved_player_skill_non_durable_tombstones_like_cpp()
             .expect("test Player skill owner must resolve")
     }

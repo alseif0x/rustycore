@@ -3,8 +3,8 @@
 use crate::SessionSpellState;
 use wow_constants::PowerType;
 use wow_world_core::map_manager::VISIBILITY_RADIUS;
-use wow_world_core::session::{HubMut, HubRef, creature_ai_spell_difficulty_chain_like_cpp};
 use wow_world_core::session::RepresentedTalentRespecVisualSpellCastLikeCpp;
+use wow_world_core::session::{HubMut, HubRef, creature_ai_spell_difficulty_chain_like_cpp};
 
 impl SessionSpellState {
     pub fn record_cast_character_spell_cooldown_like_cpp(

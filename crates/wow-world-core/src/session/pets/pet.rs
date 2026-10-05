@@ -1,7 +1,7 @@
-use std::sync::Arc;
 use crate::session::movement_protocol::UnitMoveTypeLikeCpp;
 use crate::session::react_state_from_db_like_cpp;
 use crate::session::state::SessionCore;
+use std::sync::Arc;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{AccessorObjectKind, Pet, PlayerPetLifecycleStateLikeCpp};
 
@@ -25,7 +25,10 @@ impl SessionCore {
         result
     }
 
-    pub(crate) fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
+    pub(crate) fn represented_pet_position_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<Position> {
         let map_id = u32::from(self.player_map_id_like_cpp());
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
@@ -200,19 +203,26 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
-        self.core.enable_pet_controls_on_dismount_with_fixture_refs_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &mut crate::session::AuraDismountPetFixtureRefsLikeCpp::new(
-                &self.fixtures.pets.represented_pet_guid_like_cpp,
-                &mut self.fixtures.pets.represented_pet_react_state_like_cpp,
-                &mut self.fixtures.pets.represented_pet_command_state_like_cpp,
-                &mut self.fixtures.pets.represented_pet_stable_like_cpp,
-                &mut self.fixtures.pets.represented_character_pet_rows_empty_authority_complete_like_cpp,
-                &mut self.fixtures.pets.represented_temporary_unsummoned_pet_number_like_cpp,
-                &mut self.fixtures.pets.represented_old_pet_spell_like_cpp,
-                &mut self.fixtures.pets.temporary_mount_pet_react_state_like_cpp,
-            ),
-        );
+        self.core
+            .enable_pet_controls_on_dismount_with_fixture_refs_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &mut crate::session::AuraDismountPetFixtureRefsLikeCpp::new(
+                    &self.fixtures.pets.represented_pet_guid_like_cpp,
+                    &mut self.fixtures.pets.represented_pet_react_state_like_cpp,
+                    &mut self.fixtures.pets.represented_pet_command_state_like_cpp,
+                    &mut self.fixtures.pets.represented_pet_stable_like_cpp,
+                    &mut self
+                        .fixtures
+                        .pets
+                        .represented_character_pet_rows_empty_authority_complete_like_cpp,
+                    &mut self
+                        .fixtures
+                        .pets
+                        .represented_temporary_unsummoned_pet_number_like_cpp,
+                    &mut self.fixtures.pets.represented_old_pet_spell_like_cpp,
+                    &mut self.fixtures.pets.temporary_mount_pet_react_state_like_cpp,
+                ),
+            );
     }
 
     fn update_canonical_pet_mode_state_like_cpp(
@@ -416,5 +426,4 @@ impl crate::session::HubRef<'_> {
         }
         canonical
     }
-
 }

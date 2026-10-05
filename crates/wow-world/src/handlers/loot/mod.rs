@@ -81,10 +81,10 @@ use wow_constants::{
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_entities::{
     AccessorObjectKind, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_GATHERING_NODE,
-    GAMEOBJECT_TYPE_GOOBER, GO_DYNFLAG_LO_NO_INTERACT,
-    GameObjectLootSource, GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount,
-    LootState, MAX_MONEY_AMOUNT, make_item_pos,
+    GAMEOBJECT_TYPE_GOOBER, GO_DYNFLAG_LO_NO_INTERACT, GameObjectLootSource,
+    GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount, LootState, MAX_MONEY_AMOUNT,
+    make_item_pos,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -331,9 +331,9 @@ struct RepresentedGameObjectLootStateLikeCpp {
 // Gameobject interaction geometry is shared with the application layer's
 // LootRelease context; the canonical implementation lives in
 // `wow-world-entities`.
-pub(crate) use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
 #[cfg(test)]
 pub(crate) use wow_world_entities::represented_gameobject_display_box_contains_like_cpp;
+pub(crate) use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
 
 #[cfg(test)]
 fn represented_loot_object_guid_like_cpp(owner: ObjectGuid) -> ObjectGuid {
@@ -371,7 +371,6 @@ fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
         _ => loot_type,
     }
 }
-
 
 #[cfg(test)]
 fn assign_represented_personal_loot_items_like_cpp<R: Rng + ?Sized>(

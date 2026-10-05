@@ -108,10 +108,8 @@ async fn grant_quest_reward_currency_like_cpp(
     ) {
         Ok(delta) => delta,
         Err(()) => {
-            inventory.set_player_currencies_with_quest_reward_access_like_cpp(
-                player,
-                currency_snapshot,
-            );
+            inventory
+                .set_player_currencies_with_quest_reward_access_like_cpp(player, currency_snapshot);
             return false;
         }
     };
@@ -165,7 +163,10 @@ pub fn add_currency_quest_reward_like_cpp(
     if amount == 0 {
         return Ok(None);
     }
-    let Some(entry) = currency_types.and_then(|store| store.get(currency_id)).copied() else {
+    let Some(entry) = currency_types
+        .and_then(|store| store.get(currency_id))
+        .copied()
+    else {
         return Err(());
     };
 

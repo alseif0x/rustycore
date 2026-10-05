@@ -6,8 +6,8 @@
 //! write: both planned and fallback learning retain ordinary SaveToDB dirty state.
 use std::collections::BTreeSet;
 
-use wow_data::{SpellChainLookupLikeCpp, SpellChainStoreLikeCpp, SpellRequiredStoreLikeCpp};
 use wow_data::trait_tree::TraitDefinitionStore;
+use wow_data::{SpellChainLookupLikeCpp, SpellChainStoreLikeCpp, SpellRequiredStoreLikeCpp};
 use wow_entities::{PlayerKnownSpellRecord, PlayerSpellLoadState, PlayerSpellRuntimeState};
 use wow_spell_acquisition::{
     SpellAcquisitionOutcomeLikeCpp, SpellAcquisitionPostCommitActionLikeCpp,

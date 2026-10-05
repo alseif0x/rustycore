@@ -39,7 +39,8 @@ impl WorldSession {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        self.core.loot_release_owner_access_like_cpp()
+        self.core
+            .loot_release_owner_access_like_cpp()
             .represented_owned_loot_authority_like_cpp(owner_guid)
     }
 
@@ -81,7 +82,8 @@ impl WorldSession {
     }
 
     pub(super) fn refresh_owned_loot_summary_like_cpp(&mut self, owner_guid: ObjectGuid) {
-        self.core.loot_release_owner_access_like_cpp()
+        self.core
+            .loot_release_owner_access_like_cpp()
             .refresh_owned_loot_summary_like_cpp(owner_guid);
     }
 
@@ -136,7 +138,6 @@ impl WorldSession {
         )
         .await
     }
-
 }
 
 impl crate::session::LootCx<'_> {

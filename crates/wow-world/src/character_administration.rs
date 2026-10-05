@@ -1,7 +1,7 @@
 //! World-facing facade for lifecycle-owned character rename operations.
 
 pub(crate) use wow_world_lifecycle::{
-    prepare_rename, PreparedRename, RenameFailure, RenameOutcome, RenamePreparation, RenameRequest,
+    PreparedRename, RenameFailure, RenameOutcome, RenamePreparation, RenameRequest, prepare_rename,
 };
 
 #[cfg(test)]

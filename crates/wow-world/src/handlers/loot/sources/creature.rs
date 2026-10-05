@@ -37,7 +37,8 @@ impl WorldSession {
                 .snapshot_for_player_like_cpp(_player_guid)
                 .is_none()
         {
-            self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(creature_guid);
             self.loot
                 .remove_cached_loot_generation_like_cpp(creature_guid);
             return None;
@@ -151,7 +152,8 @@ impl WorldSession {
             )
             .is_none()
         {
-            self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(creature_guid);
         }
     }
 
@@ -191,7 +193,8 @@ impl WorldSession {
     ) {
         let authority = self.represented_owned_loot_authority_like_cpp(creature_guid);
         if authority.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
-            self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(creature_guid);
             return;
         }
         let mut retired_object_generation = None;
@@ -239,11 +242,13 @@ impl WorldSession {
                 return;
             }
             if !authority.is_retired_like_cpp() {
-                self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+                self.loot
+                    .remove_cached_loot_for_owner_like_cpp(creature_guid);
                 return;
             }
             retired_object_generation = Some(authority.generation_like_cpp());
-            self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(creature_guid);
             self.loot
                 .remove_cached_loot_generation_like_cpp(creature_guid);
         }
@@ -271,10 +276,11 @@ impl WorldSession {
                             *tapper,
                             dungeon_encounter_id,
                         )
-            })
+                })
                 .collect::<Vec<_>>();
             if personal_tappers.is_empty() {
-                self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+                self.loot
+                    .remove_cached_loot_for_owner_like_cpp(creature_guid);
                 return;
             }
 
@@ -312,7 +318,8 @@ impl WorldSession {
                     let _ =
                         self.reconcile_represented_loot_cache_like_cpp(creature_guid, cache_player);
                 } else {
-                    self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+                    self.loot
+                        .remove_cached_loot_for_owner_like_cpp(creature_guid);
                 }
             } else if represented_local_loot_fixture_allowed_like_cpp()
                 && let Some(pool) = personal.get(&cache_player).cloned()
@@ -325,7 +332,8 @@ impl WorldSession {
 
         if map_is_dungeon == Some(true) {
             if connected_tappers.is_empty() {
-                self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+                self.loot
+                    .remove_cached_loot_for_owner_like_cpp(creature_guid);
                 return;
             }
             let selected_looter =
@@ -366,7 +374,8 @@ impl WorldSession {
                         self.advance_represented_dungeon_trash_looter_like_cpp(&connected_tappers);
                     }
                 } else {
-                    self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+                    self.loot
+                        .remove_cached_loot_for_owner_like_cpp(creature_guid);
                 }
             } else if represented_local_loot_fixture_allowed_like_cpp()
                 && let Some(pool) = personal.get(&selected_looter).cloned()
@@ -414,7 +423,8 @@ impl WorldSession {
                     let _ = self
                         .reconcile_represented_loot_cache_like_cpp(creature_guid, loot_owner_guid);
                 } else {
-                    self.loot.remove_cached_loot_for_owner_like_cpp(creature_guid);
+                    self.loot
+                        .remove_cached_loot_for_owner_like_cpp(creature_guid);
                 }
             } else if represented_local_loot_fixture_allowed_like_cpp() {
                 self.loot

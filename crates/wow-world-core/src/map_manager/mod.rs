@@ -224,11 +224,11 @@ pub struct MapManager {
 pub type SharedMapManager = Arc<RwLock<MapManager>>;
 
 #[cfg(test)]
-#[path = "../../unit_tests/map_manager_tests.rs"]
-mod tests;
-#[cfg(test)]
 #[path = "../../unit_tests/map_manager_tests/corpse_load.rs"]
 mod corpse_load_tests;
+#[cfg(test)]
+#[path = "../../unit_tests/map_manager_tests.rs"]
+mod tests;
 
 mod grid;
 mod pathfinder;
@@ -236,15 +236,15 @@ mod pending_respawn;
 mod runtime_state;
 mod terrain;
 
+pub use corpse_load::{
+    LoadedMapCorpseRowLikeCpp, MapCorpseLoadOutcomeLikeCpp,
+    materialize_loaded_map_corpses_like_cpp, parse_corpse_items_like_cpp,
+};
 pub use grid::*;
 pub use pathfinder::*;
 pub use pending_respawn::*;
 pub use runtime_state::*;
 pub use terrain::*;
-pub use corpse_load::{
-    LoadedMapCorpseRowLikeCpp, MapCorpseLoadOutcomeLikeCpp,
-    materialize_loaded_map_corpses_like_cpp, parse_corpse_items_like_cpp,
-};
 
 use grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,

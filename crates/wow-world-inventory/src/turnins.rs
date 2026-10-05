@@ -3,7 +3,9 @@
 
 use wow_core::ObjectGuid;
 use wow_entities::INVENTORY_SLOT_BAG_0;
-use wow_world_core::session::{HubRef, OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp};
+use wow_world_core::session::{
+    HubRef, OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ExtendedCostItemTurninChange {
@@ -45,16 +47,19 @@ impl crate::InventoryState {
                     new_count,
                     ..
                 } => {
-                    let _ = self.mutate_player_inventory_runtime_with_access_like_cpp(
-                        access,
-                        |inventory| inventory.apply_item_object_updates_like_cpp(
-                            item_guid,
-                            &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+                    let _ = self
+                        .mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
+                            inventory.apply_item_object_updates_like_cpp(
+                                item_guid,
+                                &[wow_entities::ItemObjectUpdateLikeCpp::SetCount(new_count)],
+                            )
+                        })
+                        .unwrap_or(false);
+                    publication.send_packet(
+                        &wow_packet::packets::update::UpdateObject::item_stack_count_update(
+                            item_guid, map_id, new_count,
                         ),
-                    ).unwrap_or(false);
-                    publication.send_packet(&wow_packet::packets::update::UpdateObject::item_stack_count_update(
-                        item_guid, map_id, new_count,
-                    ));
+                    );
                 }
                 ExtendedCostItemTurninChange::Delete {
                     slot, item_guid, ..
@@ -62,11 +67,13 @@ impl crate::InventoryState {
                     self.mutate_player_inventory_runtime_with_access_like_cpp(
                         access,
                         |inventory| inventory.remove_item_from_slot_like_cpp(slot),
-                    ).flatten();
+                    )
+                    .flatten();
                     self.mutate_player_inventory_runtime_with_access_like_cpp(
                         access,
                         |inventory| inventory.remove_item_object_like_cpp(item_guid),
-                    ).flatten();
+                    )
+                    .flatten();
                     cleared_slots.push((slot, ObjectGuid::EMPTY));
                     if (slot as usize) < 19 {
                         visible_item_changes.push((slot, 0i32, 0u16, 0u16));
@@ -95,11 +102,7 @@ impl crate::InventoryState {
         send_stat_update
     }
 
-    pub fn inventory_container_db_guid_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        bag: u8,
-    ) -> Option<u64> {
+    pub fn inventory_container_db_guid_like_cpp(&self, hub: HubRef<'_>, bag: u8) -> Option<u64> {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.inventory_container_db_guid_with_access_like_cpp(&access, bag)
     }
@@ -169,9 +172,7 @@ impl crate::InventoryState {
     ) -> Option<Vec<ExtendedCostItemTurninChange>> {
         let access = hub.core.owned_inventory_access_like_cpp();
         self.plan_destroy_item_count_direct_inventory_with_access_like_cpp(
-            &access,
-            item_entry,
-            count,
+            &access, item_entry, count,
         )
     }
 }

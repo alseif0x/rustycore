@@ -278,8 +278,14 @@ impl WorldSession {
         let difficulty_store = catalogs.difficulty_store().map(AsRef::as_ref);
         hub.player_aura_removal_access_like_cpp()
             .apply_player_threat_aura_for_consumer_like_cpp(
-                spell_id, caster_guid, slot, effect_mask, represented_effect_amounts,
-                spell_store, difficulty_store, cfg!(test),
+                spell_id,
+                caster_guid,
+                slot,
+                effect_mask,
+                represented_effect_amounts,
+                spell_store,
+                difficulty_store,
+                cfg!(test),
             );
     }
     pub(in crate::session) fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self) {
@@ -331,8 +337,6 @@ impl WorldSession {
             .max(0.0)
     }
 }
-
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/world_entities/aggro/f3_shims.rs"]

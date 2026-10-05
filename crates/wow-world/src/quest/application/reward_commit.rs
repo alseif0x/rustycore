@@ -2,8 +2,8 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use crate::session::WorldSession;
 use super::QuestRewardDurablePlanLikeCpp;
+use crate::session::WorldSession;
 
 impl WorldSession {
     pub(crate) async fn commit_quest_reward_plan_like_cpp(

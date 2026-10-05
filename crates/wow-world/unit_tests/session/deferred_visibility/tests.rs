@@ -122,7 +122,9 @@ impl Fixture {
                 .control_address(session.player_guid().unwrap())
                 .is_some()
         );
-        session.visibility.set_last_visibility_pos_like_cpp(position);
+        session
+            .visibility
+            .set_last_visibility_pos_like_cpp(position);
         // Login setup is outside the action window tested below.
         while output.try_recv().is_ok() {}
         Self {

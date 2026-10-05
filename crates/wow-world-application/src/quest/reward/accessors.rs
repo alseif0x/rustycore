@@ -14,7 +14,11 @@ impl QuestRewardCx<'_> {
     ) -> Option<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp> {
         let owner = self.player.quest_objective_access_like_cpp();
         super::super::objective_progress::plan_quest_status_save_like_cpp(
-            &owner, self.quest_state, self.catalogs, quest_id, status,
+            &owner,
+            self.quest_state,
+            self.catalogs,
+            quest_id,
+            status,
             self.world_test_consumer,
         )
     }
@@ -22,7 +26,9 @@ impl QuestRewardCx<'_> {
     pub(super) fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
         let owner = self.player.quest_objective_access_like_cpp();
         super::super::objective_progress::invalidate_player_quest_status_authority_like_cpp(
-            &owner, self.quest_state, self.world_test_consumer,
+            &owner,
+            self.quest_state,
+            self.world_test_consumer,
         );
     }
 
@@ -37,11 +43,7 @@ impl QuestRewardCx<'_> {
     ) -> Option<Vec<wow_world_inventory::ExtendedCostItemTurninChange>> {
         let access = self.player.inventory_like_cpp();
         self.inventory
-            .plan_quest_reward_item_removal_with_access_like_cpp(
-                &access,
-                item_entry,
-                count,
-            )
+            .plan_quest_reward_item_removal_with_access_like_cpp(&access, item_entry, count)
     }
 
     pub fn represented_inventory_item_counts_like_cpp(

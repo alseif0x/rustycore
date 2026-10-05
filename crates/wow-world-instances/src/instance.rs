@@ -1,7 +1,7 @@
 use crate::InstanceState;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::constants::HOUR_SECS_LIKE_CPP;
-use wow_world_core::session::{connection_identity::unix_now, HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, connection_identity::unix_now};
 
 impl InstanceState {
     pub fn check_instance_count_like_cpp(
@@ -13,11 +13,7 @@ impl InstanceState {
         self.check_instance_count_at_like_cpp(hub, instance_id, now_secs)
     }
 
-    pub fn check_instance_count_probe_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        instance_id: u32,
-    ) -> bool {
+    pub fn check_instance_count_probe_like_cpp(&self, hub: HubRef<'_>, instance_id: u32) -> bool {
         let now_secs = u64::try_from(unix_now()).unwrap_or(0);
         if let Some(result) = hub.core.with_owned_player_like_cpp(|player| {
             player.check_instance_count_probe_like_cpp(
@@ -215,10 +211,7 @@ impl InstanceState {
         canonical.unwrap_or(false)
     }
 
-    pub fn current_map_instanceable_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn current_map_instanceable_like_cpp(&self, hub: HubRef<'_>) -> bool {
         let map_id = u32::from(hub.core.player_map_id_like_cpp());
         hub.catalogs
             .map_store()

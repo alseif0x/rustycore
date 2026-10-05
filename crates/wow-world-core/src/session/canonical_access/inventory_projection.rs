@@ -111,7 +111,8 @@ impl InventoryPlayerProjectionLikeCpp {
         bag_guid: wow_core::ObjectGuid,
         bag_size: u8,
     ) -> Result<(), wow_entities::PlayerStorageError> {
-        self.player.register_bag_storage(bag_slot, bag_guid, bag_size)
+        self.player
+            .register_bag_storage(bag_slot, bag_guid, bag_size)
     }
 
     pub fn store_top_level_item_like_cpp(
@@ -195,11 +196,7 @@ impl InventoryPlayerProjectionLikeCpp {
         self.player.set_visible_item_slot(slot, item);
     }
 
-    pub fn set_player_visible_item_values_like_cpp(
-        &mut self,
-        slot: u8,
-        values: (i32, u16, u16),
-    ) {
+    pub fn set_player_visible_item_values_like_cpp(&mut self, slot: u8, values: (i32, u16, u16)) {
         set_player_visible_item_values_like_cpp(&mut self.player, slot, values);
     }
 

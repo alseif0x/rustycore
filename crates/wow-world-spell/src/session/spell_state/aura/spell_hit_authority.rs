@@ -35,10 +35,7 @@ impl SessionSpellState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn player_aura_authority_complete_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn player_aura_authority_complete_like_cpp(&self, hub: HubRef<'_>) -> bool {
         hub.fixtures.auras.player_aura_authority_complete_like_cpp
     }
 
@@ -50,10 +47,7 @@ impl SessionSpellState {
             .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
     }
 
-    pub fn tombstone_player_spell_hit_aura_authority_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _canonical = hub
             .core
             .with_owned_player_mut_like_cpp(|player| {
@@ -68,10 +62,7 @@ impl SessionSpellState {
         }
     }
 
-    pub fn represented_active_glyph_aura_source_is_empty_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn represented_active_glyph_aura_source_is_empty_like_cpp(&self, hub: HubRef<'_>) -> bool {
         hub.player_talent_runtime_snapshot_like_cpp()
             .filter(|runtime| runtime.glyphs_loaded_like_cpp())
             .map(|runtime| {

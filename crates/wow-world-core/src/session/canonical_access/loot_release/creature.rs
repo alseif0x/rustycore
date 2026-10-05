@@ -28,8 +28,9 @@ pub fn looted_corpse_decay_secs_like_cpp(
 fn looted_creature_lifecycle_like_cpp(
     whole_object_fully_skinned: bool,
     corpse_decay_looted_rate: f32,
-) -> impl FnOnce(&mut crate::map_manager::WorldCreature) -> (Option<(u32, u32)>, wow_entities::UnitValuesUpdate)
-{
+) -> impl FnOnce(
+    &mut crate::map_manager::WorldCreature,
+) -> (Option<(u32, u32)>, wow_entities::UnitValuesUpdate) {
     move |creature: &mut crate::map_manager::WorldCreature| {
         creature.remove_lootable_dynamic_flag_like_cpp();
         let marked = if !creature.is_alive() {
@@ -57,10 +58,14 @@ fn looted_creature_lifecycle_like_cpp(
 }
 
 impl LootReleaseOwnerAccessLikeCpp<'_> {
-    pub fn canonical_creature_is_fully_looted_like_cpp(&mut self, guid: ObjectGuid) -> Option<bool> {
-        self.core.mutate_canonical_creature_by_guid_like_cpp(guid, |creature| {
-            creature.is_fully_looted_like_cpp()
-        })
+    pub fn canonical_creature_is_fully_looted_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<bool> {
+        self.core
+            .mutate_canonical_creature_by_guid_like_cpp(guid, |creature| {
+                creature.is_fully_looted_like_cpp()
+            })
     }
 
     pub fn finish_looted_creature_like_cpp(
@@ -70,11 +75,17 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         corpse_decay_looted_rate: f32,
         observation: Option<(&OwnedLootAuthority, u64, u64)>,
     ) -> Option<(Option<(u32, u32)>, wow_entities::UnitValuesUpdate)> {
-        let apply_lifecycle =
-            looted_creature_lifecycle_like_cpp(whole_object_fully_skinned, corpse_decay_looted_rate);
+        let apply_lifecycle = looted_creature_lifecycle_like_cpp(
+            whole_object_fully_skinned,
+            corpse_decay_looted_rate,
+        );
         if let Some((authority, object_generation, lifecycle_revision)) = observation {
             self.mutate_world_creature_if_fully_looted_observation_like_cpp(
-                guid, authority, object_generation, lifecycle_revision, apply_lifecycle,
+                guid,
+                authority,
+                object_generation,
+                lifecycle_revision,
+                apply_lifecycle,
             )
         } else {
             self.core.mutate_world_creature(guid, apply_lifecycle)
@@ -98,7 +109,10 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
             authority,
             object_generation,
             lifecycle_revision,
-            looted_creature_lifecycle_like_cpp(whole_object_fully_skinned, corpse_decay_looted_rate),
+            looted_creature_lifecycle_like_cpp(
+                whole_object_fully_skinned,
+                corpse_decay_looted_rate,
+            ),
         )
     }
 

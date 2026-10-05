@@ -197,7 +197,6 @@ impl WorldSession {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../../unit_tests/session/spell_state/aura/spell_hit_authority/f3_shims.rs"]
 mod f3_shims;

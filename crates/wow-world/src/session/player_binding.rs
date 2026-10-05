@@ -4,8 +4,8 @@
 //! Player binding: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::WorldSession;
 use super::ObjectGuid;
+use super::WorldSession;
 pub(in crate::session) use wow_world_core::session::PlayerIdentityBootstrapLikeCpp;
 
 #[derive(Debug, Clone)]
@@ -112,12 +112,14 @@ impl WorldSession {
             {
                 self.quest_state
                     .fixture_set_player_quest_status_authority_complete_like_cpp(false);
-                self.quest_state.fixture_clear_represented_rewarded_quest_rows_like_cpp();
+                self.quest_state
+                    .fixture_clear_represented_rewarded_quest_rows_like_cpp();
                 self.lifecycle
                     .reset_loaded_player_flags_fixture_for_test_like_cpp();
             }
             #[cfg(test)]
-            self.social.clear_represented_guild_identity_for_test_like_cpp();
+            self.social
+                .clear_represented_guild_identity_for_test_like_cpp();
             let _ = self.clear_represented_trait_config_rows_like_cpp();
             let _ =
                 crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {

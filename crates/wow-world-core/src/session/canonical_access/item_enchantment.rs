@@ -1,11 +1,11 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use crate::session::SessionCore;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::RepresentedPlayerSkillLikeCpp;
-use wow_entities::{ApplyEnchantmentArgs, ApplyEnchantmentPlan, ApplyEnchantmentTemplateRef, Item};
+use crate::session::SessionCore;
 use wow_constants::item::EnchantmentSlot;
+use wow_entities::{ApplyEnchantmentArgs, ApplyEnchantmentPlan, ApplyEnchantmentTemplateRef, Item};
 
 /// The owner used by the existing enchantment mutation, including its
 /// canonical mutation fallback. No Player or manager guard escapes.
@@ -18,8 +18,10 @@ pub struct OwnedItemEnchantmentAccessLikeCpp<'a> {
 impl SessionCore {
     pub fn owned_item_enchantment_access_like_cpp<'a>(
         &'a self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        skill_records: &'a std::collections::HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        #[cfg(any(test, feature = "test-fixtures"))] skill_records: &'a std::collections::HashMap<
+            u16,
+            RepresentedPlayerSkillLikeCpp,
+        >,
     ) -> OwnedItemEnchantmentAccessLikeCpp<'a> {
         OwnedItemEnchantmentAccessLikeCpp {
             core: self,
@@ -31,12 +33,18 @@ impl SessionCore {
 
 impl OwnedItemEnchantmentAccessLikeCpp<'_> {
     pub fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        let records = self.core.resolved_player_skill_records_for_publication_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.skill_records,
-        )?;
-        Some(crate::session::represented_skill_values_from_records_like_cpp(&records)
-            .get(&skill_id).copied().unwrap_or(0))
+        let records = self
+            .core
+            .resolved_player_skill_records_for_publication_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.skill_records,
+            )?;
+        Some(
+            crate::session::represented_skill_values_from_records_like_cpp(&records)
+                .get(&skill_id)
+                .copied()
+                .unwrap_or(0),
+        )
     }
 
     pub fn apply_enchantment_plan_like_cpp(

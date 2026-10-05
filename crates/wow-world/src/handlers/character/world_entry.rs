@@ -172,13 +172,7 @@ impl WorldSession {
         saved_power0: i32,
     ) -> Option<(PlayerCombatStats, i32, i32)> {
         self.stats_application_cx_like_cpp()
-            .player_login_combat_stats_like_cpp(
-                race,
-                class,
-                level,
-                saved_health,
-                saved_power0,
-            )
+            .player_login_combat_stats_like_cpp(race, class, level, saved_health, saved_power0)
     }
 
     /// C++ `WorldSession::HandlePlayerLogin` packet prelude through

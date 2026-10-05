@@ -379,20 +379,26 @@ impl WorldSession {
         for (child_guid, _, full_guid, empty_guid, _, from_slot, to_slot) in &child_moves {
             self.send_item_relocation_values_update_like_cpp(*child_guid, false, &[]);
             {
-                self.inventory.send_bag_object_slot_values_update_with_access_like_cpp(
-                    &self.core.owned_inventory_access_like_cpp(),
-                    &self.core.packet_publication_access_like_cpp(),
-                    self.catalogs.items.store.as_ref(), self.catalogs.items.stats_store.as_ref(),
-                    *full_guid, *from_slot,
-                )
+                self.inventory
+                    .send_bag_object_slot_values_update_with_access_like_cpp(
+                        &self.core.owned_inventory_access_like_cpp(),
+                        &self.core.packet_publication_access_like_cpp(),
+                        self.catalogs.items.store.as_ref(),
+                        self.catalogs.items.stats_store.as_ref(),
+                        *full_guid,
+                        *from_slot,
+                    )
             };
             {
-                self.inventory.send_bag_object_slot_values_update_with_access_like_cpp(
-                    &self.core.owned_inventory_access_like_cpp(),
-                    &self.core.packet_publication_access_like_cpp(),
-                    self.catalogs.items.store.as_ref(), self.catalogs.items.stats_store.as_ref(),
-                    *empty_guid, *to_slot,
-                )
+                self.inventory
+                    .send_bag_object_slot_values_update_with_access_like_cpp(
+                        &self.core.owned_inventory_access_like_cpp(),
+                        &self.core.packet_publication_access_like_cpp(),
+                        self.catalogs.items.store.as_ref(),
+                        self.catalogs.items.stats_store.as_ref(),
+                        *empty_guid,
+                        *to_slot,
+                    )
             };
         }
         if removed_source_mods

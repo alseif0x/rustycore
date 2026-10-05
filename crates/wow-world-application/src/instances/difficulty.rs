@@ -16,10 +16,8 @@ use wow_persistence::{
 use wow_social::group::GroupDifficultyKindLikeCpp;
 use wow_world_instances::SessionDifficultyKindLikeCpp;
 
-use crate::instances::{
-    InstanceDifficultyHandlerCxLikeCpp, InstanceResetMethodLikeCpp,
-};
 use crate::instances::lock_operations::reset_locks_with_access_like_cpp;
+use crate::instances::{InstanceDifficultyHandlerCxLikeCpp, InstanceResetMethodLikeCpp};
 
 impl InstanceDifficultyHandlerCxLikeCpp<'_> {
     pub fn apply_group_difficulty_like_cpp(
@@ -61,16 +59,10 @@ pub async fn handle_toggle_difficulty_like_cpp(
         return;
     }
 
-    let Some(difficulty_id) = cx
-        .difficulty_store
-        .and_then(|store| {
-            cx.instances
-                .represented_toggle_difficulty_target_with_access_like_cpp(
-                    &cx.player,
-                    store,
-                )
-        })
-    else {
+    let Some(difficulty_id) = cx.difficulty_store.and_then(|store| {
+        cx.instances
+            .represented_toggle_difficulty_target_with_access_like_cpp(&cx.player, store)
+    }) else {
         debug!(
             account = cx.player.account_id_like_cpp(),
             "ToggleDifficulty has no represented toggle difficulty available"
@@ -114,12 +106,11 @@ pub async fn handle_set_raid_difficulty_like_cpp(
     };
 
     let Some(difficulty_id) = cx.difficulty_store.and_then(|store| {
-        cx.instances
-            .represented_raid_difficulty_request_like_cpp(
-                store,
-                packet.difficulty_id,
-                packet.legacy != 0,
-            )
+        cx.instances.represented_raid_difficulty_request_like_cpp(
+            store,
+            packet.difficulty_id,
+            packet.legacy != 0,
+        )
     }) else {
         return;
     };
@@ -331,12 +322,8 @@ fn set_represented_group_difficulty_like_cpp(
         }
         // C++ `Group::SetDungeonDifficultyID` writes each connected member's
         // preference in member iteration order (#743).
-        cx.groups.apply_member_transition_like_cpp(
-            member_guid,
-            group_guid,
-            difficulty_id,
-            kind,
-        );
+        cx.groups
+            .apply_member_transition_like_cpp(member_guid, group_guid, difficulty_id, kind);
     }
 
     persistence

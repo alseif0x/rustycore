@@ -21,10 +21,7 @@ impl WorldSession {
             .instance_lock_manager_access_like_cpp(&self.config);
         let packets = self.core.packet_publication_access_like_cpp();
         let map_store = self.catalogs.map_store().map(AsRef::as_ref);
-        let map_difficulty_store = self
-            .catalogs
-            .map_difficulty_store()
-            .map(AsRef::as_ref);
+        let map_difficulty_store = self.catalogs.map_difficulty_store().map(AsRef::as_ref);
         InstanceRaidInfoHandlerCxLikeCpp::new(
             player,
             locks,
@@ -45,10 +42,7 @@ impl WorldSession {
         let groups = self.core.group_difficulty_access_like_cpp();
         let packets = self.core.packet_publication_access_like_cpp();
         let map_store = self.catalogs.map_store().map(AsRef::as_ref);
-        let map_difficulty_store = self
-            .catalogs
-            .map_difficulty_store()
-            .map(AsRef::as_ref);
+        let map_difficulty_store = self.catalogs.map_difficulty_store().map(AsRef::as_ref);
         let difficulty_store = self.catalogs.difficulty_store().map(AsRef::as_ref);
         #[cfg(any(test, feature = "test-fixtures"))]
         let game_master_fixture = &self.fixtures.combat.player_game_master_like_cpp;
@@ -86,10 +80,7 @@ impl WorldSession {
         let groups = self.core.group_difficulty_access_like_cpp();
         let packets = self.core.packet_publication_access_like_cpp();
         let map_store = self.catalogs.map_store().map(AsRef::as_ref);
-        let map_difficulty_store = self
-            .catalogs
-            .map_difficulty_store()
-            .map(AsRef::as_ref);
+        let map_difficulty_store = self.catalogs.map_difficulty_store().map(AsRef::as_ref);
         let difficulty_store = self.catalogs.difficulty_store().map(AsRef::as_ref);
         InstanceDifficultyHandlerCxLikeCpp::new(
             &mut self.instances,

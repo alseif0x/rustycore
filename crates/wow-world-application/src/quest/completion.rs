@@ -27,15 +27,13 @@ pub(crate) fn complete_represented_quest_status_like_cpp(
     #[cfg(any(test, feature = "test-fixtures"))]
     let canonical = if fixture_owner {
         let mut state = quest_state.player_quest_gameplay_fixture_like_cpp();
-        let completed = state
-            .status_mut_like_cpp(quest_id)
-            .and_then(|status| {
-                (status.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP).then(|| {
-                    let old_status = status.status;
-                    status.status = wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
-                    old_status
-                })
-            });
+        let completed = state.status_mut_like_cpp(quest_id).and_then(|status| {
+            (status.status == wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP).then(|| {
+                let old_status = status.status;
+                status.status = wow_conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
+                old_status
+            })
+        });
         quest_state.apply_player_quest_gameplay_fixture_like_cpp(state);
         Some(completed)
     } else {
@@ -93,8 +91,7 @@ pub(crate) fn sync_quest_completion_registry_like_cpp(
     loot: &LootState,
     #[cfg(any(test, feature = "test-fixtures"))] spell_state: &wow_world_spell::SessionSpellState,
     #[cfg(any(test, feature = "test-fixtures"))] quest_state: &SessionQuestState,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_vehicle_and_pet: (
+    #[cfg(any(test, feature = "test-fixtures"))] fixture_vehicle_and_pet: (
         &Option<wow_entities::Vehicle>,
         &Option<i32>,
         &Option<u32>,
@@ -105,8 +102,9 @@ pub(crate) fn sync_quest_completion_registry_like_cpp(
     #[cfg(any(test, feature = "test-fixtures"))] fixture_max_health: &u32,
     #[cfg(any(test, feature = "test-fixtures"))] fixture_alive: &bool,
     #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_transport: &Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
+    #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &Option<
+        Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>,
+    >,
     #[cfg(any(test, feature = "test-fixtures"))] world_test_consumer: bool,
 ) {
     let Some((position, control)) = owner.player_registry_sync_participants_like_cpp(

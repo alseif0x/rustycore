@@ -4,8 +4,8 @@
 use wow_constants::ItemFieldFlags;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    is_bag_pos, make_item_pos, Item, PlayerInventoryItem as InventoryItem,
-    PlayerItemTimeUpdate, SwapItemPreflightItem, SwapItemPreflightPlan, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_BAG_0, Item, PlayerInventoryItem as InventoryItem, PlayerItemTimeUpdate,
+    SwapItemPreflightItem, SwapItemPreflightPlan, is_bag_pos, make_item_pos,
 };
 use wow_packet::packets::item::ItemTimeUpdate;
 use wow_world_core::session::{HubMut, HubRef};
@@ -151,22 +151,14 @@ impl crate::InventoryState {
 }
 
 impl crate::InventoryState {
-    pub fn send_item_time_update_plan(
-        &self,
-        hub: HubRef<'_>,
-        update: &PlayerItemTimeUpdate,
-    ) {
+    pub fn send_item_time_update_plan(&self, hub: HubRef<'_>, update: &PlayerItemTimeUpdate) {
         hub.core.send_packet(&ItemTimeUpdate {
             item_guid: update.item_guid,
             duration_left: update.expiration,
         });
     }
 
-    pub fn send_item_time_update_plans(
-        &self,
-        hub: HubRef<'_>,
-        updates: &[PlayerItemTimeUpdate],
-    ) {
+    pub fn send_item_time_update_plans(&self, hub: HubRef<'_>, updates: &[PlayerItemTimeUpdate]) {
         for update in updates {
             self.send_item_time_update_plan(hub, update);
         }

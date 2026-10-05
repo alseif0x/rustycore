@@ -14,12 +14,13 @@ impl crate::InventoryState {
         access: &OwnedPlayerCurrencyAccessLikeCpp<'_>,
         currency_id: u32,
     ) -> Option<u32> {
-        self.player_currencies_with_access_like_cpp(access).map(|currencies| {
-            currencies
-                .get(&currency_id)
-                .map(|currency| currency.quantity)
-                .unwrap_or(0)
-        })
+        self.player_currencies_with_access_like_cpp(access)
+            .map(|currencies| {
+                currencies
+                    .get(&currency_id)
+                    .map(|currency| currency.quantity)
+                    .unwrap_or(0)
+            })
     }
 
     pub fn remove_currency_with_access_like_cpp(

@@ -18,6 +18,7 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::ClientPacket;
 use wow_packet::WorldPacket;
 use wow_packet::packets::misc::{
     AddonList, MAX_ACCOUNT_DATA_SIZE_LIKE_CPP, NUM_ACCOUNT_DATA_TYPES, RequestAccountData,
@@ -25,7 +26,6 @@ use wow_packet::packets::misc::{
     TUTORIAL_ACTION_UPDATE_LIKE_CPP, TutorialSetFlag, UpdateAccountData,
     UserClientUpdateAccountData, compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
-use wow_packet::ClientPacket;
 use wow_world_core::session::HubMut;
 
 use crate::SessionLifecycleState;
@@ -107,7 +107,12 @@ impl<'a> AccountDataHandlerCxLikeCpp<'a> {
 
         if packet.size == 0 {
             self.lifecycle
-                .set_account_data_persisted_like_cpp(&mut self.hub, packet.data_type, 0, String::new())
+                .set_account_data_persisted_like_cpp(
+                    &mut self.hub,
+                    packet.data_type,
+                    0,
+                    String::new(),
+                )
                 .await;
             return;
         }

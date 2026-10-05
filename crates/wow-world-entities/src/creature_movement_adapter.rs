@@ -59,18 +59,16 @@ pub fn resolve_creature_detour_path_like_cpp(
     let start = request.start;
     let destination = request.destination;
     let Some(worker) = mmap_pathfinder else {
-        return Some(wow_world_core::map_manager::detour_path_without_navmesh_like_cpp(
-            start,
-            destination,
-        ));
+        return Some(
+            wow_world_core::map_manager::detour_path_without_navmesh_like_cpp(start, destination),
+        );
     };
 
     match worker.calculate_path_like_cpp(request) {
         Ok(Some(path)) => Some(path),
-        Ok(None) => Some(wow_world_core::map_manager::detour_path_without_navmesh_like_cpp(
-            start,
-            destination,
-        )),
+        Ok(None) => Some(
+            wow_world_core::map_manager::detour_path_without_navmesh_like_cpp(start, destination),
+        ),
         Err(error) => {
             tracing::warn!(
                 "mmap pathfinding failed for creature {:?}: {:?}",

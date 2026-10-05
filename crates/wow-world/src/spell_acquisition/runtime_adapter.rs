@@ -29,18 +29,19 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for crate::session::WorldSession {
         new_non_durable_skill_tombstone_ids: &BTreeSet<u16>,
     ) -> Result<(), PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp> {
         let owner = self.core.player_acquisition_owner_access_like_cpp();
-        let installed = wow_world_application::install_player_spell_acquisition_runtime_snapshot_like_cpp(
-            &owner,
-            &mut self.spell_state,
-            runtime_snapshot,
-            new_non_durable_skill_tombstone_ids,
-            cfg!(test),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            (
-                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
-                &mut self.fixtures.progression.represented_enchanting_skill,
-            ),
-        );
+        let installed =
+            wow_world_application::install_player_spell_acquisition_runtime_snapshot_like_cpp(
+                &owner,
+                &mut self.spell_state,
+                runtime_snapshot,
+                new_non_durable_skill_tombstone_ids,
+                cfg!(test),
+                #[cfg(any(test, feature = "test-fixtures"))]
+                (
+                    &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
+                    &mut self.fixtures.progression.represented_enchanting_skill,
+                ),
+            );
         if installed.is_ok() {
             self.sync_player_registry_state_like_cpp();
         }

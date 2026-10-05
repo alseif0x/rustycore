@@ -1,10 +1,10 @@
 use crate::InstanceState;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedAreaZoneCriteriaLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 use wow_core::ObjectGuid;
 use wow_data::TavernAreaTriggerStoreLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 use wow_world_core::session::{HubMut, PlayerBootstrapCatalogsLikeCpp};
 
 impl InstanceState {
@@ -17,9 +17,7 @@ impl InstanceState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_area_zone_criteria_like_cpp(
-        &self,
-    ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
+    pub fn represented_area_zone_criteria_like_cpp(&self) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
         &self.represented_area_zone_criteria_like_cpp
     }
 
@@ -76,7 +74,9 @@ impl InstanceState {
         if canonical || hub.core.player_handle_like_cpp.is_none() {
             hub.fixtures.combat.area_spirit_healer_guid_like_cpp = healer_guid;
         }
-        canonical || cfg!(any(test, feature = "test-fixtures")) && hub.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && hub.core.player_handle_like_cpp.is_none()
     }
 
     pub fn set_player_zone_area_authority_complete_like_cpp(

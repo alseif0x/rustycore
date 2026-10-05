@@ -56,17 +56,8 @@ fn world_social_root_and_core_borrow_aliases_resolve_to_their_real_providers() {
             "pub struct SessionSocialLimits;",
         ),
         core_mount("crate", "core/lib.rs", "pub mod session;"),
-        core_mount(
-            "crate::session",
-            "core/session.rs",
-            "pub struct HubRef;",
-        ),
-        package_mount(
-            "wow-world",
-            "crate",
-            "world/lib.rs",
-            "pub mod consumer;",
-        ),
+        core_mount("crate::session", "core/session.rs", "pub struct HubRef;"),
+        package_mount("wow-world", "crate", "world/lib.rs", "pub mod consumer;"),
         package_mount(
             "wow-world",
             "crate::consumer",
@@ -75,25 +66,15 @@ fn world_social_root_and_core_borrow_aliases_resolve_to_their_real_providers() {
         ),
     ];
 
-    let social = nominal_identity(
-        &sources,
-        "wow-world",
-        "crate::consumer",
-        "SelectedSocial",
-    )
-    .expect("the real Social root and reexport resolve");
+    let social = nominal_identity(&sources, "wow-world", "crate::consumer", "SelectedSocial")
+        .expect("the real Social root and reexport resolve");
     assert_eq!(social.len(), 1);
     assert_eq!(social[0].package, "wow-world-social");
     assert_eq!(social[0].module, "crate::state");
     assert_eq!(social[0].symbol, "SessionSocialLimits");
 
-    let borrowed_core = nominal_identity(
-        &sources,
-        "wow-world-social",
-        "crate",
-        "CoreBorrow",
-    )
-    .expect("Social may name a borrowed Core type without becoming its provider");
+    let borrowed_core = nominal_identity(&sources, "wow-world-social", "crate", "CoreBorrow")
+        .expect("Social may name a borrowed Core type without becoming its provider");
     assert_eq!(borrowed_core.len(), 1);
     assert_eq!(borrowed_core[0].package, "wow-world-core");
     assert_eq!(borrowed_core[0].module, "crate::session");
@@ -113,13 +94,8 @@ fn local_module_shadowing_precedes_the_world_social_crate_root() {
         ),
     ];
 
-    let found = nominal_identity(
-        &sources,
-        "wow-world",
-        "crate::consumer",
-        "Selected",
-    )
-    .expect("the local module shadows the external package root");
+    let found = nominal_identity(&sources, "wow-world", "crate::consumer", "Selected")
+        .expect("the local module shadows the external package root");
     assert_eq!(found.len(), 1);
     assert_eq!(found[0].package, "wow-world");
     assert_eq!(found[0].module, "crate::consumer::wow_world_social");
@@ -213,10 +189,14 @@ fn world_social_types_do_not_become_core_bridge_authority() {
     assert!(evidence.iter().any(|marker| {
         marker.side == BridgeSide::Legacy && marker.symbol == "SharedMapManager"
     }));
-    assert!(evidence
-        .iter()
-        .any(|marker| marker.side == BridgeSide::Canonical && marker.symbol == "Creature"));
-    assert!(!evidence
-        .iter()
-        .any(|marker| marker.symbol == "SessionSocialLimits"));
+    assert!(
+        evidence
+            .iter()
+            .any(|marker| marker.side == BridgeSide::Canonical && marker.symbol == "Creature")
+    );
+    assert!(
+        !evidence
+            .iter()
+            .any(|marker| marker.symbol == "SessionSocialLimits")
+    );
 }

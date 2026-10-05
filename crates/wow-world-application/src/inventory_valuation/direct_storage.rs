@@ -8,8 +8,8 @@ use std::collections::HashMap;
 use wow_constants::InventoryResult;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    is_buyback_slot, BagTemplateRef, CanStoreItemArgs, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef,
-    ItemStorageRef,
+    BagTemplateRef, CanStoreItemArgs, INVENTORY_SLOT_BAG_0, Item, ItemSlotRef, ItemStorageRef,
+    is_buyback_slot,
 };
 use wow_world_inventory::is_represented_bag_slot;
 
@@ -29,12 +29,18 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
         swap: bool,
         overlays: &[wow_world_inventory::DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],
-    ) -> Option<(InventoryResult, Vec<wow_entities::ItemPosCount>, Option<u32>)> {
-        let mut player = self.inventory.direct_inventory_player_snapshot_with_access_like_cpp(
-            &self.inventory_access,
-            self.catalogs.item_store_like_cpp(),
-            self.catalogs.item_stats_store_like_cpp(),
-        )?;
+    ) -> Option<(
+        InventoryResult,
+        Vec<wow_entities::ItemPosCount>,
+        Option<u32>,
+    )> {
+        let mut player = self
+            .inventory
+            .direct_inventory_player_snapshot_with_access_like_cpp(
+                &self.inventory_access,
+                self.catalogs.item_store_like_cpp(),
+                self.catalogs.item_stats_store_like_cpp(),
+            )?;
         // C++ processes every valid deposit (including recursive bag contents)
         // before it calls CanStoreNewItem for withdrawals. Remove those detached
         // positions from this planning snapshot in the same child-before-parent order.
@@ -69,10 +75,8 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                 .unwrap_or_else(|| {
                     let mut item = Item::default();
                     let placeholder_counter = i64::MAX.saturating_sub(index as i64);
-                    item.object_mut().create(ObjectGuid::create_item(
-                        realm_id,
-                        placeholder_counter,
-                    ));
+                    item.object_mut()
+                        .create(ObjectGuid::create_item(realm_id, placeholder_counter));
                     item.object_mut().set_entry(overlay.entry_id);
                     item
                 });
@@ -232,10 +236,11 @@ impl InventoryValuationApplicationCxLikeCpp<'_> {
                 proto: proto.as_ref(),
                 source_item,
                 source_is_not_empty_bag: source_item.is_some_and(|item| {
-                    self.inventory.direct_item_contains_items_with_access_like_cpp(
-                        &self.inventory_access,
-                        item.object().guid(),
-                    )
+                    self.inventory
+                        .direct_item_contains_items_with_access_like_cpp(
+                            &self.inventory_access,
+                            item.object().guid(),
+                        )
                 }),
                 source_bop_trade_allowed_for_player: false,
                 swap,
@@ -263,7 +268,11 @@ impl PlayerConditionProjectionCxLikeCpp<'_> {
         swap: bool,
         overlays: &[wow_world_inventory::DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],
-    ) -> Option<(InventoryResult, Vec<wow_entities::ItemPosCount>, Option<u32>)> {
+    ) -> Option<(
+        InventoryResult,
+        Vec<wow_entities::ItemPosCount>,
+        Option<u32>,
+    )> {
         let player = self.player_access_like_cpp();
         let application = InventoryValuationApplicationCxLikeCpp {
             inventory: self.inventory,

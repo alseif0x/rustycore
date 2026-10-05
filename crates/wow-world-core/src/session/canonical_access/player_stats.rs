@@ -3,9 +3,9 @@
 
 //! Narrow read access for the character-stat application projection.
 
+use crate::session::OwnedInventoryAccessLikeCpp;
 use crate::session::state::{HubMut, HubRef, SessionCore};
 use crate::session::{SessionCatalogs, SessionWorldConfig};
-use crate::session::OwnedInventoryAccessLikeCpp;
 use std::collections::{BTreeMap, HashMap};
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
@@ -34,16 +34,21 @@ pub struct StatsCombatFixtureRefs<'a> {
 #[cfg(any(test, feature = "test-fixtures"))]
 impl<'a> StatsCombatFixtureRefs<'a> {
     pub(crate) fn health_refs_like_cpp(&self) -> (&u32, &u32, &bool) {
-        (&*self.player_health_like_cpp, &*self.player_max_health_like_cpp,
-            &*self.player_alive_like_cpp)
+        (
+            &*self.player_health_like_cpp,
+            &*self.player_max_health_like_cpp,
+            &*self.player_alive_like_cpp,
+        )
     }
     pub(crate) fn reborrow_like_cpp(&mut self) -> StatsCombatFixtureRefs<'_> {
         StatsCombatFixtureRefs {
             player_health_like_cpp: &mut *self.player_health_like_cpp,
             player_max_health_like_cpp: &mut *self.player_max_health_like_cpp,
             player_alive_like_cpp: &mut *self.player_alive_like_cpp,
-            represented_player_powers_slot0_like_cpp: &mut *self.represented_player_powers_slot0_like_cpp,
-            represented_player_max_powers_slot0_like_cpp: &mut *self.represented_player_max_powers_slot0_like_cpp,
+            represented_player_powers_slot0_like_cpp: &mut *self
+                .represented_player_powers_slot0_like_cpp,
+            represented_player_max_powers_slot0_like_cpp: &mut *self
+                .represented_player_max_powers_slot0_like_cpp,
             represented_player_base_mana_like_cpp: &mut *self.represented_player_base_mana_like_cpp,
         }
     }
@@ -83,8 +88,10 @@ impl<'a> StatsAuraFixtureRefs<'a> {
         player_aura_authority_complete_like_cpp: &'a bool,
         player_spell_hit_aura_authority_tombstoned_like_cpp: &'a bool,
         visible_auras_like_cpp: &'a HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
-        canonical_threat_aura_snapshots_like_cpp:
-            &'a HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
+        canonical_threat_aura_snapshots_like_cpp: &'a HashMap<
+            u8,
+            wow_entities::AuraThreatSnapshotLikeCpp,
+        >,
     ) -> Self {
         Self {
             represented_shapeshift_form_like_cpp,
@@ -118,23 +125,30 @@ impl<'a> StatsFixtureRefs<'a> {
                 player_health_like_cpp: &mut *self.combat.player_health_like_cpp,
                 player_max_health_like_cpp: &mut *self.combat.player_max_health_like_cpp,
                 player_alive_like_cpp: &mut *self.combat.player_alive_like_cpp,
-                represented_player_powers_slot0_like_cpp:
-                    &mut *self.combat.represented_player_powers_slot0_like_cpp,
-                represented_player_max_powers_slot0_like_cpp:
-                    &mut *self.combat.represented_player_max_powers_slot0_like_cpp,
-                represented_player_base_mana_like_cpp:
-                    &mut *self.combat.represented_player_base_mana_like_cpp,
+                represented_player_powers_slot0_like_cpp: &mut *self
+                    .combat
+                    .represented_player_powers_slot0_like_cpp,
+                represented_player_max_powers_slot0_like_cpp: &mut *self
+                    .combat
+                    .represented_player_max_powers_slot0_like_cpp,
+                represented_player_base_mana_like_cpp: &mut *self
+                    .combat
+                    .represented_player_base_mana_like_cpp,
             },
             auras: StatsAuraFixtureRefs {
-                represented_shapeshift_form_like_cpp:
-                    self.auras.represented_shapeshift_form_like_cpp,
-                player_aura_authority_complete_like_cpp:
-                    self.auras.player_aura_authority_complete_like_cpp,
-                player_spell_hit_aura_authority_tombstoned_like_cpp:
-                    self.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                represented_shapeshift_form_like_cpp: self
+                    .auras
+                    .represented_shapeshift_form_like_cpp,
+                player_aura_authority_complete_like_cpp: self
+                    .auras
+                    .player_aura_authority_complete_like_cpp,
+                player_spell_hit_aura_authority_tombstoned_like_cpp: self
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
                 visible_auras_like_cpp: self.auras.visible_auras_like_cpp,
-                canonical_threat_aura_snapshots_like_cpp:
-                    self.auras.canonical_threat_aura_snapshots_like_cpp,
+                canonical_threat_aura_snapshots_like_cpp: self
+                    .auras
+                    .canonical_threat_aura_snapshots_like_cpp,
             },
         }
     }
@@ -144,7 +158,6 @@ impl<'a> StatsFixtureRefs<'a> {
     pub fn vitals_fixture_refs_like_cpp(&self) -> (&u32, &u32, &bool) {
         self.combat.health_refs_like_cpp()
     }
-
 }
 
 /// Borrowed, operation-specific access used while projecting Player stats.
@@ -184,11 +197,9 @@ fn represented_total_stat_multiplier_from_snapshot_like_cpp(
                 .is_some_and(|bit| aura.effect_mask & bit != 0)
                 && effect.effect_aura == aura_type
                 && if uses_misc_value_b {
-                    effect.effect_misc_value_2 == 0
-                        || effect.effect_misc_value_2 & (1 << stat) != 0
+                    effect.effect_misc_value_2 == 0 || effect.effect_misc_value_2 & (1 << stat) != 0
                 } else {
-                    effect.effect_misc_value_1 == -1
-                        || effect.effect_misc_value_1 == stat as i32
+                    effect.effect_misc_value_1 == -1 || effect.effect_misc_value_1 == stat as i32
                 }
         }) {
             let amount = aura
@@ -230,54 +241,49 @@ fn represented_total_stat_multiplier_from_snapshot_like_cpp(
 
 impl SessionCore {
     pub fn apply_shapeshift_base_attack_times_like_cpp(
-        &self, regular: Option<[u32; 3]>, combat_round_time: Option<f32>,
+        &self,
+        regular: Option<[u32; 3]>,
+        combat_round_time: Option<f32>,
     ) -> bool {
-        self
-            .mutate_canonical_player_like_cpp(|player| {
-                let unit = player.unit_mut();
-                let (base, offhand, ranged) = match combat_round_time {
-                    Some(round_time) => (round_time as u32, round_time as u32, 2_000),
-                    None => {
-                        let Some(regular) = regular else {
-                            return;
-                        };
-                        // C++ `Player::SetRegularAttackTime` only writes an attack
-                        // whose equipped weapon declares a delay; every other attack
-                        // keeps its current time.
-                        let current = unit.base_attack_speed();
-                        (
-                            if regular[0] > 0 {
-                                regular[0]
-                            } else {
-                                current[0]
-                            },
-                            if regular[1] > 0 {
-                                regular[1]
-                            } else {
-                                current[1]
-                            },
-                            if regular[2] > 0 {
-                                regular[2]
-                            } else {
-                                current[2]
-                            },
-                        )
-                    }
-                };
-                unit.set_base_attack_time_like_cpp(
-                    wow_constants::WeaponAttackType::BaseAttack,
-                    base,
-                );
-                unit.set_base_attack_time_like_cpp(
-                    wow_constants::WeaponAttackType::OffAttack,
-                    offhand,
-                );
-                unit.set_base_attack_time_like_cpp(
-                    wow_constants::WeaponAttackType::RangedAttack,
-                    ranged,
-                );
-            })
-            .is_some()
+        self.mutate_canonical_player_like_cpp(|player| {
+            let unit = player.unit_mut();
+            let (base, offhand, ranged) = match combat_round_time {
+                Some(round_time) => (round_time as u32, round_time as u32, 2_000),
+                None => {
+                    let Some(regular) = regular else {
+                        return;
+                    };
+                    // C++ `Player::SetRegularAttackTime` only writes an attack
+                    // whose equipped weapon declares a delay; every other attack
+                    // keeps its current time.
+                    let current = unit.base_attack_speed();
+                    (
+                        if regular[0] > 0 {
+                            regular[0]
+                        } else {
+                            current[0]
+                        },
+                        if regular[1] > 0 {
+                            regular[1]
+                        } else {
+                            current[1]
+                        },
+                        if regular[2] > 0 {
+                            regular[2]
+                        } else {
+                            current[2]
+                        },
+                    )
+                }
+            };
+            unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::BaseAttack, base);
+            unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::OffAttack, offhand);
+            unit.set_base_attack_time_like_cpp(
+                wow_constants::WeaponAttackType::RangedAttack,
+                ranged,
+            );
+        })
+        .is_some()
     }
     #[cfg(not(any(test, feature = "test-fixtures")))]
     pub fn player_stats_access_like_cpp<'a>(
@@ -333,9 +339,12 @@ impl PlayerStatsAccessLikeCpp<'_> {
     }
 
     pub fn apply_shapeshift_base_attack_times_like_cpp(
-        &self, regular: Option<[u32; 3]>, combat_round_time: Option<f32>,
+        &self,
+        regular: Option<[u32; 3]>,
+        combat_round_time: Option<f32>,
     ) -> bool {
-        self.core.apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
+        self.core
+            .apply_shapeshift_base_attack_times_like_cpp(regular, combat_round_time)
     }
 
     /// Lend the mutable-vitals participants to the Registry responsibility.
@@ -407,7 +416,8 @@ impl PlayerStatsAccessLikeCpp<'_> {
     }
 
     pub fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
-        self.catalogs.combat_rating_multiplier_like_cpp(level, rating)
+        self.catalogs
+            .combat_rating_multiplier_like_cpp(level, rating)
     }
 
     pub fn stats_limits_like_cpp(&self) -> StatsLimitsLikeCpp {
@@ -422,7 +432,8 @@ impl PlayerStatsAccessLikeCpp<'_> {
         &self,
         power_type: PowerType,
     ) -> Option<(i32, i32)> {
-        self.core.canonical_player_power_snapshot_like_cpp(power_type)
+        self.core
+            .canonical_player_power_snapshot_like_cpp(power_type)
     }
 
     pub fn canonical_player_effective_combat_stats_like_cpp(
@@ -467,11 +478,13 @@ impl PlayerStatsAccessLikeCpp<'_> {
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        Some(crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
-            &visible_auras,
-            spell_store,
-            aura_type,
-        ))
+        Some(
+            crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
+                &visible_auras,
+                spell_store,
+                aura_type,
+            ),
+        )
     }
 
     pub fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
@@ -480,11 +493,13 @@ impl PlayerStatsAccessLikeCpp<'_> {
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        Some(crate::session::aura_effects_with_misc_values_from_snapshot_like_cpp(
-            &visible_auras,
-            spell_store,
-            aura_type,
-        ))
+        Some(
+            crate::session::aura_effects_with_misc_values_from_snapshot_like_cpp(
+                &visible_auras,
+                spell_store,
+                aura_type,
+            ),
+        )
     }
 
     pub fn resolved_aura_effects_with_spell_and_misc_like_cpp(
@@ -493,11 +508,13 @@ impl PlayerStatsAccessLikeCpp<'_> {
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        Some(crate::session::aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
-            &visible_auras,
-            spell_store,
-            aura_type,
-        ))
+        Some(
+            crate::session::aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
+                &visible_auras,
+                spell_store,
+                aura_type,
+            ),
+        )
     }
 
     pub fn resolved_aura_effect_amounts_by_spell_like_cpp(
@@ -506,11 +523,13 @@ impl PlayerStatsAccessLikeCpp<'_> {
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        Some(crate::session::aura_effect_amounts_by_spell_from_snapshot_like_cpp(
-            &visible_auras,
-            spell_store,
-            aura_type,
-        ))
+        Some(
+            crate::session::aura_effect_amounts_by_spell_from_snapshot_like_cpp(
+                &visible_auras,
+                spell_store,
+                aura_type,
+            ),
+        )
     }
 
     pub fn resolved_total_aura_multiplier_by_spell_aura_type_and_misc_value_like_cpp(
@@ -542,22 +561,20 @@ impl PlayerStatsAccessLikeCpp<'_> {
             })
     }
 
-    pub fn resolved_represented_total_stat_multipliers_like_cpp(
-        &self,
-    ) -> Option<[f32; 5]> {
+    pub fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
         let mut multipliers = [1.0; 5];
         for (stat, multiplier) in multipliers.iter_mut().enumerate() {
-            *multiplier = self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, true)?;
+            *multiplier =
+                self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, true)?;
         }
         Some(multipliers)
     }
 
-    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-    ) -> Option<[f32; 5]> {
+    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
         let mut multipliers = [1.0; 5];
         for (stat, multiplier) in multipliers.iter_mut().enumerate() {
-            *multiplier = self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, false)?;
+            *multiplier =
+                self.resolved_represented_total_stat_multiplier_for_stat_like_cpp(stat, false)?;
         }
         Some(multipliers)
     }
@@ -579,11 +596,12 @@ impl PlayerStatsAccessLikeCpp<'_> {
     }
 
     pub fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
-        self.core.represented_shapeshift_combat_round_time_with_fixture_refs_like_cpp(
-            self.catalogs,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.auras.represented_shapeshift_form_like_cpp,
-        )
+        self.core
+            .represented_shapeshift_combat_round_time_with_fixture_refs_like_cpp(
+                self.catalogs,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.auras.represented_shapeshift_form_like_cpp,
+            )
     }
 
     pub fn item_modifier_runtime_snapshot_like_cpp(
@@ -608,7 +626,8 @@ impl PlayerStatsAccessLikeCpp<'_> {
     }
 
     pub fn spell_spell_group_map_bounds_like_cpp(&self, spell_id: u32) -> &[u32] {
-        self.catalogs.spell_spell_group_map_bounds_like_cpp(spell_id)
+        self.catalogs
+            .spell_spell_group_map_bounds_like_cpp(spell_id)
     }
 
     pub fn same_effect_stack_rule_aura_types_like_cpp(
@@ -648,7 +667,6 @@ impl PlayerStatsAccessLikeCpp<'_> {
     pub fn owner_handle_absent_like_cpp(&self) -> bool {
         self.core.player_handle_like_cpp.is_none()
     }
-
 }
 
 impl HubRef<'_> {
@@ -706,7 +724,9 @@ impl HubMut<'_> {
                     StatsAuraFixtureRefs::new_like_cpp(
                         &fixtures.auras.represented_shapeshift_form_like_cpp,
                         &fixtures.auras.player_aura_authority_complete_like_cpp,
-                        &fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                        &fixtures
+                            .auras
+                            .player_spell_hit_aura_authority_tombstoned_like_cpp,
                         &fixtures.auras.visible_auras,
                         &fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
                     ),
@@ -829,30 +849,40 @@ impl PlayerStatsAccessLikeCpp<'_> {
         max: i32,
         base_mana: i32,
     ) -> Option<(i32, i32)> {
-        let result = self.core.with_owned_player_mut_for_power_like_cpp(|player| {
-            if player.unit().get_power_index(power_type).is_none() {
-                player.set_power_index(power_type, Some(0));
-            }
-            player.unit_mut().set_display_power(power_type);
-            player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-            player.unit_mut().set_max_power(power_type, max.max(0));
-            (
-                player.unit().get_power(power_type),
-                player.unit().get_max_power(power_type),
-            )
-        });
+        let result = self
+            .core
+            .with_owned_player_mut_for_power_like_cpp(|player| {
+                if player.unit().get_power_index(power_type).is_none() {
+                    player.set_power_index(power_type, Some(0));
+                }
+                player.unit_mut().set_display_power(power_type);
+                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
+                player.unit_mut().set_max_power(power_type, max.max(0));
+                (
+                    player.unit().get_power(power_type),
+                    player.unit().get_max_power(power_type),
+                )
+            });
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some((current, max)) = result.or_else(|| {
             self.core.player_handle_like_cpp.is_none().then_some((
-                (*self.fixtures.combat.represented_player_powers_slot0_like_cpp).unwrap_or(0),
+                (*self
+                    .fixtures
+                    .combat
+                    .represented_player_powers_slot0_like_cpp)
+                    .unwrap_or(0),
                 max.max(0),
             ))
         }) {
             *self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
-            *self.fixtures.combat.represented_player_powers_slot0_like_cpp =
-                Some(current.max(0));
-            *self.fixtures.combat.represented_player_max_powers_slot0_like_cpp =
-                Some(max.max(0));
+            *self
+                .fixtures
+                .combat
+                .represented_player_powers_slot0_like_cpp = Some(current.max(0));
+            *self
+                .fixtures
+                .combat
+                .represented_player_max_powers_slot0_like_cpp = Some(max.max(0));
         }
         result
     }
@@ -868,7 +898,10 @@ impl PlayerStatsAccessLikeCpp<'_> {
             .core
             .with_owned_player_mut_for_power_like_cpp(|player| {
                 for raw_power in 0..=25 {
-                    player.set_power_index(crate::session::power_type_from_u8_like_cpp(raw_power), None);
+                    player.set_power_index(
+                        crate::session::power_type_from_u8_like_cpp(raw_power),
+                        None,
+                    );
                 }
                 player.set_power_index(power_type, Some(0));
                 player.unit_mut().set_display_power(power_type);
@@ -880,12 +913,15 @@ impl PlayerStatsAccessLikeCpp<'_> {
         #[cfg(any(test, feature = "test-fixtures"))]
         if synced || self.core.player_handle_like_cpp.is_none() {
             *self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
-            *self.fixtures.combat.represented_player_powers_slot0_like_cpp =
-                Some(current.max(0));
-            *self.fixtures.combat.represented_player_max_powers_slot0_like_cpp =
-                Some(max.max(0));
+            *self
+                .fixtures
+                .combat
+                .represented_player_powers_slot0_like_cpp = Some(current.max(0));
+            *self
+                .fixtures
+                .combat
+                .represented_player_max_powers_slot0_like_cpp = Some(max.max(0));
         }
         synced
     }
-
 }

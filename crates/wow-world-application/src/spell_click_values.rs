@@ -13,9 +13,7 @@ pub const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 /// C++ `SPELL_CAST_SOURCE_NORMAL` encoded in a Cast GUID subtype.
 pub const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 
-pub fn spell_effect_is_represented_summon_object_slot_like_cpp(
-    effect: u32,
-) -> bool {
+pub fn spell_effect_is_represented_summon_object_slot_like_cpp(effect: u32) -> bool {
     let slot_base = wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_SLOT1;
     let slot_end = slot_base + u32::try_from(MAX_GAMEOBJECT_SLOT_LIKE_CPP).unwrap_or(0);
     (slot_base..slot_end).contains(&effect)

@@ -26,11 +26,9 @@ impl crate::session::HubMut<'_> {
 impl crate::session::state::SessionCore {
     pub(crate) fn player_position_with_fixture_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_position: &Option<wow_core::Position>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &Option<wow_core::Position>,
     ) -> Option<wow_core::Position> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().world().position());
+        let canonical = self.with_owned_player_like_cpp(|player| player.unit().world().position());
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return *fixture_position;
@@ -86,16 +84,14 @@ impl crate::session::HubRef<'_> {
     /// Update this session's position (and map) in the player registry.
     /// Called whenever `player_position` changes.
     pub fn update_registry_position(&self) {
-        let position = self
-            .core
-            .player_registry_sync_access_like_cpp(
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.movement.player_position,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.identity.player_level,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
-            );
+        let position = self.core.player_registry_sync_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.movement.player_position,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+        );
         position.update_registry_position(
             #[cfg(any(test, feature = "test-fixtures"))]
             &crate::session::RegistrySyncInputs::new_like_cpp(

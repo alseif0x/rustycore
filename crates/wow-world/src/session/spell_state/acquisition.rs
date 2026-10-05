@@ -48,8 +48,7 @@ impl WorldSession {
         let fixture_result = {
             #[cfg(test)]
             {
-                self.lifecycle
-                    .loot_money_persistence_test_result_like_cpp()
+                self.lifecycle.loot_money_persistence_test_result_like_cpp()
             }
             #[cfg(not(test))]
             {
@@ -241,7 +240,6 @@ impl WorldSession {
         }
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/acquisition/f3_shims.rs"]

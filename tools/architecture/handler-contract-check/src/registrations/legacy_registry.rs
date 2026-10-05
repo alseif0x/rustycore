@@ -118,7 +118,10 @@ fn is_exact_wrapper_type(item: &ItemStruct) -> bool {
     let Type::Reference(reference) = &field.ty else {
         return false;
     };
-    field.ident.as_ref().is_some_and(|ident| super::ident_is(ident, "entry"))
+    field
+        .ident
+        .as_ref()
+        .is_some_and(|ident| super::ident_is(ident, "entry"))
         && crate_visibility(&field.vis)
         && only_documentation_attributes(&field.attrs)
         && reference.mutability.is_none()
@@ -219,7 +222,9 @@ pub(super) fn is_exact_wrapper_collector(path: &[String], body: &TokenStream) ->
 }
 
 pub(super) fn is_wrapper_macro_path(path: &[String]) -> bool {
-    path.iter().map(String::as_str).eq(WRAPPER_MACRO_PATH.iter().copied())
+    path.iter()
+        .map(String::as_str)
+        .eq(WRAPPER_MACRO_PATH.iter().copied())
 }
 
 pub(super) fn is_wrapper_macro_name_path(path: &[String]) -> bool {
@@ -406,8 +411,7 @@ pub(super) fn analyze_bridge(
         .into_iter()
         .filter(macro_definition_may_generate_handler)
     {
-        let exact_bridge_macro_is_unique = complete
-            && definition.name == WRAPPER_MACRO;
+        let exact_bridge_macro_is_unique = complete && definition.name == WRAPPER_MACRO;
         if !exact_bridge_macro_is_unique {
             violations.push(format!(
                 "{} defines handler-capable macro_rules! {} outside the declared handler-registration owner",

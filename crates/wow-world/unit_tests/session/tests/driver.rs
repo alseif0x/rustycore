@@ -53,8 +53,7 @@ mod queued_packets {
     async fn cancelled_handler_preserves_unselected_packets_without_replaying_partial_effects() {
         let (mut session, _tx, _rx) = make_session();
         // Replace only this session's entry; the production inventory is untouched.
-        let mut builder =
-            crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+        let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
         for entry in session
             .dispatch_table
             .iter()

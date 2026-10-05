@@ -100,13 +100,16 @@ async fn far_sight_process_pending_canonical_clear_resets_session_seer_like_cpp(
     session
         .visibility
         .set_represented_seer_guid_fixture_like_cpp(Some(stale_dynamic_object_guid));
-    session.visibility.set_last_visibility_pos_like_cpp(player_position);
+    session
+        .visibility
+        .set_last_visibility_pos_like_cpp(player_position);
 
     session.process_pending().await;
 
     assert_eq!(session.represented_seer_guid_like_cpp(), Some(player_guid));
     assert_eq!(
-        session.visibility.last_visibility_pos_like_cpp(), None,
+        session.visibility.last_visibility_pos_like_cpp(),
+        None,
         "live tick consumption should invalidate the visibility throttle without requiring update_visibility"
     );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
@@ -153,7 +156,9 @@ async fn far_sight_process_pending_non_logged_in_keeps_session_seer_like_cpp() {
     session
         .visibility
         .set_represented_seer_guid_fixture_like_cpp(Some(stale_dynamic_object_guid));
-    session.visibility.set_last_visibility_pos_like_cpp(player_position);
+    session
+        .visibility
+        .set_last_visibility_pos_like_cpp(player_position);
 
     session.process_pending().await;
 
@@ -205,7 +210,9 @@ async fn far_sight_process_pending_non_empty_canonical_keeps_session_seer_like_c
     session
         .visibility
         .set_represented_seer_guid_fixture_like_cpp(Some(dynamic_object_guid));
-    session.visibility.set_last_visibility_pos_like_cpp(player_position);
+    session
+        .visibility
+        .set_last_visibility_pos_like_cpp(player_position);
 
     session.process_pending().await;
 

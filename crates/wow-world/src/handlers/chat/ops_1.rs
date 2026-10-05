@@ -823,9 +823,7 @@ impl WorldSession {
         );
         debug!(
             account = self.core.account_id,
-            prefixes,
-            filter,
-            "Registered addon prefixes"
+            prefixes, filter, "Registered addon prefixes"
         );
     }
     /// CMSG_CHAT_ADDON_MESSAGE.

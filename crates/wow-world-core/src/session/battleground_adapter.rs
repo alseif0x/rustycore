@@ -410,8 +410,7 @@ impl crate::session::HubRef<'_> {
 impl crate::session::SessionCore {
     pub(crate) fn player_battleground_state_snapshot_with_fixture_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture: &crate::session::BattlegroundState,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture: &crate::session::BattlegroundState,
     ) -> Option<wow_entities::PlayerBattlegroundState> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());

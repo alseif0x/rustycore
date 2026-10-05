@@ -214,11 +214,10 @@ mod tests {
     }
 }
 use std::collections::BTreeSet;
-use wow_data::spell::spell_effect_types::{
-    SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL,
-    SPELL_EFFECT_SKILL_STEP,
-};
 use wow_data::SpellLinkedTypeLikeCpp;
+use wow_data::spell::spell_effect_types::{
+    SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
+};
 use wow_data::{
     SpellAcquisitionCatalogLikeCpp, SpellAcquisitionEffectLikeCpp,
     SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
@@ -248,8 +247,14 @@ impl crate::SessionSpellState {
             hub.catalogs.difficulty_store().map(AsRef::as_ref),
             hub.catalogs.map_store().map(AsRef::as_ref),
             hub.catalogs.disable_mgr().map(AsRef::as_ref),
-            hub.catalogs.spell_catalogs.spell_target_restrictions_store().map(AsRef::as_ref),
-            hub.catalogs.spell_catalogs.spell_aura_restrictions_store().map(AsRef::as_ref),
+            hub.catalogs
+                .spell_catalogs
+                .spell_target_restrictions_store()
+                .map(AsRef::as_ref),
+            hub.catalogs
+                .spell_catalogs
+                .spell_aura_restrictions_store()
+                .map(AsRef::as_ref),
             hub.catalogs.spell_pet_aura_store_like_cpp(),
             hub.catalogs.spell_catalogs.spell_linked_store_like_cpp(),
             spell_id,
@@ -463,9 +468,7 @@ impl crate::SessionSpellState {
         let mut chain = vec![requested];
         let mut visited = BTreeSet::from([requested]);
         let mut current = requested;
-        while let Some(difficulty) = difficulties
-            .and_then(|store| store.get(current))
-        {
+        while let Some(difficulty) = difficulties.and_then(|store| store.get(current)) {
             let fallback = u32::from(difficulty.fallback_difficulty_id);
             if !visited.insert(fallback) {
                 break;
@@ -506,8 +509,10 @@ impl crate::SessionSpellState {
                 // then bypasses all remaining spell/effect immunities.
                 continue;
             }
-            let aura_difficulty_chain =
-                self.difficulty_chain_for_acquisition_like_cpp(difficulties, u32::from(aura.difficulty_id));
+            let aura_difficulty_chain = self.difficulty_chain_for_acquisition_like_cpp(
+                difficulties,
+                u32::from(aura.difficulty_id),
+            );
             let effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
                 aura_spell_id,
                 aura_difficulty_chain,

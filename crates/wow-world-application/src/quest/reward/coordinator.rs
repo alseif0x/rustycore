@@ -29,11 +29,13 @@ impl QuestRewardCx<'_> {
         #[cfg(any(test, feature = "test-fixtures"))]
         item_planning_fixtures: &super::item_planning::QuestRewardItemPlanningFixtureRefsLikeCpp<'_>,
         loot: &wow_world_loot::LootState,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        registry_transport: &Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        registry_vehicle_and_pet: (
-            &Option<wow_entities::Vehicle>, &Option<i32>, &Option<u32>,
+        #[cfg(any(test, feature = "test-fixtures"))] registry_transport: &Option<
+            Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] registry_vehicle_and_pet: (
+            &Option<wow_entities::Vehicle>,
+            &Option<i32>,
+            &Option<u32>,
             &Option<wow_core::ObjectGuid>,
         ),
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -92,7 +94,9 @@ impl QuestRewardCx<'_> {
 
         if !self
             .store_fixed_quest_reward_items_like_cpp(
-                &mut plan, item_guid_generator, quest,
+                &mut plan,
+                item_guid_generator,
+                quest,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 item_planning_fixtures,
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -187,10 +191,8 @@ impl QuestRewardCx<'_> {
         // committing it on its own: the transaction below makes the whole
         // reward durable at once, so a money failure can no longer leave the
         // earlier grants written and the quest retryable.
-        if !self.record_quest_reward_money_like_cpp(
-            &mut plan,
-            quest.reward_money_difficulty as i32,
-        ) {
+        if !self.record_quest_reward_money_like_cpp(&mut plan, quest.reward_money_difficulty as i32)
+        {
             reward_abort!();
         }
 
@@ -232,17 +234,16 @@ impl QuestRewardCx<'_> {
         }
 
         // Everything the operation decided is now durable or nothing is.
-        let Some(committed_money) = self
-            .commit_quest_reward_plan_like_cpp(plan, quest_id)
-            .await
+        let Some(committed_money) = self.commit_quest_reward_plan_like_cpp(plan, quest_id).await
         else {
             reward_abort!();
         };
 
         self.invalidate_player_quest_status_authority_like_cpp();
         if !self.settle_rewarded_quest_like_cpp(quest_id, quest.is_repeatable()) {
-            self.player
-                .quarantine_like_cpp("canonical Player quest owner became unavailable after durable COMMIT");
+            self.player.quarantine_like_cpp(
+                "canonical Player quest owner became unavailable after durable COMMIT",
+            );
             return false;
         }
         if let Some(committed_money) = committed_money {
@@ -296,9 +297,8 @@ impl QuestRewardCx<'_> {
             use_quest_reward_currency: false,
         });
 
-        let _ = self.send_packet_like_cpp(&wow_packet::packets::quest::QuestUpdateComplete {
-            quest_id,
-        });
+        let _ = self
+            .send_packet_like_cpp(&wow_packet::packets::quest::QuestUpdateComplete { quest_id });
 
         self.record_represented_quest_reward_reputation_like_cpp(
             quest,

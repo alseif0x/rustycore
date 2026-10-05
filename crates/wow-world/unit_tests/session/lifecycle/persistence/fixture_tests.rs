@@ -10,14 +10,13 @@ use wow_entities::{
 use wow_persistence::{
     PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
     PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
-    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp,
-    PlayerEquipmentSetStateLikeCpp, PlayerEquipmentSetTypeLikeCpp,
-    PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
+    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
     PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
     PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
     PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
-    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp,
-    PlayerVoidStorageSaveLikeCpp, PlayerVoidStorageSlotSaveLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerVoidStorageSlotSaveLikeCpp,
 };
 use wow_world_core::session::RepresentedPlayerSkillStateLikeCpp;
 use wow_world_core::session::persistence_capabilities::character_power_snapshot_values_like_cpp;
@@ -439,7 +438,9 @@ impl WorldSession {
             None
         };
 
-        let instance_lock_times = self.instances.represented_instance_reset_times_for_test_like_cpp()
+        let instance_lock_times = self
+            .instances
+            .represented_instance_reset_times_for_test_like_cpp()
             .iter()
             .map(
                 |(&instance_id, &release_time)| PlayerInstanceLockTimeSaveLikeCpp {

@@ -87,13 +87,29 @@ async fn gameobject_visual_despawn_shared_vision_phase_range_and_have_at_client_
     );
     assert_eq!(canonical.lock().unwrap().update(60_000), Some(60_000));
     session
-        .world_entities.insert_represented_gameobject_phase_shift_for_test_like_cpp(incompatible_phase_guid, PhaseShift::from_phases([20]));
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            incompatible_phase_guid,
+            PhaseShift::from_phases([20]),
+        );
     session
-        .world_entities.insert_represented_gameobject_phase_shift_for_test_like_cpp(out_of_range_guid, PhaseShift::from_phases([10]));
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            out_of_range_guid,
+            PhaseShift::from_phases([10]),
+        );
     session
-        .world_entities.insert_represented_gameobject_phase_shift_for_test_like_cpp(not_visible_guid, PhaseShift::from_phases([10]));
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            not_visible_guid,
+            PhaseShift::from_phases([10]),
+        );
     session
-        .world_entities.insert_represented_gameobject_phase_shift_for_test_like_cpp(sendable_guid, PhaseShift::from_phases([10]));
+        .world_entities
+        .insert_represented_gameobject_phase_shift_for_test_like_cpp(
+            sendable_guid,
+            PhaseShift::from_phases([10]),
+        );
     session
         .core
         .client_visible_guids_like_cpp

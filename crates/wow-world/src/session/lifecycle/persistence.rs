@@ -131,7 +131,11 @@ impl WorldSession {
             };
             let guid = prepared.header.guid;
             let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
-            let spell_store = self.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+            let spell_store = self
+                .catalogs
+                .spell_catalogs
+                .spell_store()
+                .map(AsRef::as_ref);
             let mut save_owner = self
                 .core
                 .player_save_operation_access_like_cpp(talent_store, spell_store);
@@ -165,9 +169,9 @@ impl WorldSession {
                     PlayerSaveOutcomeLikeCpp::Failed
                 }
                 wow_world_application::PlayerSavePersistenceResultLikeCpp::Unknown { .. }
-                | wow_world_application::PlayerSavePersistenceResultLikeCpp::Quarantined { .. } => {
-                    PlayerSaveOutcomeLikeCpp::Quarantined
-                }
+                | wow_world_application::PlayerSavePersistenceResultLikeCpp::Quarantined {
+                    ..
+                } => PlayerSaveOutcomeLikeCpp::Quarantined,
                 wow_world_application::PlayerSavePersistenceResultLikeCpp::Unavailable
                 | wow_world_application::PlayerSavePersistenceResultLikeCpp::SnapshotUnavailable => {
                     PlayerSaveOutcomeLikeCpp::Unavailable
@@ -183,7 +187,11 @@ impl WorldSession {
         }
 
         let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
-        let spell_store = self.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+        let spell_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_store()
+            .map(AsRef::as_ref);
         let mut save_owner = self
             .core
             .player_save_operation_access_like_cpp(talent_store, spell_store);

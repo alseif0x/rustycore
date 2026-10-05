@@ -9,7 +9,9 @@ impl LootState {
         hub: &mut HubMut<'_>,
         corpse_guid: ObjectGuid,
     ) -> bool {
-        hub.core.loot_release_access_like_cpp().remove_canonical_corpse_lootable_dynamic_flag_like_cpp(corpse_guid)
+        hub.core
+            .loot_release_access_like_cpp()
+            .remove_canonical_corpse_lootable_dynamic_flag_like_cpp(corpse_guid)
     }
 
     pub fn remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(

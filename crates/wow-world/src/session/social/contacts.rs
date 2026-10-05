@@ -36,6 +36,7 @@ impl WorldSession {
         max_bonus_level: u32,
         max_level_difference: u32,
     ) {
-        self.social.set_recruit_a_friend_xp_limits_like_cpp(max_bonus_level, max_level_difference);
+        self.social
+            .set_recruit_a_friend_xp_limits_like_cpp(max_bonus_level, max_level_difference);
     }
 }

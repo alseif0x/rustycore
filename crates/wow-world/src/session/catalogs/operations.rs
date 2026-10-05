@@ -208,7 +208,11 @@ impl WorldSession {
         was_logout_resting: bool,
     ) -> f32 {
         #[cfg(test)]
-        if self.core.with_owned_player_for_rest_like_cpp(|_| ()).is_none() {
+        if self
+            .core
+            .with_owned_player_for_rest_like_cpp(|_| ())
+            .is_none()
+        {
             return self.fixture_apply_offline_xp_rest_bonus_like_cpp(
                 policy,
                 logout_time_secs,

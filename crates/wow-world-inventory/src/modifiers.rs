@@ -80,7 +80,8 @@ impl crate::InventoryState {
         self.initial_loaded_item_mods_can_apply_with_access_like_cpp(
             &hub.core.owned_inventory_access_like_cpp(),
             &hub.core.owned_item_modifiers_access_like_cpp(),
-            hub.catalogs.items.store.as_ref(), hub.catalogs.items.stats_store.as_ref(),
+            hub.catalogs.items.store.as_ref(),
+            hub.catalogs.items.stats_store.as_ref(),
             item_guid,
         )
     }
@@ -93,7 +94,9 @@ impl crate::InventoryState {
         item_stats: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
         item_guid: ObjectGuid,
     ) -> bool {
-        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(inventory, item_guid) else {
+        let Some(item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(inventory, item_guid)
+        else {
             return false;
         };
         // C++ `_ApplyAllItemMods` skips broken items before both
@@ -102,9 +105,11 @@ impl crate::InventoryState {
             return false;
         }
         let inventory_type = wow_world_core::catalogs::item::item_storage_template_like_cpp(
-            item_store, item_stats, item.object().entry(),
+            item_store,
+            item_stats,
+            item.object().entry(),
         )
-            .map(|template| template.inventory_type);
+        .map(|template| template.inventory_type);
         let attack_type = item_mods::attack_type_for_slot_like_cpp(item.slot(), inventory_type);
         modifiers.can_use_weapon_attack_type_like_cpp(attack_type) == Some(true)
     }
@@ -302,7 +307,8 @@ impl crate::InventoryState {
         publication_owner: &wow_world_core::session::InventoryValuationAccessLikeCpp<'_>,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
         let player_guid = publication_owner.player_guid_like_cpp()?;
-        let bonuses = self.represented_item_bonus_state_for_equipment_set_use_like_cpp(modifiers)?;
+        let bonuses =
+            self.represented_item_bonus_state_for_equipment_set_use_like_cpp(modifiers)?;
         Some(
             wow_packet::packets::update::UpdateObject::player_stat_update(
                 player_guid,
@@ -394,9 +400,7 @@ impl crate::InventoryState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_item_bonus_actions_like_cpp(
-        &self,
-    ) -> &[RepresentedItemBonusActionLikeCpp] {
+    pub fn represented_item_bonus_actions_like_cpp(&self) -> &[RepresentedItemBonusActionLikeCpp] {
         &self
             .player_item_test_fixture_like_cpp
             .represented_item_bonus_actions_like_cpp
@@ -470,12 +474,14 @@ impl crate::InventoryState {
         hub.core
             .inventory_valuation_access_like_cpp()
             .reputation_rank_for_faction_like_cpp(
-            faction,
-            player_race,
-            player_class,
-            catalogs.friendship_rep_reaction_store_like_cpp().map(AsRef::as_ref),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &hub.fixtures.progression.reputation_state_like_cpp,
+                faction,
+                player_race,
+                player_class,
+                catalogs
+                    .friendship_rep_reaction_store_like_cpp()
+                    .map(AsRef::as_ref),
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &hub.fixtures.progression.reputation_state_like_cpp,
             )
     }
 

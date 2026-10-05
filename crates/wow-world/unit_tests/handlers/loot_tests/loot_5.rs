@@ -63,7 +63,11 @@ async fn loot_unit_response_uses_loot_owner_not_player_like_cpp() {
     assert_ne!(response_loot_obj, owner_guid);
     assert_ne!(owner_guid, player_guid);
     assert_eq!(
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().loot_guid,
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .loot_guid,
         response_loot_obj
     );
     assert!(session.loot.is_active_loot_guid(owner_guid));
@@ -178,7 +182,12 @@ async fn new_loot_after_primary_ae_release_closes_secondary_before_replacing_tra
     session.handle_loot_unit(loot_unit_packet(new_guid)).await;
 
     assert!(session.loot.is_active_loot_guid(new_guid));
-    assert_eq!(session.loot.active_loot_view_owner_count_for_test_like_cpp(), 1);
+    assert_eq!(
+        session
+            .loot
+            .active_loot_view_owner_count_for_test_like_cpp(),
+        1
+    );
     assert!(
         !session
             .loot
@@ -320,7 +329,12 @@ async fn loot_unit_without_allowed_loot_for_player_returns_silently_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert_eq!(
-        session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].allowed_looters,
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .allowed_looters,
         vec![other_guid]
     );
     assert!(!session.loot.is_active_loot_guid(loot_guid));
@@ -355,7 +369,14 @@ async fn loot_unit_existing_coin_loot_without_allowed_looter_returns_silently_li
 
     assert!(send_rx.try_recv().is_err());
     assert!(!session.loot.is_active_loot_guid(loot_guid));
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().coins, 7);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .coins,
+        7
+    );
     assert_eq!(
         session
             .loot
@@ -559,8 +580,22 @@ async fn loot_money_consumes_all_active_loot_views_like_cpp() {
     );
     assert_eq!(sent.read_uint64().unwrap(), 7);
     assert_eq!(session.player_gold_like_cpp(), 10);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(owner_one).unwrap().coins, 0);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(owner_two).unwrap().coins, 0);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_one)
+            .unwrap()
+            .coins,
+        0
+    );
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_two)
+            .unwrap()
+            .coins,
+        0
+    );
     assert!(session.loot.has_active_loot_view_owner_like_cpp(owner_one));
     assert!(session.loot.has_active_loot_view_owner_like_cpp(owner_two));
 }
@@ -680,7 +715,9 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
 
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.loot.set_active_loot_guid(loot_guid);
@@ -745,7 +782,14 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     assert_eq!(sent.read_uint64().unwrap(), 0);
     assert!(!sent.read_bit().unwrap());
     assert_eq!(session.player_gold_like_cpp(), 4);
-    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().coins, 0);
+    assert_eq!(
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .coins,
+        0
+    );
 }
 #[tokio::test]
 async fn loot_roll_without_canonical_roll_state_returns_silently_like_cpp() {
@@ -854,7 +898,11 @@ async fn loot_release_ignores_guid_outside_active_view_like_cpp() {
         .await;
 
     assert!(session.loot.is_active_loot_guid(active_guid));
-    assert!(session.loot.cached_loot_contains_owner_like_cpp(spoofed_guid));
+    assert!(
+        session
+            .loot
+            .cached_loot_contains_owner_like_cpp(spoofed_guid)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]

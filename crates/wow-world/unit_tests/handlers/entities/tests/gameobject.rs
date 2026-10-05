@@ -107,7 +107,8 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
 
     assert!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .iter()
             .any(|effect| {
                 matches!(
@@ -121,7 +122,9 @@ async fn game_obj_use_loaded_template_dispatches_door_without_concrete_db_like_c
                 )
             }),
         "effects: {:?}",
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
     );
 }
 
@@ -135,7 +138,8 @@ async fn game_obj_use_missing_template_is_noop_like_cpp() {
 
     assert!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 }
@@ -166,7 +170,8 @@ async fn game_obj_use_missing_catalog_capability_is_noop_before_template_read_li
 
     assert!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 }
@@ -226,7 +231,8 @@ async fn game_obj_report_use_records_use_criteria_from_canonical_go_like_cpp() {
 
     assert_eq!(
         session
-            .world_entities.represented_gameobject_criteria_events_for_test_like_cpp(),
+            .world_entities
+            .represented_gameobject_criteria_events_for_test_like_cpp(),
         vec![
             crate::session::RepresentedGameObjectCriteriaEvent::UseGameobject {
                 player_guid,
@@ -282,7 +288,9 @@ async fn game_obj_report_use_ignores_remote_control_like_cpp() {
 
     assert!(
         session
-            .world_entities.represented_gameobject_criteria_events_for_test_like_cpp().is_empty()
+            .world_entities
+            .represented_gameobject_criteria_events_for_test_like_cpp()
+            .is_empty()
     );
 }
 
@@ -306,7 +314,8 @@ async fn game_obj_report_use_ai_can_consume_criteria_like_cpp() {
         3,
     );
     session
-        .world_entities.represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
         .unwrap()
         .report_use_ai_returns_true = true;
 
@@ -333,7 +342,9 @@ async fn game_obj_report_use_ai_can_consume_criteria_like_cpp() {
     session.handle_game_obj_report_use(pkt).await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             crate::session::RepresentedGameObjectUseEffect::ReportUseAi {
                 gameobject_guid,
@@ -344,7 +355,9 @@ async fn game_obj_report_use_ai_can_consume_criteria_like_cpp() {
     );
     assert!(
         session
-            .world_entities.represented_gameobject_criteria_events_for_test_like_cpp().is_empty()
+            .world_entities
+            .represented_gameobject_criteria_events_for_test_like_cpp()
+            .is_empty()
     );
 }
 
@@ -406,6 +419,9 @@ async fn close_interaction_nonmatching_source_preserves_gossip_like_cpp() {
         Some(active_guid)
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 77);
-    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
+    assert_eq!(
+        session.interaction.gossip_options_for_test_like_cpp().len(),
+        1
+    );
     assert!(send_rx.try_recv().is_err());
 }

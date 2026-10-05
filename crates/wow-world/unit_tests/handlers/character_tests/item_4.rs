@@ -21,19 +21,26 @@ async fn registered_item_text_query_preserves_payload_failure_invalid_and_valid_
     request.write_guid(&guid);
     (entry.handler)(&mut session, &catalogs, request).await;
     let bytes = send_rx.try_recv().expect("invalid item response");
-    assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::QueryItemTextResponse));
+    assert_eq!(
+        WorldPacket::from_bytes(&bytes).server_opcode(),
+        Some(ServerOpcodes::QueryItemTextResponse)
+    );
     assert_eq!(&bytes[2..5], &[0, 0, 0]);
     assert_eq!(&bytes[5..21], &guid.to_raw_bytes());
     assert_eq!(bytes.len(), 21);
 
-    let mut item = session.make_inventory_item_object(guid, 8000, owner, 1, 0, ItemContext::None, 0);
+    let mut item =
+        session.make_inventory_item_object(guid, 8000, owner, 1, 0, ItemContext::None, 0);
     item.set_text("abc");
     session.insert_inventory_item_object(item);
     let mut request = WorldPacket::new_empty();
     request.write_guid(&guid);
     (entry.handler)(&mut session, &catalogs, request).await;
     let bytes = send_rx.try_recv().expect("valid item response");
-    assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::QueryItemTextResponse));
+    assert_eq!(
+        WorldPacket::from_bytes(&bytes).server_opcode(),
+        Some(ServerOpcodes::QueryItemTextResponse)
+    );
     assert_eq!(&bytes[2..5], &[0x80, 0, 0x18]);
     assert_eq!(&bytes[5..8], b"abc");
     assert_eq!(&bytes[8..24], &guid.to_raw_bytes());
@@ -47,18 +54,31 @@ async fn registered_item_text_query_does_not_read_fixture_item_after_same_guid_o
     let owner = ObjectGuid::create_player(1, 42);
     session.set_player_guid(Some(owner));
     let guid = ObjectGuid::create_world_object(HighGuid::Item, 0, 1, 0, 0, 700, 3);
-    let mut item = session.make_inventory_item_object(guid, 8000, owner, 1, 0, ItemContext::None, 0);
+    let mut item =
+        session.make_inventory_item_object(guid, 8000, owner, 1, 0, ItemContext::None, 0);
     item.set_text("fixture text must not leak");
     session.insert_inventory_item_object(item);
     let canonical = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(60_000, 10)));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let mut first = Box::new(wow_entities::Player::new(Some(1), false));
     first.unit_mut().world_mut().object_mut().create(owner);
-    let stale = canonical.lock().unwrap().install_detached_player_like_cpp(first).unwrap();
+    let stale = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(first)
+        .unwrap();
     session.core.player_handle_like_cpp = Some(stale);
     let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
-    replacement.unit_mut().world_mut().object_mut().create(owner);
-    let replacement_handle = canonical.lock().unwrap().install_detached_player_like_cpp(replacement).unwrap();
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(owner);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
     assert_ne!(stale, replacement_handle);
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
     wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder).unwrap();
@@ -68,13 +88,26 @@ async fn registered_item_text_query_does_not_read_fixture_item_after_same_guid_o
     let mut request = WorldPacket::new_empty();
     request.write_guid(&guid);
     (entry.handler)(&mut session, &catalogs, request).await;
-    let bytes = send_rx.try_recv().expect("invalid response for stale owner");
-    assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::QueryItemTextResponse));
+    let bytes = send_rx
+        .try_recv()
+        .expect("invalid response for stale owner");
+    assert_eq!(
+        WorldPacket::from_bytes(&bytes).server_opcode(),
+        Some(ServerOpcodes::QueryItemTextResponse)
+    );
     assert_eq!(&bytes[2..5], &[0, 0, 0]);
     assert_eq!(&bytes[5..21], &guid.to_raw_bytes());
     assert_eq!(bytes.len(), 21);
-    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle,
-        |player| player.inventory_runtime_like_cpp().item_objects().is_empty()), Some(true));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .inventory_runtime_like_cpp()
+                .item_objects()
+                .is_empty()),
+        Some(true)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -88,12 +121,17 @@ fn bank_domain_registration_exact_set_preserves_slot_flag_metadata() {
     assert_eq!(entry.status, SessionStatus::LoggedIn);
     assert_eq!(entry.processing, PacketProcessing::Inplace);
     assert_eq!(entry.handler_name, "handle_change_bank_bag_slot_flag");
-    assert_eq!(crate::session::registry::registered_handler_entries_like_cpp()
-        .filter(|entry| entry.opcode == ClientOpcodes::ChangeBankBagSlotFlag).count(), 1);
+    assert_eq!(
+        crate::session::registry::registered_handler_entries_like_cpp()
+            .filter(|entry| entry.opcode == ClientOpcodes::ChangeBankBagSlotFlag)
+            .count(),
+        1
+    );
 }
 
 #[tokio::test]
-async fn registered_bank_slot_flag_preserves_self_admission_and_rejects_invalid_payload_and_bounds() {
+async fn registered_bank_slot_flag_preserves_self_admission_and_rejects_invalid_payload_and_bounds()
+{
     let (mut session, send_rx, _canonical) = make_bank_slot_session(8);
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
     wow_world_application::register_bank_handlers_like_cpp(&mut builder).unwrap();
@@ -122,10 +160,15 @@ async fn registered_bank_slot_flag_preserves_self_admission_and_rejects_invalid_
         packet.write_bit(enabled);
         packet.flush_bits();
         (entry.handler)(&mut session, &catalogs, packet).await;
-        assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2),
-            Some(if enabled { 16 } else { 0 }));
+        assert_eq!(
+            session.represented_bank_bag_slot_flag_like_cpp(2),
+            Some(if enabled { 16 } else { 0 })
+        );
         let bytes = send_rx.try_recv().expect("complete VALUES publication");
-        assert_eq!(WorldPacket::from_bytes(&bytes).server_opcode(), Some(ServerOpcodes::UpdateObject));
+        assert_eq!(
+            WorldPacket::from_bytes(&bytes).server_opcode(),
+            Some(ServerOpcodes::UpdateObject)
+        );
     }
     assert!(send_rx.try_recv().is_err());
 }
@@ -138,12 +181,18 @@ async fn registered_bank_slot_flag_rejects_stale_owner_without_fixture_fallback(
     let mut first = Box::new(wow_entities::Player::new(Some(1), false));
     first.unit_mut().world_mut().object_mut().create(guid);
     first.set_interaction_source_like_cpp(guid);
-    let stale = canonical.lock().unwrap().install_detached_player_like_cpp(first)
+    let stale = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(first)
         .expect("first owner");
     session.core.player_handle_like_cpp = Some(stale);
     let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    let replacement_handle = canonical.lock().unwrap().install_detached_player_like_cpp(replacement)
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
     assert_ne!(stale, replacement_handle);
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
@@ -158,8 +207,14 @@ async fn registered_bank_slot_flag_rejects_stale_owner_without_fixture_fallback(
     packet.flush_bits();
     (entry.handler)(&mut session, &catalogs, packet).await;
     assert_eq!(session.represented_bank_bag_slot_flag_like_cpp(2), None);
-    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle,
-        |player| player.bank_bag_slot_flag_value_like_cpp(2)), Some(Some(0)));
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .bank_bag_slot_flag_value_like_cpp(2)),
+        Some(Some(0))
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -171,21 +226,49 @@ fn inventory_domain_registration_exact_set_includes_cancel_temp_enchantment() {
     let registry = builder.build();
     assert_eq!(registry.len(), 5);
     for (opcode, processing, name) in [
-        (ClientOpcodes::SaveEquipmentSet, PacketProcessing::ThreadUnsafe, "handle_save_equipment_set"),
-        (ClientOpcodes::AssignEquipmentSetSpec, PacketProcessing::Inplace, "handle_assign_equipment_set_spec"),
-        (ClientOpcodes::DeleteEquipmentSet, PacketProcessing::ThreadUnsafe, "handle_delete_equipment_set"),
-        (ClientOpcodes::CancelTempEnchantment, PacketProcessing::Inplace, "handle_cancel_temp_enchantment"),
-        (ClientOpcodes::ItemTextQuery, PacketProcessing::Inplace, "handle_item_text_query"),
+        (
+            ClientOpcodes::SaveEquipmentSet,
+            PacketProcessing::ThreadUnsafe,
+            "handle_save_equipment_set",
+        ),
+        (
+            ClientOpcodes::AssignEquipmentSetSpec,
+            PacketProcessing::Inplace,
+            "handle_assign_equipment_set_spec",
+        ),
+        (
+            ClientOpcodes::DeleteEquipmentSet,
+            PacketProcessing::ThreadUnsafe,
+            "handle_delete_equipment_set",
+        ),
+        (
+            ClientOpcodes::CancelTempEnchantment,
+            PacketProcessing::Inplace,
+            "handle_cancel_temp_enchantment",
+        ),
+        (
+            ClientOpcodes::ItemTextQuery,
+            PacketProcessing::Inplace,
+            "handle_item_text_query",
+        ),
     ] {
         let entry = registry.get(opcode).expect("expected Inventory opcode");
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, processing);
         assert_eq!(entry.handler_name, name);
     }
-    assert_eq!(crate::session::registry::registered_handler_entries_like_cpp()
-        .filter(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment).count(), 1);
-    assert_eq!(crate::session::registry::registered_handler_entries_like_cpp()
-        .filter(|entry| entry.opcode == ClientOpcodes::ItemTextQuery).count(), 1);
+    assert_eq!(
+        crate::session::registry::registered_handler_entries_like_cpp()
+            .filter(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment)
+            .count(),
+        1
+    );
+    assert_eq!(
+        crate::session::registry::registered_handler_entries_like_cpp()
+            .filter(|entry| entry.opcode == ClientOpcodes::ItemTextQuery)
+            .count(),
+        1
+    );
 }
 
 #[tokio::test]
@@ -195,24 +278,49 @@ async fn registered_cancel_temp_enchantment_clears_only_after_valid_payload_and_
     session.set_player_guid(Some(guid));
     let item_guid = insert_cancel_temp_enchant_test_item(&mut session, guid, 15, 903);
     let entry = crate::session::registry::registered_handler_entries_like_cpp()
-        .find(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment).unwrap();
+        .find(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment)
+        .unwrap();
     let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
     (entry.handler)(&mut session, &catalogs, WorldPacket::new_empty()).await;
-    assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
-        .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 903);
+    assert_eq!(
+        session
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .unwrap()
+            .data()
+            .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+            .id,
+        903
+    );
     assert!(send_rx.try_recv().is_err());
     for slot in [-1, 256, 36] {
         let mut packet = WorldPacket::new_empty();
         packet.write_int32(slot);
         (entry.handler)(&mut session, &catalogs, packet).await;
-        assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
-            .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 903);
+        assert_eq!(
+            session
+                .inventory_item_objects_like_cpp()
+                .get(&item_guid)
+                .unwrap()
+                .data()
+                .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+                .id,
+            903
+        );
     }
     let mut packet = WorldPacket::new_empty();
     packet.write_int32(15);
     (entry.handler)(&mut session, &catalogs, packet).await;
-    assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
-        .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 0);
+    assert_eq!(
+        session
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .unwrap()
+            .data()
+            .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+            .id,
+        0
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -226,26 +334,50 @@ async fn registered_cancel_temp_enchantment_does_not_fall_back_when_owner_handle
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let mut first = Box::new(wow_entities::Player::new(Some(1), false));
     first.unit_mut().world_mut().object_mut().create(guid);
-    let stale_handle = canonical.lock().unwrap().install_detached_player_like_cpp(first)
+    let stale_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(first)
         .expect("first owner");
     session.core.player_handle_like_cpp = Some(stale_handle);
     let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
     replacement.unit_mut().world_mut().object_mut().create(guid);
-    let replacement_handle = canonical.lock().unwrap().install_detached_player_like_cpp(replacement)
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
     assert_ne!(stale_handle, replacement_handle);
     let entry = crate::session::registry::registered_handler_entries_like_cpp()
-        .find(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment).unwrap();
+        .find(|entry| entry.opcode == ClientOpcodes::CancelTempEnchantment)
+        .unwrap();
     let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
     let mut packet = WorldPacket::new_empty();
     packet.write_int32(15);
     (entry.handler)(&mut session, &catalogs, packet).await;
 
-    assert_eq!(session.inventory_item_objects_like_cpp().get(&item_guid).unwrap()
-        .data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id, 904);
-    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle, |player| {
-        player.inventory_runtime_like_cpp().item_objects().is_empty()
-    }), Some(true));
+    assert_eq!(
+        session
+            .inventory_item_objects_like_cpp()
+            .get(&item_guid)
+            .unwrap()
+            .data()
+            .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+            .id,
+        904
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                player
+                    .inventory_runtime_like_cpp()
+                    .item_objects()
+                    .is_empty()
+            }),
+        Some(true)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -553,11 +685,13 @@ fn vendor_item_current_count_updates_like_cpp() {
         3
     );
 
-    let _ = session.interaction.vendor_item_last_increment_time_for_test_like_cpp(
-        vendor_guid,
-        700,
-        (wow_entities::game_time_secs_like_cpp().max(0) as u64).saturating_sub(120),
-    );
+    let _ = session
+        .interaction
+        .vendor_item_last_increment_time_for_test_like_cpp(
+            vendor_guid,
+            700,
+            (wow_entities::game_time_secs_like_cpp().max(0) as u64).saturating_sub(120),
+        );
 
     assert_eq!(
         session
@@ -565,9 +699,11 @@ fn vendor_item_current_count_updates_like_cpp() {
             .vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
         5
     );
-    assert!(!session
-        .interaction
-        .has_vendor_item_count_for_test_like_cpp(vendor_guid, 700));
+    assert!(
+        !session
+            .interaction
+            .has_vendor_item_count_for_test_like_cpp(vendor_guid, 700)
+    );
 }
 #[test]
 fn destroy_item_count_action_matches_cpp_direct_item_branch() {

@@ -137,7 +137,9 @@ impl crate::session::state::SessionCatalogs {
     ) -> Option<ApplyEnchantmentTemplateRef> {
         crate::session::apply_enchantment_template_from_store_like_cpp(
             self.spell_catalogs.spell_item_enchantment_store.as_deref(),
-            enchantment_id, required_skill_value, condition_fits,
+            enchantment_id,
+            required_skill_value,
+            condition_fits,
         )
     }
 

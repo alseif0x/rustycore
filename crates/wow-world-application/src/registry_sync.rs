@@ -4,11 +4,11 @@
 
 //! Registry synchronization sequence shared by World adapters.
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::RegistrySyncInputs;
 use wow_world_core::session::{
     PlayerRegistryControlBindingLikeCpp, PlayerRegistrySyncAccessLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_core::session::RegistrySyncInputs;
 use wow_world_loot::LootState;
 
 /// Executes the established World-session registry publication order using typed owner access.
@@ -47,10 +47,7 @@ impl<'a> PlayerRegistrySyncContext<'a> {
 
     /// Add the World unit-test hydration seam at its existing position in the sequence.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn with_fixture_hydration(
-        mut self,
-        hydration: PlayerRegistryHydrationContext<'a>,
-    ) -> Self {
+    pub fn with_fixture_hydration(mut self, hydration: PlayerRegistryHydrationContext<'a>) -> Self {
         self.fixture_hydration = Some(hydration);
         self
     }
@@ -64,12 +61,18 @@ impl<'a> PlayerRegistrySyncContext<'a> {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn sync_with_fixture_hydration_like_cpp(&self, hydration: &PlayerRegistryHydrationContext<'_>) {
+    pub(crate) fn sync_with_fixture_hydration_like_cpp(
+        &self,
+        hydration: &PlayerRegistryHydrationContext<'_>,
+    ) {
         self.sync_selected_hydration_like_cpp(Some(hydration));
     }
 
-    fn sync_selected_hydration_like_cpp(&self,
-        #[cfg(any(test, feature = "test-fixtures"))] hydration: Option<&PlayerRegistryHydrationContext<'_>>,
+    fn sync_selected_hydration_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] hydration: Option<
+            &PlayerRegistryHydrationContext<'_>,
+        >,
     ) {
         self.position.update_registry_position(
             #[cfg(any(test, feature = "test-fixtures"))]

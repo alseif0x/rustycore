@@ -298,7 +298,6 @@ async fn full_save_ack_does_not_clean_a_spell_added_after_capture() {
         .unwrap();
 }
 
-
 #[tokio::test]
 async fn full_save_stale_core_receipt_does_not_acknowledge_retired_handle() {
     let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
@@ -393,11 +392,17 @@ fn full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_t
     session
         .lifecycle
         .set_tutorials_loaded_from_db_like_cpp(true);
-    session.lifecycle.load_tutorials_data_values_like_cpp(Some([7; 8]));
+    session
+        .lifecycle
+        .load_tutorials_data_values_like_cpp(Some([7; 8]));
     session.lifecycle.set_tutorials_changed_like_cpp(true);
 
     let talent_store = session.catalogs.talent_store().map(AsRef::as_ref);
-    let spell_store = session.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+    let spell_store = session
+        .catalogs
+        .spell_catalogs
+        .spell_store()
+        .map(AsRef::as_ref);
     let mut owner = session
         .core
         .player_save_operation_access_like_cpp(talent_store, spell_store);
@@ -430,13 +435,16 @@ fn full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_t
     );
     drop(owner);
 
-    assert!(!wow_world_application::apply_player_save_acknowledgement_like_cpp(
-        &mut session.lifecycle,
-        Some(&acknowledged),
-    ));
+    assert!(
+        !wow_world_application::apply_player_save_acknowledgement_like_cpp(
+            &mut session.lifecycle,
+            Some(&acknowledged),
+        )
+    );
     assert_eq!(
-        session
-            .with_owned_player_like_cpp(|player| player.gameplay_state().spells.rows_like_cpp()[&10].state),
+        session.with_owned_player_like_cpp(|player| player.gameplay_state().spells.rows_like_cpp()
+            [&10]
+            .state),
         Some(wow_entities::PlayerSpellLoadState::New),
         "an uncommitted expected spell group remains dirty"
     );
@@ -458,11 +466,17 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
     session
         .lifecycle
         .set_tutorials_loaded_coherently_for_test_like_cpp(true);
-    session.lifecycle.load_tutorials_data_values_like_cpp(Some([7; 8]));
+    session
+        .lifecycle
+        .load_tutorials_data_values_like_cpp(Some([7; 8]));
     session.lifecycle.set_tutorials_changed_like_cpp(true);
 
     let talent_store = session.catalogs.talent_store().map(AsRef::as_ref);
-    let spell_store = session.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+    let spell_store = session
+        .catalogs
+        .spell_catalogs
+        .spell_store()
+        .map(AsRef::as_ref);
     let mut owner = session
         .core
         .player_save_operation_access_like_cpp(talent_store, spell_store);
@@ -480,7 +494,8 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
         request,
     )
     .await;
-    let wow_world_application::PlayerSavePersistenceResultLikeCpp::Applied { committed, .. } = result
+    let wow_world_application::PlayerSavePersistenceResultLikeCpp::Applied { committed, .. } =
+        result
     else {
         panic!("the recording lifecycle port applies the captured request");
     };
@@ -489,10 +504,12 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
     session.lifecycle.set_tutorials_changed_like_cpp(true);
     let acknowledged = owner.acknowledge_like_cpp(receipt, &committed);
     drop(owner);
-    assert!(wow_world_application::apply_player_save_acknowledgement_like_cpp(
-        &mut session.lifecycle,
-        acknowledged.as_ref(),
-    ));
+    assert!(
+        wow_world_application::apply_player_save_acknowledgement_like_cpp(
+            &mut session.lifecycle,
+            acknowledged.as_ref(),
+        )
+    );
     assert_eq!(session.lifecycle.tutorial_values_like_cpp()[0], 99);
     assert!(session.lifecycle.tutorials_changed_like_cpp());
     assert_eq!(port.character_saves().len(), 1);

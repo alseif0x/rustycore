@@ -41,7 +41,8 @@ async fn process_pending_shared_chest_restock_syncs_state_to_same_map_viewers_li
     );
     {
         let state = session
-            .world_entities.represented_gameobject_use_state_mut_like_cpp(chest_guid)
+            .world_entities
+            .represented_gameobject_use_state_mut_like_cpp(chest_guid)
             .unwrap();
         state.loot_state = Some(LootState::NotReady);
         state.chest_restock_until = Some(Instant::now() - Duration::from_secs(1));

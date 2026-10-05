@@ -28,8 +28,9 @@ impl QuestRewardCx<'_> {
         mut xp: u32,
         victim: ObjectGuid,
         group_rate: f32,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &mut QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut QuestXpGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) -> bool {
         if xp == 0 {
             return false;
@@ -314,8 +315,9 @@ impl QuestRewardCx<'_> {
         xp: u32,
         victim: ObjectGuid,
         group_rate: f32,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &mut QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut QuestXpGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) {
         let old_level = {
             let player = self.xp_gain_access_like_cpp();
@@ -403,15 +405,19 @@ impl QuestRewardCx<'_> {
     }
 
     fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
-        let canonical = self
-            .player
-            .player_guid_like_cpp()
-            .and_then(|guid| self.player.canonical_player_has_player_flag_like_cpp(guid, flag));
+        let canonical = self.player.player_guid_like_cpp().and_then(|guid| {
+            self.player
+                .canonical_player_has_player_flag_like_cpp(guid, flag)
+        });
         if let Some(value) = canonical {
             return value;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if self.world_test_consumer && self.xp_gain_access_like_cpp().owner_handle_absent_like_cpp() {
+        if self.world_test_consumer
+            && self
+                .xp_gain_access_like_cpp()
+                .owner_handle_absent_like_cpp()
+        {
             return self
                 .lifecycle
                 .represented_loaded_player_flags_for_test_like_cpp()
@@ -423,8 +429,9 @@ impl QuestRewardCx<'_> {
     fn level_up_stat_deltas_like_cpp(
         &self,
         new_level: u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &mut QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut QuestXpGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) -> Option<(i32, [i32; 5])> {
         let stats = self.player.stats_access_like_cpp(
             self.catalogs,
@@ -435,19 +442,17 @@ impl QuestRewardCx<'_> {
             fixtures.stats.reborrow_like_cpp(),
         );
         let publication = self.player.packet_publication_access_like_cpp();
-        let application = crate::CharacterStatsApplicationCxLikeCpp::new(
-            stats,
-            self.inventory,
-            publication,
-        );
+        let application =
+            crate::CharacterStatsApplicationCxLikeCpp::new(stats, self.inventory, publication);
         application.level_up_stat_deltas_like_cpp(new_level)
     }
 
     fn apply_xp_level_transition_like_cpp(
         &mut self,
         level: u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &mut QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut QuestXpGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
         Self::set_player_level_and_refresh_talent_points_like_cpp(
@@ -476,8 +481,7 @@ impl QuestRewardCx<'_> {
         level_changed: bool,
         rest_info_changed: bool,
         guid_counter: u64,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &QuestXpGainFixtureRefsLikeCpp<'_>,
     ) -> Option<wow_persistence::PlayerXpPersistenceRequestLikeCpp> {
         Self::resolved_current_player_xp_persistence_request_from_access_like_cpp(
             self.xp_gain_access_like_cpp(),
@@ -556,10 +560,7 @@ impl QuestRewardCx<'_> {
     ) -> Option<u32> {
         let canonical = player.resolved_player_flags_for_rest_state_save_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none()
-            && world_test_consumer
-            && player.owner_handle_absent_like_cpp()
-        {
+        if canonical.is_none() && world_test_consumer && player.owner_handle_absent_like_cpp() {
             let mut flags = lifecycle
                 .represented_loaded_player_flags_for_test_like_cpp()
                 .unwrap_or(0);
@@ -587,8 +588,8 @@ pub struct QuestXpGainFixtureRefsLikeCpp<'a> {
     core: CoreXPGainFixtureRefsLikeCpp<'a>,
     player_character_points: &'a mut i32,
     gray_level_overrides: &'a std::collections::HashMap<u8, u8>,
-    talent_groups:
-        &'a [std::collections::BTreeMap<u32, u8>; wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP],
+    talent_groups: &'a [std::collections::BTreeMap<u32, u8>;
+            wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP],
     active_talent_group: &'a u8,
     stats: StatsFixtureRefs<'a>,
 }
@@ -607,8 +608,8 @@ impl<'a> QuestXpGainFixtureRefsLikeCpp<'a> {
         core: CoreXPGainFixtureRefsLikeCpp<'a>,
         player_character_points: &'a mut i32,
         gray_level_overrides: &'a std::collections::HashMap<u8, u8>,
-        talent_groups:
-            &'a [std::collections::BTreeMap<u32, u8>; wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP],
+        talent_groups: &'a [std::collections::BTreeMap<u32, u8>;
+                wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP],
         active_talent_group: &'a u8,
         stats: StatsFixtureRefs<'a>,
     ) -> Self {

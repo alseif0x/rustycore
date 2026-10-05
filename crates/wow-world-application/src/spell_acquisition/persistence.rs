@@ -7,10 +7,11 @@
 use std::collections::BTreeSet;
 
 use super::PreparedPlayerSpellAcquisitionLikeCpp;
+#[cfg(test)]
+use wow_persistence::PlayerSpellAcquisitionMoneyReconciliationLikeCpp;
 use wow_persistence::{
     PlayerSpellAcquisitionAuthorityLikeCpp as DurablePlayerSpellAcquisitionAuthorityLikeCpp,
-    PlayerSpellAcquisitionPersistencePortLikeCpp,
-    PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+    PlayerSpellAcquisitionPersistencePortLikeCpp, PlayerSpellAcquisitionPersistenceRequestLikeCpp,
     PlayerSpellAcquisitionSkillRowLikeCpp as DurablePlayerSkillRowLikeCpp,
     PlayerSpellAcquisitionSpellRowLikeCpp as DurablePlayerSpellRowLikeCpp,
 };
@@ -18,8 +19,6 @@ use wow_spell_acquisition::{
     PlayerSkillPersistenceStateLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
     PlayerSpellPersistenceStateLikeCpp,
 };
-#[cfg(test)]
-use wow_persistence::PlayerSpellAcquisitionMoneyReconciliationLikeCpp;
 
 pub enum PlayerSpellAcquisitionPersistenceOutcomeLikeCpp {
     Applied,

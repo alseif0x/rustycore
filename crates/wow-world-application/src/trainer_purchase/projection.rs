@@ -11,9 +11,8 @@ use super::controller::TrainerOfferCxLikeCpp;
 use wow_spell_acquisition::{
     PlayerAcquisitionLifecycleLikeCpp, PlayerSkillAcquisitionRowLikeCpp,
     PlayerSkillPersistenceStateLikeCpp, PlayerSpellAcquisitionRowLikeCpp,
-    PlayerSpellPersistenceStateLikeCpp,
-    PlayerSpellAcquisitionSnapshotLikeCpp, ProfessionAssociationInputLikeCpp,
-    SpellAcquisitionSnapshotAdapterErrorLikeCpp,
+    PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellPersistenceStateLikeCpp,
+    ProfessionAssociationInputLikeCpp, SpellAcquisitionSnapshotAdapterErrorLikeCpp,
 };
 use wow_world_core::session::RepresentedPlayerSkillStateLikeCpp;
 use wow_world_spell::RepresentedPlayerSpellStateLikeCpp as SpellState;
@@ -57,9 +56,21 @@ impl<'a> TrainerProjectionCatalogsLikeCpp<'a> {
         linked: Option<&'a wow_data::SpellLinkedStoreLikeCpp>,
     ) -> Self {
         Self {
-            chains, learn_skills, learn_spells, required, custom_attributes,
-            traits, skill_tiers, mounts, difficulties, maps, disables,
-            targets, aura_restrictions, pet_auras, linked,
+            chains,
+            learn_skills,
+            learn_spells,
+            required,
+            custom_attributes,
+            traits,
+            skill_tiers,
+            mounts,
+            difficulties,
+            maps,
+            disables,
+            targets,
+            aura_restrictions,
+            pet_auras,
+            linked,
         }
     }
 }
@@ -106,7 +117,8 @@ impl TrainerOfferCxLikeCpp<'_> {
         let cast_resolutions = match root {
             SpellAcquisitionRootLikeCpp::DirectLearn(_) => BTreeMap::new(),
             SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => {
-                let Some(resolution) = self.spell_state
+                let Some(resolution) = self
+                    .spell_state
                     .resolve_trainer_wrapper_cast_acquisition_with_access_like_cpp(
                         &self.spell_access,
                         self.player_conditions.player_access_like_cpp(),
@@ -119,44 +131,77 @@ impl TrainerOfferCxLikeCpp<'_> {
                         inputs.pet_auras,
                         inputs.linked,
                         spell_id,
-                    ) else {
-                        return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
-                            SpellAcquisitionIndeterminateLikeCpp::MissingCastResolution { spell_id },
-                        );
-                    };
+                    )
+                else {
+                    return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+                        SpellAcquisitionIndeterminateLikeCpp::MissingCastResolution { spell_id },
+                    );
+                };
                 BTreeMap::from([(spell_id, resolution)])
             }
         };
         let snapshot = match self.spell_acquisition_snapshot_like_cpp(cast_resolutions) {
             Ok(snapshot) => snapshot,
-            Err(error) => return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
-                SpellAcquisitionIndeterminateLikeCpp::SnapshotAdapter(error),
-            ),
+            Err(error) => {
+                return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
+                    SpellAcquisitionIndeterminateLikeCpp::SnapshotAdapter(error),
+                );
+            }
         };
         let (
-            Some(catalog), Some(spell_chains), Some(spell_learn_skills),
-            Some(spell_learn_spells), Some(spell_required), Some(spell_custom_attributes),
-            Some(trait_definitions), Some(skills), Some(skill_lines), Some(skill_tiers),
+            Some(catalog),
+            Some(spell_chains),
+            Some(spell_learn_skills),
+            Some(spell_learn_spells),
+            Some(spell_required),
+            Some(spell_custom_attributes),
+            Some(trait_definitions),
+            Some(skills),
+            Some(skill_lines),
+            Some(skill_tiers),
         ) = (
-            self.catalogs.spell_acquisition, inputs.chains, inputs.learn_skills,
-            inputs.learn_spells, inputs.required, inputs.custom_attributes,
-            inputs.traits, self.catalogs.skills, self.catalogs.skill_lines, inputs.skill_tiers,
-        ) else {
+            self.catalogs.spell_acquisition,
+            inputs.chains,
+            inputs.learn_skills,
+            inputs.learn_spells,
+            inputs.required,
+            inputs.custom_attributes,
+            inputs.traits,
+            self.catalogs.skills,
+            self.catalogs.skill_lines,
+            inputs.skill_tiers,
+        )
+        else {
             return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
                 SpellAcquisitionIndeterminateLikeCpp::MissingTrainerProjectionMetadata,
             );
         };
-        let cast_authority = self.spell_state.spell_acquisition_cast_authority_like_cpp()
-            .map(AsRef::as_ref).unwrap_or(&FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP);
-        let craft_validity_authority = self.spell_state.spell_acquisition_craft_authority_like_cpp()
-            .map(AsRef::as_ref).unwrap_or(&FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP);
+        let cast_authority = self
+            .spell_state
+            .spell_acquisition_cast_authority_like_cpp()
+            .map(AsRef::as_ref)
+            .unwrap_or(&FAIL_CLOSED_CAST_AUTHORITY_LIKE_CPP);
+        let craft_validity_authority = self
+            .spell_state
+            .spell_acquisition_craft_authority_like_cpp()
+            .map(AsRef::as_ref)
+            .unwrap_or(&FAIL_CLOSED_CRAFT_AUTHORITY_LIKE_CPP);
         wow_spell_acquisition::project_spell_acquisition_like_cpp(
             &snapshot,
             SpellAcquisitionMetadataLikeCpp {
-                catalog, spell_chains, spell_learn_skills, spell_learn_spells,
-                spell_required, spell_custom_attributes, trait_definitions,
-                cast_authority, craft_validity_authority, mounts: inputs.mounts,
-                skills, skill_lines, skill_tiers,
+                catalog,
+                spell_chains,
+                spell_learn_skills,
+                spell_learn_spells,
+                spell_required,
+                spell_custom_attributes,
+                trait_definitions,
+                cast_authority,
+                craft_validity_authority,
+                mounts: inputs.mounts,
+                skills,
+                skill_lines,
+                skill_tiers,
             },
             root,
         )
@@ -165,29 +210,41 @@ impl TrainerOfferCxLikeCpp<'_> {
     fn plan_primary_profession_capacity_like_cpp(
         &self,
         requested_skill_ids: impl IntoIterator<Item = u32>,
-    ) -> Result<crate::PrimaryProfessionCapacityPlanLikeCpp, crate::PrimaryProfessionCapacityPlanErrorLikeCpp> {
+    ) -> Result<
+        crate::PrimaryProfessionCapacityPlanLikeCpp,
+        crate::PrimaryProfessionCapacityPlanErrorLikeCpp,
+    > {
         use crate::PrimaryProfessionCapacityPlanErrorLikeCpp as Error;
         let Some(skill_lines) = self.catalogs.skill_lines else {
             return Err(Error::MissingSkillLineStore);
         };
-        let Some(skills_loaded) = self.spell_access.player_skill_records_loaded_with_fixture_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.skill_fixture_loaded,
-        ) else {
+        let Some(skills_loaded) = self
+            .spell_access
+            .player_skill_records_loaded_with_fixture_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.skill_fixture_loaded,
+            )
+        else {
             return Err(Error::MissingPlayerSkillSnapshot);
         };
         if !skills_loaded {
             return Err(Error::MissingPlayerSkillSnapshot);
         }
-        let Some(skill_records) = self.player_conditions.player_access_like_cpp()
-            .resolved_player_skill_records_like_cpp() else {
-                return Err(Error::MissingPlayerSkillSnapshot);
-            };
-        let current_skills = skill_records.values().map(|skill| crate::PlayerSkillProfessionSnapshotLikeCpp {
-            skill_id: u32::from(skill.skill_id),
-            value: skill.value,
-            profession_slot: skill.profession_slot,
-        });
+        let Some(skill_records) = self
+            .player_conditions
+            .player_access_like_cpp()
+            .resolved_player_skill_records_like_cpp()
+        else {
+            return Err(Error::MissingPlayerSkillSnapshot);
+        };
+        let current_skills =
+            skill_records
+                .values()
+                .map(|skill| crate::PlayerSkillProfessionSnapshotLikeCpp {
+                    skill_id: u32::from(skill.skill_id),
+                    value: skill.value,
+                    profession_slot: skill.profession_slot,
+                });
         let analysis = crate::analyze_primary_professions_like_cpp(
             *self.max_primary_trade_skills,
             skill_lines,
@@ -201,7 +258,10 @@ impl TrainerOfferCxLikeCpp<'_> {
     /// spell rows, skill rows, occupied slots, traits, then overrides.
     pub(super) fn spell_acquisition_snapshot_like_cpp(
         &self,
-        cast_resolutions: BTreeMap<u32, wow_spell_acquisition::PlayerCastAcquisitionResolutionLikeCpp>,
+        cast_resolutions: BTreeMap<
+            u32,
+            wow_spell_acquisition::PlayerCastAcquisitionResolutionLikeCpp,
+        >,
     ) -> Result<PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionSnapshotAdapterErrorLikeCpp>
     {
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -227,18 +287,20 @@ impl TrainerOfferCxLikeCpp<'_> {
                 self.skill_fixture_occupied,
             )
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)?;
-        let traits = self.complete_spell_trait_definitions_like_cpp()
+        let traits = self
+            .complete_spell_trait_definitions_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteTraitDefinitions)?;
-        let represented_overrides = self.complete_spell_overrides_like_cpp()
+        let represented_overrides = self
+            .complete_spell_overrides_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteOverrides)?;
 
         let mut trait_spell_ids = traits.keys().copied().collect::<Vec<_>>();
         trait_spell_ids.sort_unstable();
         for spell_id in trait_spell_ids {
             if !spell_rows.contains_key(&spell_id) {
-                return Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::OrphanTraitDefinition {
-                    spell_id,
-                });
+                return Err(
+                    SpellAcquisitionSnapshotAdapterErrorLikeCpp::OrphanTraitDefinition { spell_id },
+                );
             }
         }
 
@@ -282,9 +344,10 @@ impl TrainerOfferCxLikeCpp<'_> {
                 step: row.step,
                 value: row.value,
                 maximum: row.max,
-                profession_association: ProfessionAssociationInputLikeCpp::from_database_value_like_cpp(
-                    row.profession_slot,
-                ),
+                profession_association:
+                    ProfessionAssociationInputLikeCpp::from_database_value_like_cpp(
+                        row.profession_slot,
+                    ),
                 state: match row.state {
                     RepresentedPlayerSkillStateLikeCpp::Unchanged => {
                         PlayerSkillPersistenceStateLikeCpp::Unchanged
@@ -318,10 +381,12 @@ impl TrainerOfferCxLikeCpp<'_> {
                 u32::try_from(overridden_spell_id),
                 u32::try_from(overriding_spell_id),
             ) else {
-                return Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::InvalidOverride {
-                    overridden_spell_id,
-                    overriding_spell_id,
-                });
+                return Err(
+                    SpellAcquisitionSnapshotAdapterErrorLikeCpp::InvalidOverride {
+                        overridden_spell_id,
+                        overriding_spell_id,
+                    },
+                );
             };
             overrides.push((overridden_spell_id_u32, overriding_spell_id_u32));
         }
@@ -335,7 +400,8 @@ impl TrainerOfferCxLikeCpp<'_> {
                 self.catalogs
                     .skill_lines
                     .and_then(|store| {
-                        store.is_primary_profession_skill_like_cpp(skill.skill_id)
+                        store
+                            .is_primary_profession_skill_like_cpp(skill.skill_id)
                             .map(|is_primary| (skill.skill_id, is_primary))
                     })
                     .and_then(|(skill_id, is_primary)| is_primary.then_some(skill_id))
@@ -390,7 +456,8 @@ impl TrainerOfferCxLikeCpp<'_> {
             && self.spell_access.player_handle_absent_like_cpp()
         {
             let runtime = wow_world_spell::canonical_player_spell_runtime_like_cpp(
-                self.spell_state.represented_spell_runtime_fixture_like_cpp(),
+                self.spell_state
+                    .represented_spell_runtime_fixture_like_cpp(),
             );
             return complete(&runtime);
         }
@@ -420,7 +487,8 @@ impl TrainerOfferCxLikeCpp<'_> {
             && self.spell_access.player_handle_absent_like_cpp()
         {
             let runtime = wow_world_spell::canonical_player_spell_runtime_like_cpp(
-                self.spell_state.represented_spell_runtime_fixture_like_cpp(),
+                self.spell_state
+                    .represented_spell_runtime_fixture_like_cpp(),
             );
             return complete(&runtime);
         }

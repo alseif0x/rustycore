@@ -5,10 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 use quote::ToTokens;
 use syn::{Item, UseTree, visit::Visit};
 
+use super::legacy_registry::is_exact_wrapper_reexport;
 use super::{
     ident_is, use_tree_can_alias_expected_registration_macro, use_tree_can_alias_inventory_submit,
 };
-use super::legacy_registry::is_exact_wrapper_reexport;
 
 /// Production reverse dependency closure of every resolved `inventory` crate.
 /// Package identity, rather than the dependency's local alias, controls capability.
@@ -200,7 +200,11 @@ pub(crate) fn registration_alias_violations_with_context(
     allow_exact_wrapper_reexport: bool,
     allow_local_data_module: bool,
 ) -> Result<Vec<String>, String> {
-    collect(source, allow_local_data_module, allow_exact_wrapper_reexport)
+    collect(
+        source,
+        allow_local_data_module,
+        allow_exact_wrapper_reexport,
+    )
 }
 
 /// Only for packages outside the handler registry closure and without any normal

@@ -27,7 +27,6 @@ const SPELL_VISUAL_KIT_FOOD_LIKE_CPP: i32 = 406;
 /// C++ `SPELL_VISUAL_KIT_DRINK` (`SharedDefines.h:398`).
 const SPELL_VISUAL_KIT_DRINK_LIKE_CPP: i32 = 438;
 
-
 /// One represented power prepared for the C++ `RegenerateAll` power loop.
 struct RepresentedPowerRegenLikeCpp {
     power: PowerType,

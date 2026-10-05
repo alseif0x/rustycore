@@ -105,15 +105,10 @@ impl crate::InventoryState {
         }
         let mut max_level = max_level as u32;
 
-        if let Some(content_tuning) = item_sets
-            .content_tuning_store_like_cpp()
-            .and_then(|store| {
-                store.content_tuning_data_like_cpp(
-                    template.scaling_stat_content_tuning_like_cpp(),
-                    true,
-                )
-            })
-        {
+        if let Some(content_tuning) = item_sets.content_tuning_store_like_cpp().and_then(|store| {
+            store
+                .content_tuning_data_like_cpp(template.scaling_stat_content_tuning_like_cpp(), true)
+        }) {
             max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
         }
 
@@ -246,10 +241,8 @@ impl crate::InventoryState {
             });
         }
 
-        let _ = self.drop_player_empty_item_set_effect_with_access_like_cpp(
-            item_modifiers,
-            item_set.id,
-        );
+        let _ = self
+            .drop_player_empty_item_set_effect_with_access_like_cpp(item_modifiers, item_set.id);
 
         events
     }

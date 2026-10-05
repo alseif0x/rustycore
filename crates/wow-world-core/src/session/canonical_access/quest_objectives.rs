@@ -65,7 +65,8 @@ impl QuestObjectiveAccessLikeCpp<'_> {
     /// Resolve GM presentation using the original World fixture input when enabled.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn player_is_game_master_like_cpp(&self, fixture: &bool) -> Option<bool> {
-        self.core.player_is_game_master_with_fixture_like_cpp(fixture)
+        self.core
+            .player_is_game_master_with_fixture_like_cpp(fixture)
     }
 
     #[cfg(not(any(test, feature = "test-fixtures")))]
@@ -206,10 +207,13 @@ impl<'a> QuestObjectiveAccessLikeCpp<'a> {
     /// Resolve the exact registry participants after a quest-completion visibility refresh.
     pub fn player_registry_sync_participants_like_cpp(
         &'a self,
-        #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<wow_core::Position>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<
+            wow_core::Position,
+        >,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &'a Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> Option<(
         crate::session::PlayerRegistrySyncAccessLikeCpp<'a>,
         crate::session::PlayerRegistryControlBindingLikeCpp<'a>,

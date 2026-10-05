@@ -1,13 +1,13 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_entities::{PlayerInventoryRuntime, INVENTORY_SLOT_BAG_0};
+use wow_entities::{INVENTORY_SLOT_BAG_0, PlayerInventoryRuntime};
 
 use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
 
-mod relocation;
 mod enchantment;
 mod equip;
+mod relocation;
 
 /// Borrowed access to the session's canonical inventory owner.
 pub struct OwnedInventoryAccessLikeCpp<'a> {
@@ -23,16 +23,27 @@ impl SessionCore {
 
 impl OwnedInventoryAccessLikeCpp<'_> {
     pub fn canonical_inventory_bag_slots_snapshot_like_cpp(
-        &self, bag_slot: u8,
-    ) -> Option<(wow_core::ObjectGuid, u8, [wow_core::ObjectGuid; wow_entities::MAX_BAG_SIZE])> {
-        self.core.canonical_player_snapshot_like_cpp(|player| {
-            let bag = player.inventory().bags.get(bag_slot as usize).and_then(Option::as_ref)?;
-            let mut slots = [wow_core::ObjectGuid::EMPTY; wow_entities::MAX_BAG_SIZE];
-            for (index, slot) in bag.slots.iter().enumerate() {
-                slots[index] = slot.unwrap_or(wow_core::ObjectGuid::EMPTY);
-            }
-            Some((bag.bag_guid, bag.bag_size, slots))
-        }).flatten()
+        &self,
+        bag_slot: u8,
+    ) -> Option<(
+        wow_core::ObjectGuid,
+        u8,
+        [wow_core::ObjectGuid; wow_entities::MAX_BAG_SIZE],
+    )> {
+        self.core
+            .canonical_player_snapshot_like_cpp(|player| {
+                let bag = player
+                    .inventory()
+                    .bags
+                    .get(bag_slot as usize)
+                    .and_then(Option::as_ref)?;
+                let mut slots = [wow_core::ObjectGuid::EMPTY; wow_entities::MAX_BAG_SIZE];
+                for (index, slot) in bag.slots.iter().enumerate() {
+                    slots[index] = slot.unwrap_or(wow_core::ObjectGuid::EMPTY);
+                }
+                Some((bag.bag_guid, bag.bag_size, slots))
+            })
+            .flatten()
     }
 
     /// Final native placement phase after the independent runtime writes.
@@ -64,8 +75,10 @@ impl OwnedInventoryAccessLikeCpp<'_> {
 
             if destination_bag == INVENTORY_SLOT_BAG_0 {
                 let _ = player.store_top_level_item(destination_slot, source_guid);
-                if wow_entities::is_bag_pos(wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, destination_slot))
-                    && let Some(size) = source_bag_size
+                if wow_entities::is_bag_pos(wow_entities::make_item_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    destination_slot,
+                )) && let Some(size) = source_bag_size
                     && player
                         .register_bag_storage(destination_slot, source_guid, size)
                         .is_ok()
@@ -80,8 +93,10 @@ impl OwnedInventoryAccessLikeCpp<'_> {
 
             if source_bag == INVENTORY_SLOT_BAG_0 {
                 let _ = player.store_top_level_item(source_slot, destination_guid);
-                if wow_entities::is_bag_pos(wow_entities::make_item_pos(INVENTORY_SLOT_BAG_0, source_slot))
-                    && let Some(size) = destination_bag_size
+                if wow_entities::is_bag_pos(wow_entities::make_item_pos(
+                    INVENTORY_SLOT_BAG_0,
+                    source_slot,
+                )) && let Some(size) = destination_bag_size
                     && player
                         .register_bag_storage(source_slot, destination_guid, size)
                         .is_ok()
@@ -115,7 +130,11 @@ impl OwnedInventoryAccessLikeCpp<'_> {
     pub fn add_item_duration_refs_like_cpp(
         &self,
         item: &mut wow_entities::Item,
-    ) -> Option<(wow_core::ObjectGuid, Option<wow_entities::PlayerItemTimeUpdate>, Vec<wow_entities::PlayerEnchantTimeUpdate>)> {
+    ) -> Option<(
+        wow_core::ObjectGuid,
+        Option<wow_entities::PlayerItemTimeUpdate>,
+        Vec<wow_entities::PlayerEnchantTimeUpdate>,
+    )> {
         self.core.mutate_canonical_player_like_cpp(|player| {
             let item_update = player.add_item_durations(item);
             let enchantment_updates = player.add_enchantment_durations(item);
@@ -158,7 +177,8 @@ impl OwnedInventoryAccessLikeCpp<'_> {
 
     /// Read canonical player money without applying an Inventory fixture fallback.
     pub fn player_money_like_cpp(&self) -> Option<u64> {
-        self.core.with_owned_player_like_cpp(|player| player.money())
+        self.core
+            .with_owned_player_like_cpp(|player| player.money())
     }
 
     /// Set canonical player money and report whether the owned player resolved.

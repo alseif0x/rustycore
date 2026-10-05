@@ -21,8 +21,13 @@ pub fn represented_quest_has_item_objective_like_cpp(quest: &QuestTemplate) -> b
 /// Which dialog C++ sends back for one quest-completion request.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum RepresentedQuestCompleteDialogLikeCpp {
-    RequestItems { can_complete: bool, auto_launched: bool },
-    OfferReward { auto_launched: bool },
+    RequestItems {
+        can_complete: bool,
+        auto_launched: bool,
+    },
+    OfferReward {
+        auto_launched: bool,
+    },
 }
 
 /// C++ `HandleQuestgiverCompleteQuest` branch selection.

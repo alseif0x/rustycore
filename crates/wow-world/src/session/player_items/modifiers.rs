@@ -64,11 +64,12 @@ impl WorldSession {
         &mut self,
         caps: wow_entities::PlayerItemLevelCapsLikeCpp,
     ) -> bool {
-        self.inventory.set_player_item_level_caps_with_access_like_cpp(
-            &self.core.owned_item_modifiers_access_like_cpp(),
-            caps,
-            cfg!(test),
-        )
+        self.inventory
+            .set_player_item_level_caps_with_access_like_cpp(
+                &self.core.owned_item_modifiers_access_like_cpp(),
+                caps,
+                cfg!(test),
+            )
     }
     pub(in crate::session) fn record_represented_item_mods_like_cpp(
         &mut self,
@@ -86,19 +87,20 @@ impl WorldSession {
             self.catalogs.shield_block_regular_game_table.as_ref(),
             self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
         );
-        self.inventory.record_represented_item_mods_with_access_like_cpp(
-            &inventory_access,
-            &modifier_access,
-            catalogs,
-            item_guid,
-            slot,
-            apply,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.auras.represented_shapeshift_form_like_cpp,
-            cfg!(test),
-        )
+        self.inventory
+            .record_represented_item_mods_with_access_like_cpp(
+                &inventory_access,
+                &modifier_access,
+                catalogs,
+                item_guid,
+                slot,
+                apply,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                cfg!(test),
+            )
     }
     pub(crate) fn record_represented_update_item_set_auras_like_cpp(
         &mut self,
@@ -115,12 +117,18 @@ impl WorldSession {
         form_change: bool,
     ) -> Vec<RepresentedItemSetAuraRefreshEventLikeCpp> {
         wow_world_application::plan_item_set_aura_refresh_with_access_like_cpp(
-            &self.inventory, &self.core.owned_item_modifiers_access_like_cpp(),
+            &self.inventory,
+            &self.core.owned_item_modifiers_access_like_cpp(),
             &crate::session::hub_ref(self).owned_item_set_access_like_cpp(),
             self.catalogs.spell_catalogs.spell_store.as_deref(),
-            self.catalogs.spell_catalogs.spell_shapeshift_form_store.as_deref(),
-            form_change, cfg!(test),
-            #[cfg(any(test, feature = "test-fixtures"))] &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+            self.catalogs
+                .spell_catalogs
+                .spell_shapeshift_form_store
+                .as_deref(),
+            form_change,
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.auras.represented_shapeshift_form_like_cpp,
         )
     }
     pub(in crate::session) fn apply_initial_item_set_auras_like_cpp(
@@ -220,7 +228,8 @@ impl WorldSession {
         &mut self,
         form_change: bool,
     ) -> usize {
-        self.player_aura_application_cx_like_cpp().apply_item_set_aura_refresh_events_like_cpp(form_change)
+        self.player_aura_application_cx_like_cpp()
+            .apply_item_set_aura_refresh_events_like_cpp(form_change)
     }
     pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
         // Item changes alter derived stats, vital maxima and weapon ranges

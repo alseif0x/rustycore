@@ -325,7 +325,8 @@ impl crate::session::HubMut<'_> {
     }
 
     pub fn send_set_vehicle_rec_id_like_cpp(&mut self, vehicle_id: u32) {
-        self.aura_removal_mount_accesses_like_cpp().1
+        self.aura_removal_mount_accesses_like_cpp()
+            .1
             .send_set_vehicle_rec_id_like_cpp(vehicle_id);
     }
 
@@ -617,34 +618,34 @@ impl crate::session::HubRef<'_> {
 impl crate::session::state::SessionCore {
     pub(crate) fn player_transport_state_with_fixture_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_transport: &Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> Option<Option<wow_entities::PlayerTransportState>> {
         #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
-            return Some(
-                fixture_transport
-                    .as_ref()
-                    .map(|state| wow_entities::PlayerTransportState {
-                        guid: state.info.guid,
-                        x: state.info.x,
-                        y: state.info.y,
-                        z: state.info.z,
-                        orientation: state.info.o,
-                        seat: state.info.seat,
-                        time: state.info.time,
-                        prev_time: state.info.prev_time,
-                        vehicle_id: state.info.vehicle_id,
-                    }),
-            );
+            return Some(fixture_transport.as_ref().map(|state| {
+                wow_entities::PlayerTransportState {
+                    guid: state.info.guid,
+                    x: state.info.x,
+                    y: state.info.y,
+                    z: state.info.z,
+                    orientation: state.info.o,
+                    seat: state.info.seat,
+                    time: state.info.time,
+                    prev_time: state.info.prev_time,
+                    vehicle_id: state.info.vehicle_id,
+                }
+            }));
         }
         self.with_owned_player_like_cpp(|player| player.gameplay_state().transport.clone())
     }
 
     pub(crate) fn player_transport_info_with_fixture_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_transport: &Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> Option<wow_packet::packets::movement::TransportInfo> {
         self.player_transport_state_with_fixture_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]

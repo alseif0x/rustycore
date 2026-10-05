@@ -17,22 +17,14 @@ use crate::finalization::FinalizationOutcome;
 
 impl WorldSession {
     pub fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
-        if self
-            .lifecycle
-            .finalization()
-            .is_some_and(|operation| {
-                operation.report().disposition == crate::FinalizationDisposition::Complete
-            })
-        {
+        if self.lifecycle.finalization().is_some_and(|operation| {
+            operation.report().disposition == crate::FinalizationDisposition::Complete
+        }) {
             return FinalizationOutcome::NoWork;
         }
-        if self
-            .lifecycle
-            .finalization()
-            .is_some_and(|operation| {
-                operation.report().disposition != crate::FinalizationDisposition::Complete
-            })
-        {
+        if self.lifecycle.finalization().is_some_and(|operation| {
+            operation.report().disposition != crate::FinalizationDisposition::Complete
+        }) {
             return FinalizationOutcome::Unavailable;
         }
         self.unregister_from_player_registry();

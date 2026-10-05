@@ -3,8 +3,8 @@
 use crate::SessionSpellState;
 use std::time::Instant;
 use wow_entities::{
-    CastExecutionStateLikeCpp, PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp,
-    SpellCastState,
+    CastExecutionStateLikeCpp,
+    PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp, SpellCastState,
 };
 use wow_world_core::session::HubRef;
 
@@ -52,10 +52,7 @@ impl SessionSpellState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn active_spell_cast_snapshot_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<SpellCastState> {
+    pub fn active_spell_cast_snapshot_like_cpp(&self, hub: HubRef<'_>) -> Option<SpellCastState> {
         self.with_cast_execution_like_cpp(hub, |state| state.active.clone())
             .flatten()
     }
@@ -105,9 +102,6 @@ impl SessionSpellState {
     }
 
     pub fn remaining_active_spell_cast_ms_like_cpp(&self, hub: HubRef<'_>) -> Option<u32> {
-        self.with_cast_execution_like_cpp(
-            hub,
-            CastExecutionStateLikeCpp::remaining_cast_ms,
-        )
+        self.with_cast_execution_like_cpp(hub, CastExecutionStateLikeCpp::remaining_cast_ms)
     }
 }

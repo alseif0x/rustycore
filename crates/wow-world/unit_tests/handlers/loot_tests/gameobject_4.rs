@@ -45,7 +45,10 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         player_guid,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, player_guid, response);
@@ -60,12 +63,14 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     assert!(
         !session
             .loot
-            .represented_loot_cache_generation_for_test_like_cpp(owner_guid).is_some()
+            .represented_loot_cache_generation_for_test_like_cpp(owner_guid)
+            .is_some()
     );
     assert!(
         !session
             .loot
-            .personal_loot_money_for_owner_and_player_like_cpp(owner_guid, player_guid).is_some()
+            .personal_loot_money_for_owner_and_player_like_cpp(owner_guid, player_guid)
+            .is_some()
     );
     let before_reopen = authority
         .snapshot_for_player_like_cpp(player_guid)
@@ -77,11 +82,7 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
         .open_represented_gameobject_chest_like_cpp(owner_guid, source)
         .await;
     assert!(session.loot.cached_loot_contains_owner_like_cpp(owner_guid));
-    assert!(
-        session
-            .loot
-            .is_personal_loot_owner_like_cpp(owner_guid)
-    );
+    assert!(session.loot.is_personal_loot_owner_like_cpp(owner_guid));
     assert_eq!(
         session
             .loot
@@ -165,7 +166,10 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         first_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, first_player, response);
@@ -187,7 +191,8 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     assert!(!authority.is_fully_looted_like_cpp());
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(owner_guid)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(owner_guid)
             .unwrap()
             .per_player_state_player_guid,
         Some(first_player),
@@ -199,7 +204,10 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         second_player,
     );
     session.represented_on_loot_opened_like_cpp(owner_guid, second_player, response);
@@ -460,13 +468,15 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
     assert!(send_rx.try_recv().is_ok());
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(fishing_node)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(fishing_node)
             .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
     );
     let hole_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(fishing_hole)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(fishing_hole)
         .unwrap();
     assert_eq!(hole_state.loot_state, Some(LootState::Ready));
     assert_eq!(hole_state.personal_loot_uses, 1);
@@ -537,7 +547,8 @@ async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_repr
     assert_eq!(canonical.use_times(), 2);
     assert_eq!(canonical.loot_state(), LootState::JustDeactivated);
     let hole_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(fishing_hole)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(fishing_hole)
         .unwrap();
     assert_eq!(hole_state.personal_loot_uses, 2);
     assert_eq!(hole_state.loot_state, Some(LootState::JustDeactivated));
@@ -625,21 +636,24 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     );
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(restocked_chest)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(restocked_chest)
             .unwrap()
             .per_player_despawn_secs,
         Some(45)
     );
     assert_eq!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(fallback_chest)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(fallback_chest)
             .unwrap()
             .per_player_despawn_secs,
         Some(wow_entities::DEFAULT_GAMEOBJECT_RESPAWN_DELAY_SECS)
     );
     assert!(
         session
-            .world_entities.represented_gameobject_use_state_like_cpp(restocked_chest)
+            .world_entities
+            .represented_gameobject_use_state_like_cpp(restocked_chest)
             .unwrap()
             .per_player_despawn_until
             .is_some()
@@ -701,7 +715,8 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
     );
     assert!(send_rx.try_recv().is_err());
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(chest_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(chest_guid)
         .unwrap();
     assert_eq!(state.per_player_despawn_secs, Some(45));
     assert!(state.per_player_despawn_until.is_some());
@@ -792,14 +807,20 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
         .await;
 
     let partial_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(partial_chest)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(partial_chest)
         .unwrap();
     assert_eq!(partial_state.loot_state, Some(LootState::Activated));
     assert!(partial_state.chest_restock_until.is_some());
-    assert!(session.loot.cached_loot_contains_owner_like_cpp(partial_chest));
+    assert!(
+        session
+            .loot
+            .cached_loot_contains_owner_like_cpp(partial_chest)
+    );
 
     let full_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(full_chest)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(full_chest)
         .unwrap();
     assert_eq!(full_state.loot_state, Some(LootState::NotReady));
     assert!(full_state.chest_restock_until.is_some());
@@ -819,7 +840,8 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
     );
     {
         let state = session
-            .world_entities.represented_gameobject_use_state_mut_like_cpp(chest_guid)
+            .world_entities
+            .represented_gameobject_use_state_mut_like_cpp(chest_guid)
             .unwrap();
         state.loot_state = Some(LootState::Activated);
         state.chest_restock_until = Some(Instant::now() - Duration::from_secs(1));
@@ -846,7 +868,8 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(chest_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(chest_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(LootState::Ready));
     assert!(state.chest_restock_until.is_none());

@@ -17,17 +17,20 @@ impl crate::InventoryState {
             return false;
         };
         let mut found = false;
-        player.for_each_item_guid_like_cpp(wow_entities::ItemSearchLocation::DEFAULT, |item_guid| {
-            if item_objects
-                .get(&item_guid)
-                .is_some_and(|item| item.object().entry() == item_id)
-            {
-                found = true;
-                wow_entities::ItemSearchCallbackResult::Stop
-            } else {
-                wow_entities::ItemSearchCallbackResult::Continue
-            }
-        });
+        player.for_each_item_guid_like_cpp(
+            wow_entities::ItemSearchLocation::DEFAULT,
+            |item_guid| {
+                if item_objects
+                    .get(&item_guid)
+                    .is_some_and(|item| item.object().entry() == item_id)
+                {
+                    found = true;
+                    wow_entities::ItemSearchCallbackResult::Stop
+                } else {
+                    wow_entities::ItemSearchCallbackResult::Continue
+                }
+            },
+        );
         found
     }
 }

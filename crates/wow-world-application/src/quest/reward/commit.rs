@@ -4,9 +4,9 @@
 
 //! Existing durable reward commit bridge.
 
-use super::QuestRewardCx;
 use super::super::QuestRewardDurablePlanLikeCpp;
 use super::super::reward_commit::QuestRewardCommitCx;
+use super::QuestRewardCx;
 
 impl QuestRewardCx<'_> {
     pub async fn commit_quest_reward_plan_like_cpp(

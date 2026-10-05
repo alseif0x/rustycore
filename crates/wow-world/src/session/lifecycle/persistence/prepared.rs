@@ -43,13 +43,14 @@ impl WorldSession {
             });
         }
         let talent_store = self.catalogs.talent_store().map(AsRef::as_ref);
-        let spell_store = self.catalogs.spell_catalogs.spell_store().map(AsRef::as_ref);
+        let spell_store = self
+            .catalogs
+            .spell_catalogs
+            .spell_store()
+            .map(AsRef::as_ref);
         let mut owner = self
             .core
-            .player_save_operation_access_like_cpp(
-            talent_store,
-            spell_store,
-        );
+            .player_save_operation_access_like_cpp(talent_store, spell_store);
         let inputs = self.lifecycle.player_save_session_inputs_like_cpp(now);
         let captured = owner.capture_like_cpp(inputs)?;
         let (request, header, receipt) = captured.into_parts_like_cpp();
@@ -97,8 +98,7 @@ fn committed_groups_like_cpp(
 ) -> PlayerCharacterCommittedGroupsLikeCpp {
     PlayerCharacterCommittedGroupsLikeCpp {
         player_spells: expected.player_spells && committed.player_spells,
-        fallback_player_spells: expected.fallback_player_spells
-            && committed.fallback_player_spells,
+        fallback_player_spells: expected.fallback_player_spells && committed.fallback_player_spells,
         player_skills: expected.player_skills && committed.player_skills,
         equipment_sets: expected.equipment_sets && committed.equipment_sets,
         tutorials_changed: expected.tutorials_changed && committed.tutorials_changed,

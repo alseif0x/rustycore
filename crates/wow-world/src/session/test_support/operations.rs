@@ -225,8 +225,7 @@ impl WorldSession {
     pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
         #[cfg(test)]
         {
-            self.lifecycle
-                .loot_money_persistence_test_result_like_cpp()
+            self.lifecycle.loot_money_persistence_test_result_like_cpp()
         }
         #[cfg(not(test))]
         {

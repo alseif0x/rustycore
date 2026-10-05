@@ -5,6 +5,8 @@
 
 use crate::RepresentedGuildRepairBankStateLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedTransmogCriteriaEvent;
+#[cfg(any(test, feature = "test-fixtures"))]
 use crate::{
     PlayerItemTestFixtureLikeCpp, RepresentedAuctionPlaceBidLikeCpp,
     RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp,
@@ -13,8 +15,6 @@ use crate::{
     RepresentedGuildBankListRequestLikeCpp, RepresentedGuildBankMoneyMoveLikeCpp,
     RepresentedGuildBankTabActionLikeCpp, RepresentedGuildRepairBankWithdrawLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::RepresentedTransmogCriteriaEvent;
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::HashMap;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -136,8 +136,8 @@ impl InventoryState {
             #[cfg(any(test, feature = "test-fixtures"))]
             inventory_item_objects: HashMap::new(),
             #[cfg(any(test, feature = "test-fixtures"))]
-            represented_equipment_sets_like_cpp:
-                wow_entities::PlayerEquipmentSetsLikeCpp::default(),
+            represented_equipment_sets_like_cpp: wow_entities::PlayerEquipmentSetsLikeCpp::default(
+            ),
             #[cfg(any(test, feature = "test-fixtures"))]
             represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
             #[cfg(any(test, feature = "test-fixtures"))]

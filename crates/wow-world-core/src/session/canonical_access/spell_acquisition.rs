@@ -36,9 +36,9 @@ impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
         &self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_loaded: &bool,
     ) -> Option<bool> {
-        let canonical = self.core.with_owned_player_like_cpp(
-            wow_entities::Player::skill_records_loaded_like_cpp,
-        );
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(wow_entities::Player::skill_records_loaded_like_cpp);
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(*fixture_loaded);
@@ -58,9 +58,8 @@ impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
         &self,
         project: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        self.core.with_owned_player_like_cpp(|player| {
-            project(player.spell_runtime_like_cpp())
-        })
+        self.core
+            .with_owned_player_like_cpp(|player| project(player.spell_runtime_like_cpp()))
     }
 
     /// Whether the session has no represented Player handle at this instant.

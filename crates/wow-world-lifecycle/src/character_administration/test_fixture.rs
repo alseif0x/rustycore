@@ -4,9 +4,9 @@ use tokio::sync::oneshot;
 use wow_persistence::{
     CharacterAdministrationLoadOutcomeLikeCpp as LoadOutcome,
     CharacterAdministrationMutationOutcomeLikeCpp as MutationOutcome,
-    CharacterAdministrationPersistencePortLikeCpp,
-    CharacterCreatePersistenceRequestLikeCpp, CharacterCustomizationPersistenceLikeCpp,
-    CharacterCustomizeCandidateLikeCpp, CharacterRenameCandidateLikeCpp, PersistenceFutureLikeCpp,
+    CharacterAdministrationPersistencePortLikeCpp, CharacterCreatePersistenceRequestLikeCpp,
+    CharacterCustomizationPersistenceLikeCpp, CharacterCustomizeCandidateLikeCpp,
+    CharacterRenameCandidateLikeCpp, PersistenceFutureLikeCpp,
 };
 
 pub type RenameCandidateFixtureLikeCpp = LoadOutcome<CharacterRenameCandidateLikeCpp>;

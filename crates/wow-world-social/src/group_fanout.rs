@@ -15,10 +15,10 @@ use tracing::warn;
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
 use wow_packet::packets::party::{
-    GroupNewLeader, PartyDifficultySettings, PartyLootSettings, PartyMemberFullState, PartyPlayerInfo,
-    PartyUpdate, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted, ReadyCheckResponse,
-    ReadyCheckStarted, RoleChangedInform, RolePollInform, SendRaidTargetUpdateAll,
-    SendRaidTargetUpdateSingle,
+    GroupNewLeader, PartyDifficultySettings, PartyLootSettings, PartyMemberFullState,
+    PartyPlayerInfo, PartyUpdate, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted,
+    ReadyCheckResponse, ReadyCheckStarted, RoleChangedInform, RolePollInform,
+    SendRaidTargetUpdateAll, SendRaidTargetUpdateSingle,
 };
 use wow_persistence::{SocialPartyInviteLookupOutcomeLikeCpp, SocialPersistencePortLikeCpp};
 use wow_social::group::{
@@ -310,10 +310,7 @@ pub fn first_connected_group_member_like_cpp(
         .find(|member_guid| registry.group_presence(*member_guid).is_some())
 }
 
-pub fn sender_can_start_ready_check_like_cpp(
-    group: &GroupInfo,
-    sender_guid: ObjectGuid,
-) -> bool {
+pub fn sender_can_start_ready_check_like_cpp(group: &GroupInfo, sender_guid: ObjectGuid) -> bool {
     group.leader_guid == sender_guid
         || group
             .member_slot_like_cpp(sender_guid)

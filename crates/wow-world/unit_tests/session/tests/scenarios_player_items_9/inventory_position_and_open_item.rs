@@ -7,17 +7,15 @@ fn open_item_get_inventory_item_by_pos_resolves_top_level_like_cpp() {
     session.set_player_guid(Some(player_guid));
 
     let top_guid = ObjectGuid::create_item(1, 900);
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            23,
-            InventoryItem {
-                guid: top_guid,
-                entry_id: 700,
-                db_guid: 900,
-                inventory_type: None,
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        23,
+        InventoryItem {
+            guid: top_guid,
+            entry_id: 700,
+            db_guid: 900,
+            inventory_type: None,
+        },
+    );
     let top_item =
         session.make_inventory_item_object(top_guid, 700, player_guid, 1, 0, ItemContext::None, 23);
     session.insert_inventory_item_object(top_item);
@@ -33,17 +31,15 @@ fn open_item_get_inventory_item_by_pos_resolves_top_level_like_cpp() {
 #[test]
 fn open_item_get_inventory_item_by_pos_excludes_buyback_top_level_like_cpp() {
     let (mut session, _, _) = make_session();
-    session
-        .inventory
-        .insert_buyback_item_for_test_like_cpp(
-            BUYBACK_SLOT_START,
-            InventoryItem {
-                guid: ObjectGuid::create_item(1, 901),
-                entry_id: 701,
-                db_guid: 901,
-                inventory_type: None,
-            },
-        );
+    session.inventory.insert_buyback_item_for_test_like_cpp(
+        BUYBACK_SLOT_START,
+        InventoryItem {
+            guid: ObjectGuid::create_item(1, 901),
+            entry_id: 701,
+            db_guid: 901,
+            inventory_type: None,
+        },
+    );
 
     assert!(
         session

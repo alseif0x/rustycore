@@ -4,6 +4,8 @@
 //! Player bootstrap: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
+use super::canonical_player_spell_runtime_like_cpp;
 use super::{INVENTORY_DEFAULT_SIZE, PLAYER_FLAGS_IN_PVP_LIKE_CPP, PhaseShift, Player};
 use super::{PlayerPetLifecycleStateLikeCpp, PlayerResurrectionStateLikeCpp};
 use super::{
@@ -11,8 +13,6 @@ use super::{
 };
 use super::{UnitPvpFlags, WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP, WeaponAttackType};
 use super::{WorldSession, gender_from_u8, player_cuf_profile_from_packet_like_cpp};
-#[cfg(test)]
-use super::canonical_player_spell_runtime_like_cpp;
 
 impl WorldSession {
     /// Build the initial canonical Player value before a generation-checked
@@ -180,7 +180,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         player.set_explored_zones_blocks_like_cpp(
-            self.instances.represented_explored_zones_for_test_like_cpp(),
+            self.instances
+                .represented_explored_zones_for_test_like_cpp(),
         );
         #[cfg(test)]
         {
@@ -354,9 +355,7 @@ impl WorldSession {
                         .clone(),
                     trait_definition_ids_complete: spell_fixture
                         .represented_spell_trait_definition_ids_complete_like_cpp,
-                    trait_config_rows: spell_fixture
-                        .represented_trait_config_rows_like_cpp
-                        .clone(),
+                    trait_config_rows: spell_fixture.represented_trait_config_rows_like_cpp.clone(),
                     trait_config_rows_complete: spell_fixture
                         .represented_trait_config_rows_complete_like_cpp,
                     trait_entry_rows_complete: spell_fixture
@@ -381,17 +380,17 @@ impl WorldSession {
                 .collect();
             player.gameplay_state_mut().cuf_profiles_loaded =
                 self.fixtures.presentation.cuf_profiles_loaded_like_cpp;
-            player.gameplay_state_mut().equipment_sets =
-                self.inventory
-                    .represented_equipment_sets_for_test_like_cpp()
-                    .clone();
+            player.gameplay_state_mut().equipment_sets = self
+                .inventory
+                .represented_equipment_sets_for_test_like_cpp()
+                .clone();
             player.gameplay_state_mut().void_storage_items = self
                 .inventory
                 .represented_void_storage_items_for_test_like_cpp()
                 .to_vec();
-            player.gameplay_state_mut().void_storage_loaded =
-                self.inventory
-                    .represented_void_storage_loaded_for_test_like_cpp();
+            player.gameplay_state_mut().void_storage_loaded = self
+                .inventory
+                .represented_void_storage_loaded_for_test_like_cpp();
             player.gameplay_state_mut().collections =
                 self.represented_player_collection_state_like_cpp();
         }

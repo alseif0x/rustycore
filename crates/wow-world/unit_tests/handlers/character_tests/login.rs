@@ -425,7 +425,10 @@ fn mail_login_phase_follows_controller_and_aborts_on_failure() {
         "canonical Player mail owner disappeared",
         "return false;",
     ] {
-        assert!(mail_loading_core.contains(marker), "mail phase lost `{marker}`");
+        assert!(
+            mail_loading_core.contains(marker),
+            "mail phase lost `{marker}`"
+        );
     }
 }
 

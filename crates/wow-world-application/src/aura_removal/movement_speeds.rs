@@ -22,7 +22,8 @@ impl AuraRemovalCxLikeCpp<'_> {
                     | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
             )
         ) {
-            self.mount.recompute_represented_run_speed_rate_like_cpp(&self.player);
+            self.mount
+                .recompute_represented_run_speed_rate_like_cpp(&self.player);
         }
         if matches!(
             aura.represented_effect,
@@ -42,15 +43,18 @@ impl AuraRemovalCxLikeCpp<'_> {
                         | RepresentedAuraEffectLikeCpp::Fly
                 )
             ) {
-                self.mount.update_flight_flags_for_aura_like_cpp(&self.player, false);
+                self.mount
+                    .update_flight_flags_for_aura_like_cpp(&self.player, false);
             }
-            self.mount.recompute_represented_flight_speed_rate_like_cpp(&self.player);
+            self.mount
+                .recompute_represented_flight_speed_rate_like_cpp(&self.player);
         }
         if matches!(
             aura.represented_effect,
             Some(RepresentedAuraEffectLikeCpp::SwimSpeed)
         ) {
-            self.mount.recompute_represented_swim_speed_rate_like_cpp(&self.player);
+            self.mount
+                .recompute_represented_swim_speed_rate_like_cpp(&self.player);
         }
         if matches!(
             aura.represented_effect,
@@ -59,13 +63,14 @@ impl AuraRemovalCxLikeCpp<'_> {
                     | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
             )
         ) {
-            self.mount.recompute_represented_swim_speed_rate_like_cpp(&self.player);
-            self.mount.recompute_represented_flight_speed_rate_like_cpp(&self.player);
+            self.mount
+                .recompute_represented_swim_speed_rate_like_cpp(&self.player);
+            self.mount
+                .recompute_represented_flight_speed_rate_like_cpp(&self.player);
         }
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed) {
-            self.mount.recompute_represented_backward_speed_rates_like_cpp(&self.player);
+            self.mount
+                .recompute_represented_backward_speed_rates_like_cpp(&self.player);
         }
-
-
     }
 }

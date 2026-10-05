@@ -55,11 +55,12 @@ impl WorldSession {
                 return self.finalization_result();
             }
         }
-        self.lifecycle.install_finalization(SessionFinalization::new(
-            mode,
-            !no_player,
-            self.core.player_handle_like_cpp,
-        ));
+        self.lifecycle
+            .install_finalization(SessionFinalization::new(
+                mode,
+                !no_player,
+                self.core.player_handle_like_cpp,
+            ));
 
         while let Some(step) = self.lifecycle.finalization().unwrap().next_step() {
             if !self.lifecycle.finalization_mut().unwrap().begin(step) {

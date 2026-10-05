@@ -24,18 +24,26 @@ pub struct AuraStatsAccessBuilderLikeCpp<'a> {
 
 impl SessionCore {
     pub fn aura_stats_access_builder_like_cpp<'a>(
-        &'a self, catalogs: &'a SessionCatalogs, config: &'a SessionWorldConfig,
+        &'a self,
+        catalogs: &'a SessionCatalogs,
+        config: &'a SessionWorldConfig,
         #[cfg(any(test, feature = "test-fixtures"))] combat: StatsCombatFixtureRefs<'a>,
         #[cfg(any(test, feature = "test-fixtures"))] race: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))] class: &'a u8,
         #[cfg(any(test, feature = "test-fixtures"))] level: &'a u8,
     ) -> AuraStatsAccessBuilderLikeCpp<'a> {
         AuraStatsAccessBuilderLikeCpp {
-            core: self, catalogs, config,
-            #[cfg(any(test, feature = "test-fixtures"))] combat,
-            #[cfg(any(test, feature = "test-fixtures"))] race,
-            #[cfg(any(test, feature = "test-fixtures"))] class,
-            #[cfg(any(test, feature = "test-fixtures"))] level,
+            core: self,
+            catalogs,
+            config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            combat,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            level,
         }
     }
 }
@@ -46,24 +54,33 @@ impl AuraStatsAccessBuilderLikeCpp<'_> {
         self.combat.health_refs_like_cpp()
     }
     pub fn reborrow_like_cpp<'a>(
-        &'a mut self, aura: &'a PlayerAuraRemovalAccessLikeCpp<'_>,
+        &'a mut self,
+        aura: &'a PlayerAuraRemovalAccessLikeCpp<'_>,
         #[cfg(any(test, feature = "test-fixtures"))] form: &'a u32,
     ) -> PlayerStatsAccessLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         return self.core.player_stats_access_with_fixture_refs_like_cpp(
-            self.catalogs, self.config, self.race, self.class, self.level,
+            self.catalogs,
+            self.config,
+            self.race,
+            self.class,
+            self.level,
             StatsFixtureRefs::new_like_cpp(
                 self.combat.reborrow_like_cpp(),
                 StatsAuraFixtureRefs::new_like_cpp(
-                    form, &*aura.fixtures.complete, &*aura.fixtures.tombstoned,
-                    &*aura.fixtures.visible, &*aura.fixtures.threat,
+                    form,
+                    &*aura.fixtures.complete,
+                    &*aura.fixtures.tombstoned,
+                    &*aura.fixtures.visible,
+                    &*aura.fixtures.threat,
                 ),
             ),
         );
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             let _ = aura;
-            self.core.player_stats_access_like_cpp(self.catalogs, self.config)
+            self.core
+                .player_stats_access_like_cpp(self.catalogs, self.config)
         }
     }
 }

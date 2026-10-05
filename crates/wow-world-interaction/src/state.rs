@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::SupportFeatureTestFixtureLikeCpp;
 use wow_core::ObjectGuid;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_entities::PlayerGossipOptionLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_entities::PlayerInteractionDataLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::SupportFeatureTestFixtureLikeCpp;
 
 /// Current finite stock for a vendor item.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -132,7 +132,8 @@ impl InteractionState {
         vendor_guid: ObjectGuid,
         item_id: u32,
     ) -> bool {
-        self.vendor_item_counts.contains_key(&(vendor_guid, item_id))
+        self.vendor_item_counts
+            .contains_key(&(vendor_guid, item_id))
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

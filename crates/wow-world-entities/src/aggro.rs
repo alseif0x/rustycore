@@ -7,9 +7,7 @@ use wow_entities::{
     RepresentedAuraEffectAmountLikeCpp,
 };
 use wow_map::ManagedMapInnerLikeCpp;
-use wow_world_core::session::{
-    begin_combat_ref_on_map_like_cpp, HubMut, HubRef,
-};
+use wow_world_core::session::{HubMut, HubRef, begin_combat_ref_on_map_like_cpp};
 
 use crate::WorldEntitiesState;
 

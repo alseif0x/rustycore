@@ -1,11 +1,11 @@
 use super::LootState;
+use crate::RepresentedCreatureLootStateLikeCpp;
 use std::collections::HashMap;
 use wow_core::ObjectGuid;
 use wow_entities::AccessorObjectKind;
 use wow_loot::OwnedLootAuthority;
 use wow_packet::packets::loot::CreatureLoot;
 use wow_world_core::session::{HubMut, HubRef};
-use crate::RepresentedCreatureLootStateLikeCpp;
 
 impl LootState {
     /// Install kill-time pools only while the exact creature death lifetime

@@ -26,20 +26,18 @@ use super::{
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
     assign_represented_personal_loot_items_like_cpp,
     classify_stored_item_money_reconciliation_like_cpp,
-    creature_loot_is_allowed_to_player_like_cpp,
-    generated_creature_loot_item_to_entry_like_cpp,
+    creature_loot_is_allowed_to_player_like_cpp, generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp,
-    loot_item_context, loot_type_for_client_like_cpp,
-    looted_corpse_decay_secs_like_cpp, mark_loot_allowed_for_player_like_cpp,
-    mark_loot_item_looted_for_player_like_cpp, prepare_represented_shared_loot_generation_like_cpp,
+    loot_item_context, loot_type_for_client_like_cpp, looted_corpse_decay_secs_like_cpp,
+    mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
+    prepare_represented_shared_loot_generation_like_cpp,
     queue_creature_loot_release_command_reliably_like_cpp,
     represented_gameobject_display_box_contains_like_cpp,
     represented_gameobject_interaction_distance_like_cpp, represented_loot_object_guid_like_cpp,
-    represented_loot_response_items_like_cpp,
-    start_loot_roll_packet_like_cpp, stored_item_money_zero_without_source_outcome_like_cpp,
+    represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
+    stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
-use wow_world_application::direct_item_count_after_loot_release_like_cpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
     PlayerSessionRegistrationLikeCpp,
@@ -120,6 +118,7 @@ use wow_persistence::{
     StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistencePortLikeCpp,
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
+use wow_world_application::direct_item_count_after_loot_release_like_cpp;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{
@@ -240,7 +239,9 @@ fn transport_values_command_uses_visible_transport_membership_like_cpp() {
         .insert_client_visible_transport_like_cpp(transport_guid);
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert_eq!(send_rx.try_recv().unwrap(), vec![0x52, 0x26]);
-    session.visibility.clear_client_visible_transports_like_cpp();
+    session
+        .visibility
+        .clear_client_visible_transports_like_cpp();
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert!(send_rx.try_recv().is_err());
 }

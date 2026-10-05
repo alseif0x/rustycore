@@ -23,7 +23,9 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::GooberSetGoStateForPlayer {
             gameobject_guid,
             player_guid,
@@ -31,7 +33,8 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
         }]
     );
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.per_player_state_player_guid, Some(player_guid));
     assert_eq!(
@@ -49,9 +52,11 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
     );
 
     session
-        .world_entities.clear_represented_gameobject_use_effects_for_test_like_cpp();
+        .world_entities
+        .clear_represented_gameobject_use_effects_for_test_like_cpp();
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .despawn_delay_secs = Some(45);
     session
         .core
@@ -68,13 +73,16 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
         },
     ));
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.per_player_despawn_secs, Some(45));
     assert!(state.per_player_despawn_until.is_some());
     assert_eq!(state.per_player_state_player_guid, Some(player_guid));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::GooberDespawnForPlayer {
             gameobject_guid,
             player_guid,
@@ -107,7 +115,8 @@ async fn process_pending_expires_per_player_gameobject_state_like_cpp_update() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 141);
     {
         let state = session
-            .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
         state.go_state = Some(wow_entities::GoState::Ready);
         state.per_player_state_player_guid = Some(player_guid);
         state.per_player_go_state = Some(wow_entities::GoState::Active);
@@ -119,7 +128,8 @@ async fn process_pending_expires_per_player_gameobject_state_like_cpp_update() {
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.per_player_state_player_guid, None);
     assert_eq!(state.per_player_go_state, None);
@@ -128,7 +138,8 @@ async fn process_pending_expires_per_player_gameobject_state_like_cpp_update() {
     assert_eq!(state.per_player_despawn_until, None);
     assert!(
         session
-            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .iter()
             .any(|effect| matches!(
                 effect,
@@ -168,7 +179,8 @@ async fn process_pending_expires_gameobject_despawn_delay_like_cpp_update() {
         .insert(gameobject_guid);
     {
         let state = session
-            .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
         state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8);
         state.go_state = Some(wow_entities::GoState::Active);
         state.loot_state = Some(wow_entities::LootState::Activated);
@@ -177,7 +189,8 @@ async fn process_pending_expires_gameobject_despawn_delay_like_cpp_update() {
         state.linked_trap_guid = Some(linked_trap_guid);
     }
     let linked_state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(linked_trap_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(linked_trap_guid);
     linked_state.map_id = Some(571);
     linked_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
     linked_state.loot_state = Some(wow_entities::LootState::Ready);
@@ -189,7 +202,8 @@ async fn process_pending_expires_gameobject_despawn_delay_like_cpp_update() {
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.despawn_delay_until, None);
     assert_eq!(state.loot_state, Some(wow_entities::LootState::NotReady));
@@ -201,7 +215,8 @@ async fn process_pending_expires_gameobject_despawn_delay_like_cpp_update() {
             .contains(&gameobject_guid)
     );
     let linked_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(linked_trap_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(linked_trap_guid)
         .unwrap();
     assert_eq!(
         linked_state.loot_state,
@@ -265,7 +280,8 @@ async fn process_pending_clears_generic_just_deactivated_gameobject_like_cpp_upd
         (owned_trap_guid, Some(owner_guid), None),
     ] {
         let state = session
-            .world_entities.ensure_represented_gameobject_use_state_like_cpp(guid);
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
         state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
         state.loot_state = Some(wow_entities::LootState::JustDeactivated);
         state.loot_state_unit_guid = owner_guid;
@@ -296,7 +312,8 @@ async fn process_pending_clears_generic_just_deactivated_gameobject_like_cpp_upd
         );
     }
     let linked_state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(linked_trap_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(linked_trap_guid);
     linked_state.map_id = Some(571);
     linked_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
     linked_state.loot_state = Some(wow_entities::LootState::Ready);
@@ -308,7 +325,8 @@ async fn process_pending_clears_generic_just_deactivated_gameobject_like_cpp_upd
     session.process_pending().await;
 
     let static_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(static_trap_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(static_trap_guid)
         .unwrap();
     assert_eq!(
         static_state.loot_state,
@@ -323,10 +341,15 @@ async fn process_pending_clears_generic_just_deactivated_gameobject_like_cpp_upd
             .client_visible_guids_like_cpp
             .contains(&static_trap_guid)
     );
-    assert!(!session.loot.cached_loot_contains_owner_like_cpp(static_trap_guid));
+    assert!(
+        !session
+            .loot
+            .cached_loot_contains_owner_like_cpp(static_trap_guid)
+    );
 
     let owned_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(owned_trap_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(owned_trap_guid)
         .unwrap();
     assert_eq!(
         owned_state.loot_state,
@@ -338,9 +361,14 @@ async fn process_pending_clears_generic_just_deactivated_gameobject_like_cpp_upd
             .client_visible_guids_like_cpp
             .contains(&owned_trap_guid)
     );
-    assert!(!session.loot.cached_loot_contains_owner_like_cpp(owned_trap_guid));
+    assert!(
+        !session
+            .loot
+            .cached_loot_contains_owner_like_cpp(owned_trap_guid)
+    );
     let linked_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(linked_trap_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(linked_trap_guid)
         .unwrap();
     assert_eq!(
         linked_state.loot_state,
@@ -362,7 +390,9 @@ async fn process_pending_clears_generic_just_deactivated_gameobject_like_cpp_upd
     );
     assert_eq!(opcodes.len(), 5);
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
                 gameobject_guid: static_trap_guid,
@@ -399,7 +429,8 @@ async fn represented_gameobject_chest_just_deactivated_consumable_sends_despawn_
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.despawn_at_action = true;
@@ -434,7 +465,8 @@ async fn represented_gameobject_chest_just_deactivated_anim_progress_non_consuma
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 246);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.despawn_at_action = false;
@@ -447,7 +479,8 @@ async fn represented_gameobject_chest_just_deactivated_anim_progress_non_consuma
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::Ready));
     assert!(state.chest_restock_until.is_none());
@@ -467,7 +500,8 @@ async fn represented_gameobject_chest_just_deactivated_anim_progress_non_consuma
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 248);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.despawn_at_action = false;
@@ -481,7 +515,8 @@ async fn represented_gameobject_chest_just_deactivated_anim_progress_non_consuma
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::NotReady));
     assert!(state.chest_restock_until.is_some());
@@ -500,7 +535,8 @@ async fn generic_just_deactivated_gameobject_anim_progress_sends_despawn_like_cp
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 249);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(5);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.despawn_at_action = false;
@@ -513,7 +549,8 @@ async fn generic_just_deactivated_gameobject_anim_progress_sends_despawn_like_cp
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::NotReady));
     let opcodes = drain_server_opcodes(&send_rx);
@@ -527,7 +564,8 @@ async fn gameobject_override_flags_restore_after_generic_just_deactivated_despaw
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 250);
     session.record_represented_gameobject_override_like_cpp(gameobject_guid, 0, 0, true);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(5);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.despawn_at_action = false;
@@ -541,7 +579,8 @@ async fn gameobject_override_flags_restore_after_generic_just_deactivated_despaw
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.gameobject_flags, 0);
     assert_eq!(
@@ -557,7 +596,8 @@ async fn gameobject_without_override_source_does_not_restore_false_zero_like_cpp
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 251);
     session.record_represented_gameobject_override_like_cpp(gameobject_guid, 0, 0, false);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(5);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.go_anim_progress = 1;
@@ -570,7 +610,8 @@ async fn gameobject_without_override_source_does_not_restore_false_zero_like_cpp
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.gameobject_flags, wow_entities::GO_FLAG_IN_USE);
     assert_eq!(
@@ -586,7 +627,8 @@ async fn represented_gameobject_chest_just_deactivated_without_conditions_sends_
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 247);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.despawn_at_action = false;
@@ -610,7 +652,8 @@ async fn process_pending_schedules_gameobject_respawn_delay_like_cpp_update() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 146);
     for (guid, spawned_by_default) in [(spawned_guid, true), (temporary_guid, false)] {
         let state = session
-            .world_entities.ensure_represented_gameobject_use_state_like_cpp(guid);
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
         state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
         state.loot_state = Some(wow_entities::LootState::JustDeactivated);
         state.respawn_delay_secs = Some(30);
@@ -621,7 +664,8 @@ async fn process_pending_schedules_gameobject_respawn_delay_like_cpp_update() {
     session.process_pending().await;
 
     let spawned_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(spawned_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(spawned_guid)
         .unwrap();
     assert_eq!(
         spawned_state.loot_state,
@@ -636,7 +680,8 @@ async fn process_pending_schedules_gameobject_respawn_delay_like_cpp_update() {
     );
 
     let temporary_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(temporary_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(temporary_guid)
         .unwrap();
     assert_eq!(
         temporary_state.loot_state,
@@ -660,13 +705,15 @@ async fn process_pending_schedules_gameobject_respawn_delay_like_cpp_update() {
     assert_eq!(opcodes.len(), 4);
 
     session
-        .world_entities.represented_gameobject_use_state_mut_like_cpp(spawned_guid)
+        .world_entities
+        .represented_gameobject_use_state_mut_like_cpp(spawned_guid)
         .unwrap()
         .respawn_until = Some(Instant::now() - Duration::from_secs(1));
     session.process_pending().await;
 
     let spawned_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(spawned_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(spawned_guid)
         .unwrap();
     assert_eq!(
         spawned_state.loot_state,
@@ -690,7 +737,8 @@ fn gameobject_goober_just_deactivated_resets_and_clears_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 15);
     {
         let state = session
-            .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+            .world_entities
+            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
         state.loot_state = Some(wow_entities::LootState::JustDeactivated);
         state.loot_state_unit_guid = player_guid;
         state.gameobject_flags = wow_entities::GO_FLAG_IN_USE;
@@ -713,7 +761,8 @@ fn gameobject_goober_just_deactivated_resets_and_clears_like_cpp() {
     );
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::Ready));
     assert_eq!(state.loot_state_unit_guid, ObjectGuid::EMPTY);
@@ -722,7 +771,9 @@ fn gameobject_goober_just_deactivated_resets_and_clears_like_cpp() {
     assert!(state.unique_users.is_empty());
     assert!(state.cooldown_until.is_none());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
                 gameobject_guid,

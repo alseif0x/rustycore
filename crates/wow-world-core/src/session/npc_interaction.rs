@@ -3,11 +3,11 @@
 
 //! Canonical represented NPC interaction checks shared with World.
 
+use crate::session::NpcInteractionAccessLikeCpp;
 use crate::session::{
     HubRef, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, RepresentedCreatureAccessLikeCpp,
     RepresentedGetReactionInputLikeCpp,
 };
-use crate::session::NpcInteractionAccessLikeCpp;
 use wow_constants::{CreatureTypeFlags, UnitFlags2};
 use wow_core::{ObjectGuid, Position};
 

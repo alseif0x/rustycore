@@ -62,7 +62,12 @@ async fn cancelled_world_owner_claim_after_commit_reconciles_cache_and_forces_re
             .taken
     );
     assert!(
-        session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0].taken,
+        session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .items[0]
+            .taken,
         "master/roll/direct world-owner grants share this claimed-store recovery path"
     );
 }

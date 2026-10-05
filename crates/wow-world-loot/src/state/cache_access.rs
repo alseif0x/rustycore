@@ -115,17 +115,11 @@ impl LootState {
             });
     }
 
-    pub fn represented_unique_gameobject_use_contains_like_cpp(
-        &self,
-        owner: ObjectGuid,
-    ) -> bool {
+    pub fn represented_unique_gameobject_use_contains_like_cpp(&self, owner: ObjectGuid) -> bool {
         self.represented_unique_gameobject_uses.contains(&owner)
     }
 
-    pub fn insert_represented_unique_gameobject_use_like_cpp(
-        &mut self,
-        owner: ObjectGuid,
-    ) -> bool {
+    pub fn insert_represented_unique_gameobject_use_like_cpp(&mut self, owner: ObjectGuid) -> bool {
         self.represented_unique_gameobject_uses.insert(owner)
     }
 

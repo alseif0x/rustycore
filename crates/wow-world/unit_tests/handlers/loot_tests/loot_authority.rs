@@ -101,7 +101,9 @@ pub(super) fn two_sessions_with_authoritative_creature_loot_like_cpp(
     for entry in &mut loot.items {
         entry.allowed_looters = vec![first_guid, second_guid];
     }
-    first.loot.insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
+    first
+        .loot
+        .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     first
         .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, first_guid)
         .unwrap();
@@ -109,7 +111,10 @@ pub(super) fn two_sessions_with_authoritative_creature_loot_like_cpp(
     first.set_active_loot_guid(owner_guid);
     let first_response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        first.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        first
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         first_guid,
     );
     first.represented_on_loot_opened_like_cpp(owner_guid, first_guid, first_response);
@@ -117,7 +122,10 @@ pub(super) fn two_sessions_with_authoritative_creature_loot_like_cpp(
     second.set_active_loot_guid(owner_guid);
     let second_response = authoritative_test_loot_response_like_cpp(
         owner_guid,
-        second.loot.cached_loot_for_owner_like_cpp(owner_guid).expect("loot cache entry should be seeded"),
+        second
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .expect("loot cache entry should be seeded"),
         second_guid,
     );
     second.represented_on_loot_opened_like_cpp(owner_guid, second_guid, second_response);

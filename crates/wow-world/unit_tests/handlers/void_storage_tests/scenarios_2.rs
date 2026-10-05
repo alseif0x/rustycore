@@ -699,13 +699,21 @@ fn committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp() {
             .loot
             .has_active_loot_view_owner_like_cpp(destroyed_item)
     );
-    assert!(!session.loot.cached_loot_contains_owner_like_cpp(destroyed_item));
+    assert!(
+        !session
+            .loot
+            .cached_loot_contains_owner_like_cpp(destroyed_item)
+    );
     assert!(
         session
             .loot
             .has_active_loot_view_owner_like_cpp(unrelated_item)
     );
-    assert!(session.loot.cached_loot_contains_owner_like_cpp(unrelated_item));
+    assert!(
+        session
+            .loot
+            .cached_loot_contains_owner_like_cpp(unrelated_item)
+    );
     assert_eq!(
         send_rx
             .try_iter()

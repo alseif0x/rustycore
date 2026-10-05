@@ -2,7 +2,7 @@ use crate::SessionSpellState;
 use std::{collections::HashSet, time::Instant};
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_entities::AuraApplicationLikeCpp as AuraApplication;
-use wow_world_core::session::{HubMut, HubRef, AFLAG_SCALABLE_LIKE_CPP};
+use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
 
 pub const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
 
@@ -155,7 +155,10 @@ impl SessionSpellState {
     ) -> bool {
         let spell_store = hub.catalogs.spell_store().map(AsRef::as_ref);
         self.insert_player_visible_aura_with_access_and_provenance_like_cpp(
-            &mut hub.player_aura_removal_access_like_cpp(), spell_store, aura, provenance,
+            &mut hub.player_aura_removal_access_like_cpp(),
+            spell_store,
+            aura,
+            provenance,
         )
     }
 
@@ -166,7 +169,10 @@ impl SessionSpellState {
         aura: AuraApplication,
     ) -> bool {
         self.insert_player_visible_aura_with_access_and_provenance_like_cpp(
-            player, spell_store, aura, wow_entities::AuraCastProvenanceLikeCpp::default(),
+            player,
+            spell_store,
+            aura,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
         )
     }
 
@@ -185,7 +191,11 @@ impl SessionSpellState {
         let _canonical = player.insert_player_visible_aura_canonical_like_cpp(aura, provenance);
         #[cfg(any(test, feature = "test-fixtures"))]
         if _canonical {
-            self.apply_represented_transform_aura_with_access_like_cpp(player, spell_store, &applied);
+            self.apply_represented_transform_aura_with_access_like_cpp(
+                player,
+                spell_store,
+                &applied,
+            );
             return true;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
@@ -197,7 +207,11 @@ impl SessionSpellState {
                 })
                 .is_some();
             if inserted {
-                self.apply_represented_transform_aura_with_access_like_cpp(player, spell_store, &applied);
+                self.apply_represented_transform_aura_with_access_like_cpp(
+                    player,
+                    spell_store,
+                    &applied,
+                );
             }
             return inserted;
         }
@@ -205,15 +219,16 @@ impl SessionSpellState {
             // C++ applies the transform aura effect on the same transition that
             // makes the application visible, so the canonical `m_transformSpell`
             // owner is updated once the insert succeeded.
-            self.apply_represented_transform_aura_with_access_like_cpp(player, spell_store, &applied);
+            self.apply_represented_transform_aura_with_access_like_cpp(
+                player,
+                spell_store,
+                &applied,
+            );
         }
         _canonical
     }
 
-    pub fn next_player_visible_aura_slot_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u8> {
+    pub fn next_player_visible_aura_slot_like_cpp(&self, hub: HubRef<'_>) -> Option<u8> {
         Self::next_visible_aura_slot_from_snapshot_like_cpp(
             hub.player_aura_subsystem_snapshot_like_cpp(),
         )
@@ -222,7 +237,9 @@ impl SessionSpellState {
     pub fn next_player_visible_aura_slot_with_access_like_cpp(
         player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
     ) -> Option<u8> {
-        Self::next_visible_aura_slot_from_snapshot_like_cpp(player.aura_subsystem_snapshot_like_cpp())
+        Self::next_visible_aura_slot_from_snapshot_like_cpp(
+            player.aura_subsystem_snapshot_like_cpp(),
+        )
     }
 
     fn next_visible_aura_slot_from_snapshot_like_cpp(
@@ -333,10 +350,7 @@ impl SessionSpellState {
         }
     }
 
-    pub fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
             hub.fixtures
@@ -363,25 +377,46 @@ impl SessionSpellState {
     ) {
         self.send_aura_update_applied_from_queries_like_cpp(
             &hub.core.packet_publication_access_like_cpp(),
-            spell_id, slot, caster, duration, flags, effect_mask,
-            || hub.core.player_guid(), || hub.core.current_map_difficulty_id_like_cpp(),
-            || hub.player_level_like_cpp(), || hub.core.player_map_id_like_cpp(),
+            spell_id,
+            slot,
+            caster,
+            duration,
+            flags,
+            effect_mask,
+            || hub.core.player_guid(),
+            || hub.core.current_map_difficulty_id_like_cpp(),
+            || hub.player_level_like_cpp(),
+            || hub.core.player_map_id_like_cpp(),
         );
     }
 
     pub fn send_aura_update_applied_with_access_like_cpp(
         &self,
         player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
-        spell_id: i32, slot: u8, caster: ObjectGuid, duration: u32, flags: u32, effect_mask: u32,
+        spell_id: i32,
+        slot: u8,
+        caster: ObjectGuid,
+        duration: u32,
+        flags: u32,
+        effect_mask: u32,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
     ) {
         self.send_aura_update_applied_from_queries_like_cpp(
             &player.packet_publication_like_cpp(),
-            spell_id, slot, caster, duration, flags, effect_mask,
-            || player.player_guid_like_cpp(), || player.aura_difficulty_like_cpp(),
-            || player.aura_cast_level_like_cpp(
-                #[cfg(any(test, feature = "test-fixtures"))] fixture_level,
-            ),
+            spell_id,
+            slot,
+            caster,
+            duration,
+            flags,
+            effect_mask,
+            || player.player_guid_like_cpp(),
+            || player.aura_difficulty_like_cpp(),
+            || {
+                player.aura_cast_level_like_cpp(
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    fixture_level,
+                )
+            },
             || player.aura_cast_map_id_like_cpp(),
         );
     }
@@ -389,7 +424,12 @@ impl SessionSpellState {
     fn send_aura_update_applied_from_queries_like_cpp(
         &self,
         publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
-        spell_id: i32, slot: u8, caster: ObjectGuid, duration: u32, flags: u32, effect_mask: u32,
+        spell_id: i32,
+        slot: u8,
+        caster: ObjectGuid,
+        duration: u32,
+        flags: u32,
+        effect_mask: u32,
         target_guid: impl FnOnce() -> Option<ObjectGuid>,
         difficulty: impl FnOnce() -> u8,
         level: impl FnOnce() -> u8,
@@ -418,14 +458,10 @@ impl SessionSpellState {
             applied_at: Instant::now(),
         };
         publication.send_packet(&wow_packet::packets::misc::AuraUpdate {
-                unit_guid: target_guid,
-                update_all: false,
-                auras: vec![player_aura_info_like_cpp(
-                    &aura,
-                    level(),
-                    map_id(),
-                )],
-            });
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![player_aura_info_like_cpp(&aura, level(), map_id())],
+        });
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

@@ -49,8 +49,7 @@ pub struct TrainerAcquisitionFixturesLikeCpp<'a> {
     pub(crate) player_race: &'a u8,
     pub(crate) player_class: &'a u8,
     pub(crate) player_level: &'a u8,
-    pub(crate) player_skill_fixture:
-        &'a mut wow_world_core::session::PlayerSkillTestFixtureLikeCpp,
+    pub(crate) player_skill_fixture: &'a mut wow_world_core::session::PlayerSkillTestFixtureLikeCpp,
     pub(crate) represented_enchanting_skill: &'a mut u16,
     pub(crate) registry_position: &'a Option<wow_core::Position>,
     pub(crate) registry_health: &'a u32,
@@ -139,8 +138,9 @@ impl<'a> AppTrainerCx<'a> {
         loot: &'a LootState,
         catalogs: TrainerAcquisitionCatalogsLikeCpp<'a>,
         consumer_test: bool,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: TrainerAcquisitionFixturesLikeCpp<'a>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: TrainerAcquisitionFixturesLikeCpp<
+            'a,
+        >,
     ) -> Self {
         Self {
             owner,

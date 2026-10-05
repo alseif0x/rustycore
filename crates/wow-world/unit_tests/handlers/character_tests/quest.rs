@@ -376,7 +376,10 @@ async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
         Some(guid)
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
-    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
+    assert_eq!(
+        session.interaction.gossip_options_for_test_like_cpp().len(),
+        1
+    );
     assert_eq!(
         session.interaction.gossip_options_for_test_like_cpp()[0].gossip_option_id,
         GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
@@ -500,7 +503,9 @@ fn gossip_quest_text_offers_sallina_followup_after_hunter_training_rewarded_like
         .or_default()
         .push(10_070);
     session.set_quest_store(Arc::new(store));
-    session.quest_state.fixture_set_rewarded_quest_like_cpp(9_393, true);
+    session
+        .quest_state
+        .fixture_set_rewarded_quest_like_cpp(9_393, true);
 
     let quest_text = session.represented_creature_gossip_text_like_cpp(sallina_entry);
 

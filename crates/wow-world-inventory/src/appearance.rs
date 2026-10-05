@@ -5,12 +5,12 @@ use std::collections::{BTreeMap, HashSet};
 
 use tracing::warn;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedTransmogCriteriaEvent;
 use crate::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
     DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::RepresentedTransmogCriteriaEvent;
 use wow_core::ObjectGuid;
 use wow_entities::{
     EQUIPMENT_SLOT_END, PlayerEquipmentSetLikeCpp as RepresentedEquipmentSetLikeCpp,
@@ -18,8 +18,8 @@ use wow_entities::{
     PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
     PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp,
 };
-use wow_world_core::session::{HubMut, HubRef, RepresentedAlterAppearanceLikeCpp};
 use wow_world_core::session::OwnedCollectionsAccessLikeCpp;
+use wow_world_core::session::{HubMut, HubRef, RepresentedAlterAppearanceLikeCpp};
 
 fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
     <wow_packet::packets::collection::AccountTransmogUpdate as wow_packet::ServerPacket>::OPCODE

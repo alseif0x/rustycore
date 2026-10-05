@@ -1,7 +1,7 @@
 use crate::InstanceState;
 use wow_core::ObjectGuid;
 use wow_social::group::{GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp};
-use wow_world_core::session::{connection_identity::unix_now, HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, connection_identity::unix_now};
 
 pub fn create_map_instance_lock_token_like_cpp(
     owner_guid: ObjectGuid,

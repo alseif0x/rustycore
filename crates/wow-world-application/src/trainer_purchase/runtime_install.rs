@@ -2,34 +2,34 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use std::collections::{BTreeSet, HashMap};
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::BTreeMap;
+use std::collections::{BTreeSet, HashMap};
 
+use super::AppTrainerCx;
 use crate::spell_acquisition::{
     PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp as ApplyError,
     PlayerSpellAcquisitionRuntimeLikeCpp,
 };
-use super::AppTrainerCx;
+use wow_core::ObjectGuid;
+use wow_packet::packets::trainer::{
+    LearnedSpellEntry, LearnedSpells, SupercededSpells, UnlearnedSpells,
+};
 use wow_spell_acquisition::{
     PlayerSkillPersistenceStateLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
     PlayerSpellPersistenceStateLikeCpp, SpellAcquisitionPostCommitActionLikeCpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::PlayerSkillTestFixtureLikeCpp;
 use wow_world_core::session::{
     PlayerAcquisitionOwnerAccessLikeCpp, RepresentedPlayerSkillLikeCpp,
     RepresentedPlayerSkillStateLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_core::session::PlayerSkillTestFixtureLikeCpp;
+use wow_world_spell::represented_player_spell_runtime_like_cpp;
 use wow_world_spell::{
     RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellStateLikeCpp, SessionSpellState,
     canonical_player_spell_record_like_cpp,
-};
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_spell::represented_player_spell_runtime_like_cpp;
-use wow_core::ObjectGuid;
-use wow_packet::packets::trainer::{
-    LearnedSpellEntry, LearnedSpells, SupercededSpells, UnlearnedSpells,
 };
 
 /// Shared full-runtime installer used by the trainer application and the
@@ -43,8 +43,10 @@ pub fn install_player_spell_acquisition_runtime_snapshot_like_cpp(
     runtime_snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
     new_non_durable_skill_tombstone_ids: &BTreeSet<u16>,
     consumer_test: bool,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_inputs: (&mut PlayerSkillTestFixtureLikeCpp, &mut u16),
+    #[cfg(any(test, feature = "test-fixtures"))] fixture_inputs: (
+        &mut PlayerSkillTestFixtureLikeCpp,
+        &mut u16,
+    ),
 ) -> Result<(), ApplyError> {
     let spell_rows = runtime_snapshot
         .spells
@@ -63,9 +65,7 @@ pub fn install_player_spell_acquisition_runtime_snapshot_like_cpp(
                 PlayerSpellPersistenceStateLikeCpp::Changed => {
                     RepresentedPlayerSpellStateLikeCpp::Changed
                 }
-                PlayerSpellPersistenceStateLikeCpp::New => {
-                    RepresentedPlayerSpellStateLikeCpp::New
-                }
+                PlayerSpellPersistenceStateLikeCpp::New => RepresentedPlayerSpellStateLikeCpp::New,
                 PlayerSpellPersistenceStateLikeCpp::Removed => {
                     RepresentedPlayerSpellStateLikeCpp::Removed
                 }
@@ -193,8 +193,10 @@ pub fn install_represented_spell_acquisition_runtime_like_cpp(
     occupied_skill_slots: u16,
     non_durable_skill_tombstone_ids: BTreeSet<u16>,
     consumer_test: bool,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    fixture_inputs: (&mut PlayerSkillTestFixtureLikeCpp, &mut u16),
+    #[cfg(any(test, feature = "test-fixtures"))] fixture_inputs: (
+        &mut PlayerSkillTestFixtureLikeCpp,
+        &mut u16,
+    ),
 ) -> Result<(), ApplyError> {
     #[cfg(not(any(test, feature = "test-fixtures")))]
     let _ = spell_state;
@@ -228,14 +230,19 @@ pub fn install_represented_spell_acquisition_runtime_like_cpp(
     #[cfg(not(any(test, feature = "test-fixtures")))]
     let _ = consumer_test;
 
-    if !owner.spell_acquisition().install_complete_spell_acquisition_like_cpp(
-        spell_rows.into_iter().map(canonical_player_spell_record_like_cpp),
-        traits,
-        overrides,
-        skill_records,
-        occupied_skill_slots,
-        non_durable_skill_tombstone_ids,
-    ) {
+    if !owner
+        .spell_acquisition()
+        .install_complete_spell_acquisition_like_cpp(
+            spell_rows
+                .into_iter()
+                .map(canonical_player_spell_record_like_cpp),
+            traits,
+            overrides,
+            skill_records,
+            occupied_skill_slots,
+            non_durable_skill_tombstone_ids,
+        )
+    {
         return Err(ApplyError::InvalidPreparedRuntime);
     }
     Ok(())
@@ -330,8 +337,8 @@ fn install_handleless_fixture_snapshot_like_cpp(
         .map(|spell| spell.spell_id)
         .collect();
     owner.invalidate_spell_hit_aura_authority_like_cpp();
-    let fixture_runtime = owner
-        .with_player_spell_runtime_like_cpp(represented_player_spell_runtime_like_cpp);
+    let fixture_runtime =
+        owner.with_player_spell_runtime_like_cpp(represented_player_spell_runtime_like_cpp);
     let fixture_runtime = match fixture_runtime {
         Some(runtime) => runtime,
         None if owner.player_handle_absent_like_cpp() => {
@@ -364,7 +371,9 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
     }
 
     fn has_canonical_player(&self) -> bool {
-        self.owner.spell_acquisition().has_canonical_player_like_cpp()
+        self.owner
+            .spell_acquisition()
+            .has_canonical_player_like_cpp()
     }
 
     fn install_snapshot(
@@ -449,11 +458,7 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
         action: &SpellAcquisitionPostCommitActionLikeCpp,
         trait_definition_id: Option<i32>,
     ) {
-        publish_spell_acquisition_action_like_cpp(
-            &self.owner,
-            action,
-            trait_definition_id,
-        );
+        publish_spell_acquisition_action_like_cpp(&self.owner, action, trait_definition_id);
     }
 }
 
@@ -498,8 +503,12 @@ pub fn publish_spell_acquisition_action_like_cpp(
         SpellAcquisitionPostCommitActionLikeCpp::GrantDualWield { .. }
         | SpellAcquisitionPostCommitActionLikeCpp::RefreshPassive { .. }
         | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellQuestObjective { .. }
-        | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria { .. }
-        | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria { .. }
+        | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnTradeskillSkillLineCriteria {
+            ..
+        }
+        | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnSpellFromSkillLineCriteria {
+            ..
+        }
         | SpellAcquisitionPostCommitActionLikeCpp::UpdateLearnOrKnowSpellCriteria { .. }
         | SpellAcquisitionPostCommitActionLikeCpp::UpdateMountCapability { .. }
         | SpellAcquisitionPostCommitActionLikeCpp::UpdateSkillRaisedCriteria { .. }

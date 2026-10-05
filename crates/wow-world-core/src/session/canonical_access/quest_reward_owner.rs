@@ -9,14 +9,14 @@ use std::time::Duration;
 use wow_entities::PlayerCurrency;
 
 use super::owned_inventory::OwnedInventoryAccessLikeCpp;
-use crate::session::{
-    PacketPublicationAccessLikeCpp, PlayerMoneyTransactionSessionAccessLikeCpp,
-    PlayerGroupOwnerAccessLikeCpp, PlayerStatsAccessLikeCpp, SessionCatalogs, SessionCore,
-    SessionState, SessionWorldConfig,
-};
+use crate::session::MAX_SPECIALIZATIONS_LIKE_CPP;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::StatsFixtureRefs;
-use crate::session::MAX_SPECIALIZATIONS_LIKE_CPP;
+use crate::session::{
+    PacketPublicationAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
+    PlayerMoneyTransactionSessionAccessLikeCpp, PlayerStatsAccessLikeCpp, SessionCatalogs,
+    SessionCore, SessionState, SessionWorldConfig,
+};
 use wow_progression::ReputationMgrLikeCpp;
 
 /// Borrowed, operation-specific access to the canonical quest-reward owner.
@@ -130,13 +130,17 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
     pub fn resolved_quest_skill_value_like_cpp(
         &self,
         skill_id: u16,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_records: &HashMap<u16, crate::session::RepresentedPlayerSkillLikeCpp>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_records: &HashMap<
+            u16,
+            crate::session::RepresentedPlayerSkillLikeCpp,
+        >,
     ) -> Option<u16> {
-        let records = self.core.resolved_player_skill_records_for_publication_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_records,
-        )?;
+        let records = self
+            .core
+            .resolved_player_skill_records_for_publication_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixture_records,
+            )?;
         Some(
             crate::session::represented_skill_values_from_records_like_cpp(&records)
                 .get(&skill_id)
@@ -168,8 +172,7 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
     pub fn reward_reputation_gray_level_like_cpp(
         &self,
         level: u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        overrides: &HashMap<u8, u8>,
+        #[cfg(any(test, feature = "test-fixtures"))] overrides: &HashMap<u8, u8>,
     ) -> u8 {
         crate::session::progression_adapters::gray_level_for_script_like_cpp(
             level,
@@ -179,7 +182,8 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
     }
 
     pub fn canonical_reward_reputation_standing_like_cpp(&self, faction_id: u32) -> Option<i32> {
-        self.core.canonical_player_reputation_standing_like_cpp(faction_id)
+        self.core
+            .canonical_player_reputation_standing_like_cpp(faction_id)
     }
 
     pub fn mutate_reward_reputation_mgr_like_cpp<R>(
@@ -200,14 +204,17 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
         #[cfg(any(test, feature = "test-fixtures"))]
         fixtures: crate::session::PlayerConditionFixtureRefsLikeCpp<'a>,
     ) -> crate::session::PlayerConditionAccessLikeCpp<'a> {
-        self.core.player_condition_access_with_selected_fixture_refs_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures,
-        )
+        self.core
+            .player_condition_access_with_selected_fixture_refs_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixtures,
+            )
     }
 
     pub fn item_planning_realm_id_like_cpp(&self) -> u16 {
-        self.core.inventory_valuation_access_like_cpp().realm_id_like_cpp()
+        self.core
+            .inventory_valuation_access_like_cpp()
+            .realm_id_like_cpp()
     }
 
     pub fn send_equip_error_like_cpp(
@@ -218,7 +225,8 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
         required_level: u32,
         limit_category: u32,
     ) {
-        self.core.send_equip_error(result, item1, item2, required_level, limit_category);
+        self.core
+            .send_equip_error(result, item1, item2, required_level, limit_category);
     }
 
     pub fn reborrow_like_cpp<'a>(&'a mut self) -> QuestRewardPlayerAccessLikeCpp<'a> {
@@ -353,7 +361,8 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
     pub fn player_race_like_cpp(&self) -> u8 {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.player_race_with_fixture_like_cpp(self.player_race)
+            self.core
+                .player_race_with_fixture_like_cpp(self.player_race)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
@@ -379,7 +388,8 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
         guid: wow_core::ObjectGuid,
         flag: u32,
     ) -> Option<bool> {
-        self.core.canonical_player_has_player_flag_like_cpp(guid, flag)
+        self.core
+            .canonical_player_has_player_flag_like_cpp(guid, flag)
     }
 
     /// Resolve one faction's standing through the selected manager, keeping the
@@ -510,11 +520,9 @@ impl PlayerLevelTransitionAccessLikeCpp<'_> {
                     )
                 })
                 .unwrap_or(0);
-            let canonical_quest_points = self
-                .core
-                .with_owned_player_like_cpp(|player| {
-                    player.gameplay_state().quest_rewarded_talent_points
-                });
+            let canonical_quest_points = self.core.with_owned_player_like_cpp(|player| {
+                player.gameplay_state().quest_rewarded_talent_points
+            });
             let quest_points = match canonical_quest_points {
                 Some(points) => points,
                 None => fixture_quest_talent_points.sum(),
@@ -569,8 +577,7 @@ impl PlayerLevelTransitionAccessLikeCpp<'_> {
         });
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let group = (*self.active_talent_group)
-                .min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+            let group = (*self.active_talent_group).min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
             return Some(Self::spent_talent_points_in_group_like_cpp(
                 self.talent_groups.get(usize::from(group)),
                 catalogs,
@@ -639,10 +646,8 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
     ) -> bool {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.set_can_delay_teleport_with_fixture_like_cpp(
-                teleport_fixture,
-                can_delay,
-            )
+            self.core
+                .set_can_delay_teleport_with_fixture_like_cpp(teleport_fixture, can_delay)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
@@ -731,10 +736,11 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
     ) -> bool {
         self.core
             .mutate_canonical_player_like_cpp(|player| {
-                player
-                    .gameplay_state_mut()
-                    .quests
-                    .set_seasonal_like_cpp(event_id, quest_id, completed_at);
+                player.gameplay_state_mut().quests.set_seasonal_like_cpp(
+                    event_id,
+                    quest_id,
+                    completed_at,
+                );
             })
             .is_some()
     }

@@ -47,9 +47,7 @@ impl PlayerMoneyCommitCancellationFenceLikeCpp {
     /// about to await a COMMIT. Multi-step sagas use this form so cancelling
     /// during pre-commit validation does not quarantine a session whose
     /// transaction was never submitted.
-    pub fn new_disarmed_like_cpp(
-        tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
-    ) -> Self {
+    pub fn new_disarmed_like_cpp(tracker: Arc<DurableLootMoneyPersistenceTrackerLikeCpp>) -> Self {
         Self {
             tracker,
             armed: false,

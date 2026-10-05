@@ -28,18 +28,34 @@ impl PacketPublicationAccessLikeCpp<'_> {
     }
 
     /// Project and send Item values using the current map at publication time.
-    pub fn publish_item_values_update_like_cpp(&self, guid: ObjectGuid, update: &wow_entities::ItemValuesUpdate) -> bool {
+    pub fn publish_item_values_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        update: &wow_entities::ItemValuesUpdate,
+    ) -> bool {
         let Some(packet) = crate::entity_update_bridge::item_values_update_to_update_object(
-            guid, self.core.player_map_id_like_cpp(), update,
-        ) else { return false; };
+            guid,
+            self.core.player_map_id_like_cpp(),
+            update,
+        ) else {
+            return false;
+        };
         self.core.send_packet(&packet)
     }
 
     /// Project and send container values using the current map at publication time.
-    pub fn publish_bag_values_update_like_cpp(&self, guid: ObjectGuid, update: &wow_entities::BagValuesUpdate) -> bool {
+    pub fn publish_bag_values_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        update: &wow_entities::BagValuesUpdate,
+    ) -> bool {
         let Some(packet) = crate::entity_update_bridge::bag_values_update_to_update_object(
-            guid, self.core.player_map_id_like_cpp(), update,
-        ) else { return false; };
+            guid,
+            self.core.player_map_id_like_cpp(),
+            update,
+        ) else {
+            return false;
+        };
         self.core.send_packet(&packet)
     }
 
@@ -54,11 +70,9 @@ impl PacketPublicationAccessLikeCpp<'_> {
         guid: ObjectGuid,
         update: &PlayerValuesUpdate,
     ) -> bool {
-        let Some(packet) = player_values_update_to_update_object(
-            guid,
-            self.core.player_map_id_like_cpp(),
-            update,
-        ) else {
+        let Some(packet) =
+            player_values_update_to_update_object(guid, self.core.player_map_id_like_cpp(), update)
+        else {
             return false;
         };
         self.core.send_packet(&packet)
@@ -151,11 +165,9 @@ impl PacketPublicationAccessLikeCpp<'_> {
         bytes: Vec<u8>,
         range: f32,
         realm_connection: bool,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        player_position_fixture: &Option<Position>,
+        #[cfg(any(test, feature = "test-fixtures"))] player_position_fixture: &Option<Position>,
     ) {
-        let (Some(guid), Some(registry)) =
-            (self.core.player_guid(), self.core.player_registry())
+        let (Some(guid), Some(registry)) = (self.core.player_guid(), self.core.player_registry())
         else {
             return;
         };

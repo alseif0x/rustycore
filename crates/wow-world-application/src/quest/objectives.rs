@@ -17,7 +17,8 @@ pub use self::context::QuestObjectiveRegistryFixtureRefsLikeCpp;
 use super::{
     QuestRewardCx, RepresentedQuestObjectiveProgressEventLikeCpp, SessionQuestState,
     objective_progress::{
-        current_quest_gameplay_snapshot_like_cpp, invalidate_player_quest_status_authority_like_cpp,
+        current_quest_gameplay_snapshot_like_cpp,
+        invalidate_player_quest_status_authority_like_cpp,
         mark_quest_incomplete_if_complete_like_cpp, save_changed_quest_statuses_like_cpp,
         update_objective_count_like_cpp,
     },
@@ -29,16 +30,18 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         loot: &'cx LootState,
         item_guid_generator: &'cx ObjectGuidGenerator,
         #[cfg(any(test, feature = "test-fixtures"))]
-        reputation_fixture:
-            &'cx mut super::QuestRewardReputationFixtureRefsLikeCpp<'session>,
+        reputation_fixture: &'cx mut super::QuestRewardReputationFixtureRefsLikeCpp<
+            'session,
+        >,
         #[cfg(any(test, feature = "test-fixtures"))]
         xp_fixtures: &'cx mut super::QuestXpGainFixtureRefsLikeCpp<'session>,
         #[cfg(any(test, feature = "test-fixtures"))]
         teleport_fixture: &'cx mut wow_world_core::session::state::TeleportState,
         #[cfg(any(test, feature = "test-fixtures"))]
-        item_planning_fixtures: &'cx super::QuestRewardItemPlanningFixtureRefsLikeCpp<'session>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        player_game_master_fixture: &'cx bool,
+        item_planning_fixtures: &'cx super::QuestRewardItemPlanningFixtureRefsLikeCpp<
+            'session,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] player_game_master_fixture: &'cx bool,
         #[cfg(any(test, feature = "test-fixtures"))]
         registry_fixtures: QuestObjectiveRegistryFixtureRefsLikeCpp<'cx>,
     ) -> Self {
@@ -437,7 +440,9 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             let Some(quest) = store.get(quest_id).cloned() else {
                 continue;
             };
-            let completed = self.complete_represented_quest_after_add_like_cpp(&quest).await;
+            let completed = self
+                .complete_represented_quest_after_add_like_cpp(&quest)
+                .await;
             if completed {
                 let owner = self.reward.player.quest_objective_access_like_cpp();
                 if current_quest_gameplay_snapshot_like_cpp(
@@ -542,11 +547,13 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
                 quests_to_save.push(quest_id);
             }
             if add_count > 0 {
-                let _ = self.reward.send_packet_like_cpp(&QuestUpdateAddCreditSimple {
-                    quest_id,
-                    object_id,
-                    objective_type,
-                });
+                let _ = self
+                    .reward
+                    .send_packet_like_cpp(&QuestUpdateAddCreditSimple {
+                        quest_id,
+                        object_id,
+                        objective_type,
+                    });
             }
             if !objective_was_complete && objective_is_now_complete {
                 if let (Some(quest), Some(quests)) = (
@@ -1040,5 +1047,4 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         .await;
         self.sync_player_registry_state_like_cpp(&owner);
     }
-
 }

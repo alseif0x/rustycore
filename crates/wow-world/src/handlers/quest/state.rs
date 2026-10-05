@@ -301,7 +301,10 @@ impl WorldSession {
     pub(crate) fn get_quest_slot_quest_id_like_cpp(&self, slot: u8) -> Option<u32> {
         let owner = self.core.quest_objective_access_like_cpp();
         wow_world_application::get_quest_slot_quest_id_like_cpp(
-            &owner, &self.quest_state, slot, cfg!(test),
+            &owner,
+            &self.quest_state,
+            slot,
+            cfg!(test),
         )
     }
 
@@ -318,7 +321,10 @@ impl WorldSession {
     pub(crate) fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
         let owner = self.core.quest_objective_access_like_cpp();
         wow_world_application::quest_log_create_entries_like_cpp(
-            &owner, &self.quest_state, &self.catalogs, cfg!(test),
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            cfg!(test),
         )
     }
 
@@ -326,7 +332,12 @@ impl WorldSession {
         let owner = self.core.quest_objective_access_like_cpp();
         let publication = self.core.packet_publication_access_like_cpp();
         wow_world_application::send_represented_quest_log_slot_update_like_cpp(
-            &owner, &self.quest_state, &self.catalogs, &publication, slot, cfg!(test),
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            &publication,
+            slot,
+            cfg!(test),
         );
     }
 }

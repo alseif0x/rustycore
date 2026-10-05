@@ -46,13 +46,10 @@ pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status:
     });
 }
 
-
 #[cfg(test)]
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
     wow_world_application::PlayerRegistryHydrationContext::new(
-        session
-            .core
-            .player_registry_hydration_access_like_cpp(),
+        session.core.player_registry_hydration_access_like_cpp(),
         &session.spell_state,
         &session.quest_state,
         (

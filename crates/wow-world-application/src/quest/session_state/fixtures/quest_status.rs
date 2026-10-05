@@ -5,17 +5,19 @@
 
 //! Private quest status and compatibility-state fixture operations for quest state.
 
-use super::super::{contracts, SessionQuestState};
+use super::super::{SessionQuestState, contracts};
 
 impl SessionQuestState {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn represented_quest_objective_progress_event_count_like_cpp(&self) -> usize {
-        self.represented_quest_objective_progress_events_like_cpp.len()
+        self.represented_quest_objective_progress_events_like_cpp
+            .len()
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn represented_quest_objective_progress_events_are_empty_like_cpp(&self) -> bool {
-        self.represented_quest_objective_progress_events_like_cpp.is_empty()
+        self.represented_quest_objective_progress_events_like_cpp
+            .is_empty()
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -383,15 +385,21 @@ impl SessionQuestState {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn fixture_has_represented_known_title_like_cpp(&self, title_id: u32) -> bool {
-        self.fixtures.represented_known_titles_like_cpp.contains(&title_id)
+        self.fixtures
+            .represented_known_titles_like_cpp
+            .contains(&title_id)
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn fixture_set_represented_known_title_like_cpp(&mut self, title_id: u32, known: bool) {
         if known {
-            self.fixtures.represented_known_titles_like_cpp.insert(title_id);
+            self.fixtures
+                .represented_known_titles_like_cpp
+                .insert(title_id);
         } else {
-            self.fixtures.represented_known_titles_like_cpp.remove(&title_id);
+            self.fixtures
+                .represented_known_titles_like_cpp
+                .remove(&title_id);
         }
     }
 
@@ -435,9 +443,7 @@ impl SessionQuestState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn player_quest_gameplay_fixture_like_cpp(
-        &self,
-    ) -> wow_entities::PlayerQuestGameplayState {
+    pub fn player_quest_gameplay_fixture_like_cpp(&self) -> wow_entities::PlayerQuestGameplayState {
         let objective_counts_by_quest = self
             .fixtures
             .player_quests
@@ -485,9 +491,7 @@ impl SessionQuestState {
         state.replace_df_quest_ids_like_cpp(
             self.fixtures.df_quests_like_cpp.iter().copied().collect(),
         );
-        state.set_last_daily_quest_time_secs_like_cpp(
-            self.fixtures.last_daily_quest_time_like_cpp,
-        );
+        state.set_last_daily_quest_time_secs_like_cpp(self.fixtures.last_daily_quest_time_like_cpp);
         state.replace_rewarded_quest_rows_like_cpp(
             self.fixtures
                 .represented_rewarded_quest_rows_like_cpp
@@ -503,24 +507,14 @@ impl SessionQuestState {
         state: wow_entities::PlayerQuestGameplayState,
     ) {
         self.apply_player_quest_core_compatibility_like_cpp(&state);
-        self.fixtures.daily_quests_completed_like_cpp = state
-            .daily_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        self.fixtures.weekly_quests_completed_like_cpp = state
-            .weekly_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        self.fixtures.monthly_quests_completed_like_cpp = state
-            .monthly_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
+        self.fixtures.daily_quests_completed_like_cpp =
+            state.daily_quest_ids_like_cpp().iter().copied().collect();
+        self.fixtures.weekly_quests_completed_like_cpp =
+            state.weekly_quest_ids_like_cpp().iter().copied().collect();
+        self.fixtures.monthly_quests_completed_like_cpp =
+            state.monthly_quest_ids_like_cpp().iter().copied().collect();
         self.fixtures.seasonal_quests_like_cpp = state.seasonal_quests_snapshot_like_cpp();
-        self.fixtures.df_quests_like_cpp =
-            state.df_quest_ids_like_cpp().iter().copied().collect();
+        self.fixtures.df_quests_like_cpp = state.df_quest_ids_like_cpp().iter().copied().collect();
         self.fixtures.last_daily_quest_time_like_cpp = state.last_daily_quest_time_secs_like_cpp();
         self.fixtures.seasonal_quest_changed_like_cpp = state.seasonal_quest_changed_like_cpp();
     }
@@ -540,7 +534,8 @@ impl SessionQuestState {
             .iter()
             .copied()
             .collect();
-        self.fixtures.player_quest_status_authority_complete_like_cpp =
+        self.fixtures
+            .player_quest_status_authority_complete_like_cpp =
             state.status_authority_complete_like_cpp();
         self.fixtures.represented_rewarded_quest_rows_like_cpp =
             state.rewarded_quest_rows_like_cpp().clone();

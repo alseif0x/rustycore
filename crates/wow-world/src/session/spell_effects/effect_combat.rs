@@ -106,7 +106,9 @@ impl WorldSession {
         self.core.spell_has_attribute_with_stores_like_cpp(
             self.spell_store().map(AsRef::as_ref),
             self.catalogs.difficulty_store().map(AsRef::as_ref),
-            spell_id, attribute_word, attribute,
+            spell_id,
+            attribute_word,
+            attribute,
         )
     }
 

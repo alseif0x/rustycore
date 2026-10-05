@@ -1,8 +1,8 @@
 //! Represented group operations owned by the Social boundary.
 
-use crate::{GROUP_XP_DISTANCE_LIKE_CPP, SessionSocialLimits};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedSilencePartyTalkerLikeCpp;
+use crate::{GROUP_XP_DISTANCE_LIKE_CPP, SessionSocialLimits};
 use wow_core::{ObjectGuid, Position};
 use wow_world_core::session::{HubMut, HubRef};
 
@@ -149,10 +149,7 @@ impl SessionSocialLimits {
         }
     }
 
-    pub fn sync_player_registry_party_member_party_type_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) {
+    pub fn sync_player_registry_party_member_party_type_like_cpp(&self, hub: HubRef<'_>) {
         hub.core
             .sync_player_registry_party_member_party_type_like_cpp();
     }
@@ -161,10 +158,7 @@ impl SessionSocialLimits {
     ///
     /// Used by the group command handlers when an admission phase or an
     /// ordering guard prevents applying a delivered state change.
-    pub fn defer_group_state_reconciliation_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) {
+    pub fn defer_group_state_reconciliation_like_cpp(&self, hub: HubRef<'_>) {
         let (Some(player_guid), Some(player_registry)) =
             (hub.core.player_guid(), hub.core.player_registry.as_ref())
         else {
@@ -173,18 +167,12 @@ impl SessionSocialLimits {
         player_registry.mark_group_state_reconciliation_like_cpp(player_guid);
     }
 
-    pub fn clear_represented_group_subgroup_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn clear_represented_group_subgroup_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         let _ = self.set_owned_player_group_like_cpp(hub, None);
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_subgroup_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u8> {
+    pub fn represented_subgroup_like_cpp(&self, hub: HubRef<'_>) -> Option<u8> {
         self.resolved_group_subgroup_like_cpp(hub)
     }
 

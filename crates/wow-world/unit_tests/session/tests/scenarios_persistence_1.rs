@@ -164,7 +164,9 @@ fn load_represented_group_difficulties_overrides_player_values_like_cpp() {
         ),
     ])));
     session.load_represented_player_difficulties_like_cpp(1, 14, 3);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.load_represented_group_difficulties_like_cpp());
@@ -248,7 +250,10 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
 
     assert!(session.load_represented_group_by_db_store_id_like_cpp(80_928));
 
-    assert_eq!(session.social.group_guid_for_test_like_cpp(), Some(group_guid));
+    assert_eq!(
+        session.social.group_guid_for_test_like_cpp(),
+        Some(group_guid)
+    );
     assert_eq!(session.represented_subgroup_like_cpp(), Some(3));
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -339,16 +344,22 @@ fn load_character_reputation_rows_like_cpp_merges_rows_after_identity_and_store(
 fn load_seasonal_quest_status_clears_stale_state_and_resets_changed_on_empty_like_cpp() {
     let (mut session, _, _) = make_session();
     session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
-    session.quest_state.fixture_set_seasonal_quest_changed_like_cpp(true);
+    session
+        .quest_state
+        .fixture_set_seasonal_quest_changed_like_cpp(true);
     let quest_store = seasonal_quest_store_like_cpp([12_345]);
 
     let outcome = session.load_seasonal_quest_status_like_cpp([], Some(&quest_store), None);
 
     assert!(
-        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
+        session
+            .quest_state
+            .fixture_seasonal_quests_are_empty_like_cpp()
     );
     assert!(
-        !session.quest_state.fixture_seasonal_quest_changed_like_cpp()
+        !session
+            .quest_state
+            .fixture_seasonal_quest_changed_like_cpp()
     );
     assert_eq!(outcome.rows_seen, 0);
     assert_eq!(outcome.seasonal_quest_changed, false);
@@ -502,10 +513,14 @@ fn load_seasonal_quest_status_skips_missing_quest_like_cpp() {
     assert_eq!(outcome.rows_seen, 1);
     assert_eq!(outcome.skipped_missing_quest, 1);
     assert!(
-        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
+        session
+            .quest_state
+            .fixture_seasonal_quests_are_empty_like_cpp()
     );
     assert!(
-        !session.quest_state.fixture_seasonal_quest_changed_like_cpp()
+        !session
+            .quest_state
+            .fixture_seasonal_quest_changed_like_cpp()
     );
 }
 #[test]
@@ -556,7 +571,9 @@ fn load_seasonal_quest_status_event_out_of_range_is_skipped_not_truncated_like_c
 
     assert_eq!(outcome.skipped_event_out_of_range, 1);
     assert!(
-        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
+        session
+            .quest_state
+            .fixture_seasonal_quests_are_empty_like_cpp()
     );
 }
 #[test]
@@ -576,7 +593,9 @@ fn load_seasonal_quest_status_negative_completed_time_is_skipped_like_cpp() {
 
     assert_eq!(outcome.skipped_negative_completed_time, 1);
     assert!(
-        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
+        session
+            .quest_state
+            .fixture_seasonal_quests_are_empty_like_cpp()
     );
 }
 #[test]
@@ -595,10 +614,14 @@ fn load_seasonal_quest_status_without_quest_store_skips_rows_like_cpp() {
 
     assert_eq!(outcome.skipped_no_quest_store, 1);
     assert!(
-        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
+        session
+            .quest_state
+            .fixture_seasonal_quests_are_empty_like_cpp()
     );
     assert!(
-        !session.quest_state.fixture_seasonal_quest_changed_like_cpp()
+        !session
+            .quest_state
+            .fixture_seasonal_quest_changed_like_cpp()
     );
 }
 #[test]

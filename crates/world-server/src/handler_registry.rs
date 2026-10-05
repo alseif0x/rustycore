@@ -15,10 +15,8 @@ use wow_world::session::registry::{
 use wow_world::{WorldSession, session::SessionHandlerCatalogsLikeCpp};
 
 /// Compose the immutable packet-handler registry shared by world sessions.
-pub fn compose_packet_handlers_like_cpp() -> Result<
-    Arc<WorldPacketHandlerRegistry>,
-    DuplicateHandlerRegistrationLikeCpp,
-> {
+pub fn compose_packet_handlers_like_cpp()
+-> Result<Arc<WorldPacketHandlerRegistry>, DuplicateHandlerRegistrationLikeCpp> {
     let mut builder = WorldPacketHandlerRegistryBuilder::new();
     wow_world_inventory::register_inventory_handlers_like_cpp::<
         WorldSession,

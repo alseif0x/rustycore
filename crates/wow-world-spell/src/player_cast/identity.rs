@@ -10,10 +10,7 @@ impl SessionSpellState {
     /// value. Server-triggered timed casts need the same fence as normal
     /// client requests: without it a cast prepared before a map transfer would
     /// still launch after the player returns.
-    pub fn current_player_residence_revision_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u64> {
+    pub fn current_player_residence_revision_like_cpp(&self, hub: HubRef<'_>) -> Option<u64> {
         let handle = hub.core.player_handle_like_cpp?;
         if Some(handle.guid()) != hub.core.player_guid() {
             return None;

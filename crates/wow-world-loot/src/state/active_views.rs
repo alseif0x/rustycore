@@ -107,5 +107,4 @@ impl LootState {
     pub fn is_active_loot_guid(&self, guid: ObjectGuid) -> bool {
         !guid.is_empty() && self.active_loot_guid == guid
     }
-
 }

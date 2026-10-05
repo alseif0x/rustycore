@@ -4,6 +4,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedCombatStatRecalculationLikeCpp;
 use wow_constants::InventoryType;
 use wow_constants::item::EnchantmentSlot;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -11,12 +13,10 @@ use wow_constants::unit::WeaponAttackType;
 use wow_core::ObjectGuid;
 use wow_data::{ItemStatsStore, ItemStore};
 use wow_entities::{
-    Item, ItemObjectUpdateLikeCpp, PlayerEnchantDuration, PlayerEnchantTimeUpdate,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, Item,
+    ItemObjectUpdateLikeCpp, PLAYER_SLOT_END, PlayerEnchantDuration, PlayerEnchantTimeUpdate,
     PlayerInventoryItem as InventoryItem, PlayerInventoryRuntime, PlayerItemTimeUpdate,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, PLAYER_SLOT_END,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::RepresentedCombatStatRecalculationLikeCpp;
 use wow_world_core::session::{
     HubMut, HubRef, InventoryPlayerProjectionLikeCpp, OwnedInventoryAccessLikeCpp,
 };
@@ -181,19 +181,13 @@ impl crate::InventoryState {
         .flatten()
     }
 
-    pub fn clear_inventory_items_and_objects_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn clear_inventory_items_and_objects_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
             inventory.clear_items_and_objects_like_cpp();
         });
     }
 
-    pub fn clear_all_inventory_runtime_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) {
+    pub fn clear_all_inventory_runtime_like_cpp(&mut self, hub: &mut HubMut<'_>) {
         self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
             *inventory = PlayerInventoryRuntime::default();
         });
@@ -217,7 +211,10 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         slot: u8,
     ) -> Option<InventoryItem> {
-        self.remove_inventory_item_with_access_like_cpp(&hub.core.owned_inventory_access_like_cpp(), slot)
+        self.remove_inventory_item_with_access_like_cpp(
+            &hub.core.owned_inventory_access_like_cpp(),
+            slot,
+        )
     }
 
     pub fn remove_inventory_item_with_access_like_cpp(
@@ -385,7 +382,8 @@ impl crate::InventoryState {
         item_guid: ObjectGuid,
     ) {
         self.remove_inventory_item_duration_refs_with_access_like_cpp(
-            &hub.core.owned_inventory_access_like_cpp(), item_guid,
+            &hub.core.owned_inventory_access_like_cpp(),
+            item_guid,
         );
     }
 
@@ -394,12 +392,14 @@ impl crate::InventoryState {
         access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(mut item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
+        let Some(mut item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
 
-        let Some(removed_enchantments) = access.remove_item_duration_refs_like_cpp(&mut item) else {
+        let Some(removed_enchantments) = access.remove_item_duration_refs_like_cpp(&mut item)
+        else {
             return;
         };
 
@@ -407,13 +407,15 @@ impl crate::InventoryState {
             return;
         }
 
-        let updates = removed_enchantments.iter().map(|duration| {
-            ItemObjectUpdateLikeCpp::SetEnchantmentDuration {
+        let updates = removed_enchantments
+            .iter()
+            .map(|duration| ItemObjectUpdateLikeCpp::SetEnchantmentDuration {
                 slot: duration.slot,
                 duration: duration.left_duration_ms,
-            }
-        }).collect::<Vec<_>>();
-        let _ = self.apply_inventory_item_object_updates_with_access_like_cpp(access, item_guid, &updates);
+            })
+            .collect::<Vec<_>>();
+        let _ = self
+            .apply_inventory_item_object_updates_with_access_like_cpp(access, item_guid, &updates);
     }
 
     pub fn remove_inventory_tradeable_item_like_cpp(
@@ -422,7 +424,8 @@ impl crate::InventoryState {
         item_guid: ObjectGuid,
     ) {
         self.remove_inventory_tradeable_item_with_access_like_cpp(
-            &hub.core.owned_inventory_access_like_cpp(), item_guid,
+            &hub.core.owned_inventory_access_like_cpp(),
+            item_guid,
         );
     }
 
@@ -431,7 +434,8 @@ impl crate::InventoryState {
         access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
+        let Some(item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
@@ -446,7 +450,8 @@ impl crate::InventoryState {
     ) {
         self.add_inventory_item_duration_refs_with_access_like_cpp(
             &hub.core.owned_inventory_access_like_cpp(),
-            &hub.core.packet_publication_access_like_cpp(), item_guid,
+            &hub.core.packet_publication_access_like_cpp(),
+            item_guid,
         );
     }
 
@@ -456,7 +461,8 @@ impl crate::InventoryState {
         publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(mut item) = self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
+        let Some(mut item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
@@ -514,9 +520,8 @@ impl crate::InventoryState {
         *inventory.buyback_price_mut() = self.player_item_test_fixture_like_cpp.buyback_price;
         *inventory.buyback_timestamp_mut() =
             self.player_item_test_fixture_like_cpp.buyback_timestamp;
-        inventory.set_current_buyback_slot(
-            self.player_item_test_fixture_like_cpp.current_buyback_slot,
-        );
+        inventory
+            .set_current_buyback_slot(self.player_item_test_fixture_like_cpp.current_buyback_slot);
         inventory
             .item_objects_mut()
             .extend(self.inventory_item_objects.clone());

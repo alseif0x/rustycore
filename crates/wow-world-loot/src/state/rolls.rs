@@ -3,10 +3,10 @@ use tokio::time::timeout;
 use wow_core::ObjectGuid;
 use wow_loot::LootClaimLease;
 use wow_packet::packets::loot::{LootEntry, LootRoll};
-use wow_world_core::session::{HubRef, ItemValuationCatalogsLikeCpp};
 use wow_world_core::session::mailbox::{
     LootRollStoreWinnerCommand, LootRollVoteCommand, MasterLootGiveResult, SessionCommand,
 };
+use wow_world_core::session::{HubRef, ItemValuationCatalogsLikeCpp};
 
 impl LootState {
     pub fn route_represented_remote_loot_roll_vote_to_owner_like_cpp(

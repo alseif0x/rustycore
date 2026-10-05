@@ -7,8 +7,7 @@ use wow_packet::packets::item::{
     ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
 };
 use wow_packet::packets::loot::{
-    CreatureLoot, LootEntry, LootRemoved, LootResponse,
-    LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
+    CreatureLoot, LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP, LootEntry, LootRemoved, LootResponse,
 };
 use wow_world_core::session::{HubMut, HubRef};
 

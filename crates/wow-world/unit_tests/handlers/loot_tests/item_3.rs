@@ -7,7 +7,6 @@ use super::*;
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
-
 #[test]
 fn loot_item_store_random_properties_are_generated_from_cpp_random_select() {
     let entry = LootEntry {
@@ -267,7 +266,11 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
         ROLL_VOTE_NOT_VALID_LIKE_CPP
     );
 
-    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
+    let entry = &session
+        .loot
+        .cached_loot_for_owner_like_cpp(owner_guid)
+        .unwrap()
+        .items[0];
     assert!(entry.flags.blocked);
     assert!(!entry.flags.under_threshold);
     assert!(
@@ -307,9 +310,18 @@ async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
         .await;
 
     assert!(session.loot.is_active_loot_guid(first_item));
-    assert_eq!(session.loot.active_loot_view_owner_count_for_test_like_cpp(), 2);
+    assert_eq!(
+        session
+            .loot
+            .active_loot_view_owner_count_for_test_like_cpp(),
+        2
+    );
     assert!(session.loot.has_active_loot_view_owner_like_cpp(first_item));
-    assert!(session.loot.has_active_loot_view_owner_like_cpp(second_item));
+    assert!(
+        session
+            .loot
+            .has_active_loot_view_owner_like_cpp(second_item)
+    );
     assert!(
         !session
             .loot
@@ -383,7 +395,14 @@ async fn loot_item_uses_active_loot_view_like_cpp() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), ObjectGuid::EMPTY);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(inactive_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(inactive_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
 }
 #[tokio::test]
 async fn loot_item_releases_blocked_item_like_cpp() {
@@ -440,7 +459,14 @@ async fn loot_item_releases_blocked_item_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(session.loot.is_active_loot_guid(loot_guid));
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
 }
 #[tokio::test]
 async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
@@ -495,7 +521,14 @@ async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(session.loot.is_active_loot_guid(loot_guid));
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
 }
 #[tokio::test]
 async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
@@ -550,7 +583,14 @@ async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(session.loot.is_active_loot_guid(loot_guid));
-    assert!(!session.loot.cached_loot_for_owner_like_cpp(loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
 }
 #[tokio::test]
 async fn master_loot_item_without_group_sends_didnt_kill_like_cpp() {
@@ -596,7 +636,9 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
         broadcast_info(leader_guid, leader_tx),
         Default::default(),
     );
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(leader_guid));
@@ -642,7 +684,9 @@ async fn master_loot_item_missing_target_sends_player_not_found_like_cpp() {
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
 
@@ -679,7 +723,9 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.loot.set_active_loot_guid(loot_owner);
@@ -746,7 +792,9 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
         broadcast_info(target_guid, target_tx),
         Default::default(),
     );
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));

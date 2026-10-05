@@ -8,8 +8,7 @@ use wow_core::ObjectGuid;
 
 /// Handle-less fixture for Player duel state and its test evidence.
 pub(crate) struct DuelTestFixtureLikeCpp {
-    pub(crate) represented_can_duel_spell_casts_like_cpp:
-        Vec<RepresentedCanDuelSpellCastLikeCpp>,
+    pub(crate) represented_can_duel_spell_casts_like_cpp: Vec<RepresentedCanDuelSpellCastLikeCpp>,
     pub(crate) represented_duel_arbiter_guid_like_cpp: Option<ObjectGuid>,
     pub(crate) represented_duel_requests_like_cpp: Vec<RepresentedDuelRequestedLikeCpp>,
     pub(crate) represented_force_deselects_like_cpp: Vec<RepresentedForceDeselectLikeCpp>,
@@ -91,8 +90,8 @@ impl Default for TradeTestFixtureLikeCpp {
             represented_partner_trade_server_state_index_like_cpp: 0,
             represented_trade_client_state_index_like_cpp: 1,
             represented_trade_server_state_index_like_cpp: 1,
-            represented_trade_items_like_cpp:
-                [None; wow_packet::packets::misc::TRADE_SLOT_COUNT_LIKE_CPP as usize],
+            represented_trade_items_like_cpp: [None;
+                wow_packet::packets::misc::TRADE_SLOT_COUNT_LIKE_CPP as usize],
             represented_trade_money_like_cpp: 0,
             represented_trade_spell_like_cpp: 0,
             represented_trade_spell_cast_item_like_cpp: None,

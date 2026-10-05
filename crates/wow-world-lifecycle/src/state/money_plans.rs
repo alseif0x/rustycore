@@ -5,11 +5,10 @@ use std::sync::Arc;
 use wow_constants::{CurrencyTypes, Team};
 use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 use wow_loot::LootClaimCommitError;
-use wow_world_core::session::{
-    HubMut, HubRef, MAX_SPECIALIZATIONS_LIKE_CPP, PlayerCurrencyDelta,
-    currency_max_quantity_cpp,
-};
 use wow_world_core::session::state::hub_support::player_team_for_race_cpp;
+use wow_world_core::session::{
+    HubMut, HubRef, MAX_SPECIALIZATIONS_LIKE_CPP, PlayerCurrencyDelta, currency_max_quantity_cpp,
+};
 
 use super::SessionLifecycleState;
 

@@ -1,6 +1,6 @@
-use std::collections::{BTreeMap, HashMap, HashSet};
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::BTreeSet;
+use std::collections::{BTreeMap, HashMap, HashSet};
 use wow_core::{ObjectGuid, Position};
 
 #[allow(dead_code)]

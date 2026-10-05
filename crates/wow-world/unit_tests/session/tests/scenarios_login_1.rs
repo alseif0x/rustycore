@@ -113,7 +113,9 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
                 slot: 0,
             },
         );
-    session.quest_state.fixture_set_rewarded_quest_like_cpp(200, true);
+    session
+        .quest_state
+        .fixture_set_rewarded_quest_like_cpp(200, true);
     crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
 
     let owned = session

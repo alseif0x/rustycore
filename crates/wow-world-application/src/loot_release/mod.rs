@@ -6,16 +6,19 @@
 //! delegation follow-up.
 
 use wow_core::ObjectGuid;
-use wow_packet::ServerPacket;
-use wow_packet::packets::loot::SLootRelease;
-use wow_packet::packets::loot::{LOOT_TYPE_PROSPECTING_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP};
-use wow_packet::packets::loot::LootList;
 use wow_entities::ItemObjectUpdateLikeCpp;
+use wow_entities::{
+    GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_FISHING_NODE,
+    GAMEOBJECT_TYPE_GATHERING_NODE,
+};
 use wow_loot::{
     CreatureLoot, LOOT_METHOD_MASTER_LIKE_CPP, OwnedLootAuthority,
     loot_has_over_threshold_item_like_cpp, loot_is_looted_like_cpp,
 };
-use wow_entities::{GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_GATHERING_NODE};
+use wow_packet::ServerPacket;
+use wow_packet::packets::loot::LootList;
+use wow_packet::packets::loot::SLootRelease;
+use wow_packet::packets::loot::{LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP};
 use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore};
 
 /// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
@@ -36,21 +39,21 @@ pub struct AuthoritativeLootReleaseLikeCpp {
     pub require_no_viewers: bool,
 }
 
-mod item;
-mod gameobject;
+mod authority;
 mod creature;
 mod detached;
 mod fanout;
+mod gameobject;
+mod item;
 mod publication;
-mod authority;
 mod registry;
 
-pub use item::direct_item_count_after_loot_release_like_cpp;
 pub use fanout::durable_loot_item_fanout_viewers_like_cpp;
 pub use gameobject::{
     queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,
 };
+pub use item::direct_item_count_after_loot_release_like_cpp;
 
 pub struct LootReleaseCxLikeCpp<'a> {
     owner: wow_world_core::session::LootReleaseOwnerAccessLikeCpp<'a>,
@@ -91,10 +94,24 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         item_store: Option<&'a std::sync::Arc<wow_data::ItemStore>>,
         item_stats_store: Option<&'a std::sync::Arc<wow_data::ItemStatsStore>>,
     ) -> Self {
-        Self { owner, loot, world_entities, inventory, lifecycle, consumer_test, instances, stats_inputs, quest_state, social,
-            #[cfg(any(test, feature = "test-fixtures"))] spell_state,
-            #[cfg(any(test, feature = "test-fixtures"))] fixtures,
-            item_store, item_stats_store }
+        Self {
+            owner,
+            loot,
+            world_entities,
+            inventory,
+            lifecycle,
+            consumer_test,
+            instances,
+            stats_inputs,
+            quest_state,
+            social,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            spell_state,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures,
+            item_store,
+            item_stats_store,
+        }
     }
 
     /// Shared hub view over the release context's disjoint borrows. The
@@ -126,28 +143,55 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         self.owner.publication_like_cpp().send_packet(packet)
     }
 
-    fn resolved_inventory_items_like_cpp(&self) -> Option<std::collections::HashMap<u8, wow_entities::PlayerInventoryItem>> {
-        self.inventory.resolved_inventory_items_with_access_like_cpp(&self.owner.inventory_like_cpp())
+    fn resolved_inventory_items_like_cpp(
+        &self,
+    ) -> Option<std::collections::HashMap<u8, wow_entities::PlayerInventoryItem>> {
+        self.inventory
+            .resolved_inventory_items_with_access_like_cpp(&self.owner.inventory_like_cpp())
     }
 
     fn item_template_flags(&self, item_id: u32) -> Option<wow_constants::ItemFlags> {
-        self.item_stats_store.and_then(|store| store.item_flags(item_id))
+        self.item_stats_store
+            .and_then(|store| store.item_flags(item_id))
     }
 
-    fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<wow_entities::Item> {
-        self.inventory.resolved_player_inventory_item_object_with_access_like_cpp(&self.owner.inventory_like_cpp(), guid)
+    fn resolved_inventory_item_object_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<wow_entities::Item> {
+        self.inventory
+            .resolved_player_inventory_item_object_with_access_like_cpp(
+                &self.owner.inventory_like_cpp(),
+                guid,
+            )
     }
 
-    fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<wow_entities::PlayerInventoryItem> {
-        self.inventory.get_inventory_item_by_pos_with_access_like_cpp(
-            &self.owner.inventory_like_cpp(), self.item_store, self.item_stats_store, bag, slot,
-        )
+    fn get_inventory_item_by_pos(
+        &self,
+        bag: u8,
+        slot: u8,
+    ) -> Option<wow_entities::PlayerInventoryItem> {
+        self.inventory
+            .get_inventory_item_by_pos_with_access_like_cpp(
+                &self.owner.inventory_like_cpp(),
+                self.item_store,
+                self.item_stats_store,
+                bag,
+                slot,
+            )
     }
 
-    fn apply_inventory_item_object_updates_like_cpp(&mut self, guid: ObjectGuid, updates: &[ItemObjectUpdateLikeCpp]) -> bool {
-        self.inventory.apply_inventory_item_object_updates_with_access_like_cpp(
-            &self.owner.inventory_like_cpp(), guid, updates,
-        )
+    fn apply_inventory_item_object_updates_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        updates: &[ItemObjectUpdateLikeCpp],
+    ) -> bool {
+        self.inventory
+            .apply_inventory_item_object_updates_with_access_like_cpp(
+                &self.owner.inventory_like_cpp(),
+                guid,
+                updates,
+            )
     }
 
     fn send_stat_update(&mut self) {
@@ -173,7 +217,10 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
                     wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
                         &self.fixtures.auras.represented_shapeshift_form_like_cpp,
                         &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-                        &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                        &self
+                            .fixtures
+                            .auras
+                            .player_spell_hit_aura_authority_tombstoned_like_cpp,
                         &self.fixtures.auras.visible_auras,
                         &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
                     ),
@@ -193,31 +240,48 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
     ) {
-        self.inventory.send_player_values_update_from_entity_bridge_with_access_like_cpp(
-            &self.owner.inventory_like_cpp(), &self.owner.publication_like_cpp(),
-            self.item_store, self.item_stats_store, inv_slot_changes, visible_item_changes,
-            virtual_item_changes, buyback_changes, coinage,
-        );
+        self.inventory
+            .send_player_values_update_from_entity_bridge_with_access_like_cpp(
+                &self.owner.inventory_like_cpp(),
+                &self.owner.publication_like_cpp(),
+                self.item_store,
+                self.item_stats_store,
+                inv_slot_changes,
+                visible_item_changes,
+                virtual_item_changes,
+                buyback_changes,
+                coinage,
+            );
     }
 
     fn close_stale_active_loot_view_like_cpp(
-        &mut self, owner_guid: ObjectGuid, player_guid: ObjectGuid,
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
     ) {
-        self.loot.discard_represented_personal_loot_cache_for_player_like_cpp(owner_guid, player_guid);
-        self.owner.publication_like_cpp().send_packet(&SLootRelease {
-            loot_obj: owner_guid,
-            owner: player_guid,
-        });
+        self.loot
+            .discard_represented_personal_loot_cache_for_player_like_cpp(owner_guid, player_guid);
+        self.owner
+            .publication_like_cpp()
+            .send_packet(&SLootRelease {
+                loot_obj: owner_guid,
+                owner: player_guid,
+            });
         self.loot.clear_active_loot_guid_if(owner_guid);
     }
 
     fn send_creature_loot_release_dynamic_flags_update_like_cpp(
-        &self, guid: ObjectGuid, update: &wow_entities::UnitValuesUpdate,
+        &self,
+        guid: ObjectGuid,
+        update: &wow_entities::UnitValuesUpdate,
         authority: Option<&OwnedLootAuthority>,
     ) -> usize {
         publication::LootReleasePublicationCxLikeCpp::new(
-            self.owner.transitions_like_cpp(), self.owner.publication_like_cpp(), self.instances,
-        ).send_creature_loot_release_dynamic_flags_update_like_cpp(guid, update, authority)
+            self.owner.transitions_like_cpp(),
+            self.owner.publication_like_cpp(),
+            self.instances,
+        )
+        .send_creature_loot_release_dynamic_flags_update_like_cpp(guid, update, authority)
     }
 
     /// C++ `Loot::NotifyLootList`: only grouped owners notify, the owner's own
@@ -469,11 +533,10 @@ impl LootReleaseCxLikeCpp<'_> {
                         player_guid,
                     )
                     .is_some_and(|outcome| {
-                        self.loot
-                            .insert_cached_loot_for_owner_like_cpp(
-                                owner_guid,
-                                outcome.snapshot.loot,
-                            );
+                        self.loot.insert_cached_loot_for_owner_like_cpp(
+                            owner_guid,
+                            outcome.snapshot.loot,
+                        );
                         outcome.cleared
                     })
             } else {
@@ -492,7 +555,9 @@ impl LootReleaseCxLikeCpp<'_> {
                 self.represented_notify_loot_list_like_cpp(owner_guid);
             }
             if owner_guid.is_creature_or_vehicle() {
-                let values_update = self.owner.force_creature_loot_release_dynamic_flags_like_cpp(owner_guid);
+                let values_update = self
+                    .owner
+                    .force_creature_loot_release_dynamic_flags_like_cpp(owner_guid);
                 if let Some(values_update) = values_update.as_ref() {
                     self.send_creature_loot_release_dynamic_flags_update_like_cpp(
                         owner_guid,
@@ -522,7 +587,8 @@ impl LootReleaseCxLikeCpp<'_> {
         }
 
         if owner_guid.is_corpse() {
-            self.owner.transitions_like_cpp()
+            self.owner
+                .transitions_like_cpp()
                 .remove_canonical_corpse_lootable_dynamic_flag_like_cpp(owner_guid);
             return true;
         }
@@ -535,5 +601,4 @@ impl LootReleaseCxLikeCpp<'_> {
             authoritative_release.as_ref(),
         )
     }
-
 }

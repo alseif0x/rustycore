@@ -1,6 +1,6 @@
-use wow_entities::RepresentedAuraEffectLikeCpp;
 use wow_data::SpellStore;
 use wow_entities::AuraApplicationLikeCpp;
+use wow_entities::RepresentedAuraEffectLikeCpp;
 
 pub(crate) fn aura_effect_amounts_by_spell_from_snapshot_like_cpp(
     visible_auras: &std::collections::HashMap<u8, AuraApplicationLikeCpp>,
@@ -86,7 +86,11 @@ pub(crate) fn aura_effects_with_misc_values_from_snapshot_like_cpp(
                 })
                 .map(|represented| represented.amount)
                 .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-            effects.push((effect.effect_misc_value_1, effect.effect_misc_value_2, amount));
+            effects.push((
+                effect.effect_misc_value_1,
+                effect.effect_misc_value_2,
+                amount,
+            ));
         }
     }
     effects
@@ -219,7 +223,10 @@ impl crate::session::HubRef<'_> {
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        crate::session::state::SessionCore::max_represented_aura_amount_like_cpp_from_snapshot(self.resolved_player_visible_auras_like_cpp(), effect)
+        crate::session::state::SessionCore::max_represented_aura_amount_like_cpp_from_snapshot(
+            self.resolved_player_visible_auras_like_cpp(),
+            effect,
+        )
     }
 
     pub fn max_negative_represented_aura_amount_like_cpp(
@@ -240,6 +247,9 @@ impl crate::session::HubRef<'_> {
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        crate::session::state::SessionCore::total_represented_aura_amount_like_cpp_from_snapshot(self.resolved_player_visible_auras_like_cpp(), effect)
+        crate::session::state::SessionCore::total_represented_aura_amount_like_cpp_from_snapshot(
+            self.resolved_player_visible_auras_like_cpp(),
+            effect,
+        )
     }
 }

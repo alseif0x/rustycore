@@ -129,15 +129,25 @@ fn world_spell_and_interaction_roots_resolve_nominal_reexports() {
     assert_eq!(interaction[0].module, "crate::interaction_types");
     assert_eq!(interaction[0].symbol, "InteractionDataLikeCpp");
 
-    let instances = nominal_identity(&sources, "wow-world", "crate::consumer", "SelectedInstances")
-        .expect("the WorldInstances root alias resolves through its mounted provider");
+    let instances = nominal_identity(
+        &sources,
+        "wow-world",
+        "crate::consumer",
+        "SelectedInstances",
+    )
+    .expect("the WorldInstances root alias resolves through its mounted provider");
     assert_eq!(instances.len(), 1);
     assert_eq!(instances[0].package, "wow-world-instances");
     assert_eq!(instances[0].module, "crate::instance_types");
     assert_eq!(instances[0].symbol, "InstanceDataLikeCpp");
 
-    let visibility = nominal_identity(&sources, "wow-world", "crate::consumer", "SelectedVisibility")
-        .expect("the WorldVisibility root alias resolves through its mounted provider");
+    let visibility = nominal_identity(
+        &sources,
+        "wow-world",
+        "crate::consumer",
+        "SelectedVisibility",
+    )
+    .expect("the WorldVisibility root alias resolves through its mounted provider");
     assert_eq!(visibility.len(), 1);
     assert_eq!(visibility[0].package, "wow-world-visibility");
     assert_eq!(visibility[0].module, "crate::visibility_types");
@@ -154,9 +164,17 @@ fn local_modules_shadow_world_domain_and_core_package_roots() {
             "pub struct ExternalInteraction;",
         ),
         instances_mount("crate", "instances/lib.rs", "pub struct ExternalInstances;"),
-        visibility_mount("crate", "visibility/lib.rs", "pub struct ExternalVisibility;"),
+        visibility_mount(
+            "crate",
+            "visibility/lib.rs",
+            "pub struct ExternalVisibility;",
+        ),
         core_mount("crate", "core/lib.rs", "pub mod session;"),
-        core_mount("crate::session", "core/session.rs", "pub struct SessionCore;"),
+        core_mount(
+            "crate::session",
+            "core/session.rs",
+            "pub struct SessionCore;",
+        ),
         package_mount(
             "wow-world",
             "crate::consumer",
@@ -280,12 +298,16 @@ fn world_spell_and_interaction_imports_do_not_add_bridge_authority() {
         .expect("domain value imports remain non-authority beside bridge sides");
     assert_eq!(baseline.bridges.len(), 1);
     let evidence = &baseline.bridges[0].evidence;
-    assert!(evidence
-        .iter()
-        .any(|item| item.side == BridgeSide::Legacy && item.symbol == "SharedMapManager"));
-    assert!(evidence
-        .iter()
-        .any(|item| item.side == BridgeSide::Canonical && item.symbol == "Creature"));
+    assert!(
+        evidence
+            .iter()
+            .any(|item| item.side == BridgeSide::Legacy && item.symbol == "SharedMapManager")
+    );
+    assert!(
+        evidence
+            .iter()
+            .any(|item| item.side == BridgeSide::Canonical && item.symbol == "Creature")
+    );
     assert!(!evidence.iter().any(|item| {
         matches!(
             item.symbol.as_str(),

@@ -71,11 +71,7 @@ fn baseline_with_world_social(
         vec![
             unit(PackageRole::World, "wow-world/src/lib.rs", world),
             unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, core),
-            unit(
-                PackageRole::WorldSocial,
-                WORLD_SOCIAL_CRATE_ROOT,
-                social,
-            ),
+            unit(PackageRole::WorldSocial, WORLD_SOCIAL_CRATE_ROOT, social),
             unit(
                 PackageRole::Server,
                 "world-server/src/main.rs",
@@ -109,15 +105,27 @@ fn baseline_with_world_domain(
     let domain_path = format!("crates/{}/src/lib.rs", role.package_name());
     collect_units(
         vec![
-            unit(PackageRole::World, "crates/wow-world/src/lib.rs", &world_with_core_facade()),
-            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, &core_source("")),
+            unit(
+                PackageRole::World,
+                "crates/wow-world/src/lib.rs",
+                &world_with_core_facade(),
+            ),
+            unit(
+                PackageRole::WorldCore,
+                WORLD_CORE_CRATE_ROOT,
+                &core_source(""),
+            ),
             unit(role, &domain_path, domain),
             unit(
                 PackageRole::Server,
                 "crates/world-server/src/lib.rs",
                 &server_source("", ""),
             ),
-            unit(PackageRole::Network, "crates/wow-network/src/lib.rs", NETWORK),
+            unit(
+                PackageRole::Network,
+                "crates/wow-network/src/lib.rs",
+                NETWORK,
+            ),
         ],
         PersistenceAccessBaseline {
             schema_version: 3,
@@ -136,12 +144,8 @@ fn world_social_is_a_distinct_package_role_without_contract_ownership() {
             pub struct KickCommand;
         }
     "#;
-    let baseline = baseline_with_world_social(
-        &world_with_core_facade(),
-        &core_source(""),
-        social,
-    )
-    .expect("the Social domain source is inventoried without taking network contracts");
+    let baseline = baseline_with_world_social(&world_with_core_facade(), &core_source(""), social)
+        .expect("the Social domain source is inventoried without taking network contracts");
 
     assert_eq!(PackageRole::WorldSocial.package_name(), "wow-world-social");
     assert_eq!(PackageRole::Social.package_name(), "wow-social");
@@ -171,12 +175,8 @@ fn world_social_rejects_a_foreign_session_core_definition() {
 #[test]
 fn world_social_core_borrow_alias_impl_is_rejected_as_foreign() {
     let social = "use wow_world_core::session::SessionCore as CoreBorrow; impl CoreBorrow {}";
-    let error = baseline_with_world_social(
-        &world_with_core_facade(),
-        &core_source(""),
-        social,
-    )
-    .expect_err("a Core borrow alias does not authorize a Social impl");
+    let error = baseline_with_world_social(&world_with_core_facade(), &core_source(""), social)
+        .expect_err("a Core borrow alias does not authorize a Social impl");
     assert!(error.contains("wow-world-social"), "{error}");
     assert!(error.contains("implements SessionCore"), "{error}");
 }
@@ -189,12 +189,8 @@ fn world_social_core_borrow_alias_with_ambiguous_provider_fails_closed() {
         use self::local::OtherCore as CoreBorrow;
         impl CoreBorrow {}
     "#;
-    let error = baseline_with_world_social(
-        &world_with_core_facade(),
-        &core_source(""),
-        social,
-    )
-    .expect_err("ambiguous nominal providers must remain a hard error in Social");
+    let error = baseline_with_world_social(&world_with_core_facade(), &core_source(""), social)
+        .expect_err("ambiguous nominal providers must remain a hard error in Social");
     assert!(error.contains("candidate CoreBorrow"), "{error}");
     assert!(error.contains("ambiguous"), "{error}");
 }
@@ -595,11 +591,13 @@ fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
                 .package,
             "wow-world-core"
         );
-        assert!(baseline
-            .bridge_accesses
-            .bridges
-            .iter()
-            .any(|bridge| bridge.package == package));
+        assert!(
+            baseline
+                .bridge_accesses
+                .bridges
+                .iter()
+                .any(|bridge| bridge.package == package)
+        );
     }
 }
 
@@ -731,73 +729,126 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
     )
     .expect("the actual WorldLifecycle root and its declared modules are loadable");
 
-    assert!(spell.iter().all(|unit| unit.role == PackageRole::WorldSpell));
+    assert!(
+        spell
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldSpell)
+    );
     assert!(spell.iter().any(|unit| unit.logical_module_path == "crate"));
-    assert!(spell
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::player_cast"));
-    assert!(spell
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::session"));
-    assert!(interaction
-        .iter()
-        .all(|unit| unit.role == PackageRole::WorldInteraction));
-    assert!(interaction
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::session"));
-    assert!(interaction
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::state"));
-    assert!(instances
-        .iter()
-        .all(|unit| unit.role == PackageRole::WorldInstances));
-    assert!(instances.iter().any(|unit| unit.logical_module_path == "crate"));
-    assert!(instances
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::map_key"));
-    assert!(instances
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::state"));
-    assert!(visibility
-        .iter()
-        .all(|unit| unit.role == PackageRole::WorldVisibility));
-    assert!(visibility
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate"));
-    assert!(visibility
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::object_updates"));
-    assert!(visibility
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(
+        spell
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::player_cast")
+    );
+    assert!(
+        spell
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::session")
+    );
+    assert!(
+        interaction
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldInteraction)
+    );
+    assert!(
+        interaction
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::session")
+    );
+    assert!(
+        interaction
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::state")
+    );
+    assert!(
+        instances
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldInstances)
+    );
+    assert!(
+        instances
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate")
+    );
+    assert!(
+        instances
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::map_key")
+    );
+    assert!(
+        instances
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::state")
+    );
+    assert!(
+        visibility
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldVisibility)
+    );
+    assert!(
+        visibility
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate")
+    );
+    assert!(
+        visibility
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::object_updates")
+    );
+    assert!(
+        visibility
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::state")
+    );
     assert!(loot.iter().all(|unit| unit.role == PackageRole::WorldLoot));
     assert!(loot.iter().any(|unit| unit.logical_module_path == "crate"));
-    assert!(loot
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::state"));
-    assert!(entities
-        .iter()
-        .all(|unit| unit.role == PackageRole::WorldEntities));
-    assert!(entities
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::creature_publication"));
-    assert!(entities
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::state"));
-    assert!(inventory
-        .iter()
-        .all(|unit| unit.role == PackageRole::WorldInventory));
-    assert!(inventory
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::inventory_request_contracts"));
-    assert!(inventory
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::state"));
-    assert!(lifecycle
-        .iter()
-        .all(|unit| unit.role == PackageRole::WorldLifecycle));
-    assert!(lifecycle.iter().any(|unit| unit.logical_module_path == "crate"));
-    assert!(lifecycle
-        .iter()
-        .any(|unit| unit.logical_module_path == "crate::finalization"));
+    assert!(
+        loot.iter()
+            .any(|unit| unit.logical_module_path == "crate::state")
+    );
+    assert!(
+        entities
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldEntities)
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::creature_publication")
+    );
+    assert!(
+        entities
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::state")
+    );
+    assert!(
+        inventory
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldInventory)
+    );
+    assert!(
+        inventory
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::inventory_request_contracts")
+    );
+    assert!(
+        inventory
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::state")
+    );
+    assert!(
+        lifecycle
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldLifecycle)
+    );
+    assert!(
+        lifecycle
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate")
+    );
+    assert!(
+        lifecycle
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::finalization")
+    );
 }

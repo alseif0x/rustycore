@@ -11,14 +11,11 @@ use wow_data::{
     SpellShapeshiftFormStore,
 };
 use wow_entities::{
-    ApplyEnchantmentEffectAction,
-    item_resistance_bonus_actions_like_cpp, item_scaling_stat_bonus_actions_like_cpp,
-    item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
-    item_weapon_damage_actions_like_cpp,
+    ApplyEnchantmentEffectAction, item_resistance_bonus_actions_like_cpp,
+    item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
+    item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp,
 };
-use wow_world_core::session::{
-    OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp,
-};
+use wow_world_core::session::{OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp};
 
 use crate::{
     InventoryState, RepresentedItemBonusActionLikeCpp,
@@ -234,13 +231,14 @@ impl InventoryItemModsCx<'_> {
             );
         }
 
-        if let Some(action) = OwnedItemModifiersAccessLikeCpp::item_shield_block_value_from_selected_inputs_like_cpp(
-            self.catalogs.item_store,
-            Some(&item_stats_store),
-            self.catalogs.shield_block_regular_game_table,
-            item_entry,
-        )
-        .and_then(|value| item_shield_block_bonus_action_like_cpp(value, true, apply))
+        if let Some(action) =
+            OwnedItemModifiersAccessLikeCpp::item_shield_block_value_from_selected_inputs_like_cpp(
+                self.catalogs.item_store,
+                Some(&item_stats_store),
+                self.catalogs.shield_block_regular_game_table,
+                item_entry,
+            )
+            .and_then(|value| item_shield_block_bonus_action_like_cpp(value, true, apply))
         {
             planned_actions.push(RepresentedItemBonusActionLikeCpp {
                 item_guid,
@@ -251,12 +249,13 @@ impl InventoryItemModsCx<'_> {
 
         if let (Some(weapon), Some(inventory_type)) = (
             item_stats_store.weapon_template(item_entry),
-            self.inventory.represented_item_inventory_type_with_access_like_cpp(
-                self.inventory_access,
-                self.catalogs.item_store,
-                item_entry,
-                item_guid,
-            ),
+            self.inventory
+                .represented_item_inventory_type_with_access_like_cpp(
+                    self.inventory_access,
+                    self.catalogs.item_store,
+                    item_entry,
+                    item_guid,
+                ),
         ) {
             let (min_damage, max_damage) = self
                 .inventory
@@ -283,9 +282,7 @@ impl InventoryItemModsCx<'_> {
                 .modifier_access
                 .can_use_weapon_attack_type_like_cpp(attack_type)
                 != Some(false);
-            let has_shapeshift_combat_round_time = self
-                .shapeshift_combat_round_time()
-                .is_some();
+            let has_shapeshift_combat_round_time = self.shapeshift_combat_round_time().is_some();
             planned_actions.extend(
                 item_weapon_damage_actions_like_cpp(
                     slot,
@@ -325,10 +322,7 @@ impl InventoryItemModsCx<'_> {
         action_count
     }
 
-    fn resolved_inventory_item_object(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> Option<wow_entities::Item> {
+    fn resolved_inventory_item_object(&self, item_guid: ObjectGuid) -> Option<wow_entities::Item> {
         self.inventory
             .resolved_player_inventory_runtime_with_access_like_cpp(self.inventory_access)?
             .item_objects()

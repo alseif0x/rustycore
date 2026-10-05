@@ -142,10 +142,7 @@ impl crate::InventoryState {
         }
     }
 
-    pub fn player_equipment_inventory_authority_complete_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn player_equipment_inventory_authority_complete_like_cpp(&self, hub: HubRef<'_>) -> bool {
         let canonical = hub
             .core
             .with_owned_player_like_cpp(|player| {

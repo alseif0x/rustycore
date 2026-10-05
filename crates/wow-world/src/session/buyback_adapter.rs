@@ -39,7 +39,6 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn current_buyback_slot_like_cpp(&self) -> u8 {
-        self.inventory
-            .current_buyback_slot_for_test_like_cpp()
+        self.inventory.current_buyback_slot_for_test_like_cpp()
     }
 }

@@ -1,14 +1,12 @@
 use super::*;
-use crate::{
-    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
-};
+use crate::{PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp};
 use std::collections::BTreeSet;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
 use wow_spell_acquisition::test_fixtures::*;
 use wow_spell_acquisition::{
-    project_spell_acquisition_like_cpp, SpellAcquisitionPostCommitActionLikeCpp,
-    SpellAcquisitionRootLikeCpp,
+    SpellAcquisitionPostCommitActionLikeCpp, SpellAcquisitionRootLikeCpp,
+    project_spell_acquisition_like_cpp,
 };
 
 struct Exclusion(Arc<Mutex<Vec<&'static str>>>);

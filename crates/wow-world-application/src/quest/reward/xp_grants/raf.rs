@@ -7,15 +7,14 @@
 use wow_world_core::session::{CoreXPGainAccessLikeCpp, SessionWorldConfig};
 use wow_world_social::SessionSocialLimits;
 
+use super::super::QuestRewardCx;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::QuestXpGainFixtureRefsLikeCpp;
-use super::super::QuestRewardCx;
 
 impl QuestRewardCx<'_> {
     pub(super) fn gets_recruit_a_friend_xp_bonus_like_cpp(
         &self,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixtures: &QuestXpGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &QuestXpGainFixtureRefsLikeCpp<'_>,
     ) -> bool {
         Self::gets_recruit_a_friend_bonus_like_cpp(
             self.xp_gain_access_like_cpp(),
@@ -40,8 +39,7 @@ impl QuestRewardCx<'_> {
         for_xp: bool,
         world_test_consumer: bool,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_position: &Option<wow_core::Position>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &Option<wow_core::Position>,
     ) -> bool {
         Self::gets_recruit_a_friend_bonus_from_access_like_cpp(
             &player,
@@ -63,8 +61,7 @@ impl QuestRewardCx<'_> {
         for_xp: bool,
         world_test_consumer: bool,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_position: &Option<wow_core::Position>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &Option<wow_core::Position>,
     ) -> bool {
         if !player.session_is_logged_in_like_cpp() {
             return false;
@@ -77,17 +74,13 @@ impl QuestRewardCx<'_> {
             return false;
         }
 
-        let (Some(player_guid), Some(group_guid)) = (
-            player.player_guid_like_cpp(),
-            {
-                let owner = player.player_group_owner_access_like_cpp();
-                social.resolved_group_guid_with_access_like_cpp(&owner, world_test_consumer)
-            },
-        ) else {
+        let (Some(player_guid), Some(group_guid)) = (player.player_guid_like_cpp(), {
+            let owner = player.player_group_owner_access_like_cpp();
+            social.resolved_group_guid_with_access_like_cpp(&owner, world_test_consumer)
+        }) else {
             return false;
         };
-        let Some(group_members) =
-            player.group_members_for_player_like_cpp(group_guid, player_guid)
+        let Some(group_members) = player.group_members_for_player_like_cpp(group_guid, player_guid)
         else {
             return false;
         };
@@ -99,9 +92,7 @@ impl QuestRewardCx<'_> {
         };
         let player_map_id = player.player_map_id_like_cpp();
         let player_instance_id = player.player_instance_id_like_cpp().unwrap_or(0);
-        let max_distance = config
-            .reputation_rates_like_cpp()
-            .recruit_a_friend_distance;
+        let max_distance = config.reputation_rates_like_cpp().recruit_a_friend_distance;
 
         for member_guid in group_members {
             if member_guid == player_guid {
@@ -132,8 +123,7 @@ impl QuestRewardCx<'_> {
                 if member_level > max_player_level {
                     continue;
                 }
-                if member_level < player_level
-                    && player_level - member_level > max_level_difference
+                if member_level < player_level && player_level - member_level > max_level_difference
                 {
                     continue;
                 }

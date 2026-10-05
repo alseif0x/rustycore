@@ -11,8 +11,7 @@ use wow_packet::WorldPacket;
 use crate::{HandlerFuture, PacketProcessing, SessionStatus};
 
 /// The call a registered opcode performs for a concrete session and catalog type.
-pub type PacketHandlerFn<S, C> =
-    for<'a> fn(&'a mut S, &'a C, WorldPacket) -> HandlerFuture<'a, ()>;
+pub type PacketHandlerFn<S, C> = for<'a> fn(&'a mut S, &'a C, WorldPacket) -> HandlerFuture<'a, ()>;
 
 /// A registered packet handler: admission metadata and the call itself.
 pub struct PacketHandlerEntry<S, C> {

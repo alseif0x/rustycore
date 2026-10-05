@@ -1,21 +1,21 @@
 use std::sync::Arc;
 
 use tracing::{info, warn};
+use wow_core::ObjectGuid;
+use wow_packet::packets::misc::NUM_ACCOUNT_DATA_TYPES;
 use wow_persistence::{
     AccountCollectionSaveLikeCpp, AccountHeirloomRowLikeCpp, AccountMountRowLikeCpp,
     AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 use wow_world_core::session::HubMut;
-use wow_core::ObjectGuid;
-use wow_packet::packets::misc::NUM_ACCOUNT_DATA_TYPES;
 
 use super::SessionLifecycleState;
-use crate::{
-    AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp,
-    AccountDataLikeCpp, FinalizationOutcome, GLOBAL_CACHE_MASK_LIKE_CPP,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedAtLoginFlagRemovalLikeCpp;
+use crate::{
+    AccountDataLikeCpp, AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp,
+    AccountToySaveRowLikeCpp, FinalizationOutcome, GLOBAL_CACHE_MASK_LIKE_CPP,
+};
 
 impl SessionLifecycleState {
     pub fn tutorial_values_like_cpp(&self) -> &[u32; 8] {
@@ -62,10 +62,7 @@ impl SessionLifecycleState {
     }
 
     /// Mark the current character as offline (#200: through the lifecycle port).
-    pub async fn mark_character_offline(
-        &mut self,
-        hub: &mut HubMut<'_>,
-    ) -> FinalizationOutcome {
+    pub async fn mark_character_offline(&mut self, hub: &mut HubMut<'_>) -> FinalizationOutcome {
         let Some(guid) = hub.core.player_guid() else {
             return FinalizationOutcome::NoWork;
         };

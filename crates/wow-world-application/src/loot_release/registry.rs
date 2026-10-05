@@ -18,10 +18,7 @@ impl LootReleaseCxLikeCpp<'_> {
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.identity.player_level,
             #[cfg(any(test, feature = "test-fixtures"))]
-            &self
-                .fixtures
-                .vehicles
-                .player_transport_login_state_like_cpp,
+            &self.fixtures.vehicles.player_transport_login_state_like_cpp,
         );
         let sync = crate::PlayerRegistrySyncContext::new(
             position,

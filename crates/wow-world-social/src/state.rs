@@ -6,7 +6,7 @@ use crate::contracts::{
     RepresentedDeclinePetitionLikeCpp, RepresentedDuelAcceptedLikeCpp,
     RepresentedDuelCancelledLikeCpp, RepresentedDuelRequestedLikeCpp,
     RepresentedForceDeselectLikeCpp, RepresentedQueryPetitionLikeCpp,
-    RepresentedSilencePartyTalkerLikeCpp, RepresentedSignPetitionLikeCpp,
+    RepresentedSignPetitionLikeCpp, RepresentedSilencePartyTalkerLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::test_support::{
@@ -74,7 +74,9 @@ impl SessionSocialLimits {
             #[cfg(any(test, feature = "test-fixtures"))]
             represented_subgroup_like_cpp: None,
             #[cfg(any(test, feature = "test-fixtures"))]
-            represented_group_update_sequences_like_cpp: std::array::from_fn(|_| Default::default()),
+            represented_group_update_sequences_like_cpp: std::array::from_fn(|_| {
+                Default::default()
+            }),
             #[cfg(any(test, feature = "test-fixtures"))]
             guild_test_fixture_like_cpp: GuildTestFixtureLikeCpp::default(),
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -116,9 +118,7 @@ impl SessionSocialLimits {
         prefixes: Vec<String>,
         max_prefixes: usize,
     ) -> (usize, bool) {
-        self.addon_filter
-            .registered_addon_prefixes
-            .extend(prefixes);
+        self.addon_filter.registered_addon_prefixes.extend(prefixes);
         self.addon_filter.filter_addon_messages =
             self.addon_filter.registered_addon_prefixes.len() <= max_prefixes;
         (
@@ -258,15 +258,21 @@ impl SessionSocialLimits {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_duel_requests_for_test_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
-        &self.duel_test_fixture_like_cpp.represented_duel_requests_like_cpp
+    pub fn represented_duel_requests_for_test_like_cpp(
+        &self,
+    ) -> &[RepresentedDuelRequestedLikeCpp] {
+        &self
+            .duel_test_fixture_like_cpp
+            .represented_duel_requests_like_cpp
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn represented_can_duel_spell_casts_for_test_like_cpp(
         &self,
     ) -> &[RepresentedCanDuelSpellCastLikeCpp] {
-        &self.duel_test_fixture_like_cpp.represented_can_duel_spell_casts_like_cpp
+        &self
+            .duel_test_fixture_like_cpp
+            .represented_can_duel_spell_casts_like_cpp
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -283,12 +289,15 @@ impl SessionSocialLimits {
     pub fn represented_force_deselects_for_test_like_cpp(
         &self,
     ) -> &[RepresentedForceDeselectLikeCpp] {
-        &self.duel_test_fixture_like_cpp.represented_force_deselects_like_cpp
+        &self
+            .duel_test_fixture_like_cpp
+            .represented_force_deselects_like_cpp
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn clear_represented_guild_identity_for_test_like_cpp(&mut self) {
-        self.guild_test_fixture_like_cpp.represented_guild_id_like_cpp = 0;
+        self.guild_test_fixture_like_cpp
+            .represented_guild_id_like_cpp = 0;
         self.guild_test_fixture_like_cpp
             .represented_guild_id_authority_complete_like_cpp = false;
     }

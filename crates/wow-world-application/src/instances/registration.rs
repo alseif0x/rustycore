@@ -4,18 +4,18 @@
 
 use wow_constants::ClientOpcodes;
 use wow_handler::{
-    DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry,
-    PacketProcessing, RegistryBuilder, SessionStatus,
+    DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
+    RegistryBuilder, SessionStatus,
 };
 use wow_packet::WorldPacket;
 
-use crate::instances::{
-    InstancesHandlerHostLikeCpp, handle_instance_lock_response_like_cpp,
-    handle_request_raid_info_like_cpp, handle_reset_instances_like_cpp,
-};
 use crate::instances::difficulty::{
     handle_set_difficulty_id_like_cpp, handle_set_dungeon_difficulty_like_cpp,
     handle_set_raid_difficulty_like_cpp, handle_toggle_difficulty_like_cpp,
+};
+use crate::instances::{
+    InstancesHandlerHostLikeCpp, handle_instance_lock_response_like_cpp,
+    handle_request_raid_info_like_cpp, handle_reset_instances_like_cpp,
 };
 
 fn handle_request_raid_info_thunk<'a, S, C>(

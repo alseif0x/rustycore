@@ -22,13 +22,16 @@ fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session.set_player_registry(player_registry);
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .loot_state = Some(wow_entities::LootState::JustDeactivated);
     session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .linked_trap_guid = Some(linked_trap_guid);
     let linked_state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(linked_trap_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(linked_trap_guid);
     linked_state.map_id = Some(571);
     linked_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
     linked_state.loot_state = Some(wow_entities::LootState::Ready);
@@ -49,12 +52,14 @@ fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
     );
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::NotReady));
     assert_eq!(state.go_state, None);
     let linked_state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(linked_trap_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(linked_trap_guid)
         .unwrap();
     assert_eq!(
         linked_state.loot_state,
@@ -67,7 +72,9 @@ fn gameobject_goober_just_deactivated_consumable_stays_not_ready_like_cpp() {
             .contains(&linked_trap_guid)
     );
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
                 gameobject_guid,
@@ -119,7 +126,8 @@ async fn gameobject_goober_just_deactivated_non_consumable_anim_progress_sends_n
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 18);
     let state = session
-        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+        .world_entities
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8);
     state.loot_state = Some(wow_entities::LootState::JustDeactivated);
     state.go_anim_progress = 1;
@@ -136,7 +144,8 @@ async fn gameobject_goober_just_deactivated_non_consumable_anim_progress_sends_n
     session.process_pending().await;
 
     let state = session
-        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .world_entities
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(wow_entities::LootState::Ready));
     assert!(

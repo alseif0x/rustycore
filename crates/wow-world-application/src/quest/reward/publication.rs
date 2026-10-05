@@ -10,7 +10,11 @@ impl QuestRewardCx<'_> {
         let owner = self.player.quest_objective_access_like_cpp();
         let publication = self.player.packet_publication_access_like_cpp();
         super::super::quest_log::send_represented_quest_log_slot_update_like_cpp(
-            &owner, self.quest_state, self.catalogs, &publication, slot,
+            &owner,
+            self.quest_state,
+            self.catalogs,
+            &publication,
+            slot,
             self.world_test_consumer,
         );
     }
@@ -20,13 +24,14 @@ impl QuestRewardCx<'_> {
         loot: &wow_world_loot::LootState,
         #[cfg(any(test, feature = "test-fixtures"))]
         planning: &super::item_planning::QuestRewardItemPlanningFixtureRefsLikeCpp<'_>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        vitals: (&u32, &u32, &bool),
-        #[cfg(any(test, feature = "test-fixtures"))]
-        transport: &Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        vehicle_and_pet: (
-            &Option<wow_entities::Vehicle>, &Option<i32>, &Option<u32>,
+        #[cfg(any(test, feature = "test-fixtures"))] vitals: (&u32, &u32, &bool),
+        #[cfg(any(test, feature = "test-fixtures"))] transport: &Option<
+            Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>,
+        >,
+        #[cfg(any(test, feature = "test-fixtures"))] vehicle_and_pet: (
+            &Option<wow_entities::Vehicle>,
+            &Option<i32>,
+            &Option<u32>,
             &Option<wow_core::ObjectGuid>,
         ),
     ) {

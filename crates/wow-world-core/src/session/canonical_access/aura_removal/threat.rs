@@ -24,11 +24,7 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
             .unwrap_or([0; 2]);
         let effects = spell_store
             .and_then(|store| {
-                store.effects_for_difficulty_like_cpp(
-                    spell_id,
-                    difficulty,
-                    difficulty_store,
-                )
+                store.effects_for_difficulty_like_cpp(spell_id, difficulty, difficulty_store)
             })
             .map(|effects| {
                 effects
@@ -75,34 +71,45 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         difficulty_store: Option<&wow_data::DifficultyStore>,
         consumer_test: bool,
     ) {
-        let snapshot = self.aura_subsystem_snapshot_like_cpp()
+        let snapshot = self
+            .aura_subsystem_snapshot_like_cpp()
             .and_then(|auras| auras.threat_snapshot_like_cpp(slot).cloned())
             .unwrap_or_else(|| {
                 let difficulty = self.core.current_map_difficulty_id_like_cpp();
                 Self::threat_aura_snapshot_from_stores_like_cpp(
-                    spell_store, difficulty_store, spell_id, difficulty,
-                    effect_mask, represented_effect_amounts,
+                    spell_store,
+                    difficulty_store,
+                    spell_id,
+                    difficulty,
+                    effect_mask,
+                    represented_effect_amounts,
                 )
             });
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return;
         };
-        let _canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.apply_player_threat_aura_like_cpp(
-                spell_id, caster_guid, slot, snapshot.clone(),
-            );
-        }).is_some();
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_player_threat_aura_like_cpp(
+                    spell_id,
+                    caster_guid,
+                    slot,
+                    snapshot.clone(),
+                );
+            })
+            .is_some();
         #[cfg(any(test, feature = "test-fixtures"))]
         if consumer_test && !_canonical && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
                 auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
                 let interrupt_flags = snapshot.interrupt_flags();
                 for &(effect_bit, aura_type, amount, misc_value) in snapshot.effects() {
-                    let aura = wow_entities::AppliedAuraRef::new(
-                        spell_id, caster_guid, slot, effect_bit,
-                    );
+                    let aura =
+                        wow_entities::AppliedAuraRef::new(spell_id, caster_guid, slot, effect_bit);
                     auras.register_applied_aura(aura, None, interrupt_flags[0], interrupt_flags[1]);
-                    auras.register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
+                    auras
+                        .register_applied_aura_effect_like_cpp(aura, aura_type, amount, misc_value);
                 }
             });
         }
@@ -121,9 +128,12 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return;
         };
-        let _canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.remove_player_threat_aura_like_cpp(spell_id, caster_guid, slot, effect_mask);
-        }).is_some();
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.remove_player_threat_aura_like_cpp(spell_id, caster_guid, slot, effect_mask);
+            })
+            .is_some();
         #[cfg(any(test, feature = "test-fixtures"))]
         if consumer_test && !_canonical && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
@@ -132,7 +142,10 @@ impl PlayerAuraRemovalAccessLikeCpp<'_> {
                     let effect_bit = 1u32 << effect_index;
                     if effect_mask & effect_bit != 0 {
                         auras.remove_applied(wow_entities::AppliedAuraRef::new(
-                            spell_id, caster_guid, slot, effect_bit,
+                            spell_id,
+                            caster_guid,
+                            slot,
+                            effect_bit,
                         ));
                     }
                 }

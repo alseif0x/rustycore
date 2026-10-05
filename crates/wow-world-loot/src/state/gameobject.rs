@@ -65,7 +65,6 @@ impl LootState {
         queued
     }
 
-
     pub fn represented_gathering_node_xp_like_cpp(
         &self,
         hub: HubRef<'_>,

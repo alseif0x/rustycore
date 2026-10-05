@@ -1,8 +1,6 @@
 use super::LootState;
 use wow_core::ObjectGuid;
-use wow_loot::{
-    LootClaimLease, OwnedLootAuthority, OwnedLootScope, OwnedLootSnapshot,
-};
+use wow_loot::{LootClaimLease, OwnedLootAuthority, OwnedLootScope, OwnedLootSnapshot};
 use wow_packet::packets::update::UnitDataValuesDeltaUpdate;
 use wow_world_core::session::HubRef;
 
@@ -16,9 +14,15 @@ impl LootState {
         authority: Option<&OwnedLootAuthority>,
         update: UnitDataValuesDeltaUpdate,
     ) -> UnitDataValuesDeltaUpdate {
-        hub.core.loot_release_access_like_cpp().creature_loot_release_values_for_viewer_like_cpp(
-            creature_guid, viewer_guid, viewer_has_pending_bind, authority, update,
-        )
+        hub.core
+            .loot_release_access_like_cpp()
+            .creature_loot_release_values_for_viewer_like_cpp(
+                creature_guid,
+                viewer_guid,
+                viewer_has_pending_bind,
+                authority,
+                update,
+            )
     }
 
     /// Rebuild every session-local field derived from one authoritative

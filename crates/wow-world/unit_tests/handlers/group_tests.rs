@@ -10,8 +10,8 @@
 use super::{
     PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, current_group_guid_like_cpp,
     first_connected_group_member_like_cpp, party_player_info_like_cpp,
-    send_group_new_leader_like_cpp, send_party_update,
-    send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
+    send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
+    sender_can_start_ready_check_like_cpp,
 };
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
@@ -692,7 +692,9 @@ fn lfg_uninvite_session_like_cpp(
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(sender_guid));
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::new(
         PlayerRegistry::with_canonical_player_fixtures_like_cpp(),
     ));

@@ -81,8 +81,7 @@ impl InstanceState {
         player: &InstancePlayerAccessLikeCpp<'_>,
         difficulty_store: &wow_data::DifficultyStore,
     ) -> Option<u32> {
-        let (dungeon, raid, _) =
-            self.player_difficulty_preferences_with_access_like_cpp(player)?;
+        let (dungeon, raid, _) = self.player_difficulty_preferences_with_access_like_cpp(player)?;
         let raid_entry = difficulty_store.get(raid);
         let entry = match raid_entry {
             Some(entry) if entry.toggle_difficulty_id != 0 => entry,
@@ -167,11 +166,7 @@ impl InstanceState {
         }) as wow_map::Difficulty
     }
 
-    fn map_uses_legacy_raid_difficulty_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        map_id: u32,
-    ) -> bool {
+    fn map_uses_legacy_raid_difficulty_like_cpp(&self, hub: HubRef<'_>, map_id: u32) -> bool {
         let Some(default_difficulty) = hub.catalogs.map_difficulty_store().and_then(|store| {
             hub.catalogs
                 .difficulty_store()
@@ -241,19 +236,13 @@ impl InstanceState {
         self.set_player_difficulty_with_access_like_cpp(&player, kind, difficulty_id)
     }
 
-    pub fn resolved_dungeon_difficulty_id_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u32> {
+    pub fn resolved_dungeon_difficulty_id_like_cpp(&self, hub: HubRef<'_>) -> Option<u32> {
         self.player_difficulty_preferences_snapshot_like_cpp(hub)
             .map(|preferences| preferences.0)
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_dungeon_difficulty_id_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> u32 {
+    pub fn represented_dungeon_difficulty_id_like_cpp(&self, hub: HubRef<'_>) -> u32 {
         self.resolved_dungeon_difficulty_id_like_cpp(hub)
             .expect("test Player difficulty owner must resolve")
     }
@@ -271,10 +260,7 @@ impl InstanceState {
         );
     }
 
-    pub fn represented_toggle_difficulty_target_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<u32> {
+    pub fn represented_toggle_difficulty_target_like_cpp(&self, hub: HubRef<'_>) -> Option<u32> {
         let store = hub.catalogs.difficulty_store()?;
         let player = hub.core.instance_player_access_like_cpp();
         self.represented_toggle_difficulty_target_with_access_like_cpp(&player, store)

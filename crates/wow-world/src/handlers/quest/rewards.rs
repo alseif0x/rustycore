@@ -8,8 +8,8 @@
 use super::*;
 use crate::quest::application::QuestRewardDurablePlanLikeCpp;
 
-mod currencies;
 mod controller;
+mod currencies;
 mod items;
 mod validation;
 
@@ -32,7 +32,10 @@ impl WorldSession {
             wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
                 &self.fixtures.auras.represented_shapeshift_form_like_cpp,
                 &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-                &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &self
+                    .fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
                 &self.fixtures.auras.visible_auras,
                 &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
             ),
@@ -57,12 +60,14 @@ impl WorldSession {
             self.catalogs.quests.xp_store.as_deref(),
             cfg!(test),
         );
-        operation.remove_quest_required_items_and_currencies_like_cpp(
-            plan,
-            quest,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            stats_fixtures,
-        ).await
+        operation
+            .remove_quest_required_items_and_currencies_like_cpp(
+                plan,
+                quest,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                stats_fixtures,
+            )
+            .await
     }
 
     fn record_represented_quest_reward_reputation_like_cpp(
@@ -70,15 +75,22 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
     ) {
         #[cfg(any(test, feature = "test-fixtures"))]
-        let mut fixtures = wow_world_application::QuestRewardReputationFixtureRefsLikeCpp::new_like_cpp(
-            &mut self.fixtures.progression.reputation_state_like_cpp,
-            &self.fixtures.progression.represented_gray_level_script_overrides_like_cpp,
-            &self.fixtures.movement.player_position,
-            &self.fixtures.auras.player_aura_authority_complete_like_cpp,
-            &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
-            &self.fixtures.auras.visible_auras,
-            &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
-        );
+        let mut fixtures =
+            wow_world_application::QuestRewardReputationFixtureRefsLikeCpp::new_like_cpp(
+                &mut self.fixtures.progression.reputation_state_like_cpp,
+                &self
+                    .fixtures
+                    .progression
+                    .represented_gray_level_script_overrides_like_cpp,
+                &self.fixtures.movement.player_position,
+                &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &self
+                    .fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &self.fixtures.auras.visible_auras,
+                &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+            );
         let player = self.core.quest_reward_player_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
             &self.fixtures.identity.player_race,

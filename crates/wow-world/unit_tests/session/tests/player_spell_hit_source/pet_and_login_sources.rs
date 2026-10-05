@@ -183,7 +183,9 @@ fn player_spell_hit_source_authority_requires_login_skill_guild_and_quest_source
         [recast.clone()],
     )));
     session.begin_player_quest_status_authority_load_like_cpp();
-    session.quest_state.fixture_clear_player_quest_statuses_like_cpp();
+    session
+        .quest_state
+        .fixture_clear_player_quest_statuses_like_cpp();
     session
         .quest_state
         .fixture_insert_player_quest_status_like_cpp(

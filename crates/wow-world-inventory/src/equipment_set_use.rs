@@ -6,8 +6,8 @@ use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_data::progression_rewards::{ScalingStatDistributionStore, ScalingStatValuesStore};
 use wow_entities::{
-    ItemObjectUpdateLikeCpp, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_ITEM_END,
+    INVENTORY_SLOT_ITEM_START, ItemObjectUpdateLikeCpp,
 };
 use wow_world_core::session::{
     OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp, OwnedItemSetAccessLikeCpp,
@@ -58,7 +58,8 @@ impl InventoryState {
                 self.resolved_player_inventory_slot_count_with_access_like_cpp(inventory_access)?,
             )
             .min(INVENTORY_SLOT_ITEM_END);
-        let inventory_items = self.resolved_inventory_items_with_access_like_cpp(inventory_access)?;
+        let inventory_items =
+            self.resolved_inventory_items_with_access_like_cpp(inventory_access)?;
         (INVENTORY_SLOT_ITEM_START..inventory_end).find(|slot| !inventory_items.contains_key(slot))
     }
 
@@ -80,8 +81,9 @@ impl InventoryState {
         item_stats_store: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
         scaling_stat_distribution_store: Option<&Arc<ScalingStatDistributionStore>>,
         scaling_stat_values_store: Option<&Arc<ScalingStatValuesStore>>,
-        shield_block_regular_game_table:
-            Option<&std::sync::Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
+        shield_block_regular_game_table: Option<
+            &std::sync::Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>,
+        >,
         spell_shapeshift_form_store: Option<&std::sync::Arc<wow_data::SpellShapeshiftFormStore>>,
         src: u8,
         dst: u8,
@@ -110,7 +112,10 @@ impl InventoryState {
 
         if src < INVENTORY_SLOT_BAG_END
             && self
-                .resolved_inventory_item_object_with_access_like_cpp(inventory_access, src_item.guid)
+                .resolved_inventory_item_object_with_access_like_cpp(
+                    inventory_access,
+                    src_item.guid,
+                )
                 .is_some_and(|item| !item.is_broken())
         {
             self.record_item_mods_for_equipment_set_like_cpp(
@@ -195,7 +200,10 @@ impl InventoryState {
 
         if dst < INVENTORY_SLOT_BAG_END
             && self
-                .resolved_inventory_item_object_with_access_like_cpp(inventory_access, src_item.guid)
+                .resolved_inventory_item_object_with_access_like_cpp(
+                    inventory_access,
+                    src_item.guid,
+                )
                 .is_some_and(|item| !item.is_broken())
         {
             self.record_item_mods_for_equipment_set_like_cpp(
@@ -275,8 +283,9 @@ impl InventoryState {
         item_stats_store: Option<&std::sync::Arc<wow_data::ItemStatsStore>>,
         scaling_stat_distribution_store: Option<&Arc<ScalingStatDistributionStore>>,
         scaling_stat_values_store: Option<&Arc<ScalingStatValuesStore>>,
-        shield_block_regular_game_table:
-            Option<&std::sync::Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>>,
+        shield_block_regular_game_table: Option<
+            &std::sync::Arc<wow_data::ShieldBlockRegularGameTableLikeCpp>,
+        >,
         spell_shapeshift_form_store: Option<&std::sync::Arc<wow_data::SpellShapeshiftFormStore>>,
         guid: ObjectGuid,
         slot: u8,
@@ -337,9 +346,10 @@ impl InventoryState {
         );
 
         if let Some(dst_item) = dst_item {
-            let _ = self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
-                inventory.store_item_in_slot_like_cpp(src, dst_item.clone());
-            });
+            let _ =
+                self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
+                    inventory.store_item_in_slot_like_cpp(src, dst_item.clone());
+                });
             let _ = self.apply_inventory_item_object_updates_with_access_like_cpp(
                 access,
                 dst_item.guid,
@@ -349,9 +359,10 @@ impl InventoryState {
                 ],
             );
         } else {
-            let _ = self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
-                inventory.remove_item_from_slot_like_cpp(src);
-            });
+            let _ =
+                self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
+                    inventory.remove_item_from_slot_like_cpp(src);
+                });
         }
 
         true

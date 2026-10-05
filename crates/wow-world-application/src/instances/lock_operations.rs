@@ -4,6 +4,7 @@
 
 use tracing::{info, warn};
 use wow_core::ObjectGuid;
+use wow_data::{MapDifficultyStore, MapStore};
 use wow_packet::ClientPacket;
 use wow_packet::packets::instance::{
     InstanceLockResponse, InstanceReset, InstanceResetFailed, InstanceSaveCreated,
@@ -11,16 +12,12 @@ use wow_packet::packets::instance::{
 use wow_packet::packets::misc::{
     CalendarRaidLockoutAdded, CalendarRaidLockoutUpdated, SetSavedInstanceExtend,
 };
-use wow_persistence::{
-    InstanceLockPersistenceOutcomeLikeCpp,
+use wow_persistence::InstanceLockPersistenceOutcomeLikeCpp;
+use wow_world_core::session::{
+    InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp, PacketPublicationAccessLikeCpp,
 };
 use wow_world_instances::{InstanceState, RepresentedPendingBind};
 use wow_world_lifecycle::SessionLifecycleState;
-use wow_world_core::session::{
-    InstanceLockManagerAccessLikeCpp, InstancePlayerAccessLikeCpp,
-    PacketPublicationAccessLikeCpp,
-};
-use wow_data::{MapDifficultyStore, MapStore};
 
 use crate::instances::InstanceLockOperationsHandlerCxLikeCpp;
 
@@ -136,7 +133,9 @@ pub(super) async fn reset_locks_with_access_like_cpp(
     }
 
     for lock in reset_result.reset {
-        packets.send_packet(&InstanceReset { map_id: lock.map_id });
+        packets.send_packet(&InstanceReset {
+            map_id: lock.map_id,
+        });
     }
 
     if method == InstanceResetMethodLikeCpp::Manual {
@@ -227,9 +226,8 @@ async fn confirm_pending_bind_like_cpp(
     ) else {
         return false;
     };
-    let Some((is_new_lock, new_lock, persistence_plan, now)) = cx
-        .locks
-        .update_lock_for_player_with_persistence_like_cpp(
+    let Some((is_new_lock, new_lock, persistence_plan, now)) =
+        cx.locks.update_lock_for_player_with_persistence_like_cpp(
             player_guid,
             &entries,
             pending_bind.instance_id,
@@ -278,9 +276,8 @@ fn send_calendar_raid_lockout_added_like_cpp(
     now: u64,
 ) {
     let effective_expiry = lock.effective_expiry_time_at(entries, reset_schedule, now);
-    let remaining =
-        (effective_expiry as i128 - now as i128).clamp(i128::from(i32::MIN), i128::from(i32::MAX))
-            as i32;
+    let remaining = (effective_expiry as i128 - now as i128)
+        .clamp(i128::from(i32::MIN), i128::from(i32::MAX)) as i32;
     packets.send_packet(&CalendarRaidLockoutAdded::new_at_unix(
         u64::from(lock.instance_id),
         now.min(i64::MAX as u64) as i64,
@@ -346,13 +343,14 @@ pub async fn handle_set_saved_instance_extend_like_cpp(
             .min(i128::from(i32::MAX))
             .max(0) as i32
     };
-    cx.packets.send_packet(&CalendarRaidLockoutUpdated::new_at_unix(
-        now.min(i64::MAX as u64) as i64,
-        query.map_id,
-        query.difficulty_id,
-        remaining(expiry_times.0),
-        remaining(expiry_times.1),
-    ));
+    cx.packets
+        .send_packet(&CalendarRaidLockoutUpdated::new_at_unix(
+            now.min(i64::MAX as u64) as i64,
+            query.map_id,
+            query.difficulty_id,
+            remaining(expiry_times.0),
+            remaining(expiry_times.1),
+        ));
 }
 
 fn map_db2_entries_like_cpp(

@@ -4,10 +4,10 @@
 //! Selected canonical inputs for one PlayerCondition evaluation.
 
 use crate::session::{PlayerGroupOwnerAccessLikeCpp, RepresentedPlayerSkillLikeCpp, SessionCore};
-use wow_constants::{TypeId, TypeMask, UnitStandStateType};
+use std::collections::HashMap;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_constants::UnitFlags;
-use std::collections::HashMap;
+use wow_constants::{TypeId, TypeMask, UnitStandStateType};
 use wow_core::Position;
 use wow_entities::{Player, PlayerTaxiState, PlayerWorldLocalState, WorldObject};
 
@@ -65,15 +65,15 @@ impl<'a> PlayerConditionFixtureRefsLikeCpp<'a> {
         max_health: &'a u32,
         alive: &'a bool,
         taxi_destinations: &'a Vec<u32>,
-        taxi_flight_state:
-            &'a Option<crate::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp>,
+        taxi_flight_state: &'a Option<
+            crate::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp,
+        >,
         taxi_unit_flags: &'a UnitFlags,
         taxi_mounted: &'a bool,
         visible_auras: &'a HashMap<u8, wow_entities::AuraApplicationLikeCpp>,
         aura_authority_complete: &'a bool,
         spell_hit_aura_authority_tombstoned: &'a bool,
-        canonical_threat_aura_snapshots:
-            &'a HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
+        canonical_threat_aura_snapshots: &'a HashMap<u8, wow_entities::AuraThreatSnapshotLikeCpp>,
         player_skill_records: &'a HashMap<u16, RepresentedPlayerSkillLikeCpp>,
     ) -> Self {
         Self {
@@ -117,7 +117,9 @@ pub struct PlayerConditionAccessLikeCpp<'a> {
 impl SessionCore {
     pub fn player_condition_access_with_selected_fixture_refs_like_cpp<'a>(
         &'a self,
-        #[cfg(any(test, feature = "test-fixtures"))] fixtures: PlayerConditionFixtureRefsLikeCpp<'a>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: PlayerConditionFixtureRefsLikeCpp<
+            'a,
+        >,
     ) -> PlayerConditionAccessLikeCpp<'a> {
         PlayerConditionAccessLikeCpp {
             core: self,
@@ -131,23 +133,26 @@ impl PlayerConditionAccessLikeCpp<'_> {
     pub fn resolved_player_skill_records_like_cpp(
         &self,
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        self.core.resolved_player_skill_records_for_publication_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.player_skill_records,
-        )
+        self.core
+            .resolved_player_skill_records_for_publication_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.player_skill_records,
+            )
     }
 
     pub fn resolved_player_aura_authority_complete_like_cpp(&self) -> Option<bool> {
-        self.core.player_aura_subsystem_snapshot_with_fixture_refs_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.aura_authority_complete,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.spell_hit_aura_authority_tombstoned,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.visible_auras,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.canonical_threat_aura_snapshots,
-        ).map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
+        self.core
+            .player_aura_subsystem_snapshot_with_fixture_refs_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.aura_authority_complete,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.spell_hit_aura_authority_tombstoned,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.visible_auras,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.canonical_threat_aura_snapshots,
+            )
+            .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
     }
 
     pub fn player_handle_absent_like_cpp(&self) -> bool {
@@ -187,7 +192,10 @@ impl PlayerConditionAccessLikeCpp<'_> {
 
     pub fn known_spells_snapshot_like_cpp(&self) -> Option<Vec<i32>> {
         self.core.with_owned_player_like_cpp(|player| {
-            player.spell_runtime_like_cpp().known_spells_like_cpp().to_vec()
+            player
+                .spell_runtime_like_cpp()
+                .known_spells_like_cpp()
+                .to_vec()
         })
     }
 
@@ -283,7 +291,8 @@ impl PlayerConditionAccessLikeCpp<'_> {
     pub fn player_race_like_cpp(&self) -> u8 {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.player_race_with_fixture_like_cpp(self.fixtures.race)
+            self.core
+                .player_race_with_fixture_like_cpp(self.fixtures.race)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
@@ -294,7 +303,8 @@ impl PlayerConditionAccessLikeCpp<'_> {
     pub fn player_class_like_cpp(&self) -> u8 {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.player_class_with_fixture_like_cpp(self.fixtures.class)
+            self.core
+                .player_class_with_fixture_like_cpp(self.fixtures.class)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
@@ -305,7 +315,8 @@ impl PlayerConditionAccessLikeCpp<'_> {
     pub fn player_level_like_cpp(&self) -> u8 {
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            self.core.player_level_with_fixture_like_cpp(self.fixtures.level)
+            self.core
+                .player_level_with_fixture_like_cpp(self.fixtures.level)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
         {
@@ -331,16 +342,18 @@ impl PlayerConditionAccessLikeCpp<'_> {
             .with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(PlayerWorldLocalState::from_represented_parts_like_cpp(
-                *self.fixtures.zone_id,
-                *self.fixtures.area_id,
-                *self.fixtures.zone_area_authority_complete,
-                *self.fixtures.pvp_hostile,
-                *self.fixtures.pvp_end_timer,
-                *self.fixtures.contested_pvp_timer,
-                *self.fixtures.is_outdoors,
-            )
-            .zone_area_like_cpp());
+            return Some(
+                PlayerWorldLocalState::from_represented_parts_like_cpp(
+                    *self.fixtures.zone_id,
+                    *self.fixtures.area_id,
+                    *self.fixtures.zone_area_authority_complete,
+                    *self.fixtures.pvp_hostile,
+                    *self.fixtures.pvp_end_timer,
+                    *self.fixtures.contested_pvp_timer,
+                    *self.fixtures.is_outdoors,
+                )
+                .zone_area_like_cpp(),
+            );
         }
         canonical.map(|state| state.zone_area_like_cpp())
     }
@@ -350,10 +363,7 @@ impl PlayerConditionAccessLikeCpp<'_> {
             .core
             .with_owned_player_like_cpp(wow_entities::Player::primary_specialization_id_like_cpp);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none()
-            && consumer_test
-            && self.core.player_handle_like_cpp.is_none()
-        {
+        if canonical.is_none() && consumer_test && self.core.player_handle_like_cpp.is_none() {
             return Some(*self.fixtures.primary_specialization_id);
         }
         canonical
@@ -387,10 +397,7 @@ impl PlayerConditionAccessLikeCpp<'_> {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let _ = player.set_map(
-            u32::from(self.core.player_map_id_like_cpp()),
-            instance_id,
-        );
+        let _ = player.set_map(u32::from(self.core.player_map_id_like_cpp()), instance_id);
         let (zone_id, area_id) = self.player_zone_area_like_cpp()?;
         player.set_zone_and_area(zone_id, area_id);
         if let Some(position) = self.core.player_position_with_fixture_like_cpp(
@@ -405,14 +412,15 @@ impl PlayerConditionAccessLikeCpp<'_> {
     pub fn condition_player_unit_snapshot_like_cpp(
         &self,
     ) -> Option<wow_conditions::ConditionUnitSnapshot> {
-        let (health, max_health, is_alive) = self.core.resolved_player_vitals_with_fixture_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.max_health,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.fixtures.alive,
-        )?;
+        let (health, max_health, is_alive) =
+            self.core.resolved_player_vitals_with_fixture_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.health,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.max_health,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.fixtures.alive,
+            )?;
         Some(wow_conditions::ConditionUnitSnapshot {
             level: u32::from(self.player_level_like_cpp()),
             health: u64::from(health),

@@ -15,8 +15,8 @@ use wow_world_core::session::{
 
 use super::SessionLifecycleState;
 use crate::{
-    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp,
-    GLOBAL_CACHE_MASK_LIKE_CPP, PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+    ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
+    PER_CHARACTER_CACHE_MASK_LIKE_CPP,
 };
 
 impl SessionLifecycleState {
@@ -181,7 +181,11 @@ impl SessionLifecycleState {
         self.tutorials_changed_like_cpp = false;
     }
 
-    pub async fn load_player_account_data_like_cpp(&mut self, hub: &mut HubMut<'_>, guid: ObjectGuid) {
+    pub async fn load_player_account_data_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        guid: ObjectGuid,
+    ) {
         self.load_account_data_like_cpp(hub, guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP)
             .await;
     }
@@ -287,11 +291,7 @@ impl SessionLifecycleState {
         }
     }
 
-    pub fn set_loaded_player_flags_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        player_flags: u32,
-    ) {
+    pub fn set_loaded_player_flags_like_cpp(&mut self, hub: &mut HubMut<'_>, player_flags: u32) {
         hub.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let _canonical = hub
@@ -377,10 +377,7 @@ impl SessionLifecycleState {
         }
     }
 
-    pub fn resolved_player_skill_records_loaded_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> Option<bool> {
+    pub fn resolved_player_skill_records_loaded_like_cpp(&self, hub: HubRef<'_>) -> Option<bool> {
         let canonical = hub
             .core
             .with_owned_player_like_cpp(Player::skill_records_loaded_like_cpp);

@@ -226,9 +226,7 @@ impl WorldSession {
             .quest_state
             .consume_movement_visibility_refresh_request_like_cpp();
 
-        if !forced_refresh
-            && let Some(last) = self.visibility.last_visibility_pos_like_cpp()
-        {
+        if !forced_refresh && let Some(last) = self.visibility.last_visibility_pos_like_cpp() {
             let dx = pos.x - last.x;
             let dy = pos.y - last.y;
             if dx * dx + dy * dy < 50.0 * 50.0 {

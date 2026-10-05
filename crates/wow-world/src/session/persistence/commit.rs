@@ -41,9 +41,10 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.lifecycle.set_represented_loaded_player_flags_for_test_like_cpp(Some(
-                _current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP,
-            ));
+            self.lifecycle
+                .set_represented_loaded_player_flags_for_test_like_cpp(Some(
+                    _current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP,
+                ));
             self.lifecycle
                 .set_represented_loaded_player_flags_applied_for_test_like_cpp(_canonical);
         }
@@ -99,17 +100,11 @@ impl WorldSession {
         // COMMIT. The failure seam proves that no covered runtime state is
         // published on a definite rollback.
         #[cfg(test)]
-        if self
-            .lifecycle
-            .loot_money_persistence_test_result_like_cpp()
-            == Some(false)
-        {
+        if self.lifecycle.loot_money_persistence_test_result_like_cpp() == Some(false) {
             return None;
         }
         #[cfg(test)]
-        let bypass_database_like_cpp = self
-            .lifecycle
-            .loot_money_persistence_test_result_like_cpp()
+        let bypass_database_like_cpp = self.lifecycle.loot_money_persistence_test_result_like_cpp()
             == Some(true)
             || self.lifecycle.player_lifecycle_port_like_cpp().is_none();
         #[cfg(not(test))]
@@ -119,12 +114,11 @@ impl WorldSession {
             money_persistence
         } else {
             let port = self.lifecycle.player_lifecycle_port_like_cpp().cloned()?;
-            let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(
-                Arc::clone(
+            let mut cancellation_fence =
+                PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
                     self.lifecycle
                         .durable_loot_money_persistence_tracker_like_cpp(),
-                ),
-            );
+                ));
             match port
                 .persist_talent_reset_like_cpp(persistence_request)
                 .await

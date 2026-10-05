@@ -222,7 +222,9 @@ async fn dead_player_party_chat_is_not_rejected_by_say_alive_gate_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_alive_like_cpp(false);
 
@@ -591,7 +593,9 @@ async fn chat_flood_addon_mutes_after_limit_for_next_generic_addon_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_chat_flood_config_like_cpp(ChatFloodConfigLikeCpp {
         message_count: 10,
@@ -864,7 +868,9 @@ async fn party_addon_routes_to_same_subgroup_except_sender_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -896,7 +902,9 @@ async fn addon_channel_config_blocks_addon_delivery_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let chat_policy = ChatPolicyCatalogsLikeCpp {
         addon_channel: false,

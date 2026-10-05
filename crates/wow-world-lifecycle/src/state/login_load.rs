@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
 use tracing::{info, warn};
-use wow_world_core::session::{HubMut, PlayerBootstrapCatalogsLikeCpp};
 use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
     AccountCollectionLoadedLikeCpp,
 };
+use wow_world_core::session::{HubMut, PlayerBootstrapCatalogsLikeCpp};
 
 use super::SessionLifecycleState;
 

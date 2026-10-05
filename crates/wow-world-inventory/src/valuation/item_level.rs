@@ -3,8 +3,8 @@
 
 use wow_constants::{InventoryType, ItemFlags3, ItemModifier};
 use wow_entities::{
-    EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND,
-    EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED, EQUIPMENT_SLOT_TABARD, Item,
+    EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
+    EQUIPMENT_SLOT_RANGED, EQUIPMENT_SLOT_TABARD, Item,
 };
 use wow_world_core::session::{
     InventoryValuationAccessLikeCpp, InventoryValuationCatalogViewLikeCpp,
@@ -72,7 +72,8 @@ impl crate::InventoryState {
         max_item_level: u32,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_player_level: &u8,
     ) -> Option<u32> {
-        let using_pvp_item_levels = self.resolved_using_pvp_item_levels_with_access_like_cpp(access)?;
+        let using_pvp_item_levels =
+            self.resolved_using_pvp_item_levels_with_access_like_cpp(access)?;
         let caps = self
             .player_item_modifier_runtime_snapshot_with_access_like_cpp(modifiers)?
             .item_level_caps_like_cpp();
@@ -99,14 +100,16 @@ impl crate::InventoryState {
             item_level += catalogs.represented_item_level_bonus_like_cpp(runtime_item);
             let item_level_before_upgrades = item_level;
             if using_pvp_item_levels {
-                item_level += i64::from(catalogs.represented_pvp_item_level_bonus_like_cpp(entry_id));
+                item_level +=
+                    i64::from(catalogs.represented_pvp_item_level_bonus_like_cpp(entry_id));
             }
 
             let inventory_type = sparse_template
                 .map(|template| template.inventory_type)
                 .unwrap_or(random_property_template.inventory_type);
-            let is_equipable = <InventoryType as num_traits::FromPrimitive>::from_i8(inventory_type)
-                .is_some_and(|inventory_type| inventory_type != InventoryType::NonEquip);
+            let is_equipable =
+                <InventoryType as num_traits::FromPrimitive>::from_i8(inventory_type)
+                    .is_some_and(|inventory_type| inventory_type != InventoryType::NonEquip);
             if !is_equipable {
                 return item_level;
             }
@@ -150,18 +153,18 @@ impl crate::InventoryState {
         min_item_level: u32,
         max_item_level: u32,
     ) -> Option<f32> {
-        let (_, can_titan_grip) = self.inventory_equip_capabilities_with_access_like_cpp(valuation)?;
+        let (_, can_titan_grip) =
+            self.inventory_equip_capabilities_with_access_like_cpp(valuation)?;
         let inventory_items = self.resolved_inventory_items_with_access_like_cpp(inventory)?;
         let mut total_item_level = 0u32;
         for slot in 0..EQUIPMENT_SLOT_END {
             let Some(inventory_item) = inventory_items.get(&slot) else {
                 continue;
             };
-            let runtime_item = self
-                .resolved_player_inventory_item_object_with_access_like_cpp(
-                    inventory,
-                    inventory_item.guid,
-                );
+            let runtime_item = self.resolved_player_inventory_item_object_with_access_like_cpp(
+                inventory,
+                inventory_item.guid,
+            );
             let Some(item_level) = self.represented_item_level_with_access_like_cpp(
                 valuation,
                 modifiers,
@@ -217,29 +220,23 @@ pub(super) fn represented_player_level_curve_item_level_like_cpp(
     };
 
     if fixed_level == 0
-        && let Some(levels) = catalogs
-            .content_tuning_store_like_cpp()
-            .and_then(|store| {
-                store.content_tuning_data_like_cpp(
-                    template.scaling_stat_content_tuning_like_cpp(),
-                    true,
-                )
-            })
+        && let Some(levels) = catalogs.content_tuning_store_like_cpp().and_then(|store| {
+            store
+                .content_tuning_data_like_cpp(template.scaling_stat_content_tuning_like_cpp(), true)
+        })
     {
         let clamped = (level as i32).clamp(levels.min_level, levels.max_level);
         level = u32::try_from(clamped).unwrap_or(level);
     }
 
-    let (Some(curve_store), Some(curve_point_store)) =
-        (catalogs.curve_store_like_cpp(), catalogs.curve_point_store_like_cpp())
-    else {
+    let (Some(curve_store), Some(curve_point_store)) = (
+        catalogs.curve_store_like_cpp(),
+        catalogs.curve_point_store_like_cpp(),
+    ) else {
         return Some(0);
     };
-    let curve_value = curve_store.curve_value_at_like_cpp(
-        curve_point_store,
-        curve_id,
-        level as f32,
-    );
+    let curve_value =
+        curve_store.curve_value_at_like_cpp(curve_point_store, curve_id, level as f32);
 
     Some(curve_value as i64)
 }

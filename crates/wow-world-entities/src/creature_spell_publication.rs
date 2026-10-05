@@ -10,8 +10,8 @@ use wow_core::{ObjectGuid, Position};
 use wow_world_core::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan};
 
 use crate::creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
-use crate::creature_spell_planning::creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp;
 use crate::creature_spell_planning::CreatureSpellCastPlanLikeCpp;
+use crate::creature_spell_planning::creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp;
 
 /// C++ `Unit::GetUnitMissChance`: the constant 5.0% victim miss chance of the
 /// legacy melee-spell path, in per-ten-thousand units.

@@ -61,9 +61,7 @@ impl VisibilityState {
         }
     }
 
-    pub fn client_visible_transports_like_cpp(
-        &self,
-    ) -> &SharedClientVisibleTransportsLikeCpp {
+    pub fn client_visible_transports_like_cpp(&self) -> &SharedClientVisibleTransportsLikeCpp {
         &self.client_visible_transports_like_cpp
     }
 

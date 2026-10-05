@@ -7,10 +7,10 @@ use std::path::PathBuf;
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
-    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
-    ACCOUNT_DATA_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, SOCIAL_INSPECT_REGISTRAR,
-    RegistrarFacadeContract,
-    validate_composition_mounts, validate_composition_mounts_with_contracts,
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract,
+    EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, RegistrarFacadeContract,
+    SOCIAL_INSPECT_REGISTRAR, validate_composition_mounts,
+    validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -77,7 +77,9 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "wow-world-inventory",
             "crate::handlers::equipment_sets",
             "crates/wow-world-inventory/src/handlers/equipment_sets.rs",
-            include_str!("../../../../../crates/wow-world-inventory/src/handlers/equipment_sets.rs"),
+            include_str!(
+                "../../../../../crates/wow-world-inventory/src/handlers/equipment_sets.rs"
+            ),
         ),
         mount(
             "wow-world-application",
@@ -95,7 +97,9 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "wow-world-application",
             "crate::instances::registration",
             "crates/wow-world-application/src/instances/registration.rs",
-            include_str!("../../../../../crates/wow-world-application/src/instances/registration.rs"),
+            include_str!(
+                "../../../../../crates/wow-world-application/src/instances/registration.rs"
+            ),
         ),
         mount(
             EQUIPMENT_SET_USE_REGISTRAR.package,
@@ -279,7 +283,7 @@ fn composition_guard_accepts_a_finite_two_owner_synthetic_fixture() {
 #[test]
 fn composition_guard_accepts_actual_production_fixture_and_both_exact_facades() {
     validate_composition_mounts(&actual_mounts())
-    .expect("actual normal composer, fixture dispatch, and all owner facades match");
+        .expect("actual normal composer, fixture dispatch, and all owner facades match");
 }
 
 #[test]
@@ -288,7 +292,8 @@ fn composition_guard_requires_bank_once_in_both_builders_with_exact_facade() {
     for index in [0, 1, 5] {
         let mut missing = actual.clone();
         missing[index].source = missing[index].source.replace(
-            "register_bank_handlers_like_cpp", "unowned_bank_registration",
+            "register_bank_handlers_like_cpp",
+            "unowned_bank_registration",
         );
         assert_rejected(&missing, "missing Bank composition or facade");
     }
@@ -320,7 +325,10 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
         "register_equipment_set_use_handler_like_cpp",
         "unowned_equipment_set_use_handler_like_cpp",
     );
-    assert_rejected(&missing_fixture, "missing fixture EquipmentSetUse registrar");
+    assert_rejected(
+        &missing_fixture,
+        "missing fixture EquipmentSetUse registrar",
+    );
 
     let mut aliased = actual_mounts();
     aliased[0].source = aliased[0]
@@ -340,32 +348,39 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
         "wow_world_application::register_equipment_set_use_handler_like_cpp",
         "wow_world_application::register_instance_handlers_like_cpp",
     );
-    assert_rejected(&wrong_owner, "EquipmentSetUse call substituted with another registrar");
+    assert_rejected(
+        &wrong_owner,
+        "EquipmentSetUse call substituted with another registrar",
+    );
 
     let mut missing_facade = actual_mounts();
     let application_root = missing_facade
         .iter_mut()
         .find(|mount| {
             mount.package == EQUIPMENT_SET_USE_REGISTRAR.package
-                && mount.source_path.ends_with("crates/wow-world-application/src/lib.rs")
+                && mount
+                    .source_path
+                    .ends_with("crates/wow-world-application/src/lib.rs")
         })
         .expect("Application root source mount exists");
     let missing_export = "register_equipment_set_use_handler_like_cpp,";
     assert_eq!(application_root.source.matches(missing_export).count(), 1);
     let original_root = application_root.source.clone();
-    application_root.source = application_root.source.replace(
-        missing_export,
-        "",
-    );
+    application_root.source = application_root.source.replace(missing_export, "");
     assert_ne!(application_root.source, original_root);
-    assert_rejected(&missing_facade, "missing EquipmentSetUse root facade export");
+    assert_rejected(
+        &missing_facade,
+        "missing EquipmentSetUse root facade export",
+    );
 
     let mut aliased_facade = actual_mounts();
     let application_root = aliased_facade
         .iter_mut()
         .find(|mount| {
             mount.package == EQUIPMENT_SET_USE_REGISTRAR.package
-                && mount.source_path.ends_with("crates/wow-world-application/src/lib.rs")
+                && mount
+                    .source_path
+                    .ends_with("crates/wow-world-application/src/lib.rs")
         })
         .expect("Application root source mount exists");
     let original_root = application_root.source.clone();
@@ -374,15 +389,19 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
         "register_equipment_set_use_handler_like_cpp as register_use_handler,",
     );
     assert_ne!(application_root.source, original_root);
-    assert_rejected(&aliased_facade, "aliased EquipmentSetUse root facade export");
+    assert_rejected(
+        &aliased_facade,
+        "aliased EquipmentSetUse root facade export",
+    );
 }
 
 #[test]
 fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls() {
     let mut missing_legacy = actual_mounts();
-    missing_legacy[0].source = missing_legacy[0]
-        .source
-        .replace("    register_remaining_handlers_like_cpp(&mut builder)?;\n", "");
+    missing_legacy[0].source = missing_legacy[0].source.replace(
+        "    register_remaining_handlers_like_cpp(&mut builder)?;\n",
+        "",
+    );
     assert_rejected(&missing_legacy, "missing legacy composer call");
 
     let mut duplicate = actual_mounts();
@@ -403,8 +422,14 @@ fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls()
     let mut aliased = actual_mounts();
     aliased[0].source = aliased[0]
         .source
-        .replace("use wow_world::session::registry::{", "use wow_world_inventory as inventory_owner;\nuse wow_world::session::registry::{")
-        .replace("wow_world_inventory::register_inventory_handlers_like_cpp::<", "inventory_owner::register_inventory_handlers_like_cpp::<");
+        .replace(
+            "use wow_world::session::registry::{",
+            "use wow_world_inventory as inventory_owner;\nuse wow_world::session::registry::{",
+        )
+        .replace(
+            "wow_world_inventory::register_inventory_handlers_like_cpp::<",
+            "inventory_owner::register_inventory_handlers_like_cpp::<",
+        );
     assert_rejected(&aliased, "alternate registrar alias");
 
     let mut shadowed_package = actual_mounts();
@@ -412,7 +437,10 @@ fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls()
         "mod wow_world_application {{}}\n{}",
         shadowed_package[0].source
     );
-    assert_rejected(&shadowed_package, "locally shadowed Application package path");
+    assert_rejected(
+        &shadowed_package,
+        "locally shadowed Application package path",
+    );
 }
 
 #[test]
@@ -444,9 +472,10 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     assert_rejected(&ungated_fixture, "missing test-fixtures gate");
 
     let mut altered_expect = actual_mounts();
-    altered_expect[1].source = altered_expect[1]
-        .source
-        .replace("invalid duplicate packet handler composition", "duplicate handler");
+    altered_expect[1].source = altered_expect[1].source.replace(
+        "invalid duplicate packet handler composition",
+        "duplicate handler",
+    );
     assert_rejected(&altered_expect, "changed fixture expect contract");
 
     let mut missing_root_facade = actual_mounts();
@@ -483,24 +512,29 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
         "    register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,\n",
         "    reset_represented_instances_like_cpp,\n",
     );
-    assert_rejected(&missing_instances_root_facade, "missing Application root facade export");
+    assert_rejected(
+        &missing_instances_root_facade,
+        "missing Application root facade export",
+    );
 
     let mut aliased_instances_module_facade = actual_mounts();
-    aliased_instances_module_facade[6].source = aliased_instances_module_facade[6]
-        .source
-        .replace(
-            "pub use registration::register_instance_handlers_like_cpp;",
-            "pub use registration::register_instance_handlers_like_cpp as register_handlers;",
-        );
-    assert_rejected(&aliased_instances_module_facade, "aliased Application registration facade");
+    aliased_instances_module_facade[6].source = aliased_instances_module_facade[6].source.replace(
+        "pub use registration::register_instance_handlers_like_cpp;",
+        "pub use registration::register_instance_handlers_like_cpp as register_handlers;",
+    );
+    assert_rejected(
+        &aliased_instances_module_facade,
+        "aliased Application registration facade",
+    );
 }
 
 #[test]
 fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate_calls() {
     let contracts = DIRECT_REGISTRAR_CONTRACTS;
     let actual = actual_mounts();
-    validate_composition_mounts_with_contracts(&actual, contracts)
-        .expect("both source-analyzed finite owners are composed in production and fixture builders");
+    validate_composition_mounts_with_contracts(&actual, contracts).expect(
+        "both source-analyzed finite owners are composed in production and fixture builders",
+    );
 
     let mut missing = actual_mounts();
     missing[0].source = missing[0].source.replace(
@@ -558,12 +592,16 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
         production_possible: true,
         test_possible: true,
     }]);
-    assert!(validate_composition_mounts_with_contracts(&conditional_owner_mount, contracts).is_err());
+    assert!(
+        validate_composition_mounts_with_contracts(&conditional_owner_mount, contracts).is_err()
+    );
 
     let mut conditional_root = actual_mounts();
     let app_root = conditional_root
         .iter_mut()
-        .find(|mount| mount.package == "wow-world-application" && mount.source_path.ends_with("lib.rs"))
+        .find(|mount| {
+            mount.package == "wow-world-application" && mount.source_path.ends_with("lib.rs")
+        })
         .expect("Application root source mount exists");
     app_root.contexts = BTreeSet::from([SourceMountContext {
         logical_module_path: "crate".to_owned(),
@@ -578,7 +616,9 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
         !(mount.package == "wow-world-application"
             && mount.source_path.ends_with("instances/registration.rs"))
     });
-    assert!(validate_composition_mounts_with_contracts(&missing_registrar_source, contracts).is_err());
+    assert!(
+        validate_composition_mounts_with_contracts(&missing_registrar_source, contracts).is_err()
+    );
 
     let extra_owner_facades: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
         module: "crate",
@@ -601,15 +641,16 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
         "synthetic-extra-owner/src/lib.rs",
         "pub use handlers::register_unconfigured_handlers_like_cpp;",
     ));
-    assert!(validate_composition_mounts_with_contracts(
-        &extra_configured_owner,
-        &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR, extra_owner],
-    )
-    .is_err());
+    assert!(
+        validate_composition_mounts_with_contracts(
+            &extra_configured_owner,
+            &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR, extra_owner],
+        )
+        .is_err()
+    );
 
-    assert!(validate_composition_mounts_with_contracts(
-        &actual,
-        &[INVENTORY_REGISTRAR],
-    )
-    .is_err(), "a configured set missing an actual owner is rejected");
+    assert!(
+        validate_composition_mounts_with_contracts(&actual, &[INVENTORY_REGISTRAR],).is_err(),
+        "a configured set missing an actual owner is rejected"
+    );
 }

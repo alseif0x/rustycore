@@ -42,12 +42,11 @@
 //! publishes no `CAST_FLAG_IMMUNITY` where C++ would. These are value limits
 //! recorded in the #589 checkpoint, not silent structural substitutions.
 
-
 use crate::SessionSpellState;
 use num_traits::FromPrimitive;
 use wow_constants::PowerType;
 use wow_entities::SpellCastMetadata;
-use wow_world_core::session::{creature_ai_spell_difficulty_chain_like_cpp, HubRef};
+use wow_world_core::session::{HubRef, creature_ai_spell_difficulty_chain_like_cpp};
 
 /// C++ `SpellCastFlags` (`Spells/Spell.h:76-111`).
 pub(crate) mod cast_flags_like_cpp {
@@ -80,7 +79,6 @@ pub enum PlayerCastPublicationPhaseLikeCpp {
     Go,
 }
 
-
 impl SessionSpellState {
     /// C++ `SpellInfo::HasAttribute` for one attribute word at the caster's
     /// current map difficulty, matching the creature representation gate.
@@ -104,11 +102,7 @@ impl SessionSpellState {
     }
 
     /// C++ `SPELL_ATTR0_CU_NEEDS_AMMO_DATA`, a `SpellMgr` custom attribute.
-    fn represented_cast_needs_ammo_data_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        spell_id: i32,
-    ) -> bool {
+    fn represented_cast_needs_ammo_data_like_cpp(&self, hub: HubRef<'_>, spell_id: i32) -> bool {
         let config = &hub.config.legacy_creature_aggro_config_like_cpp;
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return false;
@@ -133,11 +127,7 @@ impl SessionSpellState {
     }
 
     /// C++ `SendSpellStart`/`SendSpellGo` `CAST_FLAG_PROJECTILE` condition.
-    fn represented_cast_is_projectile_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        spell_id: i32,
-    ) -> bool {
+    fn represented_cast_is_projectile_like_cpp(&self, hub: HubRef<'_>, spell_id: i32) -> bool {
         self.represented_cast_spell_attribute_like_cpp(
             hub,
             spell_id,

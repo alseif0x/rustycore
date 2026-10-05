@@ -727,7 +727,9 @@ fn packet_spoof_cpp_opcode_limit_table_is_exhaustive_like_cpp() {
         1
     );
     assert_eq!(
-        wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(ClientOpcodes::AuthSession),
+        wow_world_core::session::packet_spoof_max_packet_counter_allowed_like_cpp(
+            ClientOpcodes::AuthSession
+        ),
         100
     );
 }

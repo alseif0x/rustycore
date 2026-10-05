@@ -46,8 +46,7 @@ impl WorldSession {
         }) {
             return false;
         }
-        self.lifecycle
-            .pet_load_clear_spells_like_cpp();
+        self.lifecycle.pet_load_clear_spells_like_cpp();
         true
     }
     #[cfg(test)]
@@ -58,7 +57,8 @@ impl WorldSession {
     pub(crate) fn represented_decline_petitions_like_cpp(
         &self,
     ) -> &[RepresentedDeclinePetitionLikeCpp] {
-        self.social.represented_decline_petitions_for_test_like_cpp()
+        self.social
+            .represented_decline_petitions_for_test_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_query_petitions_like_cpp(
@@ -88,13 +88,14 @@ impl WorldSession {
         if !tapper_has_current_player {
             return;
         }
-        self.world_entities.record_represented_creature_kill_event_like_cpp(
-            RepresentedCreatureKillEventLikeCpp::TapperPetKilledUnitAi {
-                tapper_guid: player_guid,
-                pet_guid,
-                victim_guid: creature_guid,
-            },
-        );
+        self.world_entities
+            .record_represented_creature_kill_event_like_cpp(
+                RepresentedCreatureKillEventLikeCpp::TapperPetKilledUnitAi {
+                    tapper_guid: player_guid,
+                    pet_guid,
+                    victim_guid: creature_guid,
+                },
+            );
     }
 }
 
@@ -106,12 +107,11 @@ impl crate::session::PetsCx<'_> {
         choice: u8,
     ) {
         #[cfg(test)]
-        self.social.record_represented_sign_petition_for_test_like_cpp(
-            RepresentedSignPetitionLikeCpp {
+        self.social
+            .record_represented_sign_petition_for_test_like_cpp(RepresentedSignPetitionLikeCpp {
                 petition_guid,
                 choice,
-            },
-        );
+            });
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -120,9 +120,10 @@ impl crate::session::PetsCx<'_> {
         petition_guid: ObjectGuid,
     ) {
         #[cfg(test)]
-        self.social.record_represented_decline_petition_for_test_like_cpp(
-            RepresentedDeclinePetitionLikeCpp { petition_guid },
-        );
+        self.social
+            .record_represented_decline_petition_for_test_like_cpp(
+                RepresentedDeclinePetitionLikeCpp { petition_guid },
+            );
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -132,12 +133,11 @@ impl crate::session::PetsCx<'_> {
         item_guid: ObjectGuid,
     ) {
         #[cfg(test)]
-        self.social.record_represented_query_petition_for_test_like_cpp(
-            RepresentedQueryPetitionLikeCpp {
+        self.social
+            .record_represented_query_petition_for_test_like_cpp(RepresentedQueryPetitionLikeCpp {
                 petition_id,
                 item_guid,
-            },
-        );
+            });
     }
 }
 

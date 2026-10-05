@@ -40,13 +40,13 @@ pub(in crate::session) fn party_member_power_kind_from_u8_like_cpp(power: u8) ->
 #[cfg(test)]
 pub(crate) use wow_world_core::session::RepresentedWargameInviteAcceptanceLikeCpp;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_social::RepresentedSilencePartyTalkerLikeCpp;
 pub(crate) use wow_world_social::{
     RepresentedCalendarAddEventLikeCpp, RepresentedCalendarCommunityInviteLikeCpp,
     RepresentedCalendarRemoveEventLikeCpp, RepresentedDeclinePetitionLikeCpp,
     RepresentedQueryPetitionLikeCpp, RepresentedSignPetitionLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use wow_world_social::RepresentedSilencePartyTalkerLikeCpp;
 
 impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -64,14 +64,15 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.social.record_calendar_community_invite_for_test_like_cpp(
-            RepresentedCalendarCommunityInviteLikeCpp {
-                guild_id,
-                min_level,
-                max_level,
-                max_rank_order,
-            },
-        );
+        self.social
+            .record_calendar_community_invite_for_test_like_cpp(
+                RepresentedCalendarCommunityInviteLikeCpp {
+                    guild_id,
+                    min_level,
+                    max_level,
+                    max_rank_order,
+                },
+            );
         true
     }
 

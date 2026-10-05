@@ -49,10 +49,7 @@ impl QuestRewardDurablePlanLikeCpp {
     }
 
     /// Record one inventory removal or grant, keeping the operation's order.
-    pub fn push_inventory_mutation(
-        &mut self,
-        mutation: PlayerInventoryPersistenceRequestLikeCpp,
-    ) {
+    pub fn push_inventory_mutation(&mut self, mutation: PlayerInventoryPersistenceRequestLikeCpp) {
         self.inventory_mutations.push(mutation);
     }
 

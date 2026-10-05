@@ -204,13 +204,14 @@ impl WorldSession {
             return false;
         }
 
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                gameobject_guid,
-                player_guid,
-                reason: RepresentedBattlegroundObjectUseRejection::Vehicle,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
+                    gameobject_guid,
+                    player_guid,
+                    reason: RepresentedBattlegroundObjectUseRejection::Vehicle,
+                },
+            );
         true
     }
     pub(crate) fn represented_set_taxi_benchmark_mode_like_cpp(&mut self, enable: bool) -> bool {

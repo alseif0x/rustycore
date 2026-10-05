@@ -6,9 +6,9 @@
 use std::collections::HashMap;
 
 use crate::session::state::{SessionCatalogs, SessionCore, SessionWorldConfig};
+use wow_ai::max_level_for_expansion_like_cpp;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::Player;
-use wow_ai::max_level_for_expansion_like_cpp;
 
 mod rest;
 
@@ -36,8 +36,7 @@ pub struct CoreXPGainFixtureRefsLikeCpp<'a> {
     battleground_type_id: &'a Option<u32>,
     battleground_map_id: &'a Option<u32>,
     battleground_status: &'a Option<u8>,
-    battleground_queue_slots:
-        &'a Vec<wow_entities::PlayerBattlegroundQueueSlotLikeCpp>,
+    battleground_queue_slots: &'a Vec<wow_entities::PlayerBattlegroundQueueSlotLikeCpp>,
     battleground_arena_team_id_invited: &'a u32,
     rest: &'a mut crate::session::RestMgrTestFixtureLikeCpp,
     aura_authority_complete: &'a bool,
@@ -118,11 +117,7 @@ impl<'a> CoreXPGainFixtureRefsLikeCpp<'a> {
         &u32,
         &mut crate::session::RestMgrTestFixtureLikeCpp,
     ) {
-        (
-            self.player_position,
-            &self.player_next_level_xp,
-            self.rest,
-        )
+        (self.player_position, &self.player_next_level_xp, self.rest)
     }
 }
 
@@ -151,8 +146,8 @@ impl SessionCore {
         &self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_xp: &u32,
     ) -> Option<u32> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {
             return Some(*fixture_xp);
@@ -201,7 +196,9 @@ impl SessionCore {
                 .player_xp_table
                 .as_ref()
                 .and_then(|table| table.get(usize::from(level)).copied())
-                .or_else(|| self.resolved_player_next_level_xp_with_fixture_like_cpp(fixture_next_level_xp));
+                .or_else(|| {
+                    self.resolved_player_next_level_xp_with_fixture_like_cpp(fixture_next_level_xp)
+                });
         }
         canonical
     }
@@ -330,10 +327,11 @@ impl CoreXPGainAccessLikeCpp<'_> {
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
     ) -> bool {
         let max_level = self.config.max_player_level_config_like_cpp;
-        max_level != 0 && u32::from(self.player_level_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixture_level,
-        )) >= max_level
+        max_level != 0
+            && u32::from(self.player_level_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                fixture_level,
+            )) >= max_level
     }
 
     pub fn resolved_player_is_alive_like_cpp(
@@ -459,10 +457,11 @@ impl CoreXPGainAccessLikeCpp<'_> {
         &self,
         #[cfg(any(test, feature = "test-fixtures"))] fixtures: &CoreXPGainFixtureRefsLikeCpp<'_>,
     ) -> Option<u32> {
-        self.core.resolved_player_next_level_xp_with_fixture_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &fixtures.player_next_level_xp,
-        )
+        self.core
+            .resolved_player_next_level_xp_with_fixture_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &fixtures.player_next_level_xp,
+            )
     }
 
     pub fn resolved_player_xp_for_level_like_cpp(
@@ -470,18 +469,21 @@ impl CoreXPGainAccessLikeCpp<'_> {
         level: u8,
         #[cfg(any(test, feature = "test-fixtures"))] fixtures: &CoreXPGainFixtureRefsLikeCpp<'_>,
     ) -> Option<u32> {
-        self.core.resolved_player_xp_for_level_with_fixture_like_cpp(
-            self.catalogs,
-            level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &fixtures.player_next_level_xp,
-        )
+        self.core
+            .resolved_player_xp_for_level_with_fixture_like_cpp(
+                self.catalogs,
+                level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &fixtures.player_next_level_xp,
+            )
     }
 
     pub fn set_player_xp_like_cpp(
         &self,
         xp: u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut CoreXPGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut CoreXPGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) -> bool {
         self.core.set_player_xp_with_fixture_like_cpp(
             xp,
@@ -493,7 +495,9 @@ impl CoreXPGainAccessLikeCpp<'_> {
     pub fn set_player_next_level_xp_like_cpp(
         &self,
         xp: u32,
-        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut CoreXPGainFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut CoreXPGainFixtureRefsLikeCpp<
+            '_,
+        >,
     ) -> bool {
         self.core.set_player_next_level_xp_with_fixture_like_cpp(
             xp,
@@ -510,14 +514,14 @@ impl CoreXPGainAccessLikeCpp<'_> {
         represented_total_aura_modifier_from_snapshot_like_cpp(
             self.core
                 .player_aura_subsystem_snapshot_with_fixture_refs_like_cpp(
-                #[cfg(any(test, feature = "test-fixtures"))]
-                fixtures.aura_authority_complete,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                fixtures.aura_spell_hit_tombstoned,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                fixtures.visible_auras,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                fixtures.threat_aura_snapshots,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    fixtures.aura_authority_complete,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    fixtures.aura_spell_hit_tombstoned,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    fixtures.visible_auras,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    fixtures.threat_aura_snapshots,
                 ),
             effect,
         )

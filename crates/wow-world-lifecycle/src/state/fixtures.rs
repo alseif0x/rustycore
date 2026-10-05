@@ -45,10 +45,7 @@ impl SessionLifecycleState {
             .represented_loaded_player_flags_ex_like_cpp
     }
 
-    pub fn set_represented_loaded_player_flags_applied_for_test_like_cpp(
-        &mut self,
-        applied: bool,
-    ) {
+    pub fn set_represented_loaded_player_flags_applied_for_test_like_cpp(&mut self, applied: bool) {
         self.player_flags_test_fixture_like_cpp
             .represented_loaded_player_flags_applied_like_cpp = applied;
     }

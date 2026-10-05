@@ -2,9 +2,7 @@ use std::time::Instant;
 
 use wow_constants::PowerType;
 use wow_core::{ObjectGuid, Position};
-use wow_entities::{
-    CreatureAddonLifecycleRecordLikeCpp, MovementGeneratorType, PhaseShift,
-};
+use wow_entities::{CreatureAddonLifecycleRecordLikeCpp, MovementGeneratorType, PhaseShift};
 
 /// Parameters for spawning nearby creatures after login.
 pub struct PendingCreatureSpawn {

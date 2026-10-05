@@ -283,13 +283,14 @@ impl WorldSession {
             (store.get(player_faction), store.get(gameobject_faction))
             && !player_entry.is_friendly_to_like_cpp(gameobject_entry)
         {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                    gameobject_guid,
-                    player_guid,
-                    reason: RepresentedBattlegroundObjectUseRejection::UnfriendlyFaction,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
+                        gameobject_guid,
+                        player_guid,
+                        reason: RepresentedBattlegroundObjectUseRejection::UnfriendlyFaction,
+                    },
+                );
             return false;
         }
 
@@ -299,13 +300,14 @@ impl WorldSession {
             return false;
         };
         if player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                    gameobject_guid,
-                    player_guid,
-                    reason: RepresentedBattlegroundObjectUseRejection::DamageImmune,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
+                        gameobject_guid,
+                        player_guid,
+                        reason: RepresentedBattlegroundObjectUseRejection::DamageImmune,
+                    },
+                );
             return false;
         }
 
@@ -315,13 +317,14 @@ impl WorldSession {
             return false;
         };
         if has_recently_dropped_flag_debuff {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                    gameobject_guid,
-                    player_guid,
-                    reason: RepresentedBattlegroundObjectUseRejection::RecentlyDroppedFlag,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
+                        gameobject_guid,
+                        player_guid,
+                        reason: RepresentedBattlegroundObjectUseRejection::RecentlyDroppedFlag,
+                    },
+                );
             return false;
         }
 
@@ -331,13 +334,14 @@ impl WorldSession {
             return false;
         };
         if !player_is_alive {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                    gameobject_guid,
-                    player_guid,
-                    reason: RepresentedBattlegroundObjectUseRejection::Dead,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
+                        gameobject_guid,
+                        player_guid,
+                        reason: RepresentedBattlegroundObjectUseRejection::Dead,
+                    },
+                );
             return false;
         }
 
@@ -354,13 +358,14 @@ impl WorldSession {
             return Some(bg_type_id);
         }
 
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
-                gameobject_guid,
-                player_guid,
-                reason: RepresentedBattlegroundObjectUseRejection::NotInBattleground,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
+                    gameobject_guid,
+                    player_guid,
+                    reason: RepresentedBattlegroundObjectUseRejection::NotInBattleground,
+                },
+            );
         None
     }
 
@@ -387,18 +392,19 @@ impl WorldSession {
                 capture_total_duration_ms: source.capture_time_ms,
             });
         }
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::CapturePointUpdated {
-                gameobject_guid,
-                state,
-                broadcast_text_id,
-                event_id,
-                world_state_id: source.world_state_id,
-                spell_visual_id,
-                custom_anim,
-                assault_timer_ms,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::CapturePointUpdated {
+                    gameobject_guid,
+                    state,
+                    broadcast_text_id,
+                    event_id,
+                    world_state_id: source.world_state_id,
+                    spell_visual_id,
+                    custom_anim,
+                    assault_timer_ms,
+                },
+            );
     }
 
     pub(crate) fn apply_represented_new_flag_state_command_like_cpp(
@@ -440,13 +446,14 @@ impl WorldSession {
         state.new_flag_respawn_until = (new_state == RepresentedNewFlagStateRequest::Respawning)
             .then(|| Instant::now() + Duration::from_millis(u64::from(respawn_time_ms)));
 
-        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-            RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
-                gameobject_guid,
-                player_guid: player_guid.unwrap_or(ObjectGuid::EMPTY),
-                state: new_state,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
+                    gameobject_guid,
+                    player_guid: player_guid.unwrap_or(ObjectGuid::EMPTY),
+                    state: new_state,
+                },
+            );
         true
     }
 }

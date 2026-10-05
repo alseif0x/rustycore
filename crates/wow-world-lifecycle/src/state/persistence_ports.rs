@@ -369,13 +369,18 @@ impl SessionLifecycleState {
         &mut self,
         port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
     ) {
-        self.persistence_ports_like_cpp.player.player_spell_acquisition = Some(port);
+        self.persistence_ports_like_cpp
+            .player
+            .player_spell_acquisition = Some(port);
     }
 
     pub fn group_loot_money_persistence_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.world.group_loot_money.as_ref()
+        self.persistence_ports_like_cpp
+            .world
+            .group_loot_money
+            .as_ref()
     }
 
     pub fn set_group_loot_money_persistence_port_like_cpp(
@@ -388,7 +393,10 @@ impl SessionLifecycleState {
     pub fn stored_item_money_persistence_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
-        self.persistence_ports_like_cpp.player.stored_item_money.as_ref()
+        self.persistence_ports_like_cpp
+            .player
+            .stored_item_money
+            .as_ref()
     }
 
     pub fn set_stored_item_money_persistence_port_like_cpp(

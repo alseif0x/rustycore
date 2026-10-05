@@ -5,13 +5,13 @@
 
 //! Quest item stack planning, mutation and ordered publication.
 
-use super::QuestRewardCx;
 use super::super::QuestRewardDurablePlanLikeCpp;
+use super::QuestRewardCx;
 use wow_constants::{InventoryResult, InventoryType, ItemBondingType, ItemContext, ItemFieldFlags};
 use wow_core::ObjectGuid;
 use wow_entities::{
-    ItemPosCount, PlayerInventoryItem, SendNewItemPlan, SendNewItemInstancePlan,
-    SendNewItemModifier, SendNewItemDisplayText, SendNewItemDelivery, is_bag_pos,
+    ItemPosCount, PlayerInventoryItem, SendNewItemDelivery, SendNewItemDisplayText,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, is_bag_pos,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 
@@ -50,7 +50,9 @@ impl QuestRewardCx<'_> {
             contained_in: ObjectGuid,
         }
 
-        let item_bonding = self.catalogs.item_storage_template(entry_id)
+        let item_bonding = self
+            .catalogs
+            .item_storage_template(entry_id)
             .map(|template| template.bonding);
         let mut existing_updates = Vec::new();
         let mut new_stacks = Vec::new();
@@ -60,13 +62,21 @@ impl QuestRewardCx<'_> {
         let mut last_bag = u8::from(wow_entities::INVENTORY_SLOT_BAG_0);
         let mut last_slot = 0;
         let mut last_count_in_stack = 0;
-        let new_item_count = dest.iter().filter(|dest| {
-            let bag = (dest.pos >> 8) as u8;
-            let slot = (dest.pos & 0x00FF) as u8;
-            self.get_quest_reward_inventory_item_by_pos_like_cpp(bag, slot).is_none()
-        }).count();
-        let Some(allocated_new_item_guids) = self.player
-            .allocate_item_instance_guids_with_generator_like_cpp(item_guid_generator, new_item_count)
+        let new_item_count = dest
+            .iter()
+            .filter(|dest| {
+                let bag = (dest.pos >> 8) as u8;
+                let slot = (dest.pos & 0x00FF) as u8;
+                self.get_quest_reward_inventory_item_by_pos_like_cpp(bag, slot)
+                    .is_none()
+            })
+            .count();
+        let Some(allocated_new_item_guids) = self
+            .player
+            .allocate_item_instance_guids_with_generator_like_cpp(
+                item_guid_generator,
+                new_item_count,
+            )
         else {
             tracing::warn!(
                 account = self.player.account_id_like_cpp(),
@@ -74,7 +84,8 @@ impl QuestRewardCx<'_> {
                 count = new_item_count,
                 "RewardQuest: process-wide item GUID allocator is unavailable"
             );
-            self.player.send_equip_error_like_cpp(InventoryResult::InvFull, None, None, 0, 0);
+            self.player
+                .send_equip_error_like_cpp(InventoryResult::InvFull, None, None, 0, 0);
             return false;
         };
         let mut allocated_new_item_guids = allocated_new_item_guids.into_iter();
@@ -82,16 +93,29 @@ impl QuestRewardCx<'_> {
         for dest in dest {
             let bag = (dest.pos >> 8) as u8;
             let slot = (dest.pos & 0x00FF) as u8;
-            if let Some(inv_item) = self.get_quest_reward_inventory_item_by_pos_like_cpp(bag, slot) {
+            if let Some(inv_item) = self.get_quest_reward_inventory_item_by_pos_like_cpp(bag, slot)
+            {
                 let access = self.player.inventory_like_cpp();
-                let Some(existing_item) = self.inventory
-                    .resolved_player_inventory_item_object_with_access_like_cpp(&access, inv_item.guid)
+                let Some(existing_item) = self
+                    .inventory
+                    .resolved_player_inventory_item_object_with_access_like_cpp(
+                        &access,
+                        inv_item.guid,
+                    )
                 else {
                     tracing::warn!(
-                        account = self.player.account_id_like_cpp(), slot, entry_id,
+                        account = self.player.account_id_like_cpp(),
+                        slot,
+                        entry_id,
                         "RewardQuest: missing runtime item object for reward item stack"
                     );
-                    self.player.send_equip_error_like_cpp(InventoryResult::ItemNotFound, None, None, 0, 0);
+                    self.player.send_equip_error_like_cpp(
+                        InventoryResult::ItemNotFound,
+                        None,
+                        None,
+                        0,
+                        0,
+                    );
                     return false;
                 };
                 let new_count = existing_item.count().saturating_add(dest.count);
@@ -100,40 +124,67 @@ impl QuestRewardCx<'_> {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
                         || (bonding == ItemBondingType::OnEquip && is_bag_pos(dest.pos))
                 });
-                persistence_existing_stacks.push(wow_persistence::QuestItemExistingStackPersistenceLikeCpp {
-                    item_guid: inv_item.db_guid,
-                    new_count,
-                    dynamic_flags: (should_bind && !existing_item.is_soul_bound())
-                        .then_some(existing_flags | ItemFieldFlags::SOULBOUND.bits()),
-                });
+                persistence_existing_stacks.push(
+                    wow_persistence::QuestItemExistingStackPersistenceLikeCpp {
+                        item_guid: inv_item.db_guid,
+                        new_count,
+                        dynamic_flags: (should_bind && !existing_item.is_soul_bound())
+                            .then_some(existing_flags | ItemFieldFlags::SOULBOUND.bits()),
+                    },
+                );
                 existing_updates.push(ExistingStackUpdate {
-                    item_guid: inv_item.guid, new_count, should_bind, pos: dest.pos,
+                    item_guid: inv_item.guid,
+                    new_count,
+                    should_bind,
+                    pos: dest.pos,
                 });
                 last_item_guid = inv_item.guid;
                 last_bag = bag;
                 last_slot = slot;
                 last_count_in_stack = new_count;
             } else {
-                let (inventory_bag_db_guid, contained_in) = if bag == u8::from(wow_entities::INVENTORY_SLOT_BAG_0) {
+                let (inventory_bag_db_guid, contained_in) = if bag
+                    == u8::from(wow_entities::INVENTORY_SLOT_BAG_0)
+                {
                     (0, player_guid)
-                } else if let Some(bag_inventory_item) = self.inventory
-                    .quest_reward_inventory_item_from_runtime_with_access_like_cpp(&self.player.inventory_like_cpp(), bag)
+                } else if let Some(bag_inventory_item) = self
+                    .inventory
+                    .quest_reward_inventory_item_from_runtime_with_access_like_cpp(
+                        &self.player.inventory_like_cpp(),
+                        bag,
+                    )
                 {
                     (bag_inventory_item.db_guid, bag_inventory_item.guid)
                 } else {
                     tracing::warn!(
-                        account = self.player.account_id_like_cpp(), bag, slot, entry_id,
+                        account = self.player.account_id_like_cpp(),
+                        bag,
+                        slot,
+                        entry_id,
                         "RewardQuest: represented reward item destination references missing bag"
                     );
-                    self.player.send_equip_error_like_cpp(InventoryResult::WrongBagType, None, None, 0, 0);
+                    self.player.send_equip_error_like_cpp(
+                        InventoryResult::WrongBagType,
+                        None,
+                        None,
+                        0,
+                        0,
+                    );
                     return false;
                 };
                 let Some((db_guid, item_guid)) = allocated_new_item_guids.next() else {
                     tracing::warn!(
-                        account = self.player.account_id_like_cpp(), entry_id,
+                        account = self.player.account_id_like_cpp(),
+                        entry_id,
                         "RewardQuest: preallocated item GUID count did not match store plan"
                     );
-                    self.player.send_equip_error_like_cpp(InventoryResult::InvFull, None, None, 0, 0);
+                    self.player.send_equip_error_like_cpp(
+                        InventoryResult::InvFull,
+                        None,
+                        None,
+                        0,
+                        0,
+                    );
                     return false;
                 };
                 let max_durability = self.catalogs.item_template_max_durability(entry_id);
@@ -141,15 +192,30 @@ impl QuestRewardCx<'_> {
                     matches!(bonding, ItemBondingType::OnAcquire | ItemBondingType::Quest)
                         || (bonding == ItemBondingType::OnEquip && is_bag_pos(dest.pos))
                 });
-                let item_flags = if should_bind { ItemFieldFlags::SOULBOUND.bits() } else { 0 };
+                let item_flags = if should_bind {
+                    ItemFieldFlags::SOULBOUND.bits()
+                } else {
+                    0
+                };
                 persistence_new_stacks.push(wow_persistence::QuestItemNewStackPersistenceLikeCpp {
-                    item_guid: db_guid, entry_id, owner_guid: player_guid.counter() as u64,
-                    count: dest.count, max_durability, dynamic_flags: item_flags,
-                    bag_guid: inventory_bag_db_guid, slot,
+                    item_guid: db_guid,
+                    entry_id,
+                    owner_guid: player_guid.counter() as u64,
+                    count: dest.count,
+                    max_durability,
+                    dynamic_flags: item_flags,
+                    bag_guid: inventory_bag_db_guid,
+                    slot,
                 });
                 new_stacks.push(NewStack {
-                    bag, slot, db_guid, item_guid, stack_count: dest.count,
-                    max_durability, item_flags, contained_in,
+                    bag,
+                    slot,
+                    db_guid,
+                    item_guid,
+                    stack_count: dest.count,
+                    max_durability,
+                    item_flags,
+                    contained_in,
                 });
                 last_item_guid = item_guid;
                 last_bag = bag;
@@ -162,79 +228,136 @@ impl QuestRewardCx<'_> {
         // database in the operation's closing `SaveToDB(false)`
         // (Player.cpp:14867). Record them instead of committing a grant that
         // the rest of the reward could still fail behind.
-        plan.push_inventory_mutation(wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
-            wow_persistence::QuestItemGrantPersistenceLikeCpp {
-                existing_stacks: persistence_existing_stacks,
-                new_stacks: persistence_new_stacks,
-            },
-        ));
+        plan.push_inventory_mutation(
+            wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
+                wow_persistence::QuestItemGrantPersistenceLikeCpp {
+                    existing_stacks: persistence_existing_stacks,
+                    new_stacks: persistence_new_stacks,
+                },
+            ),
+        );
         for update in &existing_updates {
-            let mut item_updates = vec![wow_entities::ItemObjectUpdateLikeCpp::SetCount(update.new_count)];
+            let mut item_updates = vec![wow_entities::ItemObjectUpdateLikeCpp::SetCount(
+                update.new_count,
+            )];
             if let Some(bonding) = item_bonding {
                 item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::SetBonding(bonding));
                 if update.should_bind {
-                    item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::BindIfStored(is_bag_pos(update.pos)));
+                    item_updates.push(wow_entities::ItemObjectUpdateLikeCpp::BindIfStored(
+                        is_bag_pos(update.pos),
+                    ));
                 }
             }
             let access = self.player.inventory_like_cpp();
-            let _ = self.inventory.apply_quest_reward_item_object_updates_with_access_like_cpp(
-                &access, update.item_guid, &item_updates,
-            );
+            let _ = self
+                .inventory
+                .apply_quest_reward_item_object_updates_with_access_like_cpp(
+                    &access,
+                    update.item_guid,
+                    &item_updates,
+                );
         }
 
-        let inventory_type = self.catalogs.item_storage_template(entry_id)
+        let inventory_type = self
+            .catalogs
+            .item_storage_template(entry_id)
             .map(|template| template.inventory_type as u8)
             .filter(|&inventory_type| inventory_type != InventoryType::NonEquip as u8);
         for stack in &new_stacks {
             if stack.bag == u8::from(wow_entities::INVENTORY_SLOT_BAG_0) {
-                self.inventory.insert_quest_reward_inventory_item_with_access_like_cpp(
-                    &self.player.inventory_like_cpp(), stack.slot,
-                    PlayerInventoryItem { guid: stack.item_guid, entry_id, db_guid: stack.db_guid, inventory_type },
-                );
+                self.inventory
+                    .insert_quest_reward_inventory_item_with_access_like_cpp(
+                        &self.player.inventory_like_cpp(),
+                        stack.slot,
+                        PlayerInventoryItem {
+                            guid: stack.item_guid,
+                            entry_id,
+                            db_guid: stack.db_guid,
+                            inventory_type,
+                        },
+                    );
             }
-            let max_durability = self.catalogs.item_template_max_durability(entry_id).max(stack.max_durability);
+            let max_durability = self
+                .catalogs
+                .item_template_max_durability(entry_id)
+                .max(stack.max_durability);
             let mut item_object = wow_world_inventory::make_inventory_item_object_like_cpp(
-                stack.item_guid, entry_id, player_guid, stack.stack_count, stack.max_durability,
-                max_durability, ItemContext::QuestReward, stack.slot, self.lifecycle.total_played_time_like_cpp(),
+                stack.item_guid,
+                entry_id,
+                player_guid,
+                stack.stack_count,
+                stack.max_durability,
+                max_durability,
+                ItemContext::QuestReward,
+                stack.slot,
+                self.lifecycle.total_played_time_like_cpp(),
             );
             if stack.bag != u8::from(wow_entities::INVENTORY_SLOT_BAG_0) {
                 item_object.set_container_guid_and_slot(stack.contained_in, stack.bag);
             }
             if let Some(bonding) = item_bonding {
                 item_object.set_bonding(bonding);
-                item_object.bind_if_stored(is_bag_pos(wow_entities::make_item_pos(stack.bag, stack.slot)));
+                item_object.bind_if_stored(is_bag_pos(wow_entities::make_item_pos(
+                    stack.bag, stack.slot,
+                )));
             }
-            self.inventory.insert_quest_reward_item_object_with_access_like_cpp(
-                &self.player.inventory_like_cpp(), item_object,
-            );
+            self.inventory
+                .insert_quest_reward_item_object_with_access_like_cpp(
+                    &self.player.inventory_like_cpp(),
+                    item_object,
+                );
         }
 
         let map_id = self.player.player_map_id_like_cpp();
         if !new_stacks.is_empty() {
-            let item_creates = new_stacks.iter().map(|stack| ItemCreateData {
-                item_guid: stack.item_guid, entry_id: entry_id as i32, owner_guid: player_guid,
-                contained_in: stack.contained_in, stack_count: stack.stack_count,
-                dynamic_flags: stack.item_flags, durability: stack.max_durability,
-                max_durability: stack.max_durability, random_properties_seed: 0, random_properties_id: 0,
-                enchantments: [ItemEnchantmentValuesUpdate::default(); 13], gems: Vec::new(),
-                context: ItemContext::QuestReward as u8, container_slots: 0,
-                container_item_guids: [ObjectGuid::EMPTY; 36],
-            }).collect();
+            let item_creates = new_stacks
+                .iter()
+                .map(|stack| ItemCreateData {
+                    item_guid: stack.item_guid,
+                    entry_id: entry_id as i32,
+                    owner_guid: player_guid,
+                    contained_in: stack.contained_in,
+                    stack_count: stack.stack_count,
+                    dynamic_flags: stack.item_flags,
+                    durability: stack.max_durability,
+                    max_durability: stack.max_durability,
+                    random_properties_seed: 0,
+                    random_properties_id: 0,
+                    enchantments: [ItemEnchantmentValuesUpdate::default(); 13],
+                    gems: Vec::new(),
+                    context: ItemContext::QuestReward as u8,
+                    container_slots: 0,
+                    container_item_guids: [ObjectGuid::EMPTY; 36],
+                })
+                .collect();
             self.send_packet_like_cpp(&UpdateObject::create_items(item_creates, map_id));
         }
         for update in &existing_updates {
-            self.send_packet_like_cpp(&UpdateObject::item_stack_count_update(update.item_guid, map_id, update.new_count));
+            self.send_packet_like_cpp(&UpdateObject::item_stack_count_update(
+                update.item_guid,
+                map_id,
+                update.new_count,
+            ));
         }
         if !new_stacks.is_empty() {
-            let changed_slots: Vec<_> = new_stacks.iter()
+            let changed_slots: Vec<_> = new_stacks
+                .iter()
                 .filter(|stack| stack.bag == u8::from(wow_entities::INVENTORY_SLOT_BAG_0))
-                .map(|stack| (stack.slot, stack.item_guid)).collect();
+                .map(|stack| (stack.slot, stack.item_guid))
+                .collect();
             if !changed_slots.is_empty() {
-                self.inventory.send_player_values_update_from_entity_bridge_with_access_like_cpp(
-                    &self.player.inventory_like_cpp(), &self.player.packet_publication_access_like_cpp(),
-                    self.catalogs.items.store.as_ref(), self.catalogs.items.stats_store.as_ref(),
-                    &changed_slots, &[], &[], &[], None,
-                );
+                self.inventory
+                    .send_player_values_update_from_entity_bridge_with_access_like_cpp(
+                        &self.player.inventory_like_cpp(),
+                        &self.player.packet_publication_access_like_cpp(),
+                        self.catalogs.items.store.as_ref(),
+                        self.catalogs.items.stats_store.as_ref(),
+                        &changed_slots,
+                        &[],
+                        &[],
+                        &[],
+                        None,
+                    );
             }
         }
         let Some(inventory_item_counts) = self.represented_inventory_item_counts_like_cpp() else {
@@ -242,20 +365,39 @@ impl QuestRewardCx<'_> {
         };
         let quantity_in_inventory = inventory_item_counts.get(&entry_id).copied().unwrap_or(0);
         let send_new_item = SendNewItemPlan {
-            player_guid, item_guid: last_item_guid, item_entry: entry_id,
+            player_guid,
+            item_guid: last_item_guid,
+            item_entry: entry_id,
             item_instance: SendNewItemInstancePlan {
-                item_id: entry_id, random_properties_seed: 0, random_properties_id: 0,
+                item_id: entry_id,
+                random_properties_seed: 0,
+                random_properties_id: 0,
                 modifications: Vec::<SendNewItemModifier>::new(),
             },
             slot: last_bag,
-            slot_in_bag: if last_count_in_stack == quantity { i16::from(last_slot) } else { -1 },
-            quest_log_item_id: 0, quantity, quantity_in_inventory, battle_pet_species_id: 0,
-            battle_pet_breed_id: 0, battle_pet_breed_quality: 0, battle_pet_level: 0,
-            pushed: true, created: false, display_text: SendNewItemDisplayText::Normal,
-            dungeon_encounter_id: 0, is_encounter_loot: false, delivery: SendNewItemDelivery::Direct,
+            slot_in_bag: if last_count_in_stack == quantity {
+                i16::from(last_slot)
+            } else {
+                -1
+            },
+            quest_log_item_id: 0,
+            quantity,
+            quantity_in_inventory,
+            battle_pet_species_id: 0,
+            battle_pet_breed_id: 0,
+            battle_pet_breed_quality: 0,
+            battle_pet_level: 0,
+            pushed: true,
+            created: false,
+            display_text: SendNewItemDisplayText::Normal,
+            dungeon_encounter_id: 0,
+            is_encounter_loot: false,
+            delivery: SendNewItemDelivery::Direct,
         };
         let packet = wow_world_inventory::item_push_result_from_send_new_item_plan(&send_new_item);
-        self.player.packet_publication_access_like_cpp().send_packet_realm(&packet);
+        self.player
+            .packet_publication_access_like_cpp()
+            .send_packet_realm(&packet);
         true
     }
 
@@ -264,9 +406,13 @@ impl QuestRewardCx<'_> {
         bag: u8,
         slot: u8,
     ) -> Option<PlayerInventoryItem> {
-        self.inventory.get_inventory_item_by_pos_with_access_like_cpp(
-            &self.player.inventory_like_cpp(), self.catalogs.item_store(),
-            self.catalogs.item_stats_store(), bag, slot,
-        )
+        self.inventory
+            .get_inventory_item_by_pos_with_access_like_cpp(
+                &self.player.inventory_like_cpp(),
+                self.catalogs.item_store(),
+                self.catalogs.item_stats_store(),
+                bag,
+                slot,
+            )
     }
 }

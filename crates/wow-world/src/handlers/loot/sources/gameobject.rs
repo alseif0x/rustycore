@@ -251,9 +251,10 @@ impl WorldSession {
             return;
         }
 
-        let should_record_generation_effects =
-            source.loot_id != 0
-                && !self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid);
+        let should_record_generation_effects = source.loot_id != 0
+            && !self
+                .loot
+                .cached_loot_contains_owner_like_cpp(gameobject_guid);
         let allowed_looters = if source.is_personal_encounter_loot_like_cpp() {
             Vec::new()
         } else if source.uses_personal_loot_like_cpp() {
@@ -274,7 +275,9 @@ impl WorldSession {
         )
         .await;
         if should_record_generation_effects
-            && self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid)
+            && self
+                .loot
+                .cached_loot_contains_owner_like_cpp(gameobject_guid)
         {
             crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,
@@ -288,7 +291,8 @@ impl WorldSession {
             .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
             .is_none()
         {
-            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             return;
         }
 
@@ -365,13 +369,14 @@ impl WorldSession {
         .await;
         if should_update_criteria {
             let player_guid = player_guid.expect("checked above");
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
-                    gameobject_guid,
-                    player_guid,
-                    gameobject_entry,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
+                        gameobject_guid,
+                        player_guid,
+                        gameobject_entry,
+                    },
+                );
         }
     }
 
@@ -462,7 +467,10 @@ impl WorldSession {
             },
         );
 
-        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(gameobject_guid) {
+        if let Some(loot) = self
+            .loot
+            .cached_loot_for_owner_mut_like_cpp(gameobject_guid)
+        {
             mark_loot_allowed_for_player_like_cpp(loot, player_guid);
         }
         let upserted = self
@@ -481,7 +489,8 @@ impl WorldSession {
                 })
             });
         if upserted.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
-            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
+            self.loot
+                .remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             return;
         }
 
@@ -701,22 +710,24 @@ impl crate::session::LootCx<'_> {
         linked_trap_entry: u32,
     ) {
         if triggered_event_id != 0 {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TriggerGameEvent {
-                    gameobject_guid,
-                    player_guid,
-                    event_id: triggered_event_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerGameEvent {
+                        gameobject_guid,
+                        player_guid,
+                        event_id: triggered_event_id,
+                    },
+                );
         }
         if linked_trap_entry != 0 {
-            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::TriggerLinkedTrap {
-                    gameobject_guid,
-                    player_guid,
-                    trap_entry: linked_trap_entry,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerLinkedTrap {
+                        gameobject_guid,
+                        player_guid,
+                        trap_entry: linked_trap_entry,
+                    },
+                );
         }
     }
 }

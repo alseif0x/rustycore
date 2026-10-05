@@ -85,8 +85,8 @@ fn source_graph_fixture(name: &str) -> PathBuf {
     ))
 }
 
+mod composer_tests;
+mod direct_builder_tests;
 mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;
-mod direct_builder_tests;
-mod composer_tests;

@@ -4,8 +4,8 @@
 use std::collections::{BTreeSet, HashMap};
 
 use crate::session::{
-    PlayerSkillTestFixtureLikeCpp, RepresentedPlayerSkillLikeCpp, SessionCore,
-    SKILL_ENCHANTING_LIKE_CPP, canonical_player_skill_record_like_cpp,
+    PlayerSkillTestFixtureLikeCpp, RepresentedPlayerSkillLikeCpp, SKILL_ENCHANTING_LIKE_CPP,
+    SessionCore, canonical_player_skill_record_like_cpp,
     represented_skill_values_from_records_like_cpp,
 };
 

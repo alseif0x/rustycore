@@ -1,8 +1,8 @@
 //! Represented guild fixtures and flag queries owned by Social.
 
-use crate::SessionSocialLimits;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP;
+use crate::SessionSocialLimits;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::HubRef;
 
@@ -40,11 +40,10 @@ impl SessionSocialLimits {
         mutate: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,
     ) -> R {
         let result = mutate(&mut state);
-        self.guild_test_fixture_like_cpp.represented_guild_id_like_cpp =
-            state.guild_id.unwrap_or(0);
-        self.guild_test_fixture_like_cpp.represented_guild_id_invited_like_cpp = state
-            .invited_guild_id
-            .unwrap_or(0);
+        self.guild_test_fixture_like_cpp
+            .represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
+        self.guild_test_fixture_like_cpp
+            .represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
         self.guild_test_fixture_like_cpp
             .represented_guild_id_authority_complete_like_cpp = state.authority_complete;
         result
@@ -65,10 +64,7 @@ impl SessionSocialLimits {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_auto_decline_guild_invites_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-    ) -> bool {
+    pub fn represented_auto_decline_guild_invites_like_cpp(&self, hub: HubRef<'_>) -> bool {
         let Some(guid) = hub.core.player_guid() else {
             return false;
         };

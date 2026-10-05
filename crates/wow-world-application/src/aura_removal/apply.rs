@@ -4,17 +4,29 @@
 use super::AuraRemovalCxLikeCpp;
 use std::time::Instant;
 use wow_core::ObjectGuid;
-use wow_entities::{AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedAuraEffectAmountLikeCpp};
+use wow_entities::{
+    AuraApplicationLikeCpp as AuraApplication, RepresentedAuraEffectAmountLikeCpp,
+    RepresentedAuraEffectLikeCpp,
+};
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 
 impl AuraRemovalCxLikeCpp<'_> {
     pub fn apply_aura_with_effect_mask_like_cpp(
-        &mut self, spell_id: i32, caster_guid: ObjectGuid,
-        duration_ms: u32, aura_flags: u32, effect_mask: u32,
+        &mut self,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        duration_ms: u32,
+        aura_flags: u32,
+        effect_mask: u32,
     ) -> Result<(), &'static str> {
         self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
-            spell_id, caster_guid, duration_ms, aura_flags, effect_mask,
-            wow_entities::AuraCastProvenanceLikeCpp::default(), true,
+            spell_id,
+            caster_guid,
+            duration_ms,
+            aura_flags,
+            effect_mask,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+            true,
         )
     }
 
@@ -29,7 +41,10 @@ impl AuraRemovalCxLikeCpp<'_> {
         send_update: bool,
     ) -> Result<(), &'static str> {
         // Find a free slot (0-254) on the canonical Unit owner.
-        let slot = wow_world_spell::SessionSpellState::next_player_visible_aura_slot_with_access_like_cpp(&self.player)
+        let slot =
+            wow_world_spell::SessionSpellState::next_player_visible_aura_slot_with_access_like_cpp(
+                &self.player,
+            )
             .ok_or("No free aura slots or missing Player aura owner")?;
 
         // Preserve the represented StatSystem-relevant multiplier on the same
@@ -125,9 +140,15 @@ impl AuraRemovalCxLikeCpp<'_> {
             applied_at: Instant::now(),
         };
 
-        if !self.spell.insert_player_visible_aura_with_access_and_provenance_like_cpp(
-            &mut self.player, self.spell_store.map(|store| store.as_ref()), aura, provenance,
-        ) {
+        if !self
+            .spell
+            .insert_player_visible_aura_with_access_and_provenance_like_cpp(
+                &mut self.player,
+                self.spell_store.map(|store| store.as_ref()),
+                aura,
+                provenance,
+            )
+        {
             return Err("Missing Player aura owner");
         }
         self.player.apply_player_threat_aura_for_consumer_like_cpp(
@@ -136,7 +157,9 @@ impl AuraRemovalCxLikeCpp<'_> {
             slot,
             effect_mask,
             &represented_effect_amounts,
-            self.spell_store.map(|store| store.as_ref()), self.difficulty_store, self.consumer_test,
+            self.spell_store.map(|store| store.as_ref()),
+            self.difficulty_store,
+            self.consumer_test,
         );
 
         if send_update {
@@ -148,7 +171,8 @@ impl AuraRemovalCxLikeCpp<'_> {
                 duration_ms,
                 aura_flags,
                 effect_mask,
-                #[cfg(any(test, feature = "test-fixtures"))] self.player_level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                self.player_level,
             );
             // C++ applies login/load auras while Player is not yet in world,
             // then folds their modifiers into UpdateAllStats and the initial
@@ -157,10 +181,13 @@ impl AuraRemovalCxLikeCpp<'_> {
             if modifies_total_stats && self.player.is_logged_in_like_cpp() {
                 let player = self.stats.reborrow_like_cpp(
                     &self.player,
-                    #[cfg(any(test, feature = "test-fixtures"))] &*self.shapeshift_form,
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    &*self.shapeshift_form,
                 );
                 let mut stats = crate::CharacterStatsApplicationCxLikeCpp::new(
-                    player, &*self.inventory, self.player.packet_publication_like_cpp(),
+                    player,
+                    &*self.inventory,
+                    self.player.packet_publication_like_cpp(),
                 );
                 stats.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
             }

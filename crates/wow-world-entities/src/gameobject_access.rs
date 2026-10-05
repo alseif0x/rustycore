@@ -1,9 +1,9 @@
 use wow_core::ObjectGuid;
 use wow_entities::PhaseShift;
 
-use crate::{RepresentedGameObjectUseEffect, RepresentedGameObjectUseState, WorldEntitiesState};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::RepresentedGameObjectCriteriaEvent;
+use crate::{RepresentedGameObjectUseEffect, RepresentedGameObjectUseState, WorldEntitiesState};
 
 impl WorldEntitiesState {
     pub fn represented_gameobject_phase_shift_like_cpp(

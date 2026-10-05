@@ -3,9 +3,9 @@
 
 //! Narrow access to the canonical inputs needed to publish a Player's registry position.
 
-use crate::session::state::SessionCore;
 use crate::player_directory::PlayerRegistry;
 use crate::session::mailbox::SessionCommand;
+use crate::session::state::SessionCore;
 use wow_core::{ObjectGuid, Position};
 
 /// Inert fixture participants lent to the final registry publication.
@@ -68,8 +68,9 @@ impl SessionCore {
         &'a self,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_position: &'a Option<Position>,
         #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &'a u8,
-        #[cfg(any(test, feature = "test-fixtures"))]
-        fixture_transport: &'a Option<Box<crate::session::PlayerTransportLoginStateLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_transport: &'a Option<
+            Box<crate::session::PlayerTransportLoginStateLikeCpp>,
+        >,
     ) -> PlayerRegistrySyncAccessLikeCpp<'a> {
         PlayerRegistrySyncAccessLikeCpp {
             core: self,
@@ -103,7 +104,10 @@ impl PlayerRegistrySyncAccessLikeCpp<'_> {
     ) -> Option<crate::session::PlayerRegistryControlBindingLikeCpp<'_>> {
         let guid = self.core.player_guid()?;
         let registry = self.core.player_registry()?;
-        Some(self.core.player_registry_control_binding_like_cpp(guid, registry))
+        Some(
+            self.core
+                .player_registry_control_binding_like_cpp(guid, registry),
+        )
     }
 
     fn player_position_like_cpp(&self) -> Option<Position> {
@@ -205,15 +209,12 @@ impl SessionCore {
 
     /// Re-resolve this session's current registry binding before publishing party state.
     pub fn sync_player_registry_party_member_party_type_like_cpp(&self) {
-        let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry.as_ref()) else {
+        let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry.as_ref())
+        else {
             return;
         };
         let party_type = self.party_member_party_type_like_cpp();
-        registry.publish_party_type_for_control_channel(
-            guid,
-            &self.session_command_tx,
-            party_type,
-        );
+        registry.publish_party_type_for_control_channel(guid, &self.session_command_tx, party_type);
     }
 }
 

@@ -15,10 +15,7 @@ impl WorldEntitiesState {
             .faction_template = (faction_template != 0).then_some(faction_template);
     }
 
-    pub fn restore_represented_gameobject_override_flags_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) {
+    pub fn restore_represented_gameobject_override_flags_like_cpp(&mut self, guid: ObjectGuid) {
         if let Some(state) = self.represented_gameobject_use_states.get_mut(&guid) {
             if let Some(flags) = state.gameobject_override_flags {
                 state.gameobject_flags = flags;

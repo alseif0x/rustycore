@@ -20,7 +20,6 @@ impl WorldSession {
         hydration_access.owned_player_quest_gameplay_snapshot_like_cpp()
     }
 
-
     pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
         let mut hub = crate::session::hub_mut(self);
         let canonical = hub
@@ -308,18 +307,21 @@ impl WorldSession {
     }
     /// Set C++ `CONFIG_QUEST_LOW_LEVEL_HIDE_DIFF`.
     pub fn set_quest_low_level_hide_diff_like_cpp(&mut self, value: u32) {
-        self.quest_state.set_quest_low_level_hide_diff_like_cpp(value);
+        self.quest_state
+            .set_quest_low_level_hide_diff_like_cpp(value);
     }
     /// Set C++ `CONFIG_QUEST_HIGH_LEVEL_HIDE_DIFF`.
     pub fn set_quest_high_level_hide_diff_like_cpp(&mut self, value: u32) {
-        self.quest_state.set_quest_high_level_hide_diff_like_cpp(value);
+        self.quest_state
+            .set_quest_high_level_hide_diff_like_cpp(value);
     }
     /// Set the QuestXP store (loaded from QuestXP.db2).
     pub fn set_quest_xp_store(&mut self, store: Arc<wow_data::quest_xp::QuestXpStore>) {
         self.catalogs.quests.xp_store = Some(store);
     }
     pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
-        self.quest_state.set_min_quest_scaled_xp_ratio_like_cpp(ratio);
+        self.quest_state
+            .set_min_quest_scaled_xp_ratio_like_cpp(ratio);
     }
     pub(crate) fn player_quest_level_like_cpp(
         &self,

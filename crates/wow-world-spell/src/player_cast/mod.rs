@@ -1,7 +1,7 @@
 mod identity;
 mod lifecycle;
-mod publication;
 mod power;
+mod publication;
 mod state;
 mod wire;
 

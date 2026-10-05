@@ -198,7 +198,6 @@ impl crate::session::LootCx<'_> {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/loot/operations/f3_shims.rs"]
 mod f3_shims;

@@ -82,7 +82,9 @@ async fn targeted_party_addon_uses_group_routing_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session

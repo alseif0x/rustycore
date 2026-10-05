@@ -659,15 +659,17 @@ impl WorldSession {
     ) {
         let access = self.core.owned_inventory_access_like_cpp();
         let publication = self.core.packet_publication_access_like_cpp();
-        let send_stat_update = self.inventory.apply_item_turnin_changes_with_access_like_cpp(
-            &access,
-            &publication,
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-            _player_guid,
-            map_id,
-            changes,
-        );
+        let send_stat_update = self
+            .inventory
+            .apply_item_turnin_changes_with_access_like_cpp(
+                &access,
+                &publication,
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+                _player_guid,
+                map_id,
+                changes,
+            );
         if send_stat_update {
             self.send_stat_update();
         }

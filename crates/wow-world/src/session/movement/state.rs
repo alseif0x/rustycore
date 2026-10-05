@@ -49,7 +49,8 @@ impl WorldSession {
 
     pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
         let access = self.core.owned_player_currency_access_like_cpp();
-        self.inventory.remove_currency_with_access_like_cpp(&access, currency_id, amount)
+        self.inventory
+            .remove_currency_with_access_like_cpp(&access, currency_id, amount)
     }
 
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
@@ -80,7 +81,8 @@ impl WorldSession {
     }
 
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
-        self.player_aura_application_cx_like_cpp().remove_represented_feign_death_if_needed_like_cpp()
+        self.player_aura_application_cx_like_cpp()
+            .remove_represented_feign_death_if_needed_like_cpp()
     }
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
@@ -109,7 +111,8 @@ impl WorldSession {
     pub(crate) fn represented_calendar_remove_events_like_cpp(
         &self,
     ) -> &[RepresentedCalendarRemoveEventLikeCpp] {
-        self.social.represented_calendar_remove_events_for_test_like_cpp()
+        self.social
+            .represented_calendar_remove_events_for_test_like_cpp()
     }
 
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
@@ -244,13 +247,14 @@ impl WorldSession {
         }
         if persist {
             #[cfg(test)]
-            self.lifecycle.record_at_login_flag_removal_for_test_like_cpp(
-                RepresentedAtLoginFlagRemovalLikeCpp {
-                    flags,
-                    persist,
-                    db_statement_unrepresented: true,
-                },
-            );
+            self.lifecycle
+                .record_at_login_flag_removal_for_test_like_cpp(
+                    RepresentedAtLoginFlagRemovalLikeCpp {
+                        flags,
+                        persist,
+                        db_statement_unrepresented: true,
+                    },
+                );
         }
         true
     }

@@ -50,10 +50,12 @@ impl LootReleaseCxLikeCpp<'_> {
             .and_then(|state| state.fishing_hole_max_opens);
         let canonical_fishing_hole_release = (go_type == Some(GAMEOBJECT_TYPE_FISHING_HOLE))
             .then(|| {
-                self.owner.transitions_like_cpp().release_canonical_fishing_hole_like_cpp(
-                    guid,
-                    represented_fishing_hole_max_opens,
-                )
+                self.owner
+                    .transitions_like_cpp()
+                    .release_canonical_fishing_hole_like_cpp(
+                        guid,
+                        represented_fishing_hole_max_opens,
+                    )
             })
             .flatten();
         let canonical_fishing_hole_use_count_after_release = canonical_fishing_hole_release
@@ -127,13 +129,15 @@ impl LootReleaseCxLikeCpp<'_> {
         };
         let requested_loot_state_outcome = canonical_loot_state_request.and_then(
             |(loot_state, unit_guid, shared_loot_is_changed_like_cpp)| {
-                self.owner.transitions_like_cpp().set_canonical_gameobject_loot_state_like_cpp(
-                    guid,
-                    loot_state,
-                    unit_guid,
-                    represented_chest_restock_time_secs,
-                    shared_loot_is_changed_like_cpp,
-                )
+                self.owner
+                    .transitions_like_cpp()
+                    .set_canonical_gameobject_loot_state_like_cpp(
+                        guid,
+                        loot_state,
+                        unit_guid,
+                        represented_chest_restock_time_secs,
+                        shared_loot_is_changed_like_cpp,
+                    )
             },
         );
         let canonical_applied_loot_state = if guarded_global_transition.is_some() {
@@ -273,7 +277,9 @@ impl LootReleaseCxLikeCpp<'_> {
         if !self.owner.retire_client_visible_guid_like_cpp(guid) {
             return;
         }
-        self.owner.publication_like_cpp().send_packet(&UpdateObject::out_of_range_objects(vec![guid], map_id));
+        self.owner
+            .publication_like_cpp()
+            .send_packet(&UpdateObject::out_of_range_objects(vec![guid], map_id));
     }
 
     /// C++ `GameObject::IsWithinDistInMap` gate for `HandleAutostoreLootItemOpcode`:
@@ -299,12 +305,16 @@ impl LootReleaseCxLikeCpp<'_> {
     fn represented_known_spells_like_cpp(&self) -> Vec<i32> {
         let core = self.core_like_cpp();
         let canonical = core.with_owned_player_like_cpp(|player| {
-            player.spell_runtime_like_cpp().known_spells_like_cpp().to_vec()
+            player
+                .spell_runtime_like_cpp()
+                .known_spells_like_cpp()
+                .to_vec()
         });
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && core.player_handle_like_cpp.is_none() {
             let runtime = wow_world_spell::canonical_player_spell_runtime_like_cpp(
-                self.spell_state.represented_spell_runtime_fixture_like_cpp(),
+                self.spell_state
+                    .represented_spell_runtime_fixture_like_cpp(),
             );
             return runtime.known_spells_like_cpp().to_vec();
         }
@@ -532,22 +542,23 @@ pub fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
     let Some(source) = state.chest_loot_source else {
         return 0;
     };
-    let command = wow_world_core::session::mailbox::SyncChestGameobjectStateAndRefreshLikeCppCommand {
-        gameobject_guid,
-        map_id: access.player_map_id_like_cpp(),
-        instance_id: access.loot_instance_id_like_cpp(),
-        go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
-        loot_state: state.loot_state.map(|loot_state| loot_state as u8),
-        loot_state_unit_guid: state.loot_state_unit_guid,
-        chest_loot_id: source.loot_id,
-        chest_personal_loot_id: source.personal_loot_id,
-        chest_push_loot_id: source.push_loot_id,
-        chest_quest_id: source.chest_quest_id,
-        chest_restock_time_secs: source.chest_restock_time_secs,
-        chest_consumable: source.chest_consumable,
-        linked_trap_entry: state.linked_trap_entry,
-        linked_trap_guid: state.linked_trap_guid,
-    };
+    let command =
+        wow_world_core::session::mailbox::SyncChestGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: access.player_map_id_like_cpp(),
+            instance_id: access.loot_instance_id_like_cpp(),
+            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            chest_loot_id: source.loot_id,
+            chest_personal_loot_id: source.personal_loot_id,
+            chest_push_loot_id: source.push_loot_id,
+            chest_quest_id: source.chest_quest_id,
+            chest_restock_time_secs: source.chest_restock_time_secs,
+            chest_consumable: source.chest_consumable,
+            linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
+        };
     routing.queue_like_cpp(command)
 }
 
@@ -602,14 +613,14 @@ pub fn represented_gameobject_can_autostore_loot_item_like_cpp(
                 state.lock_id,
             )
             .unwrap_or(radius);
-            if let Some(display_info) = hub
-                .catalogs
-                .gameobject_display_info_store()
-                .and_then(|store| {
-                    state
-                        .display_id
-                        .and_then(|display_id| store.get(display_id))
-                })
+            if let Some(display_info) =
+                hub.catalogs
+                    .gameobject_display_info_store()
+                    .and_then(|store| {
+                        state
+                            .display_id
+                            .and_then(|display_id| store.get(display_id))
+                    })
             {
                 wow_world_entities::represented_gameobject_display_box_contains_like_cpp(
                     position,
@@ -710,8 +721,10 @@ fn represented_gameobject_loot_state_like_cpp(
             .map(|state| state.rotation)
             .unwrap_or([0.0, 0.0, 0.0, 1.0]),
         go_type: represented_state.and_then(|state| state.go_type),
-        interact_radius_override: represented_state.and_then(|state| state.interact_radius_override),
+        interact_radius_override: represented_state
+            .and_then(|state| state.interact_radius_override),
         lock_id: represented_state.and_then(|state| state.lock_id),
-        owner_guid: canonical_owner.or_else(|| represented_state.and_then(|state| state.owner_guid)),
+        owner_guid: canonical_owner
+            .or_else(|| represented_state.and_then(|state| state.owner_guid)),
     })
 }

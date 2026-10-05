@@ -12,8 +12,8 @@ use wow_entities::{
 };
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::{
-    OwnedCollectionsAccessLikeCpp, OwnedEquipmentSetsAccessLikeCpp,
-    OwnedInventoryAccessLikeCpp, PacketPublicationAccessLikeCpp,
+    OwnedCollectionsAccessLikeCpp, OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
+    PacketPublicationAccessLikeCpp,
 };
 
 use crate::{
@@ -60,7 +60,9 @@ impl<'a> EquipmentSetsSaveCxLikeCpp<'a> {
         &self,
         mut f: impl FnMut(&wow_entities::PlayerEquipmentSetsLikeCpp) -> R,
     ) -> Option<R> {
-        let canonical = self.equipment_sets.with_equipment_sets_like_cpp(|sets| f(sets));
+        let canonical = self
+            .equipment_sets
+            .with_equipment_sets_like_cpp(|sets| f(sets));
         if canonical.is_some() {
             return canonical;
         }
@@ -88,11 +90,7 @@ impl<'a> EquipmentSetsSaveCxLikeCpp<'a> {
         None
     }
 
-    fn get_inventory_item_by_pos_like_cpp(
-        &self,
-        bag: u8,
-        slot: u8,
-    ) -> Option<InventoryItem> {
+    fn get_inventory_item_by_pos_like_cpp(&self, bag: u8, slot: u8) -> Option<InventoryItem> {
         if bag != INVENTORY_SLOT_BAG_0
             || (slot as usize) >= PLAYER_SLOT_END
             || wow_entities::is_buyback_slot(slot)
@@ -114,9 +112,8 @@ impl<'a> EquipmentSetsSaveCxLikeCpp<'a> {
             return None;
         }
 
-        let set_type = RepresentedEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(
-            set.set_type,
-        )?;
+        let set_type =
+            RepresentedEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(set.set_type)?;
 
         for i in 0..wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP {
             let slot_bit = 1_u32 << i;
@@ -126,10 +123,8 @@ impl<'a> EquipmentSetsSaveCxLikeCpp<'a> {
 
                     let item_guid = set.pieces[i];
                     if !item_guid.is_empty() {
-                        let item = self.get_inventory_item_by_pos_like_cpp(
-                            INVENTORY_SLOT_BAG_0,
-                            i as u8,
-                        )?;
+                        let item =
+                            self.get_inventory_item_by_pos_like_cpp(INVENTORY_SLOT_BAG_0, i as u8)?;
                         if item.guid != item_guid {
                             return None;
                         }
@@ -177,24 +172,21 @@ impl<'a> EquipmentSetsSaveCxLikeCpp<'a> {
                 }
 
                 let enchant_id = u32::try_from(enchant_id).ok()?;
-                if self
-                    .spell_item_enchantment_store
-                    .is_some_and(|store| {
-                        store.get(enchant_id).is_none_or(|illusion| {
-                            illusion.item_visual == 0
-                                || !illusion
-                                    .flags
-                                    .contains(SpellItemEnchantmentFlags::ALLOW_TRANSMOG)
-                        })
+                if self.spell_item_enchantment_store.is_some_and(|store| {
+                    store.get(enchant_id).is_none_or(|illusion| {
+                        illusion.item_visual == 0
+                            || !illusion
+                                .flags
+                                .contains(SpellItemEnchantmentFlags::ALLOW_TRANSMOG)
                     })
-                {
+                }) {
                     return None;
                 }
             }
         }
 
-        let existing_state = self
-            .with_equipment_sets_like_cpp(|sets| sets.set_state_like_cpp(set.guid))?;
+        let existing_state =
+            self.with_equipment_sets_like_cpp(|sets| sets.set_state_like_cpp(set.guid))?;
         if set.guid != 0 && existing_state.is_none() {
             return None;
         }

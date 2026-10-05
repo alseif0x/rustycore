@@ -4,18 +4,18 @@
 
 //! One selected-owner context for the complete quest reward operation.
 
-mod currencies;
-mod commit;
 mod accessors;
+mod commit;
 mod coordinator;
+mod currencies;
 mod effects;
-mod reputation;
-mod removals;
 mod grants;
-mod item_storage;
 mod item_planning;
-mod publication;
+mod item_storage;
 mod lockout;
+mod publication;
+mod removals;
+mod reputation;
 mod validation;
 mod xp;
 mod xp_grants;
@@ -34,9 +34,9 @@ use super::{RepresentedQuestObjectiveProgressEventLikeCpp, SessionQuestState};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use item_planning::QuestRewardItemPlanningFixtureRefsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
-pub use xp_grants::QuestXpGainFixtureRefsLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
 pub use reputation::QuestRewardReputationFixtureRefsLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use xp_grants::QuestXpGainFixtureRefsLikeCpp;
 
 pub struct QuestRewardCx<'a> {
     pub(super) inventory: &'a mut InventoryState,
@@ -112,7 +112,8 @@ impl<'a> QuestRewardCx<'a> {
         let removed = player.clear_quest_reward_end_time_like_cpp(quest_id);
 
         #[cfg(any(test, feature = "test-fixtures"))]
-        if world_test_consumer && !fixture_owner
+        if world_test_consumer
+            && !fixture_owner
             && let Some(state) = player.quest_gameplay_snapshot_like_cpp()
         {
             quest_state.apply_player_quest_core_compatibility_like_cpp(&state);

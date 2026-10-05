@@ -101,7 +101,9 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     );
     session.set_player_guid(Some(leader_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -207,7 +209,9 @@ async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     );
     session.set_player_guid(Some(member_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -333,7 +337,9 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
         crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
     );
     assert!(
-        !session.quest_state.fixture_has_rewarded_quest_like_cpp(quest_id)
+        !session
+            .quest_state
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -408,7 +414,9 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
             .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
-        session.quest_state.fixture_has_rewarded_quest_like_cpp(quest_id)
+        session
+            .quest_state
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -472,7 +480,9 @@ async fn spell_quest_complete_effect_rewards_unlogged_tracking_event_like_cpp() 
         .expect("represented unlogged tracking quest-complete spell row should execute");
 
     assert!(
-        session.quest_state.fixture_has_rewarded_quest_like_cpp(quest_id)
+        session
+            .quest_state
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert!(
         session

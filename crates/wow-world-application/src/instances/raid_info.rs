@@ -13,11 +13,7 @@ pub async fn handle_request_raid_info_like_cpp(
     let locks = match cx.player.player_guid_like_cpp() {
         Some(player_guid) => cx
             .locks
-            .raid_info_locks_like_cpp(
-                player_guid,
-                cx.map_store,
-                cx.map_difficulty_store,
-            )
+            .raid_info_locks_like_cpp(player_guid, cx.map_store, cx.map_difficulty_store)
             .unwrap_or_default(),
         None => Vec::new(),
     };

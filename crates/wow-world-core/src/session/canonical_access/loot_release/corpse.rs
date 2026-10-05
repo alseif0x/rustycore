@@ -11,8 +11,11 @@ impl LootReleaseAccessLikeCpp<'_> {
         &self,
         corpse_guid: ObjectGuid,
     ) -> bool {
-        let Some(map_key) = self.core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.core.player_map_id_like_cpp()))
+        let Some(map_key) = self
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                self.core.player_map_id_like_cpp(),
+            ))
         else {
             return false;
         };
@@ -40,8 +43,11 @@ impl LootReleaseAccessLikeCpp<'_> {
         object_generation: u64,
         lifecycle_revision: u64,
     ) -> bool {
-        let Some(map_key) = self.core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.core.player_map_id_like_cpp()))
+        let Some(map_key) = self
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                self.core.player_map_id_like_cpp(),
+            ))
         else {
             return false;
         };

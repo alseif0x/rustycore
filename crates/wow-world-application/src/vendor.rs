@@ -47,11 +47,7 @@ pub enum VendorBuyTemplateBlock {
     Silent,
 }
 
-pub fn vendor_buy_quantity_and_price(
-    buy_price: u64,
-    buy_count: u32,
-    quantity: u32,
-) -> (u32, u64) {
+pub fn vendor_buy_quantity_and_price(buy_price: u64, buy_count: u32, quantity: u32) -> (u32, u64) {
     if buy_price == 0 || quantity == 0 {
         return (quantity, 0);
     }
@@ -64,10 +60,7 @@ pub fn vendor_buy_quantity_and_price(
     (quantity, price)
 }
 
-pub fn vendor_buy_coinage_update_like_cpp(
-    buy_price: u64,
-    remaining_gold: u64,
-) -> Option<u64> {
+pub fn vendor_buy_coinage_update_like_cpp(buy_price: u64, remaining_gold: u64) -> Option<u64> {
     // C++ `_StoreOrEquipNewItem` calls `ModifyMoney(-price)`, whose first
     // branch returns without dirtying `ActivePlayerData::Coinage` when the
     // amount is zero (`Player.cpp::ModifyMoney`).
@@ -92,15 +85,11 @@ pub fn vendor_stored_new_item_flags_like_cpp(
     item.item_flags_bits()
 }
 
-pub fn vendor_buy_packet_quantity_to_cpp_count(
-    quantity: i32,
-) -> u32 {
+pub fn vendor_buy_packet_quantity_to_cpp_count(quantity: i32) -> u32 {
     u32::from((quantity as u8).max(1))
 }
 
-pub fn vendor_buy_currency_packet_quantity_to_cpp_count(
-    quantity: i32,
-) -> u32 {
+pub fn vendor_buy_currency_packet_quantity_to_cpp_count(quantity: i32) -> u32 {
     (quantity as u32).max(1)
 }
 
@@ -179,9 +168,7 @@ pub fn vendor_buy_player_condition_block_result_like_cpp(
     }
 }
 
-pub fn vendor_conditions_block_result(
-    has_vendor_conditions: bool,
-) -> Option<BuyResult> {
+pub fn vendor_conditions_block_result(has_vendor_conditions: bool) -> Option<BuyResult> {
     if has_vendor_conditions {
         Some(BuyResult::CantFindItem)
     } else {
@@ -525,10 +512,7 @@ pub enum SellItemAmountAction {
     PartialStack { amount: u32, remaining: u32 },
 }
 
-pub fn sell_item_amount_action(
-    current_count: u32,
-    requested_amount: i32,
-) -> SellItemAmountAction {
+pub fn sell_item_amount_action(current_count: u32, requested_amount: i32) -> SellItemAmountAction {
     let amount = if requested_amount == 0 {
         current_count
     } else {

@@ -65,7 +65,10 @@ async fn represented_fishing_node_loot_walks_parent_area_like_cpp() {
         .open_represented_fishing_node_loot_like_cpp(gameobject_guid, 77, false)
         .await;
 
-    let loot = session.loot.cached_loot_for_owner_like_cpp(gameobject_guid).unwrap();
+    let loot = session
+        .loot
+        .cached_loot_for_owner_like_cpp(gameobject_guid)
+        .unwrap();
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_LIKE_CPP);
     assert_eq!(loot.items.len(), 1);
     assert_eq!(loot.items[0].item_id, item_id);
@@ -110,7 +113,10 @@ async fn represented_fishing_node_junk_loot_uses_default_zone_like_cpp() {
         .open_represented_fishing_node_loot_like_cpp(gameobject_guid, 77, true)
         .await;
 
-    let loot = session.loot.cached_loot_for_owner_like_cpp(gameobject_guid).unwrap();
+    let loot = session
+        .loot
+        .cached_loot_for_owner_like_cpp(gameobject_guid)
+        .unwrap();
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_JUNK_LIKE_CPP);
     assert_eq!(loot.items.len(), 1);
     assert_eq!(loot.items[0].item_id, item_id);
@@ -673,7 +679,11 @@ async fn loot_unit_group_loot_single_candidate_unblocks_under_threshold_like_cpp
     let _loot_list = send_rx.try_recv().unwrap();
     assert!(send_rx.try_recv().is_err());
 
-    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
+    let entry = &session
+        .loot
+        .cached_loot_for_owner_like_cpp(owner_guid)
+        .unwrap()
+        .items[0];
     assert!(!entry.flags.blocked);
     assert!(entry.flags.under_threshold);
 }
@@ -772,7 +782,11 @@ async fn loot_unit_group_loot_pass_on_loot_suppresses_current_prompt_like_cpp() 
         ROLL_VOTE_PASS_LIKE_CPP
     );
 
-    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
+    let entry = &session
+        .loot
+        .cached_loot_for_owner_like_cpp(owner_guid)
+        .unwrap()
+        .items[0];
     assert!(entry.flags.blocked);
     assert!(!entry.flags.under_threshold);
 }

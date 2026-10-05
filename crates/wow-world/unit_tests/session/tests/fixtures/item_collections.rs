@@ -285,17 +285,15 @@ pub(in crate::session::tests) fn insert_open_item_bag_with_child(
     inner_slot: u8,
 ) -> (ObjectGuid, ObjectGuid) {
     let bag_guid = ObjectGuid::create_item(1, 1001);
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            bag_slot,
-            InventoryItem {
-                guid: bag_guid,
-                entry_id: 101,
-                db_guid: 1001,
-                inventory_type: Some(InventoryType::Bag as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        bag_slot,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: 101,
+            db_guid: 1001,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
     let bag_item = session.make_inventory_item_object(
         bag_guid,
         101,
@@ -394,17 +392,15 @@ pub(in crate::session::tests) fn insert_open_item_top_level(
     entry: u32,
     unlocked: bool,
 ) {
-    session
-        .inventory
-        .insert_inventory_item_for_test_like_cpp(
-            slot,
-            InventoryItem {
-                guid: item_guid,
-                entry_id: entry,
-                db_guid: item_guid.counter() as u64,
-                inventory_type: None,
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        slot,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: entry,
+            db_guid: item_guid.counter() as u64,
+            inventory_type: None,
+        },
+    );
     let mut item = session.make_inventory_item_object(
         item_guid,
         entry,
@@ -483,9 +479,9 @@ pub(in crate::session::tests) fn assert_open_item_release_destroy_nested_item_le
     );
     assert_eq!(
         session
-        .inventory
-        .inventory_item_at_slot_for_test_like_cpp(&bag_slot)
-        .guid,
+            .inventory
+            .inventory_item_at_slot_for_test_like_cpp(&bag_slot)
+            .guid,
         bag_guid
     );
 }

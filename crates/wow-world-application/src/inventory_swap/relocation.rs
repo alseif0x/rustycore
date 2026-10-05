@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 use wow_core::ObjectGuid;
-use wow_data::{ItemStore, ItemStatsStore};
-use wow_entities::{INVENTORY_SLOT_BAG_0, PlayerInventoryItem, ItemObjectUpdateLikeCpp};
+use wow_data::{ItemStatsStore, ItemStore};
+use wow_entities::{INVENTORY_SLOT_BAG_0, ItemObjectUpdateLikeCpp, PlayerInventoryItem};
 use wow_world_core::session::OwnedInventoryAccessLikeCpp;
 use wow_world_inventory::InventoryState;
 
@@ -16,30 +16,66 @@ pub struct InventoryCommittedRelocationCxLikeCpp<'a> {
     item_stats_store: Option<&'a Arc<ItemStatsStore>>,
 }
 impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
-    pub fn new(inventory: &'a mut InventoryState, access: OwnedInventoryAccessLikeCpp<'a>, item_store: Option<&'a Arc<ItemStore>>, item_stats_store: Option<&'a Arc<ItemStatsStore>>) -> Self {
-        Self { inventory, access, item_store, item_stats_store }
+    pub fn new(
+        inventory: &'a mut InventoryState,
+        access: OwnedInventoryAccessLikeCpp<'a>,
+        item_store: Option<&'a Arc<ItemStore>>,
+        item_stats_store: Option<&'a Arc<ItemStatsStore>>,
+    ) -> Self {
+        Self {
+            inventory,
+            access,
+            item_store,
+            item_stats_store,
+        }
     }
     fn get_inventory_item_by_pos(&self, bag: u8, slot: u8) -> Option<PlayerInventoryItem> {
-        self.inventory.get_inventory_item_by_pos_with_access_like_cpp(&self.access, self.item_store, self.item_stats_store, bag, slot)
+        self.inventory
+            .get_inventory_item_by_pos_with_access_like_cpp(
+                &self.access,
+                self.item_store,
+                self.item_stats_store,
+                bag,
+                slot,
+            )
     }
     fn resolved_inventory_item_like_cpp(&self, slot: u8) -> Option<PlayerInventoryItem> {
-        self.inventory.quest_reward_inventory_item_from_runtime_with_access_like_cpp(&self.access, slot)
+        self.inventory
+            .quest_reward_inventory_item_from_runtime_with_access_like_cpp(&self.access, slot)
     }
-    fn resolved_inventory_item_objects_like_cpp(&self) -> Option<std::collections::HashMap<ObjectGuid, wow_entities::Item>> {
-        self.inventory.resolved_inventory_item_objects_with_access_like_cpp(&self.access)
+    fn resolved_inventory_item_objects_like_cpp(
+        &self,
+    ) -> Option<std::collections::HashMap<ObjectGuid, wow_entities::Item>> {
+        self.inventory
+            .resolved_inventory_item_objects_with_access_like_cpp(&self.access)
     }
     fn item_storage_template(&self, entry: u32) -> Option<wow_entities::ItemStorageTemplate> {
-        wow_world_core::catalogs::item::item_storage_template_like_cpp(self.item_store, self.item_stats_store, entry)
+        wow_world_core::catalogs::item::item_storage_template_like_cpp(
+            self.item_store,
+            self.item_stats_store,
+            entry,
+        )
     }
     fn remove_inventory_item_like_cpp(&mut self, slot: u8) {
-        let _ = self.inventory.remove_inventory_item_with_access_like_cpp(&self.access, slot);
+        let _ = self
+            .inventory
+            .remove_inventory_item_with_access_like_cpp(&self.access, slot);
     }
     fn insert_inventory_item_like_cpp(&mut self, slot: u8, item: PlayerInventoryItem) {
-        let _ = self.inventory.insert_quest_reward_inventory_item_with_access_like_cpp(&self.access, slot, item);
+        let _ = self
+            .inventory
+            .insert_quest_reward_inventory_item_with_access_like_cpp(&self.access, slot, item);
     }
-    fn player_guid(&self) -> Option<ObjectGuid> { self.access.player_guid_like_cpp() }
-    fn apply_inventory_item_object_updates_like_cpp(&mut self, guid: ObjectGuid, updates: &[ItemObjectUpdateLikeCpp]) -> bool {
-        self.inventory.apply_inventory_item_object_updates_with_access_like_cpp(&self.access, guid, updates)
+    fn player_guid(&self) -> Option<ObjectGuid> {
+        self.access.player_guid_like_cpp()
+    }
+    fn apply_inventory_item_object_updates_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        updates: &[ItemObjectUpdateLikeCpp],
+    ) -> bool {
+        self.inventory
+            .apply_inventory_item_object_updates_with_access_like_cpp(&self.access, guid, updates)
     }
     pub fn apply_committed_inventory_item_relocation_like_cpp(
         &mut self,
@@ -132,10 +168,16 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
         }
 
         let item_guid = inventory_item.guid;
-        self.access.apply_committed_inventory_relocation_native_placement_like_cpp(
-            source_bag, source_slot, destination_bag, destination_slot,
-            item_guid, moved_bag_size, &moved_bag_children,
-        );
+        self.access
+            .apply_committed_inventory_relocation_native_placement_like_cpp(
+                source_bag,
+                source_slot,
+                destination_bag,
+                destination_slot,
+                item_guid,
+                moved_bag_size,
+                &moved_bag_children,
+            );
         true
     }
 }

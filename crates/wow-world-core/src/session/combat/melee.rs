@@ -11,20 +11,20 @@ use wow_entities::AuraApplicationLikeCpp;
 /// multiplies its rolled damage by the returned factor; `1.0` when nothing is
 /// active.
 impl SessionCore {
-pub(crate) fn represented_autoattack_damage_multiplier_from_snapshot_like_cpp(
-    auras: &HashMap<u8, AuraApplicationLikeCpp>,
-    spell_store: &SpellStore,
-) -> f32 {
-    crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
-        auras,
-        spell_store,
-        wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_DAMAGE,
-    )
-    .into_iter()
-    .fold(1.0_f32, |total, (_, amount)| {
-        total * (1.0 + amount as f32 / 100.0)
-    })
-}
+    pub(crate) fn represented_autoattack_damage_multiplier_from_snapshot_like_cpp(
+        auras: &HashMap<u8, AuraApplicationLikeCpp>,
+        spell_store: &SpellStore,
+    ) -> f32 {
+        crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
+            auras,
+            spell_store,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_DAMAGE,
+        )
+        .into_iter()
+        .fold(1.0_f32, |total, (_, amount)| {
+            total * (1.0 + amount as f32 / 100.0)
+        })
+    }
 }
 
 impl SessionCore {
@@ -128,7 +128,10 @@ impl crate::session::HubRef<'_> {
         ) else {
             return 1.0;
         };
-        SessionCore::represented_autoattack_damage_multiplier_from_snapshot_like_cpp(&auras, spell_store)
+        SessionCore::represented_autoattack_damage_multiplier_from_snapshot_like_cpp(
+            &auras,
+            spell_store,
+        )
     }
 
     pub fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {
