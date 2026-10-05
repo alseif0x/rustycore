@@ -4809,6 +4809,12 @@ se oculta: la campaña anterior de 111,42 s no era comparable porque se detenía
 llegó a compilar/tests. No se repite la campaña en caliente solo para mejorar la cifra; si el
 propietario quiere el número ordinario en caché caliente, es una ejecución adicional explícita.
 
+Delta posterior exclusivamente documental: `6bfba1d18` (registro de esta campaña en este plan).
+Validado con `./tools/validation-v2 2 --base f7553c7d0` → manifiesto
+`20261005T073157.187077Z-740372-quick.json`, verde, `git diff --check` y espacios incluidos. No
+existe código alterado respecto del candidato, por lo que la evidencia `final` de `f7553c7d0` se
+reutiliza sin relabelar ni repetir la campaña.
+
 Con las tres campañas, el bloqueo R1 queda resuelto y `final` pasa entero por primera vez en la
 rama. La aceptación de comportamiento (capturas, QA live, durabilidad real) sigue fuera de esta
 evidencia y conserva su propia autoridad.
