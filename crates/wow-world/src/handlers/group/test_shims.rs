@@ -134,7 +134,7 @@ impl WorldSession {
                 .handle_change_sub_group(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail);
+        self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
     pub async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
@@ -144,7 +144,7 @@ impl WorldSession {
                 .handle_swap_sub_groups(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail);
+        self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
     pub async fn handle_leave_group(&mut self, pkt: WorldPacket) {
@@ -154,7 +154,7 @@ impl WorldSession {
                 .handle_leave_group(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail);
+        self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
     pub async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
@@ -164,7 +164,17 @@ impl WorldSession {
                 .handle_convert_raid(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail);
+        self.apply_group_publication_tail_like_cpp(tail).await;
+    }
+
+    pub async fn handle_party_invite_response(&mut self, pkt: WorldPacket) {
+        let tail = {
+            let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+            wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+                .handle_party_invite_response(pkt)
+                .await
+        };
+        self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
     pub async fn handle_party_uninvite(&mut self, pkt: WorldPacket) {
@@ -174,6 +184,6 @@ impl WorldSession {
                 .handle_party_uninvite(pkt)
                 .await
         };
-        self.apply_group_publication_tail_like_cpp(tail);
+        self.apply_group_publication_tail_like_cpp(tail).await;
     }
 }

@@ -22,11 +22,13 @@ impl GroupHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
     }
 
-    fn run_group_publication_tail_like_cpp(
-        &mut self,
-        tail: wow_world_application::GroupPublicationTailLikeCpp,
-    ) {
-        self.apply_group_publication_tail_like_cpp(tail);
+    fn run_group_publication_tail_like_cpp<'a>(
+        &'a mut self,
+        tail: GroupPublicationTailLikeCpp,
+    ) -> wow_handler::HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            self.apply_group_publication_tail_like_cpp(tail).await;
+        })
     }
 }
 
@@ -37,7 +39,7 @@ impl WorldSession {
     /// World session's stats/loot/control and map providers, so the application
     /// owner returns the exact remaining sequence and the session runs it here,
     /// between the canonical transition and the final packets.
-    pub(crate) fn apply_group_publication_tail_like_cpp(
+    pub(crate) async fn apply_group_publication_tail_like_cpp(
         &mut self,
         tail: GroupPublicationTailLikeCpp,
     ) {
@@ -67,6 +69,22 @@ impl WorldSession {
                     group_guid,
                     GROUP_CATEGORY_HOME_LIKE_CPP,
                 );
+            }
+            GroupPublicationTailLikeCpp::VisibilityThenPersistThenPartyUpdate {
+                group,
+                group_guid,
+                persistence,
+                refresh_visible_gameobjects_or_spellclicks,
+            } => {
+                if refresh_visible_gameobjects_or_spellclicks {
+                    let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+                }
+                if !persistence.is_empty() {
+                    self.lifecycle
+                        .persist_group_intents_like_cpp(group_guid, persistence)
+                        .await;
+                }
+                self.send_group_party_update_after_owner_like_cpp(&group);
             }
         }
     }

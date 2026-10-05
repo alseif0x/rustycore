@@ -82,18 +82,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::PartyInviteResponse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_party_invite_response",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_party_invite_response(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::OptOutOfLoot,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

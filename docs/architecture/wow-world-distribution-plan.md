@@ -5717,6 +5717,27 @@ requisito `34.745,50` → **presupuesto 34.746**, 0 violaciones / 0 permitidos /
 
 **No validado todavía.** Sin campaña `final` nueva; quedan **196 registros literales**.
 
+#### F5: group, corte de respuesta a invitación — 2026-10-05, `80baae47b..HEAD`
+
+`PartyInviteResponse` pasa al registrador `ApplicationGroup`. El caso aceptado necesita el seam de
+visibilidad **en medio** de la secuencia (refresco → persistencia de los intents de unión →
+`PartyUpdate`), así que el tail tipado gana una variante nueva
+`VisibilityThenPersistThenPartyUpdate { group, group_guid, persistence, refresh_visible_gameobjects_or_spellclicks }`
+y el método del trait pasa a ser **async** (`HandlerFuture`), de modo que el host puede esperar la
+persistencia de lifecycle en su sitio. `PartyInvite` se queda: su cuerpo necesita el catálogo
+`group_invite_policy` en el Cx y los ayudantes del shell de mapa/instancia de invitación y dificultad
+de mazmorra. `group` queda en **3 registros literales** (invite, opt-out, random roll).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**248 de `group`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (191 owners / 3.135 items / 709 filas); `check_architecture.py check`
+**PASS**; hotspot `session/mod.rs` reconciliado (producción 61.085 → 61.103, total 199.269 →
+199.287). R1 v2: `S = 72.307`, `G_move = 110.998`, requisito `34.775,65` → **presupuesto 34.776**,
+0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; quedan **195 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

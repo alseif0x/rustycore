@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34746,
-    "measured_requirement": 34746,
+    "budget": 34776,
+    "measured_requirement": 34776,
     "recorded_at_revision": "80baae47b249c7fd7a4a14a5563707fcd4e67613",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72150, G_move = 110803, ratio and slack credits = 72150 * 1.05 + 300 = 76057.5, so the requirement is 34745.5 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72307, G_move = 110998, ratio and slack credits = 72307 * 1.05 + 300 = 76222.35, so the requirement is 34775.65 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -201,6 +201,13 @@
         "destination_growth": 240,
         "new_code": 85,
         "note": "PartyUninvite moved into the existing ApplicationGroup registrar, and the subgroup/leave/convert handlers were reworked onto a typed GroupPublicationTailLikeCpp so the deferred World seams (registry sync, visibility refresh) run in C++ order between the canonical transition and the final packets instead of after them. The host runs the tail in place; PartyInvite/PartyInviteResponse stay because the invite path needs the invite policy catalog and a mid-sequence visibility seam. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group invite-response (80baae47b..HEAD)",
+        "shrink": 157,
+        "destination_growth": 195,
+        "new_code": 38,
+        "note": "PartyInviteResponse moved into the existing ApplicationGroup registrar with a new async tail variant (visibility only when the accepted invite joined an existing raid group, then the accepted-invite persistence, then the party update) so the World seam runs mid-sequence in C++ order. PartyInvite stays because its body needs the invite policy catalog plus the shell-owned invite map/instance and dungeon-difficulty helpers. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [
