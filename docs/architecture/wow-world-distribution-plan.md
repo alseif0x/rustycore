@@ -5504,6 +5504,33 @@ spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9),
 entities/player (8), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4),
 corpse (4), gameobject (3) y combat (3).
 
+#### F5: familia combat, corte de parada/estado de arma (2 opcodes) a `wow-world-application` — 2026-10-05, `829cf4b58..HEAD`
+
+`AttackStop` y `SetSheathed` pasan al registrador directo `ApplicationCombat`
+(`crates/wow-world-application/src/combat_handlers.rs`). El contexto es el más simple de la serie:
+`CombatHandlerCxLikeCpp { hub }`, sin catálogos ni estado prestado adicional, porque la parada de
+ataque canónica (`stop_player_attack_like_cpp`) y la publicación ya viven en el hub de Core.
+`handle_attack_swing` se queda en el shell: su admisión `start_player_attack_like_cpp` sigue siendo
+propiedad de World, así que moverlo exigiría un seam de host que este corte no introduce. Combate
+queda en **1 registro literal** (`handle_attack_swing`), con sus delegados `cfg(test)` en
+`handlers/combat/test_shims.rs`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos,
+metadata `Inplace`/`LoggedIn` y `handler_name` sin cambios), **11 de `scenarios_world_entities_11`**
+y **110 con filtro `combat`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; suite del tool **443/443**; `session-ownership-check check --syntax-only`
+**PASS** (185 owners / 3.129 items / 674 filas); `check_architecture.py check` **PASS** (3.376
+ficheros / 102 techos); hotspots reconciliados (`session/mod.rs`: producción 60.933 → 60.955, test
+138.176 → 138.178, total 199.109 → 199.133; `world-server/lib.rs`: producción 31.780 → 31.784,
+total 60.491 → 60.495). R1 v2: `S = 71.407`, `G_move = 109.299`, requisito `34.021,65` →
+**presupuesto 34.022**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Quedan **215 registros literales** en `wow-world`: character/account (57), trade (15), quest (14),
+spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9), vehicle (8),
+entities/player (8), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4),
+corpse (4), gameobject (3) y combat (1).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

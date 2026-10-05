@@ -17,7 +17,7 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
-use wow_packet::packets::combat::{AttackStart, AttackSwing, SAttackStop, SetSheathed};
+use wow_packet::packets::combat::{AttackStart, AttackSwing, SAttackStop};
 
 use crate::session::{PlayerAttackStartLikeCppResult, WorldSession};
 
@@ -33,27 +33,10 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AttackStop,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_attack_stop",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_attack_stop(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetSheathed,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_set_sheathed",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_sheathed(pkt) }),
-    }
-}
-
 // ── Handler implementations ───────────────────────────────────────
+
+#[cfg(test)]
+mod test_shims;
 
 impl WorldSession {
     /// Deliver one map-owned player auto-attack resolution to its attacker.
@@ -242,38 +225,6 @@ impl WorldSession {
                 victim: swing.victim,
             };
             self.send_packet(&start);
-        }
-    }
-
-    /// CMSG_ATTACK_STOP — client stops attacking.
-    pub async fn handle_attack_stop(&mut self, _pkt: wow_packet::WorldPacket) {
-        let player_guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-
-        debug!(account = self.core.account_id, "CMSG_ATTACK_STOP");
-
-        if let Some(target) = crate::session::hub_mut(self).stop_player_attack_like_cpp() {
-            let stop = SAttackStop {
-                attacker: player_guid,
-                victim: target,
-                now_dead: false,
-            };
-            self.send_packet(&stop);
-        }
-    }
-
-    /// CMSG_SET_SHEATHED — client changes weapon sheathe state.
-    ///
-    /// We just ack silently; the client manages the visual state.
-    pub fn handle_set_sheathed(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Ok(sheathed) = SetSheathed::read(&mut pkt) {
-            debug!(
-                account = self.core.account_id,
-                state = sheathed.current_sheath_state,
-                "SetSheathed"
-            );
         }
     }
 }

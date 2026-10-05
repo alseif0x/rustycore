@@ -473,6 +473,27 @@ pub(crate) const QUEST_QUERY_REGISTRAR: DirectRegistrarContract = DirectRegistra
     facades: QUEST_QUERY_FACADES,
 };
 
+const COMBAT_ROOT_EXPORTS: &[&str] = &[
+    "CombatHandlerCxLikeCpp",
+    "CombatHandlerHostLikeCpp",
+    "register_combat_handlers_like_cpp",
+];
+const COMBAT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "combat_handlers",
+    exports: COMBAT_ROOT_EXPORTS,
+}];
+
+pub(crate) const COMBAT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationCombat",
+    package: "wow-world-application",
+    module: "crate::combat_handlers",
+    registrar: "register_combat_handlers_like_cpp",
+    host_trait: "CombatHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: COMBAT_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -494,6 +515,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     APPLICATION_GROUP_REGISTRAR,
     GUILD_REGISTRAR,
     QUEST_QUERY_REGISTRAR,
+    COMBAT_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

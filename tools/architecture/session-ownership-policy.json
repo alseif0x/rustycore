@@ -551,6 +551,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::combat::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::dungeon_finding",
           "trait_path": null,
           "cfg": [],
@@ -1167,6 +1175,12 @@
         {
           "module": "crate::session",
           "trait_path": "ClientStateHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "CombatHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -6085,20 +6099,6 @@
           "module": "crate::handlers::combat",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_attack_stop",
-          "visibility": "pub",
-          "signature": "async fn handle_attack_stop (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::combat",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_attack_swing",
           "visibility": "pub",
           "signature": "async fn handle_attack_swing (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -6110,14 +6110,32 @@
           ]
         },
         {
-          "module": "crate::handlers::combat",
+          "module": "crate::handlers::combat::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_attack_stop",
+          "visibility": "pub",
+          "signature": "async fn handle_attack_stop (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::combat::test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_sheathed",
           "visibility": "pub",
-          "signature": "fn handle_set_sheathed (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn handle_set_sheathed (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44147,6 +44165,19 @@
           "name": "client_state_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn client_state_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ClientStateHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "CombatHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "combat_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn combat_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> CombatHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

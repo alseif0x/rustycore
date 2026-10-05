@@ -54,6 +54,13 @@
     {
       "capability": "handler_registration",
       "package": "wow-world-application",
+      "module": "crate::combat_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
       "module": "crate::quest_query_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263

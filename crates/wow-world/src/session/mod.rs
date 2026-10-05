@@ -21,6 +21,7 @@ mod calendar_handler_contexts;
 mod chat_handler_contexts;
 mod client_state_handler_contexts;
 mod combat;
+mod combat_handler_contexts;
 mod data_service_handler_contexts;
 mod group_application_handler_contexts;
 mod group_handler_contexts;
