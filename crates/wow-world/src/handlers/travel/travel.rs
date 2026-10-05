@@ -11,7 +11,6 @@ use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     ActivateTaxi, ActivateTaxiReply, ERR_TAXITOOFARAWAY_LIKE_CPP, SetTaxiBenchmarkMode,
-    TaxiNodeStatusPkt,
 };
 
 use crate::session::{AreaTriggerCatalogsLikeCpp, RepresentedActivateTaxiLikeCpp};
@@ -68,30 +67,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SuspendTokenResponse,
-        status: SessionStatus::Transfer,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_suspend_token_response",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_suspend_token_response(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::TaxiNodeStatusQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_taxi_node_status_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_taxi_node_status_query(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::SetTaxiBenchmarkMode,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -102,17 +77,8 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UpdateAreaTriggerVisual,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_update_area_trigger_visual",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_update_area_trigger_visual(pkt).await })
-        },
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 impl crate::session::WorldSession {
     /// C++ `Map::SendInitSelf` (Map.cpp:1826), invoked by `Map::AddPlayerToMap(initPlayer=true)`
@@ -141,46 +107,6 @@ impl crate::session::WorldSession {
         );
         Some(sent)
     }
-    /// CMSG_SUSPEND_TOKEN_RESPONSE — client acknowledges SMSG_SUSPEND_TOKEN during a far
-    /// teleport. C++ `WorldSession::HandleSuspendTokenResponse` (MovementHandler.cpp:239)
-    /// replies with SMSG_NEW_WORLD so the client loads the destination map; only then does
-    /// the client send CMSG_WORLD_PORT_RESPONSE. Without this step the client sits on the
-    /// loading screen at 0% forever. #NEXT.R8.ENTITIES.1229.
-    pub async fn handle_suspend_token_response(&mut self, _pkt: wow_packet::WorldPacket) {
-        if self.state() == crate::session::SessionState::Disconnecting {
-            return;
-        }
-        if !crate::session::hub_ref(self).represented_far_teleport_pending_like_cpp() {
-            return;
-        }
-        let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
-            return;
-        };
-        let packet = wow_packet::packets::misc::NewWorld {
-            map_id: new_map,
-            pos: new_pos,
-            reason: 16, // C++ Player.h NEW_WORLD_NORMAL (not the seamless value 21).
-        };
-        if self
-            .core
-            .realm_route_tx()
-            .send(wow_packet::ServerPacket::to_bytes(&packet))
-            .is_err()
-        {
-            self.kick("worldport NewWorld could not be queued");
-            return;
-        }
-        {
-            let (s, mut h) = crate::session::split_lifecycle_mut(self);
-            s.recovery_new_world_sent_like_cpp(&mut h)
-        };
-        info!(
-            account = self.core.account_id,
-            map = new_map,
-            "[FAR_TELEPORT] SuspendTokenResponse -> sent SMSG_NEW_WORLD (client now loads destination map)"
-        );
-    }
-
     /// CMSG_WORLD_PORT_RESPONSE — client confirms it has loaded the new map.
     /// Admission anchor: C++ `WorldSession::HandleMoveWorldportAck` in MovementHandler.cpp.
     /// Sent after SMSG_NEW_WORLD (which is emitted from handle_suspend_token_response).
@@ -670,45 +596,7 @@ impl crate::session::WorldSession {
         );
     }
 
-    /// CMSG_TAXI_NODE_STATUS_QUERY — client asks status of a taxi NPC.
-    ///
-    /// C# ref: `TaxiHandler.SendTaxiStatus`:
-    ///   0 = None (no node found), 1 = Learned, 2 = Unlearned, 3 = NotEligible.
-    ///
-    /// Without a full taxi mask we default to:
-    ///   - NPCFlags includes FlightMaster (0x2000) → `Unlearned` (2)
-    ///     so the taxi icon shows as available.
-    ///   - Otherwise → `None` (0).
-
-    pub async fn handle_taxi_node_status_query(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let unit_guid = match pkt.read_packed_guid() {
-            Ok(g) => g,
-            Err(_) => {
-                warn!("TaxiNodeStatusQuery: failed to read unit GUID");
-                return;
-            }
-        };
-
-        const NPC_FLAG_FLIGHT_MASTER: u32 = 0x2000;
-        let is_flight_master = self
-            .core
-            .mutate_world_creature(unit_guid, |creature| {
-                creature.npc_flags() & NPC_FLAG_FLIGHT_MASTER != 0
-            })
-            .unwrap_or(false);
-
-        // TaxiNodeStatus: 0=None, 1=Learned, 2=Unlearned, 3=NotEligible
-        let status: u8 = if is_flight_master { 2 } else { 0 };
-
-        debug!(
-            account = self.core.account_id,
-            ?unit_guid,
-            status,
-            "TaxiNodeStatusQuery"
-        );
-        self.send_packet(&TaxiNodeStatusPkt { unit_guid, status });
-    }
-
+    /// CMSG_SET_TAXI_BENCHMARK_MODE — toggles the represented benchmark flag.
     pub async fn handle_set_taxi_benchmark_mode(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match SetTaxiBenchmarkMode::read(&mut pkt) {
             Ok(packet) => packet,
@@ -722,9 +610,5 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_taxi_benchmark_mode_like_cpp(packet.enable);
-    }
-
-    pub async fn handle_update_area_trigger_visual(&mut self, _pkt: wow_packet::WorldPacket) {
-        // C++ registers CMSG_UPDATE_AREA_TRIGGER_VISUAL as STATUS_UNHANDLED/Handle_NULL.
     }
 }

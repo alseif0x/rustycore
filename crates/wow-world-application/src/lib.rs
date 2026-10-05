@@ -24,6 +24,7 @@ mod registry_sync;
 mod reputation;
 mod spell_acquisition;
 pub mod spell_click_values;
+mod travel_handlers;
 pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
@@ -216,4 +217,7 @@ pub use trainer_purchase::{
     publish_spell_acquisition_action_like_cpp, resolve_creature_trainer_like_cpp,
     trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
     trainer_price_like_cpp, trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
+};
+pub use travel_handlers::{
+    TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
 };

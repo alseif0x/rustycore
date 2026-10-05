@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34326,
-    "measured_requirement": 34326,
+    "budget": 34486,
+    "measured_requirement": 34486,
     "recorded_at_revision": "5fcc497a22bc0a0e8703a4a38efa83470583ea7e",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71563, G_move = 109767, ratio and slack credits = 71563 * 1.05 + 300 = 75441.15, so the requirement is 34325.85 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71617, G_move = 109983, ratio and slack credits = 71617 * 1.05 + 300 = 75497.85, so the requirement is 34485.15 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -166,6 +166,13 @@
         "destination_growth": 261,
         "new_code": 160,
         "note": "MountSetFavorite, MountSpecialAnim, MountClearFanfare and ToyClearFanfare moved from the World shell to a new application collections registrar with a hub-only context: the collection state, the movement-recipient directory and packet delivery already live in the Core hub. The remaining collections handlers stay while they touch inventory/spell state. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 travel slice (5fcc497a2..HEAD, three handlers)",
+        "shrink": 54,
+        "destination_growth": 216,
+        "new_code": 162,
+        "note": "SuspendTokenResponse, TaxiNodeStatusQuery and UpdateAreaTriggerVisual moved from the World shell to a new application travel registrar whose context splits the lifecycle state from the hub (far-transfer destination and recovery flag stay lifecycle-owned). The remaining travel bodies (taxi activation, area trigger, world-port response, benchmark mode) stay while they call shell-owned or registry-sync seams. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

@@ -5586,6 +5586,36 @@ spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9),
 (7), loot (7), entities/player (5), dungeon_finding (5), void_storage (4), corpse (4), collections
 (3), gameobject (3) y combat (1).
 
+#### F5: familia travel, corte de token/taxi/trigger (3 opcodes) a `wow-world-application` — 2026-10-05, `5fcc497a2..HEAD`
+
+`SuspendTokenResponse`, `TaxiNodeStatusQuery` y `UpdateAreaTriggerVisual` pasan al registrador
+directo `ApplicationTravel` (`crates/wow-world-application/src/travel_handlers.rs`), el primer
+contexto de esta serie que necesita un préstamo de dominio además del hub:
+`TravelHandlerCxLikeCpp { hub, lifecycle: &mut SessionLifecycleState }`, construido por el host con
+`split_lifecycle_mut`. El destino de teleport lejano y la bandera de recuperación siguen siendo
+propiedad de lifecycle; `SuspendTokenResponse` conserva el orden C++ (guardas de estado y de
+teleport pendiente → `SMSG_NEW_WORLD` por la ruta de reino → `recovery_new_world_sent_like_cpp`),
+incluido el `kick` si la ruta no se puede encolar. `travel` queda en **4 registros literales**
+(activación de taxi, area trigger, world-port y benchmark), que permanecen mientras llaman a seams
+propios o al sincronizador de registro.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos,
+incluido el estado `Transfer` y `ThreadSafe`/`Inplace` de los tres opcodes), **12 de `travel`**, **36
+de `client_state`** y **1 de `transfer_routing`** en verde; `cargo check` de `wow-world` (con
+`test-fixtures`) y `world-server` sin errores tras corregir el préstamo `HubRef` en
+`pending_teleport_like_cpp`; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (191 owners / 3.132 items / 674 filas); `check_architecture.py check`
+**PASS** (3.385 ficheros / 102 techos); hotspots reconciliados (`session/mod.rs`: producción 60.999 →
+61.023, test 138.182 → 138.184, total 199.181 → 199.207; `world-server/lib.rs`: producción 31.792 →
+31.796, total 60.503 → 60.507). R1 v2: `S = 71.617`, `G_move = 109.983`, requisito `34.485,15` →
+**presupuesto 34.486**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Quedan **205 registros literales** en `wow-world`: character/account (57), trade (15), quest (14),
+spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9), vehicle (8), loot
+(7), entities/player (5), dungeon_finding (5), travel (4), void_storage (4), corpse (4), collections
+(3), gameobject (3) y combat (1).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

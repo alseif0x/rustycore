@@ -1077,6 +1077,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::travel::worldport_create",
           "trait_path": null,
           "cfg": [],
@@ -1287,6 +1295,12 @@
         {
           "module": "crate::session",
           "trait_path": "SupportHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -13298,48 +13312,6 @@
           "module": "crate::handlers::travel::travel",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_suspend_token_response",
-          "visibility": "pub",
-          "signature": "async fn handle_suspend_token_response (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_taxi_node_status_query",
-          "visibility": "pub",
-          "signature": "async fn handle_taxi_node_status_query (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_update_area_trigger_visual",
-          "visibility": "pub",
-          "signature": "async fn handle_update_area_trigger_visual (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::travel::travel",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_world_port_response",
           "visibility": "pub",
           "signature": "async fn handle_world_port_response (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -13378,6 +13350,69 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_suspend_token_response",
+          "visibility": "pub",
+          "signature": "async fn handle_suspend_token_response (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_taxi_node_status_query",
+          "visibility": "pub",
+          "signature": "async fn handle_taxi_node_status_query (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_update_area_trigger_visual",
+          "visibility": "pub",
+          "signature": "async fn handle_update_area_trigger_visual (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::travel::travel::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "travel_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn travel_test_cx_like_cpp (& mut self) -> TravelHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -44792,6 +44827,19 @@
           "name": "support_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn support_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SupportHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "travel_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn travel_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> TravelHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

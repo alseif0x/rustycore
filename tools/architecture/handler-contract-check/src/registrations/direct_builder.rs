@@ -536,6 +536,27 @@ pub(crate) const COLLECTIONS_REGISTRAR: DirectRegistrarContract = DirectRegistra
     facades: COLLECTIONS_FACADES,
 };
 
+const TRAVEL_ROOT_EXPORTS: &[&str] = &[
+    "TravelHandlerCxLikeCpp",
+    "TravelHandlerHostLikeCpp",
+    "register_travel_handlers_like_cpp",
+];
+const TRAVEL_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "travel_handlers",
+    exports: TRAVEL_ROOT_EXPORTS,
+}];
+
+pub(crate) const TRAVEL_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationTravel",
+    package: "wow-world-application",
+    module: "crate::travel_handlers",
+    registrar: "register_travel_handlers_like_cpp",
+    host_trait: "TravelHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: TRAVEL_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -560,6 +581,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     COMBAT_REGISTRAR,
     PLAYER_QUERY_REGISTRAR,
     COLLECTIONS_REGISTRAR,
+    TRAVEL_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
