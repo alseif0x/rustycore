@@ -4544,8 +4544,7 @@ cambia** (7.718 + 2.221 filas), de modo que ninguna evidencia de persistencia se
 Evidencia: suite del checker **443/0**; `check --syntax-only` **PASS**; `check` completo
 (incluida persistencia) **PASS**; `check_architecture.py check` todas las secciones **PASS**;
 `wow-world --lib --features test-fixtures` **3634 ok / 0 fallos / 1 ignorado**;
-`world-server --lib` **597 ok**. Quedan **380** registros `register_packet_handler_like_cpp!` en
-`wow-world`.
+`world-server --lib` **597 ok**. Quedan **375** registros `register_packet_handler_like_cpp!` en `wow-world` tras las dos familias migradas.
 
 #### F5: entrega de grupo movida a `wow-world-social` — 2026-10-04, `61ac1896d`
 
@@ -4634,7 +4633,7 @@ autorización explícita (el issue prohíbe usar la holgura como permiso).
 **Conclusión de la campaña:** ninguna aceptación está acreditada. `final` queda a un solo
 hallazgo de pasar —R1 net-move—, y ese hallazgo exige contabilidad/retirada de crecimiento
 externo (F6) o una decisión explícita del propietario sobre la regla. El objetivo #1263 sigue
-abierto: F5 tiene 378 registros `register_packet_handler_like_cpp!` pendientes de migrar y F6
+abierto: F5 tiene 375 registros `register_packet_handler_like_cpp!` pendientes de migrar y F6
 tiene la pista de comportamiento.
 
 ## 9. Herramientas
