@@ -983,10 +983,12 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::talent::state",
@@ -1127,6 +1129,12 @@
         {
           "module": "crate::session",
           "trait_path": "SocialInspectHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SupportHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -13067,12 +13075,12 @@
           ]
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_bug_report",
-          "visibility": "pub",
-          "signature": "async fn handle_bug_report (& mut self , pkt : wow_packet :: WorldPacket)",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_bug_report (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -13083,68 +13091,60 @@
           ]
         },
         {
-          "module": "crate::handlers::support",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_bug_report_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_bug_report_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_complaint",
-          "visibility": "pub",
-          "signature": "async fn handle_complaint (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_complaint (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_gm_ticket_acknowledge_survey",
-          "visibility": "pub",
-          "signature": "async fn handle_gm_ticket_acknowledge_survey (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_gm_ticket_acknowledge_survey (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_gm_ticket_get_case_status",
-          "visibility": "pub",
-          "signature": "async fn handle_gm_ticket_get_case_status (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_gm_ticket_get_case_status (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_gm_ticket_get_system_status",
-          "visibility": "pub",
-          "signature": "async fn handle_gm_ticket_get_system_status (& mut self , pkt : wow_packet :: WorldPacket)",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_gm_ticket_get_system_status (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -13155,54 +13155,44 @@
           ]
         },
         {
-          "module": "crate::handlers::support",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_gm_ticket_get_system_status_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_gm_ticket_get_system_status_with_policy_like_cpp (& mut self , _pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_object_update_failed",
-          "visibility": "pub",
-          "signature": "async fn handle_object_update_failed (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_object_update_failed (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_object_update_rescued",
-          "visibility": "pub",
-          "signature": "async fn handle_object_update_rescued (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_object_update_rescued (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_submit_user_feedback",
-          "visibility": "pub",
-          "signature": "async fn handle_submit_user_feedback (& mut self , pkt : wow_packet :: WorldPacket)",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_submit_user_feedback (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -13213,26 +13203,12 @@
           ]
         },
         {
-          "module": "crate::handlers::support",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_submit_user_feedback_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_submit_user_feedback_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_support_ticket_submit_bug",
-          "visibility": "pub",
-          "signature": "async fn handle_support_ticket_submit_bug (& mut self , pkt : wow_packet :: WorldPacket)",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_support_ticket_submit_bug (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -13243,26 +13219,12 @@
           ]
         },
         {
-          "module": "crate::handlers::support",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_support_ticket_submit_bug_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_support_ticket_submit_bug_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_support_ticket_submit_complaint",
-          "visibility": "pub",
-          "signature": "async fn handle_support_ticket_submit_complaint (& mut self , pkt : wow_packet :: WorldPacket)",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_support_ticket_submit_complaint (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -13273,44 +13235,16 @@
           ]
         },
         {
-          "module": "crate::handlers::support",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_support_ticket_submit_complaint_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_support_ticket_submit_complaint_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::support",
+          "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_support_ticket_submit_suggestion",
-          "visibility": "pub",
-          "signature": "async fn handle_support_ticket_submit_suggestion (& mut self , pkt : wow_packet :: WorldPacket)",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_support_ticket_submit_suggestion (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::support",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_support_ticket_submit_suggestion_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_support_ticket_submit_suggestion_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -44847,6 +44781,19 @@
           "name": "inspect_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn inspect_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> InspectHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SupportHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "support_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn support_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SupportHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

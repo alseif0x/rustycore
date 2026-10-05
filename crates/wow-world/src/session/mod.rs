@@ -25,6 +25,7 @@ mod inventory_handler_contexts;
 mod legacy_runtime;
 mod reputation_handler_contexts;
 mod social_handler_contexts;
+mod support_handler_contexts;
 use legacy_runtime::*;
 // The legacy tick entry points are called from world-server as
 // `wow_world::session::run_legacy_*`. `legacy_runtime` is private, so the

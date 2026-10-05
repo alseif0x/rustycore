@@ -13,6 +13,7 @@ mod pet_load;
 mod rename_callbacks;
 mod save_contracts;
 mod state;
+mod support;
 mod value_contracts;
 pub use handlers::{
     AccountDataHandlerCxLikeCpp, AccountDataHandlerHostLikeCpp,
@@ -84,6 +85,9 @@ pub use state::{
     DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP, LootMoneyPersistenceErrorLikeCpp, LootTemplateRow,
     LootTemplateTable, RepresentedTalentResetStatePlanLikeCpp, SessionLifecycleState,
     WrappedGiftLoad, WrappedGiftRow, group_persistence_command_like_cpp,
+};
+pub use support::{
+    SupportHandlerCxLikeCpp, SupportHandlerHostLikeCpp, register_support_handlers_like_cpp,
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]

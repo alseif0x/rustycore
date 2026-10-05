@@ -9,8 +9,8 @@ use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
     ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract,
     EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR,
-    RegistrarFacadeContract, SOCIAL_INSPECT_REGISTRAR, validate_composition_mounts,
-    validate_composition_mounts_with_contracts,
+    RegistrarFacadeContract, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR,
+    validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -142,6 +142,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             ACCOUNT_DATA_REGISTRAR.module,
             "crates/wow-world-lifecycle/src/handlers.rs",
             include_str!("../../../../../crates/wow-world-lifecycle/src/handlers.rs"),
+        ),
+        mount(
+            SUPPORT_REGISTRAR.package,
+            SUPPORT_REGISTRAR.module,
+            "crates/wow-world-lifecycle/src/support.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/support.rs"),
         ),
     ]
 }
