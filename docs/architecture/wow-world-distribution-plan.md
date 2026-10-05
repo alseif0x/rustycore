@@ -5061,6 +5061,55 @@ Con las tres campañas, el bloqueo R1 queda resuelto y `final` pasa entero por p
 rama. La aceptación de comportamiento (capturas, QA live, durabilidad real) sigue fuera de esta
 evidencia y conserva su propia autoridad.
 
+#### F5: familia chat (39 opcodes) cerrada en `wow-world-social` — 2026-10-05, `79941db30`
+
+Cierre del checkpoint WIP `3c023ba93`/`fcaa4e0d8`, que estaba en git sin compilar. Los 39 cuerpos
+de handler y sus 37 registros viven ya en el registrador directo `SocialChat` de
+`wow-world-social`; el reparto físico es `chat_handlers.rs` (contexto prestado, ayudantes de canal,
+trait host, 25 thunks y registrador, 881 líneas) más el hijo acotado
+`chat_handlers/ops.rs` (los cuerpos, 1.297), ambos por debajo del presupuesto de 2.000. En
+`wow-world` quedan solo los registros `Emote`/`SendTextEmote`, el `pub(crate) use` de las
+constantes trasladadas y los delegados `cfg(test)` en `handlers/chat/test_shims.rs` (136), lo que
+baja `handlers/chat.rs` de 208 a **77** líneas y deja la fila física en 77/77.
+
+**Código escrito en esta ronda:**
+
+- Cierre del corte chat: el owner `chat_handlers.rs` define
+  `ChatHandlerCxLikeCpp { hub, social, policy }`; los delegados de prueba pasan la
+  `ChatPolicyCatalogsLikeCpp` recibida al Cx en vez de reconstruir una copia de la sesión;
+  `JoinChannelPrecheckLikeCpp` deriva `Debug/Clone/Copy/PartialEq/Eq`.
+- Herramienta: `CHAT_REGISTRAR` entra en `DIRECT_REGISTRAR_CONTRACTS` con fachada exacta y orden de
+  composición (tras calendar); `handler-module-policy.json` declara dueño para `crate::chat_handlers`;
+  `EXPECTED_REGISTRATION_MACROS` retira `register_chat_channel_command_handler` y
+  `register_chat_channel_player_command_handler` (sustituidas por entradas directas); los montajes
+  del guardián de composición incluyen la fuente del nuevo contrato.
+- Políticas revisadas: baseline de ownership reimpreso (mismo `schema_version` y snapshot de
+  persistencia; delta revisado: −2 impls `chat::channels`/`chat::state`, +1 impl test-fixture
+  `chat::test_shims`, +1 impl `ChatHandlerHostLikeCpp` en `crate::session`; items asociados
+  3.160 → 3.134, con **22 filas de registro directo que cambian de `crate::handlers::chat::*` a
+  `crate::chat_handlers::ops`**, 0 filas nuevas de autoridad); fila física de `chat.rs` ajustada;
+  ratchet de hotspots con las cifras vivas de `session/mod.rs` (producción 60.757 → 60.753, test
+  138.158 → 138.160) y `world-server/lib.rs` (producción 31.745 → 31.748, total 60.456 → 60.459),
+  con nota revisada de la causa.
+- R1 v2 re-medido y re-registrado: `S = 69.368`, `G_move = 105.475`, créditos `69.368 × 1,05 + 300
+  = 73.136,4`, requisito `32.338,6` → **presupuesto 32.339** en `recorded_at_revision 79941db30`;
+  fase nueva registrada (`2c8446066..79941db30`: encoge 1.563, crece 2.223, 660 nuevas netas).
+
+**Evidencia enfocada (nivel 1, no es aceptación):** 71 tests `handlers::chat` en verde;
+`cargo check -p wow-world-social/wow-world/world-server` sin errores nuevos (2 warnings de social
+preexistentes); suite del tool **443/443**; `session-ownership-check check --syntax-only` **PASS**
+(172 owners / 3.134 items / 674 filas); `check_architecture.py check` y `self-test` **PASS**
+(ratchet físico 3.353 ficheros / 102 techos); R1 `net_move.py check` **PASS** (`growth 105475 <=
+105475,4`, 0 violaciones, 5 duplicados permitidos, 0 obsoletos) y `test_net_move.py` 16/16. Los dos
+fallos de comportamiento reales de esta ronda fueron los delegados que ignoraban la política
+pasada (4 escenarios) y la ausencia de `PartialEq` en el enum de precomprobación de canal.
+
+**No validado todavía.** No se ha repetido la campaña `final`: la evidencia verde vigente sigue
+siendo la de `f7553c7d0`, que no cubre este corte, y no se relabela. F5 continúa con las familias
+grandes que siguen literales en `wow-world` (movement, quest, guild, trade, spell, battlegrounds,
+pets, social, collections, group, character/account y el resto), y la pista F6/capturas/QA live
+conserva su autoridad propia.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

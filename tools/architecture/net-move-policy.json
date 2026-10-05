@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 31900,
-    "measured_requirement": 31757,
-    "recorded_at_revision": "2c844606603cd7815264ee16da7f5ced74ded6cf",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 67805, G_move = 103252, ratio and slack credits = 67805 * 0.05 + 300 = 71495.25, so the requirement is 31756.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 32339,
+    "measured_requirement": 32339,
+    "recorded_at_revision": "79941db305b6c17202160b4adc1b50adaa1daf09",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 69368, G_move = 105475, ratio and slack credits = 69368 * 1.05 + 300 = 73136.4, so the requirement is 32338.6 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -35,18 +35,25 @@
         "note": "Largest phase: the application/lifecycle/spell/inventory owners plus their Cx, host-trait, controller and projection surfaces are new code; only the moved bodies are offset by the shrink."
       },
       {
-        "phase": "post-pause (969bee686..HEAD, migrations plus the rustfmt pass)",
+        "phase": "post-pause (969bee686..2c8446066, migrations plus the rustfmt pass)",
         "shrink": 10525,
         "destination_growth": 15501,
         "new_code": 4976,
         "note": "F5 registrars (social inspect, lifecycle account-data, application reputation, lifecycle support, application client-state, social calendar) and the F6 retirements were net moves; the rustfmt normalization of the branch's own sources reflowed long lines and the new host adapters and composer calls add their own lines, which is most of this phase's new_code."
+      },
+      {
+        "phase": "F5 chat tail (2c8446066..79941db30, chat family plus the final R1 v2 record)",
+        "shrink": 1563,
+        "destination_growth": 2223,
+        "new_code": 660,
+        "note": "The 39 chat handler bodies and their 37 registrations left wow-world for wow-world-social's SocialChat direct registrar; the move cuts 1,563 lines inside the shrink root and adds 2,223 in the social destination (the owner file, its bounded ops split, the registrar/thunks and the fmt/import noise), so 660 net new lines. The duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete bodies."
       }
     ],
     "areas": [
       {
         "area": "crates/wow-world-core/src",
-        "lines": 34929,
-        "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder."
+        "lines": 34962,
+        "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder plus the #1263 F5 chat policy capacity re-export."
       },
       {
         "area": "crates/wow-world-application/src",
@@ -80,8 +87,8 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 3211,
-        "reason": "social group/duel state plus the inspect handler family and group fanout."
+        "lines": 5401,
+        "reason": "social group/duel state, the inspect handler family, group fanout and the #1263 F5 calendar and chat handler families with their Cx, host bridge and thunks."
       },
       {
         "area": "crates/wow-world-instances/src",
