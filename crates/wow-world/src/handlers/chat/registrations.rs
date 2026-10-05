@@ -9,175 +9,7 @@ use wow_constants::ClientOpcodes;
 use wow_handler::PacketProcessing;
 use wow_handler::SessionStatus;
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageSay,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_say",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Say, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageYell,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_yell",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Yell, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageParty,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_party",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Party, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageGuild,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_guild",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Guild, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageOfficer,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_officer",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Officer, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageRaid,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_raid",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::Raid, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageRaidWarning,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_raid_warning",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::RaidWarning, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageInstanceChat,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_instance",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_message_with_policy_like_cpp(pkt, wow_packet::packets::chat::ChatMsg::InstanceChat, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageWhisper,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_whisper",
-        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_whisper_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageChannel,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_channel_message",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_channel_message_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageAfk,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_afk",
-        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_afk_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageDnd,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_dnd",
-        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_dnd_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UpdateAadcStatus,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_update_aadc_status",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_update_aadc_status(pkt).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatReportIgnored,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_report_ignored",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_report_ignored(pkt).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatReportFiltered,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_report_filtered",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_report_filtered(pkt).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatMessageEmote,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_emote",
-        handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_emote_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
+crate::session::registry::register_packet_handler_like_cpp {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Emote,
         status: SessionStatus::LoggedIn,
@@ -186,7 +18,7 @@ crate::session::registry::register_packet_handler_like_cpp! {
         handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_emote(pkt).await }),
     }
 }
-crate::session::registry::register_packet_handler_like_cpp! {
+crate::session::registry::register_packet_handler_like_cpp {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SendTextEmote,
         status: SessionStatus::LoggedIn,
@@ -203,39 +35,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                     )
                     .await
             })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatRegisterAddonPrefixes,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_register_addon_prefixes",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_register_addon_prefixes(pkt).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatAddonMessage,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_addon_message",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_addon_message_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await })
-        },
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChatAddonMessageWhisper,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_chat_addon_message_whisper",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_chat_addon_message_whisper_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await })
         },
     }
 }

@@ -5,6 +5,7 @@
 //! Social ownership for the world-session application boundary.
 
 mod calendar_handlers;
+mod chat_handlers;
 mod catalogs;
 mod chat;
 mod contracts;
@@ -21,6 +22,12 @@ mod state;
 mod test_support;
 mod trade;
 
+pub use chat_handlers::{
+    ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp, register_chat_handlers_like_cpp,
+};
+pub use chat_handlers::{
+    player_name_and_guid_like_cpp, send_wait_before_speaking_notification_if_muted_like_cpp,
+};
 pub use calendar_handlers::{
     CalendarHandlerCxLikeCpp, CalendarHandlerHostLikeCpp, register_calendar_handlers_like_cpp,
 };

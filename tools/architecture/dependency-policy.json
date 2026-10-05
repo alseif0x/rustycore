@@ -225,6 +225,7 @@
       "wow-world-core"
     ],
     "wow-world-social": [
+      "wow-chat",
       "wow-constants",
       "wow-core",
       "wow-entities",

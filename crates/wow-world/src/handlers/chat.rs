@@ -39,16 +39,15 @@ use crate::session::{
     SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP, WorldSession, player_team_for_race_cpp,
 };
 
-mod channels;
+/// Chat constants consumed by the moved handlers and their scenario module.
+pub(crate) use wow_world_social::{GM_SILENCE_AURA_LIKE_CPP, LANG_UNIVERSAL_LIKE_CPP};
+
 mod ops_1;
 mod ops_2;
-mod state;
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]
 pub use ops_2::*;
-#[allow(unused_imports)]
-pub use state::*;
 
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/chat/tests/mod.rs"]
