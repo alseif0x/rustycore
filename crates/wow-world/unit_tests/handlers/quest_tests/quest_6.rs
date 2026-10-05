@@ -306,7 +306,7 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QueryQuestInfo,
             "handle_query_quest_info",
-            "session.handle_query_quest_info(pkt).await",
+            ".handle_query_quest_info(pkt)",
         ),
     ];
     for (opcode, handler_name, call) in cases {

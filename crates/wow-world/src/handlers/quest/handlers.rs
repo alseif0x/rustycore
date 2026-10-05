@@ -101,33 +101,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryQuestInfo,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_quest_info",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_query_quest_info(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryQuestCompletionNpcs,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_quest_completion_npcs",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryQuestCompletionNpcs::read(&mut pkt) {
-                    Ok(query) => session.handle_query_quest_completion_npcs(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryQuestCompletionNpcs: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QuestPoiQuery,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -207,18 +180,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestWorldQuestUpdate,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_world_quest_update",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_world_quest_update(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QuestConfirmAccept,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -263,6 +224,9 @@ crate::session::registry::register_packet_handler_like_cpp! {
 // ── Handler implementations ──────────────────────────────────────────────────
 
 /// TrinityCore `MAX_QUEST_LOG_SIZE`; explicit quest-log slots are 0..24.
+
+#[cfg(test)]
+mod test_shims;
 
 impl WorldSession {
     /// CMSG_ADVENTURE_MAP_START_QUEST.
@@ -337,15 +301,6 @@ impl WorldSession {
         };
 
         let _ = self.acknowledge_auto_accept_quest_like_cpp(quest_id);
-    }
-
-    /// CMSG_REQUEST_WORLD_QUEST_UPDATE — current Trinity 3.4.3 handler sends an empty response.
-    /// C++ refs: `WorldSession::HandleRequestWorldQuestUpdate`, `QuestHandler.cpp:780-788`;
-    /// `RequestWorldQuestUpdate::Read`, `QuestPackets.h:655-661` (`Read() { }`, no payload consumption).
-    pub async fn handle_request_world_quest_update(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.send_packet(&WorldQuestUpdateResponse {
-            updates: Vec::new(),
-        });
     }
 
     /// CMSG_QUEST_PUSH_RESULT — response to a shared quest prompt.

@@ -5472,6 +5472,38 @@ hotspots reconciliados (`session/mod.rs` test 138.172 → 138.174; `world-server
 31.776). R1 v2: `S = 71.294`, `G_move = 108.880`, requisito `33.721,30` → **presupuesto 33.722**
 (`recorded_at_revision 84ec6e234`), 0 violaciones / 0 permitidos / 0 obsoletos.
 
+#### F5: familia quest, corte de consultas (3 opcodes) a `wow-world-application` — 2026-10-05, `84ec6e234..HEAD`
+
+`RequestWorldQuestUpdate`, `QueryQuestInfo` y `QueryQuestCompletionNpcs` pasan al registrador
+directo `ApplicationQuestQuery` (`crates/wow-world-application/src/quest_query_handlers.rs`). El
+contexto `QuestQueryHandlerCxLikeCpp { hub, quest_store: Option<Arc<QuestStore>> }` clona el `Arc`
+del almacén de quests antes de tomar el único préstamo mutable del hub: el catálogo del contexto de
+handlers (`SessionHandlerCatalogsLikeCpp`) no expone el almacén, y `hub_mut(self)` no admite un
+préstamo simultáneo de `self.catalogs`, así que el `Arc` se clona y el contexto lo posee. El
+ayudante `represented_quest_completion_npc_response_like_cpp` se mueve con las consultas y
+`wow-world/src/handlers/quest/mod.rs` pasa a reexportarlo.
+
+Los tres registros salen del shell (quest queda en **14** registros literales) y ambos compositores
+llaman al registrador en el orden declarado `DIRECT_REGISTRAR_CONTRACTS`; los delegados `cfg(test)`
+viven en `handlers/quest/handlers/test_shims.rs` y la fuente escaneada por las pruebas de metadata
+usa `concat!(handlers.rs, quest_query_handlers.rs)`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **428 tests de quest** (filtro `quest`) y 25 de
+`dispatch` (478 opcodes intactos) en verde; `cargo check -p world-server` sin errores tras ajustar
+la puerta `cfg` de la reexportación de fixtures en `wow-world-social` (el ayudante de guild solo
+existe con `test-fixtures`); suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (183 owners / 3.128 items / 674 filas); `check_architecture.py check`
+**PASS**; hotspots reconciliados (`session/mod.rs`: producción 60.929 → 60.933, test 138.174 →
+138.176, total 199.103 → 199.109; `world-server/lib.rs`: producción 31.776 → 31.780, total 60.487 →
+60.491; `handlers/quest/mod.rs`: test 11.217 → 11.218). R1 v2: `S = 71.405`, `G_move = 109.162`,
+requisito `33.886,75` → **presupuesto 33.887**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Quedan **217 registros literales** en `wow-world`: character/account (57), quest (14), trade (15),
+spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9), vehicle (8),
+entities/player (8), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4),
+corpse (4), gameobject (3) y combat (3).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

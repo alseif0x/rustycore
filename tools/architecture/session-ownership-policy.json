@@ -919,6 +919,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::quest::handlers::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::quest::objectives",
           "trait_path": null,
           "cfg": [],
@@ -1195,6 +1203,12 @@
         {
           "module": "crate::session",
           "trait_path": "InventoryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -10941,20 +10955,6 @@
           ]
         },
         {
-          "module": "crate::handlers::quest::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_world_quest_update",
-          "visibility": "pub",
-          "signature": "async fn handle_request_world_quest_update (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::quest::handlers::acceptance",
           "trait_path": null,
           "kind": "method",
@@ -11007,34 +11007,6 @@
           "name": "handle_quest_giver_accept_quest_with_generator_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_quest_giver_accept_quest_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_quest_completion_npcs",
-          "visibility": "pub",
-          "signature": "async fn handle_query_quest_completion_npcs (& mut self , query : QueryQuestCompletionNpcs)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers::queries",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_quest_info",
-          "visibility": "pub",
-          "signature": "async fn handle_query_quest_info (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -11225,6 +11197,54 @@
           "signature": "fn handle_set_quest_sharing_info_and_send_details_command_like_cpp (& mut self , command : SetQuestSharingInfoAndSendDetailsCommand ,)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_quest_completion_npcs",
+          "visibility": "pub",
+          "signature": "async fn handle_query_quest_completion_npcs (& mut self , query : wow_packet :: packets :: query :: QueryQuestCompletionNpcs ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_quest_info",
+          "visibility": "pub",
+          "signature": "async fn handle_query_quest_info (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_world_quest_update",
+          "visibility": "pub",
+          "signature": "async fn handle_request_world_quest_update (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44387,6 +44407,19 @@
           "name": "item_text_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn item_text_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "quest_query_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> QuestQueryHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

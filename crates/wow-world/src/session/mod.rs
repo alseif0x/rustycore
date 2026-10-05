@@ -68,6 +68,7 @@ mod player_items;
 mod progression;
 mod publication;
 mod quest;
+mod quest_query_handler_contexts;
 pub mod registry;
 mod social;
 mod spell_effects;

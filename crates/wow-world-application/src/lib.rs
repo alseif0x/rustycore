@@ -16,6 +16,7 @@ mod player_conditions;
 mod player_save;
 mod profession;
 mod quest;
+mod quest_query_handlers;
 mod registry_sync;
 mod reputation;
 mod spell_acquisition;
@@ -143,6 +144,11 @@ pub use quest::{
     represented_gameobject_dynamic_flags_for_player_like_cpp,
     represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp,
+};
+pub use quest_query_handlers::represented_quest_completion_npc_response_like_cpp;
+pub use quest_query_handlers::{
+    QuestQueryHandlerCxLikeCpp, QuestQueryHandlerHostLikeCpp,
+    register_quest_query_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use registry_sync::PlayerRegistryHydrationContext;

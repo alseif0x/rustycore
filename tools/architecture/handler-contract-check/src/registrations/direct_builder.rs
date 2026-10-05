@@ -452,6 +452,27 @@ pub(crate) const GUILD_REGISTRAR: DirectRegistrarContract = DirectRegistrarContr
     facades: GUILD_FACADES,
 };
 
+const QUEST_QUERY_ROOT_EXPORTS: &[&str] = &[
+    "QuestQueryHandlerCxLikeCpp",
+    "QuestQueryHandlerHostLikeCpp",
+    "register_quest_query_handlers_like_cpp",
+];
+const QUEST_QUERY_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "quest_query_handlers",
+    exports: QUEST_QUERY_ROOT_EXPORTS,
+}];
+
+pub(crate) const QUEST_QUERY_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationQuestQuery",
+    package: "wow-world-application",
+    module: "crate::quest_query_handlers",
+    registrar: "register_quest_query_handlers_like_cpp",
+    host_trait: "QuestQueryHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: QUEST_QUERY_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -472,6 +493,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     SOCIAL_GROUP_REGISTRAR,
     APPLICATION_GROUP_REGISTRAR,
     GUILD_REGISTRAR,
+    QUEST_QUERY_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

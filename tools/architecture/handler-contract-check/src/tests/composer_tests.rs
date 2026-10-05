@@ -11,7 +11,7 @@ use crate::registrations::{
     CLIENT_STATE_REGISTRAR,
     DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
-    ARENA_TEAM_REGISTRAR, BATTLENET_REGISTRAR, DATA_SERVICE_REGISTRAR, APPLICATION_GROUP_REGISTRAR, GUILD_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_CONTACTS_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, validate_composition_mounts,
+    ARENA_TEAM_REGISTRAR, BATTLENET_REGISTRAR, DATA_SERVICE_REGISTRAR, APPLICATION_GROUP_REGISTRAR, GUILD_REGISTRAR, QUEST_QUERY_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_CONTACTS_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, validate_composition_mounts,
     validate_composition_mounts_with_contracts,
 };
 
@@ -138,6 +138,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             CHAT_REGISTRAR.module,
             "crates/wow-world-social/src/chat_handlers.rs",
             include_str!("../../../../../crates/wow-world-social/src/chat_handlers.rs"),
+        ),
+        mount(
+            QUEST_QUERY_REGISTRAR.package,
+            QUEST_QUERY_REGISTRAR.module,
+            "crates/wow-world-application/src/quest_query_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/quest_query_handlers.rs"),
         ),
         mount(
             GUILD_REGISTRAR.package,

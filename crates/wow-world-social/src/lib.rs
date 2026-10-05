@@ -56,10 +56,9 @@ pub use group_handlers::{
     SocialGroupHandlerCxLikeCpp, SocialGroupHandlerHostLikeCpp,
     register_social_group_handlers_like_cpp,
 };
-pub use guild::{
-    mutate_player_guild_state_for_test_like_cpp, player_guild_state_snapshot_like_cpp,
-    resolved_represented_guild_id_like_cpp,
-};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use guild::mutate_player_guild_state_for_test_like_cpp;
+pub use guild::{player_guild_state_snapshot_like_cpp, resolved_represented_guild_id_like_cpp};
 pub use guild_handlers::{
     GuildHandlerCxLikeCpp, GuildHandlerHostLikeCpp, register_guild_handlers_like_cpp,
 };
