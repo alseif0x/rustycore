@@ -62,23 +62,6 @@ pub use state::*;
 
 // ── inventory registrations ───────────────────────────────────────────────────
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::PartyInvite,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_party_invite",
-        handler: |session, catalogs, pkt| Box::pin(async move {
-            session
-                .handle_party_invite_with_policy_like_cpp(
-                    pkt,
-                    catalogs.group_invite_policy.as_ref(),
-                )
-                .await
-        }),
-    }
-}
-
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 // ── Handler implementations ───────────────────────────────────────────────────

@@ -25,14 +25,14 @@ use wow_handler::{
 };
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
 use wow_packet::packets::party::{
-    ChangeSubGroup, ConvertRaid, GroupDecline, OptOutOfLoot, PartyCommandResult, PartyUninvite,
-    SetAssistantLeader, SetEveryoneIsAssistant, SetPartyAssignment, SetPartyLeader, SwapSubGroups,
-    party_result,
+    ChangeSubGroup, ConvertRaid, GroupDecline, OptOutOfLoot, PartyCommandResult, PartyInviteServer,
+    PartyUninvite, SetAssistantLeader, SetEveryoneIsAssistant, SetPartyAssignment, SetPartyLeader,
+    SwapSubGroups, party_result,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_social::group::{
-    AcceptGroupInviteResultLikeCpp, GROUP_CATEGORY_HOME_LIKE_CPP, GROUP_TYPE_NONE_LIKE_CPP,
-    GROUP_TYPE_NORMAL_LIKE_CPP, GroupAuthorityErrorLikeCpp, GroupInfo,
+    AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GROUP_CATEGORY_HOME_LIKE_CPP,
+    GROUP_TYPE_NONE_LIKE_CPP, GROUP_TYPE_NORMAL_LIKE_CPP, GroupAuthorityErrorLikeCpp, GroupInfo,
     GroupMemberRemovalKindLikeCpp, GroupPersistenceIntentLikeCpp, MAX_RAID_SUBGROUPS_LIKE_CPP,
     MEMBER_FLAG_ASSISTANT_LIKE_CPP,
 };
@@ -40,7 +40,11 @@ use wow_world_core::session::mailbox::{
     ApplyGroupJoinLikeCppCommand, ApplyGroupRemovalLikeCppCommand,
     ApplyGroupSubgroupLikeCppCommand, SessionCommand,
 };
-use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
+use wow_world_core::session::state::hub_support::player_team_for_race_cpp;
+use wow_world_core::session::{
+    GroupInvitePolicyLikeCpp, HubMut, HubRef, PacketPublicationAccessLikeCpp,
+};
+use wow_world_instances::InstanceState;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_loot::LootState;
 use wow_world_social::SessionSocialLimits;
@@ -48,6 +52,8 @@ use wow_world_social::group_fanout::{
     connected_group_members_like_cpp, current_group_guid_like_cpp,
     queue_visible_gameobjects_or_spellclicks_refresh_like_cpp, send_group_new_leader_like_cpp,
     send_party_update, send_realm_packet_to_player_like_cpp,
+    send_realm_party_invite_to_player_like_cpp, target_social_has_inviter_friend_like_cpp,
+    target_social_ignores_inviter_like_cpp,
 };
 
 /// Deferred publication tail for one group transition.
@@ -81,11 +87,29 @@ pub enum GroupPublicationTailLikeCpp {
     },
 }
 
+/// C++ `WorldSession::GetPlayerMapAndInstance` projection for the invite gate.
+pub fn current_player_party_invite_map_instance_like_cpp(
+    hub: HubRef<'_>,
+    registry: &wow_world_core::player_directory::PlayerRegistry,
+    player_guid: ObjectGuid,
+) -> (u16, u32) {
+    if let Some(key) = hub.core.current_canonical_player_map_key_like_cpp() {
+        return (key.map_id.min(u32::from(u16::MAX)) as u16, key.instance_id);
+    }
+
+    registry
+        .group_presence(player_guid)
+        .map(|entry| (entry.map_id, entry.instance_id))
+        .unwrap_or_else(|| (hub.core.player_map_id_like_cpp(), 0))
+}
+
 /// Borrowed inputs of one group leadership/assistant handler invocation.
 pub struct GroupHandlerCxLikeCpp<'a> {
     social: &'a mut SessionSocialLimits,
     lifecycle: &'a SessionLifecycleState,
     loot: &'a mut LootState,
+    instances: &'a InstanceState,
+    policy: &'a GroupInvitePolicyLikeCpp,
     hub: HubMut<'a>,
 }
 
@@ -94,12 +118,16 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
         social: &'a mut SessionSocialLimits,
         lifecycle: &'a SessionLifecycleState,
         loot: &'a mut LootState,
+        instances: &'a InstanceState,
+        policy: &'a GroupInvitePolicyLikeCpp,
         hub: HubMut<'a>,
     ) -> Self {
         Self {
             social,
             lifecycle,
             loot,
+            instances,
+            policy,
             hub,
         }
     }
@@ -702,6 +730,304 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
         )
         .await;
         GroupPublicationTailLikeCpp::VisibilityOnly
+    }
+
+    /// C++ `WorldSession::SendPartyResult(..., PARTY_OP_INVITE, ...)`.
+    fn send_party_result_like_cpp(&self, name: String, result: u8) {
+        self.publication_like_cpp()
+            .send_packet_realm(&PartyCommandResult {
+                name,
+                command: 0, // Invite
+                result,
+                result_data: 0,
+                result_guid: ObjectGuid::EMPTY,
+            });
+    }
+
+    /// C++ `WorldSession::HandlePartyInviteOpcode`.
+    pub async fn handle_party_invite(&mut self, mut pkt: WorldPacket) {
+        tracing::info!(
+            account = self.hub.shared().core.account_id,
+            "handle_party_invite called"
+        );
+        // — parse —
+        let has_party_index = pkt.read_bit().unwrap_or(false);
+        let _ = pkt.reset_bits(); // ResetBitPos / flush partial byte
+
+        let name_len = match pkt.read_bits(9) {
+            Ok(n) => n as usize,
+            Err(e) => {
+                warn!("PartyInvite: name_len read error: {}", e);
+                return;
+            }
+        };
+        let realm_len = match pkt.read_bits(9) {
+            Ok(n) => n as usize,
+            Err(e) => {
+                warn!("PartyInvite: realm_len read error: {}", e);
+                return;
+            }
+        };
+
+        let proposed_roles = pkt.read_uint32().unwrap_or(0);
+
+        let _target_guid = match pkt.read_packed_guid() {
+            Ok(g) => g,
+            Err(e) => {
+                warn!("PartyInvite: target_guid read error: {}", e);
+                return;
+            }
+        };
+        let target_name = match pkt.read_string(name_len) {
+            Ok(s) => s,
+            Err(e) => {
+                warn!("PartyInvite: target_name read error: {}", e);
+                return;
+            }
+        };
+        let _realm_name = pkt.read_string(realm_len).unwrap_or_default();
+        let party_index = if has_party_index {
+            pkt.read_uint8().ok()
+        } else {
+            None
+        };
+        tracing::info!(account = self.hub.shared().core.account_id, target_name = %target_name, "PartyInvite parsed");
+
+        // — setup —
+        let my_guid = match self.hub.shared().core.player_guid() {
+            Some(g) => g,
+            None => return,
+        };
+
+        macro_rules! send_result {
+            ($result:expr) => {
+                self.publication_like_cpp()
+                    .send_packet_realm(&PartyCommandResult {
+                        name: target_name.clone(),
+                        command: 0, // Invite
+                        result: $result,
+                        result_data: 0,
+                        result_guid: ObjectGuid::EMPTY,
+                    });
+            };
+        }
+
+        // 2. Target must exist in the player registry (lookup by name — robust against GUID mismatch).
+        let registry = match self.hub.shared().core.player_registry() {
+            Some(r) => r,
+            None => return,
+        };
+
+        // Find target by name (case-insensitive), same pattern as whisper handler.
+        let target_snapshot = match registry.social_recipient_by_name(&target_name) {
+            Some(target) => target,
+            None => {
+                warn!(
+                    "PartyInvite: target '{}' not found in registry",
+                    target_name
+                );
+                self.send_party_result_like_cpp(target_name.clone(), party_result::BAD_PLAYER_NAME);
+                return;
+            }
+        };
+        let real_target_guid = target_snapshot.guid;
+
+        // Don't invite yourself (compare by real GUID from registry).
+        if real_target_guid == my_guid {
+            self.send_party_result_like_cpp(target_name.clone(), party_result::BAD_PLAYER_NAME);
+            return;
+        }
+
+        // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
+        // `GM.AllowInvite` / `CONFIG_ALLOW_GM_GROUP` is enabled.
+        if !self.policy.allow_gm_group
+            && self.hub.shared().player_is_game_master_like_cpp() != Some(true)
+            && target_snapshot.is_game_master
+        {
+            self.send_party_result_like_cpp(target_name.clone(), party_result::BAD_PLAYER_NAME);
+            return;
+        }
+
+        if !self.policy.allow_two_side_interaction
+            && self.hub.shared().player_is_game_master_like_cpp() != Some(true)
+            && player_team_for_race_cpp(self.hub.shared().player_race_like_cpp())
+                != player_team_for_race_cpp(target_snapshot.race)
+        {
+            self.send_party_result_like_cpp(target_name.clone(), party_result::WRONG_FACTION);
+            return;
+        }
+
+        let (inviter_map_id, inviter_instance_id) =
+            current_player_party_invite_map_instance_like_cpp(self.hub.shared(), registry, my_guid);
+        if inviter_instance_id != 0
+            && target_snapshot.instance_id != 0
+            && inviter_instance_id != target_snapshot.instance_id
+            && inviter_map_id == target_snapshot.map_id
+        {
+            self.send_party_result_like_cpp(
+                target_name.clone(),
+                party_result::TARGET_NOT_IN_INSTANCE,
+            );
+            return;
+        }
+
+        if target_snapshot.instance_id != 0 {
+            let Some(inviter_difficulty_id) = self
+                .instances
+                .resolved_dungeon_difficulty_id_like_cpp(self.hub.shared())
+            else {
+                self.send_party_result_like_cpp(target_name.clone(), party_result::IGNORING_YOU);
+                return;
+            };
+            if target_snapshot.dungeon_difficulty_id != inviter_difficulty_id {
+                self.send_party_result_like_cpp(target_name.clone(), party_result::IGNORING_YOU);
+                return;
+            }
+        }
+
+        let social_port = self.lifecycle.social_persistence_port_like_cpp();
+        if target_social_ignores_inviter_like_cpp(
+            social_port.clone(),
+            real_target_guid,
+            my_guid,
+            self.hub.shared().core.account_id,
+        )
+        .await
+        {
+            self.send_party_result_like_cpp(target_name.clone(), party_result::IGNORING_YOU);
+            return;
+        }
+
+        if u32::from(self.hub.shared().player_level_like_cpp()) < self.policy.minimum_level
+            && !target_social_has_inviter_friend_like_cpp(social_port, real_target_guid, my_guid)
+                .await
+        {
+            self.send_party_result_like_cpp(target_name.clone(), party_result::INVITE_RESTRICTED);
+            return;
+        }
+
+        // 3. The owner revalidates pending/group/category/capacity state and
+        // records the invite as one transition.
+        let pending = match self.hub.shared().core.pending_invites() {
+            Some(p) => p,
+            None => return,
+        };
+
+        let inviter_name = self.hub.shared().player_name_like_cpp().unwrap_or_default();
+        let vra = self.hub.shared().core.virtual_realm_address();
+        let (realm_name, realm_name_normalized) = self
+            .hub
+            .shared()
+            .core
+            .realm_names_for_address_like_cpp(vra)
+            .map(|(actual, normalized)| (actual.to_string(), normalized.to_string()))
+            .unwrap_or_default();
+
+        let group_reg = match self.hub.shared().core.group_registry() {
+            Some(r) => r,
+            None => return,
+        };
+
+        let inviter_group_guid = current_group_guid_like_cpp(
+            group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            party_index,
+        );
+        let lookup_category = party_index.unwrap_or(GROUP_CATEGORY_HOME_LIKE_CPP);
+        let invite = match group_reg.create_invite_like_cpp(
+            pending,
+            my_guid,
+            real_target_guid,
+            inviter_group_guid,
+            lookup_category,
+            GROUP_CATEGORY_HOME_LIKE_CPP,
+        ) {
+            CreateGroupInviteResultLikeCpp::Created(invite) => invite,
+            CreateGroupInviteResultLikeCpp::TargetAlreadyInvited => {
+                self.send_party_result_like_cpp(
+                    target_name.clone(),
+                    party_result::ALREADY_IN_GROUP,
+                );
+                return;
+            }
+            CreateGroupInviteResultLikeCpp::TargetAlreadyGrouped => {
+                self.send_party_result_like_cpp(
+                    target_name.clone(),
+                    party_result::ALREADY_IN_GROUP,
+                );
+                let invite = PartyInviteServer {
+                    can_accept: false,
+                    proposed_roles: proposed_roles as u8,
+                    inviter_name: inviter_name.clone(),
+                    inviter_guid: my_guid,
+                    inviter_bnet_account_guid: ObjectGuid::create_global(
+                        HighGuid::WowAccount,
+                        0,
+                        self.hub.shared().core.account_id as i64,
+                    ),
+                    virtual_realm_address: vra,
+                    realm_name: realm_name.clone(),
+                    realm_name_normalized: realm_name_normalized.clone(),
+                };
+                let _ = send_realm_packet_to_player_like_cpp(
+                    registry,
+                    target_snapshot.registration,
+                    real_target_guid,
+                    invite.to_bytes(),
+                )
+                .await;
+                return;
+            }
+            CreateGroupInviteResultLikeCpp::InviterNotLeaderOrAssistant => {
+                self.send_party_result_like_cpp(target_name.clone(), party_result::NOT_LEADER);
+                return;
+            }
+            CreateGroupInviteResultLikeCpp::GroupFull => {
+                self.send_party_result_like_cpp(target_name.clone(), party_result::GROUP_FULL);
+                return;
+            }
+            CreateGroupInviteResultLikeCpp::MissingInviterGroup
+            | CreateGroupInviteResultLikeCpp::WrongCategory => return,
+        };
+
+        // 7. Send invite dialog to the target.
+        let invite_packet = PartyInviteServer {
+            can_accept: true,
+            proposed_roles: proposed_roles as u8,
+            inviter_name: inviter_name.clone(),
+            inviter_guid: my_guid,
+            inviter_bnet_account_guid: ObjectGuid::create_global(
+                HighGuid::WowAccount,
+                0,
+                self.hub.shared().core.account_id as i64,
+            ),
+            virtual_realm_address: vra,
+            realm_name,
+            realm_name_normalized,
+        };
+        if !send_realm_party_invite_to_player_like_cpp(
+            registry,
+            target_snapshot.registration,
+            real_target_guid,
+            invite_packet.to_bytes(),
+        )
+        .await
+        {
+            group_reg.cancel_invite_like_cpp(pending, real_target_guid, invite);
+            self.send_party_result_like_cpp(target_name.clone(), party_result::BAD_PLAYER_NAME);
+            return;
+        }
+
+        // 7. Confirm back to self.
+        self.publication_like_cpp()
+            .send_packet_realm(&PartyCommandResult {
+                name: target_name,
+                command: 0,
+                result: party_result::OK,
+                result_data: 0,
+                result_guid: ObjectGuid::EMPTY,
+            });
     }
 
     /// C++ `WorldSession::HandleRandomRollOpcode`.
@@ -1377,6 +1703,23 @@ where
     })
 }
 
+fn handle_party_invite_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GroupHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .group_handler_cx_like_cpp(catalogs)
+            .handle_party_invite(pkt)
+            .await;
+    })
+}
+
 pub fn register_group_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -1467,6 +1810,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_opt_out_of_loot",
         handler: handle_opt_out_of_loot_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::PartyInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_party_invite",
+        handler: handle_party_invite_thunk::<S, C>,
     })?;
     Ok(())
 }

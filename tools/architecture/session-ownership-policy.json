@@ -7141,36 +7141,6 @@
           ]
         },
         {
-          "module": "crate::handlers::group::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_party_invite",
-          "visibility": "pub",
-          "signature": "async fn handle_party_invite (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::group::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_party_invite_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_party_invite_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , policy : & GroupInvitePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::group::ops_1::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -7348,9 +7318,41 @@
           "module": "crate::handlers::group::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_party_invite",
+          "visibility": "pub",
+          "signature": "async fn handle_party_invite (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_party_invite_response",
           "visibility": "pub",
           "signature": "async fn handle_party_invite_response (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::group::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_party_invite_with_policy_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_party_invite_with_policy_like_cpp (& mut self , pkt : WorldPacket , policy : & crate :: session :: GroupInvitePolicyLikeCpp ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -44465,7 +44467,7 @@
           "kind": "method",
           "name": "group_handler_cx_like_cpp",
           "visibility": "private",
-          "signature": "fn group_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GroupHandlerCxLikeCpp < 'a >",
+          "signature": "fn group_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GroupHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -57063,45 +57065,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::group::ops_1",
-          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group::ops_1",
-          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group::ops_1",
-          "source": "crates/wow-world/src/handlers/group/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_party_invite_with_policy_like_cpp",
-          "registry": "PendingInvites",
-          "operation": "accessor",
-          "symbol": "pending_invites",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "pending_invites()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::group::ops_2",
           "source": "crates/wow-world/src/handlers/group/ops_2.rs",
           "enclosing": "impl WorldSession::handle_clear_raid_marker",
@@ -57150,19 +57113,6 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::group::state",
-          "source": "crates/wow-world/src/handlers/group/state.rs",
-          "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "type_reference",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "& PlayerRegistry",
           "count": 1
         },
         {
@@ -60084,6 +60034,19 @@
           "package": "wow-world-application",
           "module": "crate::group_handlers",
           "source": "crates/wow-world-application/src/group_handlers.rs",
+          "enclosing": "fn current_player_party_invite_map_instance_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "type_reference",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "& wow_world_core :: player_directory :: PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::group_handlers",
+          "source": "crates/wow-world-application/src/group_handlers.rs",
           "enclosing": "impl GroupHandlerCxLikeCpp::handle_change_sub_group",
           "registry": "PlayerRegistry",
           "operation": "accessor",
@@ -60507,6 +60470,45 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "get(& my_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::group_handlers",
+          "source": "crates/wow-world-application/src/group_handlers.rs",
+          "enclosing": "impl GroupHandlerCxLikeCpp::handle_party_invite",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::group_handlers",
+          "source": "crates/wow-world-application/src/group_handlers.rs",
+          "enclosing": "impl GroupHandlerCxLikeCpp::handle_party_invite",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::group_handlers",
+          "source": "crates/wow-world-application/src/group_handlers.rs",
+          "enclosing": "impl GroupHandlerCxLikeCpp::handle_party_invite",
+          "registry": "PendingInvites",
+          "operation": "accessor",
+          "symbol": "pending_invites",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "pending_invites()",
           "count": 1
         },
         {

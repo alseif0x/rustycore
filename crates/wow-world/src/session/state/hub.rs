@@ -191,19 +191,21 @@ pub(crate) fn split_player_handler_states_mut(
     )
 }
 
-/// Social, lifecycle and loot state plus the mutable hub, borrowed from disjoint fields.
-pub(crate) fn split_social_lifecycle_loot_mut(
+/// Group-handler state plus the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_group_handler_states_mut(
     s: &mut WorldSession,
 ) -> (
     &mut SessionSocialLimits,
     &mut SessionLifecycleState,
     &mut LootState,
+    &InstanceState,
     HubMut<'_>,
 ) {
     (
         &mut s.social,
         &mut s.lifecycle,
         &mut s.loot,
+        &s.instances,
         HubMut {
             core: &mut s.core,
             catalogs: &s.catalogs,

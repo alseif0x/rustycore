@@ -5913,6 +5913,30 @@ requisito `35.233,45` → **presupuesto 35.234**, 0 violaciones / 0 permitidos /
 
 **No validado aún.** Sin campaña `final` nueva; quedan **187 registros literales**.
 
+#### F5: `PartyInvite` y cierre de la familia group — 2026-10-05, `272ff315b..HEAD`
+
+`PartyInvite` pasa al registrador `ApplicationGroup`, que ahora también toma prestado el estado de
+instancias (`InstanceState`) y recibe el catálogo de política de invitación del contexto anfitrión
+(el impl concreto conoce `SessionHandlerCatalogsLikeCpp`, así que presta
+`catalogs.group_invite_policy`). La proyección de mapa/instancia del emisor se movió como función
+libre compartida (`current_player_party_invite_map_instance_like_cpp`) y las compuertas de nivel,
+GM, facción, instancia, ignorados/amistad y capacidad del grupo se preservan en el dueño. El split
+del host pasa a `split_group_handler_states_mut` (social + lifecycle + loot + instances + hub).
+
+**Hito: la familia group queda cerrada** — `crates/wow-world/src/handlers/group.rs` no tiene ningún
+registro literal. `group` era la primera familia con cortes cruzados (social, application,
+lifecycle, loot, instances).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**248 de `group`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (191 owners / 3.138 items / 711 filas, baseline sin cambios);
+`check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado (producción 61.178 →
+61.188, total 199.362 → 199.372). R1 v2: `S = 72.817`, `G_move = 112.083`, requisito `35.325,15` →
+**presupuesto 35.326**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **186 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

@@ -16,10 +16,18 @@ use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 impl GroupHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn group_handler_cx_like_cpp<'a>(
         &'a mut self,
-        _catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> GroupHandlerCxLikeCpp<'a> {
-        let (social, lifecycle, loot, hub) = crate::session::split_social_lifecycle_loot_mut(self);
-        GroupHandlerCxLikeCpp::new(social, lifecycle, loot, hub)
+        let (social, lifecycle, loot, instances, hub) =
+            crate::session::split_group_handler_states_mut(self);
+        GroupHandlerCxLikeCpp::new(
+            social,
+            lifecycle,
+            loot,
+            instances,
+            catalogs.group_invite_policy.as_ref(),
+            hub,
+        )
     }
 
     fn run_group_publication_tail_like_cpp<'a>(

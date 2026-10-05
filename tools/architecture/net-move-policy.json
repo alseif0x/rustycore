@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35234,
-    "measured_requirement": 35234,
+    "budget": 35326,
+    "measured_requirement": 35326,
     "recorded_at_revision": "272ff315b2e8bfcb0f7b14dcf477af33add78d9c",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72571, G_move = 111733, ratio and slack credits = 72571 * 1.05 + 300 = 76499.55, so the requirement is 35233.45 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72817, G_move = 112083, ratio and slack credits = 72817 * 1.05 + 300 = 76757.85, so the requirement is 35325.15 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -264,6 +264,13 @@
         "destination_growth": 91,
         "new_code": 80,
         "note": "FarSight moved into the ApplicationPlayer owner. The represented seer switch is canonical in the owner (VisibilityState and InstanceState are domain-crate types), and the forced visibility refresh stays a bounded host seam that receives the dispatch catalogs back because the spawn catalogs are installed by the runtime. wow-world-application gains the wow-world-visibility dependency (added to the restricted-package policy) like its other domain-state peers. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group invite close (272ff315b..HEAD)",
+        "shrink": 246,
+        "destination_growth": 350,
+        "new_code": 104,
+        "note": "PartyInvite moved into the existing ApplicationGroup registrar, which now also borrows the instances state and receives the invite policy catalog from the host context. The map/instance projection moved as a shared free function. This closes the group family: no literal packet registration remains in crates/wow-world/src/handlers/group.rs. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [
