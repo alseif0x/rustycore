@@ -264,6 +264,13 @@ pub fn build_dispatch_table() -> Arc<WorldPacketHandlerRegistry> {
     ]
 }
 
+/// Apply a fixture mutation, failing loudly when the exact source no longer matches.
+fn mutate_fixture(source: &str, from: &str, to: &str) -> String {
+    let mutated = source.replace(from, to);
+    assert_ne!(mutated, source, "fixture mutation did not match: {from:?}");
+    mutated
+}
+
 fn assert_rejected(mounts: &[WorkspaceSourceMount], case: &str) {
     assert!(
         validate_composition_mounts(mounts).is_err(),
@@ -368,6 +375,10 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     let original_root = application_root.source.clone();
     application_root.source = application_root.source.replace(missing_export, "");
     assert_ne!(application_root.source, original_root);
+    println!(
+        "MISSING FACADE OUTCOME: {:?}",
+        validate_composition_mounts(&missing_facade)
+    );
     assert_rejected(
         &missing_facade,
         "missing EquipmentSetUse root facade export",
@@ -465,41 +476,50 @@ fn composition_guard_rejects_wrong_mount_and_noncanonical_legacy_import() {
 #[test]
 fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     let mut ungated_fixture = actual_mounts();
-    ungated_fixture[1].source = ungated_fixture[1].source.replace(
+    ungated_fixture[1].source = mutate_fixture(
+        &ungated_fixture[1].source,
         "#[cfg(any(test, feature = \"test-fixtures\"))]\n#[must_use]\npub fn build_dispatch_table",
         "#[must_use]\npub fn build_dispatch_table",
     );
     assert_rejected(&ungated_fixture, "missing test-fixtures gate");
 
     let mut altered_expect = actual_mounts();
-    altered_expect[1].source = altered_expect[1].source.replace(
+    altered_expect[1].source = mutate_fixture(
+        &altered_expect[1].source,
         "invalid duplicate packet handler composition",
         "duplicate handler",
     );
     assert_rejected(&altered_expect, "changed fixture expect contract");
 
     let mut missing_root_facade = actual_mounts();
-    missing_root_facade[2].source = missing_root_facade[2]
-        .source
-        .replace("    register_inventory_handlers_like_cpp,\n", "");
+    // rustfmt keeps this export on the shared line with the previous item, so the
+    // mutation has to match the formatted layout to remove anything.
+    missing_root_facade[2].source = mutate_fixture(
+        &missing_root_facade[2].source,
+        "ItemTextQueryHandlerCxLikeCpp, register_inventory_handlers_like_cpp,\n",
+        "ItemTextQueryHandlerCxLikeCpp,\n",
+    );
     assert_rejected(&missing_root_facade, "missing root facade export");
 
     let mut aliased_handler_facade = actual_mounts();
-    aliased_handler_facade[3].source = aliased_handler_facade[3].source.replace(
+    aliased_handler_facade[3].source = mutate_fixture(
+        &aliased_handler_facade[3].source,
         "    register_inventory_handlers_like_cpp,\n",
         "    register_inventory_handlers_like_cpp as register_handlers,\n",
     );
     assert_rejected(&aliased_handler_facade, "aliased handlers facade export");
 
     let mut extra_handler_glob = actual_mounts();
-    extra_handler_glob[3].source = extra_handler_glob[3].source.replace(
+    extra_handler_glob[3].source = mutate_fixture(
+        &extra_handler_glob[3].source,
         "    register_inventory_handlers_like_cpp,\n};",
         "    register_inventory_handlers_like_cpp,\n    *,\n};",
     );
     assert_rejected(&extra_handler_glob, "extra glob in handlers facade");
 
     let mut extra_handler_alias = actual_mounts();
-    extra_handler_alias[3].source = extra_handler_alias[3].source.replace(
+    extra_handler_alias[3].source = mutate_fixture(
+        &extra_handler_alias[3].source,
         "    register_inventory_handlers_like_cpp,\n};",
         "    register_inventory_handlers_like_cpp,\n    EquipmentSetsSaveCxLikeCpp as SaveCx,\n};",
     );
@@ -508,7 +528,8 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     let mut missing_instances_root_facade = actual_mounts();
     // The Application root facade lists this export on the same line as the next
     // one, so the mutation has to match the real formatting to remove anything.
-    missing_instances_root_facade[5].source = missing_instances_root_facade[5].source.replace(
+    missing_instances_root_facade[5].source = mutate_fixture(
+        &missing_instances_root_facade[5].source,
         "    register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,\n",
         "    reset_represented_instances_like_cpp,\n",
     );
@@ -518,7 +539,8 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     );
 
     let mut aliased_instances_module_facade = actual_mounts();
-    aliased_instances_module_facade[6].source = aliased_instances_module_facade[6].source.replace(
+    aliased_instances_module_facade[6].source = mutate_fixture(
+        &aliased_instances_module_facade[6].source,
         "pub use registration::register_instance_handlers_like_cpp;",
         "pub use registration::register_instance_handlers_like_cpp as register_handlers;",
     );

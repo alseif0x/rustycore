@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 27000,
-    "measured_requirement": 26856,
-    "recorded_at_revision": "8a09dde956287493984f18cd38a7d10be975072c",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 66919 (net shrink of the root: 67971 deleted minus 1052 added inside it), G_move = 97421, ratio and slack credits = 66919 * 0.05 + 300 = 3645.95, so the requirement is 97421 - 70564.95 = 26856.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 30100,
+    "measured_requirement": 29983,
+    "recorded_at_revision": "c4c512c1e1c85521912a887ca9f2b25bab5a8cbc",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 66312 (net change of the root: 67971 deleted minus 1052 added inside it, less the rustfmt pass), G_move = 99911, ratio and slack credits = 66312 * 0.05 + 300 = 3615.6, so the requirement is 99911 - 69927.6 = 29983.4 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -35,67 +35,67 @@
         "note": "Largest phase: the application/lifecycle/spell/inventory owners plus their Cx, host-trait, controller and projection surfaces are new code; only the moved bodies are offset by the shrink."
       },
       {
-        "phase": "post-pause (969bee686..HEAD)",
-        "shrink": 9639,
-        "destination_growth": 9670,
-        "new_code": 31,
-        "note": "Destination growth matched the shrink within 31 lines: the F5 registrars, F6 retirements and handler migrations of these rounds were net moves."
+        "phase": "post-pause (969bee686..HEAD, migrations plus the rustfmt pass)",
+        "shrink": 9032,
+        "destination_growth": 12160,
+        "new_code": 3128,
+        "note": "F5 registrars and F6 retirements were net moves; the rustfmt normalization of the branch's own sources reflowed long lines and accounts for most of this phase's new_code (+2490 in the destinations, -607 net shrink in the root)."
       }
     ],
     "areas": [
       {
         "area": "crates/wow-world-core/src",
-        "lines": 34127,
+        "lines": 34929,
         "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder."
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 26215,
+        "lines": 27836,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal)."
       },
       {
         "area": "crates/wow-world-inventory/src",
-        "lines": 10110,
+        "lines": 10183,
         "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
       },
       {
         "area": "crates/wow-world-lifecycle/src",
-        "lines": 7940,
+        "lines": 7898,
         "reason": "lifecycle state, load/finalization owners and account-data handlers."
       },
       {
         "area": "crates/wow-world-spell/src",
-        "lines": 6034,
+        "lines": 6091,
         "reason": "spell state, melee rules and spell-acquisition adapters."
       },
       {
         "area": "crates/wow-world-entities/src",
-        "lines": 5270,
+        "lines": 5261,
         "reason": "world-entity registries and creature contracts."
       },
       {
         "area": "crates/wow-world-loot/src",
-        "lines": 2706,
+        "lines": 2743,
         "reason": "loot state, roll publication and random properties."
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 2481,
+        "lines": 2469,
         "reason": "social group/duel state plus the inspect handler family and group fanout."
       },
       {
         "area": "crates/wow-world-instances/src",
-        "lines": 1296,
+        "lines": 1268,
         "reason": "instance difficulty and lock operations."
       },
       {
         "area": "crates/wow-world-visibility/src",
-        "lines": 663,
+        "lines": 662,
         "reason": "object-update projection."
       },
       {
         "area": "crates/wow-world-interaction/src",
-        "lines": 579,
+        "lines": 571,
         "reason": "NPC interaction and support features."
       }
     ],

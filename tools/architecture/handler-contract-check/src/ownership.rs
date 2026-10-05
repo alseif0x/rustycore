@@ -122,7 +122,6 @@ struct PackageAuditScope {
     name: String,
     root: PathBuf,
     production_roots: Vec<PathBuf>,
-    production_lib_roots: BTreeSet<PathBuf>,
 }
 
 fn pinned_generated_include_bodies() -> Result<Vec<String>, String> {
@@ -468,7 +467,6 @@ fn package_audit_scopes(
             })?;
 
         let mut production_roots = BTreeSet::new();
-        let mut production_lib_roots = BTreeSet::new();
         for target in required_array(package, "targets", &package_id)? {
             let kinds = required_array(target, "kind", "target")?;
             let production = kinds.iter().any(|kind| {
@@ -477,15 +475,7 @@ fn package_audit_scopes(
             });
             if production {
                 let source_path = PathBuf::from(required_string(target, "src_path", "target")?);
-                production_roots.insert(source_path.clone());
-                if kinds.iter().any(|kind| kind.as_str() == Some("lib")) {
-                    production_lib_roots.insert(source_path.canonicalize().map_err(|error| {
-                        format!(
-                            "cannot resolve production lib root {} for {name}: {error}",
-                            source_path.display()
-                        )
-                    })?);
-                }
+                production_roots.insert(source_path);
             }
         }
         if production_roots.is_empty() {
@@ -498,7 +488,6 @@ fn package_audit_scopes(
             name,
             root,
             production_roots: production_roots.into_iter().collect(),
-            production_lib_roots,
         });
     }
     scopes.sort_by(|left, right| left.name.cmp(&right.name));

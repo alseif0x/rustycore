@@ -4736,6 +4736,53 @@ fallar. La suite `test_net_move.py` pasa **16/16** (incluye la puerta de copias,
 de la lista, el alcance por destinos, el presupuesto revisado y los fallos de política), y
 `tools/validation-v2` planifica R1 también cuando cambia la política.
 
+#### Segunda campaña `final` y normalización rustfmt de la rama — 2026-10-05
+
+Tras la reformulación de R1 se repitió **una** campaña `final --base origin/3.4.3 --architecture
+--timings --logs` (manifiesto `20261005T061717.194068Z-719485-final.json`). R1 net-move v2 pasó
+(**PASS**, 6,877 s) y su suite pasó (2,67 s), igual que arquitectura/self-test, ownership
+sintaxis, higiene, JSON/Python y el self-test del runner. La campaña avanzó por primera vez más
+allá de R1 y **falló en `path-14`, `cargo fmt --all --check`**: 599 ficheros de la propia rama
+(los 4.438 del tool aparte) no estaban formateados, porque ninguna campaña anterior había
+llegado a ese paso. Contabilidad: los 599 ficheros marcados son exactamente ficheros tocados por
+la rama (0 ajenos); el trabajo posterior a la pausa no añadió más de 541 líneas a R1.
+
+**Código escrito y comprobado en esta ronda:**
+
+- `cargo fmt --all` (599 ficheros de workspace) y `cargo fmt --manifest-path
+  tools/architecture/handler-contract-check/Cargo.toml` (15 ficheros). Solo formato: sin cambio
+  semántico. Commit `c4c512c1e`.
+- Baseline de ownership re-registrado porque sus huellas y firmas son sensibles a espacios.
+  Delta revisado: las **4.438 filas se conservan por identidad** (package, module, self_type,
+  trait_path, kind, name) y **todas las firmas son idénticas** tras normalizar la coma final;
+  solo cambian campos de huella y el texto formateado (27 líneas del fichero de política).
+  `check --syntax-only` **PASS** (166 owners / 3.159 items / 674 filas) y `check` exhaustivo
+  **PASS** (7.718 + 2.221 filas de persistencia, 1.034 grupos, 84 bridges): el snapshot de
+  persistencia no derivó con el formato.
+- Política física: el reflujo de rustfmt dejó `unit_tests/handlers/group_tests.rs` en 788 líneas
+  (techo 786) y `tools/.../src/ownership.rs` en 2.002 (límite terminal 2.000). El primero se
+  registra en su fila `legacy` con la nota del reflujo (788/788, sin cambio de pruebas). El
+  segundo se corrige de verdad: se retira el campo muerto `production_lib_roots` (solo se
+  escribía, nunca se leía; limpiaba además un warning del tool) y el fichero baja a **1.991**.
+- Ratchet de hotspots: el formato subió `test_lines` en tres propietarios lógicos. Las cinco
+  filas desincronizadas (`session/mod.rs`, `character/mod.rs`, `loot/mod.rs`, `quest/mod.rs`,
+  `world-server/lib.rs`) se reconcilian con las cifras vivas y una nota revisada que separa las
+  dos causas: el reflujo rustfmt (sube test) y las extracciones P4b/F4b/F5 que habían sacado
+  producción de `wow-world/src` sin re-registrar la fila. `check_architecture.py check
+  --self-test` **PASS**.
+- **Defecto real descubierto por el formato:** `composition_guard_rejects_fixture_gate_changes_
+  and_inexact_facades` dejó de rechazar la exportación de fachada ausente porque su mutación
+  buscaba `"    register_inventory_handlers_like_cpp,\n"` y rustfmt había movido ese elemento a
+  la misma línea que el anterior; el `replace` se volvía un no-op silencioso y el test pasaba en
+  falso. Se corrigen las mutaciones afectadas al formato real y se añade el helper
+  `mutate_fixture`, que falla ruidosamente cuando una mutación ya no coincide. Barrido adicional:
+  ninguna de las mutaciones `.replace(...)` del tool queda huérfana respecto de las fuentes del
+  repositorio.
+- R1 re-medido y re-registrado tras el formato: `S = 66.312`, `G_move = 99.911`, requisito
+  `99.911 − 69.927,6 = 29.983,4` → **presupuesto revisado 30.100**; los cinco duplicados
+  permitidos siguen intactos (0 violaciones, 0 obsoletos) y `net_move.py check` → **PASS**.
+
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
