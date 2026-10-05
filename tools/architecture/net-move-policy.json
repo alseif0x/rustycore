@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 33035,
-    "measured_requirement": 33035,
-    "recorded_at_revision": "fd510d69e67a2607fb23e647d98b51e93d74d238",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70299, G_move = 107148, ratio and slack credits = 70299 * 1.05 + 300 = 74113.95, so the requirement is 33034.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33181,
+    "measured_requirement": 33181,
+    "recorded_at_revision": "d39c69b70102edd3b2fb3feb5717768acf152f03",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70398, G_move = 107398, ratio and slack credits = 70398 * 1.05 + 300 = 74217.9, so the requirement is 33180.1 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -89,6 +89,13 @@
         "destination_growth": 89,
         "new_code": 34,
         "note": "The played-time reply and the logout-cancel acknowledgement moved from the character account/world-entry files into the existing lifecycle account-data registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F5 data-service tail (fd510d69e..d39c69b70, hotfix and DB2 query)",
+        "shrink": 99,
+        "destination_growth": 250,
+        "new_code": 151,
+        "note": "The hotfix-request and DB2 bulk-query bodies moved from the character account/query files into a new application data-service registrar, which also retires the now-empty character session-services registration file; the composition keeps all 478 opcodes."
       }
     ],
     "areas": [
@@ -99,7 +106,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 29451,
+        "lines": 29701,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {

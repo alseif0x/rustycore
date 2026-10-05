@@ -5280,6 +5280,35 @@ account baja a **3** entradas. Sin contrato, dueño de módulo ni llamada de com
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: hotfix y consulta DB2 a un registrador de datos en application — 2026-10-05, `d39c69b70`
+
+Último corte del bloque de servicios de sesión y el primero con dueño nuevo en esta serie:
+`HotfixRequest` y `DbQueryBulk` y sus dos cuerpos pasan al registrador directo
+`ApplicationDataService` de `wow-world-application`
+(`crates/wow-world-application/src/data_service_handlers.rs`). El contexto es
+`DataServiceHandlerCxLikeCpp { hub, hotfixes: &HotfixBlobCache, tact_keys: &TactKeyStore }`: presta
+el hub y los dos catálogos de solo lectura, así que el ensamblado de `HotfixConnect` (con la máscara
+de locales y el fallo cerrado a `Invalid` cuando no hay serializador tipado) y la publicación
+`DBReply` de claves TACT conservan su semántica exacta sin que ningún tipo de sesión cruce al owner.
+
+El fichero `character/account/registrations/session_services.rs` queda vacío y se retira; su entrada
+`LogoutRequest`, que seguía viva, pasa a su propio `registrations/logout.rs`. Los dos handlers
+conservan puntos de entrada `cfg(test)` para que las suites de escenarios sigan ejerciéndolos. La
+tabla de despacho mantiene sus **478** opcodes.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 25 tests de `dispatch` (478 opcodes), 3 de
+consulta DB2 y 4 de hotfix, y la suite completa de `wow-world-application` (52) en verde;
+`cargo check` de `wow-world`, `wow-world-application` y `world-server` sin errores nuevos; suite
+del tool **442/443** (baseline previo a la reimpresión) y **PASS** tras reimprimir;
+`session-ownership-check check --syntax-only` **PASS** (177 owners / 3.127 items / 674 filas, con
+el impl host nuevo y los dos cuerpos retirados); `check_architecture.py check` **PASS** (ratchet
+físico 3.363 ficheros / 102 techos); hotspots reconciliados (`session/mod.rs` 60.834 → 60.861
+producción, 138.166 → 138.168 test; `world-server/lib.rs` 31.760 → 31.764). R1 v2: `S = 70.398`,
+`G_move = 107.398`, requisito `33.180,10` → **presupuesto 33.181**
+(`recorded_at_revision d39c69b70`), 0 violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
