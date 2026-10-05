@@ -496,9 +496,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/chat.rs",
-      "observed_lines": 63,
-      "ceiling_lines": 63,
-      "split": "Separate the chat handler operations, the level/notification policy helpers and the regressions. #654 decomposes the 4,265-line file into one state module, two ops modules dividing the `impl WorldSession` blocks by handler responsibility, and three regression modules, dropping it to 311 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source and must stay together. Item-for-item with the crate's 3,822 lib tests unchanged. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "observed_lines": 77,
+      "ceiling_lines": 77,
+      "split": "Separate the chat handler operations, the level/notification policy helpers and the regressions. #654 decomposes the 4,265-line file into one state module, two ops modules dividing the `impl WorldSession` blocks by handler responsibility, and three regression modules, dropping it to 311 lines and tightening the ceiling to that figure. The root keeps the imports and the `inventory::submit!` handler registrations, which are the single registration source and must stay together. Item-for-item with the crate's 3,822 lib tests unchanged. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1263 F5 moves the chat handler family to `wow-world-social`'s `SocialChat` direct registrar; the root keeps only the imports, the moved module mounts, the `pub(crate) use` of the moved constants and the emote/text-emote registrations that stayed, and the cfg(test) delegates for the not-yet-relocated scenario suites live in the bounded `chat/test_shims.rs`; ceiling tightened to the observed size after that move.",
       "review_checkpoint": "584:C4"
     },
     {

@@ -7,8 +7,9 @@
 //! These cfg(test) entry points let the chat scenario module drive one moved
 //! handler through the social context without composing a dispatch table.
 
-impl crate::session::WorldSession {
+use wow_packet::packets::chat::ChatMsg;
 
+impl crate::session::WorldSession {
     #[cfg(test)]
     pub async fn handle_chat_message(&mut self, pkt: wow_packet::WorldPacket, msg_type: ChatMsg) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
@@ -90,7 +91,3 @@ impl crate::session::WorldSession {
             .await;
     }
 }
-
-#[cfg(test)]
-#[path = "../../unit_tests/handlers/chat/tests/mod.rs"]
-mod tests;

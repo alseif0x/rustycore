@@ -5,9 +5,7 @@
 
 use super::*;
 
-use crate::handlers::chat::channels::{
-    JoinChannelPrecheckLikeCpp, join_channel_custom_precheck_like_cpp,
-};
+use wow_world_social::{JoinChannelPrecheckLikeCpp, join_channel_custom_precheck_like_cpp};
 
 #[tokio::test]
 async fn realm_connection_responses_route_to_realm_channel_like_cpp_after_connect_to() {

@@ -24,7 +24,8 @@ pub(crate) use composer::{
     validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 pub(crate) use direct_builder::{
-    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CLIENT_STATE_REGISTRAR,
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CHAT_REGISTRAR,
+    CLIENT_STATE_REGISTRAR,
     DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
     RegistrarReport, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, analyze_contract_source,
@@ -46,9 +47,16 @@ pub(crate) use local_inventory::{
 /// `wow-world-application`; the expansion shape is now a direct
 /// `builder.register` per opcode, so the macro is no longer part of the
 /// grammar. Review this list again before adding another registry macro.
+///
+/// #1263 F5 also moved the chat family to
+/// `wow-world-social::register_chat_handlers_like_cpp`. The channel-command
+/// registrations that `wow-world` previously expanded through
+/// `register_chat_channel_command_handler!` /
+/// `register_chat_channel_player_command_handler!` are now direct
+/// `builder.register` entries in `crates/wow-world-social/src/chat_handlers.rs`
+/// (audited by the `SocialChat` direct-registrar contract), so those two
+/// macros are retired from the grammar.
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
-    "register_chat_channel_command_handler",
-    "register_chat_channel_player_command_handler",
     "register_move",
     "register_movement_ack_message",
     "register_movement_speed_ack",

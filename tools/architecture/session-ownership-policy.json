@@ -515,12 +515,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::chat::ops_1",
           "trait_path": null,
           "cfg": [],
@@ -533,10 +527,12 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::collections",
@@ -1117,6 +1113,12 @@
         {
           "module": "crate::session",
           "trait_path": "CalendarHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "ChatHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -5501,244 +5503,6 @@
           ]
         },
         {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_channel_command",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_channel_command (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_channel_password",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_channel_password (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_channel_player_command",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_channel_player_command (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_join_channel",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_join_channel (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_leave_channel",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_leave_channel (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::channels",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_unregister_all_addon_prefixes",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_unregister_all_addon_prefixes (& mut self , _pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_addon_message_targeted_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_addon_message_targeted_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_addon_message_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_addon_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_afk_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_afk_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_channel_message_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_channel_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_dnd_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_dnd_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_emote_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_emote_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_message_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_register_addon_prefixes",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_register_addon_prefixes (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_report_filtered",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_report_filtered (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_report_ignored",
-          "visibility": "pub",
-          "signature": "async fn handle_chat_report_ignored (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_whisper_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_whisper_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::chat::ops_1",
           "trait_path": null,
           "kind": "method",
@@ -5786,20 +5550,6 @@
           "module": "crate::handlers::chat::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_update_aadc_status",
-          "visibility": "pub",
-          "signature": "async fn handle_update_aadc_status (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "publish_player_emote_state_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn publish_player_emote_state_like_cpp (& mut self , emote_state : u32)",
@@ -5825,118 +5575,6 @@
           ]
         },
         {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "validate_hyperlinks_and_maybe_kick_with_policy_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn validate_hyperlinks_and_maybe_kick_with_policy_like_cpp (& mut self , text : & str , context : & str , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_chat_packet",
-          "visibility": "pub (super)",
-          "signature": "fn broadcast_chat_packet (& self , pkt : & ChatPkt , range : f32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_group_addon_chat_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn broadcast_group_addon_chat_like_cpp (& self , msg_type : ChatMsg , packet : ChatAddonMessage ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_group_addon_packet_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn broadcast_group_addon_packet_like_cpp (& self , group : & GroupInfo , subgroup_filter : Option < u8 > , sender_guid : ObjectGuid , prefix : String , bytes : Vec < u8 > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_group_chat_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn broadcast_group_chat_like_cpp (& self , requested_type : ChatMsg , language : u32 , sender_guid : ObjectGuid , sender_name : String , text : String , virtual_realm : u32 , party_raid_warnings : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_group_chat_packet_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn broadcast_group_chat_packet_like_cpp (& self , group : & GroupInfo , subgroup_filter : Option < u8 > , bytes : Vec < u8 > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "broadcast_raw_packet",
-          "visibility": "pub (crate)",
-          "signature": "fn broadcast_raw_packet (& self , bytes : Vec < u8 > , range : f32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "current_chat_group_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn current_chat_group_like_cpp (& self , sender_guid : ObjectGuid) -> Option < GroupInfo >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::chat::ops_2",
           "trait_path": null,
           "kind": "method",
@@ -5947,20 +5585,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_addon_message_params_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn handle_chat_addon_message_params_like_cpp (& mut self , packet : ChatAddonMessage , target : & str , _channel_guid : ObjectGuid , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -5993,20 +5617,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_chat_addon_message_whisper_with_policy_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_chat_addon_message_whisper_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -6109,154 +5719,192 @@
           ]
         },
         {
-          "module": "crate::handlers::chat::ops_2",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "has_gm_silence_aura_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn has_gm_silence_aura_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_addon_message_with_policy_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_addon_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::ops_2",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "player_name_and_guid",
-          "visibility": "pub (super)",
-          "signature": "fn player_name_and_guid (& self) -> (wow_core :: ObjectGuid , String)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_channel_command",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_channel_command (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::ops_2",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_addon_whisper_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_addon_whisper_like_cpp (& mut self , target_name : & str , prefix : String , message : String , is_logged : bool , notify_missing : bool ,)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_channel_password",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_channel_password (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::ops_2",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_gm_silence_notification_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_gm_silence_notification_like_cpp (& self)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_channel_player_command",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_channel_player_command (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::ops_2",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_wait_before_speaking_notification_if_muted_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_wait_before_speaking_notification_if_muted_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_join_channel",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_join_channel (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "meets_chat_level_req_with_policy_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn meets_chat_level_req_with_policy_like_cpp (& self , msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_leave_channel",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_leave_channel (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "meets_whisper_level_req_with_policy_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn meets_whisper_level_req_with_policy_like_cpp (& self , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_message_with_policy_like_cpp",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "required_chat_level_with_policy_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn required_chat_level_with_policy_like_cpp (msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_register_addon_prefixes",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_register_addon_prefixes (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_chat_say_level_notification_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_chat_say_level_notification_like_cpp (& self , required_level : u8)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_report_filtered",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_report_filtered (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_chat_whisper_level_notification_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_chat_whisper_level_notification_like_cpp (& self , required_level : u8)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_report_ignored",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_report_ignored (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::chat::state",
+          "module": "crate::handlers::chat::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "send_whisper_away_reply_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn send_whisper_away_reply_like_cpp (& mut self , target_name : & str , auto_reply : & str , afk : bool ,)",
-          "cfg": [],
-          "source_class": "production",
+          "name": "handle_chat_unregister_all_addon_prefixes",
+          "visibility": "pub",
+          "signature": "async fn handle_chat_unregister_all_addon_prefixes (& mut self , pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_update_aadc_status",
+          "visibility": "pub",
+          "signature": "async fn handle_update_aadc_status (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44497,6 +44145,19 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "ChatHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "chat_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn chat_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ChatHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
           "trait_path": "ClientStateHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "client_state_handler_cx_like_cpp",
@@ -57073,292 +56734,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_report_ignored",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_report_ignored",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "ignored",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "ignored:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_report_ignored",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_report_ignored",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "target_info",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "target_info:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_1",
-          "source": "crates/wow-world/src/handlers/chat/ops_1.rs",
-          "enclosing": "impl WorldSession::handle_chat_whisper_with_policy_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::broadcast_group_addon_packet_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::broadcast_group_addon_packet_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::broadcast_group_chat_packet_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::broadcast_group_chat_packet_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::broadcast_raw_packet",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::current_chat_group_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "accessor",
-          "symbol": "group_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "group_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::current_chat_group_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::current_chat_group_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::send_addon_whisper_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::send_addon_whisper_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "player_registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "player_registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::send_addon_whisper_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::send_addon_whisper_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "target",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "target:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::send_addon_whisper_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "target_info",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "target_info:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::chat::ops_2",
-          "source": "crates/wow-world/src/handlers/chat/ops_2.rs",
-          "enclosing": "impl WorldSession::send_addon_whisper_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "clone",
-          "symbol": "cloned",
-          "visibility": "pub (super)",
-          "cfg": [],
-          "fingerprint": "cloned()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::collections",
           "source": "crates/wow-world/src/handlers/collections/mod.rs",
           "enclosing": "impl WorldSession::send_mount_special_anim_to_visible_set_like_cpp",
@@ -63156,6 +62531,292 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::broadcast_group_addon_packet_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::broadcast_group_addon_packet_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::broadcast_group_chat_packet_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::broadcast_group_chat_packet_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::broadcast_raw_packet",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::current_chat_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "accessor",
+          "symbol": "group_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "group_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::current_chat_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::current_chat_group_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "get(& group_guid)",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_report_ignored",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_report_ignored",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "ignored",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "ignored:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_report_ignored",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_report_ignored",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_whisper_with_policy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_whisper_with_policy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_whisper_with_policy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "target_info",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "target_info:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::handle_chat_whisper_with_policy_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "cloned()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::send_addon_whisper_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::send_addon_whisper_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "player_registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "player_registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::send_addon_whisper_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::send_addon_whisper_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "target",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "target:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::send_addon_whisper_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "target_info",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "target_info:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-social",
+          "module": "crate::chat_handlers::ops",
+          "source": "crates/wow-world-social/src/chat_handlers/ops.rs",
+          "enclosing": "impl ChatHandlerCxLikeCpp::send_addon_whisper_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "clone",
+          "symbol": "cloned",
+          "visibility": "pub (super)",
+          "cfg": [],
+          "fingerprint": "cloned()",
           "count": 1
         },
         {

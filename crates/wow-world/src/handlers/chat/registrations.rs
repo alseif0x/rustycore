@@ -9,7 +9,7 @@ use wow_constants::ClientOpcodes;
 use wow_handler::PacketProcessing;
 use wow_handler::SessionStatus;
 
-crate::session::registry::register_packet_handler_like_cpp {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Emote,
         status: SessionStatus::LoggedIn,
@@ -18,7 +18,7 @@ crate::session::registry::register_packet_handler_like_cpp {
         handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_emote(pkt).await }),
     }
 }
-crate::session::registry::register_packet_handler_like_cpp {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SendTextEmote,
         status: SessionStatus::LoggedIn,

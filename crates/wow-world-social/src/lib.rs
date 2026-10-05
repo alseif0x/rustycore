@@ -5,9 +5,9 @@
 //! Social ownership for the world-session application boundary.
 
 mod calendar_handlers;
-mod chat_handlers;
 mod catalogs;
 mod chat;
+mod chat_handlers;
 mod contracts;
 mod duel;
 mod duel_publication;
@@ -22,14 +22,22 @@ mod state;
 mod test_support;
 mod trade;
 
+pub use calendar_handlers::{
+    CalendarHandlerCxLikeCpp, CalendarHandlerHostLikeCpp, register_calendar_handlers_like_cpp,
+};
 pub use chat_handlers::{
     ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp, register_chat_handlers_like_cpp,
 };
 pub use chat_handlers::{
-    player_name_and_guid_like_cpp, send_wait_before_speaking_notification_if_muted_like_cpp,
+    GM_SILENCE_AURA_LIKE_CPP, LANG_ADDON_LIKE_CPP, LANG_ADDON_LOGGED_LIKE_CPP,
+    LANG_UNIVERSAL_LIKE_CPP, secs_to_full_time_string_like_cpp,
 };
-pub use calendar_handlers::{
-    CalendarHandlerCxLikeCpp, CalendarHandlerHostLikeCpp, register_calendar_handlers_like_cpp,
+pub use chat_handlers::{
+    JoinChannelPrecheckLikeCpp, chat_msg_from_i32_like_cpp, is_known_language_like_cpp,
+    join_channel_custom_precheck_like_cpp,
+};
+pub use chat_handlers::{
+    player_name_and_guid_like_cpp, send_wait_before_speaking_notification_if_muted_like_cpp,
 };
 pub use contracts::{
     ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, RepresentedCalendarAddEventLikeCpp,

@@ -74,7 +74,9 @@ impl WorldSession {
         if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
+        if wow_world_social::send_wait_before_speaking_notification_if_muted_like_cpp(
+            &crate::session::hub_ref(self),
+        ) {
             return;
         }
 
@@ -95,7 +97,8 @@ impl WorldSession {
             "CMSG_SEND_TEXT_EMOTE"
         );
 
-        let (player_guid, _name) = self.player_name_and_guid();
+        let (player_guid, _name) =
+            wow_world_social::player_name_and_guid_like_cpp(&crate::session::hub_ref(self));
         let account_guid =
             ObjectGuid::create_global(HighGuid::WowAccount, 0, self.core.account_id as i64);
 

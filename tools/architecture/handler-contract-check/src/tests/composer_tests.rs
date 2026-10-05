@@ -7,7 +7,8 @@ use std::path::PathBuf;
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
-    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CLIENT_STATE_REGISTRAR,
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CHAT_REGISTRAR,
+    CLIENT_STATE_REGISTRAR,
     DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
     SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, validate_composition_mounts,
@@ -131,6 +132,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             CALENDAR_REGISTRAR.module,
             "crates/wow-world-social/src/calendar_handlers.rs",
             include_str!("../../../../../crates/wow-world-social/src/calendar_handlers.rs"),
+        ),
+        mount(
+            CHAT_REGISTRAR.package,
+            CHAT_REGISTRAR.module,
+            "crates/wow-world-social/src/chat_handlers.rs",
+            include_str!("../../../../../crates/wow-world-social/src/chat_handlers.rs"),
         ),
         mount(
             SOCIAL_INSPECT_REGISTRAR.package,
