@@ -4719,8 +4719,10 @@ contrato de handlers del repositorio **PASS**; `cargo check` de `wow-world-appli
 `wow-world` (default y `test-fixtures`) y `world-server` con **0 errores**;
 `session-ownership-check check --syntax-only` **PASS** (170 owners / 3.158 items / 674 filas);
 `check_architecture.py check --self-test` **PASS**; `net_move.py check` **PASS** (5 duplicados
-permitidos, 0 violaciones). Quedan **300** registros `register_packet_handler_like_cpp!` en
-`wow-world` (eran 359). La campaña `final` sigue pendiente del cierre del tramo.
+permitidos, 0 violaciones). Quedan **318** invocaciones literales de
+`register_packet_handler_like_cpp!` en `wow-world` (eran 359; las 19 restantes de esta familia
+nunca fueron invocaciones literales, salían de la macro local, de modo que el corte retiró 59
+opcodes y 41 literales). La campaña `final` sigue pendiente del cierre del tramo.
 
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
