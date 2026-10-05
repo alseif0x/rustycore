@@ -4573,6 +4573,37 @@ ayudantes movidos), `world-server --lib` 597/0, checker 443/0, `check --syntax-o
 `check` completo PASS con el inventario de persistencia sin cambios (7.718 + 2.221) y
 `check_architecture.py check` PASS en todas sus secciones.
 
+#### F5: familia account-data movida a `wow-world-lifecycle` — 2026-10-04, `18943edae`
+
+Tercera familia de handlers migrada con el patrón ya probado (tras inspect). Los cinco opcodes
+(`CMSG_ADDON_LIST`, `CMSG_REQUEST_ACCOUNT_DATA`, `CMSG_UPDATE_ACCOUNT_DATA`,
+`CMSG_SAVE_CUF_PROFILES`, `CMSG_TUTORIAL`) pasan a `wow-world-lifecycle`, que ya poseía el
+estado de ciclo de vida y la operación durable de account data:
+
+- `wow-world-lifecycle/src/handlers.rs` contiene `AccountDataHandlerCxLikeCpp` sobre el estado de
+  lifecycle separado más `HubMut`, los cinco handlers, el trait host, cinco thunks genéricos y
+  `register_account_data_handlers_like_cpp`;
+- la lectura y publicación de account data, el guardado de perfiles CUF, la acción de tutorial y
+  la llamada durable representada corren contra el estado de lifecycle directamente, y la
+  publicación realm sale del acceso de publicación del hub: ninguna referencia a la sesión entra
+  en el handler;
+- `wow-world` conserva solo la implementación del host
+  (`session/account_data_handler_contexts.rs`) y cinco shims
+  `cfg(any(test, feature = "test-fixtures"))` para que los escenarios existentes sigan pudiendo
+  ejecutar un handler sin componer la tabla de dispatch;
+- ambos compositores llaman al sexto registrador en orden de contrato, con el contrato
+  `ACCOUNT_DATA_REGISTRAR`, su fachada, el dueño en la política de módulos y la arista de
+  dependencia (`wow-handler`).
+
+Baselines: impl items 3.159 → **3.161** (cinco handlers de producción sustituidos por los shims
+cfg-gated más el builder del host), registros directos sin cambios (674) y hotspot de
+`world-server` +4 líneas por la sentencia de composición inseparable.
+
+Evidencia: checker **443/0**; `check --syntax-only` **PASS**; `check` completo (persistencia)
+**PASS** con el inventario sin cambios (7.718 + 2.221 filas); `check_architecture.py check`
+**PASS** en todas sus secciones; `wow-world --lib --features test-fixtures` **3634/0/1**;
+`world-server --lib` **597/0**. `wow-world/src` baja a **120.068** líneas.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
