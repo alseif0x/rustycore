@@ -4783,6 +4783,36 @@ la rama (0 ajenos); el trabajo posterior a la pausa no añadió más de 541 lín
   permitidos siguen intactos (0 violaciones, 0 obsoletos) y `net_move.py check` → **PASS**.
 
 
+#### Tercera campaña `final`: VERDE — 2026-10-05, `f7553c7d0`
+
+Campaña completa, sin atajos, sobre el candidato comprometido y árbol limpio:
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --logs`, manifiesto
+`target/validation-v2/manifests/20261005T070105.474456Z-725854-final.json`, perfil `final`,
+`status=passed`, `exit_code=0`, **19/19 comandos en verde**, `dirty=false`, head `f7553c7d0`,
+Rust 1.98.0, inicio 07:01:05,474 y fin 07:31:15,732 UTC.
+
+Comandos y tiempos reales: arquitectura/self-test 252,09 s; ownership sintaxis (release) 49,96 s;
+`git diff --check` 0,32 s; fixtures físicos 0,36 s; `test_check_architecture.py` 0,32 s; **R1
+net-move v2 PASS 6,88 s**; `test_net_move.py` 2,67 s; `ignored_sources` 0,12 s; fuentes
+ignoradas/higiene 0,22 s; JSON 0,17 s; `py_compile` 0,17 s; `test_validation_v2.py` 8,43 s;
+`test_validation_workflows.py` 0,17 s; `cargo fmt --all --check` 10,59 s; `cargo check
+--workspace --all-targets` 534,69 s; `cargo test --lib` de las 14 librerías afectadas 678,51 s;
+fmt del tool 0,77 s; tests del tool **443/0** 263,22 s. La evidencia se verificó con
+`./tools/validation-v2 verify --manifest ... --require-profile final` → **verified green**.
+
+**Objetivo de rendimiento de 600 s incumplido en esta ejecución:** duración total **1.810,26 s**
+(30 min 10 s). Causa medida: la normalización rustfmt de la ronda anterior tocó 614 ficheros e
+invalidó la caché incremental de todo el workspace, así que `cargo check --all-targets` y la
+suite completa se recompilaron desde cero (534,69 s + 678,51 s = 1.213,20 s, el 67 % del total).
+No es un coste de aceptación inflado por repetir la campaña (es su primera ejecución completa) ni
+se oculta: la campaña anterior de 111,42 s no era comparable porque se detenía en R1 y nunca
+llegó a compilar/tests. No se repite la campaña en caliente solo para mejorar la cifra; si el
+propietario quiere el número ordinario en caché caliente, es una ejecución adicional explícita.
+
+Con las tres campañas, el bloqueo R1 queda resuelto y `final` pasa entero por primera vez en la
+rama. La aceptación de comportamiento (capturas, QA live, durabilidad real) sigue fuera de esta
+evidencia y conserva su propia autoridad.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
