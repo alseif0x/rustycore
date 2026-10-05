@@ -5447,6 +5447,31 @@ movement (13), battlegrounds (13), pets (10), group (9 restantes), vehicle (8), 
 (8), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4), corpse (4),
 gameobject (3) y combat (3).
 
+#### F5: familia guild, corte de invitaciones (3 opcodes) a `wow-world-social` — 2026-10-05, `84ec6e234`
+
+`GuildSetAchievementTracking`, `GuildDeclineInvitation` y `AcceptGuildInvite` pasan al registrador
+directo `SocialGuild` de `wow-world-social`, junto con sus dos transiciones canónicas de estado de
+hermandad (aceptar y rechazar invitación). El contexto `GuildHandlerCxLikeCpp { social, hub }`
+divide el estado social del hub, resuelve el snapshot de hermandad por la consulta que ya vive en
+social (`player_guild_state_snapshot_like_cpp`) y conserva el registro de fixture de aceptación.
+El ayudante de mutación de fixture se comparte ahora por una función libre de social
+(`mutate_player_guild_state_for_test_like_cpp`) para que el shell y el contexto no dupliquen el
+cuerpo — la puerta de copias de R1 lo detectó en cuanto moví una sola de las dos copias.
+
+Se quedan en el shell los handlers de banco de hermandad (estado de inventario/banco) y el de
+auto-decline (`represented_set_auto_decline_guild_invites_like_cpp` depende del sincronizador de
+registro de World, no disponible en este contexto); guild conserva 13 registros. Las suites
+conservan delegados `cfg(test)`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **34 tests de guild** y 25 de `dispatch` (478
+opcodes intactos) en verde; `cargo check` de `wow-world-social`, `wow-world` y `world-server` sin
+errores nuevos; suite del tool **442/443** (baseline previo a la reimpresión) y **PASS** tras
+reimprimir; `session-ownership-check check --syntax-only` **PASS** (181 owners / 3.127 items / 674
+filas); `check_architecture.py check` **PASS** (ratchet físico 3.370 ficheros / 102 techos);
+hotspots reconciliados (`session/mod.rs` test 138.172 → 138.174; `world-server/lib.rs` 31.772 →
+31.776). R1 v2: `S = 71.294`, `G_move = 108.880`, requisito `33.721,30` → **presupuesto 33.722**
+(`recorded_at_revision 84ec6e234`), 0 violaciones / 0 permitidos / 0 obsoletos.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

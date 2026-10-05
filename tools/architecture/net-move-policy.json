@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 33546,
-    "measured_requirement": 33546,
-    "recorded_at_revision": "6c9c3c2092cbec70c7be2ac4e5c7c1e62a94d1b5",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71245, G_move = 108653, ratio and slack credits = 71245 * 1.05 + 300 = 75107.25, so the requirement is 33545.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33722,
+    "measured_requirement": 33722,
+    "recorded_at_revision": "84ec6e2345b0c4197749d9d9f8855eda4c520065",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71294, G_move = 108880, ratio and slack credits = 71294 * 1.05 + 300 = 75158.7, so the requirement is 33721.3 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -131,6 +131,13 @@
         "destination_growth": 371,
         "new_code": 171,
         "note": "Four leadership/assistant group handlers moved from the World shell into a new application group registrar with a social+lifecycle+hub context; the invite/leave/convert/subgroup, loot and random-roll handlers stay for later slices."
+      },
+      {
+        "phase": "F5 guild invitation slice (6c9c3c209..84ec6e234, three handlers)",
+        "shrink": 49,
+        "destination_growth": 227,
+        "new_code": 178,
+        "note": "Three guild invitation handlers and their canonical guild-state transitions moved from the World shell to the social guild registrar, with a shared social fixture-mutation helper so neither copy duplicates the other; the guild-bank handlers and the registry-sync-dependent auto-decline handler stay for later slices."
       }
     ],
     "areas": [
