@@ -18,6 +18,7 @@ use super::{GraveyardStore, HighGuid};
 use super::TavernAreaTriggerStoreLikeCpp;
 use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 use super::{PlayerRegenerationRatesLikeCpp, QuestInfoStore, TactKeyStore};
+pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 pub use wow_world_core::session::GroupInvitePolicyLikeCpp;
@@ -47,36 +48,6 @@ impl Default for PlayerRestRatePolicyLikeCpp {
             offline_wilderness: 1.0,
             offline_tavern_or_city: 1.0,
             ingame: 1.0,
-        }
-    }
-}
-
-/// Process-owned C++ `World` chat policy borrowed by chat handlers.
-///
-/// C++ loads these values once into `World::{m_bool,m_int,m_float}_configs`
-/// (`World.cpp:769,785-789,1241-1245,1294-1296,1323-1325`) and handlers read
-/// them through `sWorld`; a `WorldSession` never owns a private policy copy.
-#[derive(Debug, Clone, Copy)]
-pub struct ChatPolicyCatalogsLikeCpp {
-    pub addon_channel: bool,
-    pub fake_message_preventing: bool,
-    pub strict_link_checking_kick: bool,
-    pub level_requirements: ChatLevelRequirementsLikeCpp,
-    pub listen_ranges: ChatListenRangesLikeCpp,
-    pub flood: ChatFloodConfigLikeCpp,
-    pub party_raid_warnings: bool,
-}
-
-impl Default for ChatPolicyCatalogsLikeCpp {
-    fn default() -> Self {
-        Self {
-            addon_channel: true,
-            fake_message_preventing: false,
-            strict_link_checking_kick: false,
-            level_requirements: ChatLevelRequirementsLikeCpp::default(),
-            listen_ranges: ChatListenRangesLikeCpp::default(),
-            flood: ChatFloodConfigLikeCpp::default(),
-            party_raid_warnings: false,
         }
     }
 }

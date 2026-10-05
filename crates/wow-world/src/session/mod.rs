@@ -130,11 +130,12 @@ use battleground_adapter::{arena_skirmish_type_like_cpp, arena_team_type_by_slot
 mod buyback_adapter;
 mod catalog_capabilities;
 pub use catalog_capabilities::AreaTriggerCatalogsLikeCpp;
-pub use catalog_capabilities::{ChatPolicyCatalogsLikeCpp, GroupInvitePolicyLikeCpp};
+pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
 pub use catalog_capabilities::{CreatureSpawnCatalogsLikeCpp, ProgressionCatalogsLikeCpp};
 pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ObjectMgrCatalogsLikeCpp};
 pub use catalog_capabilities::{PlayerBootstrapCatalogsLikeCpp, PlayerRestRatePolicyLikeCpp};
 pub use catalog_capabilities::{SessionHandlerCatalogsLikeCpp, SessionIdGeneratorsLikeCpp};
+pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 use wow_world_core::session::character_availability::default_available_classes;
 mod character_customization;

@@ -1,6 +1,9 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use crate::session_policy::{
+    ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
+};
 use std::sync::Arc;
 use wow_data::trait_tree::TraitNodeEntryStore;
 use wow_data::{
@@ -186,6 +189,36 @@ impl Default for ItemValuationCatalogsLikeCpp {
             item_classes: Arc::new(ItemClassStore::from_entries([])),
             currency_costs: Arc::new(ItemCurrencyCostStore::from_entries([])),
             disenchant_loot: Arc::new(ItemDisenchantLootStore::from_entries([])),
+        }
+    }
+}
+
+/// Process-owned C++ `World` chat policy borrowed by chat handlers.
+///
+/// C++ loads these values once into `World::{m_bool,m_int,m_float}_configs`
+/// (`World.cpp:769,785-789,1241-1245,1294-1296,1323-1325`) and handlers read
+/// them through `sWorld`; a `WorldSession` never owns a private policy copy.
+#[derive(Debug, Clone, Copy)]
+pub struct ChatPolicyCatalogsLikeCpp {
+    pub addon_channel: bool,
+    pub fake_message_preventing: bool,
+    pub strict_link_checking_kick: bool,
+    pub level_requirements: ChatLevelRequirementsLikeCpp,
+    pub listen_ranges: ChatListenRangesLikeCpp,
+    pub flood: ChatFloodConfigLikeCpp,
+    pub party_raid_warnings: bool,
+}
+
+impl Default for ChatPolicyCatalogsLikeCpp {
+    fn default() -> Self {
+        Self {
+            addon_channel: true,
+            fake_message_preventing: false,
+            strict_link_checking_kick: false,
+            level_requirements: ChatLevelRequirementsLikeCpp::default(),
+            listen_ranges: ChatListenRangesLikeCpp::default(),
+            flood: ChatFloodConfigLikeCpp::default(),
+            party_raid_warnings: false,
         }
     }
 }
