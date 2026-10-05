@@ -5414,6 +5414,39 @@ impl host y las filas de registro movidas); `check_architecture.py check` **PASS
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: corte multidominio de group (4 opcodes) a `wow-world-application` — 2026-10-05, `6c9c3c209`
+
+Segundo corte de la familia group y primero que cruza dominios: `SetPartyLeader`,
+`SetAssistantLeader`, `SetEveryoneIsAssistant` y `SetPartyAssignment` pasan al registrador directo
+`ApplicationGroup` de `wow-world-application`, porque sus transiciones leen el registro social y
+persisten sus intenciones por el dueño de ciclo de vida. El contexto
+`GroupHandlerCxLikeCpp { social: &mut SessionSocialLimits, lifecycle: &SessionLifecycleState, hub }`
+se construye con un nuevo ayudante de préstamos disjuntos
+(`split_social_lifecycle_mut`, en `session/state/hub.rs` y reexportado por `crate::session`), y los
+constructores de `group_fanout` (ya en social) mantienen el orden de paquetes idéntico.
+
+Se quedan en el shell: los handlers de invitación/respuesta/expulsión/salida/conversión/subgrupo
+(necesitan además el sincronizador de registro de World), `opt_out_of_loot` (estado de loot) y
+`RandomRoll` (`rand`). Las suites conservan delegados `cfg(test)`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **248 tests de grupo** y 25 de `dispatch` (478
+opcodes, incluida la metadata `Inplace` de `SetPartyLeader`) en verde; `cargo check` de
+`wow-world-application`, `wow-world` y `world-server` sin errores nuevos; suite del tool
+**442/443** (baseline previo a la reimpresión) y **PASS** tras reimprimir;
+`session-ownership-check check --syntax-only` **PASS** (179 owners / 3.128 items / 674 filas);
+`check_architecture.py check` **PASS** (ratchet físico 3.367 ficheros / 102 techos); hotspots
+reconciliados (`session/mod.rs` 60.885 → 60.929 producción, 138.170 → 138.172 test;
+`world-server/lib.rs` 31.768 → 31.772). R1 v2: `S = 71.245`, `G_move = 108.653`, requisito
+`33.545,75` → **presupuesto 33.546** (`recorded_at_revision 6c9c3c209`), 0 violaciones / 0
+permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Quedan **220 registros literales** en `wow-world` (inventario detallado en la respuesta de la
+ronda): las familias character/account (57), quest (17), guild (16), trade (15), spell (13),
+movement (13), battlegrounds (13), pets (10), group (9 restantes), vehicle (8), entities/player
+(8), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4), corpse (4),
+gameobject (3) y combat (3).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
