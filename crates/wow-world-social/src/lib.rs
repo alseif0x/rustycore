@@ -4,6 +4,7 @@
 
 //! Social ownership for the world-session application boundary.
 
+mod arena_team_handlers;
 mod calendar_handlers;
 mod catalogs;
 mod chat;
@@ -23,6 +24,9 @@ mod state;
 mod test_support;
 mod trade;
 
+pub use arena_team_handlers::{
+    ArenaTeamHandlerCxLikeCpp, ArenaTeamHandlerHostLikeCpp, register_arena_team_handlers_like_cpp,
+};
 pub use calendar_handlers::{
     CalendarHandlerCxLikeCpp, CalendarHandlerHostLikeCpp, register_calendar_handlers_like_cpp,
 };
@@ -51,11 +55,11 @@ pub use handlers::{
     InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
     register_social_inspect_handlers_like_cpp,
 };
+pub use social_contacts_handlers::normalize_player_name_like_cpp;
 pub use social_contacts_handlers::{
     SocialContactsHandlerCxLikeCpp, SocialContactsHandlerHostLikeCpp,
     register_social_contacts_handlers_like_cpp,
 };
-pub use social_contacts_handlers::normalize_player_name_like_cpp;
 pub use state::SessionSocialLimits;
 
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;

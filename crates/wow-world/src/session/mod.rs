@@ -15,6 +15,7 @@ mod dispatch;
 mod driver;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
+mod arena_team_handler_contexts;
 mod calendar_handler_contexts;
 mod chat_handler_contexts;
 mod client_state_handler_contexts;

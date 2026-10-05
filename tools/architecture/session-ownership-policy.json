@@ -169,16 +169,18 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::battlegrounds::arena",
+          "module": "crate::handlers::battlegrounds::pvp",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::battlegrounds::pvp",
+          "module": "crate::handlers::battlegrounds::test_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::battlenet",
@@ -1120,6 +1122,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "ArenaTeamHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "CalendarHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
@@ -1957,118 +1965,6 @@
           ]
         },
         {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_accept",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_accept (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_decline",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_decline (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_disband",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_disband (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_leader",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_leader (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_leave",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_leave (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_remove",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_remove (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_arena_team_roster",
-          "visibility": "pub",
-          "signature": "async fn handle_arena_team_roster (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::arena",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_arena_team",
-          "visibility": "pub",
-          "signature": "async fn handle_query_arena_team (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::battlegrounds::pvp",
           "trait_path": null,
           "kind": "method",
@@ -2324,6 +2220,134 @@
           "signature": "async fn handle_toggle_pvp (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_accept",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_accept (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_decline",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_decline (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_disband",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_disband (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_leader",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_leader (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_leave",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_leave (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_remove",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_remove (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_arena_team_roster",
+          "visibility": "pub",
+          "signature": "async fn handle_arena_team_roster (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_arena_team",
+          "visibility": "pub",
+          "signature": "async fn handle_query_arena_team (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44062,6 +44086,19 @@
           "name": "account_data_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn account_data_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> AccountDataHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "ArenaTeamHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "arena_team_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn arena_team_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ArenaTeamHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

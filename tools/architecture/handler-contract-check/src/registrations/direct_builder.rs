@@ -326,6 +326,27 @@ pub(crate) const SOCIAL_CONTACTS_REGISTRAR: DirectRegistrarContract = DirectRegi
     facades: SOCIAL_CONTACTS_FACADES,
 };
 
+const ARENA_TEAM_ROOT_EXPORTS: &[&str] = &[
+    "ArenaTeamHandlerCxLikeCpp",
+    "ArenaTeamHandlerHostLikeCpp",
+    "register_arena_team_handlers_like_cpp",
+];
+const ARENA_TEAM_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "arena_team_handlers",
+    exports: ARENA_TEAM_ROOT_EXPORTS,
+}];
+
+pub(crate) const ARENA_TEAM_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "SocialArenaTeam",
+    package: "wow-world-social",
+    module: "crate::arena_team_handlers",
+    registrar: "register_arena_team_handlers_like_cpp",
+    host_trait: "ArenaTeamHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: ARENA_TEAM_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -340,6 +361,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     CALENDAR_REGISTRAR,
     CHAT_REGISTRAR,
     SOCIAL_CONTACTS_REGISTRAR,
+    ARENA_TEAM_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
