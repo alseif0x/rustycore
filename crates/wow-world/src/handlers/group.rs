@@ -94,16 +94,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::PartyUninvite,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_party_uninvite",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_party_uninvite(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::OptOutOfLoot,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

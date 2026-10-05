@@ -85,6 +85,7 @@ pub use equipment_set_use::{
     EquipmentSetUseContextLikeCpp, EquipmentSetUseHandlerHostLikeCpp,
     EquipmentSetUseItemModsStoresLikeCpp, register_equipment_set_use_handler_like_cpp,
 };
+pub use group_handlers::GroupPublicationTailLikeCpp;
 pub use group_handlers::{
     GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
 };

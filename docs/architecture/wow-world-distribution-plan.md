@@ -5692,6 +5692,31 @@ queda en **5 registros literales** (invite, invite response, uninvite, opt-out, 
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: group, corte de expulsión + orden de publicación tipado — 2026-10-05, `965204997..HEAD`
+
+`PartyUninvite` pasa al registrador `ApplicationGroup` (con el helper
+`send_party_uninvite_result_like_cpp` movido al dueño y retirado de `handlers/group/state.rs`). Además
+se **corrige una desviación de orden** introducida en los dos cortes anteriores: los dos seams del
+host (`sync_player_registry_state_like_cpp` y el refresh de visibilidad) se ejecutaban *después* de
+los paquetes finales, mientras que C++ los ejecuta *dentro* de la transición, antes de
+`GroupUninvite`/`GroupDestroyed`/`PartyUpdate`. Ahora el dueño devuelve un
+`GroupPublicationTailLikeCpp` tipado (`None`, `VisibilityOnly`, `PartyUpdateOnly`,
+`SyncThenPartyUpdate`, `SyncThenVisibilityThenGroupUninvite`,
+`SyncThenVisibilityThenGroupDestroyed`) y el host lo ejecuta en su lugar, preservando el orden C++
+(transición → sync → visibilidad → paquetes). Afecta a `ChangeSubGroup`, `SwapSubGroups`,
+`LeaveGroup`, `ConvertRaid` y al nuevo `PartyUninvite`. `group` queda en **4 registros literales**
+(invite, invite response, opt-out, random roll).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**248 de `group`** en verde (incluidas las aserciones de orden de paquetes); `cargo check` de
+`wow-world` (con `test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del
+tool **443/443**; `session-ownership-check check --syntax-only` **PASS** (191 owners / 3.135 items /
+701 filas); `check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado
+(producción 61.031 → 61.085, total 199.215 → 199.269). R1 v2: `S = 72.150`, `G_move = 110.803`,
+requisito `34.745,50` → **presupuesto 34.746**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; quedan **196 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

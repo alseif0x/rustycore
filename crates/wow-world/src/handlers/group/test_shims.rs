@@ -128,56 +128,52 @@ impl WorldSession {
     }
 
     pub async fn handle_change_sub_group(&mut self, pkt: WorldPacket) {
-        let changed = {
+        let tail = {
             let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
             wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
                 .handle_change_sub_group(pkt)
                 .await
         };
-        if changed {
-            self.sync_player_registry_state_like_cpp();
-        }
+        self.apply_group_publication_tail_like_cpp(tail);
     }
 
     pub async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
-        let changed = {
+        let tail = {
             let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
             wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
                 .handle_swap_sub_groups(pkt)
                 .await
         };
-        if changed {
-            self.sync_player_registry_state_like_cpp();
-        }
+        self.apply_group_publication_tail_like_cpp(tail);
     }
 
     pub async fn handle_leave_group(&mut self, pkt: WorldPacket) {
-        let (registry_sync, visibility_refresh) = {
+        let tail = {
             let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
             wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
                 .handle_leave_group(pkt)
                 .await
         };
-        if registry_sync {
-            self.sync_player_registry_state_like_cpp();
-        }
-        if visibility_refresh {
-            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-        }
+        self.apply_group_publication_tail_like_cpp(tail);
     }
 
     pub async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
-        let (registry_sync, visibility_refresh) = {
+        let tail = {
             let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
             wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
                 .handle_convert_raid(pkt)
                 .await
         };
-        if registry_sync {
-            self.sync_player_registry_state_like_cpp();
-        }
-        if visibility_refresh {
-            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-        }
+        self.apply_group_publication_tail_like_cpp(tail);
+    }
+
+    pub async fn handle_party_uninvite(&mut self, pkt: WorldPacket) {
+        let tail = {
+            let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+            wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+                .handle_party_uninvite(pkt)
+                .await
+        };
+        self.apply_group_publication_tail_like_cpp(tail);
     }
 }

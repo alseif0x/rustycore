@@ -24,15 +24,3 @@ pub(super) fn current_player_party_invite_map_instance_like_cpp(
         .map(|entry| (entry.map_id, entry.instance_id))
         .unwrap_or_else(|| (session.core.player_map_id_like_cpp(), 0))
 }
-
-pub(super) fn send_party_uninvite_result_like_cpp(session: &WorldSession, result: u8) {
-    session.send_packet_realm(&PartyCommandResult {
-        name: String::new(),
-        command: 1, // C++ PARTY_OP_UNINVITE
-        result,
-        result_data: 0,
-        // C++ `WorldSession::SendPartyResult` always leaves `ResultGUID`
-        // empty (`GroupHandler.cpp:53`).
-        result_guid: ObjectGuid::EMPTY,
-    });
-}

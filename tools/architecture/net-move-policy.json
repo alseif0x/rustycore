@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34669,
-    "measured_requirement": 34669,
+    "budget": 34746,
+    "measured_requirement": 34746,
     "recorded_at_revision": "9652049972f0fc1ee1fe205331af3fd5b691fee7",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71995, G_move = 110563, ratio and slack credits = 71995 * 1.05 + 300 = 75894.75, so the requirement is 34668.25 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72150, G_move = 110803, ratio and slack credits = 72150 * 1.05 + 300 = 76057.5, so the requirement is 34745.5 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -194,6 +194,13 @@
         "destination_growth": 310,
         "new_code": 91,
         "note": "LeaveGroup and ConvertRaid moved into the existing ApplicationGroup registrar: the owner performs the canonical removal/conversion, the lifecycle persistence, the self-detach (SetGroup/ClearSubGroup/party-type update through social) and the party update, then returns which final publications still run in the World host through the bounded trait seams (registry sync and visible-gameobject refresh). PartyUninvite stays because its result helper takes the World session. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group uninvite + tail ordering (965204997..HEAD)",
+        "shrink": 155,
+        "destination_growth": 240,
+        "new_code": 85,
+        "note": "PartyUninvite moved into the existing ApplicationGroup registrar, and the subgroup/leave/convert handlers were reworked onto a typed GroupPublicationTailLikeCpp so the deferred World seams (registry sync, visibility refresh) run in C++ order between the canonical transition and the final packets instead of after them. The host runs the tail in place; PartyInvite/PartyInviteResponse stay because the invite path needs the invite policy catalog and a mid-sequence visibility seam. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

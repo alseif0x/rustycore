@@ -22,12 +22,12 @@ use wow_handler::{
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::party::{
-    ChangeSubGroup, ConvertRaid, GroupUninvite, PartyCommandResult, SetAssistantLeader,
+    ChangeSubGroup, ConvertRaid, PartyCommandResult, PartyUninvite, SetAssistantLeader,
     SetEveryoneIsAssistant, SetPartyAssignment, SetPartyLeader, SwapSubGroups, party_result,
 };
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_social::group::{
-    GROUP_CATEGORY_HOME_LIKE_CPP, GROUP_TYPE_NONE_LIKE_CPP, GroupAuthorityErrorLikeCpp,
+    GROUP_CATEGORY_HOME_LIKE_CPP, GROUP_TYPE_NONE_LIKE_CPP, GroupAuthorityErrorLikeCpp, GroupInfo,
     GroupMemberRemovalKindLikeCpp, MAX_RAID_SUBGROUPS_LIKE_CPP, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
 };
 use wow_world_core::session::mailbox::{
@@ -41,6 +41,29 @@ use wow_world_social::group_fanout::{
     queue_visible_gameobjects_or_spellclicks_refresh_like_cpp, send_group_new_leader_like_cpp,
     send_party_update,
 };
+
+/// Deferred publication tail for one group transition.
+///
+/// C++ runs the registry-state sync (`Player::SetGroup`/`SetSubGroup`) and the
+/// visible-gameobject refresh inside the same operation that mutates the group,
+/// between the canonical transition and the final packets. Those two providers
+/// still live in the World session, so the owner returns the exact remaining
+/// sequence and the host runs it in place, preserving the C++ order.
+pub enum GroupPublicationTailLikeCpp {
+    /// Nothing left to publish.
+    None,
+    /// Only the visible-gameobject/spell-click refresh remains.
+    VisibilityOnly,
+    /// Publish the updated party state without a registry sync.
+    PartyUpdateOnly { group: GroupInfo },
+    /// Sync the registry state, then publish the updated party state.
+    SyncThenPartyUpdate { group: GroupInfo },
+    /// Sync, refresh visibility, then send `SMSG_GROUP_UNINVITE`.
+    SyncThenVisibilityThenGroupUninvite,
+    /// Sync, refresh visibility, then send `SMSG_GROUP_DESTROYED` and the
+    /// destroyed party update for `group_guid`.
+    SyncThenVisibilityThenGroupDestroyed { group_guid: u64 },
+}
 
 /// Borrowed inputs of one group leadership/assistant handler invocation.
 pub struct GroupHandlerCxLikeCpp<'a> {
@@ -271,27 +294,30 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
     ///
     /// Returns whether the sender's own subgroup changed, so the host can run
     /// the registry-state publication that still belongs to the World session.
-    pub async fn handle_change_sub_group(&mut self, mut pkt: WorldPacket) -> bool {
+    pub async fn handle_change_sub_group(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> GroupPublicationTailLikeCpp {
         let change = match ChangeSubGroup::read(&mut pkt) {
             Ok(change) => change,
             Err(e) => {
                 warn!("Bad ChangeSubGroup: {e}");
-                return false;
+                return GroupPublicationTailLikeCpp::None;
             }
         };
 
         let Some(sender_guid) = self.hub.shared().core.player_guid() else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
         if usize::from(change.new_subgroup) >= MAX_RAID_SUBGROUPS_LIKE_CPP {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         }
 
         let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
         let vra = self.hub.shared().core.virtual_realm_address();
 
@@ -301,7 +327,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             sender_guid,
             change.party_index,
         ) else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
 
         let outcome = match group_reg.change_member_subgroup_like_cpp(
@@ -311,17 +337,25 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             change.new_subgroup,
         ) {
             Ok(outcome) => outcome,
-            Err(_) => return false,
+            Err(_) => return GroupPublicationTailLikeCpp::None,
         };
         let (target_guid, new_subgroup) = outcome.facts;
         self.lifecycle
             .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
-        let mut needs_registry_sync = false;
         if target_guid == sender_guid {
-            needs_registry_sync = self.apply_group_subgroup_like_cpp(group_guid, new_subgroup);
-        } else if let Some(target) = registry.group_presence(target_guid) {
+            return if self.apply_group_subgroup_like_cpp(group_guid, new_subgroup) {
+                GroupPublicationTailLikeCpp::SyncThenPartyUpdate {
+                    group: outcome.group,
+                }
+            } else {
+                GroupPublicationTailLikeCpp::PartyUpdateOnly {
+                    group: outcome.group,
+                }
+            };
+        }
+        if let Some(target) = registry.group_presence(target_guid) {
             let _ = registry.deliver_group_state_command_like_cpp(
                 target.registration,
                 SessionCommand::ApplyGroupSubgroupLikeCpp(ApplyGroupSubgroupLikeCppCommand {
@@ -335,31 +369,35 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             registry.mark_group_state_reconciliation_like_cpp(target_guid);
         }
 
-        send_party_update(&outcome.group, &registry, vra);
-        needs_registry_sync
+        GroupPublicationTailLikeCpp::PartyUpdateOnly {
+            group: outcome.group,
+        }
     }
 
     /// C++ `WorldSession::HandleSwapSubGroupsOpcode`.
     ///
     /// Returns whether the sender's own subgroup changed, so the host can run
     /// the registry-state publication that still belongs to the World session.
-    pub async fn handle_swap_sub_groups(&mut self, mut pkt: WorldPacket) -> bool {
+    pub async fn handle_swap_sub_groups(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> GroupPublicationTailLikeCpp {
         let swap = match SwapSubGroups::read(&mut pkt) {
             Ok(swap) => swap,
             Err(e) => {
                 warn!("Bad SwapSubGroups: {e}");
-                return false;
+                return GroupPublicationTailLikeCpp::None;
             }
         };
 
         let Some(sender_guid) = self.hub.shared().core.player_guid() else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
         let vra = self.hub.shared().core.virtual_realm_address();
 
@@ -369,7 +407,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             sender_guid,
             swap.party_index,
         ) else {
-            return false;
+            return GroupPublicationTailLikeCpp::None;
         };
 
         let outcome = match group_reg.swap_member_subgroups_like_cpp(
@@ -379,17 +417,17 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             swap.second_target,
         ) {
             Ok(outcome) => outcome,
-            Err(_) => return false,
+            Err(_) => return GroupPublicationTailLikeCpp::None,
         };
         let subgroup_updates = outcome.facts;
         self.lifecycle
             .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
-        let mut needs_registry_sync = false;
+        let mut own_subgroup_changed = false;
         for (member_guid, subgroup) in subgroup_updates {
             if member_guid == sender_guid {
-                needs_registry_sync |= self.apply_group_subgroup_like_cpp(group_guid, subgroup);
+                own_subgroup_changed |= self.apply_group_subgroup_like_cpp(group_guid, subgroup);
             } else if let Some(member) = registry.group_presence(member_guid) {
                 let _ = registry.deliver_group_state_command_like_cpp(
                     member.registration,
@@ -403,8 +441,15 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             }
         }
 
-        send_party_update(&outcome.group, &registry, vra);
-        needs_registry_sync
+        if own_subgroup_changed {
+            GroupPublicationTailLikeCpp::SyncThenPartyUpdate {
+                group: outcome.group,
+            }
+        } else {
+            GroupPublicationTailLikeCpp::PartyUpdateOnly {
+                group: outcome.group,
+            }
+        }
     }
 
     /// C++ `Player::SetGroup` + `Player::SetSubGroup` for the sender itself.
@@ -423,7 +468,10 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
     /// Returns `(registry_sync, visibility_refresh)`: the two publications that
     /// still belong to the World session run in the host after the owner's
     /// canonical removal.
-    pub async fn handle_leave_group(&mut self, mut pkt: WorldPacket) -> (bool, bool) {
+    pub async fn handle_leave_group(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> GroupPublicationTailLikeCpp {
         let has_party_index = pkt.read_bit().unwrap_or(false);
         let party_index = if has_party_index {
             pkt.read_uint8().ok()
@@ -432,13 +480,13 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
         };
 
         let Some(my_guid) = self.hub.shared().core.player_guid() else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let pending_invites = self.hub.shared().core.pending_invites().cloned();
         let vra = self.hub.shared().core.virtual_realm_address();
@@ -455,7 +503,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             .and_then(|pending| pending.get(&my_guid));
 
         if real_group_guid.is_none() && pending_invite.is_none() {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
 
         if self
@@ -471,7 +519,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
                     result_data: 0,
                     result_guid: ObjectGuid::EMPTY,
                 });
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         }
 
         let player_name = self.hub.shared().player_name_like_cpp().unwrap_or_default();
@@ -492,7 +540,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
                     group_reg.cancel_pending_group_like_cpp(pending_invites, invite);
                 }
             }
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         }
         let gid = real_group_guid.expect("checked above");
 
@@ -519,7 +567,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             &connected_members,
         ) {
             Ok(outcome) => outcome,
-            Err(_) => return (false, false),
+            Err(_) => return GroupPublicationTailLikeCpp::None,
         };
         let dissolve_remaining = outcome
             .facts
@@ -552,9 +600,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
                 }
             }
             self.detach_self_from_group_like_cpp();
-            self.publication_like_cpp()
-                .send_packet_realm(&GroupUninvite);
-            return (true, true);
+            return GroupPublicationTailLikeCpp::SyncThenVisibilityThenGroupUninvite;
         }
 
         // 3. Send updated PartyUpdate to remaining members.
@@ -562,28 +608,29 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
 
         // 4. Uninvite self.
         self.detach_self_from_group_like_cpp();
-        self.publication_like_cpp()
-            .send_packet_realm(&GroupUninvite);
-        (true, true)
+        GroupPublicationTailLikeCpp::SyncThenVisibilityThenGroupUninvite
     }
 
     /// C++ `WorldSession::HandleConvertRaidOpcode`.
     ///
     /// Returns `(registry_sync, visibility_refresh)`.
-    pub async fn handle_convert_raid(&mut self, mut pkt: WorldPacket) -> (bool, bool) {
+    pub async fn handle_convert_raid(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> GroupPublicationTailLikeCpp {
         let convert = match ConvertRaid::read(&mut pkt) {
             Ok(convert) => convert,
             Err(e) => {
                 warn!("Bad ConvertRaid: {e}");
-                return (false, false);
+                return GroupPublicationTailLikeCpp::None;
             }
         };
 
         let Some(my_guid) = self.hub.shared().core.player_guid() else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -591,10 +638,10 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             my_guid,
             None,
         ) else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
-            return (false, false);
+            return GroupPublicationTailLikeCpp::None;
         };
         let vra = self.hub.shared().core.virtual_realm_address();
 
@@ -609,9 +656,9 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
                         result_data: 0,
                         result_guid: ObjectGuid::EMPTY,
                     });
-                return (false, false);
+                return GroupPublicationTailLikeCpp::None;
             }
-            Err(_) => return (false, false),
+            Err(_) => return GroupPublicationTailLikeCpp::None,
         };
         self.publication_like_cpp()
             .send_packet_realm(&PartyCommandResult {
@@ -635,7 +682,193 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             my_guid,
         )
         .await;
-        (false, true)
+        GroupPublicationTailLikeCpp::VisibilityOnly
+    }
+
+    /// C++ `WorldSession::SendPartyResult(..., PARTY_OP_UNINVITE, ...)`.
+    fn send_party_uninvite_result_like_cpp(&self, result: u8) {
+        self.publication_like_cpp()
+            .send_packet_realm(&PartyCommandResult {
+                name: String::new(),
+                command: 1, // C++ PARTY_OP_UNINVITE
+                result,
+                result_data: 0,
+                // C++ `WorldSession::SendPartyResult` always leaves `ResultGUID`
+                // empty (`GroupHandler.cpp:53`).
+                result_guid: ObjectGuid::EMPTY,
+            });
+    }
+
+    /// C++ `WorldSession::HandlePartyUninviteOpcode`.
+    pub async fn handle_party_uninvite(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> GroupPublicationTailLikeCpp {
+        let uninvite = match PartyUninvite::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!("Bad PartyUninvite: {error}");
+                return GroupPublicationTailLikeCpp::None;
+            }
+        };
+
+        let Some(sender_guid) = self.hub.shared().core.player_guid() else {
+            return GroupPublicationTailLikeCpp::None;
+        };
+        if uninvite.target_guid == sender_guid {
+            return GroupPublicationTailLikeCpp::None;
+        }
+
+        let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
+            self.send_party_uninvite_result_like_cpp(party_result::NOT_IN_GROUP);
+            return GroupPublicationTailLikeCpp::None;
+        };
+        let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
+            return GroupPublicationTailLikeCpp::None;
+        };
+        let pending_invites = self.hub.shared().core.pending_invites().cloned();
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            sender_guid,
+            uninvite.party_index,
+        ) else {
+            self.send_party_uninvite_result_like_cpp(party_result::NOT_IN_GROUP);
+            return GroupPublicationTailLikeCpp::None;
+        };
+
+        let Some(group_snapshot) = group_reg.get(&group_guid) else {
+            return GroupPublicationTailLikeCpp::None;
+        };
+        let target_has_loot_rolls = registry
+            .group_presence(uninvite.target_guid)
+            .is_some_and(|target| target.has_active_loot_rolls);
+        let sender_map_id = self.hub.shared().core.player_map_id_like_cpp();
+        let sender_instance_id = self
+            .hub
+            .shared()
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let any_member_in_combat = group_snapshot.members.iter().any(|member_guid| {
+            if *member_guid == sender_guid {
+                self.hub.shared().resolved_in_combat_like_cpp() != Some(false)
+            } else {
+                registry.group_presence(*member_guid).is_some_and(|member| {
+                    member.in_combat
+                        && member.map_id == sender_map_id
+                        && member.instance_id == sender_instance_id
+                })
+            }
+        });
+        let outcome = match group_reg.remove_member_like_cpp(
+            group_guid,
+            uninvite.target_guid,
+            GroupMemberRemovalKindLikeCpp::Kick {
+                actor_guid: sender_guid,
+                actor_in_battleground: self
+                    .hub
+                    .shared()
+                    .player_in_represented_battleground_like_cpp(),
+                target_has_loot_rolls,
+                any_member_in_actor_map_combat: any_member_in_combat,
+            },
+            &[],
+        ) {
+            Ok(outcome) => outcome,
+            Err(GroupAuthorityErrorLikeCpp::LfgBootLimit) => {
+                self.send_party_uninvite_result_like_cpp(party_result::PARTY_LFG_BOOT_LIMIT);
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootTooFewPlayers) => {
+                self.send_party_uninvite_result_like_cpp(
+                    party_result::PARTY_LFG_BOOT_TOO_FEW_PLAYERS,
+                );
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootDungeonComplete) => {
+                self.send_party_uninvite_result_like_cpp(
+                    party_result::PARTY_LFG_BOOT_DUNGEON_COMPLETE,
+                );
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootLootRolls) => {
+                self.send_party_uninvite_result_like_cpp(party_result::PARTY_LFG_BOOT_LOOT_ROLLS);
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgBootInCombat) => {
+                self.send_party_uninvite_result_like_cpp(party_result::PARTY_LFG_BOOT_IN_COMBAT);
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::NotLeaderOrAssistant)
+            | Err(GroupAuthorityErrorLikeCpp::TargetIsLeader) => {
+                self.send_party_uninvite_result_like_cpp(party_result::NOT_LEADER);
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::InviteRestricted) => {
+                self.send_party_uninvite_result_like_cpp(party_result::INVITE_RESTRICTED);
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::MissingMember) => {
+                if let Some(pending_invites) = pending_invites.as_ref() {
+                    if let Some(invite) = pending_invites
+                        .get(&uninvite.target_guid)
+                        .filter(|invite| invite.group_guid == Some(group_guid))
+                    {
+                        group_reg.cancel_invite_like_cpp(
+                            pending_invites,
+                            uninvite.target_guid,
+                            invite,
+                        );
+                        return GroupPublicationTailLikeCpp::None;
+                    }
+                }
+                self.send_party_uninvite_result_like_cpp(party_result::TARGET_NOT_IN_GROUP);
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(GroupAuthorityErrorLikeCpp::LfgKickOwnedByVote) => {
+                return GroupPublicationTailLikeCpp::None;
+            }
+            Err(_) => return GroupPublicationTailLikeCpp::None,
+        };
+        let should_disband = outcome.facts.disbanded;
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
+
+        let cleanup_command = ApplyGroupRemovalLikeCppCommand {
+            group_guid,
+            category: GROUP_CATEGORY_HOME_LIKE_CPP,
+            party_type: GROUP_TYPE_NONE_LIKE_CPP,
+            send_group_destroyed: should_disband,
+            send_group_uninvite: !should_disband,
+            refresh_visible_gameobjects_or_spellclicks: true,
+        };
+        if let Some(target) = registry.group_presence(uninvite.target_guid) {
+            let _ = registry.deliver_group_state_command_like_cpp(
+                target.registration,
+                SessionCommand::ApplyGroupRemovalLikeCpp(cleanup_command),
+            );
+        } else {
+            // C++ `Group::RemoveMember` clears `Player::m_group` on the target
+            // itself; an unresolvable target keeps the obligation (#743).
+            registry.mark_group_state_reconciliation_like_cpp(uninvite.target_guid);
+        }
+
+        if should_disband {
+            self.detach_self_from_group_like_cpp();
+            return GroupPublicationTailLikeCpp::SyncThenVisibilityThenGroupDestroyed {
+                group_guid,
+            };
+        }
+
+        send_party_update(
+            &outcome.group,
+            &registry,
+            self.hub.shared().core.virtual_realm_address(),
+        );
+        GroupPublicationTailLikeCpp::None
     }
 
     /// C++ `Player::SetGroup(nullptr)` + `ClearSubGroup` for the sender.
@@ -656,15 +889,10 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
 pub trait GroupHandlerHostLikeCpp<C> {
     fn group_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> GroupHandlerCxLikeCpp<'a>;
 
-    /// Final publication seam for the subgroup handlers: the owner changed the
-    /// sender's own subgroup, and the World session still runs the registry
-    /// state sync with its own providers.
-    fn sync_player_registry_state_after_group_subgroup_like_cpp(&mut self);
-
-    /// Final publication seam for the leave/convert handlers: the owner changed
-    /// the group membership, and the World session still refreshes the visible
-    /// gameobjects/spell-clicks with its own visibility providers.
-    fn refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp(&mut self);
+    /// Runs the deferred publication tail in C++ order. The registry-state
+    /// sync and the visibility refresh still need the World session's stats,
+    /// loot, control and map providers, so the host executes them in place.
+    fn run_group_publication_tail_like_cpp(&mut self, tail: GroupPublicationTailLikeCpp);
 }
 
 fn handle_set_party_leader_thunk<'a, S, C>(
@@ -746,13 +974,11 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        let changed = session
+        let tail = session
             .group_handler_cx_like_cpp(catalogs)
             .handle_change_sub_group(pkt)
             .await;
-        if changed {
-            session.sync_player_registry_state_after_group_subgroup_like_cpp();
-        }
+        session.run_group_publication_tail_like_cpp(tail);
     })
 }
 
@@ -766,13 +992,11 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        let changed = session
+        let tail = session
             .group_handler_cx_like_cpp(catalogs)
             .handle_swap_sub_groups(pkt)
             .await;
-        if changed {
-            session.sync_player_registry_state_after_group_subgroup_like_cpp();
-        }
+        session.run_group_publication_tail_like_cpp(tail);
     })
 }
 
@@ -786,16 +1010,11 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        let (registry_sync, visibility_refresh) = session
+        let tail = session
             .group_handler_cx_like_cpp(catalogs)
             .handle_leave_group(pkt)
             .await;
-        if registry_sync {
-            session.sync_player_registry_state_after_group_subgroup_like_cpp();
-        }
-        if visibility_refresh {
-            session.refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp();
-        }
+        session.run_group_publication_tail_like_cpp(tail);
     })
 }
 
@@ -809,16 +1028,29 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        let (registry_sync, visibility_refresh) = session
+        let tail = session
             .group_handler_cx_like_cpp(catalogs)
             .handle_convert_raid(pkt)
             .await;
-        if registry_sync {
-            session.sync_player_registry_state_after_group_subgroup_like_cpp();
-        }
-        if visibility_refresh {
-            session.refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp();
-        }
+        session.run_group_publication_tail_like_cpp(tail);
+    })
+}
+
+fn handle_party_uninvite_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GroupHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let tail = session
+            .group_handler_cx_like_cpp(catalogs)
+            .handle_party_uninvite(pkt)
+            .await;
+        session.run_group_publication_tail_like_cpp(tail);
     })
 }
 
@@ -884,6 +1116,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_convert_raid",
         handler: handle_convert_raid_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::PartyUninvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_party_uninvite",
+        handler: handle_party_uninvite_thunk::<S, C>,
     })?;
     Ok(())
 }
