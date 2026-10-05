@@ -241,6 +241,27 @@ pub(crate) const SUPPORT_REGISTRAR: DirectRegistrarContract = DirectRegistrarCon
     facades: SUPPORT_FACADES,
 };
 
+const CLIENT_STATE_ROOT_EXPORTS: &[&str] = &[
+    "ClientStateHandlerCxLikeCpp",
+    "ClientStateHandlerHostLikeCpp",
+    "register_client_state_handlers_like_cpp",
+];
+const CLIENT_STATE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "client_state",
+    exports: CLIENT_STATE_ROOT_EXPORTS,
+}];
+
+pub(crate) const CLIENT_STATE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationClientState",
+    package: "wow-world-application",
+    module: "crate::client_state",
+    registrar: "register_client_state_handlers_like_cpp",
+    host_trait: "ClientStateHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: CLIENT_STATE_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -251,6 +272,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     ACCOUNT_DATA_REGISTRAR,
     REPUTATION_REGISTRAR,
     SUPPORT_REGISTRAR,
+    CLIENT_STATE_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

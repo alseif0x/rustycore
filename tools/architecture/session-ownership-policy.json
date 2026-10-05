@@ -153,6 +153,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::account_data::session_shims",
           "trait_path": null,
           "cfg": [
@@ -1098,6 +1106,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "ClientStateHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "EffectLearningRuntimeLikeCpp",
           "cfg": [],
           "source_class": "production"
@@ -1296,289 +1310,9 @@
           "module": "crate::handlers::account_data::client_state",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_add_battlenet_friend",
-          "visibility": "pub",
-          "signature": "async fn handle_add_battlenet_friend (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_client_telemetry_null_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_client_telemetry_null_like_cpp (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_complete_cinematic",
-          "visibility": "pub",
-          "signature": "async fn handle_complete_cinematic (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_complete_movie",
-          "visibility": "pub",
-          "signature": "async fn handle_complete_movie (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_get_account_character_list",
-          "visibility": "pub",
-          "signature": "async fn handle_get_account_character_list (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_get_account_notifications",
-          "visibility": "pub",
-          "signature": "async fn handle_get_account_notifications (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_loading_screen_notify",
-          "visibility": "pub",
-          "signature": "async fn handle_loading_screen_notify (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_log_streaming_error",
-          "visibility": "pub",
-          "signature": "async fn handle_log_streaming_error (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_logout_instant",
-          "visibility": "pub",
-          "signature": "async fn handle_logout_instant (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_next_cinematic_camera",
-          "visibility": "pub",
-          "signature": "async fn handle_next_cinematic_camera (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_override_screen_flash",
-          "visibility": "pub",
-          "signature": "async fn handle_override_screen_flash (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_ping",
           "visibility": "pub",
           "signature": "async fn handle_ping (& mut self , ping : wow_packet :: packets :: auth :: Ping)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_queued_messages_end",
-          "visibility": "pub",
-          "signature": "async fn handle_queued_messages_end (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_report_client_variables",
-          "visibility": "pub",
-          "signature": "async fn handle_report_client_variables (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_report_enabled_addons",
-          "visibility": "pub",
-          "signature": "async fn handle_report_enabled_addons (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_report_frozen_while_loading_map",
-          "visibility": "pub",
-          "signature": "async fn handle_report_frozen_while_loading_map (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_report_keybinding_execution_counts",
-          "visibility": "pub",
-          "signature": "async fn handle_report_keybinding_execution_counts (& mut self , _pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_countdown_timer",
-          "visibility": "pub",
-          "signature": "async fn handle_request_countdown_timer (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_action_bar_toggles",
-          "visibility": "pub",
-          "signature": "async fn handle_set_action_bar_toggles (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_advanced_combat_logging",
-          "visibility": "pub",
-          "signature": "async fn handle_set_advanced_combat_logging (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::client_state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_ammo",
-          "visibility": "pub",
-          "signature": "async fn handle_set_ammo (& mut self , _pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -1601,140 +1335,495 @@
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "client_state_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn client_state_test_cx_like_cpp (& mut self) -> ClientStateHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_add_battlenet_friend",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_add_battlenet_friend (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_client_telemetry_null_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_client_telemetry_null_like_cpp (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_complete_cinematic",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_complete_cinematic (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_complete_movie",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_complete_movie (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_get_account_character_list",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_get_account_character_list (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_get_account_notifications",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_get_account_notifications (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_loading_screen_notify",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_loading_screen_notify (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_log_streaming_error",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_log_streaming_error (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_logout_instant",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_logout_instant (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_next_cinematic_camera",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_next_cinematic_camera (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_override_screen_flash",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_override_screen_flash (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_queued_messages_end",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_queued_messages_end (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_report_client_variables",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_report_client_variables (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_report_enabled_addons",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_report_enabled_addons (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_report_frozen_while_loading_map",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_report_frozen_while_loading_map (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_report_keybinding_execution_counts",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_report_keybinding_execution_counts (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_countdown_timer",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_request_countdown_timer (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_action_bar_toggles",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_action_bar_toggles (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_advanced_combat_logging",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_advanced_combat_logging (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_ammo",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_ammo (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_game_event_debug_view_state",
-          "visibility": "pub",
-          "signature": "async fn handle_set_game_event_debug_view_state (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_game_event_debug_view_state (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_insert_items_left_to_right",
-          "visibility": "pub",
-          "signature": "async fn handle_set_insert_items_left_to_right (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_set_insert_items_left_to_right (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_showing_cloak",
-          "visibility": "pub",
-          "signature": "async fn handle_showing_cloak (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_showing_cloak (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_showing_helm",
-          "visibility": "pub",
-          "signature": "async fn handle_showing_helm (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_showing_helm (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_spawn_tracking_update",
-          "visibility": "pub",
-          "signature": "async fn handle_spawn_tracking_update (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_spawn_tracking_update (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_time_adjustment_response",
-          "visibility": "pub",
-          "signature": "async fn handle_time_adjustment_response (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_time_adjustment_response (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_unhandled_client_null_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_unhandled_client_null_like_cpp (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_unhandled_client_null_like_cpp (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_update_spell_visual",
-          "visibility": "pub",
-          "signature": "async fn handle_update_spell_visual (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_update_spell_visual (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_used_follow",
-          "visibility": "pub",
-          "signature": "async fn handle_used_follow (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_used_follow (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::client_state::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_violence_level",
-          "visibility": "pub",
-          "signature": "async fn handle_violence_level (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_violence_level (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44326,6 +44415,19 @@
           "name": "account_data_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn account_data_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> AccountDataHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "ClientStateHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "client_state_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn client_state_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ClientStateHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

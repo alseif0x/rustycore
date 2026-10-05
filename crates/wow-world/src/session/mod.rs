@@ -15,6 +15,7 @@ mod dispatch;
 mod driver;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
+mod client_state_handler_contexts;
 mod combat;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod account_data_handler_contexts;

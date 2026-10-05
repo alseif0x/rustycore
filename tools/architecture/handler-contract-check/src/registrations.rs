@@ -24,11 +24,11 @@ pub(crate) use composer::{
     validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 pub(crate) use direct_builder::{
-    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract,
-    EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR,
-    RegistrarFacadeContract, RegistrarReport, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR,
-    analyze_contract_source, analyze_owner_source, analyze_owner_source_with_contracts,
-    unowned_entry_literal_violation,
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CLIENT_STATE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
+    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR,
+    REPUTATION_REGISTRAR, RegistrarFacadeContract, RegistrarReport, SOCIAL_INSPECT_REGISTRAR,
+    SUPPORT_REGISTRAR, analyze_contract_source, analyze_owner_source,
+    analyze_owner_source_with_contracts, unowned_entry_literal_violation,
 };
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
@@ -36,13 +36,22 @@ pub(crate) use local_inventory::{
     registration_alias_violations_with_legacy_wrapper_reexport,
 };
 
+/// Registration macros the repository is expected to expand.
+///
+/// #1263 F5 moved the inert movement-ack family (`Move*Ack`,
+/// `MoveRemoveMovementForces`, `MoveSeamlessTransferComplete`,
+/// `MoveSetAdvFly*`) out of `wow-world`'s local
+/// `register_unhandled_threadsafe_null_handler!` and into the explicit
+/// `register_client_state_handlers_like_cpp` registrar of
+/// `wow-world-application`; the expansion shape is now a direct
+/// `builder.register` per opcode, so the macro is no longer part of the
+/// grammar. Review this list again before adding another registry macro.
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
     "register_chat_channel_command_handler",
     "register_chat_channel_player_command_handler",
     "register_move",
     "register_movement_ack_message",
     "register_movement_speed_ack",
-    "register_unhandled_threadsafe_null_handler",
 ];
 
 #[derive(Clone, Debug)]
