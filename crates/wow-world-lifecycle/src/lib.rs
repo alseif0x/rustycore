@@ -11,8 +11,13 @@ mod save_contracts;
 mod pet_load;
 mod persistence_capabilities;
 mod state;
+pub mod handlers;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixture;
+pub use handlers::{
+    AccountDataHandlerCxLikeCpp, AccountDataHandlerHostLikeCpp,
+    register_account_data_handlers_like_cpp,
+};
 pub mod loot_delivery_contracts;
 pub mod loot_template_rules;
 pub mod login_transport;

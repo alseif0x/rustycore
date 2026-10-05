@@ -21,6 +21,7 @@ mod effect_learning;
 mod instances;
 mod inventory_handler_contexts;
 mod social_handler_contexts;
+mod account_data_handler_contexts;
 mod instance_handler_contexts;
 mod legacy_runtime;
 use legacy_runtime::*;

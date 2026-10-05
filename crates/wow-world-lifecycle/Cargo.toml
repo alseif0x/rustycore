@@ -18,6 +18,7 @@ wow-core = { workspace = true }
 wow-constants = { workspace = true }
 wow-data = { workspace = true }
 wow-entities = { workspace = true }
+wow-handler = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
 wow-module-api = { workspace = true }

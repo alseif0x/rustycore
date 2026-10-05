@@ -8,7 +8,8 @@ use std::path::PathBuf;
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
     DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
-    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, RegistrarFacadeContract,
+    ACCOUNT_DATA_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, SOCIAL_INSPECT_REGISTRAR,
+    RegistrarFacadeContract,
     validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 
@@ -119,6 +120,18 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             SOCIAL_INSPECT_REGISTRAR.module,
             "crates/wow-world-social/src/handlers.rs",
             include_str!("../../../../../crates/wow-world-social/src/handlers.rs"),
+        ),
+        mount(
+            ACCOUNT_DATA_REGISTRAR.package,
+            "crate",
+            "crates/wow-world-lifecycle/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/lib.rs"),
+        ),
+        mount(
+            ACCOUNT_DATA_REGISTRAR.package,
+            ACCOUNT_DATA_REGISTRAR.module,
+            "crates/wow-world-lifecycle/src/handlers.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/handlers.rs"),
         ),
     ]
 }

@@ -27,8 +27,8 @@ pub(crate) use local_inventory::{
 };
 pub(crate) use direct_builder::{
     DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, BANK_REGISTRAR,
-    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, RegistrarFacadeContract,
-    RegistrarReport,
+    ACCOUNT_DATA_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, SOCIAL_INSPECT_REGISTRAR,
+    RegistrarFacadeContract, RegistrarReport,
     analyze_contract_source, analyze_owner_source, analyze_owner_source_with_contracts,
     unowned_entry_literal_violation,
 };

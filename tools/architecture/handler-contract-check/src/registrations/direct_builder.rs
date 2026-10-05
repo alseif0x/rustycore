@@ -178,6 +178,27 @@ pub(crate) const SOCIAL_INSPECT_REGISTRAR: DirectRegistrarContract = DirectRegis
     facades: SOCIAL_INSPECT_FACADES,
 };
 
+const ACCOUNT_DATA_ROOT_EXPORTS: &[&str] = &[
+    "AccountDataHandlerCxLikeCpp",
+    "AccountDataHandlerHostLikeCpp",
+    "register_account_data_handlers_like_cpp",
+];
+const ACCOUNT_DATA_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "handlers",
+    exports: ACCOUNT_DATA_ROOT_EXPORTS,
+}];
+
+pub(crate) const ACCOUNT_DATA_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "LifecycleAccountData",
+    package: "wow-world-lifecycle",
+    module: "crate::handlers",
+    registrar: "register_account_data_handlers_like_cpp",
+    host_trait: "AccountDataHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: ACCOUNT_DATA_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] =
     &[
@@ -186,6 +207,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] =
         EQUIPMENT_SET_USE_REGISTRAR,
         BANK_REGISTRAR,
         SOCIAL_INSPECT_REGISTRAR,
+        ACCOUNT_DATA_REGISTRAR,
     ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

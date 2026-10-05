@@ -147,16 +147,18 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::account_data::account_data",
+          "module": "crate::handlers::account_data::client_state",
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::account_data::client_state",
+          "module": "crate::handlers::account_data::session_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::battlegrounds::arena",
@@ -1086,6 +1088,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "AccountDataHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "EffectLearningRuntimeLikeCpp",
           "cfg": [],
           "source_class": "production"
@@ -1261,76 +1269,6 @@
           "name": "publish_battle_pet_trainer_purchase_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn publish_battle_pet_trainer_purchase_like_cpp (& mut self , pet : BattlePetJournalPet , spell_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::account_data",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_addon_list",
-          "visibility": "pub",
-          "signature": "async fn handle_addon_list (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::account_data",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_account_data",
-          "visibility": "pub",
-          "signature": "async fn handle_request_account_data (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::account_data",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_save_cuf_profiles",
-          "visibility": "pub",
-          "signature": "async fn handle_save_cuf_profiles (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::account_data",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_tutorial",
-          "visibility": "pub",
-          "signature": "async fn handle_tutorial (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::account_data::account_data",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_update_account_data",
-          "visibility": "pub",
-          "signature": "async fn handle_update_account_data (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -1781,6 +1719,101 @@
           "signature": "async fn handle_violence_level (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "account_data_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn account_data_test_cx_like_cpp (& mut self) -> AccountDataHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_addon_list",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_addon_list (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_account_data",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_request_account_data (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_save_cuf_profiles",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_save_cuf_profiles (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_tutorial",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_tutorial (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::account_data::session_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_update_account_data",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_update_account_data (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44343,6 +44376,19 @@
           "source_class": "test_fixture",
           "guards": [
             "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "AccountDataHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "account_data_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn account_data_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> AccountDataHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
           ]
         },
         {

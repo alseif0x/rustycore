@@ -3115,6 +3115,7 @@ dependencies = [
  "wow-world",
  "wow-world-application",
  "wow-world-inventory",
+ "wow-world-lifecycle",
  "wow-world-social",
 ]
 
@@ -3629,6 +3630,7 @@ dependencies = [
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-handler",
  "wow-loot",
  "wow-map",
  "wow-module-api",
