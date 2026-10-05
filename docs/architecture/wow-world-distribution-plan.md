@@ -5260,6 +5260,26 @@ exactamente los dos métodos retirados); `check_architecture.py check` **PASS**.
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: played time y logout cancel al registrador account-data — 2026-10-05, `fd510d69e`
+
+Tercer corte del mismo patrón sobre los servicios de sesión restantes: `RequestPlayedTime` y
+`LogoutCancel` pasan al registrador directo `AccountData` de `wow-world-lifecycle`, cuyo contexto ya
+divide estado de ciclo de vida y hub. La respuesta de tiempo jugado compone los temporizadores de
+login/total/nivel y el cancelar-logout limpia el tiempo pendiente antes de su ack, exactamente
+igual que los dos métodos retirados de `WorldSession`; se eliminan de
+`handlers/character/account.rs` y `handlers/character/world_entry.rs` y el fichero de registros de
+account baja a **3** entradas. Sin contrato, dueño de módulo ni llamada de compositor nuevos.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 25 tests de `dispatch` y la suite completa de
+`wow-world-lifecycle` (14) en verde; `cargo check` de `wow-world`, `wow-world-lifecycle` y
+`world-server` sin errores nuevos; suite del tool **442/443** (baseline previo a la reimpresión) y
+**PASS** tras reimprimir; `session-ownership-check check --syntax-only` **PASS** (176 owners /
+3.127 items / 674 filas, exactamente los dos métodos retirados); `check_architecture.py check`
+**PASS**. R1 v2: `S = 70.299`, `G_move = 107.148`, requisito `33.034,05` → **presupuesto 33.035**
+(`recorded_at_revision fd510d69e`), 0 violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

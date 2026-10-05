@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 33003,
-    "measured_requirement": 33003,
-    "recorded_at_revision": "b9a0a87e378b10e0a53670dadd87f947cf44e00b",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70244, G_move = 107059, ratio and slack credits = 70244 * 1.05 + 300 = 74056.2, so the requirement is 33002.8 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 33035,
+    "measured_requirement": 33035,
+    "recorded_at_revision": "fd510d69e67a2607fb23e647d98b51e93d74d238",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70299, G_move = 107148, ratio and slack credits = 70299 * 1.05 + 300 = 74113.95, so the requirement is 33034.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -82,6 +82,13 @@
         "destination_growth": 90,
         "new_code": 11,
         "note": "The server time offset reply and the three TimeSyncResponse aliases moved from the character world-entry/account registration files into the existing application client-state registrar; no new contract, authority or duplicate."
+      },
+      {
+        "phase": "F5 session-services tail (b9a0a87e3..fd510d69e, played time and logout cancel)",
+        "shrink": 55,
+        "destination_growth": 89,
+        "new_code": 34,
+        "note": "The played-time reply and the logout-cancel acknowledgement moved from the character account/world-entry files into the existing lifecycle account-data registrar; no new contract, authority or duplicate."
       }
     ],
     "areas": [
@@ -102,7 +109,7 @@
       },
       {
         "area": "crates/wow-world-lifecycle/src",
-        "lines": 8622,
+        "lines": 8711,
         "reason": "lifecycle state, load/finalization owners, account-data and support handler families and the F5 battle.net service handlers with their hub context."
       },
       {
