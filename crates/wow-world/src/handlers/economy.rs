@@ -8,12 +8,6 @@
 mod auction;
 mod trade;
 
-const SILVER_LIKE_CPP: u64 = 100;
-const MIN_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 12 * 60;
-const SHORT_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
-const MEDIUM_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 2 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
-const LONG_AUCTION_TIME_MINUTES_LIKE_CPP: u32 = 4 * MIN_AUCTION_TIME_MINUTES_LIKE_CPP;
-
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/economy/tests/mod.rs"]
 mod tests;

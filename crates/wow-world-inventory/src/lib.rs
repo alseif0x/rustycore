@@ -73,8 +73,9 @@ pub use guild_inventory_contracts::{
     RepresentedGuildRepairBankWithdrawLikeCpp,
 };
 pub use handlers::{
-    EquipmentSetsHandlerCxLikeCpp, EquipmentSetsSaveCxLikeCpp, InventoryHandlerHostLikeCpp,
-    ItemTextQueryHandlerCxLikeCpp, register_inventory_handlers_like_cpp,
+    AuctionHandlerCxLikeCpp, EquipmentSetsHandlerCxLikeCpp, EquipmentSetsSaveCxLikeCpp,
+    InventoryHandlerHostLikeCpp, ItemTextQueryHandlerCxLikeCpp,
+    register_inventory_handlers_like_cpp,
 };
 pub use inventory_request_contracts::{
     RepresentedAutoUnequipOffhandLikeCpp, RepresentedAutoUnequipOffhandReasonLikeCpp,

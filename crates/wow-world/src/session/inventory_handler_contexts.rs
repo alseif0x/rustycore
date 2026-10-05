@@ -18,6 +18,12 @@ impl wow_world_application::BankHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp
 }
 
 impl WorldSession {
+    pub(crate) fn build_auction_handler_cx_like_cpp(
+        &mut self,
+    ) -> wow_world_inventory::AuctionHandlerCxLikeCpp<'_> {
+        let (inventory, hub) = crate::session::split_inventory_mut(self);
+        wow_world_inventory::AuctionHandlerCxLikeCpp::new(inventory, hub)
+    }
     pub(crate) fn build_item_text_query_handler_cx_like_cpp(
         &self,
     ) -> wow_world_inventory::ItemTextQueryHandlerCxLikeCpp<'_> {
@@ -163,6 +169,13 @@ impl WorldSession {
 }
 
 impl InventoryHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn auction_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        _catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> wow_world_inventory::AuctionHandlerCxLikeCpp<'a> {
+        self.build_auction_handler_cx_like_cpp()
+    }
+
     fn item_text_query_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,

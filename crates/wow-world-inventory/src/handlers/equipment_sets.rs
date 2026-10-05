@@ -115,6 +115,11 @@ pub trait InventoryHandlerHostLikeCpp<C> {
         catalogs: &'a C,
     ) -> EquipmentSetsHandlerCxLikeCpp<'a>;
 
+    fn auction_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> crate::AuctionHandlerCxLikeCpp<'a>;
+
     fn equipment_sets_save_handler_cx_like_cpp<'a>(
         &'a mut self,
         catalogs: &'a C,
@@ -203,6 +208,83 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_cancel_temp_enchantment",
         handler: super::cancel_temp_enchantment::thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionListBidderItems,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_list_bidder_items",
+        handler: super::auction::handle_auction_list_bidder_items_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionListItems,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_list_items",
+        handler: super::auction::handle_auction_list_items_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionPlaceBid,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_place_bid",
+        handler: super::auction::handle_auction_place_bid_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionRemoveItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_remove_item",
+        handler: super::auction::handle_auction_remove_item_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionSellItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_sell_item",
+        handler: super::auction::handle_auction_sell_item_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionReplicateItems,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_replicate_items",
+        handler: super::auction::handle_auction_replicate_items_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionListOwnerItems,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_list_owner_items",
+        handler: super::auction::handle_auction_list_owner_items_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionListPendingSales,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_list_pending_sales",
+        handler: super::auction::handle_auction_list_pending_sales_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionableTokenSell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auctionable_token_sell",
+        handler: super::auction::handle_auctionable_token_sell_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionableTokenSellAtMarketPrice,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auctionable_token_sell_at_market_price",
+        handler: super::auction::handle_auctionable_token_sell_at_market_price_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::CommerceTokenGetLog,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_commerce_token_get_log",
+        handler: super::auction::handle_commerce_token_get_log_thunk::<S, C>,
     })?;
     builder.register(PacketHandlerEntry {
         opcode: ClientOpcodes::ItemTextQuery,

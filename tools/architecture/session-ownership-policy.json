@@ -563,6 +563,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::economy::auction::session_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::economy::trade",
           "trait_path": null,
           "cfg": [],
@@ -6619,154 +6627,128 @@
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_auction_list_bidder_items",
-          "visibility": "pub",
-          "signature": "async fn handle_auction_list_bidder_items (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auction_list_items",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auction_list_items (& mut self , _packet : wow_packet :: packets :: misc :: AuctionListItems ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_auction_list_owner_items",
-          "visibility": "pub",
-          "signature": "async fn handle_auction_list_owner_items (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::auction",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_auction_list_pending_sales",
-          "visibility": "pub",
-          "signature": "async fn handle_auction_list_pending_sales (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auction_place_bid",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auction_place_bid (& mut self , packet : AuctionPlaceBid)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auction_remove_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auction_remove_item (& mut self , packet : AuctionRemoveItem)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auction_replicate_items",
-          "visibility": "pub",
-          "signature": "async fn handle_auction_replicate_items (& mut self , packet : AuctionReplicateItems)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_auction_replicate_items (& mut self , packet : AuctionReplicateItems ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auction_sell_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auction_sell_item (& mut self , packet : AuctionSellItem)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auctionable_token_sell",
-          "visibility": "pub",
-          "signature": "async fn handle_auctionable_token_sell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_auctionable_token_sell (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_auctionable_token_sell_at_market_price",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auctionable_token_sell_at_market_price (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
+          "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_commerce_token_get_log",
-          "visibility": "pub",
-          "signature": "async fn handle_commerce_token_get_log (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "visibility": "pub (crate)",
+          "signature": "async fn handle_commerce_token_get_log (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -17942,6 +17924,19 @@
           "name": "broadcast_player_packet_to_visible_set_realm_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn broadcast_player_packet_to_visible_set_realm_like_cpp (& self , bytes : Vec < u8 >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "build_auction_handler_cx_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn build_auction_handler_cx_like_cpp (& mut self ,) -> wow_world_inventory :: AuctionHandlerCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44663,6 +44658,19 @@
           "name": "instance_raid_info_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn instance_raid_info_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> InstanceRaidInfoHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "auction_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn auction_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: AuctionHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
