@@ -3,98 +3,23 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Battlenet service request handler.
+//! Battle.net request regressions.
 //!
-//! The client sends BattlenetRequest (CMSG 0x36FD) during character select
-//! to invoke GameUtilitiesService RPCs. We respond with RpcNotImplemented
-//! for all requests, matching C# behavior when no service handler is registered.
+//! The battle.net service and realm-list ticket handlers moved to
+//! `wow-world-lifecycle` in #1263 F5; this module keeps the cfg(test)
+//! delegates the in-file regressions drive.
 
-use tracing::debug;
-use wow_constants::ClientOpcodes;
-use wow_handler::{PacketProcessing, SessionStatus};
-use wow_packet::ClientPacket;
-
-use crate::session::registry::PacketHandlerEntry;
-use wow_packet::packets::battlenet::*;
-
-use crate::session::WorldSession;
-
-// ── Handler registration ────────────────────────────────────────────
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlenetRequest,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlenet_request",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::battlenet::BattlenetRequest::read(&mut pkt) {
-                    Ok(req) => session.handle_battlenet_request(req).await,
-                    Err(e) => tracing::warn!("Failed to read BattlenetRequest: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChangeRealmTicket,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_change_realm_ticket",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::battlenet::ChangeRealmTicket::read(&mut pkt) {
-                    Ok(ticket) => session.handle_change_realm_ticket(ticket).await,
-                    Err(e) => tracing::warn!("Failed to read ChangeRealmTicket: {e}"),
-                }
-            })
-        },
-    }
-}
-
-// ── Handler implementation ──────────────────────────────────────────
-
-impl WorldSession {
-    /// Handle CMSG_BATTLENET_REQUEST — respond with RpcNotImplemented.
-    ///
-    /// C# dispatches these to GameUtilitiesService handlers. Since we don't
-    /// implement any services yet, we always return RpcNotImplemented,
-    /// which is exactly what C# does for unregistered service methods.
-    pub async fn handle_battlenet_request(&mut self, req: BattlenetRequest) {
-        debug!(
-            "BattlenetRequest from account {}: service=0x{:08X} method={} token={}",
-            self.core.account_id,
-            req.method.service_hash(),
-            req.method.method_id(),
-            req.method.token,
-        );
-
-        self.send_packet(&BattlenetResponse::error(
-            req.method.service_hash(),
-            req.method.method_id(),
-            req.method.token,
-            BattlenetRpcErrorCode::RpcNotImplemented,
-        ));
-    }
-
-    /// Handle CMSG_CHANGE_REALM_TICKET like C++
-    /// `WorldSession::HandleBattlenetChangeRealmTicket`.
-    pub async fn handle_change_realm_ticket(&mut self, ticket: ChangeRealmTicket) {
-        self.core.set_realm_list_secret_like_cpp(ticket.secret);
-        self.send_packet(
-            &ChangeRealmTicketResponse::allow_worldserver_realm_list_ticket_like_cpp(ticket.token),
-        );
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use wow_constants::ServerOpcodes;
+    use wow_constants::{ClientOpcodes, ServerOpcodes};
+    use wow_handler::{PacketProcessing, SessionStatus};
     use wow_packet::WorldPacket;
+    use wow_packet::packets::battlenet::ChangeRealmTicket;
+
+    use crate::session::WorldSession;
 
     fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(8);

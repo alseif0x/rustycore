@@ -1,5 +1,6 @@
 //! Lifecycle-domain state shared with the World session adapter.
 
+mod battlenet_handlers;
 mod character_administration;
 mod collection_contracts;
 mod durable_item_loot;
@@ -15,6 +16,9 @@ mod save_contracts;
 mod state;
 mod support;
 mod value_contracts;
+pub use battlenet_handlers::{
+    BattlenetHandlerCxLikeCpp, BattlenetHandlerHostLikeCpp, register_battlenet_handlers_like_cpp,
+};
 pub use handlers::{
     AccountDataHandlerCxLikeCpp, AccountDataHandlerHostLikeCpp,
     register_account_data_handlers_like_cpp,

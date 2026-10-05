@@ -183,10 +183,12 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::battlenet",
+          "module": "crate::handlers::battlenet::test_shims",
           "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::calendar::session_shims",
@@ -1123,6 +1125,12 @@
         {
           "module": "crate::session",
           "trait_path": "ArenaTeamHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "BattlenetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -2354,28 +2362,32 @@
           ]
         },
         {
-          "module": "crate::handlers::battlenet",
+          "module": "crate::handlers::battlenet::test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlenet_request",
           "visibility": "pub",
           "signature": "async fn handle_battlenet_request (& mut self , req : BattlenetRequest)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
           ]
         },
         {
-          "module": "crate::handlers::battlenet",
+          "module": "crate::handlers::battlenet::test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_change_realm_ticket",
           "visibility": "pub",
           "signature": "async fn handle_change_realm_ticket (& mut self , ticket : ChangeRealmTicket)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44099,6 +44111,19 @@
           "name": "arena_team_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn arena_team_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ArenaTeamHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "BattlenetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "battlenet_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn battlenet_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> BattlenetHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

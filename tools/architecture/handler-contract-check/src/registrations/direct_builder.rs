@@ -347,6 +347,27 @@ pub(crate) const ARENA_TEAM_REGISTRAR: DirectRegistrarContract = DirectRegistrar
     facades: ARENA_TEAM_FACADES,
 };
 
+const BATTLENET_ROOT_EXPORTS: &[&str] = &[
+    "BattlenetHandlerCxLikeCpp",
+    "BattlenetHandlerHostLikeCpp",
+    "register_battlenet_handlers_like_cpp",
+];
+const BATTLENET_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "battlenet_handlers",
+    exports: BATTLENET_ROOT_EXPORTS,
+}];
+
+pub(crate) const BATTLENET_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "LifecycleBattlenet",
+    package: "wow-world-lifecycle",
+    module: "crate::battlenet_handlers",
+    registrar: "register_battlenet_handlers_like_cpp",
+    host_trait: "BattlenetHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: BATTLENET_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -362,6 +383,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     CHAT_REGISTRAR,
     SOCIAL_CONTACTS_REGISTRAR,
     ARENA_TEAM_REGISTRAR,
+    BATTLENET_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
