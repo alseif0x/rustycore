@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34589,
-    "measured_requirement": 34589,
+    "budget": 34669,
+    "measured_requirement": 34669,
     "recorded_at_revision": "12bc0ceb06d03b1ed46d4f119a589ca7aefdb91c",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71776, G_move = 110253, ratio and slack credits = 71776 * 1.05 + 300 = 75664.8, so the requirement is 34588.2 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71995, G_move = 110563, ratio and slack credits = 71995 * 1.05 + 300 = 75894.75, so the requirement is 34668.25 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -187,6 +187,13 @@
         "destination_growth": 212,
         "new_code": 71,
         "note": "ChangeSubGroup and SwapSubGroups moved into the existing ApplicationGroup registrar (social + lifecycle + hub) instead of a new contract. The owner applies the canonical group-registry transition and the sender's own subgroup, then returns whether the registry-state publication still runs in the World host through a new bounded trait method (the registry sync keeps its own stats/loot/control providers). The invite/leave/convert/opt-out/random-roll handlers stay. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 group leave/convert slice (12bc0ceb0..HEAD, two handlers into the existing application group owner)",
+        "shrink": 219,
+        "destination_growth": 310,
+        "new_code": 91,
+        "note": "LeaveGroup and ConvertRaid moved into the existing ApplicationGroup registrar: the owner performs the canonical removal/conversion, the lifecycle persistence, the self-detach (SetGroup/ClearSubGroup/party-type update through social) and the party update, then returns which final publications still run in the World host through the bounded trait seams (registry sync and visible-gameobject refresh). PartyUninvite stays because its result helper takes the World session. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

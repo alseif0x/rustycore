@@ -23,4 +23,8 @@ impl GroupHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     fn sync_player_registry_state_after_group_subgroup_like_cpp(&mut self) {
         self.sync_player_registry_state_like_cpp();
     }
+
+    fn refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp(&mut self) {
+        let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+    }
 }

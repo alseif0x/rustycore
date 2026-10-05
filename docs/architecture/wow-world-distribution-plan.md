@@ -5670,6 +5670,28 @@ permitidos / 0 obsoletos.
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 Medición directa: quedan **199 registros literales** en `wow-world`.
 
+#### F5: familia group, corte de salida/conversión (2 opcodes) al dueño application existente — 2026-10-05, `12bc0ceb0..HEAD`
+
+`LeaveGroup` y `ConvertRaid` pasan al registrador `ApplicationGroup`. El dueño ejecuta la remoción o
+conversión canónica del `GroupRegistry`, la persistencia por lifecycle, el desprendimiento del propio
+jugador (`set_owned_player_group_like_cpp(None)` + `clear_represented_group_subgroup_like_cpp` +
+`send_player_party_type_update_like_cpp` vía social) y el `send_party_update`; después devuelve
+`(registry_sync, visibility_refresh)` y el thunk llama a los dos **seams acotados del host**
+(`sync_player_registry_state_after_group_subgroup_like_cpp` y el nuevo
+`refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp`), cuyos proveedores siguen
+en el shell. `PartyUninvite` se queda porque su helper de resultado toma el `WorldSession`. `group`
+queda en **5 registros literales** (invite, invite response, uninvite, opt-out, random roll).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos),
+**248 de `group`** y **11 de `scenarios_spell_state_5`** en verde; `cargo check` de `wow-world` (con
+`test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.134 items / 694 filas);
+`check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado (producción 61.027 →
+61.031, total 199.215 → ...). R1 v2: `S = 71.995`, `G_move = 110.563`, requisito `34.668,25` →
+**presupuesto 34.669**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

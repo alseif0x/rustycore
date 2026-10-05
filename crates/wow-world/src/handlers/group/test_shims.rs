@@ -150,4 +150,34 @@ impl WorldSession {
             self.sync_player_registry_state_like_cpp();
         }
     }
+
+    pub async fn handle_leave_group(&mut self, pkt: WorldPacket) {
+        let (registry_sync, visibility_refresh) = {
+            let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+            wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+                .handle_leave_group(pkt)
+                .await
+        };
+        if registry_sync {
+            self.sync_player_registry_state_like_cpp();
+        }
+        if visibility_refresh {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+        }
+    }
+
+    pub async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
+        let (registry_sync, visibility_refresh) = {
+            let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+            wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+                .handle_convert_raid(pkt)
+                .await
+        };
+        if registry_sync {
+            self.sync_player_registry_state_like_cpp();
+        }
+        if visibility_refresh {
+            let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+        }
+    }
 }

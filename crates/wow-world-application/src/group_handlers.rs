@@ -16,22 +16,30 @@
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
+use wow_core::ObjectGuid;
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::party::{
-    ChangeSubGroup, SetAssistantLeader, SetEveryoneIsAssistant, SetPartyAssignment, SetPartyLeader,
-    SwapSubGroups,
+    ChangeSubGroup, ConvertRaid, GroupUninvite, PartyCommandResult, SetAssistantLeader,
+    SetEveryoneIsAssistant, SetPartyAssignment, SetPartyLeader, SwapSubGroups, party_result,
 };
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_social::group::{MAX_RAID_SUBGROUPS_LIKE_CPP, MEMBER_FLAG_ASSISTANT_LIKE_CPP};
-use wow_world_core::session::HubMut;
-use wow_world_core::session::mailbox::{ApplyGroupSubgroupLikeCppCommand, SessionCommand};
+use wow_social::group::{
+    GROUP_CATEGORY_HOME_LIKE_CPP, GROUP_TYPE_NONE_LIKE_CPP, GroupAuthorityErrorLikeCpp,
+    GroupMemberRemovalKindLikeCpp, MAX_RAID_SUBGROUPS_LIKE_CPP, MEMBER_FLAG_ASSISTANT_LIKE_CPP,
+};
+use wow_world_core::session::mailbox::{
+    ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand, SessionCommand,
+};
+use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_social::SessionSocialLimits;
 use wow_world_social::group_fanout::{
-    current_group_guid_like_cpp, send_group_new_leader_like_cpp, send_party_update,
+    connected_group_members_like_cpp, current_group_guid_like_cpp,
+    queue_visible_gameobjects_or_spellclicks_refresh_like_cpp, send_group_new_leader_like_cpp,
+    send_party_update,
 };
 
 /// Borrowed inputs of one group leadership/assistant handler invocation.
@@ -60,6 +68,10 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             &owner,
             cfg!(any(test, feature = "test-fixtures")),
         )
+    }
+
+    fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
+        self.hub.shared().core.packet_publication_access_like_cpp()
     }
 
     pub async fn handle_set_party_leader(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -405,6 +417,239 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
                 .social
                 .set_owned_player_group_like_cpp(&mut self.hub, Some((group_guid, subgroup)))
     }
+
+    /// C++ `WorldSession::HandleLeaveGroupOpcode`.
+    ///
+    /// Returns `(registry_sync, visibility_refresh)`: the two publications that
+    /// still belong to the World session run in the host after the owner's
+    /// canonical removal.
+    pub async fn handle_leave_group(&mut self, mut pkt: WorldPacket) -> (bool, bool) {
+        let has_party_index = pkt.read_bit().unwrap_or(false);
+        let party_index = if has_party_index {
+            pkt.read_uint8().ok()
+        } else {
+            None
+        };
+
+        let Some(my_guid) = self.hub.shared().core.player_guid() else {
+            return (false, false);
+        };
+        let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
+            return (false, false);
+        };
+        let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
+            return (false, false);
+        };
+        let pending_invites = self.hub.shared().core.pending_invites().cloned();
+        let vra = self.hub.shared().core.virtual_realm_address();
+
+        // 1. Find the real group or the C++ `GroupInvite` we're currently in.
+        let real_group_guid = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            party_index,
+        );
+        let pending_invite = pending_invites
+            .as_ref()
+            .and_then(|pending| pending.get(&my_guid));
+
+        if real_group_guid.is_none() && pending_invite.is_none() {
+            return (false, false);
+        };
+
+        if self
+            .hub
+            .shared()
+            .player_in_represented_battleground_like_cpp()
+        {
+            self.publication_like_cpp()
+                .send_packet_realm(&PartyCommandResult {
+                    name: String::new(),
+                    command: 0,
+                    result: party_result::INVITE_RESTRICTED,
+                    result_data: 0,
+                    result_guid: ObjectGuid::EMPTY,
+                });
+            return (false, false);
+        }
+
+        let player_name = self.hub.shared().player_name_like_cpp().unwrap_or_default();
+
+        if real_group_guid.is_none() {
+            if let (Some(pending_invites), Some(invite)) =
+                (pending_invites.as_ref(), pending_invite)
+            {
+                if invite.leader_guid == my_guid {
+                    self.publication_like_cpp()
+                        .send_packet_realm(&PartyCommandResult {
+                            name: player_name,
+                            command: 2,
+                            result: party_result::OK,
+                            result_data: 0,
+                            result_guid: ObjectGuid::EMPTY,
+                        });
+                    group_reg.cancel_pending_group_like_cpp(pending_invites, invite);
+                }
+            }
+            return (false, false);
+        }
+        let gid = real_group_guid.expect("checked above");
+
+        self.publication_like_cpp()
+            .send_packet_realm(&PartyCommandResult {
+                name: player_name,
+                command: 2,
+                result: party_result::OK,
+                result_data: 0,
+                result_guid: ObjectGuid::EMPTY,
+            });
+
+        // 2. Remove self from the group through the canonical owner. Connected
+        // successor candidates are facts; membership and leader choice are
+        // revalidated under the group shard.
+        let connected_members = group_reg
+            .get(&gid)
+            .map(|group| connected_group_members_like_cpp(&group, &registry))
+            .unwrap_or_default();
+        let outcome = match group_reg.remove_member_like_cpp(
+            gid,
+            my_guid,
+            GroupMemberRemovalKindLikeCpp::Leave,
+            &connected_members,
+        ) {
+            Ok(outcome) => outcome,
+            Err(_) => return (false, false),
+        };
+        let dissolve_remaining = outcome
+            .facts
+            .disbanded
+            .then(|| outcome.facts.remaining_members.clone());
+        self.lifecycle
+            .persist_group_intents_like_cpp(gid, outcome.persistence)
+            .await;
+
+        if let Some(remaining) = dissolve_remaining {
+            // Group dissolved — notify last remaining member (if any).
+            if let Some(&last_guid) = remaining.first() {
+                if let Some(last) = registry.group_presence(last_guid) {
+                    let command = ApplyGroupRemovalLikeCppCommand {
+                        group_guid: gid,
+                        category: GROUP_CATEGORY_HOME_LIKE_CPP,
+                        party_type: GROUP_TYPE_NONE_LIKE_CPP,
+                        send_group_destroyed: true,
+                        send_group_uninvite: false,
+                        refresh_visible_gameobjects_or_spellclicks: true,
+                    };
+                    let _ = registry.deliver_group_state_command_like_cpp(
+                        last.registration,
+                        SessionCommand::ApplyGroupRemovalLikeCpp(command),
+                    );
+                } else {
+                    // C++ `Group::Disband` clears every connected member's
+                    // group in the same operation (#743).
+                    registry.mark_group_state_reconciliation_like_cpp(last_guid);
+                }
+            }
+            self.detach_self_from_group_like_cpp();
+            self.publication_like_cpp()
+                .send_packet_realm(&GroupUninvite);
+            return (true, true);
+        }
+
+        // 3. Send updated PartyUpdate to remaining members.
+        send_party_update(&outcome.group, &registry, vra);
+
+        // 4. Uninvite self.
+        self.detach_self_from_group_like_cpp();
+        self.publication_like_cpp()
+            .send_packet_realm(&GroupUninvite);
+        (true, true)
+    }
+
+    /// C++ `WorldSession::HandleConvertRaidOpcode`.
+    ///
+    /// Returns `(registry_sync, visibility_refresh)`.
+    pub async fn handle_convert_raid(&mut self, mut pkt: WorldPacket) -> (bool, bool) {
+        let convert = match ConvertRaid::read(&mut pkt) {
+            Ok(convert) => convert,
+            Err(e) => {
+                warn!("Bad ConvertRaid: {e}");
+                return (false, false);
+            }
+        };
+
+        let Some(my_guid) = self.hub.shared().core.player_guid() else {
+            return (false, false);
+        };
+        let Some(group_reg) = self.hub.shared().core.group_registry().cloned() else {
+            return (false, false);
+        };
+        let Some(group_guid) = current_group_guid_like_cpp(
+            &group_reg,
+            self.resolved_group_guid_like_cpp(),
+            my_guid,
+            None,
+        ) else {
+            return (false, false);
+        };
+        let Some(registry) = self.hub.shared().core.player_registry().cloned() else {
+            return (false, false);
+        };
+        let vra = self.hub.shared().core.virtual_realm_address();
+
+        let outcome = match group_reg.convert_group_like_cpp(group_guid, my_guid, convert.raid) {
+            Ok(outcome) => outcome,
+            Err(GroupAuthorityErrorLikeCpp::GroupTooLarge) => {
+                self.publication_like_cpp()
+                    .send_packet_realm(&PartyCommandResult {
+                        name: String::new(),
+                        command: 0,
+                        result: party_result::OK,
+                        result_data: 0,
+                        result_guid: ObjectGuid::EMPTY,
+                    });
+                return (false, false);
+            }
+            Err(_) => return (false, false),
+        };
+        self.publication_like_cpp()
+            .send_packet_realm(&PartyCommandResult {
+                name: String::new(),
+                command: 0,
+                result: party_result::OK,
+                result_data: 0,
+                result_guid: ObjectGuid::EMPTY,
+            });
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
+            .await;
+
+        // `queue_visible...` may wait on a full member command channel. Clone
+        // the value and release DashMap's read guard before the first await so
+        // unrelated group mutations are never stalled behind that backpressure.
+        send_party_update(&outcome.group, &registry, vra);
+        queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
+            &outcome.group,
+            &registry,
+            my_guid,
+        )
+        .await;
+        (false, true)
+    }
+
+    /// C++ `Player::SetGroup(nullptr)` + `ClearSubGroup` for the sender.
+    fn detach_self_from_group_like_cpp(&mut self) {
+        self.social
+            .set_owned_player_group_like_cpp(&mut self.hub, None);
+        self.social
+            .clear_represented_group_subgroup_like_cpp(&mut self.hub);
+        self.social.send_player_party_type_update_like_cpp(
+            self.hub.shared(),
+            GROUP_CATEGORY_HOME_LIKE_CPP,
+            GROUP_TYPE_NONE_LIKE_CPP,
+        );
+    }
 }
 
 /// Builds a group handler context from a host's social and lifecycle state plus hub.
@@ -415,6 +660,11 @@ pub trait GroupHandlerHostLikeCpp<C> {
     /// sender's own subgroup, and the World session still runs the registry
     /// state sync with its own providers.
     fn sync_player_registry_state_after_group_subgroup_like_cpp(&mut self);
+
+    /// Final publication seam for the leave/convert handlers: the owner changed
+    /// the group membership, and the World session still refreshes the visible
+    /// gameobjects/spell-clicks with its own visibility providers.
+    fn refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp(&mut self);
 }
 
 fn handle_set_party_leader_thunk<'a, S, C>(
@@ -526,6 +776,52 @@ where
     })
 }
 
+fn handle_leave_group_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GroupHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let (registry_sync, visibility_refresh) = session
+            .group_handler_cx_like_cpp(catalogs)
+            .handle_leave_group(pkt)
+            .await;
+        if registry_sync {
+            session.sync_player_registry_state_after_group_subgroup_like_cpp();
+        }
+        if visibility_refresh {
+            session.refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp();
+        }
+    })
+}
+
+fn handle_convert_raid_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GroupHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let (registry_sync, visibility_refresh) = session
+            .group_handler_cx_like_cpp(catalogs)
+            .handle_convert_raid(pkt)
+            .await;
+        if registry_sync {
+            session.sync_player_registry_state_after_group_subgroup_like_cpp();
+        }
+        if visibility_refresh {
+            session.refresh_visible_gameobjects_or_spell_clicks_after_group_change_like_cpp();
+        }
+    })
+}
+
 pub fn register_group_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -574,6 +870,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_swap_sub_groups",
         handler: handle_swap_sub_groups_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::LeaveGroup,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_leave_group",
+        handler: handle_leave_group_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::ConvertRaid,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_convert_raid",
+        handler: handle_convert_raid_thunk::<S, C>,
     })?;
     Ok(())
 }

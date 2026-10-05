@@ -104,26 +104,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::LeaveGroup,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_leave_group",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_leave_group(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ConvertRaid,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_convert_raid",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_convert_raid(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::OptOutOfLoot,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
