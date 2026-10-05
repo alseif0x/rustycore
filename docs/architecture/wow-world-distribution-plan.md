@@ -4724,6 +4724,39 @@ permitidos, 0 violaciones). Quedan **318** invocaciones literales de
 nunca fueron invocaciones literales, salían de la macro local, de modo que el corte retiró 59
 opcodes y 41 literales). La campaña `final` sigue pendiente del cierre del tramo.
 
+#### F5: familia calendar (15 opcodes) movida a `wow-world-social` — 2026-10-05, `ce863e603`
+
+Séptima familia de handlers migrada y décimo registrador directo. Los quince
+`CMSG_CALENDAR_*` pasan a `wow-world-social`, la crate que ya posee los fixtures y las
+consultas de calendario representadas:
+
+- `crates/wow-world-social/src/calendar_handlers.rs` contiene `CalendarHandlerCxLikeCpp` sobre
+  `&mut SessionSocialLimits` y el hub mutable, los quince handlers con sus cuerpos (incluidos
+  los tres helpers de ámbito de hermandad y el registro de fixtures), el trait host, quince
+  thunks que conservan el parseo tipado y el mismo warn por entrada, y
+  `register_calendar_handlers_like_cpp`;
+- el resolutor compartido `resolved_represented_guild_id_like_cpp` (y su snapshot de hermandad
+  representada) pasa a ser **propiedad de la crate social** y la sesión lo delega, de modo que
+  calendario y sesión leen una sola autoridad en vez de duplicarla; sus otros ocho
+  consumidores World siguen funcionando sin cambios;
+- `wow-world` conserva el host (`session/calendar_handler_contexts.rs`, que separa el estado
+  social del hub) y quince shims `cfg(test)`; los accesores de fixture
+  `represented_calendar_*` permanecen en los módulos que poseen el estado social.
+
+Baselines revisados: impl items **3.158 → 3.161** (salen quince métodos de producción de
+`crate::handlers::calendar`; entran los shims, el impl del host y el builder del Cx), impl
+owners **170 → 171**, registros directos **674 sin cambios** y bridges **84 sin cambios**;
+hotspots `session/mod.rs` +26 producción/+2 test y `world-server` +4. R1 re-registrado:
+`S = 67.457`, `G_move = 102.674`, requisito `31.544,15` → **presupuesto 31.700**.
+
+Evidencia de esta ronda: **17** tests de calendario en verde; guardián de composición **8/8**;
+contrato de handlers del repositorio **PASS**; `cargo check` de `wow-world-social`, `wow-world`
+(default y `test-fixtures`) y `world-server` con **0 errores**; `session-ownership-check check
+--syntax-only` **PASS** (171 owners / 3.161 items / 674 filas); `check_architecture.py check
+--self-test` **PASS**; `net_move.py check` **PASS** (5 duplicados permitidos, 0 violaciones).
+Quedan **303** invocaciones literales de `register_packet_handler_like_cpp!` en `wow-world`
+(eran 318). La campaña `final` sigue pendiente del cierre del tramo.
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings

@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 31200,
-    "measured_requirement": 31042,
-    "recorded_at_revision": "c0f89b0230acae8f2b9741ae74b63c23b16e924b",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 67229, G_move = 101932, ratio and slack credits = 67229 * 0.05 + 300 = 70890.45, so the requirement is 31041.55 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 31700,
+    "measured_requirement": 31545,
+    "recorded_at_revision": "ce863e603a17b4a7da48726581ae2ccd182b063f",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 67457, G_move = 102674, ratio and slack credits = 67457 * 0.05 + 300 = 71129.85, so the requirement is 31544.15 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -36,10 +36,10 @@
       },
       {
         "phase": "post-pause (969bee686..HEAD, migrations plus the rustfmt pass)",
-        "shrink": 9949,
-        "destination_growth": 14181,
-        "new_code": 4232,
-        "note": "F5 registrars (social inspect, lifecycle account-data, application reputation, lifecycle support, application client-state) and the F6 retirements were net moves; the rustfmt normalization of the branch's own sources reflowed long lines and the new host adapters and composer calls add their own lines, which is most of this phase's new_code."
+        "shrink": 10177,
+        "destination_growth": 14923,
+        "new_code": 4746,
+        "note": "F5 registrars (social inspect, lifecycle account-data, application reputation, lifecycle support, application client-state, social calendar) and the F6 retirements were net moves; the rustfmt normalization of the branch's own sources reflowed long lines and the new host adapters and composer calls add their own lines, which is most of this phase's new_code."
       }
     ],
     "areas": [
@@ -80,7 +80,7 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 2469,
+        "lines": 3211,
         "reason": "social group/duel state plus the inspect handler family and group fanout."
       },
       {
