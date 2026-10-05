@@ -4825,6 +4825,26 @@ adaptación (hub público/mutable, `publication_like_cpp`, `self.social.*`, `sel
 módulo social generado y el cierre de llamadas quedan registrados aquí para ejecutarlo en una
 sola ronda.
 
+#### F5: checkpoint WIP de la familia chat — 2026-10-05, `3c023ba93` (**NO VALIDADO**)
+
+Ejecución del corte preparado en la ronda anterior. Estado del checkpoint: **el árbol no compila
+en este commit** y ninguna puerta se ha ejecutado; no acredita aceptación ni avance verificado. Lo
+hecho: `channels.rs` y `state.rs` retirados, los 37 registros de chat recortados de `wow-world`,
+los cuerpos movidos borrados de `ops_1`/`ops_2`, `chat_handlers.rs` generado en `wow-world-social`
+(Cx sobre estado social + hub + `ChatPolicyCatalogsLikeCpp`, 37 entradas y 18 thunks), contexto
+host, ambos compositores y la arista `wow-chat` añadida al manifiesto y a la política de
+dependencias.
+
+**Trabajo exacto que queda** (35 errores de compilación en `wow-world-social`): restaurar los
+accesores dañados por el recorte de argumentos (`publication_like_cpp`, `core`, `player_guid`),
+importar `JoinChannel`/`LeaveChannel`/`JoinChannelPrecheckLikeCpp` e `is_known_language_like_cpp`,
+usar `resolved_group_guid_like_cpp` desde `HubRef` en vez de `SessionCore`, quitar el `mod tests`
+duplicado y con ruta incorrecta de `ops_2.rs` (el padre `chat.rs` ya lo declara), añadir el
+contrato del tool, el dueño en la política de módulos y los montajes, y después ejecutar los tests
+de chat, el guardián de composición y el contrato del repositorio antes de reanudar la cadencia
+normal. El checkpoint está en git, incluido `Cargo.lock`; el siguiente turno continúa desde él.
+
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings

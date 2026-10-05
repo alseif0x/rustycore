@@ -3667,6 +3667,7 @@ version = "0.1.0"
 dependencies = [
  "tokio",
  "tracing",
+ "wow-chat",
  "wow-constants",
  "wow-core",
  "wow-entities",
