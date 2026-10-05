@@ -7,15 +7,15 @@
 //! The application crate owns the handlers and their context; the session only
 //! lends its hub, so no session reference crosses into the handler.
 
-use wow_world_application::{PlayerQueryHandlerCxLikeCpp, PlayerQueryHandlerHostLikeCpp};
+use wow_world_application::{PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
-impl PlayerQueryHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
-    fn player_query_handler_cx_like_cpp<'a>(
+impl PlayerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn player_handler_cx_like_cpp<'a>(
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
-    ) -> PlayerQueryHandlerCxLikeCpp<'a> {
-        PlayerQueryHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+    ) -> PlayerHandlerCxLikeCpp<'a> {
+        PlayerHandlerCxLikeCpp::new(crate::session::hub_mut(self))
     }
 }

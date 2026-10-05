@@ -50,18 +50,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SetActionButton,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_action_button",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_action_button(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::SetTitle,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -138,22 +126,6 @@ impl crate::session::WorldSession {
                 crate::session::RepresentedStandStateChangedLikeCpp { state: stand_state },
             ),
         );
-    }
-
-    pub async fn handle_set_action_button(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetActionButton::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetActionButton parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::hub_mut(self)
-            .represented_set_action_button_like_cpp(packet.index, packet.action);
     }
 
     pub async fn handle_set_difficulty_id(&mut self, pkt: wow_packet::WorldPacket) {

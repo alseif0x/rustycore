@@ -494,25 +494,25 @@ pub(crate) const COMBAT_REGISTRAR: DirectRegistrarContract = DirectRegistrarCont
     facades: COMBAT_FACADES,
 };
 
-const PLAYER_QUERY_ROOT_EXPORTS: &[&str] = &[
-    "PlayerQueryHandlerCxLikeCpp",
-    "PlayerQueryHandlerHostLikeCpp",
-    "register_player_query_handlers_like_cpp",
+const PLAYER_ROOT_EXPORTS: &[&str] = &[
+    "PlayerHandlerCxLikeCpp",
+    "PlayerHandlerHostLikeCpp",
+    "register_player_handlers_like_cpp",
 ];
-const PLAYER_QUERY_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+const PLAYER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
     module: "crate",
-    child: "player_query_handlers",
-    exports: PLAYER_QUERY_ROOT_EXPORTS,
+    child: "player_handlers",
+    exports: PLAYER_ROOT_EXPORTS,
 }];
 
-pub(crate) const PLAYER_QUERY_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
-    owner: "ApplicationPlayerQuery",
+pub(crate) const PLAYER_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationPlayer",
     package: "wow-world-application",
-    module: "crate::player_query_handlers",
-    registrar: "register_player_query_handlers_like_cpp",
-    host_trait: "PlayerQueryHandlerHostLikeCpp",
+    module: "crate::player_handlers",
+    registrar: "register_player_handlers_like_cpp",
+    host_trait: "PlayerHandlerHostLikeCpp",
     production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
-    facades: PLAYER_QUERY_FACADES,
+    facades: PLAYER_FACADES,
 };
 
 const COLLECTIONS_ROOT_EXPORTS: &[&str] = &[
@@ -579,7 +579,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     GUILD_REGISTRAR,
     QUEST_QUERY_REGISTRAR,
     COMBAT_REGISTRAR,
-    PLAYER_QUERY_REGISTRAR,
+    PLAYER_REGISTRAR,
     COLLECTIONS_REGISTRAR,
     TRAVEL_REGISTRAR,
 ];

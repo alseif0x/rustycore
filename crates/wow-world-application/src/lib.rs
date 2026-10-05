@@ -15,7 +15,7 @@ mod group_handlers;
 mod instances;
 mod loot_release;
 mod player_conditions;
-mod player_query_handlers;
+mod player_handlers;
 mod player_save;
 mod profession;
 mod quest;
@@ -32,9 +32,8 @@ pub use loot_release::{
     queue_chest_gameobject_state_refresh_for_same_map_like_cpp,
     represented_gameobject_can_autostore_loot_item_like_cpp,
 };
-pub use player_query_handlers::{
-    PlayerQueryHandlerCxLikeCpp, PlayerQueryHandlerHostLikeCpp,
-    register_player_query_handlers_like_cpp,
+pub use player_handlers::{
+    PlayerHandlerCxLikeCpp, PlayerHandlerHostLikeCpp, register_player_handlers_like_cpp,
 };
 mod equipment_set_use;
 mod inventory_scaling;

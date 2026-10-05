@@ -68,7 +68,7 @@
     {
       "capability": "handler_registration",
       "package": "wow-world-application",
-      "module": "crate::player_query_handlers",
+      "module": "crate::player_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
     },

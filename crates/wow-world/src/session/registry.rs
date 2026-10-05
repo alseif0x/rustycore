@@ -106,7 +106,7 @@ pub fn build_dispatch_table() -> Arc<WorldPacketHandlerRegistry> {
         .expect("invalid duplicate packet handler composition");
     wow_world_application::register_combat_handlers_like_cpp(&mut builder)
         .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_player_query_handlers_like_cpp(&mut builder)
+    wow_world_application::register_player_handlers_like_cpp(&mut builder)
         .expect("invalid duplicate packet handler composition");
     wow_world_application::register_collections_handlers_like_cpp(&mut builder)
         .expect("invalid duplicate packet handler composition");

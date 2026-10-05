@@ -19,16 +19,17 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
-use wow_packet::WorldPacket;
 use wow_packet::packets::misc::{MailNextTimeEntry, MailQueryNextTimeResult, QueryTimeResponse};
+use wow_packet::packets::spell::SetActionButton;
+use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
 
 /// Borrowed inputs of one player query handler invocation.
-pub struct PlayerQueryHandlerCxLikeCpp<'a> {
+pub struct PlayerHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
 }
 
-impl<'a> PlayerQueryHandlerCxLikeCpp<'a> {
+impl<'a> PlayerHandlerCxLikeCpp<'a> {
     pub fn new(hub: HubMut<'a>) -> Self {
         Self { hub }
     }
@@ -98,6 +99,23 @@ impl<'a> PlayerQueryHandlerCxLikeCpp<'a> {
         self.publication_like_cpp().send_packet_realm(&packet);
     }
 
+    /// CMSG_SET_ACTION_BUTTON — client binds or clears one action button.
+    pub async fn handle_set_action_button(&mut self, mut pkt: WorldPacket) {
+        let packet = match SetActionButton::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                tracing::warn!(
+                    account = self.hub.shared().core.account_id,
+                    "SetActionButton parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.hub
+            .represented_set_action_button_like_cpp(packet.index, packet.action);
+    }
+
     /// CMSG_SET_SELECTION — client clicked/targeted an object.
     pub async fn handle_set_selection(&mut self, mut pkt: WorldPacket) {
         let target_guid = pkt.read_packed_guid().unwrap_or(ObjectGuid::EMPTY);
@@ -111,11 +129,8 @@ impl<'a> PlayerQueryHandlerCxLikeCpp<'a> {
 }
 
 /// Builds a player query handler context from a host's hub.
-pub trait PlayerQueryHandlerHostLikeCpp<C> {
-    fn player_query_handler_cx_like_cpp<'a>(
-        &'a mut self,
-        catalogs: &'a C,
-    ) -> PlayerQueryHandlerCxLikeCpp<'a>;
+pub trait PlayerHandlerHostLikeCpp<C> {
+    fn player_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> PlayerHandlerCxLikeCpp<'a>;
 }
 
 fn handle_query_time_thunk<'a, S, C>(
@@ -124,12 +139,12 @@ fn handle_query_time_thunk<'a, S, C>(
     _pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
-    S: PlayerQueryHandlerHostLikeCpp<C> + Send,
+    S: PlayerHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
     Box::pin(async move {
         session
-            .player_query_handler_cx_like_cpp(catalogs)
+            .player_handler_cx_like_cpp(catalogs)
             .handle_query_time()
             .await;
     })
@@ -141,12 +156,12 @@ fn handle_query_next_mail_time_thunk<'a, S, C>(
     _pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
-    S: PlayerQueryHandlerHostLikeCpp<C> + Send,
+    S: PlayerHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
     Box::pin(async move {
         session
-            .player_query_handler_cx_like_cpp(catalogs)
+            .player_handler_cx_like_cpp(catalogs)
             .handle_query_next_mail_time()
             .await;
     })
@@ -158,23 +173,40 @@ fn handle_set_selection_thunk<'a, S, C>(
     pkt: WorldPacket,
 ) -> HandlerFuture<'a, ()>
 where
-    S: PlayerQueryHandlerHostLikeCpp<C> + Send,
+    S: PlayerHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
     Box::pin(async move {
         session
-            .player_query_handler_cx_like_cpp(catalogs)
+            .player_handler_cx_like_cpp(catalogs)
             .handle_set_selection(pkt)
             .await;
     })
 }
 
-/// Registers the player query handlers on the packet registry.
-pub fn register_player_query_handlers_like_cpp<S, C>(
+fn handle_set_action_button_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: PlayerHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .player_handler_cx_like_cpp(catalogs)
+            .handle_set_action_button(pkt)
+            .await;
+    })
+}
+
+/// Registers the player handlers on the packet registry.
+pub fn register_player_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
 where
-    S: PlayerQueryHandlerHostLikeCpp<C> + Send,
+    S: PlayerHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
     builder.register(PacketHandlerEntry {
@@ -197,6 +229,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_selection",
         handler: handle_set_selection_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SetActionButton,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_action_button",
+        handler: handle_set_action_button_thunk::<S, C>,
     })?;
     Ok(())
 }

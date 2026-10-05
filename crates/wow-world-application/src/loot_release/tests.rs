@@ -35,18 +35,12 @@ fn direct_item_count_caps_the_destroy_count_at_the_current_count() {
         direct_item_count_after_loot_release_like_cpp(4, Some(u32::MAX)),
         0
     );
-    assert_eq!(
-        direct_item_count_after_loot_release_like_cpp(4, Some(5)),
-        0
-    );
+    assert_eq!(direct_item_count_after_loot_release_like_cpp(4, Some(5)), 0);
 }
 
 #[test]
 fn direct_item_count_with_zero_destroy_count_keeps_the_stack() {
-    assert_eq!(
-        direct_item_count_after_loot_release_like_cpp(7, Some(0)),
-        7
-    );
+    assert_eq!(direct_item_count_after_loot_release_like_cpp(7, Some(0)), 7);
     assert_eq!(direct_item_count_after_loot_release_like_cpp(0, Some(0)), 0);
 }
 
@@ -56,10 +50,7 @@ fn durable_fanout_viewers_are_the_union_of_both_snapshots() {
     let second = ObjectGuid::create_player(1, 2);
     let third = ObjectGuid::create_player(1, 3);
 
-    let viewers = durable_loot_item_fanout_viewers_like_cpp(
-        &[first, second],
-        &[second, third],
-    );
+    let viewers = durable_loot_item_fanout_viewers_like_cpp(&[first, second], &[second, third]);
     assert_eq!(viewers.len(), 3);
     assert!(viewers.contains(&first));
     assert!(viewers.contains(&second));

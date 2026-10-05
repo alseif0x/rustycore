@@ -5779,6 +5779,27 @@ R1 v2 **PASS** — `S = 72.376`, `G_move = 111.228`, requisito `34.933,20` → *
 **No validado todavía.** Sin campaña `final` nueva. Quedan **193 registros literales** y los demás
 remates de F4 (StorageMove, seams de CompleteQuest, trainer buy, Save/persistencia) siguen abiertos.
 
+#### F5: dueño `ApplicationPlayer` (renombrado) y `SetActionButton` — 2026-10-05, `29127a683..HEAD`
+
+El registrador `ApplicationPlayerQuery` pasa a llamarse **`ApplicationPlayer`** (módulo
+`crate::player_handlers`, fichero y contexto renombrados) porque ya no aloja solo consultas:
+`SetActionButton` se mueve a él desde el shell con el mismo contexto hub-only
+(`represented_set_action_button_like_cpp`). El renombrado es mecánico y las fachadas del
+contract-check conservan sus tres exports exactos. `entities/player` queda en **4 registros
+literales** (far sight, stand state, set title, item purchase data), que dependen de seams aún
+propiedad del shell (visibilidad con catálogos de spawn, puente de *live intent*, colecciones de
+títulos, tienda de coste extendido) y se moverán cuando esos dueños migren.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos),
+**54 de `handlers::entities`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.135 items / 711 filas, baseline
+sin cambios); `check_architecture.py check` **PASS** (3.386 ficheros / 102 techos); R1 v2:
+`S = 72.398`, `G_move = 111.257`, requisito `34.939,10` → **presupuesto 34.940**, 0 violaciones / 0
+permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; quedan **192 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
