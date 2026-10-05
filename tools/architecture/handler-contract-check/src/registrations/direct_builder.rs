@@ -36,6 +36,7 @@ pub(crate) struct DirectRegistrarContract {
 }
 
 const INVENTORY_ROOT_EXPORTS: &[&str] = &[
+    "AuctionHandlerCxLikeCpp",
     "ItemTextQueryHandlerCxLikeCpp",
     "EquipmentSetsHandlerCxLikeCpp",
     "InventoryHandlerHostLikeCpp",

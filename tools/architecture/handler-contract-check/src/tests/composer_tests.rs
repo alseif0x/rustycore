@@ -194,6 +194,7 @@ where
 fn synthetic_two_owner_mounts() -> Vec<WorkspaceSourceMount> {
     let inventory_root = r#"
 pub use handlers::{
+    AuctionHandlerCxLikeCpp,
     ItemTextQueryHandlerCxLikeCpp,
     EquipmentSetsHandlerCxLikeCpp,
     InventoryHandlerHostLikeCpp,
@@ -517,12 +518,12 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     assert_rejected(&altered_expect, "changed fixture expect contract");
 
     let mut missing_root_facade = actual_mounts();
-    // rustfmt keeps this export on the shared line with the previous item, so the
-    // mutation has to match the formatted layout to remove anything.
+    // rustfmt wrapped this export onto its own line, so the mutation has to
+    // match the formatted layout to remove anything.
     missing_root_facade[2].source = mutate_fixture(
         &missing_root_facade[2].source,
-        "ItemTextQueryHandlerCxLikeCpp, register_inventory_handlers_like_cpp,\n",
-        "ItemTextQueryHandlerCxLikeCpp,\n",
+        "    register_inventory_handlers_like_cpp,\n",
+        "",
     );
     assert_rejected(&missing_root_facade, "missing root facade export");
 
