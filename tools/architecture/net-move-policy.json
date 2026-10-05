@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 33887,
     "measured_requirement": 33887,
-    "recorded_at_revision": "84ec6e2345b0c4197749d9d9f8855eda4c520065",
+    "recorded_at_revision": "829cf4b585cb4aa744bd3cefd0005b577fc4e92b",
     "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71405, G_move = 109162, ratio and slack credits = 71405 * 1.05 + 300 = 75275.25, so the requirement is 33886.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
@@ -146,7 +146,6 @@
         "new_code": 171,
         "note": "The world-quest-update, quest-info and quest-completion-NPC query handlers moved from the World shell to a new application quest-query registrar with a hub-plus-quest-store context; the quest-store Arc is cloned into the context so the hub keeps its single mutable borrow. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
-
     ],
     "areas": [
       {
