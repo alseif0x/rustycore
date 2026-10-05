@@ -603,6 +603,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::group::commands",
           "trait_path": null,
           "cfg": [],
@@ -1217,6 +1225,12 @@
         {
           "module": "crate::session",
           "trait_path": "InventoryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "PlayerQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -6865,34 +6879,6 @@
           "module": "crate::handlers::entities::player",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_query_next_mail_time",
-          "visibility": "pub",
-          "signature": "async fn handle_query_next_mail_time (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::player",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_time",
-          "visibility": "pub",
-          "signature": "async fn handle_query_time (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::player",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_set_action_button",
           "visibility": "pub",
           "signature": "async fn handle_set_action_button (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -6949,20 +6935,6 @@
           "module": "crate::handlers::entities::player",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_set_selection",
-          "visibility": "pub",
-          "signature": "async fn handle_set_selection (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::player",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_set_title",
           "visibility": "pub",
           "signature": "async fn handle_set_title (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -6996,6 +6968,54 @@
           "signature": "async fn handle_toggle_difficulty (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_next_mail_time",
+          "visibility": "pub",
+          "signature": "async fn handle_query_next_mail_time (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_time",
+          "visibility": "pub",
+          "signature": "async fn handle_query_time (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_selection",
+          "visibility": "pub",
+          "signature": "async fn handle_set_selection (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44438,6 +44458,19 @@
           "name": "item_text_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn item_text_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "PlayerQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "player_query_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn player_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> PlayerQueryHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

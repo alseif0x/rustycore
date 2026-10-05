@@ -3,18 +3,15 @@
 
 //! Private player capability handlers extracted from the legacy misc owner.
 
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 use wow_constants::{ClientOpcodes, UnitStandStateType};
-use wow_core::{GameTime, ObjectGuid};
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::item::{GetItemPurchaseData, SetItemPurchaseData};
-use wow_packet::packets::misc::{
-    FarSight, MailNextTimeEntry, MailQueryNextTimeResult, StandStateChange,
-};
+use wow_packet::packets::misc::{FarSight, StandStateChange};
 use wow_packet::packets::spell::SetActionButton;
 
 use super::item_purchase_contents_from_extended_cost;
@@ -41,44 +38,12 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SetSelection,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_selection",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_selection(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::StandStateChange,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_stand_state_change",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_stand_state_change(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryTime,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_time",
-        handler: |session, _catalogs, _pkt| Box::pin(async move { session.handle_query_time().await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryNextMailTime,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_query_next_mail_time",
-        handler: |session, _catalogs, _pkt| {
-            Box::pin(async move { session.handle_query_next_mail_time().await })
         },
     }
 }
@@ -117,6 +82,9 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
+#[cfg(test)]
+mod test_shims;
+
 impl crate::session::WorldSession {
     /// C++ `WorldSession::HandleFarSightOpcode`: does not create/remove the
     /// viewpoint; it only switches the represented seer and forces visibility.
@@ -145,20 +113,6 @@ impl crate::session::WorldSession {
             .await;
     }
 
-    /// CMSG_SET_SELECTION — client clicked/targeted an object.
-    /// Payload: packed GUID of selected object (0 clears selection).
-
-    pub async fn handle_set_selection(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let target_guid = pkt
-            .read_packed_guid()
-            .unwrap_or(wow_core::ObjectGuid::EMPTY);
-        crate::session::hub_mut(self).set_selection_guid_like_cpp(Some(target_guid));
-        info!(
-            "SetSelection: account {} → {:?}",
-            self.core.account_id, target_guid
-        );
-    }
-
     pub async fn handle_stand_state_change(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match StandStateChange::read(&mut pkt) {
             Ok(packet) => packet,
@@ -184,70 +138,6 @@ impl crate::session::WorldSession {
                 crate::session::RepresentedStandStateChangedLikeCpp { state: stand_state },
             ),
         );
-    }
-
-    // ── QueryTime ─────────────────────────────────────────────────────────────
-
-    /// CMSG_QUERY_TIME — client requests current server time.
-    /// C# ref: QueryHandler.HandleQueryTime → SendQueryTimeResponse
-    pub async fn handle_query_time(&mut self) {
-        use std::time::{SystemTime, UNIX_EPOCH};
-        use wow_packet::packets::misc::QueryTimeResponse;
-
-        let ts = SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .map(|d| d.as_secs() as i64)
-            .unwrap_or(0);
-
-        self.send_packet(&QueryTimeResponse { current_time: ts });
-    }
-
-    // ── QueryNextMailTime ──────────────────────────────────────────────────────
-
-    pub async fn handle_query_next_mail_time(&mut self) {
-        const MAIL_CHECK_MASK_READ_LIKE_CPP: u8 = 0x01;
-        const MAIL_NORMAL_LIKE_CPP: u8 = 0;
-
-        let Some(rows) = crate::session::hub_ref(self).owned_player_mails_like_cpp() else {
-            self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
-            return;
-        };
-        let now = GameTime::now().as_secs() as i64;
-
-        let mut packet = MailQueryNextTimeResult::no_mail();
-        let mut sent_senders = std::collections::BTreeSet::new();
-
-        for row in rows {
-            if (row.checked_flags as u8 & MAIL_CHECK_MASK_READ_LIKE_CPP) == 0
-                && now >= row.deliver_time as i64
-                && sent_senders.insert(row.sender)
-            {
-                let sender_guid = if row.message_type == MAIL_NORMAL_LIKE_CPP {
-                    ObjectGuid::create_player(self.realm_id(), row.sender as i64)
-                } else {
-                    ObjectGuid::EMPTY
-                };
-
-                packet.next_mail_time = 0.0;
-                packet.next.push(MailNextTimeEntry {
-                    sender_guid,
-                    time_left: (row.deliver_time as i64 - now) as f32,
-                    alt_sender_id: if row.message_type == MAIL_NORMAL_LIKE_CPP {
-                        0
-                    } else {
-                        row.sender as i32
-                    },
-                    alt_sender_type: row.message_type as i8,
-                    stationery_id: row.stationery_id,
-                });
-
-                if sent_senders.len() > 2 {
-                    break;
-                }
-            }
-        }
-
-        self.send_packet_realm(&packet);
     }
 
     pub async fn handle_set_action_button(&mut self, mut pkt: wow_packet::WorldPacket) {

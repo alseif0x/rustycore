@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34022,
-    "measured_requirement": 34022,
+    "budget": 34171,
+    "measured_requirement": 34171,
     "recorded_at_revision": "10ea5839353095fde81adc58e2292ad7d3bc1987",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71407, G_move = 109299, ratio and slack credits = 71407 * 1.05 + 300 = 75277.35, so the requirement is 34021.65 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 71462, G_move = 109506, ratio and slack credits = 71462 * 1.05 + 300 = 75335.1, so the requirement is 34170.9 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -152,6 +152,13 @@
         "destination_growth": 137,
         "new_code": 135,
         "note": "AttackStop and SetSheathed moved from the World shell to a new application combat registrar that only needs the hub; the new contract carries the usual Cx, host trait, two thunks and registrar boilerplate, which is most of the net growth. The attack-swing handler stays because its admission seam is shell-owned. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player query slice (10ea58393..HEAD, three handlers)",
+        "shrink": 55,
+        "destination_growth": 207,
+        "new_code": 152,
+        "note": "QueryTime, QueryNextMailTime and SetSelection moved from the World shell to a new application player-query registrar with a hub-only context; the new contract boilerplate (Cx, host trait, three thunks, registrar) is most of the net growth. The remaining player handlers stay while they call shell-owned seams (far sight visibility, live-intent stand state, title persistence, item purchase data). The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

@@ -5531,6 +5531,33 @@ spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9),
 entities/player (8), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4),
 corpse (4), gameobject (3) y combat (1).
 
+#### F5: familia player query, corte de consultas (3 opcodes) a `wow-world-application` — 2026-10-05, `10ea58393..HEAD`
+
+`QueryTime`, `QueryNextMailTime` y `SetSelection` pasan al registrador directo
+`ApplicationPlayerQuery` (`crates/wow-world-application/src/player_query_handlers.rs`), con el
+mismo contexto hub-only que combat: reloj (`SystemTime`), estado de correo del jugador
+(`owned_player_mails_like_cpp`), `realm_id` y publicación (`send_packet`/`send_packet_realm`) ya
+viven en el hub de Core, sin catálogos prestados. `entities/player` queda en **5 registros
+literales**; permanecen en el shell los handlers que siguen llamando a seams propios (far sight con
+visibilidad, stand state por *live intent*, `SetActionButton`, `SetTitle` con persistencia y
+`GetItemPurchaseData`).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos,
+metadata `Inplace`/`ThreadUnsafe` y `handler_name` sin cambios), **54 de `handlers::entities`** y
+**8 con filtro `mail`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; suite del tool **443/443**; `session-ownership-check check --syntax-only`
+**PASS** (187 owners / 3.130 items / 674 filas); `check_architecture.py check` **PASS** (3.379
+ficheros / 102 techos); hotspots reconciliados (`session/mod.rs`: producción 60.955 → 60.977, test
+138.178 → 138.180, total 199.133 → 199.157; `world-server/lib.rs`: producción 31.784 → 31.788,
+total 60.495 → 60.499). R1 v2: `S = 71.462`, `G_move = 109.506`, requisito `34.170,90` →
+**presupuesto 34.171**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Quedan **212 registros literales** en `wow-world`: character/account (57), trade (15), quest (14),
+spell (13), movement (13), guild (13), battlegrounds (13), pets (10), group (9), vehicle (8),
+entities/player (5), travel (7), loot (7), collections (7), dungeon_finding (5), void_storage (4),
+corpse (4), gameobject (3) y combat (1).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
