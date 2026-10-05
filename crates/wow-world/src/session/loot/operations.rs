@@ -145,34 +145,6 @@ impl WorldSession {
         )
         .await
     }
-    pub(in crate::session) fn represented_creature_has_loot_recipient_like_cpp(
-        &self,
-        creature_guid: wow_core::ObjectGuid,
-    ) -> Option<bool> {
-        if let Some(manager) = self.core.map_manager.as_ref() {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(creature) =
-                manager.find_creature(self.core.player_map_id_like_cpp(), 0, creature_guid)
-            {
-                return Some(creature.creature.has_loot_recipient());
-            }
-        }
-
-        let key = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .unwrap_or(wow_map::MapKey::new(
-                u32::from(self.core.player_map_id_like_cpp()),
-                0,
-            ));
-        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
-        manager
-            .find_map(key.map_id, key.instance_id)?
-            .map()
-            .with_creature_like_cpp(creature_guid, |creature| creature.has_loot_recipient())
-    }
     pub(crate) fn remove_auras_with_looting_interrupt_flags_like_cpp(&mut self) -> usize {
         self.remove_auras_with_interrupt_flags_like_cpp(
             SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP,

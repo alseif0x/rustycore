@@ -12,38 +12,7 @@ use wow_world_application::{
     AppTrainerBuyCx, AppTrainerCx, AppTrainerListCx, TrainerAcquisitionCatalogsLikeCpp,
     TrainerListCatalogsLikeCpp,
 };
-use wow_world_core::session::NpcInteractionAccessLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_core::session::NpcInteractionFixtureRefsLikeCpp;
-
 impl WorldSession {
-    /// Select only the Core, catalog, and fixture inputs consumed by the
-    /// existing NPC-interaction operation.
-    pub(crate) fn trainer_npc_interaction_access_like_cpp(
-        &self,
-    ) -> NpcInteractionAccessLikeCpp<'_> {
-        self.core.npc_interaction_access_with_selected_refs_like_cpp(
-            self.catalogs.factions.store.as_deref(),
-            self.catalogs.factions.template_store.as_deref(),
-            self.catalogs.friendship_rep_reaction_store.as_deref(),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            NpcInteractionFixtureRefsLikeCpp::new(
-                &self.fixtures.movement.player_position,
-                &self.fixtures.identity.player_faction_template_like_cpp,
-                &self.fixtures.identity.player_race,
-                &self.fixtures.identity.player_class,
-                &self.fixtures.combat.player_health_like_cpp,
-                &self.fixtures.combat.player_max_health_like_cpp,
-                &self.fixtures.combat.player_alive_like_cpp,
-                &self.fixtures.progression.reputation_state_like_cpp,
-                &self.fixtures.vehicles.taxi_destinations_like_cpp,
-                &self.fixtures.vehicles.taxi_flight_state_like_cpp,
-                &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
-                &self.fixtures.vehicles.taxi_mounted_like_cpp,
-            ),
-        )
-    }
-
     /// Borrow the existing disjoint owners and selected catalogs for one
     /// trainer operation. Fixture mode follows this World consumer's
     /// `cfg(test)` status, even when the shared fixture feature is enabled.

@@ -29853,19 +29853,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_creature_has_loot_recipient_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_creature_kill_events_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_creature_kill_events_like_cpp (& self ,) -> & [RepresentedCreatureKillEventLikeCpp]",
@@ -43140,19 +43127,6 @@
           "name": "trainer_list_publication_context_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn trainer_list_publication_context_like_cpp (& mut self) -> AppTrainerListCx < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "trainer_npc_interaction_access_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn trainer_npc_interaction_access_like_cpp (& self ,) -> NpcInteractionAccessLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -71885,90 +71859,6 @@
             }
           ],
           "fingerprint": "signature=fn run_legacy_player_melee_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , attackers : & [PlayerMeleeAttackerSnapshotLikeCpp] , diff_ms : u32 , phase_state : & mut PlayerMeleePhaseStateLikeCpp , config : & LegacyCreatureAggroConfigLikeCpp ,) -> LegacyPlayerMeleeTickOutcomeLikeCpp|body=fnv1a64x2:e0b2e76396bab6aa0563d6d0b613bb81:len=18483|evidence=fnv1a64x2:6962dcca3859daf99263449c4c110406:len=9653",
-          "cfg": [],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::loot::operations",
-          "path": "crates/wow-world/src/session/loot/operations.rs",
-          "enclosing": "WorldSession::represented_creature_has_loot_recipient_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "manager",
-              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "find_map",
-              "fingerprint": "fnv1a64x2:0c93a865c39e4d159c77660d5e1a40e6:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "lock",
-              "fingerprint": "fnv1a64x2:aa000710cb39ff257e150c4ea7cce342:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:ac723824e5749655229d407a9e29ad8a:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "ok",
-              "fingerprint": "fnv1a64x2:fcae26fbc9293db10a86e236fe251b1e:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "with_creature_like_cpp",
-              "fingerprint": "fnv1a64x2:dcf99b032a937c21afdf633e81785c38:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >|body=fnv1a64x2:6fc927e84f700a341ccf5dc553834fa7:len=747|evidence=fnv1a64x2:ea7e8cd629ffff0295b4a01d808dff85:len=809",
           "cfg": [],
           "multiplicity": 1
         },

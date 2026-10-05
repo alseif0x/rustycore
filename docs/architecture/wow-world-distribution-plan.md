@@ -4636,6 +4636,75 @@ externo (F6) o una decisión explícita del propietario sobre la regla. El objet
 abierto: F5 tiene 375 registros `register_packet_handler_like_cpp!` pendientes de migrar y F6
 tiene la pista de comportamiento.
 
+#### Contabilidad R1 y retirada F6 de duplicados muertos — 2026-10-05 (ronda posterior a `d054f925b`)
+
+Continúa el hallazgo anterior con la contabilidad que él mismo exigía. Se remide R1 en la línea
+de tiempo de la rama (misma base `24a513855`, que ya contiene F4a P4a y cuyo propio informe R1
+dio `S=14.372, G=15.385` **PASS**), y se mide por primera vez la duplicación real que la regla
+pretende castigar.
+
+| Hito | S | G | allowance | exceso |
+| --- | ---: | ---: | ---: | ---: |
+| `e047d2336` primer paso P4b | 126 | 2.281 | 432,3 | +1.848,7 |
+| `e4c379ec2` vistas hub P4b | 7.962 | 10.983 | 8.660,1 | +2.322,9 |
+| `21159a71c` barrido P4b | 10.462 | 13.684 | 11.285,1 | +2.398,9 |
+| `b7a6b7a43` primer paso F4b | 37.152 | 43.380 | 39.309,6 | +4.070,4 |
+| `062fc7803` métodos lifecycle F4b | 45.293 | 52.632 | 47.857,7 | +4.774,3 |
+| `969bee686` aplicación F4b | 57.280 | 95.207 | 60.444,0 | +34.763,0 |
+| `6e9bd9c20` cierre del gate Python | 65.590 | 103.961 | 69.169,5 | +34.791,5 |
+| `c3488195e` checkpoint de pausa | 57.267 | 94.799 | 60.430,4 | +34.368,6 |
+| `d054f925b` HEAD de la campaña | 66.860 | 105.413 | 70.503,0 | +34.910,0 |
+
+R1 **nunca ha pasado** para P4b en adelante: ya el primer paso P4b tenía 126 líneas encogidas
+frente a 2.281 de crecimiento externo, es decir el andamiaje nuevo (módulo Core, `Cx`, host,
+fachadas) se escribe antes de que el origen pierda sus cuerpos. El exceso creció de +1,8k a
++34,4k durante P4b/F4b y solo +541 líneas en todas las rondas posteriores a la pausa.
+
+Composición de `G = 105.413` por área (delta neto de líneas `.rs`, base `24a513855`):
+`wow-world-core/src` +34.127, `wow-world-application/src` +26.215, `wow-world-inventory/src`
++10.110, `wow-world-lifecycle/src` +7.940, `tools/architecture` +7.026, `wow-world-spell/src`
++6.034, `wow-world-entities/src` +5.270, `wow-world-loot/src` +2.706, `wow-world-social/src`
++2.481, `unit_tests` de los crates trasladados ≈+3.983, resto de crates de dominio y
+`world-server/src` el resto. Es decir: ~11.000 líneas son tooling y pruebas (nunca destinos de
+código de `wow-world`) y ~24.000 son superficie nueva del propio corte (tipos `Cx`, traits host,
+registradores, cabeceras, imports explícitos y la funcionalidad nueva de F4b/F5/F6).
+
+**Duplicación real medida (el objeto de R1).** Comparando cuerpos de función normalizados entre
+`crates/wow-world/src` y los ocho crates de dominio, quedan **7 cuerpos exactamente idénticos,
+140 líneas** (`represented_loot_authority_pools_like_cpp`, `reconcile_represented_loot_cache_like_cpp`,
+`represented_creature_has_loot_recipient_like_cpp`, `trainer_npc_interaction_access_like_cpp`,
+`add_loot_item_stacks_like_cpp`, `player_race_mask_like_cpp`,
+`apply_aura_with_effect_mask_like_cpp`). No hay por tanto un espejo de ~35k líneas: el programa
+sí borra sus orígenes. De esos siete, cinco siguen vivos en ambos lados porque pertenecen a
+familias F5 aún no migradas (`loot_release`, `loot_template_rules`, `aura_removal`).
+
+**Retirada F6 aplicada (código escrito y comprobado).** Los dos restantes eran métodos
+`WorldSession` **sin ninguna referencia** en todo el repositorio (ni producción ni
+`unit_tests`), duplicados de la copia viva en `SessionCore`:
+`WorldSession::represented_creature_has_loot_recipient_like_cpp`
+(`crates/wow-world/src/session/loot/operations.rs`) y
+`WorldSession::trainer_npc_interaction_access_like_cpp`
+(`crates/wow-world/src/session/trainer_acquisition.rs`, más sus dos imports exclusivos). Se
+retiran; `cargo check -p wow-world --lib --features test-fixtures` compila (35,72 s). El
+baseline de ownership baja de **3.161 a 3.159 items impl** y de **85 a 84 bridges**, con un
+delta revisado de exactamente tres hunks eliminados (dos items y el bridge
+`unresolved_dual_side` de `represented_creature_has_loot_recipient_like_cpp`, que existía
+justo por la ambigüedad de la copia). `session-ownership-check check --syntax-only` vuelve a
+**PASS** (166 owners / 3.159 items / 674 filas de registro).
+
+**Consecuencia para R1.** La retirada de duplicados no puede cerrar el exceso: solo hay 140
+líneas duplicadas medidas, y R1 exigiría retirar al menos **33.249 líneas** dentro de
+`crates/wow-world/src` (o 34.910 fuera) para volver al presupuesto, lo que equivaldría a borrar
+los entregables del propio corte (crates nuevos, glue `Cx`/host/registrador, pruebas y tooling).
+El exceso no proviene de copias sin borrar ni de las rondas posteriores a la pausa (+541), sino
+de que la regla actual mide *todo* crecimiento fuera de `wow-world/src` como si fuera destino de
+un traslado, y el programa P4b→F5 es una extracción incremental que además **añade** superficie
+nueva y funcionalidad. Decisión pendiente del propietario (no se cambia la tolerancia sin ella):
+(A) corregir el alcance medido de R1 conforme a su propia documentación (excluir rutas que no
+pueden ser destino de código de `wow-world`, p. ej. `tools/**` y los árboles de pruebas, ~11.000
+líneas) más un registro revisado del crecimiento nuevo de P4b/F4b/F5, o (B) dejar R1 en rojo y
+reportar `final` como no verde por esta regla.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
