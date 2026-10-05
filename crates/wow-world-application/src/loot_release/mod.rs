@@ -27,6 +27,9 @@ const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
 /// C++ `SpellEffects::SPELL_EFFECT_OPEN_LOCK`.
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
 
+#[cfg(test)]
+mod tests;
+
 #[derive(Clone)]
 pub struct AuthoritativeLootReleaseLikeCpp {
     pub authority: OwnedLootAuthority,

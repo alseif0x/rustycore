@@ -5759,6 +5759,26 @@ permitidos / 0 obsoletos.
 
 **No validado todavía.** Sin campaña `final` nueva; quedan **193 registros literales**.
 
+#### F4: primeras pruebas propias de LootRelease en `wow-world-application` — 2026-10-05, `d23f4926c..HEAD`
+
+Se cierra el remate de F4 «el módulo App de loot release no tiene pruebas propias». Se añade
+`crates/wow-world-application/src/loot_release/tests.rs` con **6 casos** sobre los dos ayudantes
+puros que el dueño App define: `direct_item_count_after_loot_release_like_cpp` (release completo,
+parcial, tope del contador de destrucción, máximo cero, pila vacía) y
+`durable_loot_item_fanout_viewers_like_cpp` (unión de los dos cortes, deduplicación, cortes vacíos).
+Los caminos integrados con sesión (release, fanout y cierre diferido) siguen cubiertos desde
+`wow-world` porque necesitan un `WorldSession` compuesto; el documento lo declara explícitamente en
+la cabecera del módulo de pruebas.
+
+**Evidencia enfocada (nivel 1, no aceptación):** `cargo test -p wow-world-application --lib`
+**58 pasan** (52 previos + 6 nuevos); `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; suite del tool **443/443**; `check_architecture.py check` **PASS**;
+R1 v2 **PASS** — `S = 72.376`, `G_move = 111.228`, requisito `34.933,20` → **presupuesto 34.934**,
+0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva. Quedan **193 registros literales** y los demás
+remates de F4 (StorageMove, seams de CompleteQuest, trainer buy, Save/persistencia) siguen abiertos.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

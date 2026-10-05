@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 34854,
-    "measured_requirement": 34854,
+    "budget": 34934,
+    "measured_requirement": 34934,
     "recorded_at_revision": "d23f4926cf1ae59c32ac47018178109cfcc78a51",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72375, G_move = 111147, ratio and slack credits = 72375 * 1.05 + 300 = 76293.75, so the requirement is 34853.25 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72376, G_move = 111228, ratio and slack credits = 72376 * 1.05 + 300 = 76294.8, so the requirement is 34933.2 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -215,6 +215,13 @@
         "destination_growth": 149,
         "new_code": 81,
         "note": "RandomRoll and OptOutOfLoot moved into the existing ApplicationGroup registrar, which now also borrows the loot state through a new social+lifecycle+loot split helper; rand moves with the roll. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F4 LootRelease application tests (d23f4926c..HEAD)",
+        "shrink": 1,
+        "destination_growth": 81,
+        "new_code": 80,
+        "note": "First application-owned tests for the loot-release module: the pure helpers direct_item_count_after_loot_release_like_cpp and durable_loot_item_fanout_viewers_like_cpp are pinned in the crate that defines them (six cases). The session-integrated release/fanout paths keep their wow-world coverage because they need a composed WorldSession. The shrink line is the session/mod.rs doc compaction."
       }
     ],
     "areas": [
