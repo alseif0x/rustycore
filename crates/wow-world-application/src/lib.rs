@@ -9,6 +9,7 @@ pub mod character_enumeration;
 pub mod character_login_support;
 mod client_state;
 mod data_service_handlers;
+mod group_handlers;
 mod instances;
 mod loot_release;
 mod player_conditions;
@@ -67,6 +68,9 @@ pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 pub use equipment_set_use::{
     EquipmentSetUseContextLikeCpp, EquipmentSetUseHandlerHostLikeCpp,
     EquipmentSetUseItemModsStoresLikeCpp, register_equipment_set_use_handler_like_cpp,
+};
+pub use group_handlers::{
+    GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
 };
 pub use instances::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,

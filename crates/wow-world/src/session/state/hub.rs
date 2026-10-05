@@ -60,6 +60,27 @@ pub(crate) fn split_social_mut(s: &mut WorldSession) -> (&mut SessionSocialLimit
     )
 }
 
+/// `&mut` social and lifecycle state plus the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_social_lifecycle_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSocialLimits,
+    &mut SessionLifecycleState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.social,
+        &mut s.lifecycle,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Shared group state plus the shared hub for `&self` methods.
 pub(crate) fn split_social_ref(s: &WorldSession) -> (&SessionSocialLimits, HubRef<'_>) {
     (&s.social, hub_ref(s))

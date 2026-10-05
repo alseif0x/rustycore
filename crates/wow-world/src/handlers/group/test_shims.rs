@@ -99,4 +99,31 @@ impl WorldSession {
             .await;
     }
 
+    pub async fn handle_set_party_leader(&mut self, pkt: WorldPacket) {
+        let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+        wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+            .handle_set_party_leader(pkt)
+            .await;
+    }
+
+    pub async fn handle_set_assistant_leader(&mut self, pkt: WorldPacket) {
+        let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+        wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+            .handle_set_assistant_leader(pkt)
+            .await;
+    }
+
+    pub async fn handle_set_everyone_is_assistant(&mut self, pkt: WorldPacket) {
+        let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+        wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+            .handle_set_everyone_is_assistant(pkt)
+            .await;
+    }
+
+    pub async fn handle_set_party_assignment(&mut self, pkt: WorldPacket) {
+        let (social, lifecycle, hub) = crate::session::split_social_lifecycle_mut(self);
+        wow_world_application::GroupHandlerCxLikeCpp::new(social, lifecycle, hub)
+            .handle_set_party_assignment(pkt)
+            .await;
+    }
 }

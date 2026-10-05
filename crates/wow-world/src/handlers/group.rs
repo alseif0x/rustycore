@@ -144,52 +144,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SetPartyLeader,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_set_party_leader",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_party_leader(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetAssistantLeader,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_assistant_leader",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_assistant_leader(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetEveryoneIsAssistant,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_everyone_is_assistant",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_everyone_is_assistant(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetPartyAssignment,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_party_assignment",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_party_assignment(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::OptOutOfLoot,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
