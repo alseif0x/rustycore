@@ -26,42 +26,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePayGetProductList,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pay_stub",
-        handler: |_session, _catalogs, _pkt| {
-            Box::pin(async move { tracing::trace!("Stub handler for {:?} (0x{:04X}) — no response needed", ClientOpcodes::BattlePayGetProductList, ClientOpcodes::BattlePayGetProductList as u32) })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePayGetPurchaseList,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pay_stub",
-        handler: |_session, _catalogs, _pkt| {
-            Box::pin(async move { tracing::trace!("Stub handler for {:?} (0x{:04X}) — no response needed", ClientOpcodes::BattlePayGetPurchaseList, ClientOpcodes::BattlePayGetPurchaseList as u32) })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UpdateVasPurchaseStates,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_vas_stub",
-        handler: |_session, _catalogs, _pkt| {
-            Box::pin(async move { tracing::trace!("Stub handler for {:?} (0x{:04X}) — no response needed", ClientOpcodes::UpdateVasPurchaseStates, ClientOpcodes::UpdateVasPurchaseStates as u32) })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::DbQueryBulk,
         status: SessionStatus::Authed,
         processing: PacketProcessing::Inplace,

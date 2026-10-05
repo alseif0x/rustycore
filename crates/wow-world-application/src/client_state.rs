@@ -3,7 +3,8 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Client-state, telemetry, cinematic and inert movement-ack handlers.
+//! Client-state, telemetry, cinematic, inert movement-ack and unimplemented
+//! purchase-service (BattlePay/VAS) stub handlers.
 //!
 //! C++ source of truth: the `MiscHandler.cpp` client-state and telemetry
 //! branches plus the movement acknowledgements TrinityCore accepts and drops.
@@ -708,6 +709,60 @@ where
     })
 }
 
+fn battle_pay_get_product_list_stub_thunk<'a, S, C>(
+    _session: &'a mut S,
+    _catalogs: &'a C,
+    _pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        trace!(
+            "Stub handler for {:?} (0x{:04X}) — no response needed",
+            ClientOpcodes::BattlePayGetProductList,
+            ClientOpcodes::BattlePayGetProductList as u32
+        );
+    })
+}
+
+fn battle_pay_get_purchase_list_stub_thunk<'a, S, C>(
+    _session: &'a mut S,
+    _catalogs: &'a C,
+    _pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        trace!(
+            "Stub handler for {:?} (0x{:04X}) — no response needed",
+            ClientOpcodes::BattlePayGetPurchaseList,
+            ClientOpcodes::BattlePayGetPurchaseList as u32
+        );
+    })
+}
+
+fn update_vas_purchase_states_stub_thunk<'a, S, C>(
+    _session: &'a mut S,
+    _catalogs: &'a C,
+    _pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        trace!(
+            "Stub handler for {:?} (0x{:04X}) — no response needed",
+            ClientOpcodes::UpdateVasPurchaseStates,
+            ClientOpcodes::UpdateVasPurchaseStates as u32
+        );
+    })
+}
+
 /// Register the client-state packet entries through their application adapter.
 pub fn register_client_state_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -1128,6 +1183,27 @@ where
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_unhandled_client_null_like_cpp",
         handler: handle_unhandled_client_null_like_cpp_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePayGetProductList,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pay_stub",
+        handler: battle_pay_get_product_list_stub_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlePayGetPurchaseList,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battle_pay_stub",
+        handler: battle_pay_get_purchase_list_stub_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::UpdateVasPurchaseStates,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_vas_stub",
+        handler: update_vas_purchase_states_stub_thunk::<S, C>,
     })?;
     Ok(())
 }
