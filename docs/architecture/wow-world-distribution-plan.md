@@ -5156,6 +5156,38 @@ violaciones / 5 permitidos / 0 obsoletos.
 **No validado todavía.** Sigue sin repetirse la campaña `final`; la evidencia verde vigente es la
 de `f7553c7d0` y no se relabela. Quedan las familias grandes de F5 y la pista F6/capturas/QA live.
 
+#### F5: familia arena team (8 opcodes) movida a `wow-world-social` — 2026-10-05, `edec497ce`
+
+Tercer corte de la jornada y el más barato: los ocho opcodes de equipo de arena
+—`ArenaTeamRoster`, `ArenaTeamAccept`, `ArenaTeamDecline`, `ArenaTeamLeave`, `ArenaTeamRemove`,
+`ArenaTeamDisband`, `ArenaTeamLeader`, `QueryArenaTeam`— y sus cuerpos pertenecen al registrador
+directo `SocialArenaTeam` de `wow-world-social`
+(`crates/wow-world-social/src/arena_team_handlers.rs`, 408 líneas). El contexto es
+`ArenaTeamHandlerCxLikeCpp { hub: HubMut, social: &mut SessionSocialLimits }` y el único estado que
+toca —`set_represented_arena_team_id_invited_like_cpp`— ya estaba en la crate social
+(`requests.rs`), así que el corte no introduce dependencias nuevas. Los cuerpos restantes conservan
+las ramas C++ sin `ArenaTeamMgr` representado (parsear y registrar en log), sin inventar paquetes.
+
+Fichero `arena.rs` retirado; `handlers/battlegrounds` conserva la familia battleground y añade los
+ocho delegados `cfg(test)` en `test_shims.rs`. Contexto host en
+`session/arena_team_handler_contexts.rs` + montaje y llamada al registrador tras contactos
+sociales en ambos compositores; contrato `ARENA_TEAM_REGISTRAR`, dueño de módulo y montaje en el
+guardián de composición.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 31 tests `handlers::battlegrounds` (incluidos los
+ocho de arena) en verde; `cargo check` de `wow-world-social`, `wow-world` y `world-server` sin
+errores nuevos; suite del tool **442/443** (único fallo: baseline previo a la reimpresión) y
+**PASS** tras reimprimir; `session-ownership-check check --syntax-only` **PASS** (175 owners /
+3.130 items / 674 filas; delta revisado: −8 métodos de `crate::handlers::battlegrounds::arena`,
++8 delegados test-fixture y el impl host en `crate::session`, sin filas de registro nuevas);
+`check_architecture.py check` y `self-test` **PASS** (ratchet físico 3.358 ficheros / 102 techos);
+hotspots reconciliados (`session/mod.rs` 60.789 → 60.812 producción, 138.162 → 138.164 test;
+`world-server/lib.rs` 31.752 → 31.756). R1 v2: `S = 70.103`, `G_move = 106.741`, requisito
+`32.832,85` → **presupuesto 32.833** (`recorded_at_revision edec497ce`), 0 violaciones / 5
+permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

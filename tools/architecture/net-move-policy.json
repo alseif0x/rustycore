@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 32592,
-    "measured_requirement": 32592,
-    "recorded_at_revision": "c6dba3df96675f13ae43157b7f8449ba3e716e36",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 69941, G_move = 106330, ratio and slack credits = 69941 * 1.05 + 300 = 73738.05, so the requirement is 32591.95 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 32833,
+    "measured_requirement": 32833,
+    "recorded_at_revision": "edec497ceaf5e31483e231d811e8d47e88e00235",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 70103, G_move = 106741, ratio and slack credits = 70103 * 1.05 + 300 = 73908.15, so the requirement is 32832.85 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -54,6 +54,13 @@
         "destination_growth": 855,
         "new_code": 282,
         "note": "The nine contact/social-list opcodes and their bodies left wow-world for wow-world-social's SocialContacts direct registrar (the owner file, its Cx over the hub plus the owned persistence port, nine thunks and the registrar) with the login delegate and the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 arena team tail (c6dba3df9..edec497ce, arena family)",
+        "shrink": 162,
+        "destination_growth": 411,
+        "new_code": 249,
+        "note": "The eight arena-team opcodes and their handlers left wow-world for wow-world-social's SocialArenaTeam direct registrar (the owner file, its Cx over the social state plus hub, eight thunks and the registrar) with the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
       }
     ],
     "areas": [
@@ -94,8 +101,8 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 6256,
-        "reason": "social group/duel state, the inspect, calendar, chat and social-contacts handler families with their Cx, host bridge, thunks and group fanout."
+        "lines": 6667,
+        "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
       },
       {
         "area": "crates/wow-world-instances/src",
