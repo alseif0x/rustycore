@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 32339,
-    "measured_requirement": 32339,
-    "recorded_at_revision": "79941db305b6c17202160b4adc1b50adaa1daf09",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 69368, G_move = 105475, ratio and slack credits = 69368 * 1.05 + 300 = 73136.4, so the requirement is 32338.6 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 32592,
+    "measured_requirement": 32592,
+    "recorded_at_revision": "c6dba3df96675f13ae43157b7f8449ba3e716e36",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 69941, G_move = 106330, ratio and slack credits = 69941 * 1.05 + 300 = 73738.05, so the requirement is 32591.95 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -47,6 +47,13 @@
         "destination_growth": 2223,
         "new_code": 660,
         "note": "The 39 chat handler bodies and their 37 registrations left wow-world for wow-world-social's SocialChat direct registrar; the move cuts 1,563 lines inside the shrink root and adds 2,223 in the social destination (the owner file, its bounded ops split, the registrar/thunks and the fmt/import noise), so 660 net new lines. The duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete bodies."
+      },
+      {
+        "phase": "F5 social contacts tail (79941db30..c6dba3df9, contact family)",
+        "shrink": 573,
+        "destination_growth": 855,
+        "new_code": 282,
+        "note": "The nine contact/social-list opcodes and their bodies left wow-world for wow-world-social's SocialContacts direct registrar (the owner file, its Cx over the hub plus the owned persistence port, nine thunks and the registrar) with the login delegate and the cfg(test) shims staying in wow-world; the duplication gate still reports 0 violations, 5 allowlisted and 0 obsolete."
       }
     ],
     "areas": [
@@ -87,8 +94,8 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 5401,
-        "reason": "social group/duel state, the inspect handler family, group fanout and the #1263 F5 calendar and chat handler families with their Cx, host bridge and thunks."
+        "lines": 6256,
+        "reason": "social group/duel state, the inspect, calendar, chat and social-contacts handler families with their Cx, host bridge, thunks and group fanout."
       },
       {
         "area": "crates/wow-world-instances/src",

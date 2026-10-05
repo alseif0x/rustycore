@@ -5110,6 +5110,52 @@ grandes que siguen literales en `wow-world` (movement, quest, guild, trade, spel
 pets, social, collections, group, character/account y el resto), y la pista F6/capturas/QA live
 conserva su autoridad propia.
 
+#### F5: familia de contactos sociales (9 opcodes) movida a `wow-world-social` — 2026-10-05, `c6dba3df9`
+
+Segundo corte de la misma ronda sobre la crate social. Los nueve opcodes de contactos y lista
+social —`AddFriend`, `AddIgnore`, `DelFriend`, `DelIgnore`, `SendContactList`, `SetContactNotes`,
+`SocialContractRequest`, `AcceptSocialContract`, `AccountNotificationAcknowledged`— y sus cuerpos
+pertenecen ya al registrador directo `SocialContacts` de `wow-world-social`
+(`crates/wow-world-social/src/social_contacts_handlers.rs`, 845 líneas). El contexto es
+`SocialContactsHandlerCxLikeCpp { hub: HubMut, persistence: Option<Arc<dyn SocialPersistencePortLikeCpp>> }`:
+el puerto se toma prestado *por valor* (la sesión solo lo clona del estado de ciclo de vida), así
+que ningún tipo de `wow-world` cruza al owner y no hace falta la arista
+`wow-world-social → wow-world-lifecycle` que la política de dependencias no permite.
+
+**Código escrito en esta ronda:**
+
+- Nueve thunks explícitos (sin macros: el guardián del tool rechaza cualquier macro de ítem no
+  registrada en un módulo propietario) y registrador con las nueve entradas; los opcodes
+  `Authed` (contrato social) conservan su estado.
+- En `wow-world` quedan los manejadores de comando de trade/duelo que dirige el buzón de sesión,
+  el delegado de producción `send_contact_list_like_cpp` (lo llama el login en
+  `handlers/character/world_entry/initial_packets.rs`) y los cuatro delegados `cfg(test)` en
+  `handlers/social/test_shims.rs`; `handlers/social.rs` baja de 753 a 90 líneas.
+- Contexto host en `session/social_contacts_handler_contexts.rs` (divide estado de ciclo de vida
+  y hub) + montaje en `session/mod.rs`, y llamada al registrador tras chat en ambos compositores.
+- Herramienta: `SOCIAL_CONTACTS_REGISTRAR` con fachada exacta, dueño en
+  `handler-module-policy.json` y montaje en el guardián de composición.
+- Los tests importan ahora `ObjectGuid`, los tipos de `wow-persistence`,
+  `ClientOpcodes`/`SessionStatus`/`PacketProcessing` y `normalize_player_name_like_cpp` (exportado
+  por la crate social) desde sus dueños, porque el módulo ya no los reexporta.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 12 tests `handlers::social` y 25 tests de
+`dispatch` (tabla completa de opcodes/estado/procesamiento) en verde; `cargo check` de
+`wow-world-social`, `wow-world` y `world-server` sin errores nuevos; suite del tool **442/443**
+(el único fallo era el baseline previo a la reimpresión) y **PASS** tras reimprimir;
+`session-ownership-check check --syntax-only` **PASS** (174 owners / 3.129 items / 674 filas;
+delta revisado: −11 métodos en `crate::handlers::social`, +4 delegados test-fixture y el impl host
+en `crate::session`, más 2 filas de acceso al registro que se trasladan a
+`crate::social_contacts_handlers`); `check_architecture.py check` y `self-test` **PASS** (ratchet
+físico 3.356 ficheros / 102 techos); ratchet de hotspots reconciliado con nota revisada
+(`session/mod.rs` producción 60.753 → 60.789, test 138.160 → 138.162; `world-server/lib.rs`
+producción 31.748 → 31.752). R1 v2 re-medido: `S = 69.941`, `G_move = 106.330`, requisito
+`32.591,95` → **presupuesto 32.592** (`recorded_at_revision c6dba3df9`), puerta de copias 0
+violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sigue sin repetirse la campaña `final`; la evidencia verde vigente es la
+de `f7553c7d0` y no se relabela. Quedan las familias grandes de F5 y la pista F6/capturas/QA live.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
