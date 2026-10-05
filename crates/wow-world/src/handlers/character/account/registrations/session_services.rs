@@ -2,18 +2,6 @@ use super::*;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::ServerTimeOffsetRequest,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_server_time_offset_request",
-        handler: |session, _catalogs, _pkt| {
-            Box::pin(async move { session.handle_server_time_offset_request().await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::RequestPlayedTime,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -59,57 +47,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 match wow_packet::packets::misc::HotfixRequest::read(&mut pkt) {
                     Ok(req) => session.handle_hotfix_request(catalogs.hotfixes.as_ref(), req).await,
                     Err(e) => tracing::warn!("Failed to read HotfixRequest: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::TimeSyncResponse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_time_sync_response",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::misc::TimeSyncResponse::read(&mut pkt) {
-                    Ok(resp) => session.handle_time_sync_response(resp).await,
-                    Err(e) => tracing::warn!("Failed to read TimeSyncResponse: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::TimeSyncResponseDropped,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_time_sync_response",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::misc::TimeSyncResponse::read(&mut pkt) {
-                    Ok(resp) => session.handle_time_sync_response(resp).await,
-                    Err(e) => tracing::warn!("Failed to read TimeSyncResponse: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::TimeSyncResponseFailed,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_time_sync_response",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::misc::TimeSyncResponse::read(&mut pkt) {
-                    Ok(resp) => session.handle_time_sync_response(resp).await,
-                    Err(e) => tracing::warn!("Failed to read TimeSyncResponse: {e}"),
                 }
             })
         },

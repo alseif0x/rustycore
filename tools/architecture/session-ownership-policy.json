@@ -5094,34 +5094,6 @@
           "module": "crate::handlers::character::world_entry",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_server_time_offset_request",
-          "visibility": "pub",
-          "signature": "async fn handle_server_time_offset_request (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_time_sync_response",
-          "visibility": "pub",
-          "signature": "async fn handle_time_sync_response (& mut self , resp : wow_packet :: packets :: misc :: TimeSyncResponse ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
           "name": "player_login_combat_stats_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn player_login_combat_stats_like_cpp (& mut self , race : u8 , class : u8 , level : u8 , saved_health : Option < u32 > , saved_power0 : i32 ,) -> Option < (PlayerCombatStats , i32 , i32) >",

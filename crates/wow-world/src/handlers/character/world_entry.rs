@@ -89,26 +89,10 @@ impl WorldSession {
     }
 
     /// Handle CMSG_SERVER_TIME_OFFSET_REQUEST — respond with current realm time.
-    pub async fn handle_server_time_offset_request(&mut self) {
-        self.send_packet(&ServerTimeOffset::now());
-    }
-
     /// Handle CMSG_TIME_SYNC_RESPONSE — client's response to our TimeSyncRequest.
     ///
     /// We acknowledge the response to keep the client's time sync state healthy.
     /// The periodic timer in `update()` handles sending the next request.
-    pub async fn handle_time_sync_response(
-        &mut self,
-        resp: wow_packet::packets::misc::TimeSyncResponse,
-    ) {
-        trace!(
-            "TimeSyncResponse: seq={}, client_time={} for account {}",
-            resp.sequence_index, resp.client_time, self.core.account_id
-        );
-        self.core
-            .record_time_sync_response_like_cpp(resp.sequence_index, resp.client_time);
-    }
-
     /// Handle CMSG_LOGOUT_REQUEST — player wants to log out.
     ///
     /// C++ MiscHandler.cpp:238 validates combat/falling/duel and selects instant

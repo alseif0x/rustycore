@@ -20,7 +20,10 @@ use wow_handler::{
 };
 use wow_packet::ClientPacket;
 use wow_packet::WorldPacket;
-use wow_packet::packets::misc::{LoadingScreenNotify, SetAdvancedCombatLogging, ViolenceLevel};
+use wow_packet::packets::misc::{
+    LoadingScreenNotify, ServerTimeOffset, SetAdvancedCombatLogging, TimeSyncResponse,
+    ViolenceLevel,
+};
 use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
 
 /// Borrowed inputs of one client-state handler invocation.
@@ -35,6 +38,26 @@ impl<'a> ClientStateHandlerCxLikeCpp<'a> {
 
     fn account_id_like_cpp(&self) -> u32 {
         self.hub.shared().core.account_id
+    }
+
+    /// C++ `WorldSession::HandleTimeSyncResponse`-adjacent server time offset reply.
+    pub async fn handle_server_time_offset_request(&mut self) {
+        self.publication_like_cpp()
+            .send_packet(&ServerTimeOffset::now());
+    }
+
+    /// Acknowledge the client's `TimeSyncResponse` so its time-sync state stays
+    /// healthy; the periodic timer sends the next request.
+    pub async fn handle_time_sync_response(&mut self, resp: TimeSyncResponse) {
+        trace!(
+            "TimeSyncResponse: seq={}, client_time={} for account {}",
+            resp.sequence_index,
+            resp.client_time,
+            self.account_id_like_cpp()
+        );
+        self.hub
+            .core
+            .record_time_sync_response_like_cpp(resp.sequence_index, resp.client_time);
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
@@ -763,6 +786,45 @@ where
     })
 }
 
+fn handle_server_time_offset_request_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    _pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .client_state_handler_cx_like_cpp(catalogs)
+            .handle_server_time_offset_request()
+            .await;
+    })
+}
+
+fn handle_time_sync_response_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match TimeSyncResponse::read(&mut pkt) {
+            Ok(resp) => {
+                session
+                    .client_state_handler_cx_like_cpp(catalogs)
+                    .handle_time_sync_response(resp)
+                    .await;
+            }
+            Err(e) => warn!("Failed to read TimeSyncResponse: {e}"),
+        }
+    })
+}
+
 /// Register the client-state packet entries through their application adapter.
 pub fn register_client_state_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -1204,6 +1266,34 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_vas_stub",
         handler: update_vas_purchase_states_stub_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::ServerTimeOffsetRequest,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_server_time_offset_request",
+        handler: handle_server_time_offset_request_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::TimeSyncResponse,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_time_sync_response",
+        handler: handle_time_sync_response_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::TimeSyncResponseDropped,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_time_sync_response",
+        handler: handle_time_sync_response_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::TimeSyncResponseFailed,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_time_sync_response",
+        handler: handle_time_sync_response_thunk::<S, C>,
     })?;
     Ok(())
 }
