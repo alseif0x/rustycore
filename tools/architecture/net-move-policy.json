@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 31700,
-    "measured_requirement": 31545,
-    "recorded_at_revision": "ce863e603a17b4a7da48726581ae2ccd182b063f",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 67457, G_move = 102674, ratio and slack credits = 67457 * 0.05 + 300 = 71129.85, so the requirement is 31544.15 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 31900,
+    "measured_requirement": 31757,
+    "recorded_at_revision": "2c844606603cd7815264ee16da7f5ced74ded6cf",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 67805, G_move = 103252, ratio and slack credits = 67805 * 0.05 + 300 = 71495.25, so the requirement is 31756.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -36,9 +36,9 @@
       },
       {
         "phase": "post-pause (969bee686..HEAD, migrations plus the rustfmt pass)",
-        "shrink": 10177,
-        "destination_growth": 14923,
-        "new_code": 4746,
+        "shrink": 10525,
+        "destination_growth": 15501,
+        "new_code": 4976,
         "note": "F5 registrars (social inspect, lifecycle account-data, application reputation, lifecycle support, application client-state, social calendar) and the F6 retirements were net moves; the rustfmt normalization of the branch's own sources reflowed long lines and the new host adapters and composer calls add their own lines, which is most of this phase's new_code."
       }
     ],
@@ -55,7 +55,7 @@
       },
       {
         "area": "crates/wow-world-inventory/src",
-        "lines": 10183,
+        "lines": 10761,
         "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
       },
       {

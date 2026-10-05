@@ -4757,6 +4757,40 @@ contrato de handlers del repositorio **PASS**; `cargo check` de `wow-world-socia
 Quedan **303** invocaciones literales de `register_packet_handler_like_cpp!` en `wow-world`
 (eran 318). La campaña `final` sigue pendiente del cierre del tramo.
 
+#### F5: familia auction (11 opcodes) movida al registrador de inventario — 2026-10-05, `2c8446066`
+
+Octava familia F5 y el corte más barato hasta ahora en integración: los once `CMSG_AUCTION_*`
+pasan a `wow-world-inventory` como un `AuctionHandlerCxLikeCpp` sobre `InventoryState` y el hub
+mutable, y sus entradas se añaden al **registrador de inventario ya existente**
+(`register_inventory_handlers_like_cpp`), de modo que **no hay contrato nuevo, ni llamada nueva
+en el compositor de producción, ni dueño nuevo en la política de módulos**. El patrón de thunk
+por módulo hermano (`super::auction::handle_x_thunk::<S, C>`) ya existía para
+`cancel_temp_enchantment` e `item_text`.
+
+- `crates/wow-world-inventory/src/handlers/auction.rs` contiene el Cx, los once handlers con sus
+  cuerpos (gate de interacción con subastador, comprobación de granularidad en plata, parses
+  tipados y registros representados) y once thunks; los registros de fixture conservan el mismo
+  gate `test-fixtures` que tenía el contenedor World, así que producción sigue siendo no-op donde
+  ya lo era;
+- `wow-world` conserva `handle_auction_hello_request` (lo registra la familia world-service de
+  character/account) y ocho shims `cfg(test)` para los escenarios que ejecutan un handler movido;
+- el contrato de inventario del tool declara la nueva exportación de fachada
+  (`AuctionHandlerCxLikeCpp`) y su fixture sintético se actualiza; la mutación de fachada ausente
+  se reajusta al formato real (el helper `mutate_fixture` volvió a fallar ruidosamente, como se
+  diseñó).
+
+Baselines revisados: impl items **3.161 → 3.160**, impl owners **171 → 172**, registros directos
+**674 sin cambios** y bridges **84 sin cambios**; el hotspot de `session/mod.rs` sube +13
+(adaptador del host) y el de `world-server` **no cambia** porque el compositor no se toca. R1
+re-registrado: `S = 67.805`, `G_move = 103.252`, requisito `31.756,75` → **presupuesto 31.900**.
+
+Evidencia de esta ronda: **60** tests de `handlers::economy` (auction + trade) en verde; guardián
+de composición **8/8**; contrato de handlers del repositorio **PASS**; `cargo check` de
+`wow-world-inventory`, `wow-world` (default y `test-fixtures`) y `world-server` con **0 errores**;
+`session-ownership-check check --syntax-only` **PASS** (172 owners / 3.160 items / 674 filas);
+`check_architecture.py check --self-test` **PASS**; `net_move.py check` **PASS**. Quedan **292**
+invocaciones literales de `register_packet_handler_like_cpp!` en `wow-world` (eran 303).
+
 #### Primera campaña `final` de la rama — 2026-10-05, `9f311e432` (FALLA en R1)
 
 Primera ejecución de `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings
