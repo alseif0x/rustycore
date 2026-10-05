@@ -5188,6 +5188,35 @@ permitidos / 0 obsoletos.
 
 **No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
 
+#### F5: familia battle.net (2 opcodes) movida a `wow-world-lifecycle` — 2026-10-05, `621240873`
+
+Cuarto corte de la jornada. `BattlenetRequest` y `ChangeRealmTicket` y sus dos cuerpos pertenecen
+al registrador directo `LifecycleBattlenet` de `wow-world-lifecycle`
+(`crates/wow-world-lifecycle/src/battlenet_handlers.rs`). El contexto es
+`BattlenetHandlerCxLikeCpp { hub: HubMut }` —solo el hub—, así que la escritura del secreto de
+lista de reinos (`hub.core.set_realm_list_secret_like_cpp`) y la respuesta
+`RpcNotImplemented` conservan exactamente la semántica de sesión sin que ningún tipo de
+`wow-world` cruce al owner. Es el corte más pequeño hasta ahora y sirve de plantilla para los
+servicios de sesión que quedan en `handlers/character/account/registrations/`.
+
+`handlers/battlenet.rs` conserva sus regresiones internas (que además comprueban la metadata de
+despacho) y los dos delegados `cfg(test)` en `battlenet/test_shims.rs`. Contexto host en
+`session/battlenet_handler_contexts.rs`, contrato `BATTLENET_REGISTRAR` con fachada exacta, dueño
+en la política de módulos y llamada tras arena teams en ambos compositores.
+
+**Evidencia enfocada (nivel 1, no aceptación):** 4 tests de battle.net y 25 de `dispatch` en
+verde; `cargo check` de `wow-world-lifecycle`, `wow-world` y `world-server` sin errores nuevos;
+suite del tool **442/443** (baseline previo a la reimpresión) y **PASS** tras reimprimir;
+`session-ownership-check check --syntax-only` **PASS** (176 owners / 3.131 items / 674 filas:
+−1 impl y −2 métodos en `crate::handlers::battlenet`, +2 delegados test-fixture y el impl host, 0
+filas de registro nuevas); `check_architecture.py check` y `self-test` **PASS** (ratchet físico
+3.361 ficheros / 102 techos); hotspots reconciliados (`session/mod.rs` 60.812 → 60.834 producción,
+138.164 → 138.166 test; `world-server/lib.rs` 31.756 → 31.760). R1 v2: `S = 70.129`,
+`G_move = 106.893`, requisito `32.957,55` → **presupuesto 32.958**
+(`recorded_at_revision 621240873`), 0 violaciones / 5 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
