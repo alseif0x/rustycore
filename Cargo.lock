@@ -3663,12 +3663,14 @@ dependencies = [
 name = "wow-world-social"
 version = "0.1.0"
 dependencies = [
+ "tokio",
  "tracing",
  "wow-constants",
  "wow-core",
  "wow-entities",
  "wow-handler",
  "wow-packet",
+ "wow-persistence",
  "wow-social",
  "wow-world-core",
 ]

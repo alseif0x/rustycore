@@ -11,6 +11,7 @@ mod chat;
 mod duel_publication;
 mod duel;
 mod group;
+pub mod group_fanout;
 mod state;
 mod requests;
 mod trade;

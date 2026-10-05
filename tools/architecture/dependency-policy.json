@@ -229,6 +229,7 @@
       "wow-entities",
       "wow-handler",
       "wow-packet",
+      "wow-persistence",
       "wow-social",
       "wow-world-core"
     ],
@@ -604,6 +605,7 @@
       },
       "wow-world-social": {
         "normal": [
+          "tokio",
           "tracing"
         ],
         "build": []

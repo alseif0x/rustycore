@@ -10,12 +10,14 @@ publish = false
 test-fixtures = ["wow-world-core/test-fixtures"]
 
 [dependencies]
+tokio = { workspace = true }
 tracing = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-entities = { workspace = true }
 wow-handler = { workspace = true }
 wow-packet = { workspace = true }
+wow-persistence = { workspace = true }
 wow-social = { workspace = true }
 wow-world-core = { workspace = true }
 
