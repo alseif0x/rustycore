@@ -259,15 +259,16 @@ impl WorldSession {
         aura_flags: u32,
         effect_mask: u32,
     ) -> Result<(), &'static str> {
-        self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
-            spell_id,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            effect_mask,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
-            true,
-        )
+        // The admitted application aura owner holds this transition; the World
+        // shell only builds the borrowed context (#1263 F6).
+        self.player_aura_application_cx_like_cpp()
+            .apply_aura_with_effect_mask_like_cpp(
+                spell_id,
+                caster_guid,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+            )
     }
     pub(in crate::session) fn apply_aura_with_effect_mask_and_provenance_like_cpp(
         &mut self,
