@@ -11,15 +11,6 @@ use wow_handler::SessionStatus;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::Emote,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_emote",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_emote(pkt).await }),
-    }
-}
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::SendTextEmote,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

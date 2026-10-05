@@ -5619,6 +5619,33 @@ character/account repartido en `world_services` (20), `character_setup` (12), `w
 dungeon_finding (5), travel (4), void_storage (4), corpse (4), collections (3), gameobject (3),
 trainer (2), talent (2), chat/emotes (2), combat (1) y account-data/client-state (1).
 
+#### F5: cola de chat, `CMSG_EMOTE` al registrador social existente — 2026-10-05, `1bf1703f3..HEAD`
+
+`handle_emote` pasa al registrador directo `SocialChat` que ya existe en `wow-world-social`, sin
+contrato nuevo: el contexto `ChatHandlerCxLikeCpp { hub, social, policy }` ya sirve la publicación,
+la compuerta de vivo/muerto (`resolved_player_is_alive_like_cpp`,
+`player_has_unit_state_like_cpp`), la transición de estado de emote
+(`set_player_emote_state_like_cpp`) y el fanout (`broadcast_to_movement_set_like_cpp`), así que el
+corte solo añade el método del Cx, un thunk, un registro y el delegado `cfg(test)`. `SendTextEmote`
+se queda en el shell: necesita los catálogos de emotes y la retirada de auras por *interrupt flags*,
+que sigue siendo propiedad del shell. `chat/registrations.rs` queda con **1 registro literal**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos,
+metadata `Inplace`/`LoggedIn` y `handler_name` sin cambios) y **77 de `chat`** en verde; `cargo check`
+de `wow-world` (con `test-fixtures`) y `world-server` sin errores; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** sin cambios de baseline (191 owners / 3.132
+items / 674 filas); `check_architecture.py check` **PASS** (3.385 ficheros / 102 techos, hotspots
+sin crecimiento). R1 v2: `S = 71.635`, `G_move = 110.041`, requisito `34.524,25` → **presupuesto
+34.525**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado todavía.** Sin campaña `final` nueva; la evidencia verde sigue siendo `f7553c7d0`.
+Medición directa: quedan **201 registros literales** en `wow-world`: character/account repartido en
+`world_services` (20), `character_setup` (12), `world_queries` (11), `inventory_actions` (7) y
+`logout` (1); trade (15), quest (14), spell (13), movement (13), guild (13), battlegrounds/pvp (13),
+pets (10), group (9), vehicle (8), loot (7), entities/player (5), dungeon_finding (5), travel (4),
+void_storage (4), corpse (4), collections (3), gameobject (3), trainer (2), talent (2), chat (1),
+combat (1) y account-data/client-state (1).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

@@ -12,6 +12,37 @@
 use super::*;
 
 impl<'a> ChatHandlerCxLikeCpp<'a> {
+    /// CMSG_EMOTE — client notifies us it cleared its emote state.
+    ///
+    /// C++ ref: `WorldSession::HandleEmoteOpcode`.
+    pub async fn handle_emote_like_cpp(&mut self, mut pkt: WorldPacket) {
+        // EmoteClient has no body — read returns Ok(()) immediately.
+        let _ = EmoteClient::read(&mut pkt);
+        if self.hub.shared().resolved_player_is_alive_like_cpp() != Some(true)
+            || self
+                .hub
+                .shared()
+                .core
+                .player_has_unit_state_like_cpp(UnitState::DIED)
+        {
+            return;
+        }
+
+        if let Some(update) = self
+            .hub
+            .set_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32)
+        {
+            self.publication_like_cpp().send_packet(&update);
+            self.hub
+                .shared()
+                .broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
+        }
+        debug!(
+            account = self.hub.shared().core.account_id,
+            "CMSG_EMOTE: clear emote state"
+        );
+    }
+
     pub fn new(
         hub: HubMut<'a>,
         social: &'a mut SessionSocialLimits,

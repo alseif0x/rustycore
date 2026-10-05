@@ -14,7 +14,7 @@
 use tracing::{debug, warn};
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
 use wow_chat::validation::validate_message_like_cpp;
-use wow_constants::ClientOpcodes;
+use wow_constants::{ClientOpcodes, UnitState};
 use wow_core::ObjectGuid;
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
@@ -25,8 +25,8 @@ use wow_packet::packets::chat::{
     ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage, ChatMessageAfk,
     ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper, ChatMsg, ChatPkt,
     ChatPlayerNotfound, ChatRegisterAddonPrefixes, ChatReportFiltered, ChatReportIgnored,
-    JoinChannel, LeaveChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP, MAX_CHANNEL_PASS_STR_LIKE_CPP,
-    PrintNotification, UpdateAadcStatus, UpdateAadcStatusResponse,
+    EmoteClient, JoinChannel, LeaveChannel, MAX_CHANNEL_NAME_STR_LIKE_CPP,
+    MAX_CHANNEL_PASS_STR_LIKE_CPP, PrintNotification, UpdateAadcStatus, UpdateAadcStatusResponse,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_social::group::GroupInfo;
@@ -50,6 +50,9 @@ pub const LANG_ADDON_LIKE_CPP: u32 = 183;
 pub const LANG_ADDON_LOGGED_LIKE_CPP: u32 = 184;
 /// C++ `SPELL_GM_SILENCE` aura id used for the GM silence check.
 pub const GM_SILENCE_AURA_LIKE_CPP: i32 = 1852;
+
+/// C++ `EMOTE_ONESHOT_NONE` used to clear the represented emote state.
+pub const EMOTE_ONESHOT_NONE_LIKE_CPP: i32 = 0;
 
 /// C++ `WorldSession::GetPlayerName` plus the session guid for chat publication.
 pub fn player_name_and_guid_like_cpp(hub: &HubRef<'_>) -> (wow_core::ObjectGuid, String) {
@@ -607,6 +610,23 @@ where
     })
 }
 
+fn handle_emote_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ChatHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .chat_handler_cx_like_cpp(catalogs)
+            .handle_emote_like_cpp(pkt)
+            .await;
+    })
+}
+
 /// Register the chat packet entries through their social owner.
 pub fn register_chat_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -873,6 +893,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_chat_channel_player_command",
         handler: handle_chat_channel_player_command_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::Emote,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_emote",
+        handler: handle_emote_thunk::<S, C>,
     })?;
     Ok(())
 }

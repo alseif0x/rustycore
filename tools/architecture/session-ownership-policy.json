@@ -5578,20 +5578,6 @@
           "module": "crate::handlers::chat::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_emote",
-          "visibility": "pub",
-          "signature": "async fn handle_emote (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::chat::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_text_emote",
           "visibility": "pub",
           "signature": "async fn handle_text_emote (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -5957,6 +5943,22 @@
           "name": "handle_chat_unregister_all_addon_prefixes",
           "visibility": "pub",
           "signature": "async fn handle_chat_unregister_all_addon_prefixes (& mut self , pkt : wow_packet :: WorldPacket ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::chat::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_emote",
+          "visibility": "pub",
+          "signature": "async fn handle_emote (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],

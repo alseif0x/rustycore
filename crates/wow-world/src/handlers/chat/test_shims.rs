@@ -8,7 +8,7 @@
 //! still build a `WorldSession` here, so these bounded delegates construct the
 //! social owner's context from the session's disjoint borrows. They are the
 //! only chat code left in `wow-world` besides the imports, the module mounts
-//! and the emote/text-emote registrations that were not part of the move.
+//! and the text-emote registration that was not part of the move.
 
 use wow_packet::packets::chat::ChatMsg;
 use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
@@ -16,6 +16,15 @@ use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 use crate::session::WorldSession;
 
 impl WorldSession {
+    #[cfg(test)]
+    pub async fn handle_emote(&mut self, pkt: wow_packet::WorldPacket) {
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        let (social, hub) = crate::session::split_social_mut(self);
+        wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
+            .handle_emote_like_cpp(pkt)
+            .await;
+    }
+
     #[cfg(test)]
     pub async fn handle_chat_addon_message_with_policy_like_cpp(
         &mut self,

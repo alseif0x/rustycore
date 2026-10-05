@@ -32,24 +32,6 @@ impl WorldSession {
     /// TrinityCore currently reads an empty packet and only logs a TODO for the
     /// unimplemented spam reporting system.
     /// Handle emote text (/e).
-    /// Handle CMSG_EMOTE — client notifies us it cleared its emote state.
-    ///
-    /// C++ ref: `WorldSession::HandleEmoteOpcode`.
-    pub async fn handle_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
-        // EmoteClient has no body — read returns Ok(()) immediately.
-        let _ = EmoteClient::read(&mut pkt);
-        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
-            || self.core.player_has_unit_state_like_cpp(UnitState::DIED)
-        {
-            return;
-        }
-
-        self.publish_player_emote_state_like_cpp(EMOTE_ONESHOT_NONE_LIKE_CPP as u32);
-        debug!(
-            account = self.core.account_id,
-            "CMSG_EMOTE: clear emote state"
-        );
-    }
     /// Handle CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance…).
     ///
     /// C++ ref: `WorldSession::HandleTextEmoteOpcode`.
