@@ -7,10 +7,11 @@ use std::path::PathBuf;
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
-    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CLIENT_STATE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
-    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR,
-    REPUTATION_REGISTRAR, RegistrarFacadeContract, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR,
-    validate_composition_mounts, validate_composition_mounts_with_contracts,
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CLIENT_STATE_REGISTRAR,
+    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
+    SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, validate_composition_mounts,
+    validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -124,6 +125,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             CLIENT_STATE_REGISTRAR.module,
             "crates/wow-world-application/src/client_state.rs",
             include_str!("../../../../../crates/wow-world-application/src/client_state.rs"),
+        ),
+        mount(
+            CALENDAR_REGISTRAR.package,
+            CALENDAR_REGISTRAR.module,
+            "crates/wow-world-social/src/calendar_handlers.rs",
+            include_str!("../../../../../crates/wow-world-social/src/calendar_handlers.rs"),
         ),
         mount(
             SOCIAL_INSPECT_REGISTRAR.package,

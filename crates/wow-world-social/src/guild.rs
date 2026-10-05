@@ -3,7 +3,6 @@
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP;
 use crate::SessionSocialLimits;
-#[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::HubRef;
 
 impl SessionSocialLimits {
@@ -76,4 +75,32 @@ impl SessionSocialLimits {
             )
             .unwrap_or(false)
     }
+}
+
+/// Snapshot the represented guild membership from the canonical Player, or from
+/// the fixture state when the session has no player handle under a fixture build.
+pub fn player_guild_state_snapshot_like_cpp(
+    hub: &HubRef<'_>,
+    social: &SessionSocialLimits,
+) -> Option<wow_entities::PlayerGuildState> {
+    let canonical = hub
+        .core
+        .with_owned_player_like_cpp(|player| player.guild_state_like_cpp());
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+        return Some(social.represented_guild_state_for_test_like_cpp());
+    }
+    canonical
+}
+
+/// C++ `Player::GetGuildId` as the represented authority resolves it: the guild
+/// id is only trusted once the canonical guild state is complete.
+pub fn resolved_represented_guild_id_like_cpp(
+    hub: &HubRef<'_>,
+    social: &SessionSocialLimits,
+) -> Option<u64> {
+    let state = player_guild_state_snapshot_like_cpp(hub, social)?;
+    state
+        .authority_complete
+        .then_some(state.guild_id.unwrap_or(0))
 }

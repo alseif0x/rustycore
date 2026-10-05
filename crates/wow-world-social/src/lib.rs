@@ -4,6 +4,7 @@
 
 //! Social ownership for the world-session application boundary.
 
+mod calendar_handlers;
 mod catalogs;
 mod chat;
 mod contracts;
@@ -20,12 +21,16 @@ mod state;
 mod test_support;
 mod trade;
 
+pub use calendar_handlers::{
+    CalendarHandlerCxLikeCpp, CalendarHandlerHostLikeCpp, register_calendar_handlers_like_cpp,
+};
 pub use contracts::{
     ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp, RepresentedCalendarAddEventLikeCpp,
     RepresentedCalendarCommunityInviteLikeCpp, RepresentedCalendarRemoveEventLikeCpp,
     RepresentedDeclinePetitionLikeCpp, RepresentedQueryPetitionLikeCpp,
     RepresentedSignPetitionLikeCpp,
 };
+pub use guild::{player_guild_state_snapshot_like_cpp, resolved_represented_guild_id_like_cpp};
 pub use handlers::{
     InspectHandlerCxLikeCpp, SocialInspectHandlerHostLikeCpp,
     register_social_inspect_handlers_like_cpp,

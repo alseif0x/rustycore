@@ -262,6 +262,27 @@ pub(crate) const CLIENT_STATE_REGISTRAR: DirectRegistrarContract = DirectRegistr
     facades: CLIENT_STATE_FACADES,
 };
 
+const CALENDAR_ROOT_EXPORTS: &[&str] = &[
+    "CalendarHandlerCxLikeCpp",
+    "CalendarHandlerHostLikeCpp",
+    "register_calendar_handlers_like_cpp",
+];
+const CALENDAR_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "calendar_handlers",
+    exports: CALENDAR_ROOT_EXPORTS,
+}];
+
+pub(crate) const CALENDAR_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "SocialCalendar",
+    package: "wow-world-social",
+    module: "crate::calendar_handlers",
+    registrar: "register_calendar_handlers_like_cpp",
+    host_trait: "CalendarHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: CALENDAR_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -273,6 +294,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     REPUTATION_REGISTRAR,
     SUPPORT_REGISTRAR,
     CLIENT_STATE_REGISTRAR,
+    CALENDAR_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

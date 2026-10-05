@@ -24,11 +24,11 @@ pub(crate) use composer::{
     validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 pub(crate) use direct_builder::{
-    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CLIENT_STATE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
-    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR,
-    REPUTATION_REGISTRAR, RegistrarFacadeContract, RegistrarReport, SOCIAL_INSPECT_REGISTRAR,
-    SUPPORT_REGISTRAR, analyze_contract_source, analyze_owner_source,
-    analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CLIENT_STATE_REGISTRAR,
+    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
+    RegistrarReport, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, analyze_contract_source,
+    analyze_owner_source, analyze_owner_source_with_contracts, unowned_entry_literal_violation,
 };
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,

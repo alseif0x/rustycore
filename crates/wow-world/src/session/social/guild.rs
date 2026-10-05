@@ -7,14 +7,10 @@ use super::*;
 
 impl WorldSession {
     fn player_guild_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerGuildState> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.guild_state_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.social.represented_guild_state_for_test_like_cpp());
-        }
-        canonical
+        wow_world_social::player_guild_state_snapshot_like_cpp(
+            &crate::session::hub_ref(self),
+            &self.social,
+        )
     }
     #[cfg(test)]
     fn mutate_player_guild_state_like_cpp<R>(
@@ -46,10 +42,10 @@ impl WorldSession {
         canonical
     }
     pub(crate) fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
-        let state = self.player_guild_state_snapshot_like_cpp()?;
-        state
-            .authority_complete
-            .then_some(state.guild_id.unwrap_or(0))
+        wow_world_social::resolved_represented_guild_id_like_cpp(
+            &crate::session::hub_ref(self),
+            &self.social,
+        )
     }
     #[cfg(test)]
     pub(crate) fn represented_guild_id_like_cpp(&self) -> u64 {
