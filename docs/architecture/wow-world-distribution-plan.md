@@ -6570,7 +6570,12 @@ helper de World sale del shell y `handlers/guild/mod.rs` queda sin registros, so
 **Evidencia enfocada:** `cargo check --all-targets` de `wow-world-application`, `wow-world-social`, `wow-world` (con
 `test-fixtures`) y `world-server` sin errores ni avisos nuevos (los de `wow-world-social` ya estaban en la base);
 `wow-world` `--lib` **3.634 ✓**; tool **443/443**; ownership **PASS** con delta revisado; arquitectura **PASS**; R1
-`S = 89`, `G_move = 125`, presupuesto 0. Registros literales en `wow-world`: **119 → 118**. Pendiente: `final`.
+`S = 89`, `G_move = 125`, presupuesto 0. Registros literales en `wow-world`: **119 → 118**.
+
+**Aceptación `final`:** sobre **`fcc688032`**, **verde en 192 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T172224.836326Z-1162471-final.json`).
+El tool no cambió, así que el runner no enruta su suite; sí comprueba aguas abajo (`world-modules`, `world-server`,
+`wow-world`, App, social) y ejecuta las suites `--lib` de los tres crates cambiados.
 
 ## 9. Herramientas
 
