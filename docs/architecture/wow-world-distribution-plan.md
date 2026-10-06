@@ -6594,7 +6594,9 @@ plan (condiciones, aplicación de auras, sincronización de registro y runtime d
 **Evidencia enfocada:** `cargo check --all-targets` de `wow-world-spell`, `wow-world` (con y sin `test-fixtures`) y
 `world-server` sin errores ni avisos nuevos (los de `acquisition.rs` ya estaban en la base); `wow-world` `--lib`
 **3.634 ✓**; ownership **PASS** sin delta; arquitectura **PASS**; R1 `S = 22`, `G_move = 50`, presupuesto 0.
-Pendiente: `final`.
+
+**Aceptación `final`:** sobre **`82e663809`**, **verde en 205 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T173249.772601Z-1173490-final.json`).
 
 ## 9. Herramientas
 
