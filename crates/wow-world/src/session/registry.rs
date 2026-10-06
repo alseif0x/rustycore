@@ -65,76 +65,8 @@ pub fn register_remaining_handlers_like_cpp(
 #[cfg(any(test, feature = "test-fixtures"))]
 #[must_use]
 pub fn build_dispatch_table() -> Arc<WorldPacketHandlerRegistry> {
-    let mut builder = WorldPacketHandlerRegistryBuilder::new();
-    wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_instance_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_equipment_set_use_handler_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_bank_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_social_inspect_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_lifecycle::register_account_data_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_reputation_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_lifecycle::register_support_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_client_state_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_calendar_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_chat_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_social_contacts_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_arena_team_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_lifecycle::register_battlenet_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_data_service_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_social_group_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_group_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_social::register_guild_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_quest_query_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_combat_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_player_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_collections_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_travel_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_battleground_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_dungeon_finding_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_gameobject_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_vehicle_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_loot_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_character_query_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_trade_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_spell_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_guild_bank_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    wow_world_application::register_character_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    register_remaining_handlers_like_cpp(&mut builder)
-        .expect("invalid duplicate packet handler composition");
-    Arc::new(builder.build())
+    crate::handler_composition::compose_packet_handlers_like_cpp()
+        .expect("invalid duplicate packet handler composition")
 }
 
 /// Snapshot the composed handler entries for callers outside the dispatch path.

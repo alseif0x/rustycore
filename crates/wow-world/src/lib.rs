@@ -17,6 +17,7 @@ pub use finalization::{
 };
 pub mod conditions;
 pub mod entity_update_bridge;
+pub mod handler_composition;
 pub mod handlers;
 pub mod loot_persistence;
 pub use wow_world_core::map_manager;
