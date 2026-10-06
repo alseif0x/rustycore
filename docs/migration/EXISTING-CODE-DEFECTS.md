@@ -44,6 +44,50 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
 
 ## Later verified open findings
 
+- **2026-10-06, #1263 F6 — five registered opcodes that 3.4.3 leaves unhandled, plus one
+  dispatch-status divergence.** Method: a text pass over every world packet registration
+  (`register_packet_handler_like_cpp!`, 104 entries at `641646ef4`) compared against the
+  target dispatch table `src/server/game/Server/Protocol/Opcodes.cpp` of the pinned
+  reference checkout `/home/server/woltk-trinity-legacy` @ `a5f8da2e`; each row below was
+  then confirmed by reading the Rust body and the C++ `DEFINE_HANDLER` line. Consumers of
+  the recorded state were **not** traced, so these are verified anchors with an unverified
+  blast radius, not proven gameplay defects.
+  1. `CMSG_BATTLEMASTER_JOIN_SKIRMISH` (`Opcodes.h:104`, `0x3522`) is `STATUS_UNHANDLED` /
+     `Handle_NULL` at `Opcodes.cpp:220`, but Rust registers it `LoggedIn`/`ThreadUnsafe`
+     (`crates/wow-world/src/handlers/battlegrounds/pvp.rs`) and records a represented queue
+     intent. Its doc comment cites `WorldSession::HandleBattlemasterJoinSkirmish`, which
+     **does not exist** in the target tree.
+  2. `CMSG_ACCEPT_WARGAME_INVITE` (`Opcodes.h:50`, `0x35E1`) is `STATUS_UNHANDLED` /
+     `Handle_NULL` at `Opcodes.cpp:144`; Rust registers it `LoggedIn`/`ThreadUnsafe` and
+     records an accepted-wargame intent, citing the likewise absent
+     `WorldSession::HandleAcceptWargameInvite`.
+  3. `CMSG_SET_CURRENCY_FLAGS` (`Opcodes.h:603`, `0x316C`) is `STATUS_UNHANDLED` /
+     `Handle_NULL` at `Opcodes.cpp:888`; Rust registers it `LoggedIn`/`Inplace`
+     (`handlers/account_data/client_state.rs`) and calls
+     `represented_set_currency_flags_like_cpp(currency_id, flags)`.
+  4. `CMSG_SHOW_TRADE_SKILL` (`Opcodes.h:630`, `0x36CA`) is `STATUS_UNHANDLED` /
+     `Handle_NULL` at `Opcodes.cpp:925`; the Rust handler (`handlers/trainer.rs`) only emits
+     a `debug!` line.
+  5. `CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` (`Opcodes.h:124`, `0x31E0`) is
+     `STATUS_UNHANDLED` / `Handle_NULL` at `Opcodes.cpp:243`; the Rust handler is an empty
+     body whose comment already records the C++ status, so this row is an intentional,
+     documented departure and needs no repair.
+
+  None of the five publishes a packet to the client, so no wire-visible difference was
+  found in this pass; the open questions are the session state recorded by rows 1–3 and the
+  unsupported C++ anchors in rows 1–2. Decision needed — a behaviour decision, not a
+  refactor: align each row with 3.4.3, or record an explicit intentional-departure
+  contract. Until that decision, the two battleground rows stay in place and are not
+  relocated by the F5 structural moves.
+
+  The same pass flagged `CMSG_CONNECT_TO_FAILED` (`Opcodes.h:231`, `0x35D4`, registered
+  `Authed`/`Inplace`) against `STATUS_NEVER` / `Handle_EarlyProccess` (`Opcodes.cpp:387`),
+  and **closed it as a non-finding on inspection**: `is_status_allowed` maps
+  `SessionStatus::Authed => true` (`crates/wow-world/src/session/dispatch.rs:109`), i.e. no
+  state gate at all, which is the same admission effect as C++'s early-process dispatch.
+  The Rust status model simply has no `Never` variant to express "only through the
+  early-process set". Recorded so the row is not re-raised as a defect.
+
 - **2026-09-11, #743 group removal — the member's own state clear can be dropped.**
   Source-verified on `6aeca244`. When a member is kicked or the group disbands,
   the acting session mutates the registry and then asks the affected member's
