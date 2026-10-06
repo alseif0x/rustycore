@@ -6577,6 +6577,25 @@ helper de World sale del shell y `handlers/guild/mod.rs` queda sin registros, so
 El tool no cambió, así que el runner no enruta su suite; sí comprueba aguas abajo (`world-modules`, `world-server`,
 `wow-world`, App, social) y ejecuta las suites `--lib` de los tres crates cambiados.
 
+#### F5: seam del runtime de hechizos del Player — 2026-10-06, `df80e7030..HEAD`
+
+**Integración previa:** #1270 integró el seam de sincronización de registro y `DeclineGuildInvites` (`df80e7030`,
+`final` verde en 192 s); `handlers/guild` ya no registra opcodes.
+
+`mutate_player_spell_runtime_like_cpp` (C++ `Player::AddSpell`/`RemoveSpell` sobre el mapa de hechizos del propio
+Player) y su gemelo de lectura `with_player_spell_runtime_like_cpp` (`Player::GetSpellMap`) pasan a `wow-world-spell`
+como métodos de `SessionSpellState` sobre el hub, dueño natural del fixture del runtime. La rama de fixture, antes
+`#[cfg(test)]` en World, se selecciona con el flag de test del host: sin handle de Player, el snapshot canónico era
+siempre `None`, así que el atajo directo al fixture es equivalente; y almacenar el fixture sin handle devolvía siempre
+`true`. World conserva wrappers para sus 37 y 13 llamadores. Con esto, App y los crates de dominio pueden aprender,
+olvidar o leer hechizos del Player sin un handle de `WorldSession`; es el último seam con nombre en la lista de F5 del
+plan (condiciones, aplicación de auras, sincronización de registro y runtime de hechizos ya están fuera del shell).
+
+**Evidencia enfocada:** `cargo check --all-targets` de `wow-world-spell`, `wow-world` (con y sin `test-fixtures`) y
+`world-server` sin errores ni avisos nuevos (los de `acquisition.rs` ya estaban en la base); `wow-world` `--lib`
+**3.634 ✓**; ownership **PASS** sin delta; arquitectura **PASS**; R1 `S = 22`, `G_move = 50`, presupuesto 0.
+Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

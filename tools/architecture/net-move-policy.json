@@ -18,7 +18,7 @@
     "budget": 0,
     "measured_requirement": 0,
     "recorded_at_revision": "0b1869539bd57725623198d1e3fe0cb89069909c",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 60a95e559, the #1269 integration): S = 89, G_move = 125, ratio and slack credits = 89 * 1.05 + 300 = 393.45, so the requirement is -268.45 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base df80e7030, the #1270 integration): S = 22, G_move = 50, ratio and slack credits = 22 * 1.05 + 300 = 323.10, so the requirement is -273.10 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -474,6 +474,20 @@
         "destination_growth": 125,
         "new_code": 0,
         "note": "The registry-sync body moves to the application crate (World keeps a wrapper) and DeclineGuildInvites moves to the SocialGuild owner, which reports the canonical flag change so the host re-publishes the registry state."
+      },
+      {
+        "phase": "Base reset at the #1270 integration (df80e7030)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1270 integrated the registry-sync seam and the guild auto-decline handler; the merge-base moved to df80e7030."
+      },
+      {
+        "phase": "F5 spell-runtime seam (df80e7030..HEAD)",
+        "shrink": 22,
+        "destination_growth": 50,
+        "new_code": 0,
+        "note": "mutate_player_spell_runtime_like_cpp and its read twin with_player_spell_runtime_like_cpp move to wow-world-spell as SessionSpellState methods over the hub; World keeps wrappers for their 37 and 13 callers."
       }
     ],
     "areas": [
@@ -484,7 +498,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 59,
+        "lines": 0,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
@@ -499,7 +513,7 @@
       },
       {
         "area": "crates/wow-world-spell/src",
-        "lines": 0,
+        "lines": 50,
         "reason": "spell state, melee rules and spell-acquisition adapters."
       },
       {
@@ -514,7 +528,7 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 66,
+        "lines": 0,
         "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
       },
       {

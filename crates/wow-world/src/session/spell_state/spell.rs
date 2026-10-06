@@ -542,16 +542,8 @@ impl WorldSession {
         &self,
         query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let runtime = canonical_player_spell_runtime_like_cpp(
-                self.player_spell_runtime_snapshot_like_cpp()?,
-            );
-            return Some(query(&runtime));
-        }
-        // C++ Player::GetSpellMap returns the owner's map, not a Session copy.
-        self.core
-            .with_owned_player_like_cpp(|player| query(player.spell_runtime_like_cpp()))
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.with_player_spell_runtime_like_cpp(hub, cfg!(test), query)
     }
     /// Incarnation dispatch for one named spell-runtime transition.
     ///
@@ -562,22 +554,8 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let mut runtime = canonical_player_spell_runtime_like_cpp(
-                self.player_spell_runtime_snapshot_like_cpp()?,
-            );
-            let result = f(&mut runtime);
-            return self
-                .store_player_spell_runtime_fixture_like_cpp(
-                    represented_player_spell_runtime_like_cpp(&runtime),
-                )
-                .then_some(result);
-        }
-        // Player::AddSpell/RemoveSpell change the Player's own spell map.
-        // Keep this callback inside the one generation-checked owner access.
-        self.core
-            .with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().spells))
+        let (state, hub) = crate::session::split_spell_state_mut(self);
+        state.mutate_player_spell_runtime_like_cpp(hub.shared(), cfg!(test), f)
     }
     #[allow(dead_code)]
     pub(crate) fn represented_player_spell_rows_like_cpp(
