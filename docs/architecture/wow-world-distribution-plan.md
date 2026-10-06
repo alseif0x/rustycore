@@ -6649,7 +6649,16 @@ sin errores ni avisos nuevos; `wow-world` `--lib` **3.634 ✓**; tool **443/443*
 de producción, entran 4 shims de test y el host reubicado: 3.127 ítems); arquitectura **PASS** con techos ajustados a
 valores vivos (personaje producción 16.962 → 16.882; agregado de sesión producción 60.106 → 60.096) y crecimientos
 revisados de test (+3 sesión, +4 personaje) y composer (+4); R1 `S = 83`, `G_move = 312`, presupuesto 0.
-Registros literales en `wow-world`: **116 → 112**. Pendiente: `final`.
+Registros literales en `wow-world`: **116 → 112**.
+
+**Aceptación `final`:** sobre **`703f6bb58`**, **verde pero en 810 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T183639.001204Z-1207067-final.json`).
+**Supera el objetivo de 600 s; en esta entrega el objetivo de rendimiento no se cumple.** Causa medida: al crear un dueño
+nuevo, el corte toca a la vez App, el composer de `world-server` y el tool de contratos, así que el runner enruta
+`cargo check --tests` aguas abajo (277 s), `cargo test --lib` incluyendo `world-server` (272 s) y la suite del tool
+(129 s). Las entregas que solo amplían un dueño existente se quedan en 192–454 s. Seguimiento: estudiar que cada
+composer monte los registradores App a través de una única función de composición de App, de modo que un dueño nuevo
+no edite `world-server`, sin debilitar el contrato de orden que hoy verifica el tool.
 
 ## 9. Herramientas
 
