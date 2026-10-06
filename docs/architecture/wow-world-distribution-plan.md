@@ -6510,7 +6510,13 @@ helpers—, entran 12 shims de test y el método del trait del host); `check_arc
 agregado de sesión en producción 60.371 (era 60.937) y +4 líneas del composer de `world-server`; R1 `S = 460`,
 `G_move = 949`, presupuesto revisado **166** (estructura de registrador sin contrapartida en World: nueve thunks
 explícitos, contexto y trait del host; 0 cuerpos duplicados). Registros literales en `wow-world`: **139 → 130**.
-Pendiente: `final` sobre el candidato commiteado.
+
+**Aceptación `final`:** `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre **`88bb92524`**
+**verde en 482 s** con `VALIDATION_V2_CARGO_JOBS=2` (`dirty: false`; verificada con `--require-profile final`;
+manifiesto `target/validation-v2/manifests/20261006T162757.815645Z-1121400-final.json`). A diferencia de la
+campaña anterior, incluye compilación real de los crates afectados (`cargo check --tests` 88 s y `cargo test --lib`
+con `world-server` 144 s): es la primera medida de 2 jobs con compilación no caliente, por debajo de 600 s. Memoria:
+pico de 13,3 GB usados, mínimo de 10,7 GB disponibles de 23 GB.
 
 ## 9. Herramientas
 
