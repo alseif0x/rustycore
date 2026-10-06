@@ -6376,8 +6376,20 @@ renombrado del método del seam); `check_architecture.py check` **PASS** con el 
 `handlers/character/mod.rs` ajustado a +33 líneas de test (el conjunto exacto ampliado, agrupado por
 `processing`); R1 v2 `S = 74.719`, `G_move = 116.117`, requisito `37.362,05` → **presupuesto 37.363**.
 
-**Pendiente en esta entrada:** campaña `final` sobre el candidato commiteado. Quedan **142 registros
-literales**.
+**Aceptación `final` (nivel 3):** una primera campaña sobre `bc27a598a` pasó `cargo check --workspace
+--all-targets` (531 s) y las suites `--lib` de los 16 crates (542 s) pero falló en `path-18`:
+`cargo fmt --check` del manifiesto independiente `handler-contract-check`, que los cortes F5 habían dejado
+sin formatear (`cargo fmt --all` no lo cubre). Tras `d3d4ea6e1` (solo rustfmt de ese tool), la campaña
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre **`d3d4ea6e1`** queda
+**verde** (`rc=0`, `dirty: false`, Rust 1.98.0): self-test de arquitectura, ownership `--syntax-only`,
+hygiene/paths, `cargo fmt`, `cargo check --workspace --all-targets`, `cargo test --lib` de los 16 crates
+y la suite del tool **443/443**. Manifiesto
+`target/validation-v2/manifests/20261006T130619.955777Z-1030761-final.json`, verificado con
+`./tools/validation-v2 verify --require-profile final`. **Tiempo de pared: 877 s, por encima del objetivo
+de 600 s**; lo dominan la suite del tool (516 s) y el self-test de arquitectura (249 s). La primera
+campaña tardó 1.219 s porque el cambio de features invalidó la caché. Esta evidencia cubre el código
+hasta `d3d4ea6e1`; el commit que la registra es solo documentación. Quedan **142 registros literales**;
+la issue sigue abierta (F5, remates F4 y F6).
 
 ## 9. Herramientas
 
