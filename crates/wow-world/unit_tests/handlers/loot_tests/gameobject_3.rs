@@ -16,7 +16,7 @@ async fn loot_item_gameobject_pickup_refreshes_canonical_owned_loot_like_cpp() {
     game_object.set_personal_loot_like_cpp(player_guid, GameObjectOwnedLoot::new(0, 1));
     attach_canonical_gameobject(&mut session, game_object);
     session.set_player_guid(Some(player_guid));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -36,13 +36,19 @@ async fn loot_item_gameobject_pickup_refreshes_canonical_owned_loot_like_cpp() {
     );
 
     mark_loot_item_looted_for_player_like_cpp(
-        session.loot.loot_table.get_mut(&loot_guid).unwrap(),
+        session
+            .loot
+            .cached_loot_for_owner_mut_like_cpp(loot_guid)
+            .unwrap(),
         0,
         player_guid,
     );
     session.refresh_represented_loot_owner_canonical_summary_like_cpp(loot_guid, player_guid);
 
-    let loot = session.loot.loot_table.get(&loot_guid).unwrap();
+    let loot = session
+        .loot
+        .cached_loot_for_owner_like_cpp(loot_guid)
+        .unwrap();
     assert!(loot.items[0].is_looted_for_player_like_cpp(player_guid));
     assert_eq!(loot.unlooted_count, 0);
     let canonical = canonical_gameobject_snapshot(&session, loot_guid).unwrap();
@@ -78,7 +84,7 @@ async fn loot_item_fishing_hole_skips_gameobject_distance_like_cpp() {
         go_position,
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -123,7 +129,14 @@ async fn loot_item_fishing_hole_skips_gameobject_distance_like_cpp() {
         wow_constants::ServerOpcodes::LootReleaseAll as u16
     );
     assert_eq!(sent.remaining(), 0);
-    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -143,7 +156,7 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
         GAMEOBJECT_TYPE_CHEST as u8,
     );
     session.record_represented_gameobject_owner_guid_like_cpp(loot_guid, player_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -188,7 +201,14 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
         wow_constants::ServerOpcodes::LootReleaseAll as u16
     );
     assert_eq!(sent.remaining(), 0);
-    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -212,7 +232,7 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
     session.set_player_position_like_cpp(Position::ZERO);
     session.loot.set_active_loot_guid(loot_guid);
     attach_canonical_gameobject(&mut session, game_object);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -257,7 +277,14 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
         wow_constants::ServerOpcodes::LootReleaseAll as u16
     );
     assert_eq!(sent.remaining(), 0);
-    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -275,7 +302,7 @@ async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -319,11 +346,17 @@ async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(!session.loot.is_active_loot_guid(loot_guid));
-    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&loot_guid)
+        .represented_gameobject_use_state_like_cpp(loot_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(LootState::Activated));
     assert_eq!(state.loot_state_unit_guid, player_guid);
@@ -344,7 +377,7 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
         go_position,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -376,12 +409,11 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(!session.loot.is_active_loot_guid(loot_guid));
-    assert!(session.loot.loot_table.contains_key(&loot_guid));
+    assert!(session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&loot_guid)
+            .represented_gameobject_use_state_like_cpp(loot_guid)
             .unwrap()
             .loot_state,
         None
@@ -404,7 +436,7 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
         GAMEOBJECT_TYPE_CHEST as u8,
     );
     session.record_represented_gameobject_owner_guid_like_cpp(loot_guid, player_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -433,12 +465,11 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
         sent.read_uint16().unwrap(),
         wow_constants::ServerOpcodes::LootRelease as u16
     );
-    assert!(!session.loot.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&loot_guid)
+            .represented_gameobject_use_state_like_cpp(loot_guid)
             .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
@@ -459,7 +490,7 @@ async fn loot_release_fully_looted_gameobject_just_deactivates_like_cpp() {
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -488,12 +519,11 @@ async fn loot_release_fully_looted_gameobject_just_deactivates_like_cpp() {
         sent.read_uint16().unwrap(),
         wow_constants::ServerOpcodes::LootRelease as u16
     );
-    assert!(!session.loot.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&loot_guid)
+            .represented_gameobject_use_state_like_cpp(loot_guid)
             .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
@@ -526,7 +556,7 @@ async fn gameobject_owned_loot_release_partial_chest_uses_canonical_is_fully_loo
             ..Default::default()
         },
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -564,14 +594,13 @@ async fn gameobject_owned_loot_release_partial_chest_uses_canonical_is_fully_loo
     assert_eq!(canonical.loot_state(), LootState::Activated);
     assert_eq!(canonical.loot_state_unit_guid(), player_guid);
     assert!(canonical.restock_time() > 0);
-    assert!(!session.loot.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert!(session.reconcile_represented_loot_cache_like_cpp(loot_guid, player_guid));
-    assert!(session.loot.loot_table.contains_key(&loot_guid));
+    assert!(session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&loot_guid)
+            .represented_gameobject_use_state_like_cpp(loot_guid)
             .unwrap()
             .loot_state,
         Some(LootState::Activated)
@@ -612,7 +641,7 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
             ..Default::default()
         },
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -695,7 +724,7 @@ async fn gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fu
             ..Default::default()
         },
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -728,12 +757,11 @@ async fn gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fu
     assert_eq!(canonical.loot_state(), LootState::JustDeactivated);
     assert_eq!(canonical.loot_state_unit_guid(), ObjectGuid::EMPTY);
     assert_eq!(canonical.restock_time(), 0);
-    assert!(!session.loot.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&loot_guid)
+            .represented_gameobject_use_state_like_cpp(loot_guid)
             .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
@@ -760,18 +788,11 @@ fn gameobject_loot_release_without_canonical_manager_keeps_represented_restock_f
         },
     );
 
-    session.apply_represented_gameobject_loot_release_like_cpp(
-        loot_guid,
-        player_guid,
-        true,
-        true,
-        None,
-    );
+    session.apply_represented_gameobject_loot_release_like_cpp(loot_guid, player_guid, true, true);
 
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&loot_guid)
+        .represented_gameobject_use_state_like_cpp(loot_guid)
         .unwrap();
     assert_eq!(state.loot_state, Some(LootState::NotReady));
     assert_eq!(state.loot_state_unit_guid, ObjectGuid::EMPTY);
@@ -804,15 +825,11 @@ async fn gameobject_owned_loot_release_personal_chest_syncs_current_player_and_d
             ..Default::default()
         },
     );
+    session.loot.insert_personal_loot_owner_like_cpp(loot_guid);
     session
         .loot
-        .represented_personal_loot_owners
-        .insert(loot_guid);
-    session
-        .loot
-        .represented_personal_loot_money
-        .insert((loot_guid, player_guid), 0);
-    session.loot.loot_table.insert(
+        .insert_personal_loot_money_like_cpp(loot_guid, player_guid, 0);
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -847,8 +864,7 @@ async fn gameobject_owned_loot_release_personal_chest_syncs_current_player_and_d
     );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&loot_guid)
+        .represented_gameobject_use_state_like_cpp(loot_guid)
         .unwrap();
     assert_eq!(state.per_player_state_player_guid, Some(player_guid));
     assert_eq!(state.per_player_despawn_secs, Some(7));

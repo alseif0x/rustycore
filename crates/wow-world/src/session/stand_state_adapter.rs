@@ -8,54 +8,13 @@
 use super::TitanGripPenaltyAction;
 use super::{Arc, RepresentedGameObjectUseEffect, UnitStandStateType, WorldSession, debug};
 
-/// Validated session-owned intent whose side effects cross the represented to
-/// live boundary. Variants deliberately own their payload so future intents
-/// may contain non-`Copy` data.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum RepresentedLiveIntentLikeCpp {
-    StandStateChanged(RepresentedStandStateChangedLikeCpp),
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedStandStateChangedLikeCpp {
-    pub state: UnitStandStateType,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedStandChannelCancellationBoundary {
-    Interrupted {
-        spell_id: u32,
-        canonical_spells_interrupted: usize,
-        session_cast_interrupted: bool,
-    },
-    UnknownInterruptMetadata {
-        spell_id: u32,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedLiveIntentAppliedLikeCpp {
-    StandStateChanged {
-        canonical_field_changed: bool,
-        canonical_auras_removed: usize,
-        represented_auras_removed: usize,
-        channel_cancellation_boundary: Option<RepresentedStandChannelCancellationBoundary>,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedLiveIntentApplyOutcomeLikeCpp {
-    Applied(RepresentedLiveIntentAppliedLikeCpp),
-    RejectedMissingPlayer,
-    RejectedMissingCanonicalPlayer,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedLiveApplicationLikeCpp {
-    pub intent: RepresentedLiveIntentLikeCpp,
-    pub outcome: RepresentedLiveIntentApplyOutcomeLikeCpp,
-}
+#[cfg(test)]
+pub(crate) use wow_world_core::session::RepresentedLiveApplicationLikeCpp;
+pub(crate) use wow_world_core::session::{
+    RepresentedLiveIntentAppliedLikeCpp, RepresentedLiveIntentApplyOutcomeLikeCpp,
+    RepresentedLiveIntentLikeCpp, RepresentedStandChannelCancellationBoundary,
+    RepresentedStandStateChangedLikeCpp,
+};
 
 impl WorldSession {
     /// Session-owned represented->live boundary.
@@ -383,7 +342,7 @@ impl WorldSession {
         };
 
         self.world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .iter()
             .rev()
             .any(|effect| {
@@ -402,70 +361,8 @@ impl WorldSession {
     pub(crate) fn represented_titan_grip_penalty_actions_like_cpp(
         &self,
     ) -> &[TitanGripPenaltyAction] {
-        &self
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .represented_titan_grip_penalty_actions_like_cpp
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(in crate::session) fn resolved_player_stand_state_like_cpp(
-        &self,
-    ) -> Option<UnitStandStateType> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.presentation.player_stand_state_like_cpp);
-        }
-        canonical
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn player_stand_state_like_cpp(&self) -> UnitStandStateType {
-        self.resolved_player_stand_state_like_cpp()
-            .expect("test Player stand-state owner must resolve")
-    }
-
-    pub(crate) fn player_is_sit_state_like_cpp(&self) -> bool {
-        self.resolved_player_stand_state_like_cpp()
-            .is_some_and(|state| {
-                matches!(
-                    state,
-                    UnitStandStateType::Sit
-                        | UnitStandStateType::SitChair
-                        | UnitStandStateType::SitLowChair
-                        | UnitStandStateType::SitMediumChair
-                        | UnitStandStateType::SitHighChair
-                )
-            })
-    }
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-impl crate::session::state::PlayerPresentationState {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_live_applications_like_cpp(
-        &self,
-    ) -> &[RepresentedLiveApplicationLikeCpp] {
-        &self.represented_live_applications_like_cpp
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
-        let _canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().set_stand_state_like_cpp(state)
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.presentation.player_stand_state_like_cpp = state;
-        }
+        self.inventory
+            .represented_titan_grip_penalty_actions_for_test_like_cpp()
     }
 }
 

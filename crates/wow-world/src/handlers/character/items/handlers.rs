@@ -482,34 +482,7 @@ impl WorldSession {
     ///
     /// C++ ref: `WorldSession::HandleCancelTempEnchantmentOpcode`.
     pub async fn handle_cancel_temp_enchantment(&mut self, cancel: CancelTempEnchantment) {
-        let Ok(slot) = u8::try_from(cancel.slot) else {
-            return;
-        };
-        if !is_equipment_pos(INVENTORY_SLOT_BAG_0, slot) {
-            return;
-        }
-
-        let Some(item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, slot) else {
-            return;
-        };
-        let Some(runtime_item) = self.resolved_inventory_item_object_like_cpp(item.guid) else {
-            return;
-        };
-        if runtime_item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id == 0
-        {
-            return;
-        }
-
-        let _ = self.apply_current_player_item_enchantment_plan_like_cpp(
-            item.guid,
-            EnchantmentSlot::EnhancementTemporary,
-            wow_entities::ApplyEnchantmentArgs::remove(),
-        );
-        let _ = self.apply_inventory_item_object_updates_like_cpp(
-            item.guid,
-            &[wow_entities::ItemObjectUpdateLikeCpp::ClearEnchantment(
-                EnchantmentSlot::EnhancementTemporary,
-            )],
-        );
+        self.build_item_enchantment_handler_cx_like_cpp()
+            .cancel_temp_enchantment_like_cpp(cancel);
     }
 }

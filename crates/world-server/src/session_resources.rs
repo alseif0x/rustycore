@@ -43,6 +43,8 @@ pub(super) struct SessionResources {
 
 /// Required process capabilities shared by every admitted session.
 pub(super) struct SessionCoreCapabilitiesLikeCpp {
+    /// Immutable process-wide opcode registry shared by all constructed sessions.
+    pub(super) packet_handlers: Arc<wow_world::session::registry::WorldPacketHandlerRegistry>,
     /// Required immutable capabilities borrowed by the outer driver for one
     /// session pass. Production sessions never retain this aggregate.
     pub(super) handler_catalogs: Arc<wow_world::session::SessionHandlerCatalogsLikeCpp>,

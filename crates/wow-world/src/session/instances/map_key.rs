@@ -565,14 +565,13 @@ impl WorldSession {
                 );
             if !self
                 .visibility
-                .represented_dynamic_object_values_updates_delivered_like_cpp
-                .insert((
+                .admit_dynamic_object_values_update_delivery_like_cpp(
                     key.map_id,
                     key.instance_id,
                     update_generation,
                     guid,
                     fingerprint,
-                ))
+                )
             {
                 continue;
             }
@@ -580,128 +579,6 @@ impl WorldSession {
             sent += 1;
         }
         sent
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    /// Set the C++ AdventureMapPOI.db2 store for this session.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
-        self.adventure_map_poi_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
-        self.adventure_map_poi_store.as_ref()
-    }
-
-    pub(crate) fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
-        self.dungeon_encounter_store.as_ref()
-    }
-}
-
-impl crate::session::state::InstanceState {
-    pub(crate) fn create_map_db2_entries_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-    ) -> Option<wow_instances::MapDb2Entries> {
-        wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
-            hub.catalogs.map_store()?.as_ref(),
-            hub.catalogs.map_difficulty_store()?.as_ref(),
-            hub.catalogs.difficulty_store()?.as_ref(),
-            map_id,
-            difficulty_id,
-        )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
-        &self.represented_reveal_world_map_overlay_criteria_like_cpp
-    }
-
-    pub(crate) fn is_disabled_map_type_for_player_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        disable_type: u32,
-        map_id: u32,
-    ) -> bool {
-        let Some(disable_mgr) = hub.catalogs.disable_mgr() else {
-            return false;
-        };
-        let Some(map_store) = hub.catalogs.map_store() else {
-            return false;
-        };
-
-        let current_map_id = u32::from(hub.core.player_map_id_like_cpp());
-        let Some((_, area_id)) = hub.player_zone_area_like_cpp() else {
-            return true;
-        };
-        let current_map_instance_type = map_store
-            .get(current_map_id)
-            .map(|entry| entry.instance_type);
-
-        disable_mgr.is_disabled_for_like_cpp(
-            disable_type,
-            map_id,
-            Some(DisableWorldObjectRefLikeCpp {
-                type_id: TypeId::Player,
-                map_id: current_map_id,
-                area_id,
-                is_pet: false,
-                is_battle_arena: current_map_instance_type == Some(MAP_ARENA_LIKE_CPP),
-                is_battleground: current_map_instance_type == Some(MAP_BATTLEGROUND_LIKE_CPP),
-                player_map_difficulty: None,
-            }),
-            0,
-            Some(map_store.as_ref()),
-        )
-    }
-
-    pub(in crate::session) fn is_map_disabled_for_player_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        map_id: u32,
-    ) -> bool {
-        self.is_disabled_map_type_for_player_like_cpp(hub, DISABLE_TYPE_MAP, map_id)
-    }
-}
-
-impl crate::session::state::SessionCore {
-    pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
-        self.current_map_id
-    }
-
-    /// The legacy map facade must follow the same map instance that owns the
-    /// canonical Player. Instance `0` remains only the bootstrap fallback for
-    /// tests/runtime phases where no canonical Player has been materialized.
-    pub(crate) fn current_legacy_runtime_map_key_like_cpp(&self) -> (u16, u32) {
-        let fallback_map_id = self.player_map_id_like_cpp();
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return (fallback_map_id, 0);
-        };
-        let Ok(map_id) = u16::try_from(map_key.map_id) else {
-            return (fallback_map_id, 0);
-        };
-        (map_id, map_key.instance_id)
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.maps.store.as_ref()
-    }
-}
-
-impl crate::session::state::SessionWorldConfig {
-    pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.legacy_creature_aggro_config_like_cpp
-            .map_visibility_range_like_cpp(map_id)
-    }
-
-    pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
-        &self.mmap_runtime_config_like_cpp
     }
 }
 

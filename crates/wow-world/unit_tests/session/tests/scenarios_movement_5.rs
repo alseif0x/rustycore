@@ -25,15 +25,13 @@ async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_li
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     session.set_max_instances_per_hour_like_cpp(5);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     for instance_id in 100..105 {
         session
             .instances
-            .represented_instance_reset_times_like_cpp
-            .insert(instance_id, u64::MAX);
+            .insert_represented_instance_reset_time_for_test_like_cpp(instance_id, u64::MAX);
     }
 
     session.teleport_to(631, destination).await;
@@ -127,8 +125,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
     assert!(session.fixtures.combat.in_combat);
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
 
     session.teleport_to(631, destination).await;

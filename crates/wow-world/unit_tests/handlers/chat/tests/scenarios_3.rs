@@ -82,7 +82,9 @@ async fn targeted_party_addon_uses_group_routing_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -147,8 +149,9 @@ async fn addon_command_delivers_only_when_prefix_registered_like_cpp() {
     let receiver = ObjectGuid::create_player(1, 501);
     let (mut session, _, send_rx) = session_for_chat_routing_like_cpp(receiver);
     session.set_state(crate::session::SessionState::LoggedIn);
-    session.social.addon_filter.filter_addon_messages = true;
-    session.social.addon_filter.registered_addon_prefixes = vec!["ABC".to_string()];
+    session
+        .social
+        .set_addon_filter_for_test_like_cpp(vec!["ABC".to_string()], true);
     let packet = ChatPkt {
         msg_type: ChatMsg::Raid,
         language: LANG_ADDON_LIKE_CPP,

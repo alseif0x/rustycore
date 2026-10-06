@@ -50,247 +50,6 @@ impl WorldSession {
         })
     }
 
-    fn publish_durable_loot_item_fanout_like_cpp(
-        &mut self,
-        route: &DurableLootItemFanoutLikeCpp,
-    ) -> bool {
-        let Some(committed_snapshot) = route.committed_snapshot.get().filter(|snapshot| {
-            snapshot.generation == route.authority_generation
-                && snapshot.loot.loot_guid == route.loot_obj
-        }) else {
-            // Never replace the serialization cut with a later authority
-            // sample. The latter may include a viewer that opened after the
-            // item commit and already received a response without this slot.
-            return false;
-        };
-        if route
-            .published
-            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-            .is_err()
-        {
-            return true;
-        }
-
-        // C++ serializes StoreLootItem before a later LootRelease and notifies
-        // synchronously. Preserve that already ordered cohort across Rust's
-        // SQL wait, then add only viewers captured by the item mutation. A
-        // post-COMMIT opener is excluded because it saw the removed slot.
-        let viewers = durable_loot_item_fanout_viewers_like_cpp(
-            &route.precommit_snapshot.loot.players_looting,
-            &committed_snapshot.loot.players_looting,
-        );
-        let Some(entry) = committed_snapshot
-            .loot
-            .items
-            .iter()
-            .find(|entry| entry.loot_list_id == route.loot_list_id)
-        else {
-            return false;
-        };
-        let allowed_looters = entry
-            .allowed_looters
-            .iter()
-            .copied()
-            .collect::<HashSet<_>>();
-        let packet = LootRemoved {
-            owner: route.owner_guid,
-            loot_obj: route.loot_obj,
-            loot_list_id: route.loot_list_id,
-        };
-        let bytes = packet.to_bytes();
-        let mut stale_viewers = Vec::new();
-
-        if route.free_for_all {
-            let _ = route.source_send_tx.send(bytes);
-        } else {
-            for viewer in viewers {
-                if !allowed_looters.contains(&viewer) {
-                    continue;
-                }
-                if viewer == route.player_guid {
-                    let _ = route.source_send_tx.send(bytes.clone());
-                    continue;
-                }
-                let Some(registry) = route.player_registry.as_ref() else {
-                    stale_viewers.push(viewer);
-                    continue;
-                };
-                let Some(registration) =
-                    registry.loot_delivery_recipient(viewer, route.map_id, route.instance_id)
-                else {
-                    stale_viewers.push(viewer);
-                    continue;
-                };
-                if registry
-                    .send_current_packet(registration, bytes.clone())
-                    .is_err()
-                {
-                    stale_viewers.push(viewer);
-                }
-            }
-        }
-
-        for viewer in stale_viewers {
-            let _ = route
-                .authority
-                .remove_viewer_if_generation_like_cpp(route.authority_generation, viewer);
-        }
-
-        self.refresh_owned_loot_summary_like_cpp(route.owner_guid);
-        if self.player_guid() == Some(route.player_guid) {
-            let _ =
-                self.reconcile_represented_loot_cache_like_cpp(route.owner_guid, route.player_guid);
-        }
-        self.finalize_unviewed_durable_loot_owner_like_cpp(route);
-        true
-    }
-
-    fn finalize_unviewed_durable_loot_owner_like_cpp(
-        &mut self,
-        route: &DurableLootItemFanoutLikeCpp,
-    ) {
-        let same_view_still_open = self
-            .loot
-            .active_loot_view_authorities_like_cpp
-            .get(&route.owner_guid)
-            .is_some_and(|authority| authority.shares_storage_like_cpp(&route.authority))
-            && self
-                .loot
-                .active_loot_view_generations_like_cpp
-                .get(&route.owner_guid)
-                .is_some_and(|generation| *generation == route.authority_generation);
-        if same_view_still_open {
-            return;
-        }
-        if !self
-            .represented_owned_loot_authority_like_cpp(route.owner_guid)
-            .is_some_and(|authority| authority.shares_storage_like_cpp(&route.authority))
-        {
-            return;
-        }
-        let Some(observation) = route
-            .authority
-            .fully_looted_unviewed_lifecycle_observation_like_cpp()
-        else {
-            return;
-        };
-        let Some(snapshot) = route
-            .authority
-            .snapshot_for_player_like_cpp(route.player_guid)
-            .filter(|snapshot| snapshot.generation == route.authority_generation)
-        else {
-            return;
-        };
-
-        self.loot
-            .loot_table
-            .insert(route.owner_guid, snapshot.loot.clone());
-        self.loot
-            .represented_loot_cache_generations_like_cpp
-            .insert(route.owner_guid, snapshot.generation);
-
-        if route.owner_guid.is_game_object() {
-            let release = AuthoritativeLootReleaseLikeCpp {
-                authority: route.authority.clone(),
-                selected_generation: route.authority_generation,
-                loot: snapshot.loot,
-                whole_object_fully_looted: true,
-                whole_object_fully_skinned: observation.whole_object_fully_skinned,
-                object_generation: observation.object_generation,
-                lifecycle_revision: observation.lifecycle_revision,
-                require_no_viewers: true,
-            };
-            crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
-                route.owner_guid,
-                route.player_guid,
-                true,
-                true,
-                Some(&release),
-            );
-            let _ = crate::session::cx_loot_ref(self)
-                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(route.owner_guid);
-            crate::session::cx_loot(self)
-                .hide_represented_gameobject_for_player_after_loot_release_like_cpp(
-                    route.owner_guid,
-                );
-            if self
-                .world_entities
-                .represented_gameobject_use_states
-                .get(&route.owner_guid)
-                .and_then(|state| state.go_type)
-                .map(u32::from)
-                == Some(GAMEOBJECT_TYPE_GATHERING_NODE)
-            {
-                self.send_gathering_node_loot_release_dynamic_flags_update_like_cpp(
-                    route.owner_guid,
-                );
-            }
-            self.loot.loot_table.remove(&route.owner_guid);
-            return;
-        }
-
-        if route.owner_guid.is_corpse() {
-            self.remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
-                route.owner_guid,
-                &route.authority,
-                observation.object_generation,
-                observation.lifecycle_revision,
-            );
-            self.loot.loot_table.remove(&route.owner_guid);
-            return;
-        }
-
-        if !route.owner_guid.is_creature_or_vehicle() {
-            return;
-        }
-
-        let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
-        let whole_object_fully_skinned = observation.whole_object_fully_skinned;
-        let lifecycle_update = self
-            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
-                route.owner_guid,
-                &route.authority,
-                observation.object_generation,
-                observation.lifecycle_revision,
-                |creature| {
-                    creature.force_dynamic_flags_update_like_cpp();
-                    creature.remove_lootable_dynamic_flag_like_cpp();
-                    let marked = if creature.is_alive() {
-                        None
-                    } else {
-                        let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
-                            whole_object_fully_skinned,
-                            creature.corpse_delay_secs_like_cpp(),
-                            creature.ignore_corpse_decay_ratio_like_cpp(),
-                            corpse_decay_looted_rate,
-                        );
-                        creature
-                            .all_loot_removed_from_corpse_like_cpp(
-                                corpse_decay_looted_rate,
-                                whole_object_fully_skinned,
-                            )
-                            .then_some((creature.entry(), corpse_decay_secs))
-                    };
-                    (marked, creature.creature.unit().values_update())
-                },
-            );
-        self.loot.loot_table.remove(&route.owner_guid);
-        if let Some((_, values_update)) = lifecycle_update.as_ref() {
-            self.send_creature_loot_release_dynamic_flags_update_like_cpp(
-                route.owner_guid,
-                values_update,
-                Some(&route.authority),
-            );
-        }
-        let marked = lifecycle_update.and_then(|(marked, _)| marked);
-        if let Some((entry, corpse_decay_secs)) = marked {
-            info!(
-                "Creature {:?} (entry {}) fully looted after durable claim — despawning in {}s",
-                route.owner_guid, entry, corpse_decay_secs
-            );
-        }
-    }
-
     fn commit_represented_loot_item_claim_like_cpp(
         &mut self,
         claim: &LootClaimLease,
@@ -339,7 +98,8 @@ impl WorldSession {
             );
             return false;
         };
-        self.publish_durable_loot_item_fanout_like_cpp(fanout)
+        self.loot_release_cx_like_cpp()
+            .publish_durable_loot_item_fanout_like_cpp(fanout)
     }
 
     pub(super) fn publish_persisted_loot_item_removal_like_cpp(
@@ -394,7 +154,9 @@ impl WorldSession {
             crate::session::cx_inventory_ref(self).take_durable_item_loot_completions_like_cpp();
         for completion in completions {
             if let Some(fanout) = completion.item_fanout.as_ref() {
-                let _ = self.publish_durable_loot_item_fanout_like_cpp(fanout);
+                let _ = self
+                    .loot_release_cx_like_cpp()
+                    .publish_durable_loot_item_fanout_like_cpp(fanout);
             }
             let requires_runtime_recovery =
                 !completion.runtime_inventory_applied.load(Ordering::Acquire);
@@ -448,8 +210,7 @@ impl WorldSession {
 
                     let fully_looted = self
                         .loot
-                        .loot_table
-                        .get_mut(&completion.owner_guid)
+                        .cached_loot_for_owner_mut_like_cpp(completion.owner_guid)
                         .is_some_and(|loot| {
                             loot.coins = 0;
                             loot_is_looted_like_cpp(loot)
@@ -478,8 +239,7 @@ impl WorldSession {
                 debug_assert!(completion.owner_guid.is_item());
                 let removal = self
                     .loot
-                    .loot_table
-                    .get_mut(&completion.owner_guid)
+                    .cached_loot_for_owner_mut_like_cpp(completion.owner_guid)
                     .and_then(|loot| {
                         let entry = loot
                             .items
@@ -555,7 +315,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
         let mut authorities = Vec::<OwnedLootAuthority>::new();
-        for authority in self.loot.active_loot_view_authorities_like_cpp.values() {
+        for authority in self.loot.active_loot_view_authorities_iter_like_cpp() {
             if authorities
                 .iter()
                 .any(|existing| existing.shares_storage_like_cpp(authority))
@@ -581,26 +341,6 @@ impl WorldSession {
         let generators = self.id_generators_for_test_like_cpp();
         self.wait_for_active_loot_persistence_with_generator_like_cpp(generators.item.as_ref())
             .await;
-    }
-}
-
-impl crate::session::LootState {
-    /// Retire the detached Rust representation of Loot owned by an Item that
-    /// a durable transaction has committed to destroy. C++ gets the same
-    /// window teardown from destroying the Item and its owned `Loot`; this is
-    /// deliberately narrower than `DoLootReleaseAll` and cannot consume or
-    /// otherwise mutate an unrelated active loot owner.
-    pub(crate) fn retire_committed_destroyed_item_loot_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        item_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) {
-        if self.active_loot_view_owners.contains(&item_guid) || self.is_active_loot_guid(item_guid)
-        {
-            self.close_stale_active_loot_view_like_cpp(hub, item_guid, player_guid);
-        }
-        self.loot_table.remove(&item_guid);
     }
 }
 

@@ -26,8 +26,8 @@ impl WorldSession {
     /// emit the same PlayerData::Flags values delta that C++ SetPlayerFlag does.
     pub(crate) fn apply_committed_void_storage_unlock_like_cpp(&mut self) {
         let values_update = self.player_values_update_snapshot().and_then(|mut player| {
-            player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            Some(player.values_update(true))
+            player.set_player_flag_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+            Some(player.values_update_like_cpp(true))
         });
 
         let Some(_current_flags) = self.represented_player_flags_value_like_cpp() else {
@@ -42,12 +42,11 @@ impl WorldSession {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
             self.lifecycle
-                .player_flags_test_fixture_like_cpp
-                .represented_loaded_player_flags_like_cpp =
-                Some(_current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+                .set_represented_loaded_player_flags_for_test_like_cpp(Some(
+                    _current_flags | PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP,
+                ));
             self.lifecycle
-                .player_flags_test_fixture_like_cpp
-                .represented_loaded_player_flags_applied_like_cpp = _canonical;
+                .set_represented_loaded_player_flags_applied_for_test_like_cpp(_canonical);
         }
 
         if let Some(update) = values_update {
@@ -101,11 +100,11 @@ impl WorldSession {
         // COMMIT. The failure seam proves that no covered runtime state is
         // published on a definite rollback.
         #[cfg(test)]
-        if self.lifecycle.loot_money_persistence_test_result_like_cpp == Some(false) {
+        if self.lifecycle.loot_money_persistence_test_result_like_cpp() == Some(false) {
             return None;
         }
         #[cfg(test)]
-        let bypass_database_like_cpp = self.lifecycle.loot_money_persistence_test_result_like_cpp
+        let bypass_database_like_cpp = self.lifecycle.loot_money_persistence_test_result_like_cpp()
             == Some(true)
             || self.lifecycle.player_lifecycle_port_like_cpp().is_none();
         #[cfg(not(test))]
@@ -115,9 +114,11 @@ impl WorldSession {
             money_persistence
         } else {
             let port = self.lifecycle.player_lifecycle_port_like_cpp().cloned()?;
-            let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(
-                Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
-            );
+            let mut cancellation_fence =
+                PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
+                    self.lifecycle
+                        .durable_loot_money_persistence_tracker_like_cpp(),
+                ));
             match port
                 .persist_talent_reset_like_cpp(persistence_request)
                 .await
@@ -133,7 +134,7 @@ impl WorldSession {
                 }
                 wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
                     self.lifecycle
-                        .durable_loot_money_persistence_like_cpp
+                        .durable_loot_money_persistence_tracker_like_cpp()
                         .mark_indeterminate_like_cpp();
                     cancellation_fence.disarm_like_cpp();
                     self.kick(
@@ -236,75 +237,6 @@ impl WorldSession {
             item_guid_generator,
         )
         .await;
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    /// Commit a trainer fee when the represented cast has no durable
-    /// spell/skill mutation (for example, every acquisition effect was
-    /// suppressed by target immunity). C++ charges and publishes its trainer
-    /// visuals before that triggered cast resolves its hit effects.
-    pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        money_before: u64,
-        money_after: u64,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(test)]
-        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
-            return success.then_some(money_persistence);
-        }
-
-        if money_before == money_after {
-            return Some(money_persistence);
-        }
-        let guid = hub.core.player_guid()?.counter() as u64;
-        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
-        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
-            player_guid: guid,
-            money_after,
-            durability_repairs: Vec::new(),
-        };
-        self.await_exclusive_player_money_transaction_outcome_like_cpp(
-            hub,
-            money_persistence,
-            port.persist_money_transaction_like_cpp(request),
-            money_before,
-            money_after,
-            "trainer fee without durable acquisition mutation",
-        )
-        .await
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> BTreeSet<u16> {
-        hub.resolved_player_skill_non_durable_tombstones_like_cpp()
-            .expect("test Player skill owner must resolve")
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(crate) fn resolved_player_skill_non_durable_tombstones_like_cpp(
-        &self,
-    ) -> Option<BTreeSet<u16>> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            player.non_durable_skill_tombstones_like_cpp().clone()
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp
-                    .player_skill_non_durable_tombstones_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
     }
 }
 

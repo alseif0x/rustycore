@@ -60,15 +60,16 @@ use wow_packet::packets::query::{
 };
 use wow_packet::packets::quest::{
     AdventureMapStartQuest, PushQuestToParty, QueryQuestInfoResponse, QuestConfirmAccept,
-    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverRequestItems,
-    QuestGiverStatus, QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse,
-    QuestRewardsBlock, QuestUpdateComplete, WorldQuestUpdateResponse, quest_giver_status,
-    quest_push_reason,
+    QuestGiverOfferReward, QuestGiverQuestComplete, QuestGiverQuestFailed, QuestGiverStatus,
+    QuestObjectiveInfo, QuestPushResult, QuestPushResultResponse, QuestRewardsBlock,
+    WorldQuestUpdateResponse, quest_push_reason,
 };
-use wow_packet::packets::update::{
-    ItemCreateData, ItemEnchantmentValuesUpdate, PlayerDataValuesDeltaUpdate, QuestLogValuesUpdate,
-    UpdateObject,
-};
+// Test-only: the quest handler test fixtures read the dialog status
+// discriminators through this module's glob import.
+#[cfg(test)]
+use wow_packet::packets::quest::quest_giver_status;
+
+use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 
 use crate::handlers::character::ExtendedCostItemTurninChange;
 use crate::session::{
@@ -101,22 +102,20 @@ fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 
 
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 #[cfg(test)]
-pub(crate) const QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP: u32 = 0x0020_0000;
+pub(crate) use wow_constants::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
 const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;
 pub(crate) use wow_constants::quest::{
     QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
 };
-const QUEST_STATE_COMPLETE_LIKE_CPP: u32 = 0x0001;
-const QUEST_STATE_FAIL_LIKE_CPP: u32 = 0x0002;
-const QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP: u32 = 256;
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
 #[cfg(test)]
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
-const QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP: u8 = 0;
-const QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP: u8 = 1;
+pub(crate) use wow_constants::quest::{
+    QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+};
 const QUEST_FLAGS_REMOVE_SURPLUS_ITEMS_LIKE_CPP: u32 = 0x0200_0000;
 const QUEST_FLAGS_EX_NO_ITEM_REMOVAL_LIKE_CPP: u32 = 0x0000_0001;
 const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 = 3;
@@ -222,59 +221,21 @@ fn represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
     receiver_rewarded_quests: &std::collections::HashSet<u32>,
 ) -> bool {
-    if quest.dependent_previous_quests.is_empty() {
-        return false;
-    }
-
-    for &prev_id in &quest.dependent_previous_quests {
-        let Some(previous_quest) = quest_store.get(prev_id) else {
-            // C++ ASSERTs because ObjectMgr validates this at startup. Rust fails closed
-            // as the prerequisite branch rather than panicking in the sender loop.
-            return true;
-        };
-
-        if receiver_rewarded_quests.contains(&prev_id) {
-            if previous_quest.exclusive_group >= 0 {
-                return false;
-            }
-
-            for exclusive_quest_id in quest_store
-                .quests
-                .values()
-                .filter(|candidate| candidate.exclusive_group == previous_quest.exclusive_group)
-                .map(|candidate| candidate.id)
-            {
-                if exclusive_quest_id != prev_id
-                    && !receiver_rewarded_quests.contains(&exclusive_quest_id)
-                {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-    }
-
-    true
+    wow_world_application::QuestEligibilityCx::represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
+        quest_store,
+        quest,
+        receiver_rewarded_quests,
+    )
 }
 
 fn represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
     receiver_active_quest_statuses: &std::collections::HashMap<u32, u8>,
 ) -> bool {
-    quest
-        .dependent_breadcrumb_quests
-        .iter()
-        .any(|breadcrumb_quest_id| {
-            matches!(
-                receiver_active_quest_statuses
-                    .get(breadcrumb_quest_id)
-                    .copied(),
-                Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-                    | Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
-                    | Some(QUEST_STATUS_FAILED_LIKE_CPP)
-            )
-        })
+    wow_world_application::QuestEligibilityCx::represented_satisfy_quest_dependent_breadcrumb_quests_failed_like_cpp(
+        quest,
+        receiver_active_quest_statuses,
+    )
 }
 
 fn represented_can_take_quest_after_expansion_like_cpp(
@@ -341,42 +302,7 @@ fn represented_can_take_quest_after_expansion_like_cpp(
     true
 }
 
-fn represented_quest_completion_npc_response_like_cpp(
-    quest_store: &wow_data::quest::QuestStore,
-    raw_quest_ids: &[i32],
-) -> Vec<QuestCompletionNpc> {
-    raw_quest_ids
-        .iter()
-        .filter_map(|&raw_quest_id| {
-            let quest_id = u32::try_from(raw_quest_id).ok()?;
-            if quest_store.get(quest_id).is_none() {
-                return None;
-            }
-
-            let mut npcs = Vec::new();
-            for creature_entry in quest_store.creature_ender_entries_for_quest_like_cpp(quest_id) {
-                let Ok(entry) = i32::try_from(creature_entry) else {
-                    debug!(
-                        quest_id,
-                        creature_entry,
-                        "QueryQuestCompletionNPCs: creature entry exceeds signed i32 response field"
-                    );
-                    continue;
-                };
-                npcs.push(entry);
-            }
-
-            for go_entry in quest_store.gameobject_ender_entries_for_quest_like_cpp(quest_id) {
-                npcs.push((go_entry | 0x8000_0000) as i32);
-            }
-
-            Some(QuestCompletionNpc {
-                quest_id: raw_quest_id,
-                npcs,
-            })
-        })
-        .collect()
-}
+pub(crate) use wow_world_application::represented_quest_completion_npc_response_like_cpp;
 
 fn build_quest_poi_store_like_cpp(
     point_rows: Vec<wow_persistence::QuestPoiPointLoadRowLikeCpp>,
@@ -435,28 +361,8 @@ fn build_quest_poi_store_like_cpp(
 
 // ── Handler registrations ────────────────────────────────────────────────────
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestGiverStatusSourceLikeCpp {
-    Creature { entry: u32 },
-    GameObject { entry: u32 },
-}
-
-impl RepresentedQuestGiverStatusSourceLikeCpp {
-    fn entry(self) -> u32 {
-        match self {
-            Self::Creature { entry } | Self::GameObject { entry } => entry,
-        }
-    }
-
-    fn kind_name(self) -> &'static str {
-        match self {
-            Self::Creature { .. } => "Creature",
-            Self::GameObject { .. } => "GameObject",
-        }
-    }
-}
-
-pub(crate) const MAX_QUEST_LOG_SIZE_LIKE_CPP: u8 = 25;
+pub(crate) use wow_world_application::MAX_QUEST_LOG_SIZE_LIKE_CPP;
+pub(crate) use wow_world_application::RepresentedQuestGiverStatusSourceLikeCpp;
 
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/quest_tests.rs"]

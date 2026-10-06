@@ -19,7 +19,7 @@ use wow_packet::packets::misc::{
 };
 use wow_packet::packets::pet::DismissCritter;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetRequestJournal,
         status: SessionStatus::LoggedIn,
@@ -31,7 +31,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetRequestJournalLock,
         status: SessionStatus::LoggedIn,
@@ -43,7 +43,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetClearFanfare,
         status: SessionStatus::LoggedIn,
@@ -55,7 +55,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetSetFlags,
         status: SessionStatus::LoggedIn,
@@ -67,7 +67,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetSetBattleSlot,
         status: SessionStatus::LoggedIn,
@@ -79,7 +79,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetSummon,
         status: SessionStatus::LoggedIn,
@@ -91,7 +91,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetUpdateNotify,
         status: SessionStatus::LoggedIn,
@@ -103,7 +103,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePetUpdateDisplayNotify,
         status: SessionStatus::LoggedIn,
@@ -115,7 +115,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DismissCritter,
         status: SessionStatus::LoggedIn,
@@ -125,7 +125,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryBattlePetName,
         status: SessionStatus::LoggedIn,

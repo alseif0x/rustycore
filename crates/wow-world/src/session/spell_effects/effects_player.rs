@@ -111,34 +111,9 @@ impl WorldSession {
         // the ordered database worker and immediately sends the bind packets.
         // Send it to one FIFO worker so SQL latency stays off the packet path
         // without allowing an older bind to finish after a newer one.
-        let persistence_tx = self
+        if self
             .lifecycle
-            .homebind_persistence_tx_like_cpp
-            .get_or_insert_with(|| {
-                let (tx, mut rx) =
-                    tokio::sync::mpsc::unbounded_channel::<HomebindPersistenceJobLikeCpp>();
-                tokio::spawn(async move {
-                    while let Some(job) = rx.recv().await {
-                        match job.port.persist_homebind_like_cpp(job.request).await {
-                            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-                            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-                            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                                warn!(
-                                    player_guid = job.guid_counter,
-                                    "failed to update represented player homebind: {reason}"
-                                );
-                            }
-                        }
-                    }
-                });
-                tx
-            });
-        if persistence_tx
-            .send(HomebindPersistenceJobLikeCpp {
-                port,
-                request,
-                guid_counter,
-            })
+            .queue_player_homebind_persistence_like_cpp(port, request, guid_counter)
             .is_err()
         {
             warn!(

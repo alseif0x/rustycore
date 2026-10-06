@@ -129,15 +129,8 @@ impl WorldSession {
                 )
                 .await;
             if rewarded {
-                if let Some(evidence) = self
-                    .quest_state
-                    .represented_quest_complete_status_updates_like_cpp
-                    .iter_mut()
-                    .rev()
-                    .find(|evidence| evidence.quest_id == quest.id)
-                {
-                    evidence.tracking_event_auto_reward_unrepresented = false;
-                }
+                self.quest_state
+                    .mark_latest_tracking_event_auto_reward_like_cpp(quest.id);
                 Box::pin(
                     self.drain_represented_quest_objective_progress_with_generator_like_cpp(
                         item_guid_generator,
@@ -197,41 +190,6 @@ impl WorldSession {
         duplicate_quest_ids
     }
 
-    pub(crate) fn acknowledge_auto_accept_quest_like_cpp(&mut self, quest_id: u32) -> bool {
-        // C++ order: FindQuestSlot(QuestID), then GetQuestTemplate(QuestID), then
-        // ScriptMgr::OnQuestAcknowledgeAutoAccept(player, quest).
-        if self.find_quest_slot_like_cpp(quest_id).is_none() {
-            debug!(
-                account = self.core.account_id,
-                quest_id, "QuestGiverCloseQuest: represented active quest log miss"
-            );
-            return false;
-        }
-
-        let Some(quest_store) = &self.catalogs.quests.store else {
-            debug!(
-                account = self.core.account_id,
-                quest_id, "QuestGiverCloseQuest: missing represented quest store"
-            );
-            return false;
-        };
-
-        if quest_store.get(quest_id).is_none() {
-            debug!(
-                account = self.core.account_id,
-                quest_id, "QuestGiverCloseQuest: represented quest template miss"
-            );
-            return false;
-        }
-
-        #[cfg(test)]
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .represented_auto_accept_acknowledged_quests_like_cpp
-            .push(quest_id);
-        true
-    }
-
     pub(super) async fn add_quest_confirm_accept_local_state_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -268,16 +226,19 @@ impl WorldSession {
     }
 
     pub(super) fn remove_represented_timed_quest_like_cpp(&mut self, quest_id: u32) {
-        let removed = self.clear_represented_quest_end_time_like_cpp(quest_id);
-        if removed {
-            #[cfg(test)]
-            {
-                self.quest_state
-                    .quest_test_fixture_like_cpp
-                    .represented_timed_quest_removals_like_cpp
-                    .push(quest_id);
-            }
-        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        wow_world_application::QuestRewardCx::remove_represented_timed_quest_like_cpp(
+            &mut self.quest_state,
+            &mut player,
+            quest_id,
+            cfg!(test),
+        );
     }
 
     pub(crate) fn first_free_quest_slot_like_cpp(&self) -> Option<u8> {
@@ -305,123 +266,45 @@ impl WorldSession {
     }
 
     pub(crate) fn get_quest_slot_quest_id_like_cpp(&self, slot: u8) -> Option<u32> {
-        if slot >= MAX_QUEST_LOG_SIZE_LIKE_CPP {
-            return None;
-        }
-
-        let state = self.player_quest_gameplay_snapshot_like_cpp()?;
-        let mut matching_quest_id = None;
-        for status in state.statuses_like_cpp().values().filter(|status| {
-            status.slot == slot
-                && matches!(
-                    status.status,
-                    QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                        | QUEST_STATUS_COMPLETE_LIKE_CPP
-                        | QUEST_STATUS_FAILED_LIKE_CPP
-                )
-        }) {
-            if matching_quest_id.is_some() {
-                return None;
-            }
-
-            matching_quest_id = Some(status.quest_id);
-        }
-
-        matching_quest_id
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::get_quest_slot_quest_id_like_cpp(
+            &owner,
+            &self.quest_state,
+            slot,
+            cfg!(test),
+        )
     }
 
     pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {
-        self.player_quest_gameplay_snapshot_like_cpp()?
-            .statuses_like_cpp()
-            .get(&quest_id)
-            .and_then(|status| {
-                (status.slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-                    && matches!(
-                        status.status,
-                        QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                            | QUEST_STATUS_COMPLETE_LIKE_CPP
-                            | QUEST_STATUS_FAILED_LIKE_CPP
-                    ))
-                .then_some(status.slot)
-            })
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::find_quest_slot_like_cpp(
+            &owner,
+            &self.quest_state,
+            quest_id,
+            cfg!(test),
+        )
     }
 
     pub(crate) fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
-        let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return Vec::new();
-        };
-        (0..MAX_QUEST_LOG_SIZE_LIKE_CPP)
-            .map(|slot| {
-                let Some(quest_id) = self.get_quest_slot_quest_id_like_cpp(slot) else {
-                    return (0, 0, 0, [0; 24]);
-                };
-                let Some(qs) = state.statuses_like_cpp().get(&quest_id) else {
-                    return (0, 0, 0, [0; 24]);
-                };
-
-                let store = self.catalogs.quests.store.as_ref();
-                let quest = store.and_then(|store| store.get(qs.quest_id));
-                let mut state_flags: u32 = match qs.status {
-                    QUEST_STATUS_COMPLETE_LIKE_CPP => QUEST_STATE_COMPLETE_LIKE_CPP,
-                    QUEST_STATUS_FAILED_LIKE_CPP => QUEST_STATE_FAIL_LIKE_CPP,
-                    _ => 0,
-                };
-                let mut obj_progress = [0u16; 24];
-                for (i, slot_progress) in obj_progress.iter_mut().enumerate() {
-                    let count = qs.objective_counts.get(i).copied().unwrap_or(0);
-                    let stores_flag = quest.is_some_and(|quest| {
-                        quest.objectives.iter().any(|objective| {
-                            objective.storage_index == i as i8
-                                && objective.is_storing_flag_like_cpp()
-                        })
-                    });
-                    if stores_flag {
-                        if count != 0 {
-                            state_flags |= QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP << i;
-                        }
-                        continue;
-                    }
-                    *slot_progress = count.min(u16::MAX as i32) as u16;
-                }
-                (qs.quest_id, state_flags, qs.end_time_secs, obj_progress)
-            })
-            .collect()
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::quest_log_create_entries_like_cpp(
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            cfg!(test),
+        )
     }
 
     pub(crate) fn send_represented_quest_log_slot_update_like_cpp(&mut self, slot: u8) {
-        if slot >= MAX_QUEST_LOG_SIZE_LIKE_CPP {
-            return;
-        }
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-
-        let Some((quest_id, state_flags, end_time, objective_progress)) = self
-            .quest_log_create_entries_like_cpp()
-            .get(slot as usize)
-            .copied()
-        else {
-            return;
-        };
-
-        let mut data = PlayerDataValuesDeltaUpdate::default();
-        data.player_data_mask[35 / 32] |= 1 << (35 % 32);
-        let slot_bit = 36 + usize::from(slot);
-        data.player_data_mask[slot_bit / 32] |= 1 << (slot_bit % 32);
-        data.quest_log[slot as usize] = QuestLogValuesUpdate {
-            // C++ Player::SetQuestSlot marks QuestID, StateFlags, EndTime,
-            // and every ObjectiveProgress field changed for the slot.
-            quest_log_mask: 0x1FFF_FFFF,
-            end_time,
-            quest_id: quest_id.min(i32::MAX as u32) as i32,
-            state_flags,
-            objective_progress,
-        };
-
-        self.send_packet(&UpdateObject::full_player_values_update(
-            guid,
-            self.core.player_map_id_like_cpp(),
-            data,
-        ));
+        let owner = self.core.quest_objective_access_like_cpp();
+        let publication = self.core.packet_publication_access_like_cpp();
+        wow_world_application::send_represented_quest_log_slot_update_like_cpp(
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            &publication,
+            slot,
+            cfg!(test),
+        );
     }
 }

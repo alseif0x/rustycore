@@ -729,8 +729,7 @@ async fn dismiss_critter_clears_matching_battle_pet_data_compat_like_cpp() {
 
 #[test]
 fn dismiss_critter_handler_metadata_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::DismissCritter)
         .expect("DismissCritter handler entry");
 
@@ -741,8 +740,7 @@ fn dismiss_critter_handler_metadata_like_cpp() {
 
 #[test]
 fn battle_pet_update_display_notify_handler_metadata_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::BattlePetUpdateDisplayNotify)
         .expect("BattlePetUpdateDisplayNotify handler entry");
 

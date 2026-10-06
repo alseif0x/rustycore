@@ -7,7 +7,7 @@ use super::*;
 
 #[tokio::test]
 async fn game_event_quest_complete_notify_reports_missing_sender_like_cpp() {
-    let (session, _, _) = make_session();
+    let (mut session, _, _) = make_session();
 
     let outcome = session.notify_game_event_quest_complete_like_cpp(42).await;
 
@@ -162,9 +162,7 @@ fn reset_seasonal_missing_quest_v2_store_removes_without_inventing_bit_like_cpp(
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .is_empty()
+            .fixture_represented_quest_completed_bits_are_empty_like_cpp()
     );
 }
 #[test]
@@ -293,8 +291,7 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let mut requirement = access_requirement_like_cpp(631, 3);
     requirement.quest_done_a = 100;
@@ -320,9 +317,7 @@ fn canonical_access_requirement_uses_team_quest_reward_like_cpp() {
 
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(200);
+        .fixture_set_rewarded_quest_like_cpp(200, true);
     assert!(matches!(
         session.ensure_canonical_world_map_for_current_player_like_cpp(),
         Some(wow_map::CreateMapDecision::Create { .. })
@@ -348,8 +343,7 @@ fn canonical_access_requirement_quest_failed_text_sends_system_message_like_cpp(
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     session.set_map_difficulty_store(Arc::new(MapDifficultyStore::from_entries([
         MapDifficultyEntry {
@@ -706,9 +700,7 @@ fn quest_giver_accept_missing_or_player_source_rejects_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .is_empty()
+            .fixture_player_quest_statuses_are_empty_like_cpp()
     );
     assert!(send_rx.try_recv().is_err());
 }
@@ -820,9 +812,7 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
     ));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_224,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_224,
@@ -847,18 +837,14 @@ async fn quest_giver_choose_reward_missing_source_rejects_before_mutation_like_c
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&9_224)
+            .fixture_player_quest_status_like_cpp(9_224)
             .map(|quest| quest.status),
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&9_224)
+            .fixture_has_rewarded_quest_like_cpp(9_224)
     );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert!(send_rx.try_recv().is_err());
@@ -878,9 +864,7 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
     ));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_226,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_226,
@@ -905,16 +889,12 @@ async fn quest_giver_choose_reward_auto_complete_player_source_is_not_blocked_li
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&9_226)
+            .fixture_contains_player_quest_status_like_cpp(9_226)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&9_226)
+            .fixture_has_rewarded_quest_like_cpp(9_226)
     );
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(

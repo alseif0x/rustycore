@@ -6,69 +6,13 @@
 
 use super::{Item, ObjectGuid, UnitMoveTypeLikeCpp, WorldSession, react_state_from_db_like_cpp};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CharacterPetStableRowLikeCpp {
-    pub pet_number: u32,
-    pub creature_id: u32,
-    pub display_id: u32,
-    pub level: u8,
-    pub experience: u32,
-    pub react_state: u8,
-    pub slot: i16,
-    pub name: String,
-    pub was_renamed: bool,
-    pub health: u32,
-    pub mana: u32,
-    pub action_bar: String,
-    pub last_save_time: u32,
-    pub created_by_spell_id: u32,
-    pub pet_type: u8,
-    pub specialization_id: u16,
-}
+pub(crate) use wow_world_lifecycle::{
+    CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
+    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
+    CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
+};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetSpellRowLikeCpp {
-    pub spell_id: u32,
-    pub active: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetSpellCooldownRowLikeCpp {
-    pub spell_id: u32,
-    pub cooldown_end_unix_secs: i64,
-    pub category_id: u32,
-    pub category_end_unix_secs: i64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetSpellChargeRowLikeCpp {
-    pub category_id: u32,
-    pub recharge_start_unix_secs: i64,
-    pub recharge_end_unix_secs: i64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetAuraRowLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub spell_id: u32,
-    pub effect_mask: u32,
-    pub recalculate_mask: u32,
-    pub difficulty: u8,
-    pub stack_count: u8,
-    pub max_duration_ms: i32,
-    pub remain_time_ms: i32,
-    pub remain_charges: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetAuraEffectRowLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub spell_id: u32,
-    pub effect_mask: u32,
-    pub effect_index: u8,
-    pub amount: i32,
-    pub base_amount: i32,
-}
+pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CharacterAuraRowLikeCpp {
@@ -109,11 +53,6 @@ pub(crate) fn adjusted_represented_pet_aura_remain_time_like_cpp(
     }
 
     Some(remain_time_ms)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
-    pub names: [String; 5],
 }
 
 impl WorldSession {
@@ -185,14 +124,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = spells.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .spells
-                .remove(&pet_number);
+                .pet_load_remove_spells_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .spells
-                .insert(pet_number, spells);
+                .pet_load_insert_spells_for_pet_number_like_cpp(pet_number, spells);
         }
         loaded
     }
@@ -217,14 +152,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = cooldowns.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .spell_cooldowns
-                .remove(&pet_number);
+                .pet_load_remove_spell_cooldowns_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .spell_cooldowns
-                .insert(pet_number, cooldowns);
+                .pet_load_insert_spell_cooldowns_for_pet_number_like_cpp(pet_number, cooldowns);
         }
         loaded
     }
@@ -254,14 +185,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = charges.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .spell_charges
-                .remove(&pet_number);
+                .pet_load_remove_spell_charges_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .spell_charges
-                .insert(pet_number, charges);
+                .pet_load_insert_spell_charges_for_pet_number_like_cpp(pet_number, charges);
         }
         loaded
     }
@@ -339,14 +266,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = auras.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .auras
-                .remove(&pet_number);
+                .pet_load_remove_auras_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .auras
-                .insert(pet_number, auras);
+                .pet_load_insert_auras_for_pet_number_like_cpp(pet_number, auras);
         }
         loaded
     }
@@ -369,37 +292,12 @@ impl crate::session::PetsCx<'_> {
         let loaded = effects.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .aura_effects
-                .remove(&pet_number);
+                .pet_load_remove_aura_effects_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .aura_effects
-                .insert(pet_number, effects);
+                .pet_load_insert_aura_effects_for_pet_number_like_cpp(pet_number, effects);
         }
         loaded
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    /// C++ can load/summon a `character_pet` during the Player lifetime and
-    /// pet runtime can cast owner auras. Until those transitions are fully
-    /// represented, admit only the complete empty-query state and revoke it
-    /// on every represented pet load or mutation.
-    pub(in crate::session) fn represented_character_pet_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
-        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
-            return false;
-        };
-        pet_lifecycle.character_rows_empty_authority_complete
-            && pet_lifecycle.temporary_unsummoned_pet_number == 0
-            && self.player_pet_guid_state_like_cpp() == Some(None)
-            && pet_lifecycle.stable.current_pet_index.is_none()
-            && pet_lifecycle.stable.active_pets.is_empty()
-            && pet_lifecycle.stable.stabled_pets.is_empty()
-            && pet_lifecycle.stable.unslotted_pets.is_empty()
     }
 }
 

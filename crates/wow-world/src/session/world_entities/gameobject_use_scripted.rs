@@ -15,8 +15,7 @@ impl WorldSession {
         let (owner_guid, ritual_owner_guid, owner_current_channeled_spell_active) = {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get(&gameobject_guid);
+                .represented_gameobject_use_state_like_cpp(gameobject_guid);
             (
                 state.and_then(|state| state.owner_guid),
                 state.and_then(|state| state.ritual_owner_guid),
@@ -40,8 +39,7 @@ impl WorldSession {
         } else {
             let ritual_owner_guid = ritual_owner_guid.unwrap_or_else(|| {
                 self.world_entities
-                    .represented_gameobject_use_states
-                    .get(&gameobject_guid)
+                    .represented_gameobject_use_state_like_cpp(gameobject_guid)
                     .and_then(|state| state.unique_users.first().copied())
                     .unwrap_or(player_guid)
             });
@@ -53,9 +51,7 @@ impl WorldSession {
                 return false;
             }
             self.world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default()
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
                 .ritual_owner_guid
                 .get_or_insert(ritual_owner_guid);
             ritual_owner_guid
@@ -64,9 +60,7 @@ impl WorldSession {
         let unique_user_count = {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
             if !state.unique_users.contains(&player_guid) {
                 state.unique_users.push(player_guid);
             }
@@ -74,24 +68,26 @@ impl WorldSession {
         };
 
         if source.anim_spell_id != 0 {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::CastSpell {
-                    gameobject_guid,
-                    player_guid,
-                    spell_id: source.anim_spell_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::CastSpell {
+                        gameobject_guid,
+                        player_guid,
+                        spell_id: source.anim_spell_id,
+                    },
+                );
         }
 
         if unique_user_count != source.casters_required {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::RitualWaitingForParticipants {
-                    gameobject_guid,
-                    player_guid,
-                    unique_user_count,
-                    casters_required: source.casters_required,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::RitualWaitingForParticipants {
+                        gameobject_guid,
+                        player_guid,
+                        unique_user_count,
+                        casters_required: source.casters_required,
+                    },
+                );
             return false;
         }
 
@@ -105,18 +101,18 @@ impl WorldSession {
         if source.caster_target_spell_id != 0 && source.caster_target_spell_id != 1 {
             let unique_users = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get(&gameobject_guid)
+                .represented_gameobject_use_state_like_cpp(gameobject_guid)
                 .map(|state| state.unique_users.clone())
                 .unwrap_or_default();
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::RitualCasterTargetSpellRequested {
-                    gameobject_guid,
-                    player_guid,
-                    spell_id: source.caster_target_spell_id,
-                    target_count: source.caster_target_spell_targets,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::RitualCasterTargetSpellRequested {
+                        gameobject_guid,
+                        player_guid,
+                        spell_id: source.caster_target_spell_id,
+                        target_count: source.caster_target_spell_targets,
+                    },
+                );
             for _ in 0..source.caster_target_spell_targets {
                 let Some(target_guid) = unique_users
                     .choose(&mut self.core.driver.represented_runtime_rng_like_cpp)
@@ -132,53 +128,52 @@ impl WorldSession {
                 {
                     continue;
                 }
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::RitualCasterTargetSpellCast {
-                        gameobject_guid,
-                        caster_guid: ritual_spell_caster_guid,
-                        target_guid,
-                        spell_id: source.caster_target_spell_id,
-                        triggered: true,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::RitualCasterTargetSpellCast {
+                            gameobject_guid,
+                            caster_guid: ritual_spell_caster_guid,
+                            target_guid,
+                            spell_id: source.caster_target_spell_id,
+                            triggered: true,
+                        },
+                    );
             }
         }
 
         if let Some(owner_guid) = owner_guid {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::FinishChanneledSpell {
-                    player_guid: owner_guid,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::FinishChanneledSpell {
+                        player_guid: owner_guid,
+                    },
+                );
         }
 
         if source.persistent {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
             state.ritual_owner_guid = None;
             state.unique_users.clear();
             state.use_count = 0;
         } else {
             self.world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default()
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
                 .loot_state = Some(wow_entities::LootState::JustDeactivated);
         }
 
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::RitualCompleted {
-                gameobject_guid,
-                player_guid,
-                final_spell_id,
-                triggered,
-                persistent: source.persistent,
-                unique_user_count,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::RitualCompleted {
+                    gameobject_guid,
+                    player_guid,
+                    final_spell_id,
+                    triggered,
+                    persistent: source.persistent,
+                    unique_user_count,
+                },
+            );
         self.apply_represented_gameobject_post_use_spell_like_cpp(
             gameobject_guid,
             player_guid,
@@ -209,13 +204,14 @@ impl WorldSession {
                     .as_ref()
                     .is_some_and(|registry| registry.group_presence(target_guid).is_some())
         }) {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
-                    gameobject_guid,
-                    player_guid,
-                    target_guid,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
+                        gameobject_guid,
+                        player_guid,
+                        target_guid,
+                    },
+                );
             return false;
         }
         let target_guid = target_guid.expect("checked above");
@@ -239,16 +235,17 @@ impl WorldSession {
             if i32::from(player_level) < content_tuning.max_level
                 || i32::from(target_level) < content_tuning.max_level
             {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::MeetingStoneLevelRejected {
-                        gameobject_guid,
-                        player_guid,
-                        target_guid,
-                        player_level,
-                        target_level,
-                        required_level: content_tuning.max_level,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::MeetingStoneLevelRejected {
+                            gameobject_guid,
+                            player_guid,
+                            target_guid,
+                            player_level,
+                            target_level,
+                            required_level: content_tuning.max_level,
+                        },
+                    );
                 return false;
             }
         }
@@ -258,17 +255,19 @@ impl WorldSession {
             59782
         };
 
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::MeetingStoneSummonRequested {
-                gameobject_guid,
-                player_guid,
-                target_guid,
-                gameobject_entry,
-                spell_id,
-                area_id: source.area_id,
-                prevent_unfriendly_outside_instances: source.prevent_unfriendly_outside_instances,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::MeetingStoneSummonRequested {
+                    gameobject_guid,
+                    player_guid,
+                    target_guid,
+                    gameobject_entry,
+                    spell_id,
+                    area_id: source.area_id,
+                    prevent_unfriendly_outside_instances: source
+                        .prevent_unfriendly_outside_instances,
+                },
+            );
 
         self.apply_represented_gameobject_post_use_spell_like_cpp(
             gameobject_guid,
@@ -290,26 +289,25 @@ impl WorldSession {
     ) -> bool {
         let known_owner = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.owner_guid);
         if let Some(owner_guid) = known_owner {
             if owner_guid != player_guid {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::FishingNodeOwnerRejected {
-                        gameobject_guid,
-                        player_guid,
-                        owner_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::FishingNodeOwnerRejected {
+                            gameobject_guid,
+                            player_guid,
+                            owner_guid,
+                        },
+                    );
                 return false;
             }
         }
 
         let current_loot_state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.loot_state)
             .unwrap_or(wow_entities::LootState::Ready);
 
@@ -327,9 +325,7 @@ impl WorldSession {
                         .player_profession_skill_value_for_exp_like_cpp(SKILL_FISHING_LIKE_CPP, 0);
                     let state = self
                         .world_entities
-                        .represented_gameobject_use_states
-                        .entry(gameobject_guid)
-                        .or_default();
+                        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
                     state.loot_state = Some(wow_entities::LootState::Activated);
                     state.loot_state_unit_guid = player_guid;
                     state.go_state = Some(wow_entities::GoState::Active);
@@ -347,19 +343,21 @@ impl WorldSession {
                     self.world_entities
                         .lookup_represented_fishing_hole_around_like_cpp(gameobject_guid)
                 });
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::FishingNodeActivated {
-                        gameobject_guid,
-                        player_guid,
-                    },
-                );
-                if let Some(area_fishing_level) = area_fishing_level {
-                    self.world_entities.represented_gameobject_use_effects.push(
-                        RepresentedGameObjectUseEffect::FishingSkillUpdated {
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::FishingNodeActivated {
                             gameobject_guid,
                             player_guid,
                         },
                     );
+                if let Some(area_fishing_level) = area_fishing_level {
+                    self.world_entities
+                        .record_represented_gameobject_use_effect_like_cpp(
+                            RepresentedGameObjectUseEffect::FishingSkillUpdated {
+                                gameobject_guid,
+                                player_guid,
+                            },
+                        );
                     let player_fishing_level = player_fishing_level.unwrap_or(0);
                     let roll = fishing_roll.unwrap_or(100).clamp(1, 100);
                     let chance =
@@ -370,16 +368,17 @@ impl WorldSession {
                         } else {
                             100
                         };
-                    self.world_entities.represented_gameobject_use_effects.push(
-                        RepresentedGameObjectUseEffect::FishingLootRoll {
-                            gameobject_guid,
-                            player_guid,
-                            player_fishing_level,
-                            area_fishing_level,
-                            chance,
-                            roll,
-                        },
-                    );
+                    self.world_entities
+                        .record_represented_gameobject_use_effect_like_cpp(
+                            RepresentedGameObjectUseEffect::FishingLootRoll {
+                                gameobject_guid,
+                                player_guid,
+                                player_fishing_level,
+                                area_fishing_level,
+                                chance,
+                                roll,
+                            },
+                        );
 
                     let fishing_success = chance >= roll || fishing_hole_guid.is_some();
                     if fishing_success {
@@ -395,53 +394,53 @@ impl WorldSession {
 
                     if let Some(fishing_hole_guid) = fishing_hole_guid {
                         self.world_entities
-                            .represented_gameobject_use_states
-                            .entry(gameobject_guid)
-                            .or_default()
+                            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
                             .loot_state = Some(wow_entities::LootState::JustDeactivated);
-                        self.world_entities.represented_gameobject_use_effects.push(
-                            RepresentedGameObjectUseEffect::FishingHoleDelegated {
-                                gameobject_guid,
-                                player_guid,
-                                fishing_hole_guid,
-                            },
-                        );
+                        self.world_entities
+                            .record_represented_gameobject_use_effect_like_cpp(
+                                RepresentedGameObjectUseEffect::FishingHoleDelegated {
+                                    gameobject_guid,
+                                    player_guid,
+                                    fishing_hole_guid,
+                                },
+                            );
                     } else {
                         let loot_type = if chance >= roll {
                             wow_packet::packets::loot::LOOT_TYPE_FISHING_LIKE_CPP
                         } else {
                             wow_packet::packets::loot::LOOT_TYPE_FISHING_JUNK_LIKE_CPP
                         };
-                        self.world_entities.represented_gameobject_use_effects.push(
-                            RepresentedGameObjectUseEffect::FishingLootRequested {
-                                gameobject_guid,
-                                player_guid,
-                                loot_type,
-                            },
-                        );
+                        self.world_entities
+                            .record_represented_gameobject_use_effect_like_cpp(
+                                RepresentedGameObjectUseEffect::FishingLootRequested {
+                                    gameobject_guid,
+                                    player_guid,
+                                    loot_type,
+                                },
+                            );
                     }
                 }
             }
             wow_entities::LootState::JustDeactivated => {}
             _ => {
                 self.world_entities
-                    .represented_gameobject_use_states
-                    .entry(gameobject_guid)
-                    .or_default()
+                    .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
                     .loot_state = Some(wow_entities::LootState::JustDeactivated);
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::FishNotHooked {
-                        gameobject_guid,
-                        player_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::FishNotHooked {
+                            gameobject_guid,
+                            player_guid,
+                        },
+                    );
                 self.send_packet(&wow_packet::packets::misc::FishNotHooked);
             }
         }
 
         self.world_entities
-            .represented_gameobject_use_effects
-            .push(RepresentedGameObjectUseEffect::FinishChanneledSpell { player_guid });
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::FinishChanneledSpell { player_guid },
+            );
 
         true
     }
@@ -456,31 +455,34 @@ impl WorldSession {
     ) -> bool {
         if source.page_id != 0 {
             self.send_packet(&wow_packet::packets::misc::PageText { gameobject_guid });
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::ShowPageText {
-                    gameobject_guid,
-                    player_guid,
-                    page_id: source.page_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::ShowPageText {
+                        gameobject_guid,
+                        player_guid,
+                        page_id: source.page_id,
+                    },
+                );
         } else if source.gossip_id != 0 {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::SendGossip {
-                    gameobject_guid,
-                    player_guid,
-                    gossip_id: source.gossip_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::SendGossip {
+                        gameobject_guid,
+                        player_guid,
+                        gossip_id: source.gossip_id,
+                    },
+                );
         }
 
         if source.event_id != 0 {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::TriggerGameEvent {
-                    gameobject_guid,
-                    player_guid,
-                    event_id: source.event_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerGameEvent {
+                        gameobject_guid,
+                        player_guid,
+                        event_id: source.event_id,
+                    },
+                );
         }
 
         if source.quest_id != 0
@@ -496,13 +498,14 @@ impl WorldSession {
                     status != Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
                 })
         {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GooberQuestGateRejected {
-                    gameobject_guid,
-                    player_guid,
-                    quest_id: source.quest_id,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GooberQuestGateRejected {
+                        gameobject_guid,
+                        player_guid,
+                        quest_id: source.quest_id,
+                    },
+                );
             return false;
         }
 
@@ -527,13 +530,14 @@ impl WorldSession {
                 self.core.player_map_id_like_cpp(),
                 gameobject_position,
             ) {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::KillCreditGo {
-                        gameobject_guid,
-                        player_guid: credit_guid,
-                        entry: gameobject_entry,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::KillCreditGo {
+                            gameobject_guid,
+                            player_guid: credit_guid,
+                            entry: gameobject_entry,
+                        },
+                    );
                 if Some(credit_guid) == self.player_guid() {
                     self.kill_credit_gameobject_with_generator_like_cpp(
                         item_guid_generator,
@@ -546,13 +550,14 @@ impl WorldSession {
         }
 
         if source.linked_trap_entry != 0 {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::TriggerLinkedTrap {
-                    gameobject_guid,
-                    player_guid,
-                    trap_entry: source.linked_trap_entry,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TriggerLinkedTrap {
+                        gameobject_guid,
+                        player_guid,
+                        trap_entry: source.linked_trap_entry,
+                    },
+                );
         }
 
         true
@@ -590,9 +595,7 @@ impl WorldSession {
                 let (despawn_secs, map_id) = {
                     let state = self
                         .world_entities
-                        .represented_gameobject_use_states
-                        .entry(gameobject_guid)
-                        .or_default();
+                        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
                     let despawn_secs = state
                         .despawn_delay_secs
                         .unwrap_or(wow_entities::DEFAULT_GAMEOBJECT_RESPAWN_DELAY_SECS);
@@ -602,13 +605,14 @@ impl WorldSession {
                     state.per_player_state_player_guid = Some(player_guid);
                     (despawn_secs, state.map_id.unwrap_or(default_map_id))
                 };
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::GooberDespawnForPlayer {
-                        gameobject_guid,
-                        player_guid,
-                        despawn_secs,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GooberDespawnForPlayer {
+                            gameobject_guid,
+                            player_guid,
+                            despawn_secs,
+                        },
+                    );
                 if self.player_guid() == Some(player_guid)
                     && self
                         .core
@@ -627,9 +631,7 @@ impl WorldSession {
             } else {
                 let state = self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .entry(gameobject_guid)
-                    .or_default();
+                    .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
                 let respawn_secs = state
                     .despawn_delay_secs
                     .unwrap_or(wow_entities::DEFAULT_GAMEOBJECT_RESPAWN_DELAY_SECS);
@@ -637,13 +639,14 @@ impl WorldSession {
                 state.per_player_go_state = Some(wow_entities::GoState::Active);
                 state.per_player_go_state_until =
                     Some(Instant::now() + Duration::from_secs(u64::from(respawn_secs)));
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::GooberSetGoStateForPlayer {
-                        gameobject_guid,
-                        player_guid,
-                        go_state: wow_entities::GoState::Active,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GooberSetGoStateForPlayer {
+                            gameobject_guid,
+                            player_guid,
+                            go_state: wow_entities::GoState::Active,
+                        },
+                    );
                 if self.player_guid() == Some(player_guid) {
                     self.send_packet(&wow_packet::packets::misc::GameObjectSetStateLocal {
                         object_guid: gameobject_guid,
@@ -655,9 +658,7 @@ impl WorldSession {
             let (go_state, custom_anim_progress) = {
                 let state = self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .entry(gameobject_guid)
-                    .or_default();
+                    .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
                 state.gameobject_flags |= wow_entities::GO_FLAG_IN_USE;
                 state.loot_state = Some(wow_entities::LootState::Activated);
                 state.loot_state_unit_guid = player_guid;
@@ -696,15 +697,16 @@ impl WorldSession {
                     )
                 };
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GooberUsed {
-                    gameobject_guid,
-                    user_guid: player_guid,
-                    custom_anim: source.custom_anim,
-                    auto_close_ms: source.auto_close_ms,
-                    go_state,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GooberUsed {
+                        gameobject_guid,
+                        user_guid: player_guid,
+                        custom_anim: source.custom_anim,
+                        auto_close_ms: source.auto_close_ms,
+                        go_state,
+                    },
+                );
             let _ = crate::session::cx_loot_ref(self)
                 .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
         }

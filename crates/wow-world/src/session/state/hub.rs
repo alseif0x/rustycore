@@ -4,38 +4,7 @@
 //! Hub views (#1241 F3): split borrows of the hub members, built from disjoint WorldSession fields.
 
 use super::*;
-
-/// Shared hub view: core, catalogs, config and the cfg(test) fixtures. Copy; it holds only
-/// shared references and never a lock guard, so it is Send wherever the session is Sync.
-#[derive(Clone, Copy)]
-pub(crate) struct HubRef<'a> {
-    pub(crate) core: &'a SessionCore,
-    pub(crate) catalogs: &'a SessionCatalogs,
-    pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fixtures: &'a SessionFixtures,
-}
-
-/// Mutable hub view for moved fns that take `&mut self` (core and fixtures writable).
-pub(crate) struct HubMut<'a> {
-    pub(crate) core: &'a mut SessionCore,
-    pub(crate) catalogs: &'a SessionCatalogs,
-    pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fixtures: &'a mut SessionFixtures,
-}
-
-impl HubMut<'_> {
-    pub(crate) fn shared(&self) -> HubRef<'_> {
-        HubRef {
-            core: &*self.core,
-            catalogs: self.catalogs,
-            config: self.config,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures: &*self.fixtures,
-        }
-    }
-}
+pub(crate) use wow_world_core::session::{HubMut, HubRef};
 
 /// Builds the shared view from disjoint WorldSession fields (free fn: not an `impl WorldSession` item).
 pub(crate) fn hub_ref(s: &WorldSession) -> HubRef<'_> {
@@ -81,6 +50,44 @@ pub(crate) fn split_interaction_ref(s: &WorldSession) -> (&InteractionState, Hub
 pub(crate) fn split_social_mut(s: &mut WorldSession) -> (&mut SessionSocialLimits, HubMut<'_>) {
     (
         &mut s.social,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// `&mut` social state plus `&mut` inventory state and the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_social_inventory_mut(
+    s: &mut WorldSession,
+) -> (&mut SessionSocialLimits, &mut InventoryState, HubMut<'_>) {
+    (
+        &mut s.social,
+        &mut s.inventory,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// `&mut` social and lifecycle state plus the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_social_lifecycle_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSocialLimits,
+    &mut SessionLifecycleState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.social,
+        &mut s.lifecycle,
         HubMut {
             core: &mut s.core,
             catalogs: &s.catalogs,
@@ -174,6 +181,75 @@ pub(crate) fn split_lifecycle_ref(s: &WorldSession) -> (&SessionLifecycleState, 
     (&s.lifecycle, hub_ref(s))
 }
 
+/// Player-handler state plus the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_player_handler_states_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionQuestState,
+    &mut InventoryState,
+    &SessionLifecycleState,
+    &mut VisibilityState,
+    &InstanceState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.quest_state,
+        &mut s.inventory,
+        &s.lifecycle,
+        &mut s.visibility,
+        &s.instances,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Interaction and world-entity state plus the mutable hub, from disjoint fields.
+pub(crate) fn split_interaction_world_entities_mut(
+    s: &mut WorldSession,
+) -> (&mut InteractionState, &mut WorldEntitiesState, HubMut<'_>) {
+    (
+        &mut s.interaction,
+        &mut s.world_entities,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Group-handler state plus the mutable hub, borrowed from disjoint fields.
+pub(crate) fn split_group_handler_states_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSocialLimits,
+    &mut SessionLifecycleState,
+    &mut LootState,
+    &InstanceState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.social,
+        &mut s.lifecycle,
+        &mut s.loot,
+        &s.instances,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
 pub(crate) fn split_world_entities_mut(
     s: &mut WorldSession,
@@ -199,6 +275,29 @@ pub(crate) fn split_world_entities_ref(s: &WorldSession) -> (&WorldEntitiesState
 pub(crate) fn split_inventory_mut(s: &mut WorldSession) -> (&mut InventoryState, HubMut<'_>) {
     (
         &mut s.inventory,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// `&mut` social and inventory state, the shared spell state and the mutable hub.
+pub(crate) fn split_trade_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSocialLimits,
+    &mut InventoryState,
+    &SessionSpellState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.social,
+        &mut s.inventory,
+        &s.spell_state,
         HubMut {
             core: &mut s.core,
             catalogs: &s.catalogs,
@@ -250,6 +349,23 @@ pub(crate) fn split_quest_state_mut(s: &mut WorldSession) -> (&mut SessionQuestS
 /// Shared group state plus the shared hub for `&self` methods.
 pub(crate) fn split_quest_state_ref(s: &WorldSession) -> (&SessionQuestState, HubRef<'_>) {
     (&s.quest_state, hub_ref(s))
+}
+
+/// `&mut` quest state, shared lifecycle state and the mutable hub, from disjoint fields.
+pub(crate) fn split_quest_state_lifecycle_mut(
+    s: &mut WorldSession,
+) -> (&mut SessionQuestState, &SessionLifecycleState, HubMut<'_>) {
+    (
+        &mut s.quest_state,
+        &s.lifecycle,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
 }
 
 /// Capped group context (#1241 F3): the `inventory` state, sibling states and hub members its

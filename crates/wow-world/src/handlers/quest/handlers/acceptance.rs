@@ -227,6 +227,7 @@ impl WorldSession {
             session
                 .quest_state
                 .record_represented_quest_confirm_accept_like_cpp(
+                    cfg!(test),
                     RepresentedQuestConfirmAcceptLikeCpp {
                         receiver_guid,
                         sender_guid_before_clear: pending.sender_guid,

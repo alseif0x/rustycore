@@ -13,7 +13,6 @@
 
 use std::collections::HashMap;
 
-use rand::Rng;
 use tracing::{debug, warn};
 
 use wow_constants::{BagFamilyMask, ClientOpcodes, InventoryResult, ItemFlags, TypeId};
@@ -25,8 +24,6 @@ use wow_handler::{PacketProcessing, SessionStatus};
 use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
     LootConditionRowLikeCpp, condition_compare_values_like_cpp,
-    loot_condition_reference_ids_like_cpp, loot_condition_reference_self_references_like_cpp,
-    loot_condition_row_normalize_without_external_stores_like_cpp,
     loot_conditions_allow_player_with_references_like_cpp_representable,
 };
 use wow_packet::ClientPacket;
@@ -59,7 +56,7 @@ pub use state::*;
 
 // ── Handler registrations ─────────────────────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CastSpell,
         status: SessionStatus::LoggedIn,
@@ -82,7 +79,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelCast,
         status: SessionStatus::LoggedIn,
@@ -92,7 +89,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelAura,
         status: SessionStatus::LoggedIn,
@@ -102,7 +99,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelAutoRepeatSpell,
         status: SessionStatus::LoggedIn,
@@ -114,7 +111,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelChannelling,
         status: SessionStatus::LoggedIn,
@@ -126,7 +123,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelGrowthAura,
         status: SessionStatus::LoggedIn,
@@ -138,7 +135,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelMountAura,
         status: SessionStatus::LoggedIn,
@@ -150,7 +147,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelQueuedSpell,
         status: SessionStatus::LoggedIn,
@@ -162,7 +159,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::OpenItem,
         status: SessionStatus::LoggedIn,
@@ -172,7 +169,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SelfRes,
         status: SessionStatus::LoggedIn,
@@ -192,7 +189,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PetCancelAura,
         status: SessionStatus::LoggedIn,
@@ -202,7 +199,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TotemDestroyed,
         status: SessionStatus::LoggedIn,
@@ -212,7 +209,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SpellClick,
         status: SessionStatus::LoggedIn,

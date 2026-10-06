@@ -15,20 +15,10 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) else {
-            return false;
-        };
-        let Some(snapshot) = authority.snapshot_for_player_like_cpp(player_guid) else {
-            self.loot
-                .discard_represented_personal_loot_cache_for_player_like_cpp(
-                    owner_guid,
-                    player_guid,
-                );
-            return false;
-        };
-        self.loot
-            .cache_represented_owned_loot_snapshot_like_cpp(owner_guid, player_guid, snapshot);
-        true
+        // The admitted application owner holds this transition; the World
+        // shell only builds the borrowed loot-release context (#1263 F6).
+        self.loot_release_cx_like_cpp()
+            .reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid)
     }
 
     pub(super) fn next_represented_loot_object_guid_like_cpp(
@@ -54,29 +44,9 @@ impl WorldSession {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        (|| {
-            let owner_map_id = u32::from(owner_guid.map_id());
-            let key = self
-                .core
-                .canonical_object_lookup_map_key_like_cpp(owner_map_id)?;
-            if key.map_id != owner_map_id {
-                return None;
-            }
-            let manager = self.core.canonical_map_manager.as_ref()?;
-            let mut manager = manager.lock().ok()?;
-            let map = manager.find_map_mut(key.map_id, key.instance_id)?.map_mut();
-            let counter = map.generate_low_guid_like_cpp(HighGuid::LootObject).ok()?;
-            let map_id = u16::try_from(key.map_id).ok()?;
-            Some(ObjectGuid::create_world_object(
-                HighGuid::LootObject,
-                0,
-                self.realm_id(),
-                map_id,
-                0,
-                0,
-                counter,
-            ))
-        })()
+        self.core
+            .loot_release_owner_access_like_cpp()
+            .next_canonical_loot_object_guid_like_cpp(owner_guid)
     }
 
     pub(super) fn refresh_represented_loot_owner_canonical_summary_like_cpp(
@@ -92,37 +62,7 @@ impl WorldSession {
                 .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
                 .is_none()
         {
-            self.loot.loot_table.remove(&owner_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(owner_guid);
         }
-    }
-}
-
-impl crate::session::LootState {
-    /// Drops only this session/player's packet-building mirror.
-    pub(super) fn discard_represented_personal_loot_cache_for_player_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        _player_guid: ObjectGuid,
-    ) {
-        self.loot_table.remove(&owner_guid);
-        self.represented_loot_cache_generations_like_cpp
-            .remove(&owner_guid);
-        self.represented_personal_loot_money
-            .retain(|(owner, _), _| *owner != owner_guid);
-        self.represented_personal_loot_owners.remove(&owner_guid);
-    }
-
-    pub(super) fn record_represented_disenchant_criteria_like_cpp(
-        &mut self,
-        _player_guid: ObjectGuid,
-        _spell_id: u32,
-    ) {
-        #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
-            crate::session::RepresentedLootRollCriteriaEvent::Disenchant {
-                player_guid: _player_guid,
-                spell_id: _spell_id,
-            },
-        );
     }
 }

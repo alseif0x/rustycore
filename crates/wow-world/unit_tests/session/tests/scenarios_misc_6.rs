@@ -75,7 +75,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(4000);
     crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(test_creature_guid(77)));
     session.set_known_spells_like_cpp(vec![118, 133]);
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -101,8 +101,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
         session.make_inventory_item_object(item_guid, 700, guid, 2, 0, ItemContext::None, 23);
     session
         .inventory
-        .inventory_item_objects
-        .insert(item_guid, item_object);
+        .insert_inventory_item_object_for_test_like_cpp(item_guid, item_object);
 
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         guid,

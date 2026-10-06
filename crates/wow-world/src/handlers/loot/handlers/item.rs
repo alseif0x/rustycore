@@ -108,8 +108,10 @@ impl WorldSession {
             self.loot
                 .ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
 
-            let Some((cached_entry, dungeon_encounter_id)) =
-                self.loot.loot_table.get(&owner_guid).and_then(|loot| {
+            let Some((cached_entry, dungeon_encounter_id)) = self
+                .loot
+                .cached_loot_for_owner_like_cpp(owner_guid)
+                .and_then(|loot| {
                     loot.items
                         .iter()
                         .find(|entry| {
@@ -146,8 +148,7 @@ impl WorldSession {
             let (entry, claim) = if let Some(authority) = authority {
                 let Some(expected_generation) = self
                     .loot
-                    .active_loot_view_generations_like_cpp
-                    .get(&owner_guid)
+                    .active_loot_view_generation_like_cpp(owner_guid)
                     .copied()
                 else {
                     self.send_equip_error(InventoryResult::LootGone, None, None, 0, 0);
@@ -238,7 +239,7 @@ impl WorldSession {
                 continue;
             }
 
-            if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
+            if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
                 if let Some(entry) = loot
                     .items
                     .iter()

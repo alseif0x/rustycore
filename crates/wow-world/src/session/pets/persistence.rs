@@ -16,7 +16,7 @@ impl WorldSession {
 
 impl crate::session::PetsCx<'_> {
     pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
-        self.lifecycle.pet_load_query_holder_rows_like_cpp.reset();
+        self.lifecycle.pet_load_reset_like_cpp();
         self.hub
             .invalidate_represented_character_pet_empty_authority_like_cpp();
     }
@@ -30,15 +30,11 @@ impl crate::session::PetsCx<'_> {
             .invalidate_represented_character_pet_empty_authority_like_cpp();
         if let Some(row) = row {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .declined_names
-                .insert(pet_number, row);
+                .pet_load_insert_declined_names_for_pet_number_like_cpp(pet_number, row);
             true
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .declined_names
-                .remove(&pet_number)
+                .pet_load_remove_declined_names_for_pet_number_like_cpp(pet_number)
                 .is_some()
         }
     }
@@ -50,9 +46,7 @@ impl crate::session::PetsCx<'_> {
         store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .battle_pet_purchase = Some(store);
+            .set_battle_pet_purchase_persistence_port_like_cpp(store);
     }
 }
 

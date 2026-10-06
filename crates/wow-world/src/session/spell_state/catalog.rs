@@ -41,91 +41,10 @@ impl WorldSession {
     ) -> bool {
         if self.core.player_handle_like_cpp.is_none() {
             self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .known_spells = runtime.known_spells;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_player_spell_rows_like_cpp = runtime.rows;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_player_spell_rows_loaded_like_cpp = runtime.rows_loaded;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_player_spell_rows_complete_like_cpp = runtime.rows_complete;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_fallback_player_spell_rows_like_cpp = runtime.fallback_rows;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_dependent_known_spells_like_cpp = runtime.dependent_known_spells;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_removed_known_spells_like_cpp = runtime.removed_known_spells;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_favorite_known_spells_like_cpp = runtime.favorite_known_spells;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_spell_trait_definition_ids_like_cpp = runtime.trait_definition_ids;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_spell_trait_definition_ids_complete_like_cpp =
-                runtime.trait_definition_ids_complete;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_trait_config_rows_like_cpp = runtime.trait_config_rows;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_trait_config_rows_complete_like_cpp =
-                runtime.trait_config_rows_complete;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_trait_entry_rows_complete_like_cpp = runtime.trait_entry_rows_complete;
-            self.spell_state
-                .player_spell_test_fixture_like_cpp
-                .represented_trait_entry_rows_empty_like_cpp = runtime.trait_entry_rows_empty;
-            self.spell_state.represented_override_spells_like_cpp = runtime.override_spells;
-            self.spell_state
-                .represented_override_spells_complete_like_cpp = runtime.override_spells_complete;
+                .store_represented_spell_runtime_fixture_like_cpp(runtime);
             return true;
         }
         false
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_player_create_custom_spell_store_like_cpp(
-        &mut self,
-        store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
-    ) {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
-            .player_create_custom_spell_store_like_cpp = Some(store);
-    }
-}
-
-impl crate::session::state::SessionSpellState {
-    pub(in crate::session) fn restore_represented_character_spell_charge_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        category_id: u32,
-    ) -> bool {
-        self.mutate_player_spell_history_like_cpp(hub, |history| {
-            if !history.charges_loaded {
-                return false;
-            }
-            let Some(charges) = history.charges.get_mut(&category_id) else {
-                return false;
-            };
-            if charges.pop_back().is_none() {
-                return false;
-            }
-            if charges.is_empty() {
-                history.charges.remove(&category_id);
-            }
-            true
-        })
-        .unwrap_or(false)
     }
 }
 
@@ -224,31 +143,6 @@ impl WorldSession {
         self.catalogs
             .spell_catalogs
             .set_spell_learn_skill_store(store);
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
-        self.spell_catalogs.set_spell_totem_model_store(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
-        self.spell_catalogs.set_serverside_spell_store(store);
-    }
-
-    /// C++ `SpellInfo::SpellFamilyName`/`SpellFamilyFlags` source
-    /// (`SpellClassOptions.db2`).
-    pub fn spell_class_options_store(&self) -> Option<&Arc<wow_data::SpellClassOptionsStore>> {
-        self.spell_catalogs.spell_class_options_store()
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    /// Get the spell store reference.
-    pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
-        self.spell_catalogs.spell_store()
     }
 }
 

@@ -58,8 +58,7 @@ fn open_item_wrapped_gift_row_helper_updates_runtime_and_top_level_metadata_like
     {
         let item = session
             .inventory
-            .inventory_item_objects
-            .get_mut(&item_guid)
+            .inventory_item_object_mut_for_test_like_cpp(&item_guid)
             .unwrap();
         item.set_gift_creator(gift_creator);
         item.set_item_flag(ItemFieldFlags::WRAPPED);
@@ -79,8 +78,7 @@ fn open_item_wrapped_gift_row_helper_updates_runtime_and_top_level_metadata_like
 
     let item = session
         .inventory
-        .inventory_item_objects
-        .get(&item_guid)
+        .inventory_item_object_for_test_like_cpp(&item_guid)
         .unwrap();
     assert_eq!(durability, 55);
     assert_eq!(item.object().entry(), 200);
@@ -92,9 +90,7 @@ fn open_item_wrapped_gift_row_helper_updates_runtime_and_top_level_metadata_like
     assert!(!item.is_wrapped());
     let inventory_item = session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .get(&23)
+        .inventory_item_for_test_like_cpp(&23)
         .unwrap();
     assert_eq!(inventory_item.entry_id, 200);
     assert_eq!(
@@ -113,8 +109,7 @@ async fn open_item_wrapped_locked_template_returns_item_locked_like_cpp() {
     {
         let item = session
             .inventory
-            .inventory_item_objects
-            .get_mut(&item_guid)
+            .inventory_item_object_mut_for_test_like_cpp(&item_guid)
             .unwrap();
         item.set_item_flag(ItemFieldFlags::WRAPPED);
         item.set_durability(17);
@@ -131,11 +126,10 @@ async fn open_item_wrapped_locked_template_returns_item_locked_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     let item = session
         .inventory
-        .inventory_item_objects
-        .get(&item_guid)
+        .inventory_item_object_for_test_like_cpp(&item_guid)
         .unwrap();
     assert_eq!(item.object().entry(), 700);
     assert_eq!(item.data().durability, 17);
@@ -162,12 +156,11 @@ async fn open_item_locked_container_returns_item_locked_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     assert!(
         session
             .inventory
-            .inventory_item_objects
-            .get(&item_guid)
+            .inventory_item_object_for_test_like_cpp(&item_guid)
             .is_some_and(|item| !item.loot_generated())
     );
 }
@@ -188,12 +181,11 @@ async fn open_item_unlocked_locked_template_continues_like_cpp() {
     let sent = send_rx.try_recv().unwrap();
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
     assert_eq!(opcode, ServerOpcodes::LootResponse as u16);
-    assert!(session.loot.loot_table.contains_key(&item_guid));
+    assert!(session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     assert!(
         session
             .inventory
-            .inventory_item_objects
-            .get(&item_guid)
+            .inventory_item_object_for_test_like_cpp(&item_guid)
             .is_some_and(|item| item.loot_generated())
     );
 }
@@ -217,7 +209,7 @@ async fn open_item_unknown_lock_id_returns_item_locked_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
 }
 #[tokio::test]
 async fn open_item_missing_runtime_object_fails_closed_like_cpp() {
@@ -226,24 +218,19 @@ async fn open_item_missing_runtime_object_fails_closed_like_cpp() {
     let item_guid = ObjectGuid::create_item(1, 902);
     session.set_player_guid(Some(player_guid));
     install_open_item_has_loot_template_with_lock(&mut session, 700, 123);
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            23,
-            InventoryItem {
-                guid: item_guid,
-                entry_id: 700,
-                db_guid: item_guid.counter() as u64,
-                inventory_type: None,
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        23,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: 700,
+            db_guid: item_guid.counter() as u64,
+            inventory_type: None,
+        },
+    );
     assert!(
         !session
             .inventory
-            .inventory_item_objects
-            .contains_key(&item_guid)
+            .inventory_item_object_contains_for_test_like_cpp(&item_guid)
     );
 
     session
@@ -256,7 +243,7 @@ async fn open_item_missing_runtime_object_fails_closed_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
 }
 #[test]
 fn open_item_release_destroy_nested_item_leaves_container_in_place() {
@@ -386,19 +373,15 @@ fn direct_destroy_uses_cpp_can_unequip_gate_for_equipment_and_bags() {
     ])));
 
     let chest_guid = ObjectGuid::create_item(1, 1000);
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            EQUIPMENT_SLOT_CHEST,
-            InventoryItem {
-                guid: chest_guid,
-                entry_id: 100,
-                db_guid: 1000,
-                inventory_type: Some(InventoryType::Chest as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        EQUIPMENT_SLOT_CHEST,
+        InventoryItem {
+            guid: chest_guid,
+            entry_id: 100,
+            db_guid: 1000,
+            inventory_type: Some(InventoryType::Chest as u8),
+        },
+    );
     let chest_item = session.make_inventory_item_object(
         chest_guid,
         100,
@@ -414,7 +397,9 @@ fn direct_destroy_uses_cpp_can_unequip_gate_for_equipment_and_bags() {
     assert_eq!(
         session.can_destroy_direct_item_like_cpp(
             EQUIPMENT_SLOT_CHEST,
-            session.inventory.inventory_item_objects.get(&chest_guid),
+            session
+                .inventory
+                .inventory_item_object_for_test_like_cpp(&chest_guid),
             chest_proto.as_ref(),
             false,
         ),
@@ -423,19 +408,15 @@ fn direct_destroy_uses_cpp_can_unequip_gate_for_equipment_and_bags() {
     session.fixtures.combat.in_combat = false;
 
     let bag_guid = ObjectGuid::create_item(1, 1001);
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            INVENTORY_SLOT_BAG_START,
-            InventoryItem {
-                guid: bag_guid,
-                entry_id: 101,
-                db_guid: 1001,
-                inventory_type: Some(InventoryType::Bag as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        INVENTORY_SLOT_BAG_START,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: 101,
+            db_guid: 1001,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
     let bag_item = session.make_inventory_item_object(
         bag_guid,
         101,
@@ -464,7 +445,9 @@ fn direct_destroy_uses_cpp_can_unequip_gate_for_equipment_and_bags() {
     assert_eq!(
         session.can_destroy_direct_item_like_cpp(
             INVENTORY_SLOT_BAG_START,
-            session.inventory.inventory_item_objects.get(&bag_guid),
+            session
+                .inventory
+                .inventory_item_object_for_test_like_cpp(&bag_guid),
             bag_proto.as_ref(),
             session.direct_item_contains_items(bag_guid),
         ),
@@ -487,7 +470,7 @@ fn moved_bag_detects_active_child_item_loot_like_cpp_swap_item() {
     session.loot.set_active_loot_guid(child_guid);
     assert!(!session.represented_bag_contains_active_item_loot_like_cpp(bag_guid));
 
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         child_guid,
         CreatureLoot {
             loot_guid: child_guid,
@@ -525,7 +508,7 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
     let (mut session, _, _) = make_session();
     let owner_guid = ObjectGuid::create_player(1, 42);
     let item_guid = ObjectGuid::create_item(1, 900);
-    session.lifecycle.total_played_time = 123;
+    session.lifecycle.set_total_played_time_like_cpp(123);
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
         700,
         ItemSparseTemplateEntry {
@@ -571,8 +554,7 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
 
     let stored = session
         .inventory
-        .inventory_item_objects
-        .get(&item_guid)
+        .inventory_item_object_for_test_like_cpp(&item_guid)
         .unwrap();
     assert_eq!(stored.object().entry(), 700);
     assert_eq!(stored.data().owner, owner_guid);
@@ -588,8 +570,7 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
     assert_eq!(
         session
             .inventory
-            .inventory_item_objects
-            .get(&item_guid)
+            .inventory_item_object_for_test_like_cpp(&item_guid)
             .unwrap()
             .slot(),
         36
@@ -598,8 +579,7 @@ fn inventory_item_object_uses_template_durability_and_runtime_fields() {
     assert!(
         !session
             .inventory
-            .inventory_item_objects
-            .contains_key(&item_guid)
+            .inventory_item_object_contains_for_test_like_cpp(&item_guid)
     );
 }
 #[test]
@@ -615,19 +595,15 @@ fn canonical_player_logout_cleanup_removes_player_before_session_inventory_like_
         session.fixtures.identity.player_name = Some("LogoutMap".into());
         session.fixtures.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
         session.core.current_map_id = 571;
-        session
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .inventory_items
-            .insert(
-                23,
-                InventoryItem {
-                    guid: item_guid,
-                    entry_id: 700,
-                    db_guid: 901,
-                    inventory_type: None,
-                },
-            );
+        session.inventory.insert_inventory_item_for_test_like_cpp(
+            23,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 700,
+                db_guid: 901,
+                inventory_type: None,
+            },
+        );
         let item = session.make_inventory_item_object(
             item_guid,
             700,
@@ -665,14 +641,12 @@ fn canonical_player_logout_cleanup_removes_player_before_session_inventory_like_
                 .get_typed_player(player_guid)
                 .is_none()
         );
+        assert!(session.inventory.inventory_items_empty_for_test_like_cpp());
         assert!(
             session
                 .inventory
-                .player_item_test_fixture_like_cpp
-                .inventory_items
-                .is_empty()
+                .inventory_item_objects_empty_for_test_like_cpp()
         );
-        assert!(session.inventory.inventory_item_objects.is_empty());
     });
 }
 #[test]
@@ -724,19 +698,15 @@ fn direct_inventory_store_plan_uses_cpp_can_store_merge_then_empty_order() {
         },
     )])));
 
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            35,
-            InventoryItem {
-                guid: item_guid,
-                entry_id: 700,
-                db_guid: 900,
-                inventory_type: None,
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        35,
+        InventoryItem {
+            guid: item_guid,
+            entry_id: 700,
+            db_guid: 900,
+            inventory_type: None,
+        },
+    );
     let item = session.make_inventory_item_object(
         item_guid,
         700,
@@ -794,19 +764,15 @@ fn direct_inventory_store_plan_respects_cpp_explicit_stack_before_other_merge() 
 
     for (slot, db_guid) in [(35, 900_u64), (36, 901_u64)] {
         let item_guid = ObjectGuid::create_item(1, db_guid as i64);
-        session
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .inventory_items
-            .insert(
-                slot,
-                InventoryItem {
-                    guid: item_guid,
-                    entry_id: 700,
-                    db_guid,
-                    inventory_type: None,
-                },
-            );
+        session.inventory.insert_inventory_item_for_test_like_cpp(
+            slot,
+            InventoryItem {
+                guid: item_guid,
+                entry_id: 700,
+                db_guid,
+                inventory_type: None,
+            },
+        );
         let item = session.make_inventory_item_object(
             item_guid,
             700,

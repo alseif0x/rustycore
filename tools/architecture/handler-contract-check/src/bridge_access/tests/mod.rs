@@ -20,5 +20,7 @@ fn inventory(text: &str) -> Result<BridgeAccessBaseline, String> {
     inventory_bridge_accesses(&[source(text)])
 }
 
+mod domain_provenance;
 mod import_provenance;
 mod scenarios_1;
+mod social_provenance;

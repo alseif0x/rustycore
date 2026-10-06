@@ -18,24 +18,21 @@ impl WorldSession {
         rest_info_changed: bool,
         guid_counter: u64,
     ) -> Option<wow_persistence::PlayerXpPersistenceRequestLikeCpp> {
-        let rest = if rest_info_changed {
-            Some(wow_persistence::PlayerXpRestStateSaveLikeCpp {
-                rest_state: crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()?,
-                player_flags: self.resolved_player_flags_for_rest_state_save_like_cpp()?,
-                rest_bonus: wow_entities::sanitize_rest_bonus_like_cpp(
-                    crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp()?,
-                ),
-            })
-        } else {
-            None
-        };
-        Some(wow_persistence::PlayerXpPersistenceRequestLikeCpp {
-            player_guid: guid_counter,
+        wow_world_application::QuestRewardCx::resolved_current_player_xp_persistence_request_from_access_like_cpp(
+            self.core
+                .xp_gain_access_like_cpp(&self.catalogs, &self.config),
+            &self.lifecycle,
+            cfg!(test),
             level_changed,
-            level: crate::session::hub_ref(self).player_level_like_cpp(),
-            xp: crate::session::hub_ref(self).resolved_player_xp_like_cpp()?,
-            rest,
-        })
+            rest_info_changed,
+            guid_counter,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.player_xp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.rest_mgr_test_fixture_like_cpp,
+        )
     }
     #[cfg(test)]
     pub(in crate::session) fn current_player_xp_persistence_request_like_cpp(
@@ -65,10 +62,8 @@ impl crate::session::QuestStateCxRef<'_> {
         &self,
     ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .quest_poi
-            .clone()
+            .quest_poi_persistence_port_like_cpp()
+            .cloned()
     }
 }
 
@@ -77,6 +72,6 @@ impl crate::session::QuestStateCx<'_> {
         &mut self,
         port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
     ) {
-        self.lifecycle.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
+        self.lifecycle.set_quest_poi_persistence_port_like_cpp(port);
     }
 }

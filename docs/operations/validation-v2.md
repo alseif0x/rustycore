@@ -124,12 +124,26 @@ legacy entries, independently of the logical totals. Changes to the physical mod
 require the relevant final acceptance; shared checker/scanner changes are automatically routed
 through final's architecture/self-test coverage. See [module design guidelines](../architecture/module-design-guidelines.md).
 
-A `final` run whose diff touches `crates/wow-world/src/` also plans the R1 net-move check
-(#1241, "move, never copy"). With S the `.rs` line shrink of `crates/wow-world/src/` and G the
-net `.rs` growth of every other path, measured from the merge-base to the working tree, it
-fails unless `G <= S*(1+0.05)+300`; it does not apply when S <= 0. Quick does not plan it.
+A `final` run whose diff touches `crates/wow-world/src/` or the reviewed R1 policy
+(`tools/architecture/net-move-policy.json`) also plans the R1 net-move check (#1241/#1263,
+"move, never copy"). It has two parts, both measured from the merge-base to the working tree
+so staged, unstaged and untracked changes count:
+
+- A copy gate over normalized `fn` bodies (`>= 120` normalized characters): a body present in
+  `crates/wow-world/src/` and also outside it fails unless the policy records it as a reviewed
+  exception, and a recorded exception that no longer matches fails as obsolete. Test trees
+  (`unit_tests/`, `tests/`) are not scanned as destinations.
+- A destination budget: with S the net `.rs` line change of `crates/wow-world/src/` and G the
+  net `.rs` growth of the policy's destination roots (the crates that receive wow-world code),
+  it fails unless `G <= S*(1+0.05)+300+reviewed new code`; growth elsewhere (tooling, docs,
+  test trees, other crates) is reported as accounted growth and is not charged. Without the
+  policy file the check keeps the original strict form, charging every path outside the shrink
+  root and allowing no reviewed new code. It does not apply when S <= 0. Quick does not plan it.
+
 During development run it manually with
-`python3 tools/architecture/net_move.py check --base origin/3.4.3`.
+`python3 tools/architecture/net_move.py check --base origin/3.4.3`; the reviewed policy is
+`tools/architecture/net-move-policy.json` (destination roots, the per-phase new-code budget and
+the duplicate exceptions).
 
 A `final` run whose diff touches any `crates/` path also plans the ignored-source check
 (#1241 F3-6b). A source file that a `.gitignore` rule hides can be mounted by committed code

@@ -110,9 +110,9 @@ impl WorldSession {
                 count,
             );
         #[cfg(test)]
-        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp.clone() {
-            let success = self.loot.loot_item_store_test_success_like_cpp;
-            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp.clone();
+        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp() {
+            let success = self.loot.loot_item_store_test_success_like_cpp();
+            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp();
             let materializes_inventory_item = bound_objective_plan.is_none();
             let durable_completion_context = stored_item_loot_source
                 .map(|owner_guid| (owner_guid, loot_entry.loot_list_id, player_guid, true))
@@ -186,9 +186,7 @@ impl WorldSession {
                 debug_assert!(applied.as_ref().is_some_and(|result| result.no_grant));
                 debug_assert!(plan.statuses.iter().all(|planned| {
                     self.quest_state
-                        .quest_test_fixture_like_cpp
-                        .player_quests
-                        .get(&planned.quest_id)
+                        .fixture_player_quest_status_like_cpp(planned.quest_id)
                         .is_some_and(|actual| {
                             actual.status == planned.status
                                 && actual.objective_counts == planned.objective_counts
@@ -814,7 +812,8 @@ impl WorldSession {
         &mut self,
         item_guid: ObjectGuid,
     ) {
-        self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None)
+        self.loot_release_cx_like_cpp()
+            .destroy_fully_looted_direct_item(item_guid)
             .await;
     }
 }
@@ -903,52 +902,5 @@ impl crate::session::LootCxRef<'_> {
         }
 
         (remaining == 0).then_some(dest)
-    }
-}
-
-impl crate::session::LootState {
-    /// Apply the item state established by C++ `Player::StoreNewItem` and
-    /// `_StoreItem` before the item is persisted or sent to the client.
-    fn apply_stored_new_item_flags_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_id: u32,
-        slot: u8,
-        item: &mut Item,
-    ) {
-        if let Some(template) = hub.catalogs.item_storage_template(item_id) {
-            item.set_bonding(template.bonding);
-        }
-        item.set_item_flag(ItemFieldFlags::NEW_ITEM);
-        item.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
-    }
-
-    pub(in crate::handlers::loot) fn stored_new_item_dynamic_flags_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_id: u32,
-        slot: u8,
-    ) -> u32 {
-        let mut item = Item::new(0);
-        self.apply_stored_new_item_flags_like_cpp(hub, item_id, slot, &mut item);
-        item.item_flags_bits()
-    }
-
-    /// C++ `_StoreItem` binds the destination object before incrementing an
-    /// existing stack. Unlike `StoreNewItem`, that historical object must not
-    /// acquire `ITEM_FIELD_FLAG_NEW_ITEM` merely because more items arrived.
-    pub(in crate::handlers::loot) fn stored_existing_item_dynamic_flags_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_id: u32,
-        slot: u8,
-        existing: &Item,
-    ) -> u32 {
-        let mut planned = existing.clone();
-        if let Some(template) = hub.catalogs.item_storage_template(item_id) {
-            planned.set_bonding(template.bonding);
-        }
-        planned.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
-        planned.item_flags_bits()
     }
 }

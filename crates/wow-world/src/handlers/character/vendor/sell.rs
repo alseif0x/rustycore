@@ -171,7 +171,7 @@ impl WorldSession {
             .min(u64::from(u32::MAX)) as u32;
         let buyback_timestamp = self
             .lifecycle
-            .login_time
+            .login_time_like_cpp()
             .map(|login_time| login_time.elapsed().as_secs())
             .unwrap_or(0)
             .saturating_add(30 * 3600)

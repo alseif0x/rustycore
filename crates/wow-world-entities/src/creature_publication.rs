@@ -1,0 +1,201 @@
+use wow_core::{ObjectGuid, Position};
+use wow_world_core::map_manager::WorldCreature;
+use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubRef};
+
+use crate::WorldEntitiesState;
+
+/// C++ `AuraApplication::BuildUpdatePacket` (`SpellAuras.cpp:229-289`) and
+/// `ClientUpdate` (`SpellAuras.cpp:291-304`) publish one
+/// creature aura slot: the application's `AFLAG` values and, when the aura is
+/// scalable, its per-effect point amounts. The full aura update and the
+/// single-slot publication both go through this builder so their payloads
+/// cannot diverge.
+pub fn represented_creature_aura_info_like_cpp(
+    aura_subsystem: &wow_entities::AuraSubsystem,
+    slot: u8,
+    level: u8,
+) -> wow_packet::packets::misc::AuraInfoLikeCpp {
+    let Some(aura_ref) = aura_subsystem.visible_auras.get(&slot).copied() else {
+        return wow_packet::packets::misc::AuraInfoLikeCpp {
+            slot,
+            aura_data: None,
+        };
+    };
+    let active_flags = aura_subsystem
+        .applied_auras
+        .iter()
+        .filter(|applied| applied.aura_ref() == aura_ref)
+        .fold(0u32, |mask, applied| mask | applied.effect_mask);
+    let application = aura_subsystem.visible_aura_applications_like_cpp.get(&slot);
+    let flags = application.map_or(active_flags, |application| application.flags);
+    let points = if flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+        application
+            .map(|application| {
+                application
+                    .effect_amounts
+                    .iter()
+                    .filter(|effect| {
+                        effect.effect_index < u32::BITS as u8
+                            && active_flags & (1u32 << effect.effect_index) != 0
+                    })
+                    .map(|effect| effect.amount as f32)
+                    .collect()
+            })
+            .unwrap_or_default()
+    } else {
+        Vec::new()
+    };
+    let provenance = aura_subsystem.aura_cast_provenance_like_cpp(slot);
+
+    wow_packet::packets::misc::AuraInfoLikeCpp {
+        slot,
+        aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+            cast_id: provenance.cast_id,
+            spell_id: i32::try_from(aura_ref.spell_id).unwrap_or(i32::MAX),
+            spell_visual_id: provenance.spell_visual_id,
+            flags: flags.min(u32::from(u16::MAX)) as u16,
+            active_flags,
+            caster_guid: aura_ref.caster_guid,
+            cast_level: level.into(),
+            applications: 0,
+            duration_ms: None,
+            remaining_ms: None,
+            points,
+        }),
+    }
+}
+
+impl WorldEntitiesState {
+    pub fn send_initial_visible_packets_for_creature_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+        creature: &WorldCreature,
+    ) {
+        let aura_subsystem = &creature.creature.unit().subsystems().auras;
+        if aura_subsystem.visible_auras.is_empty() {
+            return;
+        }
+
+        let mut visible: Vec<_> = aura_subsystem.visible_auras.keys().copied().collect();
+        visible.sort_unstable();
+        let level = creature.level();
+        let auras = visible
+            .into_iter()
+            .map(|slot| represented_creature_aura_info_like_cpp(aura_subsystem, slot, level))
+            .collect();
+
+        hub.core
+            .send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
+                creature.guid(),
+                auras,
+            ));
+    }
+
+    /// Fan out a creature packet from an interaction snapshot that has
+    /// already been validated against the canonical-or-legacy NPC authority.
+    /// This keeps observer publication working during the transitional map
+    /// split even when the source exists only in the legacy map manager.
+    pub fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            hub,
+            source_guid,
+            source_position,
+            bytes,
+            true,
+            true,
+        );
+    }
+
+    /// C++ `WorldObject::SendMessageToSet(packet, true)` for a Player source.
+    ///
+    /// The owner session sends its own copy separately; this queues the same
+    /// bytes for the nearby observers that already have the Player at client.
+    /// The recipient range uses the represented Player's current position, and
+    /// the source GUID is deliberately excluded, matching the C++ self-send
+    /// split already used for creature publication.
+    pub fn broadcast_player_packet_to_visible_set_realm_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+        bytes: Vec<u8>,
+    ) {
+        let (Some(source_guid), Some(source_position)) =
+            (hub.core.player_guid(), hub.player_position_like_cpp())
+        else {
+            return;
+        };
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            hub,
+            source_guid,
+            source_position,
+            bytes,
+            true,
+            false,
+        );
+    }
+
+    pub fn broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+        realm_connection: bool,
+        allow_legacy_source_fallback: bool,
+    ) {
+        hub.core
+            .packet_publication_access_like_cpp()
+            .broadcast_from_position_to_visible_set_and_connection_like_cpp(
+                source_guid,
+                source_position,
+                bytes,
+                realm_connection,
+                allow_legacy_source_fallback,
+            );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use wow_core::guid::HighGuid;
+
+    #[test]
+    fn creature_aura_publication_uses_retained_base_provenance_like_cpp() {
+        let creature_guid = ObjectGuid::create_creature_like_cpp(1, 571, 9_001, 7);
+        let cast_id = ObjectGuid::create_world_object(HighGuid::Cast, 3, 1, 571, 0, 822, 41);
+        let mut auras = wow_entities::AuraSubsystem::default();
+        assert!(auras.add_self_cast_addon_aura_application_like_cpp(822, creature_guid, 1, 0x301,));
+        let slot = *auras.visible_auras.keys().next().expect("visible slot");
+        auras.set_aura_cast_provenance_like_cpp(
+            slot,
+            wow_entities::AuraCastProvenanceLikeCpp {
+                cast_id,
+                spell_visual_id: 7_822,
+            },
+        );
+
+        let info = represented_creature_aura_info_like_cpp(&auras, slot, 80);
+        let data = info.aura_data.expect("published aura data");
+        assert_eq!(data.cast_id, cast_id);
+        assert_eq!(data.spell_visual_id, 7_822);
+    }
+
+    #[test]
+    fn creature_aura_publication_has_no_slot_derived_identity_fallback() {
+        let creature_guid = ObjectGuid::create_creature_like_cpp(1, 571, 9_001, 7);
+        let mut auras = wow_entities::AuraSubsystem::default();
+        assert!(auras.add_self_cast_addon_aura_application_like_cpp(822, creature_guid, 1, 0,));
+        let slot = *auras.visible_auras.keys().next().expect("visible slot");
+
+        let info = represented_creature_aura_info_like_cpp(&auras, slot, 80);
+        let data = info.aura_data.expect("published aura data");
+        assert_eq!(data.cast_id, ObjectGuid::EMPTY);
+        assert_eq!(data.spell_visual_id, 0);
+    }
+}

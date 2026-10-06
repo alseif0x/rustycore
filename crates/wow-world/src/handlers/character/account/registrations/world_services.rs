@@ -1,6 +1,6 @@
 use super::*;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ListInventory,
         status: SessionStatus::LoggedIn,
@@ -17,7 +17,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BuyItem,
         status: SessionStatus::LoggedIn,
@@ -41,7 +41,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BuyBackItem,
         status: SessionStatus::LoggedIn,
@@ -65,7 +65,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SellItem,
         status: SessionStatus::LoggedIn,
@@ -89,7 +89,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ItemPurchaseRefund,
         status: SessionStatus::LoggedIn,
@@ -113,7 +113,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionHelloRequest,
         status: SessionStatus::LoggedIn,
@@ -125,7 +125,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BankerActivate,
         status: SessionStatus::LoggedIn,
@@ -142,7 +142,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutobankItem,
         status: SessionStatus::LoggedIn,
@@ -167,7 +167,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutostoreBankItem,
         status: SessionStatus::LoggedIn,
@@ -192,7 +192,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BuyBankSlot,
         status: SessionStatus::LoggedIn,
@@ -217,24 +217,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ChangeBankBagSlotFlag,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_change_bank_bag_slot_flag",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::misc::ChangeBankBagSlotFlag::read(&mut pkt) {
-                    Ok(change) => session.handle_change_bank_bag_slot_flag(change).await,
-                    Err(e) => tracing::warn!("Failed to read ChangeBankBagSlotFlag: {e}"),
-                }
-            })
-        },
-    }
-}
-
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BinderActivate,
         status: SessionStatus::LoggedIn,
@@ -259,7 +242,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TabardVendorActivate,
         status: SessionStatus::LoggedIn,
@@ -271,7 +254,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AreaSpiritHealerQuery,
         status: SessionStatus::LoggedIn,
@@ -283,7 +266,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AreaSpiritHealerQueue,
         status: SessionStatus::LoggedIn,
@@ -295,7 +278,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::HearthAndResurrect,
         status: SessionStatus::LoggedIn,
@@ -307,7 +290,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SpiritHealerActivate,
         status: SessionStatus::LoggedIn,
@@ -319,7 +302,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RepairItem,
         status: SessionStatus::LoggedIn,
@@ -343,7 +326,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestStabledPets,
         status: SessionStatus::LoggedIn,
@@ -355,7 +338,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverStatusMultipleQuery,
         status: SessionStatus::LoggedIn,
@@ -367,7 +350,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverStatusTrackedQuery,
         status: SessionStatus::LoggedIn,

@@ -203,7 +203,7 @@ impl WorldSession {
             return;
         };
 
-        if !self.loot.loot_table.contains_key(&item.guid) {
+        if !self.loot.cached_loot_contains_owner_like_cpp(item.guid) {
             let stored_money = self
                 .lifecycle
                 .load_stored_item_money_like_cpp(item.guid)
@@ -239,7 +239,7 @@ impl WorldSession {
                     .await;
             }
 
-            self.loot.loot_table.insert(
+            self.loot.insert_cached_loot_for_owner_like_cpp(
                 item.guid,
                 CreatureLoot {
                     loot_guid: item.guid,
@@ -270,7 +270,7 @@ impl WorldSession {
             )],
         );
 
-        let Some(loot) = self.loot.loot_table.get(&item.guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(item.guid) else {
             self.send_equip_error(
                 InventoryResult::ClientLockedOut,
                 Some(item.guid),
@@ -762,157 +762,6 @@ impl crate::session::InventoryCxRef<'_> {
         }
 
         metadata
-    }
-}
-
-impl crate::session::InventoryState {
-    pub(crate) fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        bag: u8,
-        item_guid: ObjectGuid,
-        slot: u8,
-        entry: u32,
-        flags: u32,
-    ) -> Option<u32> {
-        let current_item = self.get_inventory_item_by_pos(hub.shared(), bag, slot)?;
-        if current_item.guid != item_guid {
-            return None;
-        }
-
-        let max_durability = hub.catalogs.item_template_max_durability(entry);
-        let inventory_type = hub.shared().item_template_inventory_type(entry);
-        let durability = self.transform_inventory_wrapped_gift_item_like_cpp(
-            hub,
-            item_guid,
-            entry,
-            flags,
-            max_durability,
-        )?;
-
-        if bag == INVENTORY_SLOT_BAG_0 {
-            self.update_inventory_item_metadata_like_cpp(
-                hub,
-                slot,
-                item_guid,
-                entry,
-                inventory_type,
-            );
-        }
-
-        Some(durability)
-    }
-}
-
-impl crate::session::SessionLifecycleState {
-    pub(super) async fn load_wrapped_gift_row_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> WrappedGiftLoad {
-        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
-            return WrappedGiftLoad::Unavailable;
-        };
-        match port
-            .load_wrapped_gift_like_cpp(item_guid.counter() as u64)
-            .await
-        {
-            wow_persistence::StoredItemLoadOutcomeLikeCpp::Loaded(row) => {
-                WrappedGiftLoad::Found(WrappedGiftRow {
-                    entry: row.entry,
-                    flags: row.flags,
-                })
-            }
-            wow_persistence::StoredItemLoadOutcomeLikeCpp::Missing => WrappedGiftLoad::Missing,
-            wow_persistence::StoredItemLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(item_guid = item_guid.counter(), error = %reason, "failed to load wrapped gift row");
-                WrappedGiftLoad::Unavailable
-            }
-        }
-    }
-
-    pub(super) async fn persist_wrapped_gift_open_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        entry: u32,
-        flags: u32,
-        durability: u32,
-    ) {
-        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
-            return;
-        };
-        let outcome = port
-            .open_wrapped_gift_like_cpp(wow_persistence::WrappedGiftOpenPersistenceRequestLikeCpp {
-                item_guid: item_guid.counter() as u64,
-                entry,
-                flags,
-                durability,
-            })
-            .await;
-        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
-        {
-            warn!(item_guid = item_guid.counter(), entry, error = %reason, "failed to persist wrapped gift open");
-        }
-    }
-
-    pub(super) async fn load_loot_template_rows_like_cpp(
-        &self,
-        table: LootTemplateTable,
-        entry: u32,
-    ) -> Vec<LootTemplateRow> {
-        let Some(port) = self.loot_template_catalog_persistence_port_like_cpp() else {
-            return Vec::new();
-        };
-
-        let persistence_table = match table {
-            LootTemplateTable::Item => wow_persistence::LootTemplateTablePersistenceLikeCpp::Item,
-            LootTemplateTable::Reference => {
-                wow_persistence::LootTemplateTablePersistenceLikeCpp::Reference
-            }
-        };
-        let persistence_rows = match port
-            .load_loot_template_rows_like_cpp(persistence_table, entry)
-            .await
-        {
-            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
-            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    entry,
-                    table = table.name(),
-                    error = %reason,
-                    "failed to load loot template rows"
-                );
-                return Vec::new();
-            }
-        };
-
-        let mut rows = persistence_rows
-            .into_iter()
-            .map(|row| LootTemplateRow {
-                item_id: row.item_id,
-                reference: row.reference,
-                chance: row.chance,
-                needs_quest: row.needs_quest,
-                loot_mode: row.loot_mode,
-                group_id: row.group_id,
-                min_count: row.min_count,
-                max_count: row.max_count,
-                conditions: Vec::new(),
-            })
-            .collect::<Vec<_>>();
-
-        let condition_source_type = table.condition_source_type_like_cpp();
-        for row in &mut rows {
-            row.conditions = self
-                .load_loot_template_condition_rows_like_cpp(
-                    condition_source_type,
-                    entry,
-                    row.item_id,
-                )
-                .await;
-        }
-
-        rows
     }
 }
 

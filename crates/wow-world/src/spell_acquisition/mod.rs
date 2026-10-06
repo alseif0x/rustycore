@@ -9,31 +9,24 @@
 //! authorities. This facade keeps existing callers stable; Session snapshot
 //! resolution, persistence, runtime installation and publication stay here.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
-use wow_data::{
-    SpellAcquisitionCatalogLikeCpp, SpellAcquisitionEffectLikeCpp,
-    SpellAcquisitionResolvedEffectsLookupLikeCpp, SpellAcquisitionResolvedMetadataLookupLikeCpp,
-    SpellChainLookupLikeCpp, SpellChainStoreLikeCpp, SpellLinkedTypeLikeCpp,
-    SpellRequiredStoreLikeCpp,
-};
-
-use wow_data::skill::SKILL_RIDING_LIKE_CPP;
-use wow_data::spell::spell_effect_types::{
-    SPELL_EFFECT_DUAL_WIELD, SPELL_EFFECT_LEARN_SPELL, SPELL_EFFECT_SKILL, SPELL_EFFECT_SKILL_STEP,
-};
-use wow_data::trait_tree::TraitDefinitionStore;
+#[cfg(test)]
+pub(crate) use std::collections::BTreeSet;
 
 mod adapter;
 mod application;
 mod effect_learning;
 mod runtime_adapter;
-mod trainer_purchase;
 
 pub(crate) use application::*;
 pub(crate) use effect_learning::*;
-pub(crate) use trainer_purchase::*;
 pub(crate) use wow_spell_acquisition::*;
+pub(crate) use wow_world_application::{
+    TrainerAcquisitionCompletionLikeCpp, TrainerAcquisitionPublicationLikeCpp,
+    TrainerAcquisitionResultLikeCpp, TrainerAcquisitionRuntimeLikeCpp,
+    execute_trainer_acquisition_like_cpp,
+};
 
 #[cfg(test)]
 #[path = "../../unit_tests/spell_acquisition/tests/mod.rs"]

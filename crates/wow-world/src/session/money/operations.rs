@@ -15,12 +15,9 @@ impl WorldSession {
     }
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
-        self.player_currencies_like_cpp().map(|currencies| {
-            currencies
-                .get(&currency_id)
-                .map(|currency| currency.quantity)
-                .unwrap_or(0)
-        })
+        let access = self.core.owned_player_currency_access_like_cpp();
+        self.inventory
+            .player_currency_quantity_with_access_like_cpp(&access, currency_id)
     }
     /// C++ `Player::HasCurrency`.
     pub(crate) fn has_currency(&self, currency_id: u32, amount: u32) -> bool {
@@ -183,7 +180,7 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        let test_result = self.lifecycle.loot_money_persistence_test_result_like_cpp;
+        let test_result = self.lifecycle.loot_money_persistence_test_result_like_cpp();
         #[cfg(not(test))]
         let test_result: Option<bool> = None;
 
@@ -531,35 +528,6 @@ impl WorldSession {
     pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_player_money_like_cpp(hub)
-    }
-}
-
-impl crate::session::state::InventoryState {
-    pub(crate) fn resolved_player_money_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<u64> {
-        let canonical = hub.core.with_owned_player_like_cpp(Player::money);
-        #[cfg(test)]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
-            return Some(self.player_gold);
-        }
-        canonical
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    /// Set the item currency cost store for this session.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
-        self.item_currency_cost_store = Some(store);
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    /// Get the currency types store reference.
-    pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
-        self.currency_types_store.as_ref()
     }
 }
 

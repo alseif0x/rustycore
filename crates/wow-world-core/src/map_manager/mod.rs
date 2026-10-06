@@ -10,6 +10,7 @@
 //! clock, writer, phase and bridge are unchanged.
 
 mod combat;
+mod corpse_load;
 mod movement;
 mod respawn;
 mod runtime;
@@ -223,6 +224,9 @@ pub struct MapManager {
 pub type SharedMapManager = Arc<RwLock<MapManager>>;
 
 #[cfg(test)]
+#[path = "../../unit_tests/map_manager_tests/corpse_load.rs"]
+mod corpse_load_tests;
+#[cfg(test)]
 #[path = "../../unit_tests/map_manager_tests.rs"]
 mod tests;
 
@@ -232,6 +236,10 @@ mod pending_respawn;
 mod runtime_state;
 mod terrain;
 
+pub use corpse_load::{
+    LoadedMapCorpseRowLikeCpp, MapCorpseLoadOutcomeLikeCpp,
+    materialize_loaded_map_corpses_like_cpp, parse_corpse_items_like_cpp,
+};
 pub use grid::*;
 pub use pathfinder::*;
 pub use pending_respawn::*;

@@ -81,6 +81,27 @@ def write_fixture(root, *, source=None, core=None):
         core_path.write_text(core, encoding="utf-8")
 
 
+P4B_WORLD_REEXPORT = """pub use wow_world_core::phasing::{
+    PHASE_USE_FLAGS_ALWAYS_VISIBLE,
+    PHASE_USE_FLAGS_INVERSE,
+    PhaseShiftPacketBuildError,
+    init_db_phase_shift_like_cpp,
+    init_db_visible_map_id_like_cpp,
+    party_member_phase_states_like_cpp,
+    phase_flags_for_id_like_cpp,
+};"""
+
+
+def p4b_applied_fixture():
+    lexer = codemod._item_support(codemod.REPO)
+    source, p4a_core = codemod._build_core_module(sample_source(), lexer)
+    source = codemod._update_world_imports(source, lexer)
+    assert source.count(codemod.PARTY_REEXPORT) == 1
+    source = source.replace(codemod.PARTY_REEXPORT, P4B_WORLD_REEXPORT, 1)
+    moved = p4a_core.removeprefix(codemod.CORE_IMPORTS + "\n\n")
+    return source, codemod.P4B_CORE_RESIDUAL + "\n\n" + moved
+
+
 class ExactPhasingCutTests(unittest.TestCase):
     def test_extracts_only_named_items_and_preserves_attrs_docs_and_helper(self):
         lexer = codemod._item_support(codemod.REPO)
@@ -163,6 +184,144 @@ class ExactPhasingCutTests(unittest.TestCase):
             self.assertEqual(source_path.read_bytes(), before)
             self.assertIn(party_import, rendered_source)
             self.assertIn(formatted, rendered_source)
+
+    def test_reviewed_p4b_state_is_idempotent(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, core = p4b_applied_fixture()
+            write_fixture(root, source=source, core=core)
+            paths = (root / codemod.SOURCE, root / codemod.CORE)
+            before = tuple(path.read_bytes() for path in paths)
+
+            with redirect_stdout(StringIO()) as output:
+                codemod.run("plan", root)
+                codemod.run("apply", root)
+
+            self.assertIn("already applied", output.getvalue())
+            self.assertEqual(tuple(path.read_bytes() for path in paths), before)
+
+    def test_p4b_rejects_missing_wrong_duplicate_or_extra_contract_parts(self):
+        source, core = p4b_applied_fixture()
+        malformed = []
+
+        for name in (
+            "PHASE_USE_FLAGS_ALWAYS_VISIBLE",
+            "PHASE_USE_FLAGS_INVERSE",
+            "PhaseShiftPacketBuildError",
+            "init_db_phase_shift_like_cpp",
+            "init_db_visible_map_id_like_cpp",
+            "party_member_phase_states_like_cpp",
+            "phase_flags_for_id_like_cpp",
+        ):
+            entry = f"    {name},\n"
+            self.assertEqual(source.count(entry), 1)
+            malformed.append((source.replace(entry, "", 1), core))
+            malformed.append((source.replace(entry, entry + entry, 1), core))
+
+        malformed.extend(
+            (
+                (
+                    source.replace(
+                        P4B_WORLD_REEXPORT,
+                        P4B_WORLD_REEXPORT.replace(
+                            "};", "    unreviewed_phase_export,\n};", 1
+                        ),
+                        1,
+                    ),
+                    core,
+                ),
+                (
+                    source.replace(
+                        P4B_WORLD_REEXPORT,
+                        P4B_WORLD_REEXPORT.replace(
+                            "pub use wow_world_core::phasing::{",
+                            "#[cfg(test)]\npub use wow_world_core::phasing::{",
+                            1,
+                        ),
+                        1,
+                    ),
+                    core,
+                ),
+                (
+                    source,
+                    core.replace(
+                        "PHASE_USE_FLAGS_ALWAYS_VISIBLE: u8 = 0x01",
+                        "PHASE_USE_FLAGS_ALWAYS_VISIBLE: u8 = 0x04",
+                        1,
+                    ),
+                ),
+                (
+                    source,
+                    core.replace(
+                        "PHASE_USE_FLAGS_INVERSE: u8 = 0x02",
+                        "PHASE_USE_FLAGS_INVERSE: u8 = 0x03",
+                        1,
+                    ),
+                ),
+                (
+                    source,
+                    core.replace(
+                        "pub const PHASE_USE_FLAGS_ALWAYS_VISIBLE",
+                        "#[cfg(test)]\npub const PHASE_USE_FLAGS_ALWAYS_VISIBLE",
+                        1,
+                    ),
+                ),
+                (
+                    source,
+                    core.replace(
+                        "const DEFAULT_PHASE: u32 = 169;",
+                        "const DEFAULT_PHASE: u32 = 169;\nconst UNREVIEWED_PHASE: u32 = 170;",
+                        1,
+                    ),
+                ),
+                (
+                    source,
+                    core.replace(
+                        "return PhaseFlags::COSMETIC;",
+                        "return PhaseFlags::NONE;",
+                        1,
+                    ),
+                ),
+                (source, core + "\npub fn unreviewed_phase_helper() {}\n"),
+                (
+                    source,
+                    core.replace(
+                        "use wow_data::{PhaseGroupStore, PhaseStore, TerrainSwapStore};",
+                        "use wow_data::{PhaseGroupStore, PhaseStore};",
+                        1,
+                    ),
+                ),
+                (
+                    source,
+                    core.replace(
+                        "use wow_entities::PhaseShift;",
+                        "use wow_entities::PhaseShift;\nuse wow_data::UnreviewedType;",
+                        1,
+                    ),
+                ),
+                (
+                    source,
+                    core.replace(
+                        "const DEFAULT_PHASE: u32 = 169;",
+                        "const DEFAULT_PHASE: u32 = 170;",
+                        1,
+                    ),
+                ),
+            )
+        )
+
+        for candidate_source, candidate_core in malformed:
+            with self.subTest(source=candidate_source, core=candidate_core):
+                with TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    write_fixture(root, source=candidate_source, core=candidate_core)
+                    paths = (root / codemod.SOURCE, root / codemod.CORE)
+                    before = tuple(path.read_bytes() for path in paths)
+                    with self.assertRaisesRegex(
+                        codemod.CodemodError, "partial or unexpected"
+                    ):
+                        codemod.run("plan", root)
+                    self.assertEqual(tuple(path.read_bytes() for path in paths), before)
 
     def test_wrong_party_import_cfg_is_rejected(self):
         with TemporaryDirectory() as temporary:

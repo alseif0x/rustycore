@@ -64,24 +64,24 @@ async fn spell_history_loads_preserve_cpp_order_expiry_and_charge_aggregation() 
     assert!(
         session
             .spell_state
-            .represented_character_spell_cooldowns_loaded_like_cpp
+            .represented_character_spell_cooldowns_loaded_for_test_like_cpp()
     );
     assert!(
         session
             .spell_state
-            .represented_character_spell_charges_loaded_like_cpp
+            .represented_character_spell_charges_loaded_for_test_like_cpp()
     );
     assert_eq!(
         session
             .spell_state
-            .represented_character_spell_cooldowns_like_cpp
+            .represented_character_spell_cooldowns_for_test_like_cpp()
             .len(),
         1
     );
     assert_eq!(
         session
             .spell_state
-            .represented_character_spell_charges_like_cpp[&42]
+            .represented_character_spell_charges_for_test_like_cpp()[&42]
             .len(),
         2
     );
@@ -126,11 +126,11 @@ async fn spell_history_cooldown_failure_does_not_suppress_independent_charges_li
     assert!(
         !session
             .spell_state
-            .represented_character_spell_cooldowns_loaded_like_cpp
+            .represented_character_spell_cooldowns_loaded_for_test_like_cpp()
     );
     assert!(
         session
             .spell_state
-            .represented_character_spell_charges_loaded_like_cpp
+            .represented_character_spell_charges_loaded_for_test_like_cpp()
     );
 }

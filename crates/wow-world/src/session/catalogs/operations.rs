@@ -55,28 +55,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.update_speak_time_with_policy_like_cpp(&mut hub, index, config)
     }
-    pub(crate) fn send_void_withdrawal_post_store_item_values_update_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        create_dynamic_flags: u32,
-    ) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return;
-        };
-        let Some(update) = crate::session::void_withdrawal_post_store_item_values_update_like_cpp(
-            &item,
-            create_dynamic_flags,
-        ) else {
-            return;
-        };
-        if let Some(packet) = item_values_update_to_update_object(
-            item_guid,
-            self.core.player_map_id_like_cpp(),
-            &update,
-        ) {
-            self.send_packet(&packet);
-        }
-    }
     /// Set the random property points store for this session.
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
         self.catalogs.rand_prop_points_store = Some(store);
@@ -230,7 +208,11 @@ impl WorldSession {
         was_logout_resting: bool,
     ) -> f32 {
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
+        if self
+            .core
+            .with_owned_player_for_rest_like_cpp(|_| ())
+            .is_none()
+        {
             return self.fixture_apply_offline_xp_rest_bonus_like_cpp(
                 policy,
                 logout_time_secs,
@@ -245,17 +227,16 @@ impl WorldSession {
         };
         let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.apply_offline_xp_rest_bonus_like_cpp(
-                    logout_time_secs,
-                    now_secs,
-                    bubble,
-                    at_max,
-                    raf,
-                )
-            })
-            .unwrap_or(0.0)
+        self.with_owned_player_mut_for_rest_like_cpp(|player| {
+            player.apply_offline_xp_rest_bonus_like_cpp(
+                logout_time_secs,
+                now_secs,
+                bubble,
+                at_max,
+                raf,
+            )
+        })
+        .unwrap_or(0.0)
     }
     pub(in crate::session) fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
@@ -476,237 +457,6 @@ impl WorldSession {
             "Session init packets sent for account {} (8 packets: AuthResponse → ConnectionStatus)",
             self.core.account_id
         );
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    pub(crate) fn update_speak_time_with_policy_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        index: ChatFloodThrottleIndexLikeCpp,
-        config: ChatFloodConfigLikeCpp,
-    ) {
-        // C++ skips chat spam checks for RBAC_PERM_SKIP_CHECK_CHAT_SPAM. RustyCore
-        // has no RBAC store yet; represented GM state is the current session seam.
-        if hub.shared().player_is_game_master_like_cpp() == Some(true) {
-            return;
-        }
-
-        let (limit, delay_secs) = match index {
-            ChatFloodThrottleIndexLikeCpp::Regular => {
-                (config.message_count, config.message_delay_secs)
-            }
-            ChatFloodThrottleIndexLikeCpp::Addon => {
-                (config.addon_message_count, config.addon_message_delay_secs)
-            }
-        };
-        let current = unix_now();
-        let data = &mut self.chat_flood_data_like_cpp[index as usize];
-
-        if data.time > current {
-            if limit == 0 {
-                return;
-            }
-
-            data.count = data.count.saturating_add(1);
-            if data.count >= limit {
-                let new_mute = current.saturating_add(i64::from(config.mute_time_secs));
-                if hub.core.account_state.mute_time_like_cpp < new_mute {
-                    hub.core.account_state.mute_time_like_cpp = new_mute;
-                }
-                data.count = 0;
-            }
-        } else {
-            data.count = 1;
-        }
-
-        data.time = current.saturating_add(i64::from(delay_secs));
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    /// Update player_next_level_xp from the table based on current level.
-    pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(
-        &mut self,
-        catalogs: &ProgressionCatalogsLikeCpp,
-    ) {
-        let lvl = self.shared().player_level_like_cpp() as usize;
-        let next_level_xp = catalogs.player_xp.get(lvl).copied().unwrap_or(u32::MAX);
-        let table = Arc::clone(&catalogs.player_xp);
-        let installed = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_player_xp_table_like_cpp(table);
-            })
-            .is_some();
-        if installed {
-            self.set_player_next_level_xp_like_cpp(next_level_xp);
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if !installed && self.core.player_handle_like_cpp.is_none() {
-            self.set_player_next_level_xp_like_cpp(next_level_xp);
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let _ = installed;
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(in crate::session) fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
-        let max_level = self.config.max_player_level_config_like_cpp;
-        max_level != 0 && u32::from(self.player_level_like_cpp()) >= max_level
-    }
-}
-
-impl crate::session::state::SessionCore {
-    pub(crate) fn feature_system_status_with_policy_like_cpp(
-        &self,
-        policy: &SupportFeaturePolicyLikeCpp,
-    ) -> FeatureSystemStatus {
-        FeatureSystemStatus::from_config_like_cpp(
-            policy.feature_system_config_like_cpp(),
-            !self.can_speak_like_cpp(),
-        )
-    }
-
-    pub(crate) fn feature_system_status_glue_screen_with_policy_like_cpp(
-        &self,
-        policy: &SupportFeaturePolicyLikeCpp,
-    ) -> FeatureSystemStatusGlueScreen {
-        FeatureSystemStatusGlueScreen::from_config_like_cpp(
-            policy.feature_system_config_like_cpp(),
-            policy.max_characters_per_realm as i32,
-            i32::from(self.realm_policy.server_expansion_like_cpp),
-        )
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn trainer_store_like_cpp(&self) -> Option<&Arc<TrainerStoreLikeCpp>> {
-        self.trainer_store_like_cpp.as_ref()
-    }
-
-    /// Set the C++ ImportPrice*.db2 stores for this session.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_import_price_stores(&mut self, stores: Arc<ImportPriceStores>) {
-        self.import_price_stores = Some(stores);
-    }
-
-    /// Get the random property points store reference.
-    pub fn rand_prop_points_store(&self) -> Option<&Arc<RandPropPointsStore>> {
-        self.rand_prop_points_store.as_ref()
-    }
-
-    /// Get the loaded ConditionMgr store reference.
-    pub fn condition_store(&self) -> Option<&Arc<ConditionEntriesByTypeStore>> {
-        self.condition_store.as_ref()
-    }
-
-    /// Get the loaded PlayerCondition.db2 store reference.
-    pub fn player_condition_store(&self) -> Option<&Arc<PlayerConditionStore>> {
-        self.player_condition_store.as_ref()
-    }
-
-    pub(crate) fn lock_store(&self) -> Option<&Arc<LockStore>> {
-        self.lock_store.as_ref()
-    }
-
-    /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
-        self.tact_key_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
-        self.graveyard_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
-        self.graveyard_store.as_ref()
-    }
-
-    /// Get the ChrSpecialization store reference.
-    pub fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
-        self.chr.specialization_store.as_ref()
-    }
-
-    pub(crate) fn world_safe_loc_store_like_cpp(&self) -> Option<&Arc<WorldSafeLocStore>> {
-        self.world_safe_loc_store_like_cpp.as_ref()
-    }
-
-    pub(crate) fn access_requirement_store(&self) -> Option<&Arc<AccessRequirementStoreLikeCpp>> {
-        self.access_requirement_store.as_ref()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
-        self.lfg_dungeon_store_like_cpp.as_ref()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
-        self.battlemaster_list_store = Some(store);
-    }
-
-    pub(crate) fn faction_store(&self) -> Option<&Arc<FactionStore>> {
-        self.factions.store.as_ref()
-    }
-
-    pub(crate) fn mount_store(&self) -> Option<&Arc<MountStore>> {
-        self.mount_store.as_ref()
-    }
-
-    pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
-        self.trait_definition_store.as_ref()
-    }
-
-    pub(crate) fn trait_tree_skill_line_index(
-        &self,
-    ) -> Option<&Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>> {
-        self.trait_tree_skill_line_index.as_ref()
-    }
-
-    pub(crate) fn spell_pet_aura_store_like_cpp(&self) -> Option<&SpellPetAuraStoreLikeCpp> {
-        self.spell_catalogs.spell_pet_aura_store.as_deref()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
-        self.spell_catalogs.pet_levelup_spell_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_pet_default_spell_store(&mut self, store: Arc<PetDefaultSpellStoreLikeCpp>) {
-        self.spell_catalogs.pet_default_spell_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_pet_family_spell_store(&mut self, store: Arc<PetFamilySpellStoreLikeCpp>) {
-        self.spell_catalogs.pet_family_spell_store = Some(store);
-    }
-
-    pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
-        self.cinematic_sequences_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_object_mgr_catalogs_like_cpp(&mut self, catalogs: Arc<ObjectMgrCatalogsLikeCpp>) {
-        self.object_mgr_catalogs_like_cpp = Some(catalogs);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
-        self.object_mgr_catalogs_like_cpp.as_deref()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_exploration_base_xp_store_like_cpp(
-        &mut self,
-        store: Arc<ExplorationBaseXpStoreLikeCpp>,
-    ) {
-        self.exploration_base_xp_store = Some(store);
     }
 }
 

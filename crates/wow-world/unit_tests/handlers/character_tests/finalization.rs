@@ -173,7 +173,7 @@ async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
             .try_claim_character_login_like_cpp(player_guid)
     );
     session.loot.set_active_loot_guid(loot_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -238,7 +238,7 @@ async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
     );
     assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(
-        !session.loot.loot_table.contains_key(&loot_guid),
+        !session.loot.cached_loot_contains_owner_like_cpp(loot_guid),
         "loot release retires the packet-cache copy before persistence"
     );
     assert_eq!(session.player_guid(), Some(player_guid));

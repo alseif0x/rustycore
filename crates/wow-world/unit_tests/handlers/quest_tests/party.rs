@@ -154,7 +154,9 @@ pub(crate) fn install_represented_party(
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry.clone());
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     (player_registry, receiver_session, receiver_rx)

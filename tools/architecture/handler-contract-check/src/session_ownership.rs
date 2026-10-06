@@ -39,9 +39,12 @@ use crate::registry_access::{
     inventory_registry_accesses,
 };
 
+mod core_owner;
 mod state_1;
 mod state_2;
 mod state_3;
+#[allow(unused_imports)]
+pub use core_owner::*;
 #[allow(unused_imports)]
 pub use state_1::*;
 #[allow(unused_imports)]

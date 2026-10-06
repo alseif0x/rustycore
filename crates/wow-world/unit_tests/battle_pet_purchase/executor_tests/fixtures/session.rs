@@ -29,6 +29,7 @@ pub(crate) fn make_saga_session_like_cpp(
         "enUS".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         ObjectGuid::create_player(1, player_counter),

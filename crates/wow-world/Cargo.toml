@@ -9,7 +9,20 @@ license.workspace = true
 # Directory fixture helpers for cross-crate tests, and (#1241 F4a-P2) the test-only state and hooks
 # gated `any(test, feature = "test-fixtures")` so code moving to wow-world-core stays visible to
 # dependents' tests. Enabled only through dev-dependencies; never in a production build.
-test-fixtures = ["wow-session/test-support", "wow-world-core/test-fixtures"]
+test-fixtures = [
+    "wow-session/test-support",
+    "wow-world-core/test-fixtures",
+    "wow-world-entities/test-fixtures",
+    "wow-world-interaction/test-fixtures",
+    "wow-world-instances/test-fixtures",
+    "wow-world-inventory/test-fixtures",
+    "wow-world-lifecycle/test-fixtures",
+    "wow-world-loot/test-fixtures",
+    "wow-world-social/test-fixtures",
+    "wow-world-spell/test-fixtures",
+    "wow-world-visibility/test-fixtures",
+    "wow-world-application/test-fixtures",
+]
 
 [dependencies]
 tokio = { workspace = true }
@@ -45,13 +58,34 @@ wow-instances = { workspace = true }
 wow-script = { workspace = true }
 wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
+wow-world-application = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-entities = { workspace = true }
+wow-world-interaction = { workspace = true }
+wow-world-instances = { workspace = true }
+wow-world-inventory = { workspace = true }
+wow-world-lifecycle = { workspace = true }
+wow-world-loot = { workspace = true }
+wow-world-social = { workspace = true }
+wow-world-spell = { workspace = true }
+wow-world-visibility = { workspace = true }
 
 [dev-dependencies]
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-entities = { workspace = true, features = ["test-fixtures"] }
+wow-world-interaction = { workspace = true, features = ["test-fixtures"] }
+wow-world-instances = { workspace = true, features = ["test-fixtures"] }
+wow-world-inventory = { workspace = true, features = ["test-fixtures"] }
+wow-world-lifecycle = { workspace = true, features = ["test-fixtures"] }
+wow-world-loot = { workspace = true, features = ["test-fixtures"] }
+wow-world-spell = { workspace = true, features = ["test-fixtures"] }
+wow-world-visibility = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
+# Keep WorldSession fixture fields cfg-aligned with Core while tests borrow Hub views.
+# Core feature unification alone does not set wow-world's test-fixtures cfg.
+wow-world = { workspace = true, features = ["test-fixtures"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }

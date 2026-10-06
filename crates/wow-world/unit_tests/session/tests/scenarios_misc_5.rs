@@ -693,8 +693,7 @@ fn canonical_access_requirement_min_level_sends_notification_like_cpp() {
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_access_notification_stores_like_cpp(&mut session);
     let mut requirement = access_requirement_like_cpp(631, 3);
@@ -745,8 +744,7 @@ fn canonical_access_requirement_ignore_level_config_bypasses_level_like_cpp() {
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     session.set_instance_ignore_level_like_cpp(true);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let mut requirement = access_requirement_like_cpp(631, 3);
@@ -778,8 +776,7 @@ fn canonical_access_requirement_current_player_achievement_matches_cpp() {
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let mut requirement = access_requirement_like_cpp(631, 3);
     requirement.completed_achievement = 9001;

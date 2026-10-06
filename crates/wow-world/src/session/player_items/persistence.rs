@@ -20,112 +20,19 @@ impl WorldSession {
         destination_slot: u8,
         moved_count: u32,
     ) -> bool {
-        if source_bag == destination_bag && source_slot == destination_slot {
-            return false;
-        }
-        if self
-            .get_inventory_item_by_pos(destination_bag, destination_slot)
-            .is_some()
-        {
-            return false;
-        }
-
-        let Some(inventory_item) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
-            return false;
-        };
-        let destination_container = if destination_bag == INVENTORY_SLOT_BAG_0 {
-            None
-        } else {
-            self.resolved_inventory_item_like_cpp(destination_bag)
-                .map(|bag| bag.guid)
-        };
-        if destination_bag != INVENTORY_SLOT_BAG_0 && destination_container.is_none() {
-            return false;
-        }
-
-        if source_bag == INVENTORY_SLOT_BAG_0 {
-            self.remove_inventory_item_like_cpp(source_slot);
-        }
-        if destination_bag == INVENTORY_SLOT_BAG_0 {
-            self.insert_inventory_item_like_cpp(destination_slot, inventory_item.clone());
-        }
-
-        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        let destination_container = destination_container.unwrap_or(ObjectGuid::EMPTY);
-        let moved_bag_size = self
-            .item_storage_template(inventory_item.entry_id)
-            .map(|template| template.container_slots)
-            .filter(|size| *size > 0);
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
-            return false;
-        };
-        let moved_bag_children: Vec<_> = item_objects
-            .values()
-            .filter(|item| item.container_guid() == inventory_item.guid)
-            .map(|item| (item.slot(), item.object().guid()))
-            .collect();
-        let _ = self.apply_inventory_item_object_updates_like_cpp(
-            inventory_item.guid,
-            &[
-                wow_entities::ItemObjectUpdateLikeCpp::SetCount(moved_count),
-                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(destination_slot),
-                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
-                    destination_container,
-                    destination_bag,
-                ),
-                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(
-                    if destination_container.is_empty() {
-                        player_guid
-                    } else {
-                        destination_container
-                    },
-                ),
-            ],
-        );
-
-        // A bag's children keep the bag item GUID in the database, but the
-        // runtime also caches the bag's current top-level slot.
-        let child_guids: Vec<_> = item_objects
-            .values()
-            .filter(|item| item.container_guid() == inventory_item.guid)
-            .map(|item| item.object().guid())
-            .collect();
-        for child_guid in child_guids {
-            let _ = self.apply_inventory_item_object_updates_like_cpp(
-                child_guid,
-                &[
-                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
-                        inventory_item.guid,
-                        destination_slot,
-                    ),
-                ],
-            );
-        }
-
-        let item_guid = inventory_item.guid;
-        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-            if source_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.remove_top_level_item(source_slot);
-            } else {
-                let _ = player.remove_bag_item(source_bag, source_slot);
-            }
-            if destination_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.store_top_level_item(destination_slot, item_guid);
-                if is_represented_bag_slot(destination_slot)
-                    && let Some(bag_size) = moved_bag_size
-                    && player
-                        .register_bag_storage(destination_slot, item_guid, bag_size)
-                        .is_ok()
-                {
-                    for &(child_slot, child_guid) in &moved_bag_children {
-                        let _ = player.store_bag_item(destination_slot, child_slot, child_guid);
-                    }
-                }
-            } else {
-                let _ = player.store_bag_item(destination_bag, destination_slot, item_guid);
-            }
-        });
-        true
+        wow_world_application::InventoryCommittedRelocationCxLikeCpp::new(
+            &mut self.inventory,
+            self.core.owned_inventory_access_like_cpp(),
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+        )
+        .apply_committed_inventory_item_relocation_like_cpp(
+            source_bag,
+            source_slot,
+            destination_bag,
+            destination_slot,
+            moved_count,
+        )
     }
     /// Publish a committed C++ real swap after both database positions were
     /// replaced in one transaction. Both positions must still contain the
@@ -138,172 +45,18 @@ impl WorldSession {
         destination_bag: u8,
         destination_slot: u8,
     ) -> bool {
-        if source_bag == destination_bag && source_slot == destination_slot {
-            return false;
-        }
-        let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
-            return false;
-        };
-        let Some(destination) = self.get_inventory_item_by_pos(destination_bag, destination_slot)
-        else {
-            return false;
-        };
-        let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
-            return false;
-        };
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
-            return false;
-        };
-
-        let container_guid = |bag: u8| {
-            if bag == INVENTORY_SLOT_BAG_0 {
-                Some(ObjectGuid::EMPTY)
-            } else {
-                inventory_items.get(&bag).map(|item| item.guid)
-            }
-        };
-        let Some(source_container) = container_guid(source_bag) else {
-            return false;
-        };
-        let Some(destination_container) = container_guid(destination_bag) else {
-            return false;
-        };
-
-        let source_bag_size = self
-            .item_storage_template(source.entry_id)
-            .map(|template| template.container_slots)
-            .filter(|size| *size > 0);
-        let destination_bag_size = self
-            .item_storage_template(destination.entry_id)
-            .map(|template| template.container_slots)
-            .filter(|size| *size > 0);
-        let source_children = item_objects
-            .values()
-            .filter(|item| item.container_guid() == source.guid)
-            .map(|item| (item.slot(), item.object().guid()))
-            .collect::<Vec<_>>();
-        let destination_children = item_objects
-            .values()
-            .filter(|item| item.container_guid() == destination.guid)
-            .map(|item| (item.slot(), item.object().guid()))
-            .collect::<Vec<_>>();
-
-        if source_bag == INVENTORY_SLOT_BAG_0 {
-            self.remove_inventory_item_like_cpp(source_slot);
-        }
-        if destination_bag == INVENTORY_SLOT_BAG_0 {
-            self.remove_inventory_item_like_cpp(destination_slot);
-        }
-        if destination_bag == INVENTORY_SLOT_BAG_0 {
-            self.insert_inventory_item_like_cpp(destination_slot, source.clone());
-        }
-        if source_bag == INVENTORY_SLOT_BAG_0 {
-            self.insert_inventory_item_like_cpp(source_slot, destination.clone());
-        }
-
-        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        let _ = self.apply_inventory_item_object_updates_like_cpp(
-            source.guid,
-            &[
-                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(destination_slot),
-                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
-                    destination_container,
-                    destination_bag,
-                ),
-                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(
-                    if destination_container.is_empty() {
-                        player_guid
-                    } else {
-                        destination_container
-                    },
-                ),
-            ],
-        );
-        let _ = self.apply_inventory_item_object_updates_like_cpp(
-            destination.guid,
-            &[
-                wow_entities::ItemObjectUpdateLikeCpp::SetSlot(source_slot),
-                wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
-                    source_container,
-                    source_bag,
-                ),
-                wow_entities::ItemObjectUpdateLikeCpp::SetContainedIn(
-                    if source_container.is_empty() {
-                        player_guid
-                    } else {
-                        source_container
-                    },
-                ),
-            ],
-        );
-        for (_, child_guid) in &source_children {
-            let _ = self.apply_inventory_item_object_updates_like_cpp(
-                *child_guid,
-                &[
-                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
-                        source.guid,
-                        destination_slot,
-                    ),
-                ],
-            );
-        }
-        for (_, child_guid) in &destination_children {
-            let _ = self.apply_inventory_item_object_updates_like_cpp(
-                *child_guid,
-                &[
-                    wow_entities::ItemObjectUpdateLikeCpp::SetContainerGuidAndSlot(
-                        destination.guid,
-                        source_slot,
-                    ),
-                ],
-            );
-        }
-
-        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-            if source_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.remove_top_level_item(source_slot);
-            } else {
-                let _ = player.remove_bag_item(source_bag, source_slot);
-            }
-            if destination_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.remove_top_level_item(destination_slot);
-            } else {
-                let _ = player.remove_bag_item(destination_bag, destination_slot);
-            }
-
-            if destination_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.store_top_level_item(destination_slot, source.guid);
-                if is_represented_bag_slot(destination_slot)
-                    && let Some(size) = source_bag_size
-                    && player
-                        .register_bag_storage(destination_slot, source.guid, size)
-                        .is_ok()
-                {
-                    for &(slot, guid) in &source_children {
-                        let _ = player.store_bag_item(destination_slot, slot, guid);
-                    }
-                }
-            } else {
-                let _ = player.store_bag_item(destination_bag, destination_slot, source.guid);
-            }
-
-            if source_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.store_top_level_item(source_slot, destination.guid);
-                if is_represented_bag_slot(source_slot)
-                    && let Some(size) = destination_bag_size
-                    && player
-                        .register_bag_storage(source_slot, destination.guid, size)
-                        .is_ok()
-                {
-                    for &(slot, guid) in &destination_children {
-                        let _ = player.store_bag_item(source_slot, slot, guid);
-                    }
-                }
-            } else {
-                let _ = player.store_bag_item(source_bag, source_slot, destination.guid);
-            }
-        });
-        true
+        wow_world_application::InventoryCommittedSwapCxLikeCpp::new(
+            &mut self.inventory,
+            self.core.owned_inventory_access_like_cpp(),
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+        )
+        .apply_committed_inventory_item_swap_like_cpp(
+            source_bag,
+            source_slot,
+            destination_bag,
+            destination_slot,
+        )
     }
     /// Remove a source item after its complete stack was merged into existing
     /// destination stacks by a committed storage transaction.
@@ -439,18 +192,15 @@ impl WorldSession {
         destination_slot: u8,
         swap: bool,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
-        let source_item = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)?;
-        self.plan_store_direct_inventory_item_like_cpp(
-            inventory_item.entry_id,
-            source_item.count(),
-            destination_bag,
-            destination_slot,
-            Some(&source_item),
-            swap,
-            &[],
-            &[],
-        )
+        let conditions = self.player_condition_projection_cx_like_cpp();
+        wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
+            .plan_store_existing_inventory_item_at_like_cpp(
+                source_bag,
+                source_slot,
+                destination_bag,
+                destination_slot,
+                swap,
+            )
     }
     fn plan_store_direct_inventory_item_like_cpp(
         &self,
@@ -463,198 +213,28 @@ impl WorldSession {
         overlays: &[DirectInventoryStorageOverlayLikeCpp],
         vacated_positions: &[(u8, u8)],
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
-        let mut player = self.direct_inventory_player_snapshot()?;
-        // C++ processes every valid deposit (including recursive bag
-        // contents) before it calls CanStoreNewItem for withdrawals. Remove
-        // those detached positions from this planning snapshot in the same
-        // child-before-parent order.
-        for &(vacated_bag, vacated_slot) in vacated_positions {
-            if vacated_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.remove_top_level_item(vacated_slot);
-            } else {
-                let _ = player.remove_bag_item(vacated_bag, vacated_slot);
-            }
-        }
-        let proto = self.item_storage_template(entry_id);
-        let inventory_items = self.resolved_inventory_items_like_cpp()?;
-        let item_objects = self.resolved_inventory_item_objects_like_cpp()?;
-        let mut overlay_items = Vec::with_capacity(overlays.len());
-        for (index, overlay) in overlays.iter().enumerate() {
-            let mut item = self
-                .get_inventory_item_by_pos(overlay.bag, overlay.slot)
-                .and_then(|inventory_item| item_objects.get(&inventory_item.guid))
-                .cloned()
-                .unwrap_or_else(|| {
-                    let mut item = Item::default();
-                    let placeholder_counter = i64::MAX.saturating_sub(index as i64);
-                    item.object_mut().create(ObjectGuid::create_item(
-                        self.realm_id(),
-                        placeholder_counter,
-                    ));
-                    item.object_mut().set_entry(overlay.entry_id);
-                    item
-                });
-            // An overlay can reuse a slot vacated by an earlier deposit, so
-            // its planned entry is authoritative over the stale runtime item
-            // that still occupies the slot until the transaction commits.
-            item.object_mut().set_entry(overlay.entry_id);
-            item.set_count(overlay.count);
-            item.set_slot(overlay.slot);
-            overlay_items.push((overlay.bag, overlay.slot, item));
-        }
-        let mut template_cache = HashMap::new();
-        for item in item_objects.values() {
-            let entry_id = item.object().entry();
-            if let std::collections::hash_map::Entry::Vacant(entry) = template_cache.entry(entry_id)
-            {
-                if let Some(template) = self.item_storage_template(entry_id) {
-                    entry.insert(template);
-                }
-            }
-        }
-        for (_, _, item) in &overlay_items {
-            let entry_id = item.object().entry();
-            if let std::collections::hash_map::Entry::Vacant(entry) = template_cache.entry(entry_id)
-                && let Some(template) = self.item_storage_template(entry_id)
-            {
-                entry.insert(template);
-            }
-        }
-
-        let mut represented_bag_slots_by_guid = HashMap::new();
-        let mut bag_templates = Vec::new();
-        for (&slot, item) in &inventory_items {
-            if wow_entities::is_buyback_slot(slot) {
-                continue;
-            }
-            if vacated_positions.contains(&(INVENTORY_SLOT_BAG_0, slot)) {
-                continue;
-            }
-            if is_represented_bag_slot(slot) && item_objects.contains_key(&item.guid) {
-                represented_bag_slots_by_guid.insert(item.guid, slot);
-                if let Some(template) = template_cache.get(&item.entry_id)
-                    && template.container_slots > 0
-                {
-                    bag_templates.push(BagTemplateRef::new(slot, template));
-                }
-            }
-        }
-        for (index, (bag, slot, item)) in overlay_items.iter().enumerate() {
-            if *bag != INVENTORY_SLOT_BAG_0 || !is_represented_bag_slot(*slot) {
-                continue;
-            }
-            let Some(template) = template_cache.get(&item.object().entry()) else {
-                continue;
-            };
-            if template.container_slots == 0 {
-                continue;
-            }
-            if vacated_positions.contains(&(*bag, *slot))
-                || self.get_inventory_item_by_pos(*bag, *slot).is_none()
-            {
-                let placeholder_counter = i64::MAX.saturating_sub(index as i64);
-                let placeholder_guid =
-                    ObjectGuid::create_item(self.realm_id(), placeholder_counter);
-                let _ = player.store_top_level_item(*slot, placeholder_guid);
-                let _ =
-                    player.register_bag_storage(*slot, placeholder_guid, template.container_slots);
-            }
-            if !bag_templates.iter().any(|bag| bag.bag == *slot) {
-                bag_templates.push(BagTemplateRef::new(*slot, template));
-            }
-        }
-
-        let mut slot_items = Vec::new();
-        let mut stored_items = Vec::new();
-        for (&slot, inventory_item) in &inventory_items {
-            if wow_entities::is_buyback_slot(slot) {
-                continue;
-            }
-            if overlays
-                .iter()
-                .any(|overlay| overlay.bag == INVENTORY_SLOT_BAG_0 && overlay.slot == slot)
-                || vacated_positions.contains(&(INVENTORY_SLOT_BAG_0, slot))
-            {
-                continue;
-            }
-            let Some(item) = item_objects.get(&inventory_item.guid) else {
-                continue;
-            };
-            slot_items.push(ItemSlotRef::new(INVENTORY_SLOT_BAG_0, slot, item));
-            stored_items.push(ItemStorageRef::new(
-                INVENTORY_SLOT_BAG_0,
-                slot,
-                item,
-                template_cache.get(&inventory_item.entry_id),
-            ));
-        }
-        for item in item_objects.values() {
-            let container_guid = item.container_guid();
-            if container_guid.is_empty() {
-                continue;
-            }
-            let Some(&bag_slot) = represented_bag_slots_by_guid.get(&container_guid) else {
-                continue;
-            };
-            if overlays
-                .iter()
-                .any(|overlay| overlay.bag == bag_slot && overlay.slot == item.slot())
-                || vacated_positions.contains(&(bag_slot, item.slot()))
-            {
-                continue;
-            }
-            let entry_id = item.object().entry();
-            slot_items.push(ItemSlotRef::new(bag_slot, item.slot(), item));
-            stored_items.push(ItemStorageRef::new(
-                bag_slot,
-                item.slot(),
-                item,
-                template_cache.get(&entry_id),
-            ));
-        }
-        for (bag, slot, item) in &overlay_items {
-            let entry_id = item.object().entry();
-            slot_items.push(ItemSlotRef::new(*bag, *slot, item));
-            stored_items.push(ItemStorageRef::new(
-                *bag,
-                *slot,
-                item,
-                template_cache.get(&entry_id),
-            ));
-        }
-
-        let limit_category = proto.as_ref().and_then(|proto| {
-            self.item_limit_category_template_like_cpp(proto.item_limit_category)
-        });
-        let mut dest = Vec::new();
-        let outcome = player.can_store_item(
-            &mut dest,
-            CanStoreItemArgs {
+        self.player_condition_projection_cx_like_cpp()
+            .plan_store_direct_inventory_item_like_cpp(
+                self.core
+                    .inventory_valuation_access_like_cpp()
+                    .realm_id_like_cpp(),
+                entry_id,
+                count,
                 bag,
                 slot,
-                entry: entry_id,
-                count,
-                proto: proto.as_ref(),
                 source_item,
-                source_is_not_empty_bag: source_item
-                    .is_some_and(|item| self.direct_item_contains_items(item.object().guid())),
-                source_bop_trade_allowed_for_player: false,
                 swap,
-                limit_category: limit_category.as_ref(),
-                slot_items: &slot_items,
-                stored_items: &stored_items,
-                bag_templates: &bag_templates,
-            },
-        );
-
-        Some((outcome.result, dest, outcome.no_space_count))
+                overlays,
+                vacated_positions,
+            )
     }
     #[cfg(test)]
     pub(crate) fn set_loot_item_store_test_commit_gate_like_cpp(
         &mut self,
         gate: Arc<tokio::sync::Notify>,
     ) {
-        self.loot.loot_item_store_test_commit_gate_like_cpp = Some(gate);
+        self.loot
+            .set_loot_item_store_test_commit_gate_like_cpp(gate);
     }
     pub fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
         let packet = crate::session::item_push_result_from_send_new_item_plan(plan);
@@ -686,43 +266,35 @@ impl crate::session::InventoryCxRef<'_> {
         &self,
     ) -> Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .stored_item_money
-            .clone()
+            .stored_item_money_persistence_port_like_cpp()
+            .cloned()
     }
 
     pub(crate) fn item_template_addon_catalog_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .item_template_addon_catalog
-            .clone()
+            .item_template_addon_catalog_persistence_port_like_cpp()
+            .cloned()
     }
 
     pub(crate) fn begin_durable_item_loot_persistence_like_cpp(
         &self,
     ) -> DurableItemLootPersistenceGuardLikeCpp {
         self.lifecycle
-            .durable_item_loot_persistence_like_cpp
-            .begin_like_cpp()
+            .begin_durable_item_loot_persistence_like_cpp()
     }
 
     pub(crate) async fn wait_for_durable_item_loot_persistence_like_cpp(&self) {
         self.lifecycle
-            .durable_item_loot_persistence_like_cpp
-            .wait_until_idle_like_cpp()
+            .wait_for_durable_item_loot_persistence_like_cpp()
             .await;
     }
 
     pub(crate) fn take_durable_item_loot_completions_like_cpp(
         &self,
     ) -> Vec<DurableItemLootCompletionLikeCpp> {
-        self.lifecycle
-            .durable_item_loot_persistence_like_cpp
-            .take_completions_like_cpp()
+        self.lifecycle.take_durable_item_loot_completions_like_cpp()
     }
 }
 
@@ -732,9 +304,7 @@ impl crate::session::InventoryCx<'_> {
         port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .stored_item_money = Some(port);
+            .set_stored_item_money_persistence_port_like_cpp(port);
     }
 
     pub fn set_item_template_addon_catalog_persistence_port_like_cpp(
@@ -742,170 +312,7 @@ impl crate::session::InventoryCx<'_> {
         port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .item_template_addon_catalog = Some(port);
-    }
-}
-
-impl crate::session::state::InventoryState {
-    /// Publish one new item whose CharacterDB rows already committed.
-    pub(crate) fn apply_committed_new_inventory_item_at_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        bag: u8,
-        slot: u8,
-        inventory_item: InventoryItem,
-        mut item_object: Item,
-    ) -> bool {
-        if self
-            .get_inventory_item_by_pos(hub.shared(), bag, slot)
-            .is_some()
-        {
-            return false;
-        }
-
-        if bag == INVENTORY_SLOT_BAG_0 {
-            item_object.set_container_guid(ObjectGuid::EMPTY);
-            item_object.set_slot(slot);
-            self.insert_inventory_item_like_cpp(hub, slot, inventory_item.clone());
-        } else {
-            let Some(bag_item) = self.resolved_inventory_item_like_cpp(hub.shared(), bag) else {
-                return false;
-            };
-            item_object.set_contained_in(bag_item.guid);
-            item_object.set_slot(slot);
-            item_object.set_container_guid_and_slot(bag_item.guid, bag);
-        }
-
-        let item_guid = inventory_item.guid;
-        let new_bag_size = (bag == INVENTORY_SLOT_BAG_0 && is_represented_bag_slot(slot))
-            .then(|| hub.catalogs.item_storage_template(inventory_item.entry_id))
-            .flatten()
-            .map(|template| template.container_slots)
-            .filter(|size| *size > 0);
-        self.insert_inventory_item_object(hub, item_object);
-        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
-            if bag == INVENTORY_SLOT_BAG_0 {
-                let stored = player.store_top_level_item(slot, item_guid);
-                debug_assert!(stored.is_ok());
-                if let Some(bag_size) = new_bag_size {
-                    // C++ installs the new `Bag` object in m_items before a
-                    // later sequential StoreNewItem can address its children.
-                    // The canonical Rust Player keeps bag contents in a
-                    // separate registry, so establish it at the same point.
-                    let registered = player.register_bag_storage(slot, item_guid, bag_size);
-                    debug_assert!(registered.is_ok());
-                }
-            } else {
-                let stored = player.store_bag_item(bag, slot, item_guid);
-                debug_assert!(stored.is_ok());
-            }
-        });
-        true
-    }
-
-    /// C++ `Player::SwapItem` preflight (child redirects, life state,
-    /// `CanUnequipItem`, and bag-in-bag guards) for live session positions.
-    pub(crate) fn plan_inventory_swap_preflight_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        src: u16,
-        dst: u16,
-    ) -> Option<SwapItemPreflightPlan> {
-        let [src_bag, src_slot] = src.to_be_bytes();
-        let [dst_bag, dst_slot] = dst.to_be_bytes();
-        let source = self.get_inventory_item_by_pos(hub, src_bag, src_slot);
-        let destination = self.get_inventory_item_by_pos(hub, dst_bag, dst_slot);
-
-        let preflight_item = |item: &InventoryItem, bag: u8, slot: u8, swap: bool| {
-            let runtime_item = self.resolved_inventory_item_object_like_cpp(hub, item.guid);
-            let proto = hub.catalogs.item_storage_template(item.entry_id);
-            let is_bag = proto
-                .as_ref()
-                .is_some_and(|template| template.container_slots > 0);
-            let parent_pos = runtime_item
-                .as_ref()
-                .filter(|item| item.has_item_flag(ItemFieldFlags::CHILD))
-                .and_then(|item| self.get_inventory_item_by_guid_like_cpp(hub, item.data().creator))
-                .map(|(bag, slot, _)| make_item_pos(bag, slot));
-            SwapItemPreflightItem {
-                is_bag,
-                is_empty_bag: is_bag && !self.direct_item_contains_items(hub, item.guid),
-                is_child: runtime_item
-                    .as_ref()
-                    .is_some_and(|item| item.has_item_flag(ItemFieldFlags::CHILD)),
-                parent_pos,
-                can_unequip_result: self.can_unequip_inventory_item_at_like_cpp(
-                    hub,
-                    bag,
-                    slot,
-                    swap,
-                    runtime_item.as_ref(),
-                    proto.as_ref(),
-                    self.direct_item_contains_items(hub, item.guid),
-                ),
-            }
-        };
-
-        let source_is_bag_pos = is_bag_pos(src);
-        let destination_is_bag_pos = is_bag_pos(dst);
-        let source_is_bag = source.as_ref().is_some_and(|item| {
-            hub.catalogs
-                .item_storage_template(item.entry_id)
-                .is_some_and(|template| template.container_slots > 0)
-        });
-        let destination_is_empty_bag = destination.as_ref().is_some_and(|item| {
-            hub.catalogs
-                .item_storage_template(item.entry_id)
-                .is_some_and(|template| template.container_slots > 0)
-                && !self.direct_item_contains_items(hub, item.guid)
-        });
-        let source_is_empty_bag = source_is_bag
-            && source
-                .as_ref()
-                .is_some_and(|item| !self.direct_item_contains_items(hub, item.guid));
-        let source_swap = !source_is_bag_pos || destination_is_bag_pos || destination_is_empty_bag;
-        let destination_swap = !destination_is_bag_pos || source_is_bag_pos || source_is_empty_bag;
-        let source_preflight = source
-            .as_ref()
-            .map(|item| preflight_item(item, src_bag, src_slot, source_swap));
-        let destination_preflight = destination
-            .as_ref()
-            .map(|item| preflight_item(item, dst_bag, dst_slot, destination_swap));
-
-        let player = self.direct_inventory_player_snapshot(hub)?;
-        let player_is_alive = hub.resolved_player_is_alive_like_cpp()?;
-        Some(player.swap_item_preflight_plan(
-            src,
-            dst,
-            player_is_alive,
-            source_preflight,
-            destination_preflight,
-        ))
-    }
-}
-
-impl crate::session::state::InventoryState {
-    pub fn send_item_time_update_plan(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        update: &PlayerItemTimeUpdate,
-    ) {
-        hub.core.send_packet(&ItemTimeUpdate {
-            item_guid: update.item_guid,
-            duration_left: update.expiration,
-        });
-    }
-
-    pub fn send_item_time_update_plans(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        updates: &[PlayerItemTimeUpdate],
-    ) {
-        for update in updates {
-            self.send_item_time_update_plan(hub, update);
-        }
+            .set_item_template_addon_catalog_persistence_port_like_cpp(port);
     }
 }
 

@@ -17,9 +17,7 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -66,9 +64,7 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -139,9 +135,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("source-spell-only quest should still insert represented local AddQuest state");
     assert_eq!(status.quest_id, quest_id);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -236,7 +230,9 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;

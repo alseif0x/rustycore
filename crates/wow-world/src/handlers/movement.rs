@@ -55,7 +55,7 @@ mod tests;
 
 macro_rules! register_move {
     ($opcode:ident) => {
-        inventory::submit! {
+        crate::session::registry::register_packet_handler_like_cpp! {
             PacketHandlerEntry {
                 opcode: ClientOpcodes::$opcode,
                 status: SessionStatus::LoggedIn,
@@ -112,7 +112,7 @@ register_move!(MoveUpdateFallSpeed);
 
 // ── Handler registration (SetActiveMover) ────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetActiveMover,
         status: SessionStatus::LoggedIn,
@@ -131,7 +131,7 @@ inventory::submit! {
 
 // ── Handler registration (MoveInitActiveMoverComplete) ───────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveInitActiveMoverComplete,
         status: SessionStatus::LoggedIn,
@@ -148,7 +148,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveSetVehicleRecIdAck,
         status: SessionStatus::LoggedIn,
@@ -162,7 +162,7 @@ inventory::submit! {
 
 macro_rules! register_movement_ack_message {
     ($opcode:ident) => {
-        inventory::submit! {
+        crate::session::registry::register_packet_handler_like_cpp! {
             PacketHandlerEntry {
                 opcode: ClientOpcodes::$opcode,
                 status: SessionStatus::LoggedIn,
@@ -178,7 +178,7 @@ macro_rules! register_movement_ack_message {
 
 macro_rules! register_movement_speed_ack {
     ($opcode:ident) => {
-        inventory::submit! {
+        crate::session::registry::register_packet_handler_like_cpp! {
             PacketHandlerEntry {
                 opcode: ClientOpcodes::$opcode,
                 status: SessionStatus::LoggedIn,
@@ -220,7 +220,7 @@ register_movement_speed_ack!(MoveForceFlightBackSpeedChangeAck);
 register_movement_speed_ack!(MoveForcePitchRateChangeAck);
 register_movement_speed_ack!(MoveSetModMovementForceMagnitudeAck);
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveKnockBackAck,
         status: SessionStatus::LoggedIn,
@@ -237,7 +237,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveSetCollisionHeightAck,
         status: SessionStatus::LoggedIn,
@@ -254,7 +254,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveApplyMovementForceAck,
         status: SessionStatus::LoggedIn,
@@ -271,7 +271,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveRemoveMovementForceAck,
         status: SessionStatus::LoggedIn,
@@ -288,7 +288,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveTimeSkipped,
         status: SessionStatus::LoggedIn,
@@ -305,7 +305,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveSplineDone,
         status: SessionStatus::LoggedIn,
@@ -322,7 +322,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveTeleportAck,
         status: SessionStatus::LoggedIn,

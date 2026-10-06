@@ -13,14 +13,14 @@ impl crate::session::WorldSession {
         player_guid: ObjectGuid,
         selected_pool_looted: bool,
         whole_object_fully_looted: bool,
-        authoritative_release: Option<&AuthoritativeLootReleaseLikeCpp>,
     ) {
-        crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
-            guid,
-            player_guid,
-            selected_pool_looted,
-            whole_object_fully_looted,
-            authoritative_release,
-        )
+        self.loot_release_cx_like_cpp()
+            .apply_represented_gameobject_loot_release_like_cpp(
+                guid,
+                player_guid,
+                selected_pool_looted,
+                whole_object_fully_looted,
+                None,
+            )
     }
 }

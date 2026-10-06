@@ -6,6 +6,188 @@
 use super::*;
 
 impl WorldSession {
+    pub(crate) fn player_aura_application_cx_like_cpp(
+        &mut self,
+    ) -> wow_world_application::PlayerAuraApplicationCxLikeCpp<'_> {
+        let presentation = self.core.player_aura_removal_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::AuraRemovalFixtureRefsLikeCpp::new(
+                &mut self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &mut self
+                    .fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &mut self.fixtures.auras.visible_auras,
+                &mut self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                &mut self.fixtures.vehicles.player_mount_display_id_like_cpp,
+                &mut self.fixtures.vehicles.player_mounted_like_cpp,
+                &mut self.fixtures.presentation.player_unit_flags_like_cpp,
+                &self.fixtures.presentation.player_object_scale_like_cpp,
+            ),
+        );
+        let control = self.core.aura_mount_control_access_like_cpp(
+            self.catalogs.creatures.display_info_store.as_deref(),
+            self.catalogs.creatures.model_data_store.as_deref(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::AuraMountControlFixtureRefsLikeCpp::new(
+                &mut self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                &mut self.fixtures.movement.movement_counter_like_cpp,
+                &mut self.fixtures.movement.player_collision_height_like_cpp,
+                &self.fixtures.movement.player_position,
+                &mut self.fixtures.movement.player_movement_flags_like_cpp,
+                &self.fixtures.movement.player_movement_time_like_cpp,
+                &mut self
+                    .fixtures
+                    .movement
+                    .represented_can_swim_to_fly_transition_like_cpp,
+                &self.fixtures.identity.player_scale_duration_like_cpp,
+                &self.fixtures.identity.player_race,
+                &self.fixtures.identity.player_gender,
+                wow_world_core::session::AuraDismountPetFixtureRefsLikeCpp::new(
+                    &self.fixtures.pets.represented_pet_guid_like_cpp,
+                    &mut self.fixtures.pets.represented_pet_react_state_like_cpp,
+                    &mut self.fixtures.pets.represented_pet_command_state_like_cpp,
+                    &mut self.fixtures.pets.represented_pet_stable_like_cpp,
+                    &mut self
+                        .fixtures
+                        .pets
+                        .represented_character_pet_rows_empty_authority_complete_like_cpp,
+                    &mut self
+                        .fixtures
+                        .pets
+                        .represented_temporary_unsummoned_pet_number_like_cpp,
+                    &mut self.fixtures.pets.represented_old_pet_spell_like_cpp,
+                    &mut self.fixtures.pets.temporary_mount_pet_react_state_like_cpp,
+                ),
+                &mut self.fixtures.movement.movement_speed_rates_like_cpp,
+                &mut self.fixtures.movement.forced_speed_changes_like_cpp,
+                &self.fixtures.pets.represented_pet_guid_like_cpp,
+                &mut self
+                    .fixtures
+                    .pets
+                    .represented_pet_movement_speed_rates_like_cpp,
+                &mut self
+                    .fixtures
+                    .pets
+                    .represented_pet_speed_propagations_like_cpp,
+                &self.fixtures.combat.in_combat,
+                &mut self.fixtures.movement.last_fall_time_like_cpp,
+                &mut self.fixtures.movement.last_fall_z_like_cpp,
+            ),
+        );
+        let stats = self.core.aura_stats_access_builder_like_cpp(
+            &self.catalogs,
+            &self.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
+                &mut self.fixtures.combat.player_health_like_cpp,
+                &mut self.fixtures.combat.player_max_health_like_cpp,
+                &mut self.fixtures.combat.player_alive_like_cpp,
+                &mut self.fixtures.combat.represented_player_powers_like_cpp[0],
+                &mut self.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
+            ),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+        );
+        let item_sets = self.core.owned_item_set_access_like_cpp(
+            self.catalogs.items.set_store.as_deref(),
+            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_store.as_deref(),
+            self.catalogs.heirloom_store.as_deref(),
+            self.catalogs.items.stats_store.as_deref(),
+            self.catalogs.curve_store.as_deref(),
+            self.catalogs.curve_point_store.as_deref(),
+            self.catalogs.content_tuning_store.as_deref(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .represented_primary_specialization_id_like_cpp,
+        );
+        let catalogs = wow_world_application::AuraApplicationCatalogsLikeCpp::new(
+            self.catalogs.mount_capability_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_store.as_ref(),
+            self.catalogs.chr.classes_store.as_deref(),
+            self.catalogs.difficulty_store().map(AsRef::as_ref),
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+            self.catalogs.items.effect_store.as_ref(),
+            self.catalogs
+                .spell_catalogs
+                .spell_shapeshift_form_store
+                .as_deref(),
+            self.catalogs.map_store().map(AsRef::as_ref),
+            wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+                self.catalogs.scaling_stat_distribution_store.as_ref(),
+                self.catalogs.scaling_stat_values_store.as_ref(),
+                self.catalogs.shield_block_regular_game_table.as_ref(),
+                self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
+            ),
+        );
+        wow_world_application::PlayerAuraApplicationCxLikeCpp::new(
+            &mut self.spell_state,
+            &mut self.inventory,
+            presentation,
+            control,
+            stats,
+            item_sets,
+            catalogs,
+            &self.loot,
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_application::AuraApplicationFixtureRefsLikeCpp::new(
+                &mut self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                &self.fixtures.identity.player_class,
+                &self.fixtures.identity.player_level,
+                &self.quest_state,
+                &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+                &mut self.fixtures.vehicles.player_mount_vehicle_id_like_cpp,
+                &mut self
+                    .fixtures
+                    .vehicles
+                    .player_mount_vehicle_accessories_like_cpp,
+                &mut self
+                    .fixtures
+                    .vehicles
+                    .player_mount_vehicle_seat_count_like_cpp,
+                &mut self
+                    .fixtures
+                    .vehicles
+                    .player_mount_vehicle_usable_seat_count_like_cpp,
+                &mut self
+                    .fixtures
+                    .vehicles
+                    .mount_vehicle_remove_requests_like_cpp,
+                &mut self
+                    .fixtures
+                    .pets
+                    .mount_pet_control_enable_requests_like_cpp,
+                &mut self.fixtures.pets.mount_pet_resummon_requests_like_cpp,
+                &mut self
+                    .fixtures
+                    .vehicles
+                    .mount_collision_height_update_requests_like_cpp,
+            ),
+        )
+    }
+
     pub(in crate::session) fn remove_player_visible_aura_like_cpp(
         &mut self,
         slot: u8,
@@ -77,15 +259,16 @@ impl WorldSession {
         aura_flags: u32,
         effect_mask: u32,
     ) -> Result<(), &'static str> {
-        self.apply_aura_with_effect_mask_provenance_and_update_like_cpp(
-            spell_id,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            effect_mask,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
-            true,
-        )
+        // The admitted application aura owner holds this transition; the World
+        // shell only builds the borrowed context (#1263 F6).
+        self.player_aura_application_cx_like_cpp()
+            .apply_aura_with_effect_mask_like_cpp(
+                spell_id,
+                caster_guid,
+                duration_ms,
+                aura_flags,
+                effect_mask,
+            )
     }
     pub(in crate::session) fn apply_aura_with_effect_mask_and_provenance_like_cpp(
         &mut self,
@@ -153,153 +336,16 @@ impl WorldSession {
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
         send_update: bool,
     ) -> Result<(), &'static str> {
-        // Find a free slot (0-254) on the canonical Unit owner.
-        let slot = self
-            .next_player_visible_aura_slot_like_cpp()
-            .ok_or("No free aura slots or missing Player aura owner")?;
-
-        // Preserve the represented StatSystem-relevant multiplier on the same
-        // AuraApplication. C++ AuraEffect::HandleModTotalPercentStat uses
-        // MiscValueB as a per-stat bitmask (zero means all stats), while the
-        // generic AuraApplication continues to own the visible slot.
-        let (is_ability, total_stat_percentage_effects) = self
-            .spell_store()
-            .map(|store| {
-                let effects = store
-                    .get(spell_id)
-                    .map(|spell| {
-                        spell
-                            .effects()
-                            .iter()
-                            .filter(|effect| {
-                                1u32.checked_shl(effect.effect_index)
-                                    .is_some_and(|bit| effect_mask & bit != 0)
-                                    && effect.effect_aura
-                                        == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                            })
-                            .map(|effect| {
-                                (
-                                    effect.effect_index,
-                                    effect.calc_value_no_caster_like_cpp(),
-                                    effect.effect_misc_value_1,
-                                    effect.effect_misc_value_2,
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                (
-                    store.has_attribute0_like_cpp(
-                        spell_id,
-                        wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
-                    ),
-                    effects,
-                )
-            })
-            .unwrap_or_default();
-        let modifies_total_stats = !total_stat_percentage_effects.is_empty();
-        let preserve_health_pct = is_ability
-            && total_stat_percentage_effects
-                .iter()
-                .any(|(_, _, _, stat_mask)| *stat_mask == 0 || *stat_mask & (1 << 2) != 0);
-        let first_total_stat_percentage = total_stat_percentage_effects.first().copied();
-        let (
-            represented_effect,
-            represented_amount,
-            represented_misc_value,
-            represented_multiplier,
-        ) = if let Some((_, amount, _, stat_mask)) = first_total_stat_percentage {
-            (
-                Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage),
-                amount,
-                Some(stat_mask),
-                1.0 + amount as f32 / 100.0,
-            )
-        } else {
-            (None, 0, None, 1.0)
-        };
-        let represented_effect_amounts: Vec<_> = total_stat_percentage_effects
-            .iter()
-            .filter_map(|(effect_index, amount, _, _)| {
-                u8::try_from(*effect_index).ok().map(|effect_index| {
-                    RepresentedAuraEffectAmountLikeCpp {
-                        effect_index,
-                        amount: *amount,
-                    }
-                })
-            })
-            .collect();
-
-        // Create aura
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: duration_ms,
-            duration_remaining: duration_ms,
-            stack_count: 1,
-            aura_flags,
-            effect_mask,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect,
-            represented_amount,
-            represented_effect_amounts: represented_effect_amounts.clone(),
-            represented_misc_value,
-            represented_multiplier,
-            applied_at: Instant::now(),
-        };
-
-        if !self.insert_player_visible_aura_with_provenance_like_cpp(aura, provenance) {
-            return Err("Missing Player aura owner");
-        }
-        self.sync_canonical_threat_relevant_aura_like_cpp(
-            spell_id,
-            caster_guid,
-            slot,
-            effect_mask,
-            &represented_effect_amounts,
-            true,
-        );
-
-        if send_update {
-            self.send_aura_update_applied(
+        self.player_aura_application_cx_like_cpp()
+            .apply_aura_with_effect_mask_provenance_and_update_like_cpp(
                 spell_id,
-                slot,
                 caster_guid,
                 duration_ms,
                 aura_flags,
                 effect_mask,
-            );
-            // C++ applies login/load auras while Player is not yet in world,
-            // then folds their modifiers into UpdateAllStats and the initial
-            // CreateObject. Do not publish a VALUES delta for a GUID the
-            // client has not created yet.
-            if modifies_total_stats && self.core.state == SessionState::LoggedIn {
-                self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
-            }
-        }
-        if spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
-            let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
-        }
-        // C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
-        // `HandleModCombatSpeedPct`/`HandleAuraModRangedHaste`
-        // (`SpellAuraEffects.cpp:4353-4393`) reinstall the attack-time
-        // multipliers on every apply.
-        self.sync_represented_attack_speed_like_cpp();
-        // C++ `AuraEffect::HandleAuraModShapeshift` -> `Player::InitDataForForm`
-        // (`Player.cpp:22076-22098`) owns the form and recalcs its attack times
-        // and damage.
-        if let Some(mutation) = self.sync_represented_shapeshift_form_ownership_like_cpp(spell_id) {
-            self.sync_represented_shapeshift_form_like_cpp(mutation);
-        }
-        // C++ `AuraEffect::HandleAuraModPowerDisplay` (`SpellAuraEffects.cpp:4027-4039`).
-        if self.represented_spell_has_power_display_effect_like_cpp(spell_id) {
-            self.sync_represented_display_power_like_cpp();
-        }
-
-        Ok(())
+                provenance,
+                send_update,
+            )
     }
     pub(crate) fn apply_login_passive_known_spell_auras_like_cpp(&mut self) -> usize {
         let Some(player_guid) = self.player_guid() else {
@@ -498,210 +544,8 @@ impl WorldSession {
     }
     /// Remove an aura by slot and send SMSG_AURA_UPDATE.
     pub fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        let mounted_aura = crate::session::hub_ref(self)
-            .resolved_player_visible_auras_like_cpp()
-            .and_then(|auras| auras.get(&slot).cloned())
-            .is_some_and(|aura| {
-                aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
-            });
-        let was_mounted = if mounted_aura {
-            crate::session::hub_ref(self)
-                .resolved_player_mounted_like_cpp()
-                .ok_or("Missing Player presentation owner")?
-        } else {
-            false
-        };
-        let Some(aura) = self.remove_player_visible_aura_like_cpp(slot) else {
-            return Err("Aura slot not found");
-        };
-        if mounted_aura
-            && !crate::session::hub_mut(self).set_player_mount_presentation_like_cpp(0, false)
-        {
-            let _ = self.insert_player_visible_aura_like_cpp(aura);
-            return Err("Missing Player presentation owner");
-        }
-        // C++ `AuraEffect::HandleAuraTransform` remove path
-        // (`SpellAuraEffects.cpp:2129-2131`): the application is already gone,
-        // so the aura that owns the transform spell clears it.
-        let _ = {
-            let (s, mut h) = crate::session::split_spell_state_mut(self);
-            s.remove_represented_transform_aura_like_cpp(&mut h, &aura)
-        };
-        self.sync_canonical_threat_relevant_aura_like_cpp(
-            aura.spell_id,
-            aura.caster_guid,
-            aura.slot,
-            aura.effect_mask,
-            &aura.represented_effect_amounts,
-            false,
-        );
-
-        if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) {
-            let vehicle_id = crate::session::hub_ref(self)
-                .player_mount_vehicle_kit_snapshot_like_cpp()
-                .flatten()
-                .map(|vehicle| vehicle.vehicle_id())
-                .unwrap_or(0);
-            #[cfg(test)]
-            let vehicle_id = if vehicle_id == 0 {
-                self.fixtures.vehicles.player_mount_vehicle_id_like_cpp
-            } else {
-                vehicle_id
-            };
-            let mount_capability_id = aura.represented_amount;
-            let _ = crate::session::hub_mut(self).remove_player_mount_vehicle_kit_like_cpp();
-            #[cfg(test)]
-            {
-                self.fixtures.vehicles.player_mount_vehicle_id_like_cpp = 0;
-                self.fixtures
-                    .vehicles
-                    .player_mount_vehicle_accessories_like_cpp
-                    .clear();
-                self.fixtures
-                    .vehicles
-                    .player_mount_vehicle_seat_count_like_cpp = 0;
-                self.fixtures
-                    .vehicles
-                    .player_mount_vehicle_usable_seat_count_like_cpp = 0;
-            }
-            if was_mounted {
-                if vehicle_id != 0 {
-                    #[cfg(test)]
-                    {
-                        self.fixtures
-                            .vehicles
-                            .mount_vehicle_remove_requests_like_cpp = self
-                            .fixtures
-                            .vehicles
-                            .mount_vehicle_remove_requests_like_cpp
-                            .saturating_add(1);
-                    }
-                    crate::session::hub_mut(self).send_set_vehicle_rec_id_like_cpp(0);
-                }
-                #[cfg(test)]
-                {
-                    self.fixtures
-                        .pets
-                        .mount_pet_control_enable_requests_like_cpp = self
-                        .fixtures
-                        .pets
-                        .mount_pet_control_enable_requests_like_cpp
-                        .saturating_add(1);
-                }
-                crate::session::hub_mut(self).enable_pet_controls_on_dismount_like_cpp();
-                #[cfg(test)]
-                {
-                    self.fixtures.pets.mount_pet_resummon_requests_like_cpp = self
-                        .fixtures
-                        .pets
-                        .mount_pet_resummon_requests_like_cpp
-                        .saturating_add(1);
-                    self.fixtures
-                        .vehicles
-                        .mount_collision_height_update_requests_like_cpp = self
-                        .fixtures
-                        .vehicles
-                        .mount_collision_height_update_requests_like_cpp
-                        .saturating_add(1);
-                }
-                self.update_player_collision_height_like_cpp();
-                crate::session::hub_mut(self).send_movement_set_collision_height_like_cpp(
-                    wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
-                );
-            }
-            crate::session::hub_mut(self).send_represented_mount_unit_update_like_cpp(0);
-            self.remove_represented_mount_capability_speed_auras_like_cpp(mount_capability_id);
-        }
-        if matches!(
-            aura.represented_effect,
-            Some(
-                RepresentedAuraEffectLikeCpp::MountedSpeed
-                    | RepresentedAuraEffectLikeCpp::Speed
-                    | RepresentedAuraEffectLikeCpp::SpeedAlways
-                    | RepresentedAuraEffectLikeCpp::SpeedNotStack
-                    | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
-                    | RepresentedAuraEffectLikeCpp::DecreaseSpeed
-                    | RepresentedAuraEffectLikeCpp::MinimumSpeed
-                    | RepresentedAuraEffectLikeCpp::MinimumSpeedRate
-                    | RepresentedAuraEffectLikeCpp::MountedSpeedAlways
-                    | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
-            )
-        ) {
-            crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
-        }
-        if matches!(
-            aura.represented_effect,
-            Some(
-                RepresentedAuraEffectLikeCpp::MountedFlightSpeed
-                    | RepresentedAuraEffectLikeCpp::Fly
-                    | RepresentedAuraEffectLikeCpp::FlightSpeed
-                    | RepresentedAuraEffectLikeCpp::VehicleFlightSpeed
-                    | RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways
-                    | RepresentedAuraEffectLikeCpp::FlightSpeedNotStack
-            )
-        ) {
-            if matches!(
-                aura.represented_effect,
-                Some(
-                    RepresentedAuraEffectLikeCpp::MountedFlightSpeed
-                        | RepresentedAuraEffectLikeCpp::Fly
-                )
-            ) {
-                self.update_represented_flight_flags_for_flight_aura_like_cpp(false);
-            }
-            crate::session::hub_mut(self).recompute_represented_flight_speed_rate_like_cpp();
-        }
-        if matches!(
-            aura.represented_effect,
-            Some(RepresentedAuraEffectLikeCpp::SwimSpeed)
-        ) {
-            crate::session::hub_mut(self).recompute_represented_swim_speed_rate_like_cpp();
-        }
-        if matches!(
-            aura.represented_effect,
-            Some(
-                RepresentedAuraEffectLikeCpp::DecreaseSpeed
-                    | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
-            )
-        ) {
-            crate::session::hub_mut(self).recompute_represented_swim_speed_rate_like_cpp();
-            crate::session::hub_mut(self).recompute_represented_flight_speed_rate_like_cpp();
-        }
-        if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed) {
-            crate::session::hub_mut(self).recompute_represented_backward_speed_rates_like_cpp();
-        }
-
-        // Send SMSG_AURA_UPDATE (removal)
-        {
-            let (s, h) = crate::session::split_spell_state_ref(self);
-            s.send_aura_update_removed(h, slot)
-        };
-        if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
-            let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
-        }
-        if self.core.state == SessionState::LoggedIn
-            && self.aura_has_total_stat_percentage_effect_like_cpp(&aura)
-        {
-            let preserve_health_pct = {
-                let (s, h) = crate::session::split_spell_state_ref(self);
-                s.total_stat_percentage_aura_preserves_health_pct_like_cpp(h, &aura)
-            };
-            self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
-        }
-        // C++ removes the aura's attack-time multiplier through the same
-        // `ApplyAttackTimePercentMod` handlers the apply path used.
-        self.sync_represented_attack_speed_like_cpp();
-        if let Some(mutation) =
-            self.sync_represented_shapeshift_form_ownership_like_cpp(aura.spell_id)
-        {
-            self.sync_represented_shapeshift_form_like_cpp(mutation);
-        }
-        // C++ `AuraEffect::HandleAuraModPowerDisplay` (`SpellAuraEffects.cpp:4027-4039`).
-        if self.represented_spell_has_power_display_effect_like_cpp(aura.spell_id) {
-            self.sync_represented_display_power_like_cpp();
-        }
-
-        Ok(())
+        self.player_aura_application_cx_like_cpp()
+            .remove_aura_like_cpp(slot)
     }
     pub(crate) fn remove_represented_auras_with_attribute0_like_cpp(
         &mut self,
@@ -947,57 +791,6 @@ impl WorldSession {
             let _ = self.remove_aura(slot);
         }
         Some(removed)
-    }
-}
-
-impl crate::session::state::SessionSpellState {
-    pub(in crate::session) fn remove_player_visible_aura_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        slot: u8,
-    ) -> Option<AuraApplication> {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.remove_player_visible_aura_like_cpp(slot)
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_aura_subsystem_like_cpp(hub, |auras| {
-                    auras.remove_runtime_application_like_cpp(slot)
-                })
-                .flatten();
-        }
-        canonical
-    }
-
-    fn send_aura_update_removed(&self, hub: crate::session::HubRef<'_>, slot: u8) {
-        let Some(target_guid) = hub.core.player_guid() else {
-            return;
-        };
-        hub.core
-            .send_packet(&wow_packet::packets::misc::AuraUpdate {
-                unit_guid: target_guid,
-                update_all: false,
-                auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
-                    slot,
-                    aura_data: None,
-                }],
-            });
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn same_effect_stack_rule_aura_types_like_cpp(
-        &self,
-        group_id: u32,
-    ) -> Option<&BTreeSet<i32>> {
-        self.spell_catalogs
-            .spell_group_stack_rule_store
-            .as_ref()
-            .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
     }
 }
 

@@ -4,7 +4,8 @@
 //! Player bootstrap: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::power_type_from_u8_like_cpp;
+#[cfg(test)]
+use super::canonical_player_spell_runtime_like_cpp;
 use super::{INVENTORY_DEFAULT_SIZE, PLAYER_FLAGS_IN_PVP_LIKE_CPP, PhaseShift, Player};
 use super::{PlayerPetLifecycleStateLikeCpp, PlayerResurrectionStateLikeCpp};
 use super::{
@@ -12,10 +13,6 @@ use super::{
 };
 use super::{UnitPvpFlags, WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP, WeaponAttackType};
 use super::{WorldSession, gender_from_u8, player_cuf_profile_from_packet_like_cpp};
-#[cfg(test)]
-use super::{
-    canonical_player_spell_runtime_like_cpp, primary_power_type_for_player_class_like_cpp,
-};
 
 impl WorldSession {
     /// Build the initial canonical Player value before a generation-checked
@@ -52,9 +49,7 @@ impl WorldSession {
         #[cfg(test)]
         let bootstrap_phase_shift = self
             .visibility
-            .visibility_test_fixture_like_cpp
-            .represented_player_phase_shift
-            .clone();
+            .represented_player_phase_shift_fixture_like_cpp();
         *player.unit_mut().world_mut().phase_shift_mut() = bootstrap_phase_shift;
         player.unit_mut().world_mut().object_mut().add_to_world();
         player.set_race_class_gender(
@@ -145,13 +140,11 @@ impl WorldSession {
         {
             player.set_inventory_slot_count(
                 self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .player_inventory_slot_count_like_cpp,
+                    .player_inventory_slot_count_for_test_like_cpp(),
             );
             player.set_bank_bag_slot_count(
                 self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .player_bank_bag_slot_count_like_cpp,
+                    .player_bank_bag_slot_count_for_test_like_cpp(),
             );
         }
         for (category, party_type) in self
@@ -165,7 +158,7 @@ impl WorldSession {
         #[cfg(test)]
         for (index, value) in self
             .inventory
-            .represented_bank_bag_slot_flags_like_cpp
+            .represented_bank_bag_slot_flags_for_test_like_cpp()
             .iter()
             .copied()
             .enumerate()
@@ -179,16 +172,16 @@ impl WorldSession {
             self.fixtures.progression.watched_faction_index_like_cpp,
         );
         #[cfg(test)]
-        for quest_bit in &self
+        for quest_bit in self
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
+            .fixture_represented_quest_completed_bits_like_cpp()
         {
-            player.set_quest_completed_bit_like_cpp(*quest_bit, true);
+            player.set_quest_completed_bit_like_cpp(quest_bit, true);
         }
         #[cfg(test)]
         player.set_explored_zones_blocks_like_cpp(
-            &self.instances.represented_explored_zones_like_cpp,
+            self.instances
+                .represented_explored_zones_for_test_like_cpp(),
         );
         #[cfg(test)]
         {
@@ -277,7 +270,7 @@ impl WorldSession {
                     .represented_delayed_resurrection_after_teleport_like_cpp,
                 self_res_spells: self
                     .spell_state
-                    .represented_self_res_spells_like_cpp
+                    .represented_self_res_spells_for_test_like_cpp()
                     .clone(),
                 death_timer_active: self.fixtures.combat.represented_death_timer_active_like_cpp,
                 area_spirit_healer_guid: self.fixtures.combat.area_spirit_healer_guid_like_cpp,
@@ -330,85 +323,52 @@ impl WorldSession {
             player.set_shapeshift_form_id_like_cpp(
                 self.fixtures.auras.represented_shapeshift_form_like_cpp,
             );
-            player.set_loot_specialization_id_like_cpp(self.loot.loot_specialization_id);
+            player.set_loot_specialization_id_like_cpp(
+                self.loot.loot_specialization_id_for_test_like_cpp(),
+            );
             player.set_primary_specialization(
                 self.fixtures
                     .progression
                     .represented_primary_specialization_id_like_cpp,
             );
+            let spell_fixture = self.spell_state.player_spell_test_fixture_like_cpp();
             player.replace_spell_runtime_like_cpp(canonical_player_spell_runtime_like_cpp(
                 RepresentedPlayerSpellRuntimeLikeCpp {
-                    known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .known_spells
-                        .clone(),
-                    rows: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_player_spell_rows_like_cpp
-                        .clone(),
-                    rows_loaded: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_player_spell_rows_loaded_like_cpp,
-                    rows_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_player_spell_rows_complete_like_cpp,
-                    fallback_rows: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    known_spells: spell_fixture.known_spells.clone(),
+                    rows: spell_fixture.represented_player_spell_rows_like_cpp.clone(),
+                    rows_loaded: spell_fixture.represented_player_spell_rows_loaded_like_cpp,
+                    rows_complete: spell_fixture.represented_player_spell_rows_complete_like_cpp,
+                    fallback_rows: spell_fixture
                         .represented_fallback_player_spell_rows_like_cpp
                         .clone(),
-                    dependent_known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    dependent_known_spells: spell_fixture
                         .represented_dependent_known_spells_like_cpp
                         .clone(),
-                    removed_known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    removed_known_spells: spell_fixture
                         .represented_removed_known_spells_like_cpp
                         .clone(),
-                    favorite_known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    favorite_known_spells: spell_fixture
                         .represented_favorite_known_spells_like_cpp
                         .clone(),
-                    trait_definition_ids: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_definition_ids: spell_fixture
                         .represented_spell_trait_definition_ids_like_cpp
                         .clone(),
-                    trait_definition_ids_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_definition_ids_complete: spell_fixture
                         .represented_spell_trait_definition_ids_complete_like_cpp,
-                    trait_config_rows: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_trait_config_rows_like_cpp
-                        .clone(),
-                    trait_config_rows_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_config_rows: spell_fixture.represented_trait_config_rows_like_cpp.clone(),
+                    trait_config_rows_complete: spell_fixture
                         .represented_trait_config_rows_complete_like_cpp,
-                    trait_entry_rows_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_entry_rows_complete: spell_fixture
                         .represented_trait_entry_rows_complete_like_cpp,
-                    trait_entry_rows_empty: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_entry_rows_empty: spell_fixture
                         .represented_trait_entry_rows_empty_like_cpp,
                     override_spells: self
                         .spell_state
-                        .represented_override_spells_like_cpp
+                        .represented_override_spell_fixture_like_cpp()
                         .clone(),
                     override_spells_complete: self
                         .spell_state
-                        .represented_override_spells_complete_like_cpp,
+                        .represented_override_spell_fixture_complete_like_cpp(),
                 },
             ));
             player.gameplay_state_mut().cuf_profiles = self
@@ -420,14 +380,17 @@ impl WorldSession {
                 .collect();
             player.gameplay_state_mut().cuf_profiles_loaded =
                 self.fixtures.presentation.cuf_profiles_loaded_like_cpp;
-            player.gameplay_state_mut().equipment_sets =
-                self.inventory.represented_equipment_sets_like_cpp.clone();
+            player.gameplay_state_mut().equipment_sets = self
+                .inventory
+                .represented_equipment_sets_for_test_like_cpp()
+                .clone();
             player.gameplay_state_mut().void_storage_items = self
                 .inventory
-                .represented_void_storage_items_like_cpp
+                .represented_void_storage_items_for_test_like_cpp()
                 .to_vec();
-            player.gameplay_state_mut().void_storage_loaded =
-                self.inventory.represented_void_storage_loaded_like_cpp;
+            player.gameplay_state_mut().void_storage_loaded = self
+                .inventory
+                .represented_void_storage_loaded_for_test_like_cpp();
             player.gameplay_state_mut().collections =
                 self.represented_player_collection_state_like_cpp();
         }
@@ -467,78 +430,6 @@ impl WorldSession {
         Some(Box::new(
             self.build_initial_player_for_owner_like_cpp(key, None)?,
         ))
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    #[cfg(test)]
-    pub(in crate::session) fn apply_represented_player_powers_to_canonical_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        player: &mut Player,
-    ) {
-        let powers = hub
-            .fixtures
-            .combat
-            .represented_player_powers_like_cpp
-            .map(|value| value.unwrap_or(0));
-        let max_powers = hub
-            .fixtures
-            .combat
-            .represented_player_max_powers_like_cpp
-            .map(|value| value.unwrap_or(0));
-        player
-            .unit_mut()
-            .replace_create_power_arrays_like_cpp(powers, max_powers);
-        let Some(current) = hub.fixtures.combat.represented_player_powers_like_cpp[0] else {
-            return;
-        };
-        let primary_power_type =
-            primary_power_type_for_player_class_like_cpp(hub.player_class_like_cpp());
-        for raw_power in 0..=25 {
-            player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
-        }
-        player.set_power_index(primary_power_type, Some(0));
-        player.unit_mut().set_display_power(primary_power_type);
-        player.unit_mut().set_create_mana_like_cpp(
-            hub.fixtures
-                .combat
-                .represented_player_base_mana_like_cpp
-                .max(0),
-        );
-        if let Some(max) = hub.fixtures.combat.represented_player_max_powers_like_cpp[0] {
-            player.unit_mut().set_max_power(primary_power_type, max);
-            player.unit_mut().set_power(primary_power_type, current);
-        }
-    }
-
-    pub(in crate::session) fn apply_represented_player_unit_shape_to_canonical_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        player: &mut Player,
-    ) {
-        let display_id = crate::handlers::character::default_display_id(
-            hub.player_race_like_cpp(),
-            hub.player_gender_like_cpp(),
-        );
-        #[cfg(not(test))]
-        let mount_display_id = 0;
-        #[cfg(test)]
-        let mount_display_id =
-            u32::try_from(hub.fixtures.vehicles.player_mount_display_id_like_cpp).unwrap_or(0);
-        let unit = player.unit_mut();
-        unit.set_display_id(display_id, true);
-        unit.set_mount_display_id(mount_display_id);
-        #[cfg(not(test))]
-        unit.set_collision_height_like_cpp(1.0);
-        #[cfg(test)]
-        unit.set_collision_height_like_cpp(hub.fixtures.movement.player_collision_height_like_cpp);
-        #[cfg(not(test))]
-        unit.world_mut().object_mut().set_scale(1.0);
-        #[cfg(test)]
-        unit.world_mut()
-            .object_mut()
-            .set_scale(hub.fixtures.presentation.player_object_scale_like_cpp);
     }
 }
 

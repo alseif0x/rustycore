@@ -5,10 +5,6 @@
 
 use super::*;
 
-fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
-    ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64)
-}
-
 impl WorldSession {
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
@@ -46,86 +42,106 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.delete_represented_equipment_set_like_cpp(&mut hub, id)
     }
-    pub(crate) fn use_represented_equipment_set_like_cpp(
+    pub(crate) fn build_equipment_set_use_context_like_cpp(
         &mut self,
-        request: &wow_packet::packets::misc::UseEquipmentSet,
-    ) -> bool {
-        let ignored_guid = ignored_equipment_set_item_guid_like_cpp();
-        let mut changed_equipment = false;
-        let mut represented_item_mods_changed = false;
+    ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'_> {
+        let combat = self.core.equipment_set_combat_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.combat.in_combat,
+        );
+        let owner = self.core.equipment_set_use_access_like_cpp();
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
+        let item_sets = self.core.owned_item_set_access_like_cpp(
+            self.catalogs.items.set_store.as_deref(),
+            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_store.as_deref(),
+            self.catalogs.heirloom_store.as_deref(),
+            self.catalogs.items.stats_store.as_deref(),
+            self.catalogs.curve_store.as_deref(),
+            self.catalogs.curve_point_store.as_deref(),
+            self.catalogs.content_tuning_store.as_deref(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .represented_primary_specialization_id_like_cpp,
+        );
+        let item_mods = wow_world_application::EquipmentSetUseItemModsStoresLikeCpp::new(
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+            self.catalogs.scaling_stat_distribution_store.as_ref(),
+            self.catalogs.scaling_stat_values_store.as_ref(),
+            self.catalogs.shield_block_regular_game_table.as_ref(),
+            self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
+        );
+        #[cfg(test)]
+        let registry_hydration = Some(wow_world_application::PlayerRegistryHydrationContext::new(
+            self.core.player_registry_hydration_access_like_cpp(),
+            &self.spell_state,
+            &self.quest_state,
+            (
+                &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                &self.fixtures.pets.represented_pet_guid_like_cpp,
+            ),
+            true,
+        ));
+        #[cfg(all(not(test), feature = "test-fixtures"))]
+        let registry_hydration = None;
 
-        for (slot_index, set_item) in request.items.iter().enumerate() {
-            let dst = slot_index as u8;
-            if set_item.item == ignored_guid {
-                continue;
-            }
-
-            if crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false)
-                && dst != EQUIPMENT_SLOT_MAINHAND
-                && dst != EQUIPMENT_SLOT_OFFHAND
-            {
-                continue;
-            }
-
-            if let Some((src, _item)) =
-                self.represented_direct_inventory_slot_by_guid_like_cpp(set_item.item)
-            {
-                if src == dst {
-                    continue;
-                }
-                if let Some(item_mods_changed) =
-                    self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
-                {
-                    represented_item_mods_changed |= item_mods_changed;
-                    changed_equipment |= dst < EQUIPMENT_SLOT_END;
-                    changed_equipment |= src < EQUIPMENT_SLOT_END;
-                }
-                continue;
-            }
-
-            let Some(_equipped_item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, dst)
-            else {
-                continue;
-            };
-            let Some(backpack_slot) = ({
-                let (s, h) = crate::session::split_inventory_ref(self);
-                s.find_free_backpack_slot_like_cpp(h)
-            }) else {
-                continue;
-            };
-            if let Some(item_mods_changed) = self
-                .move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, backpack_slot)
-            {
-                represented_item_mods_changed |= item_mods_changed;
-                changed_equipment = true;
-            }
-        }
-
-        if changed_equipment {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        represented_item_mods_changed
+        wow_world_application::EquipmentSetUseContextLikeCpp::new(
+            &mut self.inventory,
+            owner,
+            inventory_access,
+            modifier_access,
+            item_sets,
+            combat,
+            item_mods,
+            &self.catalogs,
+            &self.config,
+            self.core.packet_publication_access_like_cpp(),
+            &self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_application::EquipmentSetUseFixtureRefsLikeCpp::new(
+                &self.fixtures.movement.player_position,
+                &self.fixtures.identity.player_race,
+                &self.fixtures.identity.player_class,
+                &self.fixtures.identity.player_level,
+                &mut self.fixtures.combat.player_health_like_cpp,
+                &mut self.fixtures.combat.player_max_health_like_cpp,
+                &mut self.fixtures.combat.player_alive_like_cpp,
+                &mut self.fixtures.combat.represented_player_powers_like_cpp[0],
+                &mut self.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
+                &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &self
+                    .fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &self.fixtures.auras.visible_auras,
+                &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+            ),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            registry_hydration,
+            cfg!(test),
+        )
     }
     /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
     /// `EquipChildItem` to move a linked child into its visible equipment slot.
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
         self.catalogs.items.child_equipment_store = Some(store);
-    }
-    pub(crate) fn apply_initial_equipped_item_set_auras_like_cpp(&mut self) -> Option<usize> {
-        let mut equipped: Vec<_> = self
-            .resolved_inventory_item_objects_like_cpp()?
-            .values()
-            .filter(|item| item.container_guid().is_empty() && item.slot() < INVENTORY_SLOT_BAG_END)
-            .map(|item| (item.slot(), item.object().guid()))
-            .collect();
-        equipped.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
-        Some(
-            equipped
-                .into_iter()
-                .map(|(_slot, item_guid)| self.apply_initial_item_set_auras_like_cpp(item_guid))
-                .sum(),
-        )
     }
     #[cfg(test)]
     pub fn set_creature_equipment_store_like_cpp(
@@ -139,350 +155,16 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::InventoryState {
-    pub(crate) fn save_represented_equipment_set_with_generator_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        generator: &EquipmentSetGuidGeneratorLikeCpp,
-        mut set: wow_packet::packets::misc::EquipmentSetDataLikeCpp,
-    ) -> Option<RepresentedEquipmentSetSavedLikeCpp> {
-        if set.set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
-            return None;
-        }
-
-        let set_type =
-            RepresentedEquipmentSetTypeLikeCpp::handler_branch_from_i32_like_cpp(set.set_type)?;
-
-        for i in 0..wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP {
-            let slot_bit = 1_u32 << i;
-            if (set.ignore_mask & slot_bit) == 0 {
-                if set_type == RepresentedEquipmentSetTypeLikeCpp::Equipment {
-                    set.appearances[i] = 0;
-
-                    let item_guid = set.pieces[i];
-                    if !item_guid.is_empty() {
-                        let item = self.get_inventory_item_by_pos(
-                            hub.shared(),
-                            INVENTORY_SLOT_BAG_0,
-                            i as u8,
-                        )?;
-                        if item.guid != item_guid {
-                            return None;
-                        }
-                    } else {
-                        set.ignore_mask |= slot_bit;
-                    }
-                } else {
-                    set.pieces[i] = ObjectGuid::EMPTY;
-                    if set.appearances[i] != 0 {
-                        let appearance_id = u32::try_from(set.appearances[i]).ok()?;
-                        if hub
-                            .catalogs
-                            .item_modified_appearance_store()
-                            .is_some_and(|store| store.get(appearance_id).is_none())
-                        {
-                            return None;
-                        }
-
-                        if !self
-                            .has_item_appearance_like_cpp(hub.shared(), appearance_id)
-                            .0
-                        {
-                            return None;
-                        }
-                    } else {
-                        set.ignore_mask |= slot_bit;
-                    }
-                }
-            } else {
-                set.pieces[i] = ObjectGuid::EMPTY;
-                set.appearances[i] = 0;
-            }
-        }
-
-        set.ignore_mask &= 0x7_FFFF;
-        if set_type == RepresentedEquipmentSetTypeLikeCpp::Equipment {
-            set.enchants = [0, 0];
-        } else {
-            for enchant_id in set.enchants {
-                if enchant_id == 0 {
-                    continue;
-                }
-
-                let enchant_id = u32::try_from(enchant_id).ok()?;
-                if hub
-                    .catalogs
-                    .spell_item_enchantment_store()
-                    .is_some_and(|store| {
-                        store.get(enchant_id).is_none_or(|illusion| {
-                            illusion.item_visual == 0
-                                || !illusion
-                                    .flags
-                                    .contains(SpellItemEnchantmentFlags::ALLOW_TRANSMOG)
-                        })
-                    })
-                {
-                    return None;
-                }
-            }
-        }
-
-        let existing_state = self.with_owned_equipment_sets_like_cpp(hub.shared(), |sets| {
-            sets.set_state_like_cpp(set.guid)
-        })?;
-        if set.guid != 0 && existing_state.is_none() {
-            return None;
-        }
-
-        let generated_new_guid = set.guid == 0;
-        let guid = if generated_new_guid {
-            generator.generate()
-        } else {
-            set.guid
-        };
-        set.guid = guid;
-
-        // The owner applies C++ `Player::SetEquipmentSet`'s state rule
-        // (Player.cpp:26406), so the state passed here is only the row's
-        // starting point.
-        let saved = represented_equipment_set_from_packet_like_cpp(
-            set,
-            guid,
-            existing_state.unwrap_or(RepresentedEquipmentSetUpdateStateLikeCpp::New),
-        )?;
-        let saved_raw_type = saved.raw_set_type;
-        let saved_set_id = saved.set_id;
-        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| {
-            if generated_new_guid {
-                sets.create_set_like_cpp(saved.clone());
-                true
-            } else {
-                sets.update_set_like_cpp(saved.clone())
-            }
-        })?
-        .then_some(())?;
-
-        Some(RepresentedEquipmentSetSavedLikeCpp {
-            guid,
-            set_type,
-            raw_set_type: saved_raw_type,
-            set_id: saved_set_id,
-            generated_new_guid,
-        })
-    }
-}
-
-impl crate::session::state::InventoryState {
-    pub(in crate::session) fn with_owned_equipment_sets_like_cpp<R>(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        mut f: impl FnMut(&wow_entities::PlayerEquipmentSetsLikeCpp) -> R,
-    ) -> Option<R> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(|player| f(&player.gameplay_state().equipment_sets));
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if hub.core.player_handle_like_cpp.is_none() {
-            return Some(f(&self.represented_equipment_sets_like_cpp));
-        }
-        None
-    }
-
-    pub(in crate::session) fn with_owned_equipment_sets_mut_like_cpp<R>(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        mut f: impl FnMut(&mut wow_entities::PlayerEquipmentSetsLikeCpp) -> R,
-    ) -> Option<R> {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.gameplay_state_mut().equipment_sets)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if hub.core.player_handle_like_cpp.is_none() {
-            return Some(f(&mut self.represented_equipment_sets_like_cpp));
-        }
-        None
-    }
-
-    #[cfg(test)]
-    pub(crate) fn insert_represented_equipment_set_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        guid: u64,
-        equipment_set: RepresentedEquipmentSetLikeCpp,
-    ) {
-        let mut equipment_set = equipment_set;
-        equipment_set.guid = guid;
-        let _ = self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| {
-            sets.install_loaded_set_like_cpp(equipment_set.clone());
-        });
-    }
-
-    pub(crate) fn clear_represented_equipment_sets_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) {
-        let _ = self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.clear_like_cpp());
-    }
-
-    pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) {
-        let _ =
-            self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.mark_loaded_like_cpp());
-    }
-
-    pub(crate) fn load_represented_equipment_set_row_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        guid: u64,
-        set_id: u32,
-        set_name: String,
-        set_icon: String,
-        ignore_mask: u32,
-        assigned_spec_index: i32,
-        pieces: [ObjectGuid; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-    ) -> bool {
-        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
-            return false;
-        }
-
-        let equipment_set = RepresentedEquipmentSetLikeCpp {
-            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment.as_i32_like_cpp(),
-            set_type: RepresentedEquipmentSetTypeLikeCpp::Equipment,
-            guid,
-            set_id,
-            ignore_mask,
-            pieces,
-            appearances: [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            enchants: [0; 2],
-            secondary_shoulder_appearance_id: 0,
-            secondary_shoulder_slot: 0,
-            secondary_weapon_appearance_id: 0,
-            secondary_weapon_slot: 0,
-            assigned_spec_index,
-            set_name,
-            set_icon,
-            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
-        };
-        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| {
-            sets.install_loaded_set_like_cpp(equipment_set.clone());
-        })
-        .is_some()
-    }
-
-    pub(crate) fn represented_load_equipment_set_packet_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<wow_packet::packets::misc::LoadEquipmentSet> {
-        self.with_owned_equipment_sets_like_cpp(hub, |stored| {
-            let sets = stored
-                .sets_like_cpp()
-                .values()
-                .filter(|equipment_set| {
-                    equipment_set.state != RepresentedEquipmentSetUpdateStateLikeCpp::Deleted
-                })
-                .map(
-                    |equipment_set| wow_packet::packets::misc::EquipmentSetDataLikeCpp {
-                        set_type: equipment_set.raw_set_type,
-                        guid: equipment_set.guid,
-                        set_id: equipment_set.set_id,
-                        ignore_mask: equipment_set.ignore_mask,
-                        pieces: equipment_set.pieces,
-                        appearances: equipment_set.appearances,
-                        enchants: equipment_set.enchants,
-                        secondary_shoulder_appearance_id: equipment_set
-                            .secondary_shoulder_appearance_id,
-                        secondary_shoulder_slot: equipment_set.secondary_shoulder_slot,
-                        secondary_weapon_appearance_id: equipment_set
-                            .secondary_weapon_appearance_id,
-                        secondary_weapon_slot: equipment_set.secondary_weapon_slot,
-                        assigned_spec_index: equipment_set.assigned_spec_index,
-                        set_name: equipment_set.set_name.clone(),
-                        set_icon: equipment_set.set_icon.clone(),
-                    },
-                )
-                .collect();
-            wow_packet::packets::misc::LoadEquipmentSet { sets }
-        })
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_equipment_set_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: u64,
-    ) -> Option<RepresentedEquipmentSetLikeCpp> {
-        self.with_owned_equipment_sets_like_cpp(hub, |sets| sets.set_like_cpp(guid).cloned())?
-    }
-
-    pub(crate) fn assign_represented_equipment_set_to_spec_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        set_id: u32,
-        spec_index: u32,
-    ) -> bool {
-        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
-            return false;
-        }
-
-        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| {
-            sets.assign_set_to_spec_like_cpp(set_id, spec_index as i32)
-        })
-        .unwrap_or(false)
-    }
-
-    pub(crate) fn delete_represented_equipment_set_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        id: u64,
-    ) -> bool {
-        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.delete_set_like_cpp(id))
-            .unwrap_or(false)
-    }
-
-    /// Install the process-wide C++ `sObjectMgr->GenerateEquipmentSetGuid()`
-    /// mirror shared by equipment sets and transmog outfits for every player.
-    #[cfg(test)]
-    pub fn set_equipment_set_guid_generator_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        generator: Arc<EquipmentSetGuidGeneratorLikeCpp>,
-    ) {
-        hub.core.equipment_set_guid_generator_like_cpp = Some(generator);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn equipment_set_guid_generator_for_test_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<Arc<EquipmentSetGuidGeneratorLikeCpp>> {
-        hub.core.equipment_set_guid_generator_like_cpp.clone()
-    }
-
-    /// Builds the represented statement sequence for C++ `Player::_SaveSpells`.
-    ///
-    /// The runtime full-save path calls this only when the complete represented
-    /// `PlayerSpellMap` authority can preserve inactive/disabled/temporary rows
-    /// exactly; incomplete snapshots remain fail-closed.
-    /// Persist a direct C++ `LearnSpell` result when Rust has not yet hydrated
-    /// the complete `PlayerSpellMap`. The DB row is the missing authority:
-    /// preserve its active bit if it was disabled, activate it otherwise, and
-    /// clear disabled. Favorites are deliberately untouched because learning
-    /// preserves them and the incomplete runtime cannot reconstruct them.
-    #[cfg(test)]
-    pub(in crate::session) fn mark_equipment_sets_saved_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) {
-        let _ = self
-            .with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.mark_sets_saved_like_cpp());
+impl
+    wow_world_application::EquipmentSetUseHandlerHostLikeCpp<
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    > for WorldSession
+{
+    fn equipment_set_use_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        _catalogs: &'a crate::session::SessionHandlerCatalogsLikeCpp,
+    ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'a> {
+        self.build_equipment_set_use_context_like_cpp()
     }
 }
 

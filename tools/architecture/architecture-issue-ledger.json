@@ -186,6 +186,7 @@
     743,
     735,
     1233,
+    1263,
     583,
     153
   ],
@@ -2449,6 +2450,18 @@
       "depends_on": [
         716,
         737
+      ]
+    },
+    {
+      "number": 1263,
+      "state": "open",
+      "title": "[ARCH.CORE] #1241 continuation: remaining work to complete the wow-world split (F4a P3 → F6)",
+      "kind": "slice",
+      "parents": [
+        584
+      ],
+      "depends_on": [
+        578
       ]
     }
   ]

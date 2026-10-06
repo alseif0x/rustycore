@@ -16,18 +16,54 @@ use syn::{Attribute, Expr, Item, ItemMacro, Lit, Meta, UseTree};
 use crate::module_policy::CapabilityOwner;
 use crate::ownership::WorkspaceSourceMount;
 
+mod composer;
+mod direct_builder;
+mod legacy_registry;
 mod local_inventory;
+pub(crate) use composer::{
+    validate_composition_mounts, validate_composition_mounts_with_contracts,
+};
+pub(crate) use direct_builder::{
+    ACCOUNT_DATA_REGISTRAR, APPLICATION_GROUP_REGISTRAR, ARENA_TEAM_REGISTRAR, BANK_REGISTRAR,
+    BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR, CHARACTER_QUERY_REGISTRAR,
+    CHAT_REGISTRAR, CLIENT_STATE_REGISTRAR, COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR,
+    DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DUNGEON_FINDING_REGISTRAR,
+    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR, GUILD_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, LOOT_REGISTRAR, PLAYER_REGISTRAR,
+    QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract, RegistrarReport,
+    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR,
+    TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, analyze_contract_source,
+    analyze_owner_source, analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+};
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
+    registration_alias_violations_with_context,
+    registration_alias_violations_with_legacy_wrapper_reexport,
 };
 
+/// Registration macros the repository is expected to expand.
+///
+/// #1263 F5 moved the inert movement-ack family (`Move*Ack`,
+/// `MoveRemoveMovementForces`, `MoveSeamlessTransferComplete`,
+/// `MoveSetAdvFly*`) out of `wow-world`'s local
+/// `register_unhandled_threadsafe_null_handler!` and into the explicit
+/// `register_client_state_handlers_like_cpp` registrar of
+/// `wow-world-application`; the expansion shape is now a direct
+/// `builder.register` per opcode, so the macro is no longer part of the
+/// grammar. Review this list again before adding another registry macro.
+///
+/// #1263 F5 also moved the chat family to
+/// `wow-world-social::register_chat_handlers_like_cpp`. The channel-command
+/// registrations that `wow-world` previously expanded through
+/// `register_chat_channel_command_handler!` /
+/// `register_chat_channel_player_command_handler!` are now direct
+/// `builder.register` entries in `crates/wow-world-social/src/chat_handlers.rs`
+/// (audited by the `SocialChat` direct-registrar contract), so those two
+/// macros are retired from the grammar.
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
-    "register_chat_channel_command_handler",
-    "register_chat_channel_player_command_handler",
     "register_move",
     "register_movement_ack_message",
     "register_movement_speed_ack",
-    "register_unhandled_threadsafe_null_handler",
 ];
 
 #[derive(Clone, Debug)]
@@ -74,13 +110,19 @@ struct SourceCollection {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct RegistrationSourceReport {
     pub(crate) direct_submissions: usize,
+    pub(crate) builder_entries: usize,
+    /// How many of the finite direct-owner registrars this scan recognized.
+    ///
+    /// Only the repository scan can require the complete contract set: a
+    /// synthetic or single-owner mount legitimately contains none of them.
+    pub(crate) builder_registrars: usize,
     pub(crate) registration_macro_invocations: usize,
     pub(crate) registration_macro_names: BTreeSet<String>,
 }
 
 impl RegistrationSourceReport {
     pub(crate) fn represented_entries(&self) -> usize {
-        self.direct_submissions + self.registration_macro_invocations
+        self.direct_submissions + self.builder_entries + self.registration_macro_invocations
     }
 }
 
@@ -416,12 +458,18 @@ fn use_tree_can_alias_inventory_submit(tree: &UseTree) -> bool {
 fn use_tree_can_alias_expected_registration_macro(tree: &UseTree) -> bool {
     match tree {
         UseTree::Path(path) => use_tree_can_alias_expected_registration_macro(&path.tree),
-        UseTree::Name(name) => EXPECTED_REGISTRATION_MACROS
-            .iter()
-            .any(|expected| ident_is(&name.ident, expected)),
-        UseTree::Rename(rename) => EXPECTED_REGISTRATION_MACROS.iter().any(|expected| {
-            ident_is(&rename.ident, expected) || ident_is(&rename.rename, expected)
-        }),
+        UseTree::Name(name) => {
+            EXPECTED_REGISTRATION_MACROS
+                .iter()
+                .any(|expected| ident_is(&name.ident, expected))
+                || legacy_registry::is_wrapper_macro_name(&name.ident)
+        }
+        UseTree::Rename(rename) => {
+            EXPECTED_REGISTRATION_MACROS.iter().any(|expected| {
+                ident_is(&rename.ident, expected) || ident_is(&rename.rename, expected)
+            }) || legacy_registry::is_wrapper_macro_name(&rename.ident)
+                || legacy_registry::is_wrapper_macro_name(&rename.rename)
+        }
         UseTree::Group(group) => group
             .items
             .iter()
@@ -430,24 +478,9 @@ fn use_tree_can_alias_expected_registration_macro(tree: &UseTree) -> bool {
     }
 }
 
-fn is_exact_packet_handler_collector(path: &[String], body: &TokenStream) -> bool {
-    if path != ["inventory", "collect"] {
-        return false;
-    }
-    let Ok(handler_type) = syn::parse2::<syn::Path>(body.clone()) else {
-        return false;
-    };
-    handler_type.leading_colon.is_none()
-        && handler_type.segments.len() == 1
-        && handler_type.segments.first().is_some_and(|segment| {
-            ident_is(&segment.ident, "PacketHandlerEntry")
-                && matches!(segment.arguments, syn::PathArguments::None)
-        })
-}
-
 #[derive(Debug, Default)]
 pub(crate) struct OutsideRegistrationReport {
-    pub(crate) exact_packet_handler_collectors: usize,
+    pub(crate) exact_legacy_wrapper_collectors: usize,
 }
 
 pub(crate) fn handler_capable_macro_definitions(
@@ -582,7 +615,8 @@ pub(crate) fn include_macro_bodies(
 pub(crate) fn analyze_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
-    allow_exact_packet_handler_collector: bool,
+    allow_exact_legacy_registry_bridge: bool,
+    allow_local_data_module: bool,
 ) -> Result<OutsideRegistrationReport, String> {
     // Tokenize the complete source without evaluating cfg predicates. This is
     // intentionally independent of rustc's active target/profile so an
@@ -590,64 +624,28 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
     let tokens: TokenStream = source
         .parse()
         .map_err(|error| format!("cannot tokenize {}: {error}", source_path.display()))?;
-    let mut violations = registration_alias_violations(source)?
-        .into_iter()
-        .map(|violation| format!("{} {violation}", source_path.display()))
-        .collect::<Vec<_>>();
+    let mut violations = registration_alias_violations_with_context(
+        source,
+        allow_exact_legacy_registry_bridge,
+        allow_local_data_module,
+    )?
+    .into_iter()
+    .map(|violation| format!("{} {violation}", source_path.display()))
+    .collect::<Vec<_>>();
+    if token_stream_mentions_ident(&tokens, "PacketHandlerEntry") {
+        if let Some(violation) = direct_builder::unowned_entry_literal_violation(source)? {
+            violations.push(format!("{} {violation}", source_path.display()));
+        }
+    }
     let syntax = syn::parse_file(source)
         .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
-    let top_level_exact_collectors: Vec<_> = syntax
-        .items
-        .iter()
-        .filter_map(|item| match item {
-            Item::Macro(item)
-                if is_exact_packet_handler_collector(
-                    &path_segments(&item.mac.path),
-                    &item.mac.tokens,
-                ) =>
-            {
-                Some(item)
-            }
-            _ => None,
-        })
-        .collect();
-    let exact_collector_calls = token_macro_calls(&tokens)
-        .iter()
-        .filter(|call| is_exact_packet_handler_collector(&call.path, &call.body))
-        .count();
-    if allow_exact_packet_handler_collector {
-        if exact_collector_calls != top_level_exact_collectors.len() {
-            violations.push(format!(
-                "{} contains an exact inventory::collect!(PacketHandlerEntry) outside module item \
-                 level; the collector is allowed only as a top-level item",
-                source_path.display()
-            ));
-        }
-        if conditional_attribute_name(&syntax.attrs).is_some() {
-            violations.push(format!(
-                "{} guards the PacketHandlerEntry collector source with cfg/cfg_attr",
-                source_path.display()
-            ));
-        }
-        for collector in &top_level_exact_collectors {
-            if conditional_attribute_name(&collector.attrs).is_some() {
-                violations.push(format!(
-                    "{} conditionally compiles inventory::collect!(PacketHandlerEntry)",
-                    source_path.display()
-                ));
-            }
-        }
-    }
-    for definition in token_macro_definitions(&tokens)
-        .into_iter()
-        .filter(macro_definition_may_generate_handler)
-    {
-        violations.push(format!(
-            "{} defines handler-capable macro_rules! {} outside the declared handler-registration owner",
-            source_path.display(),
-            definition.name
-        ));
-    }
+    let bridge = legacy_registry::analyze_bridge(
+        source_path,
+        &tokens,
+        &syntax,
+        allow_exact_legacy_registry_bridge,
+    );
+    violations.extend(bridge.violations);
     for call in token_macro_calls(&tokens) {
         if call.path.last().is_some_and(|name| name == "include") {
             violations.push(format!(
@@ -655,8 +653,13 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
                  registration",
                 source_path.display()
             ));
-        } else if allow_exact_packet_handler_collector
-            && is_exact_packet_handler_collector(&call.path, &call.body)
+        } else if allow_exact_legacy_registry_bridge
+            && legacy_registry::is_exact_wrapper_collector(&call.path, &call.body)
+        {
+            continue;
+        } else if allow_exact_legacy_registry_bridge
+            && bridge.complete
+            && legacy_registry::is_exact_wrapper_submit(&call.path, &call.body)
         {
             continue;
         } else if call
@@ -702,7 +705,7 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
 
     if violations.is_empty() {
         Ok(OutsideRegistrationReport {
-            exact_packet_handler_collectors: top_level_exact_collectors.len(),
+            exact_legacy_wrapper_collectors: bridge.exact_collectors,
         })
     } else {
         Err(violations.join("\n"))
@@ -714,7 +717,7 @@ pub(crate) fn reject_registration_syntax_outside_handlers(
     source_path: &Path,
     source: &str,
 ) -> Result<(), String> {
-    analyze_registration_syntax_outside_handlers(source_path, source, false).map(|_| ())
+    analyze_registration_syntax_outside_handlers(source_path, source, false, false).map(|_| ())
 }
 
 fn path_segments(path: &syn::Path) -> Vec<String> {
@@ -724,8 +727,10 @@ fn path_segments(path: &syn::Path) -> Vec<String> {
         .collect()
 }
 
-fn is_direct_handler_submission(path: &[String], _body: &TokenStream) -> bool {
+fn is_direct_handler_submission(path: &[String], body: &TokenStream) -> bool {
     is_inventory_submit(path)
+        || (legacy_registry::is_wrapper_macro_path(path)
+            && legacy_registry::is_wrapper_entry_expression(body))
 }
 
 fn is_inventory_submit(path: &[String]) -> bool {
@@ -737,11 +742,12 @@ fn macro_call_mentions_handler_entry(body: &TokenStream) -> bool {
 }
 
 fn is_registration_macro_invocation(path: &[String]) -> bool {
-    path.last().is_some_and(|name| {
-        EXPECTED_REGISTRATION_MACROS
-            .iter()
-            .any(|expected| name == expected)
-    })
+    legacy_registry::is_wrapper_macro_name_path(path)
+        || path.last().is_some_and(|name| {
+            EXPECTED_REGISTRATION_MACROS
+                .iter()
+                .any(|expected| name == expected)
+        })
 }
 
 fn token_stream_contains_macro_repetition(tokens: &TokenStream) -> bool {
@@ -792,7 +798,11 @@ fn definition_direct_submission_count(definition: &MacroDefinitionSite) -> usize
     definition
         .calls
         .iter()
-        .filter(|call| is_direct_handler_submission(&call.path, &call.body))
+        .filter(|call| {
+            is_direct_handler_submission(&call.path, &call.body)
+                || (legacy_registry::is_wrapper_macro_path(&call.path)
+                    && legacy_registry::is_wrapper_template_entry_expression(&call.body))
+        })
         .count()
 }
 
@@ -1087,7 +1097,10 @@ fn collect_source_file(
     }
     let source = fs::read_to_string(&source_path)
         .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-    let alias_violations = registration_alias_violations(&source)?;
+    let alias_violations = registration_alias_violations_with_legacy_wrapper_reexport(
+        &source,
+        module_path == "crate::session::registry",
+    )?;
     if !alias_violations.is_empty() {
         return Err(format!(
             "{}: {}",
@@ -1165,9 +1178,14 @@ fn classify_registration_sources(
     for definition in collection.definitions.iter().filter(|definition| {
         definition.handler_capable && !registration_names.contains(&definition.name)
     }) {
+        let repetition = if definition.contains_repetition {
+            "; it contains a macro repetition, so one PacketHandlerEntry per invocation cannot be proven"
+        } else {
+            ""
+        };
         errors.push(format!(
             "handler-capable macro {} in {} is outside the exact audited registration-macro \
-             grammar",
+             grammar{repetition}",
             definition.name, definition.location
         ));
     }
@@ -1237,6 +1255,7 @@ fn classify_registration_sources(
                 .last()
                 .is_some_and(|name| is_inventory_registration_macro_name(name))
                 || invocation.path.last().is_some_and(|name| name == "include")
+                || legacy_registry::is_wrapper_macro_path(&invocation.path)
                 || token_stream_mentions_inventory_registration_path(&invocation.body)
                 || macro_call_mentions_handler_entry(&invocation.body)
                 || via_registration_macro)
@@ -1294,6 +1313,8 @@ fn classify_registration_sources(
     if errors.is_empty() {
         Ok(RegistrationSourceReport {
             direct_submissions,
+            builder_entries: 0,
+            builder_registrars: 0,
             registration_macro_invocations,
             registration_macro_names: registration_names,
         })
@@ -1304,14 +1325,23 @@ fn classify_registration_sources(
 
 pub(crate) fn analyze_handler_mounts(
     mounts: &[WorkspaceSourceMount],
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> Result<RegistrationSourceReport, String> {
     let mut collection = SourceCollection::default();
-    for mount in mounts.iter().filter(|mount| mount.package == owner.package) {
+    let mut builder_entries = 0;
+    let mut builder_registrars = 0;
+    for mount in mounts
+        .iter()
+        .filter(|mount| owners.iter().any(|owner| owner.package == mount.package))
+    {
         let owner_contexts: Vec<_> = mount
             .contexts
             .iter()
-            .filter(|context| owner.owns_module(&mount.package, &context.logical_module_path))
+            .filter(|context| {
+                owners
+                    .iter()
+                    .any(|owner| owner.owns_module(&mount.package, &context.logical_module_path))
+            })
             .collect();
         if owner_contexts.is_empty() {
             continue;
@@ -1328,6 +1358,29 @@ pub(crate) fn analyze_handler_mounts(
             ));
         }
         let context = owner_contexts[0];
+        if !context.production_possible {
+            // A cfg(test)-only mount cannot register a production handler. Its
+            // PacketHandlerEntry constructions are fixture data, not ownership,
+            // so the production grammar and the snapshot counters skip them.
+            continue;
+        }
+        let registrar = analyze_owner_source_with_contracts(
+            &mount.package,
+            &context.logical_module_path,
+            &mount.source_path,
+            &mount.source,
+            DIRECT_REGISTRAR_CONTRACTS,
+        )?;
+        if registrar.registrar_count != 0
+            && (!context.production_possible || !context.test_possible || !context.cfg.is_empty())
+        {
+            return Err(format!(
+                "direct registrar in {} must be mounted unconditionally for production and tests",
+                mount.source_path.display()
+            ));
+        }
+        builder_entries += registrar.entries;
+        builder_registrars += registrar.registrar_count;
         let alias_violations = registration_alias_violations(&mount.source)?;
         if !alias_violations.is_empty() {
             return Err(format!(
@@ -1367,7 +1420,10 @@ pub(crate) fn analyze_handler_mounts(
             &mut Vec::new(),
         )?;
     }
-    classify_registration_sources(collection)
+    let mut report = classify_registration_sources(collection)?;
+    report.builder_entries = builder_entries;
+    report.builder_registrars = builder_registrars;
+    Ok(report)
 }
 
 #[cfg(test)]

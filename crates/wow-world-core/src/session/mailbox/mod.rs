@@ -2,6 +2,7 @@
 
 mod durable;
 mod protocol;
+mod pump;
 mod session_phase_permit;
 mod session_phase_rail;
 

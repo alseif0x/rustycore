@@ -37,69 +37,16 @@ pub(in crate::session) fn party_member_power_kind_from_u8_like_cpp(power: u8) ->
     }
 }
 
-pub(in crate::session) fn party_member_power_to_u16_like_cpp(value: i32) -> u16 {
-    u16::try_from(value.max(0)).unwrap_or(u16::MAX)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedWargameInviteAcceptanceLikeCpp {
-    pub inviter_name: String,
-    pub inviter_guid: ObjectGuid,
-    pub player_group_guid: u64,
-    pub inviter_group_guid: u64,
-    pub group_size: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedSignPetitionLikeCpp {
-    pub petition_guid: ObjectGuid,
-    pub choice: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedDeclinePetitionLikeCpp {
-    pub petition_guid: ObjectGuid,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQueryPetitionLikeCpp {
-    pub petition_id: u32,
-    pub item_guid: ObjectGuid,
-}
-
 #[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedSilencePartyTalkerLikeCpp {
-    pub target: ObjectGuid,
-    pub silent: bool,
-}
+pub(crate) use wow_world_core::session::RepresentedWargameInviteAcceptanceLikeCpp;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedCalendarCommunityInviteLikeCpp {
-    pub guild_id: u64,
-    pub min_level: u8,
-    pub max_level: u8,
-    pub max_rank_order: u8,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedCalendarAddEventLikeCpp {
-    pub guild_id: Option<u64>,
-    pub club_id: u64,
-    pub event_type: u8,
-    pub texture_id: i32,
-    pub time_packed: u32,
-    pub flags: u32,
-    pub invite_count: usize,
-    pub title: String,
-    pub description: String,
-    pub max_size: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedCalendarRemoveEventLikeCpp {
-    pub event_id: u64,
-}
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_social::RepresentedSilencePartyTalkerLikeCpp;
+pub(crate) use wow_world_social::{
+    RepresentedCalendarAddEventLikeCpp, RepresentedCalendarCommunityInviteLikeCpp,
+    RepresentedCalendarRemoveEventLikeCpp, RepresentedDeclinePetitionLikeCpp,
+    RepresentedQueryPetitionLikeCpp, RepresentedSignPetitionLikeCpp,
+};
 
 impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -118,14 +65,14 @@ impl WorldSession {
 
         #[cfg(test)]
         self.social
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_community_invites_like_cpp
-            .push(RepresentedCalendarCommunityInviteLikeCpp {
-                guild_id,
-                min_level,
-                max_level,
-                max_rank_order,
-            });
+            .record_calendar_community_invite_for_test_like_cpp(
+                RepresentedCalendarCommunityInviteLikeCpp {
+                    guild_id,
+                    min_level,
+                    max_level,
+                    max_rank_order,
+                },
+            );
         true
     }
 
@@ -161,10 +108,8 @@ impl WorldSession {
         };
 
         #[cfg(test)]
-        self.social
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_add_events_like_cpp
-            .push(RepresentedCalendarAddEventLikeCpp {
+        self.social.record_calendar_add_event_for_test_like_cpp(
+            RepresentedCalendarAddEventLikeCpp {
                 guild_id,
                 club_id,
                 event_type,
@@ -175,7 +120,8 @@ impl WorldSession {
                 title,
                 description,
                 max_size,
-            });
+            },
+        );
         true
     }
 
@@ -186,59 +132,6 @@ impl WorldSession {
     ) -> bool {
         let (state, mut hub) = crate::session::split_social_mut(self);
         state.set_represented_arena_team_id_invited_like_cpp(&mut hub, arena_team_id)
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    #[cfg(test)]
-    pub(crate) fn represented_calendar_community_invites_like_cpp(
-        &self,
-    ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
-        &self
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_community_invites_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_calendar_add_events_like_cpp(
-        &self,
-    ) -> &[RepresentedCalendarAddEventLikeCpp] {
-        &self
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_add_events_like_cpp
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        arena_team_id: u32,
-    ) -> bool {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_arena_team_id_invited_like_cpp(arena_team_id)
-            })
-            .is_some();
-        #[cfg(test)]
-        if !canonical && hub.core.player_handle_like_cpp.is_none() {
-            return hub
-                .mutate_player_battleground_state_like_cpp(|state| {
-                    state.set_arena_team_id_invited_like_cpp(arena_team_id);
-                })
-                .is_some();
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_arena_team_id_invited_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> u32 {
-        hub.player_battleground_state_snapshot_like_cpp()
-            .expect("test Player battleground owner must resolve")
-            .arena_team_id_invited_like_cpp()
     }
 }
 

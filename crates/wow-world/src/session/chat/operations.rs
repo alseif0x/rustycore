@@ -48,7 +48,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction.gossip_options.clear();
+            self.interaction.clear_gossip_options_for_test_like_cpp();
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -69,7 +69,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction.gossip_options = fixture_options;
+            self.interaction
+                .replace_gossip_options_for_test_like_cpp(fixture_options);
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -88,7 +89,7 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .interaction
-                .gossip_options
+                .gossip_options_for_test_like_cpp()
                 .iter()
                 .find(|option| option.gossip_option_id == gossip_option_id)
                 .cloned();
@@ -154,195 +155,6 @@ impl WorldSession {
             important: self.represented_quest_is_important_like_cpp(quest),
             quest_title: quest.log_title.clone(),
         }
-    }
-}
-
-impl crate::session::state::SessionWorldConfig {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
-        self.chat_fake_message_preventing_like_cpp = enabled;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_chat_level_requirements_like_cpp(
-        &mut self,
-        requirements: ChatLevelRequirementsLikeCpp,
-    ) {
-        self.chat_level_requirements_like_cpp = requirements;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
-        self.chat_listen_ranges_like_cpp = ranges;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
-        self.chat_flood_config_like_cpp = config;
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
-        self.emotes_store = Some(store);
-    }
-
-    /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
-        self.emotes_text_store = Some(store);
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    pub(crate) fn apply_chat_away_mode_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        mode: PlayerAwayModeLikeCpp,
-        text: String,
-    ) -> bool {
-        if hub.shared().resolved_in_combat_like_cpp() != Some(false) || text.len() > 511 {
-            return false;
-        }
-
-        if hub.core.player_guid().is_none() {
-            return false;
-        }
-
-        let default_text = match mode {
-            PlayerAwayModeLikeCpp::Afk => "Away from Keyboard",
-            PlayerAwayModeLikeCpp::Dnd => "Do not Disturb",
-        };
-
-        // C++ `WorldSession::HandleChatMessageAFKOpcode` (ChatHandler.cpp:594)
-        // and its DND twin (:640) compose two Player transitions in this exact
-        // order: assign the auto-reply message, clear the opposite mode, then
-        // toggle this one. The session adapts the packet; the Player owns both
-        // steps.
-        //
-        // Unimplemented participant: Classic then notifies the guild through
-        // `Guild::SendEventAwayChanged`.
-        hub.core
-            .mutate_canonical_player_like_cpp(move |player| {
-                let already_active = match mode {
-                    PlayerAwayModeLikeCpp::Afk => player.is_afk_like_cpp(),
-                    PlayerAwayModeLikeCpp::Dnd => player.is_dnd_like_cpp(),
-                };
-                if already_active {
-                    if text.is_empty() {
-                        match mode {
-                            PlayerAwayModeLikeCpp::Afk => player.toggle_afk_like_cpp(),
-                            PlayerAwayModeLikeCpp::Dnd => player.toggle_dnd_like_cpp(),
-                        }
-                    } else {
-                        player.set_auto_reply_message_like_cpp(text);
-                    }
-                    return;
-                }
-
-                player.set_auto_reply_message_like_cpp(if text.is_empty() {
-                    default_text.to_string()
-                } else {
-                    text
-                });
-                match mode {
-                    PlayerAwayModeLikeCpp::Afk => {
-                        if player.is_dnd_like_cpp() {
-                            player.toggle_dnd_like_cpp();
-                        }
-                        player.toggle_afk_like_cpp();
-                    }
-                    PlayerAwayModeLikeCpp::Dnd => {
-                        if player.is_afk_like_cpp() {
-                            player.toggle_afk_like_cpp();
-                        }
-                        player.toggle_dnd_like_cpp();
-                    }
-                }
-            })
-            .is_some()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_emote_state_like_cpp(&self, hub: crate::session::HubRef<'_>) -> u32 {
-        hub.resolved_player_emote_state_like_cpp()
-            .expect("test Player emote-state owner must resolve")
-    }
-}
-
-impl crate::session::state::SessionCore {
-    fn player_emote_state_update_packet_like_cpp(
-        &self,
-        emote_state: u32,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        let guid = self.player_guid()?;
-        let mut mask = UpdateMask::new(UNIT_DATA_BITS);
-        mask.set(UNIT_DATA_MODS_PARENT_BIT);
-        mask.set(UNIT_DATA_EMOTE_STATE_BIT);
-        let update = wow_entities::PlayerValuesUpdate {
-            changed_object_type_mask: 0,
-            object_data: None,
-            unit_data: Some(UnitDataUpdate {
-                mask,
-                values: UnitDataValues {
-                    emote_state: emote_state.min(i32::MAX as u32) as i32,
-                    ..Default::default()
-                },
-            }),
-            player_data: None,
-            active_player_data: None,
-        };
-        player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(in crate::session) fn resolved_player_emote_state_like_cpp(&self) -> Option<u32> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.presentation.player_emote_state_like_cpp);
-        }
-        canonical
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub(crate) fn set_player_emote_state_like_cpp(
-        &mut self,
-        emote_state: u32,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        if self.shared().resolved_player_emote_state_like_cpp() == Some(emote_state) {
-            return None;
-        }
-
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().set_emote_state_like_cpp(emote_state);
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.presentation.player_emote_state_like_cpp = emote_state;
-            if !canonical {
-                let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-                    player.unit_mut().set_emote_state_like_cpp(emote_state);
-                });
-            }
-        }
-        if !canonical
-            && !(cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none())
-        {
-            return None;
-        }
-        self.core
-            .player_emote_state_update_packet_like_cpp(emote_state)
     }
 }
 

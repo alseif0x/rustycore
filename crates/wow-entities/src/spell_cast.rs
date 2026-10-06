@@ -118,7 +118,9 @@ pub struct SpellCastTargetsLikeCpp {
     pub name: String,
 }
 
-/// C++ SpellDefines.h::SpellCastVisual plus retained legacy script-visual evidence.
+/// C++ `SpellCastVisual::SpellXSpellVisualID` (`CombatLogPacketsCommon.h`); its stream operators
+/// serialize only `SpellXSpellVisualID` (`CombatLogPacketsCommon.cpp`), while the script visual remains
+/// retained internally.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct SpellCastVisualLikeCpp {
     pub spell_visual_id: u32,

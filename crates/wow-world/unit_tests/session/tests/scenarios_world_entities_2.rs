@@ -34,9 +34,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_active_objective_like_cpp(
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -71,8 +69,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_active_objective_like_cpp(
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -135,8 +132,7 @@ fn update_visible_gameobjects_questgiver_future_status_does_not_activate_like_cp
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8),
@@ -227,9 +223,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_chest_quest_loot_reference
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -264,8 +258,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_chest_quest_loot_reference
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -328,8 +321,7 @@ fn update_visible_gameobjects_gm_chest_without_activation_gets_activate_like_cpp
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -388,8 +380,7 @@ fn update_visible_gameobjects_gm_goober_without_activation_gets_activate_like_cp
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8),
@@ -465,9 +456,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_gathering_node_quest_loot_
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -502,8 +491,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_gathering_node_quest_loot_
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8),
@@ -566,9 +554,7 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -603,8 +589,7 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -661,8 +646,7 @@ fn update_visible_gameobjects_skips_unknown_quest_gameobject_like_cpp() {
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -735,9 +719,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -772,8 +754,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -790,7 +771,10 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     pkt.reset_read();
     session.handle_party_invite_response(pkt).await;
 
-    assert_eq!(session.social.group_guid, Some(group_guid));
+    assert_eq!(
+        session.social.group_guid_for_test_like_cpp(),
+        Some(group_guid)
+    );
     assert!(
         group_registry
             .get(&group_guid)
@@ -846,9 +830,7 @@ async fn creature_kill_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,

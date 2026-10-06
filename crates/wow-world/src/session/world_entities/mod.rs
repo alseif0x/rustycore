@@ -12,7 +12,9 @@ mod creature_kill;
 mod creature_publication;
 mod creature_query;
 mod creature_registry;
-pub(crate) use creature_registry::insert_canonical_creature_map_object_on_map_like_cpp;
+pub(crate) use wow_world_entities::{
+    CanonicalCreatureInsertOutcomeLikeCpp, insert_canonical_creature_map_object_on_map_like_cpp,
+};
 mod gameobject;
 mod gameobject_overrides;
 mod gameobject_query;

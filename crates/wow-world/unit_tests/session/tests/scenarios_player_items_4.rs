@@ -454,8 +454,7 @@ fn canonical_access_requirement_item_or_item2_matches_cpp() {
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_access_notification_stores_like_cpp(&mut session);
     let mut requirement = access_requirement_like_cpp(631, 3);
@@ -534,8 +533,7 @@ fn canonical_access_requirement_missing_item_sends_notification_like_cpp() {
     ));
     session
         .instances
-        .instance_test_fixture_like_cpp
-        .represented_raid_difficulty_id_like_cpp = 3;
+        .set_fixture_raid_difficulty_for_test_like_cpp(3);
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_access_notification_stores_like_cpp(&mut session);
     let mut requirement = access_requirement_like_cpp(631, 3);
@@ -820,7 +818,7 @@ fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
             ..currency_entry(395)
         },
     ])));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -841,7 +839,10 @@ fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
     assert_eq!(delta.max_quantity, Some(100));
     assert_eq!(delta.total_earned, Some(12));
 
-    let currency = session.inventory.player_currencies.get(&395).unwrap();
+    let currency = session
+        .inventory
+        .player_currency_for_test_like_cpp(&395)
+        .unwrap();
     assert_eq!(currency.quantity, 115);
     assert_eq!(currency.weekly_quantity, 49);
     assert_eq!(currency.tracked_quantity, 11);

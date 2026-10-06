@@ -1022,8 +1022,9 @@ JSON ledger. #743 appearing before #735 expresses preference, not a dependency:
 173. #743 — application/reconciliation guarantee for remote group-state changes.
 174. #735 — Player reputation transitions with inward domain dependencies.
 175. #1233 — complete wow-world modular refactor and isolate rule/test boundaries.
-176. #583 — native/Wasm gameplay modules after all required core children of the coordination epic, not immediately after finalization.
-177. #153 — terminal architecture audit.
+176. #1263 — continuation of the previous wow-world split issue: remaining work from F4a P3 to F6.
+177. #583 — native/Wasm gameplay modules after all required core children of the coordination epic, not immediately after finalization.
+178. #153 — terminal architecture audit.
 
 A slice may start once its declared prerequisites are merged and its branch is current. Independent
 physical work remains parallel to semantic authority cuts. Mechanical moves use focused compile and

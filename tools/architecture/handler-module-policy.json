@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "introduced_by_issue": 185,
   "capability_owners": [
     {
@@ -10,11 +10,221 @@
       "tracking_issue": 153
     },
     {
+      "capability": "handler_registration",
+      "package": "wow-world-inventory",
+      "module": "crate::handlers",
+      "allow_descendants": true,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::instances::registration",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
       "capability": "packet_dispatcher",
       "package": "wow-world",
       "module": "crate::session",
       "allow_descendants": true,
       "tracking_issue": 153
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::equipment_set_use",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::bank",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::reputation",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::character_query_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::trade_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::loot_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::vehicle_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::gameobject_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::dungeon_finding_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::battleground_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::travel_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::collections_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::player_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::combat_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::quest_query_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::group_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::data_service_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::client_state",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::calendar_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::chat_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::social_contacts_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::guild_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::group_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-social",
+      "module": "crate::arena_team_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-lifecycle",
+      "module": "crate::battlenet_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-lifecycle",
+      "module": "crate::handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-lifecycle",
+      "module": "crate::support",
+      "allow_descendants": false,
+      "tracking_issue": 1263
     }
   ]
 }

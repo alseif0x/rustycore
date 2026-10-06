@@ -52,9 +52,7 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -70,9 +68,7 @@ fn quest_status_projection_persists_only_nonzero_storage_objectives_like_cpp() {
     let projected = session.represented_quest_status_persistence_like_cpp(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+            .fixture_player_quest_status_like_cpp(quest_id)
             .unwrap(),
     );
     assert_eq!(projected.quest_id, quest_id);
@@ -109,9 +105,7 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -230,38 +224,30 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests[&active_id]
+            .fixture_player_quest_status_like_cpp(active_id)
+            .expect("quest status fixture exists")
             .objective_counts,
         vec![3]
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&rewarded_id)
+            .fixture_has_rewarded_quest_like_cpp(rewarded_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .daily_quests_completed_like_cpp
-            .contains(&daily_id)
+            .fixture_has_daily_quest_like_cpp(daily_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .weekly_quests_completed_like_cpp
-            .contains(&weekly_id)
+            .fixture_has_weekly_quest_like_cpp(weekly_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .monthly_quests_completed_like_cpp
-            .contains(&monthly_id)
+            .fixture_has_monthly_quest_like_cpp(monthly_id)
     );
 }
 #[test]
@@ -288,9 +274,7 @@ fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_l
     );
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(active_rewarded_quest_id);
+        .fixture_set_rewarded_quest_like_cpp(active_rewarded_quest_id, true);
 
     assert_eq!(
         session.represented_quest_statuses_for_save_like_cpp(),
@@ -322,9 +306,7 @@ fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
     );
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(duplicate_quest_id);
+        .fixture_set_rewarded_quest_like_cpp(duplicate_quest_id, true);
 
     assert_eq!(
         session.remove_represented_active_rewarded_duplicates_like_cpp(),
@@ -333,16 +315,12 @@ fn quest_load_removes_active_rewarded_duplicate_and_compacts_slots_like_cpp() {
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&duplicate_quest_id)
+            .fixture_contains_player_quest_status_like_cpp(duplicate_quest_id)
     );
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&active_quest_id)
+            .fixture_player_quest_status_like_cpp(active_quest_id)
             .map(|status| status.slot),
         Some(0)
     );
@@ -392,9 +370,7 @@ fn quest_log_create_entries_store_flag_objectives_in_state_flags_like_cpp() {
     add_active_quest_in_slot(&mut session, quest_id, 3);
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&quest_id)
+        .fixture_player_quest_status_mut_like_cpp(quest_id)
         .expect("active quest")
         .objective_counts = vec![3, 1];
 
@@ -429,16 +405,12 @@ fn quest_log_create_entries_duplicate_slot_is_empty_fail_closed_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5915)
+            .fixture_contains_player_quest_status_like_cpp(5915)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5916)
+            .fixture_contains_player_quest_status_like_cpp(5916)
     );
 }
 #[test]
@@ -513,9 +485,7 @@ fn can_take_quest_blocks_daily_already_completed_like_cpp() {
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .daily_quests_completed_like_cpp
-        .insert(quest.id);
+        .fixture_record_daily_quest_like_cpp(quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -541,9 +511,7 @@ fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .df_quests_like_cpp
-        .insert(quest.id);
+        .fixture_set_df_quest_like_cpp(quest.id, true);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -558,9 +526,7 @@ fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .weekly_quests_completed_like_cpp
-        .insert(quest.id);
+        .fixture_record_weekly_quest_like_cpp(quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -586,9 +552,7 @@ fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .monthly_quests_completed_like_cpp
-        .insert(quest.id);
+        .fixture_record_monthly_quest_like_cpp(quest.id);
 
     assert!(!session.can_take_quest(&quest));
 }
@@ -622,9 +586,7 @@ fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_
     // El peer ya fue recompensado (no repetible).
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(peer.id);
+        .fixture_set_rewarded_quest_like_cpp(peer.id, true);
 
     // La quest objetivo no está ni activa ni rewarded.
     assert!(!session.can_take_quest(&quest));
@@ -739,9 +701,7 @@ fn can_take_quest_dependent_previous_rewarded_allows_like_cpp() {
     // prev en rewarded_quests → el gate no bloquea.
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(prev_id);
+        .fixture_set_rewarded_quest_like_cpp(prev_id, true);
     assert!(session.can_take_quest(&quest));
 }
 #[test]

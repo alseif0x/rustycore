@@ -11,14 +11,13 @@ use wow_packet::packets::misc::LogoutComplete;
 impl WorldSession {
     pub fn finalization_report_like_cpp(&self) -> Option<FinalizationReport> {
         self.lifecycle
-            .finalization
-            .as_ref()
+            .finalization()
             .map(SessionFinalization::report)
     }
 
     /// Cancellation leaves an in-flight obligation, never a rollback receipt.
     pub fn interrupt_finalization_like_cpp(&mut self) -> Option<FinalizationReport> {
-        if let Some(operation) = &mut self.lifecycle.finalization {
+        if let Some(operation) = self.lifecycle.finalization_mut() {
             operation.interrupt();
         }
         self.finalization_report_like_cpp()
@@ -35,7 +34,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> FinalizationReport {
         let no_player = self.player_guid().is_none();
-        if let Some(previous) = &mut self.lifecycle.finalization {
+        if let Some(previous) = self.lifecycle.finalization_mut() {
             let report = previous.report();
             if previous.is_unstarted() && report.mode == FinalizationMode::TimedLogout {
                 mode = FinalizationMode::TimedLogout;
@@ -56,20 +55,20 @@ impl WorldSession {
                 return self.finalization_result();
             }
         }
-        self.lifecycle.finalization = Some(SessionFinalization::new(
-            mode,
-            !no_player,
-            self.core.player_handle_like_cpp,
-        ));
+        self.lifecycle
+            .install_finalization(SessionFinalization::new(
+                mode,
+                !no_player,
+                self.core.player_handle_like_cpp,
+            ));
 
-        while let Some(step) = self.lifecycle.finalization.as_ref().unwrap().next_step() {
-            if !self.lifecycle.finalization.as_mut().unwrap().begin(step) {
+        while let Some(step) = self.lifecycle.finalization().unwrap().next_step() {
+            if !self.lifecycle.finalization_mut().unwrap().begin(step) {
                 return self.finalization_result();
             }
             if !self.finalization_identity_is_current() {
                 self.lifecycle
-                    .finalization
-                    .as_mut()
+                    .finalization_mut()
                     .unwrap()
                     .finish(step, FinalizationOutcome::Unavailable);
                 return self.finalization_result();
@@ -79,15 +78,14 @@ impl WorldSession {
                 .await;
             if !self
                 .lifecycle
-                .finalization
-                .as_mut()
+                .finalization_mut()
                 .unwrap()
                 .finish(step, outcome)
             {
                 return self.finalization_result();
             }
         }
-        self.lifecycle.finalization.as_mut().unwrap().complete();
+        self.lifecycle.finalization_mut().unwrap().complete();
         self.finalization_result()
     }
 
@@ -115,7 +113,7 @@ impl WorldSession {
                 }
                 if self.player_guid().is_some() {
                     self.set_player_logout_like_cpp(true);
-                    self.lifecycle.logout_time = None;
+                    self.lifecycle.clear_logout_time();
                 }
                 FinalizationOutcome::Applied
             }
@@ -213,33 +211,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionLifecycleState {
-    fn finalization_result(&mut self, hub: &mut crate::session::HubMut<'_>) -> FinalizationReport {
-        let report = self
-            .finalization
-            .as_ref()
-            .expect("admitted finalization")
-            .report();
-        if report.disposition == FinalizationDisposition::RetainAndEscalate {
-            hub.core
-                .kick("session finalization retained an unresolved obligation");
-        }
-        report
-    }
-
-    fn finalization_identity_is_current(&self, hub: crate::session::HubRef<'_>) -> bool {
-        let report = self.finalization.as_ref().unwrap().report();
-        if report.outcome(FinalizationStep::Retirement) == FinalizationOutcome::Applied {
-            return hub.core.player_handle_like_cpp.is_none();
-        }
-        report.player == hub.core.player_handle_like_cpp
-            && report
-                .player
-                .is_none_or(|handle| hub.core.player_guid() == Some(handle.guid()))
-            && !(hub.core.player_guid().is_none() && hub.core.player_handle_like_cpp.is_some())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -260,6 +231,7 @@ mod tests {
             "enUS".into(),
             input,
             output,
+            crate::session::registry::build_dispatch_table(),
         );
         let (realm_tx, realm) = flume::bounded(1);
         realm_tx.send(vec![0]).unwrap();

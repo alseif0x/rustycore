@@ -27,7 +27,7 @@ pub use state::*;
 #[path = "../../unit_tests/handlers/talent/tests/mod.rs"]
 mod tests;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ConfirmRespecWipe,
         status: SessionStatus::LoggedIn,
@@ -47,7 +47,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LearnTalent,
         status: SessionStatus::LoggedIn,

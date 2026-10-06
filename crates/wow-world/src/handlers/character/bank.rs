@@ -310,67 +310,10 @@ impl WorldSession {
 
     /// CMSG_CHANGE_BANK_BAG_SLOT_FLAG — player toggles an ActivePlayer bank bag flag.
     ///
-    /// C++ ref: `WorldSession::HandleChangeBankBagSlotFlag`.
+    /// Target Opcodes.cpp:289 registers STATUS_UNHANDLED / Handle_NULL.
+    /// F5 preserves the existing Rust operation; this target difference remains F6.
     pub async fn handle_change_bank_bag_slot_flag(&mut self, packet: ChangeBankBagSlotFlag) {
-        if !self.represented_can_use_current_bank_like_cpp() {
-            debug!(
-                account = self.core.account_id,
-                "ChangeBankBagSlotFlag rejected: player cannot use current bank"
-            );
-            return;
-        }
-
-        let Ok(slot) = usize::try_from(packet.slot) else {
-            return;
-        };
-        if slot >= 7 {
-            debug!(
-                slot = packet.slot,
-                account = self.core.account_id,
-                "ChangeBankBagSlotFlag rejected: invalid bank bag slot"
-            );
-            return;
-        }
-        if packet.flag >= u32::BITS {
-            debug!(
-                flag = packet.flag,
-                account = self.core.account_id,
-                "ChangeBankBagSlotFlag rejected: invalid flag bit"
-            );
-            return;
-        }
-
-        let Some(current) = self.represented_bank_bag_slot_flag_like_cpp(slot) else {
-            return;
-        };
-        let mask = 1u32 << packet.flag;
-        let updated = if packet.enabled {
-            current | mask
-        } else {
-            current & !mask
-        };
-        if !self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated) {
-            return;
-        }
-        {
-            let (s, h) = crate::session::split_inventory_ref(self);
-            s.send_player_bank_bag_slot_flag_update_like_cpp(h, slot, updated)
-        };
-    }
-}
-
-impl crate::session::InteractionState {
-    pub(super) fn send_show_bank_like_cpp(
-        &mut self,
-        hub: crate::session::HubRef<'_>,
-        banker_guid: ObjectGuid,
-    ) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
-
-        // C++ `WorldSession::SendShowBank` resets PlayerMenu::InteractionData
-        // and stores the banker as the sole active interaction source.
-        self.set_player_interaction_source_like_cpp(hub, banker_guid);
-        hub.core
-            .send_packet(&NpcInteractionOpenResult::new(banker_guid, 8));
+        self.build_bank_slot_flag_handler_cx_like_cpp()
+            .change_bank_bag_slot_flag_like_cpp(packet);
     }
 }

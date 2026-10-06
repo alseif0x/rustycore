@@ -99,7 +99,7 @@ async fn borrowed_hotfix_catalog_dispatch_preserves_locale_unknown_push_and_curr
         session.core.locale = locale.to_owned();
         let entry = session
             .dispatch_table
-            .get(&ClientOpcodes::HotfixRequest)
+            .get(ClientOpcodes::HotfixRequest)
             .unwrap();
         assert_eq!(entry.status, SessionStatus::Authed);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
@@ -150,7 +150,9 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
     let group = GroupInfo::new(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(player_guid));
     session.core.state = SessionState::LoggedIn;

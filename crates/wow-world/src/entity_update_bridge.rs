@@ -1,35 +1,16 @@
-use wow_entities::{
-    ActivePlayerDataUpdate, AreaTriggerDataUpdate, AreaTriggerValuesUpdate, BagValuesUpdate,
-    ContainerDataUpdate, Conversation, ConversationDataUpdate, ConversationValuesUpdate, Corpse,
-    CorpseDataUpdate, CorpseValuesUpdate, DynamicObjectDataUpdate, DynamicObjectValuesUpdate,
-    GameObjectDataUpdate, GameObjectValuesUpdate, ItemDataUpdate, ItemValuesUpdate,
-    ObjectDataUpdate, PlayerDataUpdate, PlayerValuesUpdate, SceneObject, SceneObjectDataUpdate,
-    SceneObjectValuesUpdate, TYPEID_ACTIVE_PLAYER, TYPEID_AREA_TRIGGER, TYPEID_CONTAINER,
-    TYPEID_CONVERSATION, TYPEID_CORPSE, TYPEID_DYNAMIC_OBJECT, TYPEID_GAME_OBJECT, TYPEID_ITEM,
-    TYPEID_OBJECT, TYPEID_PLAYER, TYPEID_SCENE_OBJECT, TYPEID_UNIT, UnitDataUpdate,
-    UnitValuesUpdate,
+pub use wow_world_core::entity_update_bridge::{
+    area_trigger_create_data_from_entity_like_cpp, area_trigger_values_update_to_packet,
+    area_trigger_values_update_to_update_object, bag_values_update_to_packet,
+    bag_values_update_to_update_object, conversation_create_data_from_entity_like_cpp,
+    conversation_values_update_to_packet, conversation_values_update_to_update_object,
+    corpse_create_data_from_entity_like_cpp, corpse_values_update_to_packet,
+    corpse_values_update_to_update_object, dynamic_object_values_update_to_packet,
+    dynamic_object_values_update_to_update_object, game_object_values_update_to_packet,
+    game_object_values_update_to_update_object, item_values_update_to_packet,
+    item_values_update_to_update_object, object_values_update_to_packet,
+    object_values_update_to_update_object, player_values_update_to_packet,
+    player_values_update_to_update_object, scene_object_create_data_from_entity_like_cpp,
+    scene_object_values_update_to_packet, scene_object_values_update_to_update_object,
+    transport_create_data_from_entity_like_cpp, unit_values_update_to_packet,
+    unit_values_update_to_update_object,
 };
-use wow_packet::packets::update::{
-    ActivePlayerDataValuesUpdate as PacketActivePlayerDataValuesUpdate, AreaTriggerCreateData,
-    AreaTriggerDataValuesUpdate, AreaTriggerOrbitCreateData, AreaTriggerPosition2CreateData,
-    AreaTriggerPosition3CreateData, AreaTriggerShapeCreateData, ChrCustomizationChoiceValuesUpdate,
-    ContainerDataValuesUpdate, ConversationActorValuesUpdate, ConversationCreateData,
-    ConversationDataValuesUpdate, ConversationLineValuesUpdate, CorpseCreateData,
-    CorpseDataValuesUpdate, DynamicObjectDataValuesUpdate, GameObjectDataValuesUpdate,
-    ItemBonusKeyValuesUpdate, ItemDataValuesDeltaUpdate, ItemEnchantmentValuesUpdate,
-    ItemModListValuesUpdate, ItemModValuesUpdate, ObjectDataValuesUpdate,
-    PlayerDataValuesDeltaUpdate, RestInfoValuesUpdate, ScaleCurveValuesUpdate,
-    SceneObjectCreateData, SceneObjectDataValuesUpdate, SocketedGemValuesUpdate,
-    UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate, VisualAnimValuesUpdate,
-};
-
-mod state_1;
-mod state_2;
-#[allow(unused_imports)]
-pub use state_1::*;
-#[allow(unused_imports)]
-pub use state_2::*;
-
-#[cfg(test)]
-#[path = "../unit_tests/entity_update_bridge/tests/mod.rs"]
-mod tests;

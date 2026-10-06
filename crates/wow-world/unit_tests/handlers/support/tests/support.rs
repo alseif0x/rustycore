@@ -325,8 +325,7 @@ async fn bug_report_missing_or_failed_port_remains_wire_silent_like_cpp() {
 
 #[test]
 fn bug_report_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::BugReport)
         .expect("BugReport handler entry");
 
@@ -337,8 +336,7 @@ fn bug_report_handler_metadata_matches_cpp() {
 
 #[test]
 fn gm_ticket_get_system_status_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GmTicketGetSystemStatus)
         .expect("GmTicketGetSystemStatus handler entry");
 
@@ -349,8 +347,7 @@ fn gm_ticket_get_system_status_handler_metadata_matches_cpp() {
 
 #[test]
 fn gm_ticket_acknowledge_survey_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GmTicketAcknowledgeSurvey)
         .expect("GmTicketAcknowledgeSurvey handler entry");
 
@@ -361,8 +358,7 @@ fn gm_ticket_acknowledge_survey_handler_metadata_matches_cpp() {
 
 #[test]
 fn complaint_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::Complaint)
         .expect("Complaint handler entry");
 
@@ -373,8 +369,7 @@ fn complaint_handler_metadata_matches_cpp() {
 
 #[test]
 fn submit_user_feedback_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::SubmitUserFeedback)
         .expect("SubmitUserFeedback handler entry");
 
@@ -385,8 +380,7 @@ fn submit_user_feedback_handler_metadata_matches_cpp() {
 
 #[test]
 fn support_ticket_submit_suggestion_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::SupportTicketSubmitSuggestion)
         .expect("SupportTicketSubmitSuggestion handler entry");
 
@@ -400,8 +394,7 @@ fn support_ticket_submit_suggestion_handler_metadata_matches_cpp() {
 
 #[test]
 fn support_ticket_submit_bug_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::SupportTicketSubmitBug)
         .expect("SupportTicketSubmitBug handler entry");
 
@@ -412,8 +405,7 @@ fn support_ticket_submit_bug_handler_metadata_matches_cpp() {
 
 #[test]
 fn support_ticket_submit_complaint_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::SupportTicketSubmitComplaint)
         .expect("SupportTicketSubmitComplaint handler entry");
 
@@ -495,16 +487,14 @@ async fn object_update_rescued_reinserts_seen_object_like_cpp() {
 
 #[test]
 fn object_update_recovery_handler_metadata_matches_cpp() {
-    let failed = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let failed = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::ObjectUpdateFailed)
         .expect("ObjectUpdateFailed handler entry");
     assert_eq!(failed.status, SessionStatus::LoggedIn);
     assert_eq!(failed.processing, PacketProcessing::Inplace);
     assert_eq!(failed.handler_name, "handle_object_update_failed");
 
-    let rescued = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let rescued = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::ObjectUpdateRescued)
         .expect("ObjectUpdateRescued handler entry");
     assert_eq!(rescued.status, SessionStatus::LoggedIn);

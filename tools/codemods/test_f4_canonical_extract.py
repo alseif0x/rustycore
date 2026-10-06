@@ -9,6 +9,34 @@ from tempfile import TemporaryDirectory
 import f4_canonical_extract as codemod
 
 
+REVIEWED_SHELL_PREFIX = """//! Compatibility exports for canonical player access retained in wow-world.
+
+pub use wow_world_core::canonical_player_access::{
+    HonorStatsLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
+    canonical_player_forced_reputation_faction_ids_like_cpp,
+    canonical_player_is_contested_pvp_like_cpp, canonical_player_reputation_standings_like_cpp,
+    canonical_player_reputation_state_flags_like_cpp, canonical_player_unit_flags2_like_cpp,
+};
+
+pub(crate) use wow_world_core::canonical_player_access::set_player_visible_item_values_like_cpp;
+
+#[cfg(test)]
+pub(crate) use wow_world_core::canonical_player_access::{
+    canonical_player_presentation_like_cpp, configure_canonical_player_party_flags_for_test,
+    configure_canonical_player_vitals_for_test, with_canonical_player_at_like_cpp,
+    with_canonical_player_at_mut_like_cpp,
+};
+
+#[cfg(test)]
+use crate::session::SharedCanonicalMapManager;
+#[cfg(test)]
+use wow_core::ObjectGuid;
+#[cfg(test)]
+use wow_entities::Player;
+
+"""
+
+
 def sample_source() -> str:
     return '''//! Read one canonical `Player` by GUID and placement, without going through the
 //! owning [`WorldSession`](crate::session::WorldSession).
@@ -109,17 +137,20 @@ class CanonicalPlayerExtractTests(unittest.TestCase):
         _, shell, _ = codemod.transform_source(sample_source(), self.lexer)
 
         self.assertIn(
-            """pub(crate) use wow_world_core::canonical_player_access::{
-    set_player_visible_item_values_like_cpp, with_canonical_player_at_like_cpp,
-};""",
+            "pub(crate) use wow_world_core::canonical_player_access::set_player_visible_item_values_like_cpp;",
             shell,
         )
         self.assertIn(
             """#[cfg(test)]
 pub(crate) use wow_world_core::canonical_player_access::{
     canonical_player_presentation_like_cpp, configure_canonical_player_party_flags_for_test,
-    configure_canonical_player_vitals_for_test, with_canonical_player_at_mut_like_cpp,
+    configure_canonical_player_vitals_for_test, with_canonical_player_at_like_cpp,
+    with_canonical_player_at_mut_like_cpp,
 };""",
+            shell,
+        )
+        self.assertNotIn(
+            "set_player_visible_item_values_like_cpp, with_canonical_player_at_like_cpp",
             shell,
         )
         self.assertEqual(
@@ -171,6 +202,73 @@ pub(crate) use wow_world_core::canonical_player_access::{
 
             self.assertEqual(source_path.read_bytes(), first_source)
             self.assertEqual((root / codemod.CORE).read_bytes(), first_core)
+
+    def test_reviewed_applied_facade_is_idempotent_and_rejects_old_or_extra_aliases(self):
+        source = sample_source()
+        core, _, _ = codemod.transform_source(source, self.lexer)
+        _, installer = codemod.extract_installer(source, self.lexer)
+
+        self.assertEqual(codemod.SHELL_PREFIX, REVIEWED_SHELL_PREFIX)
+        applied_source = REVIEWED_SHELL_PREFIX + installer + "\n"
+
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source_path = root / codemod.SOURCE
+            core_path = root / codemod.CORE
+            source_path.parent.mkdir(parents=True)
+            core_path.parent.mkdir(parents=True)
+            source_path.write_text(applied_source, encoding="utf-8")
+            core_path.write_text(core, encoding="utf-8")
+            source_before = source_path.read_bytes()
+            core_before = core_path.read_bytes()
+
+            with contextlib.redirect_stdout(io.StringIO()):
+                codemod.run("plan", root)
+                codemod.run("apply", root)
+
+            self.assertEqual(source_path.read_bytes(), source_before)
+            self.assertEqual(core_path.read_bytes(), core_before)
+
+        old_grouping = REVIEWED_SHELL_PREFIX.replace(
+            "pub(crate) use wow_world_core::canonical_player_access::set_player_visible_item_values_like_cpp;\n\n"
+            "#[cfg(test)]\npub(crate) use wow_world_core::canonical_player_access::{\n"
+            "    canonical_player_presentation_like_cpp, configure_canonical_player_party_flags_for_test,\n"
+            "    configure_canonical_player_vitals_for_test, with_canonical_player_at_like_cpp,\n"
+            "    with_canonical_player_at_mut_like_cpp,\n};",
+            "pub(crate) use wow_world_core::canonical_player_access::{\n"
+            "    set_player_visible_item_values_like_cpp, with_canonical_player_at_like_cpp,\n};\n\n"
+            "#[cfg(test)]\npub(crate) use wow_world_core::canonical_player_access::{\n"
+            "    canonical_player_presentation_like_cpp, configure_canonical_player_party_flags_for_test,\n"
+            "    configure_canonical_player_vitals_for_test, with_canonical_player_at_mut_like_cpp,\n"
+            "};",
+            1,
+        )
+        self.assertNotEqual(old_grouping, REVIEWED_SHELL_PREFIX)
+
+        unexpected_alias = REVIEWED_SHELL_PREFIX.replace(
+            "pub(crate) use wow_world_core::canonical_player_access::set_player_visible_item_values_like_cpp;",
+            "pub(crate) use wow_world_core::canonical_player_access::{\n"
+            "    set_player_visible_item_values_like_cpp, unexpected_alias_like_cpp,\n};",
+            1,
+        )
+
+        for shell_prefix in (old_grouping, unexpected_alias):
+            with self.subTest(shell_prefix=shell_prefix):
+                with TemporaryDirectory() as temporary:
+                    root = Path(temporary)
+                    source_path = root / codemod.SOURCE
+                    core_path = root / codemod.CORE
+                    source_path.parent.mkdir(parents=True)
+                    core_path.parent.mkdir(parents=True)
+                    source_path.write_text(shell_prefix + installer + "\n", encoding="utf-8")
+                    core_path.write_text(core, encoding="utf-8")
+
+                    with contextlib.redirect_stdout(io.StringIO()):
+                        with self.assertRaisesRegex(
+                            codemod.CodemodError,
+                            "source shell differs from the reviewed explicit reexport façade",
+                        ):
+                            codemod.run("plan", root)
 
 
 if __name__ == "__main__":

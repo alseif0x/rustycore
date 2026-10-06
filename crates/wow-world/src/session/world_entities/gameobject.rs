@@ -19,73 +19,47 @@ impl WorldSession {
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> u32 {
-        let mut dyn_flags = 0_u32;
-        let path_progress = (state.dynamic_flags >> 16) & 0xFFFF;
-        let activate_to_quest =
-            self.represented_gameobject_activate_to_quest_like_cpp(gameobject_entry, state);
-
-        match state.go_type.map(u32::from) {
-            Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
-                        | wow_entities::GO_DYNFLAG_LO_SPARKLE
-                        | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                } else if crate::session::hub_ref(self).player_is_game_master_like_cpp()
-                    == Some(true)
-                {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                    let state_for_player = self
-                        .represented_gameobject_go_state_for_viewer_like_cpp(state, Instant::now());
-                    if state_for_player != wow_entities::GoState::Active {
-                        dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                    }
-                } else if crate::session::hub_ref(self).player_is_game_master_like_cpp()
-                    == Some(true)
-                {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
-                if activate_to_quest {
-                    dyn_flags |=
-                        wow_entities::GO_DYNFLAG_LO_SPARKLE | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                }
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => {
-                if activate_to_quest {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
-                        | wow_entities::GO_DYNFLAG_LO_SPARKLE
-                        | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                }
-                let state_for_player =
-                    self.represented_gameobject_go_state_for_viewer_like_cpp(state, Instant::now());
-                if state_for_player == wow_entities::GoState::Active {
-                    dyn_flags |= wow_entities::GO_DYNFLAG_LO_DEPLETED;
-                }
-            }
-            _ => {
-                dyn_flags = state.dynamic_flags & 0xFFFF;
-            }
-        }
-
-        if state
-            .condition_id1
-            .is_some_and(|id| !self.represented_meets_player_condition_id_like_cpp(id))
-        {
-            dyn_flags |= wow_entities::GO_DYNFLAG_LO_NO_INTERACT;
-        }
-
-        (path_progress << 16) | dyn_flags
+        let owner = self.core.quest_objective_access_like_cpp();
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        let player = self.core.quest_eligibility_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.reputation_state_like_cpp,
+        );
+        let conditions = self.player_condition_projection_cx_like_cpp();
+        let eligibility = wow_world_application::QuestEligibilityCx::new(
+            player,
+            &self.quest_state,
+            &self.catalogs,
+            &conditions,
+            cfg!(test),
+        );
+        let player_is_game_master =
+            crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true);
+        wow_world_application::represented_gameobject_dynamic_flags_for_player_like_cpp(
+            &owner,
+            &self.catalogs,
+            &self.quest_state,
+            &self.inventory,
+            &inventory_access,
+            &eligibility,
+            self.player_guid(),
+            player_is_game_master,
+            gameobject_entry,
+            state,
+            cfg!(test),
+        )
     }
     pub(in crate::session) fn gameobject_create_data_from_canonical_like_cpp(
         &self,
@@ -184,8 +158,7 @@ impl WorldSession {
         let current_map_id = self.core.player_map_id_like_cpp();
         let expired_per_player_states = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let despawn_expired = state
                     .per_player_despawn_until
@@ -211,8 +184,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_despawn_delay_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 state
                     .despawn_delay_until
@@ -222,8 +194,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_respawn_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 state
                     .respawn_until
@@ -233,8 +204,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_door_or_button_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_door_or_button = matches!(
                     state.go_type.map(u32::from),
@@ -249,8 +219,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_goober_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_goober =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
@@ -263,8 +232,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let just_deactivated_goobers = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_goober =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
@@ -277,8 +245,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let mut generic_just_deactivated_gameobjects = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_goober =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
@@ -300,8 +267,7 @@ impl WorldSession {
             .sort_by_key(|(_, _, delete_after_clear, _, _, _, _, _)| (*delete_after_clear,));
         let charge_depleted_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let depletes_by_charges = matches!(
                     state.go_type.map(u32::from),
@@ -317,8 +283,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let not_ready_bomb_trap_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_bomb_trap = state.go_type.map(u32::from)
                     == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
@@ -331,8 +296,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let not_ready_non_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_non_bomb_trap = state.go_type.map(u32::from)
@@ -348,8 +312,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let default_not_ready_gameobjects = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let Some(go_type) = state.go_type.map(u32::from) else {
                     return None;
@@ -366,8 +329,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let ready_fishing_bobbers = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_fishing_bobber = state.go_type.map(u32::from)
                     == Some(wow_entities::GAMEOBJECT_TYPE_FISHING_NODE);
@@ -383,8 +345,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let restocked_chests = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_chest =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_CHEST);
@@ -400,8 +361,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let ready_bomb_trap_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_bomb_trap = state.go_type.map(u32::from)
                     == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
@@ -417,8 +377,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let ready_non_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_non_bomb_trap = state.go_type.map(u32::from)
@@ -449,8 +408,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let activated_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_bomb_trap = state.go_type.map(u32::from)
@@ -462,8 +420,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let activated_non_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_non_bomb_trap = state.go_type.map(u32::from)
@@ -482,8 +439,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_capture_points = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.capture_point_source?;
                 let capture_team = match state.capture_point_state {
@@ -501,8 +457,7 @@ impl WorldSession {
         for (guid, player_guid, despawned, needs_state_update) in expired_per_player_states {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 if despawned {
                     state.per_player_despawn_until = None;
@@ -516,28 +471,27 @@ impl WorldSession {
                     state.per_player_state_player_guid = None;
                 }
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GameObjectPerPlayerStateExpired {
-                    gameobject_guid: guid,
-                    player_guid,
-                    despawned,
-                    needs_state_update,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectPerPlayerStateExpired {
+                        gameobject_guid: guid,
+                        player_guid,
+                        despawned,
+                        needs_state_update,
+                    },
+                );
         }
         for guid in expired_despawn_delay_guids {
             let linked_trap_guid = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get(&guid)
+                .represented_gameobject_use_state_like_cpp(guid)
                 .and_then(|state| state.linked_trap_guid);
             if let Some(trap_guid) = linked_trap_guid.filter(|trap_guid| *trap_guid != guid) {
                 self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.despawn_delay_until = None;
                 state.loot_state = Some(wow_entities::LootState::NotReady);
@@ -547,14 +501,13 @@ impl WorldSession {
                 }
             }
             self.core.client_visible_guids_like_cpp.remove(&guid);
-            self.loot.loot_table.remove(&guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             self.send_represented_gameobject_delete_packets_like_cpp(guid);
         }
         for guid in expired_respawn_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.respawn_until = None;
                 state.loot_state = Some(wow_entities::LootState::Ready);
@@ -569,25 +522,24 @@ impl WorldSession {
         for (guid, max_charges) in charge_depleted_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.use_count = 0;
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
-                    gameobject_guid: guid,
-                    max_charges,
-                    loot_state: wow_entities::LootState::JustDeactivated,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
+                        gameobject_guid: guid,
+                        max_charges,
+                        loot_state: wow_entities::LootState::JustDeactivated,
+                    },
+                );
         }
         for guid in not_ready_bomb_trap_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.cooldown_until = Some(now + Duration::from_secs(10));
                 state.loot_state = Some(wow_entities::LootState::Ready);
@@ -596,8 +548,7 @@ impl WorldSession {
         for (guid, owner_in_combat, start_delay_secs) in not_ready_non_bomb_traps {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.cooldown_until = owner_in_combat
                     .then_some(now + Duration::from_secs(u64::from(start_delay_secs)));
@@ -607,8 +558,7 @@ impl WorldSession {
         for guid in default_not_ready_gameobjects {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::Ready);
             }
@@ -616,40 +566,38 @@ impl WorldSession {
         for (guid, owner_guid) in ready_fishing_bobbers {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.fishing_bobber_ready_at = None;
                 state.loot_state = Some(wow_entities::LootState::Ready);
             }
             if !owner_guid.is_empty() {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::FishingBobberReady {
-                        gameobject_guid: guid,
-                        owner_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::FishingBobberReady {
+                            gameobject_guid: guid,
+                            owner_guid,
+                        },
+                    );
             }
         }
         for guid in restocked_chests {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.chest_restock_until = None;
                 state.loot_state = Some(wow_entities::LootState::Ready);
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
             }
-            self.loot.loot_table.remove(&guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             let _ = crate::session::cx_loot_ref(self)
                 .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
         }
         for guid in ready_bomb_trap_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::Activated);
             }
@@ -657,51 +605,51 @@ impl WorldSession {
         for (guid, target_guid) in ready_non_bomb_traps {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::Activated);
                 state.loot_state_unit_guid = target_guid;
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::TrapTargetActivated {
-                    gameobject_guid: guid,
-                    target_guid,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::TrapTargetActivated {
+                        gameobject_guid: guid,
+                        target_guid,
+                    },
+                );
         }
         for (guid, source) in activated_bomb_traps {
             if source.spell_id != 0 {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::TrapBombSpellCast {
-                        gameobject_guid: guid,
-                        spell_id: source.spell_id,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::TrapBombSpellCast {
+                            gameobject_guid: guid,
+                            spell_id: source.spell_id,
+                        },
+                    );
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
             }
         }
         for (guid, source, target_guid, original_caster_guid) in activated_non_bomb_traps {
             if source.spell_id != 0 {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::TrapTargetSpellCast {
-                        gameobject_guid: guid,
-                        target_guid,
-                        spell_id: source.spell_id,
-                        original_caster_guid,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::TrapTargetSpellCast {
+                            gameobject_guid: guid,
+                            target_guid,
+                            spell_id: source.spell_id,
+                            original_caster_guid,
+                        },
+                    );
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 let cooldown_secs = if source.cooldown_secs != 0 {
                     source.cooldown_secs
@@ -732,8 +680,7 @@ impl WorldSession {
             };
             if let Some(go_state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 go_state.capture_point_state = Some(state);
                 go_state.capture_point_last_team_capture = capture_team;
@@ -751,8 +698,7 @@ impl WorldSession {
         for guid in expired_goober_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.gameobject_flags &= !wow_entities::GO_FLAG_IN_USE;
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
@@ -781,22 +727,22 @@ impl WorldSession {
                 if let Some(trap_guid) = linked_trap_guid {
                     self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
                 }
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
-                        gameobject_guid: guid,
-                        trap_entry,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
+                            gameobject_guid: guid,
+                            trap_entry,
+                        },
+                    );
             }
-            self.loot.loot_table.remove(&guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             let mut delete_after_clear = delete_after_clear;
             let mut schedule_respawn = false;
             let is_chest = go_type == Some(wow_entities::GAMEOBJECT_TYPE_CHEST);
             if is_chest && !is_despawn_at_action && !delete_after_clear {
                 if let Some(state) = self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .get_mut(&guid)
+                    .represented_gameobject_use_state_mut_like_cpp(guid)
                 {
                     state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
                     state.use_count = 0;
@@ -809,18 +755,18 @@ impl WorldSession {
                         state.loot_state = Some(wow_entities::LootState::Ready);
                     }
                 }
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
-                        gameobject_guid: guid,
-                        deleted: false,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
+                            gameobject_guid: guid,
+                            deleted: false,
+                        },
+                    );
                 continue;
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::NotReady);
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
@@ -850,268 +796,14 @@ impl WorldSession {
                 self.core.client_visible_guids_like_cpp.remove(&guid);
                 self.send_represented_gameobject_delete_packets_like_cpp(guid);
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
-                    gameobject_guid: guid,
-                    deleted: delete_after_clear,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
+                        gameobject_guid: guid,
+                        deleted: delete_after_clear,
+                    },
+                );
         }
-    }
-}
-
-impl crate::session::state::WorldEntitiesState {
-    pub(crate) fn mutate_canonical_gameobject_by_guid_like_cpp<R>(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        guid: ObjectGuid,
-        f: impl FnOnce(&mut wow_entities::GameObject) -> R,
-    ) -> Option<R> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        let manager = Arc::clone(hub.core.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let gameobject = managed.map_mut().get_typed_game_object_mut(guid)?;
-        Some(f(gameobject))
-    }
-
-    pub(crate) fn canonical_gameobject_linked_trap_guid_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        if guid.is_empty() || !guid.is_game_object() {
-            return None;
-        }
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
-        let gameobject = map.map().get_typed_game_object(guid)?;
-        let linked_trap_guid = gameobject.linked_trap_guid_like_cpp();
-        (!linked_trap_guid.is_empty()).then_some(linked_trap_guid)
-    }
-
-    pub(in crate::session) fn set_canonical_gameobject_spell_id_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        guid: ObjectGuid,
-        spell_id: u32,
-    ) {
-        let Some(map_key) = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
-        else {
-            return;
-        };
-        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return;
-        };
-        if let Some(game_object) = map.map_mut().get_typed_game_object_mut(guid) {
-            game_object.set_spell_id(spell_id);
-        }
-    }
-
-    pub(in crate::session) fn represented_or_canonical_gameobject_owner_guid_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()));
-        let canonical_owner = map_key
-            .and_then(|map_key| {
-                hub.core
-                    .canonical_map_manager
-                    .as_ref()
-                    .and_then(|manager| manager.lock().ok())
-                    .and_then(|manager| {
-                        manager
-                            .find_map(map_key.map_id, map_key.instance_id)
-                            .and_then(|map| map.map().get_typed_game_object(guid))
-                            .map(|game_object| game_object.owner_guid())
-                    })
-            })
-            .filter(|owner_guid| !owner_guid.is_empty());
-        canonical_owner.or_else(|| {
-            self.represented_gameobject_use_states
-                .get(&guid)
-                .and_then(|state| state.owner_guid)
-        })
-    }
-
-    pub(in crate::session) fn upsert_canonical_gameobject_map_object_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        map_id: u16,
-        guid: ObjectGuid,
-        entry: u32,
-        position: wow_core::Position,
-    ) {
-        let owner_guid = self
-            .represented_gameobject_use_states
-            .get(&guid)
-            .and_then(|state| state.owner_guid);
-        let Some(map_key) = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(map_id))
-        else {
-            return;
-        };
-        // A represented object from a stale client/map context must never be
-        // materialized beside the player in a different map.
-        if map_key.map_id != u32::from(map_id) {
-            return;
-        }
-        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        let Some(map) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return;
-        };
-        if map.map().get_game_object(guid).is_some() {
-            let _ = map.map_mut().relocate_map_object_like_cpp(guid, position);
-            if let Some(owner_guid) = owner_guid
-                && let Some(game_object) = map.map_mut().get_typed_game_object_mut(guid)
-            {
-                game_object.set_created_by(owner_guid);
-            }
-            return;
-        }
-
-        let mut game_object = GameObject::new();
-        game_object.world_mut().object_mut().create(guid);
-        game_object.world_mut().object_mut().set_entry(entry);
-        if let Some(owner_guid) = owner_guid {
-            game_object.set_created_by(owner_guid);
-        }
-        if game_object
-            .world_mut()
-            .set_map(map_key.map_id, map_key.instance_id)
-            .is_err()
-        {
-            return;
-        }
-        game_object.world_mut().relocate(position);
-        let _ = map
-            .map_mut()
-            .add_to_map_like_cpp(AccessorObjectKind::GameObject, game_object.world().clone());
-        game_object.world_mut().object_mut().add_to_world();
-        let Ok(record) = wow_entities::MapObjectRecord::new_game_object(game_object) else {
-            return;
-        };
-        let _ = map.map_mut().insert_map_object_record(record);
-    }
-
-    pub(in crate::session) fn represented_gameobject_is_friendly_to_player_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<bool> {
-        let gameobject_faction = self
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
-            .and_then(|state| state.faction_template)?;
-        let player_faction = hub.player_faction_template_id_like_cpp()?;
-        let store = hub.catalogs.factions.template_store.as_ref()?;
-        let gameobject_entry = store.get(gameobject_faction)?;
-        let player_entry = store.get(player_faction)?;
-        Some(gameobject_entry.is_friendly_to_like_cpp(player_entry))
-    }
-
-    pub(crate) fn apply_represented_gameobject_cooldown_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        cooldown_secs: u32,
-    ) -> bool {
-        if cooldown_secs == 0 {
-            return true;
-        }
-
-        let now = Instant::now();
-        let state = self
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
-        if state
-            .cooldown_until
-            .is_some_and(|cooldown_until| cooldown_until > now)
-        {
-            self.represented_gameobject_use_effects
-                .push(RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid });
-            return false;
-        }
-
-        state.cooldown_until =
-            Some(now + Duration::from_millis(u64::from(cooldown_secs).saturating_mul(1000)));
-        self.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::CooldownStarted {
-                gameobject_guid,
-                cooldown_secs,
-            },
-        );
-        true
-    }
-
-    pub(crate) fn represented_gameobject_area_id_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<u32> {
-        self.represented_gameobject_use_states
-            .get(&gameobject_guid)
-            .and_then(|state| state.area_id)
-            .or_else(|| hub.player_zone_area_like_cpp().map(|(_, area_id)| area_id))
-    }
-
-    pub(in crate::session) fn represented_gameobject_spell_lookup_difficulty_id_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> u8 {
-        hub.core.current_map_difficulty_id_like_cpp()
-    }
-}
-
-impl crate::session::state::SessionCore {
-    pub(crate) fn canonical_gameobject_access_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectAccessLikeCpp> {
-        if guid.is_empty() || !guid.is_game_object() {
-            return None;
-        }
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
-        let game_object = map.map().get_typed_game_object(guid)?;
-        Some(RepresentedGameObjectAccessLikeCpp {
-            entry: game_object.world().object().entry(),
-            position: game_object.world().position(),
-        })
     }
 }
 

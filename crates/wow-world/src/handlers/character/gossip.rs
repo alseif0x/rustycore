@@ -759,12 +759,3 @@ impl WorldSession {
         self.send_packet(&QueryNpcTextResponse::with_text(query.text_id, 0));
     }
 }
-
-impl crate::session::InteractionState {
-    pub(crate) fn send_close_gossip_like_cpp(&mut self, hub: crate::session::HubRef<'_>) {
-        self.reset_player_interaction_data_like_cpp(hub);
-        hub.core.send_packet_realm(&GossipComplete {
-            suppress_sound: false,
-        });
-    }
-}

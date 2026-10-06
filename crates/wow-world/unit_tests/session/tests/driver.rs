@@ -53,9 +53,21 @@ mod queued_packets {
     async fn cancelled_handler_preserves_unselected_packets_without_replaying_partial_effects() {
         let (mut session, _tx, _rx) = make_session();
         // Replace only this session's entry; the production inventory is untouched.
-        session
+        let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+        for entry in session
             .dispatch_table
-            .insert(ClientOpcodes::QueryTime, &PROBE);
+            .iter()
+            .copied()
+            .filter(|entry| entry.opcode != ClientOpcodes::QueryTime)
+        {
+            builder
+                .register(entry)
+                .expect("the session registry has unique opcodes");
+        }
+        builder
+            .register(PROBE)
+            .expect("the probe replaces the existing QueryTime entry");
+        session.dispatch_table = std::sync::Arc::new(builder.build());
         for marker in [1, 2, 3] {
             session
                 .core

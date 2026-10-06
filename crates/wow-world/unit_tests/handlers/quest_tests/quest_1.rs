@@ -79,9 +79,7 @@ async fn quest_giver_accept_emits_player_quest_log_update_like_cpp() {
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("accepted quest should enter the represented quest log");
     assert_eq!(status.slot, 0);
     assert_eq!(status.status, QUEST_STATUS_INCOMPLETE_LIKE_CPP);
@@ -127,9 +125,7 @@ async fn quest_giver_accept_rejected_source_sends_no_quest_log_update_like_cpp()
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(send_rx.try_recv().is_err());
 }
@@ -453,9 +449,7 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -480,16 +474,12 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(5));
@@ -544,9 +534,7 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -571,16 +559,12 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(session.player_gold_like_cpp(), 42);
     assert_eq!(session.player_currency_quantity(currency_id), Some(7));
@@ -629,9 +613,7 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -660,16 +642,12 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(session.player_gold_like_cpp(), 42);
 }
@@ -683,9 +661,7 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -715,16 +691,12 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
 }
 #[tokio::test]
@@ -741,9 +713,7 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -795,9 +765,7 @@ async fn quest_giver_choose_reward_records_title_and_talent_rewards_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -850,9 +818,7 @@ async fn quest_giver_choose_reward_records_reward_mail_sender_entry_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,

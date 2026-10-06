@@ -158,32 +158,24 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
             data: 1.25,
         },
     ])));
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            EQUIPMENT_SLOT_OFFHAND,
-            InventoryItem {
-                guid: weapon_guid,
-                entry_id: 100,
-                db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Shield as u8),
-            },
-        );
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            INVENTORY_SLOT_BAG_START,
-            InventoryItem {
-                guid: bag_guid,
-                entry_id: 200,
-                db_guid: bag_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Bag as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        EQUIPMENT_SLOT_OFFHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: 100,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Shield as u8),
+        },
+    );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        INVENTORY_SLOT_BAG_START,
+        InventoryItem {
+            guid: bag_guid,
+            entry_id: 200,
+            db_guid: bag_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Bag as u8),
+        },
+    );
     let weapon = session.make_inventory_item_object(
         weapon_guid,
         100,
@@ -251,14 +243,12 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
 
     session
         .inventory
-        .inventory_item_objects
-        .get_mut(&weapon_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&weapon_guid)
         .unwrap()
         .set_durability(0);
     session
         .inventory
-        .inventory_item_objects
-        .get_mut(&armor_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&armor_guid)
         .unwrap()
         .set_durability(10);
     session.set_represented_guild_repair_bank_state_like_cpp(Some(
@@ -401,19 +391,15 @@ fn equip_durability_test_weapon_like_cpp(
             )],
         ),
     ));
-    session
-        .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
-            EQUIPMENT_SLOT_MAINHAND,
-            InventoryItem {
-                guid: weapon_guid,
-                entry_id: 300,
-                db_guid: weapon_guid.counter() as u64,
-                inventory_type: Some(InventoryType::Weapon as u8),
-            },
-        );
+    session.inventory.insert_inventory_item_for_test_like_cpp(
+        EQUIPMENT_SLOT_MAINHAND,
+        InventoryItem {
+            guid: weapon_guid,
+            entry_id: 300,
+            db_guid: weapon_guid.counter() as u64,
+            inventory_type: Some(InventoryType::Weapon as u8),
+        },
+    );
     let weapon = session.make_inventory_item_object(
         weapon_guid,
         300,

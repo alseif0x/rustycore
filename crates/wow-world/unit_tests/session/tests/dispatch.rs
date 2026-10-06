@@ -82,7 +82,7 @@ fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
     for (opcode, status, processing, handler_name) in expected {
         let entry = session
             .dispatch_table
-            .get(&opcode)
+            .get(opcode)
             .unwrap_or_else(|| panic!("missing linked registration for {opcode:?}"));
         assert_eq!(entry.status, status, "{opcode:?} status");
         assert_eq!(entry.processing, processing, "{opcode:?} processing");
@@ -198,7 +198,7 @@ fn dispatch_metadata_matches_cpp_for_registered_active_opcodes() {
         "QueryBattlePetName",
     ];
 
-    for entry in table.values() {
+    for entry in table.iter() {
         let opcode_name = format!("{:?}", entry.opcode);
         if modern_client_non_wotlk_exceptions.contains(&opcode_name.as_str()) {
             continue;
@@ -222,7 +222,7 @@ fn dispatch_metadata_matches_cpp_for_registered_active_opcodes() {
 #[test]
 fn dispatch_table_has_no_duplicate_registered_opcodes() {
     let mut counts = std::collections::HashMap::new();
-    for entry in inventory::iter::<PacketHandlerEntry> {
+    for entry in crate::session::registry::registered_handler_entries_like_cpp() {
         *counts.entry(entry.opcode).or_insert(0usize) += 1;
     }
 
@@ -263,7 +263,7 @@ fn every_registered_opcode_keeps_its_handler_status_and_processing_like_cpp() {
     .expect("the dispatch-table fixture is valid JSON");
 
     let mut actual: Vec<DispatchTableRow> = crate::session::registry::build_dispatch_table()
-        .values()
+        .iter()
         .map(|entry| DispatchTableRow {
             opcode: format!("{:?}", entry.opcode),
             value: entry.opcode as u32,

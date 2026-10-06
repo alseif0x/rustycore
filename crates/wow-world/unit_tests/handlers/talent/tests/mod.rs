@@ -39,6 +39,7 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
             "esES".into(),
             pkt_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         ),
         send_rx,
     )

@@ -27,19 +27,7 @@ use super::represented_gameobject_icon_allows_interaction_like_cpp;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect};
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CloseInteraction,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_close_interaction",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_close_interaction(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GameObjUse,
         status: SessionStatus::LoggedIn,
@@ -60,17 +48,8 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GameObjReportUse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_game_obj_report_use",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_game_obj_report_use(pkt).await })
-        },
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 impl crate::session::WorldSession {
     // ── Game object interaction ───────────────────────────────────────────────
@@ -116,8 +95,7 @@ impl crate::session::WorldSession {
                 entry: gameobject_guid.entry(),
                 position: self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .get(&gameobject_guid)
+                    .represented_gameobject_use_state_like_cpp(gameobject_guid)
                     .and_then(|state| state.position)
                     .unwrap_or_default(),
             }
@@ -242,7 +220,9 @@ impl crate::session::WorldSession {
                 return;
             }
             GAMEOBJECT_TYPE_FISHING_NODE => {
-                let effect_start = self.world_entities.represented_gameobject_use_effects.len();
+                let effect_start = self
+                    .world_entities
+                    .represented_gameobject_use_effects_len_like_cpp();
                 self.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid);
                 let Some(area_id) = ({
                     let (s, h) = crate::session::split_world_entities_ref(self);
@@ -252,9 +232,7 @@ impl crate::session::WorldSession {
                 };
                 let loot_request = self
                     .world_entities
-                    .represented_gameobject_use_effects
-                    .get(effect_start..)
-                    .unwrap_or(&[])
+                    .represented_gameobject_use_effects_since_like_cpp(effect_start)
                     .iter()
                     .rev()
                     .find_map(|effect| match effect {
@@ -534,89 +512,6 @@ impl crate::session::WorldSession {
     /// CMSG_GAME_OBJ_REPORT_USE — client reports a game object use event.
     /// C++ ref: `WorldSession::HandleGameobjectReportUse`.
 
-    pub async fn handle_game_obj_report_use(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let gameobject_guid = match pkt.read_packed_guid() {
-            Ok(guid) => guid,
-            Err(e) => {
-                warn!("GameObjReportUse: failed to read gameobject guid: {e}");
-                return;
-            }
-        };
-
-        if !gameobject_guid.is_game_object() {
-            return;
-        }
-
-        let Some(player_guid) = self.player_guid() else {
-            return;
-        };
-        if crate::session::hub_ref(self).player_moved_unit_guid_like_cpp() != Some(player_guid) {
-            return;
-        }
-
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid);
-        let interaction_distance = represented_gameobject_interaction_distance_like_cpp(
-            state.and_then(|state| state.go_type),
-            state.and_then(|state| state.interact_radius_override),
-        );
-
-        let gameobject_access = if self.core.canonical_map_manager.is_some() {
-            match self.represented_gameobject_can_interact_with_like_cpp(
-                gameobject_guid,
-                interaction_distance,
-            ) {
-                Some(access) => access,
-                None => return,
-            }
-        } else {
-            if !self
-                .core
-                .client_visible_guids_like_cpp
-                .contains(&gameobject_guid)
-            {
-                return;
-            }
-            let Some(position) = state.and_then(|state| state.position) else {
-                return;
-            };
-            let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp()
-            else {
-                return;
-            };
-            if !position.is_within_dist(&player_position, interaction_distance) {
-                return;
-            }
-            RepresentedGameObjectAccessLikeCpp {
-                entry: gameobject_guid.entry(),
-                position,
-            }
-        };
-        #[cfg(not(test))]
-        let _ = gameobject_access;
-
-        if self
-            .world_entities
-            .record_represented_gameobject_report_use_ai_like_cpp(gameobject_guid, player_guid)
-        {
-            return;
-        }
-
-        #[cfg(test)]
-        {
-            self.world_entities
-                .represented_gameobject_criteria_events
-                .push(
-                    crate::session::RepresentedGameObjectCriteriaEvent::UseGameobject {
-                        player_guid,
-                        gameobject_entry: gameobject_access.entry,
-                    },
-                );
-        }
-    }
-
     pub(crate) fn represented_gameobject_gossip_can_interact_with_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
@@ -634,8 +529,7 @@ impl crate::session::WorldSession {
 
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)?;
         let go_type = state.go_type?;
 
         // C++ checks the immutable template icon on every lookup. Rust records
@@ -656,8 +550,7 @@ impl crate::session::WorldSession {
             }
             let gameobject_phase_shift = self
                 .world_entities
-                .represented_gameobject_phase_shifts
-                .get(&gameobject_guid)
+                .represented_gameobject_phase_shift_like_cpp(gameobject_guid)
                 .unwrap_or_else(|| gameobject.world().phase_shift());
             if !self.can_see_phase_shift_like_cpp(gameobject_phase_shift) {
                 return None;
@@ -672,26 +565,5 @@ impl crate::session::WorldSession {
             gameobject_guid,
             interaction_distance,
         )
-    }
-
-    /// CMSG_CLOSE_INTERACTION — player closed an NPC interaction window.
-    /// C++ ref: `WorldSession::HandleCloseInteraction`.
-
-    pub async fn handle_close_interaction(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match CloseInteraction::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "CloseInteraction parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.reset_player_interaction_if_source_like_cpp(request.source_guid);
-
-        // C++ also clears Player::StableMaster when it matches SourceGuid. Rust
-        // does not expose represented stable-master state yet.
     }
 }

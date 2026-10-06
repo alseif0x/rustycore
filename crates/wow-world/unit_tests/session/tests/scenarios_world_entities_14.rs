@@ -17,9 +17,7 @@ fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {
     {
         let owner_state = session
             .world_entities
-            .represented_gameobject_use_states
-            .entry(owner_guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(owner_guid);
         owner_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_NEW_FLAG as u8);
         owner_state.new_flag_state = Some(RepresentedNewFlagStateRequest::Dropped);
         owner_state.new_flag_return_on_defender_interact = Some(false);
@@ -45,7 +43,9 @@ fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {
             .to_bytes()
     );
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::NewFlagDropInteracted {
                 gameobject_guid,
@@ -80,8 +80,7 @@ fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {
     );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&owner_guid)
+        .represented_gameobject_use_state_like_cpp(owner_guid)
         .unwrap();
     assert_eq!(
         state.new_flag_state,
@@ -109,9 +108,7 @@ fn gameobject_use_new_flag_drop_returns_owner_flag_on_defender_interact_like_cpp
     {
         let owner_state = session
             .world_entities
-            .represented_gameobject_use_states
-            .entry(owner_guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(owner_guid);
         owner_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_NEW_FLAG as u8);
         owner_state.new_flag_state = Some(RepresentedNewFlagStateRequest::Dropped);
         owner_state.new_flag_return_on_defender_interact = Some(true);
@@ -129,7 +126,7 @@ fn gameobject_use_new_flag_drop_returns_owner_flag_on_defender_interact_like_cpp
     assert!(
         session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .contains(
                 &RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
                     gameobject_guid: owner_guid,
@@ -140,8 +137,7 @@ fn gameobject_use_new_flag_drop_returns_owner_flag_on_defender_interact_like_cpp
     );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&owner_guid)
+        .represented_gameobject_use_state_like_cpp(owner_guid)
         .unwrap();
     assert_eq!(
         state.new_flag_state,
@@ -161,9 +157,7 @@ fn gameobject_use_new_flag_drop_deletes_without_taken_when_owner_cast_fails_like
     {
         let owner_state = session
             .world_entities
-            .represented_gameobject_use_states
-            .entry(owner_guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(owner_guid);
         owner_state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_NEW_FLAG as u8);
         owner_state.new_flag_state = Some(RepresentedNewFlagStateRequest::Dropped);
         owner_state.new_flag_return_on_defender_interact = Some(false);
@@ -181,7 +175,7 @@ fn gameobject_use_new_flag_drop_deletes_without_taken_when_owner_cast_fails_like
     assert!(
         session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .contains(
                 &RepresentedGameObjectUseEffect::GameObjectPostUseSpellMissing {
                     gameobject_guid: owner_guid,
@@ -196,7 +190,7 @@ fn gameobject_use_new_flag_drop_deletes_without_taken_when_owner_cast_fails_like
     assert!(
         !session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .iter()
             .any(|effect| {
                 matches!(
@@ -211,8 +205,7 @@ fn gameobject_use_new_flag_drop_deletes_without_taken_when_owner_cast_fails_like
     );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&owner_guid)
+        .represented_gameobject_use_state_like_cpp(owner_guid)
         .unwrap();
     assert_eq!(
         state.new_flag_state,
@@ -234,7 +227,9 @@ fn gameobject_use_new_flag_drop_without_owner_still_deletes_like_cpp() {
         }
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::NewFlagDropInteracted {
                 gameobject_guid,
@@ -267,8 +262,7 @@ fn new_flag_state_command_tracks_cpp_state_carrier_and_respawn_timer() {
     {
         let state = session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .unwrap();
         assert_eq!(
             state.new_flag_state,
@@ -287,8 +281,7 @@ fn new_flag_state_command_tracks_cpp_state_carrier_and_respawn_timer() {
     ));
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(
         state.new_flag_state,
@@ -321,7 +314,9 @@ fn gameobject_use_ritual_waits_until_required_unique_casters_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::CastSpell {
                 gameobject_guid,
@@ -357,9 +352,7 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     };
     session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_guid = Some(owner_guid);
 
     assert!(!session.use_represented_gameobject_ritual_like_cpp(
@@ -370,14 +363,13 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     assert!(
         session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
     assert!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .unwrap()
             .unique_users
             .is_empty()
@@ -391,7 +383,7 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     assert!(
         session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 
@@ -400,13 +392,13 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_current_channeled_spell_active = Some(false);
 
     assert!(!session.use_represented_gameobject_ritual_like_cpp(
@@ -417,15 +409,13 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     assert!(
         session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 
     session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .owner_current_channeled_spell_active = Some(true);
 
     assert!(!session.use_represented_gameobject_ritual_like_cpp(
@@ -434,7 +424,9 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
         source,
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::CastSpell {
                 gameobject_guid,
@@ -459,16 +451,16 @@ fn gameobject_use_ritual_completes_and_deactivates_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 18);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unique_users = vec![other_player_guid];
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(other_player_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_ritual_like_cpp(
@@ -487,7 +479,9 @@ fn gameobject_use_ritual_completes_and_deactivates_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::RitualCasterTargetSpellRequested {
                 gameobject_guid,
@@ -526,8 +520,7 @@ fn gameobject_use_ritual_completes_and_deactivates_like_cpp() {
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.loot_state),
         Some(wow_entities::LootState::JustDeactivated)
     );
@@ -542,16 +535,16 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 18);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unique_users = vec![other_player_guid];
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(other_player_guid);
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
@@ -587,7 +580,7 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .first(),
         Some(
             &RepresentedGameObjectUseEffect::RitualCasterTargetSpellRequested {
@@ -600,7 +593,7 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
     );
     let target_casts: Vec<_> = session
         .world_entities
-        .represented_gameobject_use_effects
+        .represented_gameobject_use_effects_since_like_cpp(0)
         .iter()
         .filter_map(|effect| {
             if let RepresentedGameObjectUseEffect::RitualCasterTargetSpellCast {
@@ -656,9 +649,7 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 18);
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default();
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
     state.owner_guid = Some(owner_guid);
     state.owner_current_channeled_spell_active = Some(true);
     state.unique_users = vec![owner_guid];
@@ -667,7 +658,9 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_ritual_like_cpp(
@@ -686,7 +679,9 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::FinishChanneledSpell {
                 player_guid: owner_guid,
@@ -721,8 +716,7 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
     );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.owner_guid, Some(owner_guid));
     assert_eq!(state.ritual_owner_guid, None);
@@ -741,7 +735,9 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     group.add_member(target_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_tx, _target_rx) = flume::bounded(1);
@@ -761,7 +757,9 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
         },
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::MeetingStoneSummonRequested {
                 gameobject_guid,
@@ -813,7 +811,9 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         source,
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
             gameobject_guid,
             player_guid,
@@ -822,8 +822,7 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
     );
     session
         .world_entities
-        .represented_gameobject_use_effects
-        .clear();
+        .clear_represented_gameobject_use_effects_for_test_like_cpp();
     crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(player_guid));
 
     assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
@@ -833,7 +832,9 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         source,
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
             gameobject_guid,
             player_guid,
@@ -842,8 +843,7 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
     );
     session
         .world_entities
-        .represented_gameobject_use_effects
-        .clear();
+        .clear_represented_gameobject_use_effects_for_test_like_cpp();
     crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(target_guid));
 
     assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
@@ -853,7 +853,9 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         source,
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::MeetingStoneTargetRejected {
             gameobject_guid,
             player_guid,
@@ -887,7 +889,9 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     group.add_member(target_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
@@ -909,7 +913,9 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
         source,
     ));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::MeetingStoneLevelRejected {
             gameobject_guid,
             player_guid,
@@ -922,8 +928,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
 
     session
         .world_entities
-        .represented_gameobject_use_effects
-        .clear();
+        .clear_represented_gameobject_use_effects_for_test_like_cpp();
     session.set_player_level_like_cpp(20);
     assert!(session.use_represented_gameobject_meeting_stone_like_cpp(
         gameobject_guid,

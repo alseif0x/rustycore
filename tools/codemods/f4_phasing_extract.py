@@ -35,6 +35,98 @@ CORE_IMPORTS = """use std::{error::Error, fmt};
 use wow_entities::PhaseShift;
 use wow_packet::packets::party::{PartyMemberPhase, PartyMemberPhaseStates};"""
 
+# Exact later state reviewed after the P4a cut. Keep CORE_IMPORTS as the P4a
+# generator header; this separate residual is accepted only by the applied-state
+# recognizer and deliberately includes every P4b import, constant, and helper body.
+P4B_CORE_RESIDUAL = """use std::{error::Error, fmt};
+use wow_constants::{PhaseFlags, PhaseShiftFlags};
+use wow_data::{PhaseGroupStore, PhaseStore, TerrainSwapStore};
+use wow_entities::PhaseShift;
+use wow_packet::packets::party::{PartyMemberPhase, PartyMemberPhaseStates};
+
+pub const PHASE_USE_FLAGS_ALWAYS_VISIBLE: u8 = 0x01;
+pub const PHASE_USE_FLAGS_INVERSE: u8 = 0x02;
+const DEFAULT_PHASE: u32 = 169;
+
+/// C++ local `PhasingHandler.cpp::GetPhaseFlags`.
+pub fn phase_flags_for_id_like_cpp(phase_store: &PhaseStore, phase_id: u32) -> PhaseFlags {
+    if phase_store.is_cosmetic_phase(phase_id) {
+        return PhaseFlags::COSMETIC;
+    }
+
+    if phase_store.is_personal_phase(phase_id) {
+        return PhaseFlags::PERSONAL;
+    }
+
+    PhaseFlags::NONE
+}
+
+/// C++ `PhasingHandler::InitDbPhaseShift`.
+pub fn init_db_phase_shift_like_cpp(
+    phase_shift: &mut PhaseShift,
+    phase_store: &PhaseStore,
+    phase_group_store: &PhaseGroupStore,
+    phase_use_flags: u8,
+    phase_id: u16,
+    phase_group_id: u32,
+) {
+    phase_shift.clear_phases_like_cpp();
+    phase_shift.set_db_phase_shift_like_cpp(true);
+
+    let mut flags = PhaseShiftFlags::NONE;
+    if phase_use_flags & PHASE_USE_FLAGS_ALWAYS_VISIBLE != 0 {
+        flags |= PhaseShiftFlags::ALWAYS_VISIBLE | PhaseShiftFlags::UNPHASED;
+    }
+    if phase_use_flags & PHASE_USE_FLAGS_INVERSE != 0 {
+        flags |= PhaseShiftFlags::INVERSE;
+    }
+
+    if phase_id != 0 {
+        let phase_id = u32::from(phase_id);
+        phase_shift.add_phase_like_cpp(
+            phase_id,
+            phase_flags_for_id_like_cpp(phase_store, phase_id),
+            1,
+        );
+    } else if phase_group_id != 0
+        && let Some(phases_in_group) = phase_group_store.phases_for_group(phase_group_id)
+    {
+        for phase_in_group in phases_in_group {
+            phase_shift.add_phase_like_cpp(
+                *phase_in_group,
+                phase_flags_for_id_like_cpp(phase_store, *phase_in_group),
+                1,
+            );
+        }
+    }
+
+    if phase_shift.phase_count_like_cpp() == 0 || phase_shift.has_phase_like_cpp(DEFAULT_PHASE) {
+        if flags.contains(PhaseShiftFlags::INVERSE) {
+            flags |= PhaseShiftFlags::INVERSE_UNPHASED;
+        } else {
+            flags |= PhaseShiftFlags::UNPHASED;
+        }
+    }
+
+    phase_shift.set_flags_like_cpp(flags);
+}
+
+/// C++ `PhasingHandler::InitDbVisibleMapId`.
+pub fn init_db_visible_map_id_like_cpp(
+    phase_shift: &mut PhaseShift,
+    terrain_swap_store: &TerrainSwapStore,
+    visible_map_id: i32,
+) {
+    phase_shift.clear_visible_map_ids_like_cpp();
+    if let Ok(visible_map_id) = u32::try_from(visible_map_id)
+        && terrain_swap_store
+            .terrain_swap_info(visible_map_id)
+            .is_some()
+    {
+        phase_shift.add_visible_map_id_like_cpp(visible_map_id, 1);
+    }
+}"""
+
 USE_ITEM = re.compile(
     r"(?m)^[ \t]*(?P<attrs>(?:\#[ \t]*\[[^\]\n]*\][ \t]*(?:\r?\n[ \t]*)?)*)"
     r"(?P<visibility>pub(?:[ \t]*\([^)]*\))?[ \t]+)?use[ \t]+(?P<path>[^;]+);"
@@ -42,6 +134,15 @@ USE_ITEM = re.compile(
 PARTY_MODULE = "wow_packet::packets::party"
 CORE_PHASING_MODULE = "wow_world_core::phasing"
 CORE_REEXPORTS = {ERROR_TYPE, PARTY_FUNCTION}
+P4B_CORE_REEXPORTS = {
+    ERROR_TYPE,
+    PARTY_FUNCTION,
+    "PHASE_USE_FLAGS_ALWAYS_VISIBLE",
+    "PHASE_USE_FLAGS_INVERSE",
+    "init_db_phase_shift_like_cpp",
+    "init_db_visible_map_id_like_cpp",
+    "phase_flags_for_id_like_cpp",
+}
 
 
 class CodemodError(Exception):
@@ -179,20 +280,39 @@ def _has_exact_party_import(source: str, lexer) -> bool:
     )
 
 
-def _has_exact_core_reexport(source: str, lexer) -> bool:
+def _core_reexport_layout(source: str, lexer) -> str | None:
     reexports = _module_imports(_top_level_use_items(source, lexer), CORE_PHASING_MODULE)
     if len(reexports) != 1:
-        return False
+        return None
     item = reexports[0]
     path = item["path"]
     prefix = CORE_PHASING_MODULE + "::"
     if item["attrs"] or item["visibility"] != "pub" or not path.startswith(prefix):
-        return False
+        return None
     tree = path[len(prefix):]
     if not (tree.startswith("{") and tree.endswith("}")):
-        return False
+        return None
     names = [name for name in tree[1:-1].split(",") if name]
-    return len(names) == len(CORE_REEXPORTS) and set(names) == CORE_REEXPORTS
+    if len(names) != len(set(names)):
+        return None
+    name_set = set(names)
+    if name_set == CORE_REEXPORTS:
+        return "p4a"
+    if name_set == P4B_CORE_REEXPORTS:
+        return "p4b"
+    return None
+
+
+def _has_exact_core_reexport(source: str, lexer) -> bool:
+    return _core_reexport_layout(source, lexer) is not None
+
+
+def _core_residual_layout(residual: str) -> str | None:
+    if residual.strip() == CORE_IMPORTS.strip():
+        return "p4a"
+    if residual.strip() == P4B_CORE_RESIDUAL.strip():
+        return "p4b"
+    return None
 
 
 def _update_world_imports(source: str, lexer) -> str:
@@ -236,13 +356,15 @@ def _already_applied(source: str, core: str, lexer) -> bool:
     except CodemodError:
         return False
     residual = _erase_spans(core, core_spans)
+    residual_layout = _core_residual_layout(residual)
+    reexport_layout = _core_reexport_layout(source, lexer)
     return (
         _source_has_no_moved_items(source, lexer)
-        and residual.strip() == CORE_IMPORTS.strip()
+        and residual_layout is not None
         and lexer.blank_noncode(source).count(STD_IMPORT_NEW) == 1
         and lexer.blank_noncode(source).count(STD_IMPORT_OLD) == 0
         and _has_exact_party_import(source, lexer)
-        and _has_exact_core_reexport(source, lexer)
+        and reexport_layout == residual_layout
     )
 
 

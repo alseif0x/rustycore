@@ -29,11 +29,14 @@ use crate::session::{
     DirectInventoryStorageOverlayLikeCpp, InventoryItem, RepresentedVoidStorageItemLikeCpp,
     SessionIdGeneratorsLikeCpp, WorldSession,
 };
+use wow_world_inventory::{
+    EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
+};
 
 const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
 const VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP: u64 = 10 * 10_000;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UnlockVoidStorage,
         status: SessionStatus::LoggedIn,
@@ -52,7 +55,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryVoidStorage,
         status: SessionStatus::LoggedIn,
@@ -64,7 +67,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::VoidStorageTransfer,
         status: SessionStatus::LoggedIn,
@@ -83,7 +86,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapVoidItem,
         status: SessionStatus::LoggedIn,
@@ -100,14 +103,6 @@ struct PlannedVoidDepositLikeCpp {
     destroyed_items: Vec<PlannedVoidDestroyedInventoryItemLikeCpp>,
     void_item: RepresentedVoidStorageItemLikeCpp,
     void_slot: u8,
-}
-
-#[derive(Debug, Clone)]
-struct PlannedVoidDestroyedInventoryItemLikeCpp {
-    bag: u8,
-    slot: u8,
-    inventory_item: InventoryItem,
-    cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
 }
 
 #[derive(Debug, Clone)]
@@ -213,23 +208,6 @@ fn void_withdrawal_item_create_data_like_cpp(
         context: u8::try_from(data.context).unwrap_or(ItemContext::None as u8),
         container_slots,
         container_item_guids: [wow_core::ObjectGuid::EMPTY; 36],
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct EffectiveVoidStorageRandomPropertiesLikeCpp {
-    id: i32,
-    seed: i32,
-    enchantment_ids: [i32; wow_entities::MAX_ENCHANTMENT_SLOT],
-}
-
-impl Default for EffectiveVoidStorageRandomPropertiesLikeCpp {
-    fn default() -> Self {
-        Self {
-            id: 0,
-            seed: 0,
-            enchantment_ids: [0; wow_entities::MAX_ENCHANTMENT_SLOT],
-        }
     }
 }
 

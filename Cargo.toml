@@ -15,7 +15,17 @@ members = [
     "crates/wow-proto",
     # ECS + Game Core
     "crates/wow-world",
+    "crates/wow-world-application",
     "crates/wow-world-core",
+    "crates/wow-world-entities",
+    "crates/wow-world-interaction",
+    "crates/wow-world-instances",
+    "crates/wow-world-inventory",
+    "crates/wow-world-lifecycle",
+    "crates/wow-world-loot",
+    "crates/wow-world-social",
+    "crates/wow-world-spell",
+    "crates/wow-world-visibility",
     "crates/wow-conditions",
     "crates/wow-progression",
     "crates/wow-spell-acquisition",
@@ -158,7 +168,15 @@ wow-persistence = { path = "crates/wow-persistence" }
 wow-network = { path = "crates/wow-network" }
 wow-proto = { path = "crates/wow-proto" }
 wow-world = { path = "crates/wow-world" }
+wow-world-application = { path = "crates/wow-world-application" }
 wow-world-core = { path = "crates/wow-world-core" }
+wow-world-entities = { path = "crates/wow-world-entities" }
+wow-world-interaction = { path = "crates/wow-world-interaction" }
+wow-world-instances = { path = "crates/wow-world-instances" }
+wow-world-inventory = { path = "crates/wow-world-inventory" }
+wow-world-lifecycle = { path = "crates/wow-world-lifecycle" }
+wow-world-spell = { path = "crates/wow-world-spell" }
+wow-world-visibility = { path = "crates/wow-world-visibility" }
 wow-conditions = { path = "crates/wow-conditions" }
 wow-progression = { path = "crates/wow-progression" }
 wow-spell-acquisition = { path = "crates/wow-spell-acquisition" }
@@ -175,6 +193,8 @@ wow-chat = { path = "crates/wow-chat" }
 world-server = { path = "crates/world-server" }
 wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
+wow-world-social = { path = "crates/wow-world-social" }
+wow-world-loot = { path = "crates/wow-world-loot" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
 wow-anticheat = { path = "crates/wow-anticheat" }

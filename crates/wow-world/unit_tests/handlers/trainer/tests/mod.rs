@@ -7,7 +7,7 @@ use crate::session::{
     AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPlayerSpellLikeCpp,
     RepresentedPlayerSpellStateLikeCpp, SessionPlayerController, SessionState,
 };
-use wow_constants::unit::UnitState;
+use wow_constants::unit::{NPCFlags1, UnitState};
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
 use wow_data::{
@@ -17,10 +17,16 @@ use wow_data::{
     SpellAcquisitionCoverageSeedLikeCpp, SpellAcquisitionEffectLikeCpp,
     SpellAcquisitionMiscLikeCpp, SpellAcquisitionTableHashesLikeCpp, SpellChainStoreLikeCpp,
     SpellCustomAttributeStoreLikeCpp, SpellLearnSkillStoreLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellRequiredStoreLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp, TrainerSpellLikeCpp,
-    TrainerSpellRowLikeCpp,
+    SpellRequiredStoreLikeCpp, TrainerLikeCpp, TrainerLocaleRowLikeCpp, TrainerRowLikeCpp,
+    TrainerSpellLikeCpp, TrainerSpellRowLikeCpp,
 };
+use wow_data::{
+    TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
+    TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerStoreLikeCpp,
+};
+use wow_packet::packets::trainer::{TrainerListPacket, TrainerListSpell};
 use wow_packet::{ServerPacket, WorldPacket};
+use wow_world_application::{TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP, TRAINER_LIST_NPC_FLAGS_LIKE_CPP};
 
 const CREATURE_ENTRY: u32 = 123;
 const DEFAULT_TRAINER_ID: u32 = 7;
@@ -187,6 +193,7 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
             "enUS".into(),
             pkt_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         ),
         send_rx,
     )

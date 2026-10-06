@@ -27,9 +27,9 @@ impl WorldSession {
         );
 
         let mut active_owners: Vec<ObjectGuid> =
-            self.loot.active_loot_view_owners.iter().copied().collect();
-        if active_owners.is_empty() && !self.loot.active_loot_guid.is_empty() {
-            active_owners.push(self.loot.active_loot_guid);
+            self.loot.active_loot_view_owners_snapshot_like_cpp();
+        if active_owners.is_empty() && !self.loot.active_loot_guid_like_cpp().is_empty() {
+            active_owners.push(self.loot.active_loot_guid_like_cpp());
         }
         active_owners.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
 
@@ -40,7 +40,7 @@ impl WorldSession {
         let money_by_loot: Vec<(ObjectGuid, ObjectGuid, u32)> = active_owners
             .into_iter()
             .filter_map(|loot_guid| {
-                let loot = self.loot.loot_table.get(&loot_guid)?;
+                let loot = self.loot.cached_loot_for_owner_like_cpp(loot_guid)?;
                 // C++ only places loot in Player::GetAELootView after the
                 // player passed the source's loot-eligibility gate. Keep the
                 // same invariant at this represented boundary so a stale or
@@ -104,8 +104,7 @@ impl WorldSession {
 
                 let Some(expected_generation) = self
                     .loot
-                    .active_loot_view_generations_like_cpp
-                    .get(loot_guid)
+                    .active_loot_view_generation_like_cpp(*loot_guid)
                     .copied()
                 else {
                     continue;
@@ -343,7 +342,7 @@ impl WorldSession {
                         money_mod: 0,
                         sole_looter: true,
                     });
-                    if let Some(loot) = self.loot.loot_table.get_mut(loot_guid) {
+                    if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(*loot_guid) {
                         loot.coins = 0;
                         if loot_is_looted_like_cpp(loot) {
                             item_release.push(*loot_guid);
@@ -399,19 +398,13 @@ impl WorldSession {
                 }
             }
 
-            let personal_money_owner = self
+            if let Some(loot) = self
                 .loot
-                .represented_personal_loot_owners
-                .contains(loot_guid);
-            if let Some(loot) = self.loot.loot_table.get_mut(loot_guid) {
-                if personal_money_owner {
-                    self.loot
-                        .represented_personal_loot_money
-                        .insert((*loot_guid, player_guid), 0);
-                } else {
-                    loot.coins = 0;
-                }
-
+                .record_personal_loot_money_or_clear_cached_coins_for_owner_like_cpp(
+                    *loot_guid,
+                    player_guid,
+                )
+            {
                 if loot_guid.is_item() && loot_is_looted_like_cpp(loot) {
                     item_release.push(*loot_guid);
                 }
@@ -446,7 +439,7 @@ impl WorldSession {
         }
 
         for loot_guid in item_release {
-            self.loot.loot_table.remove(&loot_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(loot_guid);
             self.loot.clear_active_loot_guid_if(loot_guid);
             self.send_packet(&SLootRelease {
                 loot_obj: loot_guid,

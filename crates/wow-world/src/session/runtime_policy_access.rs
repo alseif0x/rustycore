@@ -91,45 +91,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
-            .start_all_explored_like_cpp = enabled;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
-        self.player_bootstrap_catalog_test_fixture_like_cpp
-            .start_all_explored_like_cpp
-    }
-
-    /// Get the loaded DisableMgr store reference.
-    pub fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
-        self.disable_mgr.as_ref()
-    }
-
-    /// C++ `sLockStore.LookupEntry(lockId)`.
-    pub fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
-        self.lock_store
-            .as_ref()
-            .is_some_and(|store| store.contains(lock_id))
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
-        let _ = self.set_player_is_outdoors_like_cpp(is_outdoors);
-    }
-}
-
-impl crate::session::state::SessionWorldConfig {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
-        self.declined_names_used_like_cpp = used;
-    }
-}
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/runtime_policy_access/f3_shims.rs"]
 mod f3_shims;

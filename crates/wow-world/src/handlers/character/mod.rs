@@ -35,7 +35,6 @@ mod visibility;
 mod world_entry;
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
-use std::f32::consts::PI;
 use std::sync::Arc;
 
 use rand::Rng;
@@ -47,10 +46,9 @@ use wow_constants::unit::{
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, EnchantmentSlot, InventoryResult,
-    InventoryType, ItemBondingType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
-    ItemFlags2, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId, TypeMask,
-    UnitStandStateType,
+    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, InventoryResult, InventoryType,
+    ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState,
+    ItemVendorType, PowerType, TypeId, TypeMask, UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
@@ -65,22 +63,31 @@ use wow_data::{
     calculate_player_stat_system_like_cpp, hotfix_locale_mask,
     is_player_meeting_condition_like_cpp,
 };
+pub(crate) use wow_world_inventory::ExtendedCostItemTurninChange;
+// Test-only types whose production users moved to `wow-world-inventory`.
+#[cfg(test)]
+pub(crate) use std::f32::consts::PI;
+#[cfg(test)]
+pub(crate) use wow_constants::{EnchantmentSlot, ItemBondingType};
+#[cfg(test)]
+pub(crate) use wow_entities::SocketedGem;
 use wow_entities::{
-    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
-    CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_START, InventoryStorageMovePlanLikeCpp, MAX_BAG_SIZE, MAX_MONEY_AMOUNT,
-    MovementGeneratorType, NULL_BAG, NULL_SLOT, PlayerEffectiveCombatStatsLikeCpp,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
+    CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
+    GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, InventoryStorageMovePlanLikeCpp,
+    MAX_BAG_SIZE, MAX_MONEY_AMOUNT, MovementGeneratorType, NULL_BAG, NULL_SLOT,
     REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SocketedGem,
-    SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos,
-    is_inventory_pos, item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
+    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SwapItemPreflightResult,
+    WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
+    item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
+#[cfg(test)]
+pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
 
-use crate::session::hub_support::{player_class_mask, player_team_for_race_cpp};
+use crate::session::hub_support::player_team_for_race_cpp;
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,
@@ -97,13 +104,11 @@ use wow_packet::packets::update::*;
 // Explicit provenance for child modules that reach these names through `super::{}`:
 // a glob import leaves the ownership checker without a defining source.
 use wow_packet::packets::misc::BindPointUpdate;
-use wow_packet::packets::update::{
-    ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject, UpdateType,
-};
+use wow_packet::packets::update::{ItemCreateData, PlayerCombatStats, UpdateBlock, UpdateObject};
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerLoginTransportLoadOutcomeLikeCpp,
-    PlayerLoginTransportLoadRequestLikeCpp, PlayerLoginTransportLoadRowLikeCpp,
+    PlayerLoginTransportLoadRequestLikeCpp,
 };
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
@@ -166,156 +171,13 @@ const DIRECT_INTERACTION_MASK_LIKE_CPP: u32 = DIRECT_VENDOR_MASK_LIKE_CPP
 fn npc_has_direct_interaction_like_cpp(npc_flags: u32) -> bool {
     npc_flags & DIRECT_INTERACTION_MASK_LIKE_CPP != 0
 }
-const WORLDSTATE_ANY_MAP_LIKE_CPP: i32 = -1;
 const DEFAULT_GOSSIP_MESSAGE_LIKE_CPP: i32 = 0x00FF_FFFF;
 const TRAINER_NPC_FLAGS_MASK_LIKE_CPP: u32 = 0x10 | 0x20 | 0x40;
 const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
-const ITEM_ENCHANTMENT_DB_FIELDS: usize = 3;
 
-#[derive(Debug, Clone, PartialEq)]
-struct LoadedMapCorpseRowLikeCpp {
-    position: Position,
-    map_id: u16,
-    display_id: u32,
-    items: [u32; wow_entities::CORPSE_ITEMS],
-    race: u8,
-    class: u8,
-    sex: u8,
-    flags: u32,
-    dynamic_flags: u32,
-    ghost_time: i64,
-    corpse_type: CorpseType,
-    instance_id: u32,
-    owner_db_guid: u64,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct MapCorpseLoadOutcomeLikeCpp {
-    already_loaded: bool,
-    rows_seen: u32,
-    corpses_added: u32,
-    invalid_type_rows: u32,
-    invalid_race_rows: u32,
-    invalid_position_rows: u32,
-    add_to_map_errors: u32,
-}
-
-fn parse_corpse_items_like_cpp(item_cache: &str) -> [u32; wow_entities::CORPSE_ITEMS] {
-    let mut items = [0; wow_entities::CORPSE_ITEMS];
-    let tokens = item_cache.split_whitespace().collect::<Vec<_>>();
-    if tokens.len() == items.len() {
-        for (slot, token) in tokens.into_iter().enumerate() {
-            items[slot] = token.parse().unwrap_or(0);
-        }
-    }
-    items
-}
-
-fn materialize_loaded_map_corpses_like_cpp(
-    map: &mut wow_map::Map,
-    realm_id: u16,
-    rows: Vec<LoadedMapCorpseRowLikeCpp>,
-    phases: &HashMap<u64, BTreeSet<u32>>,
-    customizations: &HashMap<u64, Vec<CorpseCustomizationChoice>>,
-    faction_templates_by_race: &HashMap<u8, i32>,
-) -> MapCorpseLoadOutcomeLikeCpp {
-    if map.corpse_data_loaded_like_cpp() {
-        return MapCorpseLoadOutcomeLikeCpp {
-            already_loaded: true,
-            ..Default::default()
-        };
-    }
-
-    let mut outcome = MapCorpseLoadOutcomeLikeCpp::default();
-    for row in rows {
-        outcome.rows_seen = outcome.rows_seen.saturating_add(1);
-        // C++ `Map::LoadCorpseData` consumes the map-local counter when it
-        // calls `LoadCorpseFromDB(GenerateLowGuid(), fields)`. The latter only
-        // validates map coordinates near the end, so even a rejected position
-        // has already advanced the GUID generator.
-        let Ok(low_guid) = map.generate_low_guid_like_cpp(HighGuid::Corpse) else {
-            outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
-            continue;
-        };
-        if row.map_id != map.map_id() as u16 || row.instance_id != map.instance_id() {
-            outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
-            continue;
-        }
-        if !row.position.is_valid_map_coord_like_cpp() {
-            outcome.invalid_position_rows = outcome.invalid_position_rows.saturating_add(1);
-            continue;
-        }
-        let Some(faction_template) = faction_templates_by_race.get(&row.race).copied() else {
-            outcome.invalid_race_rows = outcome.invalid_race_rows.saturating_add(1);
-            continue;
-        };
-
-        let mut corpse = Corpse::new_at(row.corpse_type, row.ghost_time);
-        let corpse_guid = ObjectGuid::create_world_object(
-            HighGuid::Corpse,
-            0,
-            realm_id,
-            row.map_id,
-            0,
-            0,
-            low_guid,
-        );
-        corpse.world_mut().object_mut().create(corpse_guid);
-        if corpse
-            .world_mut()
-            .set_map(u32::from(row.map_id), row.instance_id)
-            .is_err()
-        {
-            outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
-            continue;
-        }
-        corpse.world_mut().relocate(row.position);
-        corpse.set_display_id(row.display_id);
-        corpse.set_race(row.race);
-        corpse.set_class(row.class);
-        corpse.set_sex(row.sex);
-        corpse.replace_all_flags(row.flags);
-        corpse.replace_all_corpse_dynamic_flags(row.dynamic_flags);
-        corpse.set_owner_guid(ObjectGuid::create_player(
-            realm_id,
-            row.owner_db_guid as i64,
-        ));
-        corpse.set_faction_template(faction_template);
-        for (slot, item) in row.items.into_iter().enumerate() {
-            corpse.set_item(slot, item);
-        }
-        for phase_id in phases
-            .get(&row.owner_db_guid)
-            .into_iter()
-            .flatten()
-            .copied()
-        {
-            corpse.world_mut().phase_shift_mut().insert(phase_id);
-        }
-        corpse.set_customizations(
-            customizations
-                .get(&row.owner_db_guid)
-                .cloned()
-                .unwrap_or_default(),
-        );
-
-        // C++ loads these fields before AddCorpse/AddToMap, so they form the
-        // clean baseline rather than a later VALUES delta.
-        corpse.clear_corpse_data_changes();
-        corpse.world_mut().object_mut().clear_update_mask(false);
-        match map.register_loaded_corpse_like_cpp(corpse) {
-            Ok(_) => outcome.corpses_added = outcome.corpses_added.saturating_add(1),
-            Err(_) => {
-                outcome.add_to_map_errors = outcome.add_to_map_errors.saturating_add(1);
-            }
-        }
-    }
-
-    map.mark_corpse_data_loaded_like_cpp();
-    outcome
-}
+pub(crate) use wow_world_core::map_manager::MapCorpseLoadOutcomeLikeCpp;
 
 fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
     // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
@@ -341,13 +203,7 @@ struct DirectInventoryPositionUpdateLikeCpp {
     item_db_guid: u64,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InventorySwapTargetLikeCpp {
-    Inventory,
-    Bank,
-    Equipment { dest: u16 },
-    None,
-}
+use wow_world_application::InventorySwapTargetLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum InventoryStorageTargetLikeCpp {
@@ -478,20 +334,11 @@ fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     true
 }
 fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
-    match class_id {
-        1 => PowerType::Rage,
-        4 => PowerType::Energy,
-        6 => PowerType::RunicPower,
-        _ => PowerType::Mana,
-    }
+    wow_world_core::session::primary_power_type_for_player_class_like_cpp(class_id)
 }
 
 fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
-    match class_id {
-        1 | 6 => 1_000,
-        4 => 100,
-        _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
-    }
+    wow_world_application::primary_max_power_for_class_like_cpp(class_id, max_mana)
 }
 
 fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
@@ -504,12 +351,6 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
     } else {
         saved_slots
     }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct LoadedItemRandomPropertiesLikeCpp {
-    id: i32,
-    seed: i32,
 }
 
 fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
@@ -542,12 +383,9 @@ fn inventory_storage_move_quest_directions_like_cpp(
     (moving_to_bank, moving_from_bank)
 }
 
-type ItemStorageMutablePersistenceLikeCpp = wow_persistence::InventoryItemMutablePersistenceLikeCpp;
-
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
-const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
 // Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
 const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
@@ -555,31 +393,19 @@ pub(crate) use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 const CHAR_CREATE_NAME_IN_USE_LIKE_CPP: u8 = 27;
 pub(crate) use wow_constants::character::{
+    AT_LOGIN_CHANGE_FACTION_LIKE_CPP, AT_LOGIN_CHANGE_RACE_LIKE_CPP, AT_LOGIN_CUSTOMIZE_LIKE_CPP,
+    AT_LOGIN_FIRST_LIKE_CPP, AT_LOGIN_RENAME_LIKE_CPP, AT_LOGIN_RESURRECT_LIKE_CPP,
+    CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP, CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP,
+    CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP, CHARACTER_FLAG_DECLINED_LIKE_CPP,
+    CHARACTER_FLAG_GHOST_LIKE_CPP, CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP,
+    CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP, CHARACTER_FLAG_RENAME_LIKE_CPP,
+    CLASS_DEATH_KNIGHT_LIKE_CPP, CLASS_HUNTER_LIKE_CPP, CLASS_WARLOCK_LIKE_CPP,
+    PLAYER_FLAGS_GHOST_LIKE_CPP,
+};
+pub(crate) use wow_constants::character::{
     CHAR_NAME_INVALID_CHARACTER_LIKE_CPP, CHAR_NAME_NO_NAME_LIKE_CPP, CHAR_NAME_TOO_LONG_LIKE_CPP,
     CHAR_NAME_TOO_SHORT_LIKE_CPP,
 };
-const CLASS_HUNTER_LIKE_CPP: u8 = 3;
-const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
-const CLASS_WARLOCK_LIKE_CPP: u8 = 9;
-const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
-const AT_LOGIN_RENAME_LIKE_CPP: u16 = 0x001;
-const AT_LOGIN_CUSTOMIZE_LIKE_CPP: u16 = 0x008;
-const AT_LOGIN_FIRST_LIKE_CPP: u16 = 0x020;
-const AT_LOGIN_CHANGE_FACTION_LIKE_CPP: u16 = 0x040;
-const AT_LOGIN_CHANGE_RACE_LIKE_CPP: u16 = 0x080;
-const AT_LOGIN_RESURRECT_LIKE_CPP: u16 = 0x100;
-const CHARACTER_FLAG_LOCKED_FOR_TRANSFER_LIKE_CPP: u32 = 0x0000_0004;
-const CHARACTER_FLAG_GHOST_LIKE_CPP: u32 = 0x0000_2000;
-const CHARACTER_FLAG_RENAME_LIKE_CPP: u32 = 0x0000_4000;
-const CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP: u32 = 0x0100_0000;
-const CHARACTER_FLAG_DECLINED_LIKE_CPP: u32 = 0x0200_0000;
-const CHAR_CUSTOMIZE_FLAG_CUSTOMIZE_LIKE_CPP: u32 = 0x0000_0001;
-const CHAR_CUSTOMIZE_FLAG_FACTION_LIKE_CPP: u32 = 0x0001_0000;
-const CHAR_CUSTOMIZE_FLAG_RACE_LIKE_CPP: u32 = 0x0010_0000;
-const GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP: u8 = 15;
-const TAXI_PATH_NODE_FLAG_TELEPORT_LIKE_CPP: i32 = 0x1;
-const TAXI_PATH_NODE_FLAG_STOP_LIKE_CPP: i32 = 0x2;
-
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
     if is_a_recruiter || recruiter_id != 0 {
         REST_STATE_RAF_LINKED_LIKE_CPP
@@ -757,25 +583,9 @@ fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
     equipment
 }
 
-fn bind_inventory_item_for_destination_like_cpp(item: &mut wow_entities::Item, destination: u16) {
-    let [bag, slot] = destination.to_be_bytes();
-    if is_equipment_pos(bag, slot) {
-        // C++ `Player::EquipItem` calls `VisualizeItem`, which binds
-        // BIND_ON_EQUIP as well as the acquire/quest bonding modes.
-        item.bind_if_visualized();
-    } else {
-        // C++ `Player::_StoreItem` has the narrower storage rule: an
-        // OnEquip item binds here only when stored in a bag-equipment slot.
-        item.bind_if_stored(wow_entities::is_bag_pos(destination));
-    }
-}
-
-fn item_dynamic_flags_changed_like_cpp(
-    before: &wow_entities::Item,
-    after: &wow_entities::Item,
-) -> bool {
-    before.item_flags_bits() != after.item_flags_bits()
-}
+use wow_world_application::{
+    bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
+};
 
 fn player_money_gain_like_cpp(current_money: u64, amount: u64) -> Option<u64> {
     if amount == 0 {
@@ -812,40 +622,7 @@ struct CreatureEquipmentCreateFieldsLikeCpp {
     virtual_items: [(i32, u16, u16); 3],
 }
 
-#[derive(Debug, Clone)]
-struct MaterializedCreatureSpawnLikeCpp {
-    guid: ObjectGuid,
-    position: Position,
-    create_data: CreatureCreateData,
-    min_damage: u32,
-    max_damage: u32,
-    aggro_radius: f32,
-    loot_id: u32,
-    skin_loot_id: u32,
-    gold_min: u32,
-    gold_max: u32,
-    respawn_delay_secs: u32,
-    selected_equipment_id: u8,
-    original_equipment_id: i8,
-    script_name: String,
-    string_id: Option<String>,
-    addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
-    phase_use_flags: u8,
-    phase_id: u16,
-    phase_group_id: u32,
-    terrain_swap_map: i32,
-    flags_extra: u32,
-    ground_movement_type: u8,
-    swim_allowed: bool,
-    flight_movement_type: u8,
-    rooted: bool,
-    chase_movement_type: u8,
-    random_movement_type: u8,
-    interaction_pause_timer_ms: u32,
-    wander_distance: f32,
-    default_movement_type: MovementGeneratorType,
-    waypoint_path_id: u32,
-}
+pub(crate) use wow_world_entities::MaterializedCreatureSpawnLikeCpp;
 
 fn creature_create_movement_flags_like_cpp(ground_movement_type: u8, rooted: bool) -> u32 {
     let mut flags = MovementFlag::empty();
@@ -878,21 +655,6 @@ fn creature_create_position_after_hover_offset_like_cpp(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ExtendedCostItemTurninChange {
-    Update {
-        slot: u8,
-        item_guid: ObjectGuid,
-        db_guid: u64,
-        new_count: u32,
-    },
-    Delete {
-        slot: u8,
-        item_guid: ObjectGuid,
-        db_guid: u64,
-    },
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum DestroyItemCountAction {
     FullStack,
     PartialStack { new_count: u32 },
@@ -916,35 +678,9 @@ fn destroy_item_count_action(current_count: u32, requested_count: u32) -> Destro
     DestroyItemCountAction::FullStack
 }
 
-fn item_spell_charges_db_string(charges: &[i32], effect_count: usize) -> String {
-    let mut out = String::new();
-    for charge in charges.iter().take(effect_count) {
-        out.push_str(&charge.to_string());
-        out.push(' ');
-    }
-    out
-}
-
-fn item_storage_mutable_persistence_like_cpp(
-    db_guid: u64,
-    item: &wow_entities::Item,
-    count: u32,
-    flags: u32,
-    enchantments: String,
-    effect_count: usize,
-) -> ItemStorageMutablePersistenceLikeCpp {
-    let data = item.data();
-    ItemStorageMutablePersistenceLikeCpp {
-        item_guid: db_guid,
-        count,
-        expiration: data.expiration,
-        charges: item_spell_charges_db_string(&data.spell_charges, effect_count),
-        flags,
-        enchantments,
-        durability: data.durability,
-        played_time: data.create_played_time,
-    }
-}
+use wow_world_application::{
+    item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp,
+};
 
 fn item_is_currently_looted_like_cpp(item: &wow_entities::Item) -> bool {
     item.loot_generated()

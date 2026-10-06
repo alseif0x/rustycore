@@ -8,43 +8,20 @@ use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp, RepresentedGameObjec
 use super::{WorldSession, quest};
 
 impl WorldSession {
+    /// World facade over the single App provider so query/refresh paths and the
+    /// ActivateToQuest/DynamicFlags consumers share one authority.
     pub(in crate::session) fn represented_has_quest_for_gameobject_like_cpp(
         &self,
         gameobject_entry: u32,
     ) -> bool {
-        let Some(store) = self.catalogs.quests.store.as_ref() else {
-            return false;
-        };
-        let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return false;
-        };
-        let object_id = i32::try_from(gameobject_entry).unwrap_or(i32::MAX);
-        quests.statuses_like_cpp().values().any(|status| {
-            if status.status != wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                return false;
-            }
-            let Some(quest) = store.get(status.quest_id) else {
-                return false;
-            };
-            quest
-                .objectives
-                .iter()
-                .enumerate()
-                .any(|(index, objective)| {
-                    objective.obj_type == 2
-                        && objective.object_id == object_id
-                        && wow_entities::represented_quest_objective_completable_like_cpp(
-                            status,
-                            &quest.objective_rules_like_cpp(),
-                            index,
-                        )
-                        && !wow_entities::represented_quest_objective_complete_like_cpp(
-                            status,
-                            &quest.objective_rules_like_cpp(),
-                            objective,
-                        )
-                })
-        })
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::represented_has_quest_for_gameobject_like_cpp(
+            &owner,
+            &self.catalogs,
+            &self.quest_state,
+            gameobject_entry,
+            cfg!(test),
+        )
     }
 
     pub(in crate::session) fn represented_gameobject_is_for_quests_like_cpp(
@@ -52,34 +29,15 @@ impl WorldSession {
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> bool {
-        match state.go_type.map(u32::from) {
-            Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => true,
-            // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Globals/ObjectMgr.cpp:8791-8800
-            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
-                self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry)
-                    || state
-                        .chest_loot_source
-                        .is_some_and(|source| source.chest_quest_id != 0)
-                    || state.chest_loot_source.is_some_and(|source| {
-                        self.catalogs
-                            .represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-                                source.loot_ids_like_cpp(),
-                            )
-                    })
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
-                self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry)
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => state
-                .goober_use_source
-                .is_some_and(|source| source.quest_id != 0),
-            Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => self
-                .catalogs
-                .represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-                    state.gathering_node_loot_id,
-                ),
-            _ => false,
-        }
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::represented_gameobject_is_for_quests_like_cpp(
+            &self.catalogs,
+            &owner,
+            &self.quest_state,
+            gameobject_entry,
+            state,
+            cfg!(test),
+        )
     }
 
     pub(in crate::session) fn represented_gameobject_activate_to_quest_like_cpp(
@@ -87,60 +45,43 @@ impl WorldSession {
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> bool {
-        if self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry) {
-            return true;
-        }
-
-        if !self.represented_gameobject_is_for_quests_like_cpp(gameobject_entry, state) {
-            return false;
-        }
-
-        match state.go_type.map(u32::from) {
-            Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) => {
-                let status = self.get_represented_quest_giver_status_like_cpp(
-                    crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
-                        entry: gameobject_entry,
-                    },
-                );
-                status != wow_packet::packets::quest::quest_giver_status::NONE
-                    && status != wow_packet::packets::quest::quest_giver_status::FUTURE
-            }
-            // C++ anchor: /home/server/woltk-trinity-legacy/src/server/game/Entities/GameObject/GameObject.cpp:2236-2251
-            Some(wow_entities::GAMEOBJECT_TYPE_CHEST) => {
-                state.loot_state != Some(wow_entities::LootState::NotReady)
-                    && (state.chest_loot_source.is_some_and(|source| {
-                        source.chest_quest_id != 0
-                            && self
-                                .represented_player_quest_status_like_cpp(source.chest_quest_id)
-                                .is_some_and(|status| {
-                                    status == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-                                })
-                    }) || state.chest_loot_source.is_some_and(|source| {
-                        self.represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-                            source.loot_ids_like_cpp(),
-                        )
-                    }))
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
-                self.represented_has_quest_for_gameobject_like_cpp(gameobject_entry)
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GOOBER) => {
-                state
-                    .goober_use_source
-                    .is_some_and(|source| source.quest_id != 0)
-                    && state.goober_use_source.is_some_and(|source| {
-                        self.represented_player_quest_status_like_cpp(source.quest_id)
-                            .is_some_and(|status| {
-                                status == Some(wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP)
-                            })
-                    })
-            }
-            Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => self
-                .represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-                    state.gathering_node_loot_id,
-                ),
-            _ => false,
-        }
+        let owner = self.core.quest_objective_access_like_cpp();
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        let player = self.core.quest_eligibility_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_class,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.reputation_state_like_cpp,
+        );
+        let conditions = self.player_condition_projection_cx_like_cpp();
+        let eligibility = wow_world_application::QuestEligibilityCx::new(
+            player,
+            &self.quest_state,
+            &self.catalogs,
+            &conditions,
+            cfg!(test),
+        );
+        wow_world_application::represented_gameobject_activate_to_quest_like_cpp(
+            &owner,
+            &self.catalogs,
+            &self.quest_state,
+            &self.inventory,
+            &inventory_access,
+            &eligibility,
+            gameobject_entry,
+            state,
+            cfg!(test),
+        )
     }
 }
 
@@ -152,9 +93,7 @@ impl crate::session::QuestStateCx<'_> {
     ) {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .entry(guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
         if let Some(source) = template.chest_loot_source_like_cpp() {
             state.chest_loot_source = Some(source);
         }
@@ -181,8 +120,7 @@ impl crate::session::QuestStateCxRef<'_> {
         let access = self.hub.core.canonical_gameobject_access_like_cpp(guid)?;
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)?;
+            .represented_gameobject_use_state_like_cpp(guid)?;
         if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) {
             return None;
         }

@@ -3,7 +3,7 @@
 //! Retain only remaining native phases on the canonical Player; never replay the ACK.
 use crate::session::WorldSession;
 use wow_core::Position;
-use wow_entities::{PlayerWorldportPostAddLikeCpp, PlayerWorldportPostAddPhaseLikeCpp as Phase};
+use wow_entities::PlayerWorldportPostAddPhaseLikeCpp as Phase;
 
 impl WorldSession {
     pub(crate) fn begin_worldport_post_add_like_cpp(
@@ -142,69 +142,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionLifecycleState {
-    pub(crate) fn begin_worldport_post_add_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        map_id: u32,
-        position: Position,
-    ) -> bool {
-        let begun = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                if player.unit().world().map_id() != map_id
-                    || player.unit().world().position() != position
-                {
-                    return false;
-                }
-                let state = player.teleport_state_mut_like_cpp();
-                if state.post_add.is_some() {
-                    return false;
-                }
-                state.post_add = Some(PlayerWorldportPostAddLikeCpp {
-                    map_id,
-                    position,
-                    phase: Phase::BeforeZone,
-                });
-                true
-            })
-            .unwrap_or(false);
-        if begun && self.pending_periodic_player_save_like_cpp {
-            // The timer can expire before Transfer stops ordinary Session autosaves.
-            // Give that due request the same native delayed-operation phase as a
-            // direct SaveToDB call, before any following queued packet is admitted.
-            if self.defer_player_save_for_transfer_like_cpp(hub)
-                != Some(crate::session::PlayerSaveOutcomeLikeCpp::Deferred)
-            {
-                return false;
-            }
-            self.reset_player_save_timer_like_cpp();
-        }
-        begun
-    }
-
-    pub(crate) fn advance_worldport_post_add_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        phase: Phase,
-    ) -> bool {
-        hub.core
-            .with_owned_player_mut_like_cpp(|player| {
-                if let Some(progress) = player.teleport_state_like_cpp().post_add
-                    && (player.unit().world().map_id() != progress.map_id
-                        || player.unit().world().position() != progress.position)
-                {
-                    return false;
-                }
-                if let Some(progress) = &mut player.teleport_state_mut_like_cpp().post_add {
-                    progress.phase = progress.phase.max(phase);
-                }
-                true
-            })
-            .unwrap_or(false)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -223,6 +160,7 @@ mod tests {
             "enUS".into(),
             packets,
             output,
+            crate::session::registry::build_dispatch_table(),
         );
         session.set_player_guid(Some(wow_core::ObjectGuid::create_player(1, 42)));
         crate::canonical_player_access::install_canonical_player_owner_for_test(
@@ -312,7 +250,7 @@ mod tests {
         let mut session = save_fixture();
         session.set_player_save_interval_ms_like_cpp(100);
         session.lifecycle.update_player_save_timer_like_cpp(100);
-        assert!(session.lifecycle.pending_periodic_player_save_like_cpp);
+        assert!(session.lifecycle.pending_periodic_player_save_like_cpp());
         assert!(
             crate::session::hub_mut(&mut session).update_player_teleport_state_like_cpp(|state| {
                 state.far_pending = true;
@@ -331,8 +269,8 @@ mod tests {
                 Some(true)
             );
         }
-        assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 100);
-        assert!(!session.lifecycle.pending_periodic_player_save_like_cpp);
+        assert_eq!(session.lifecycle.next_player_save_ms_like_cpp(), 100);
+        assert!(!session.lifecycle.pending_periodic_player_save_like_cpp());
         assert!(session.finish_worldport_native_before_disconnect_like_cpp());
         // Unavailable persistence is not a confirmation and must retain the intent.
         assert_eq!(

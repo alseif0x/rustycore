@@ -27,9 +27,7 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -109,9 +107,7 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,

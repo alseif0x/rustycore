@@ -1,0 +1,29 @@
+[package]
+name = "wow-world-social"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-fixtures = ["wow-world-core/test-fixtures"]
+
+[dependencies]
+tokio = { workspace = true }
+tracing = { workspace = true }
+wow-constants = { workspace = true }
+wow-chat = { workspace = true }
+wow-core = { workspace = true }
+wow-entities = { workspace = true }
+wow-handler = { workspace = true }
+wow-packet = { workspace = true }
+wow-persistence = { workspace = true }
+wow-social = { workspace = true }
+wow-world-core = { workspace = true }
+
+[dev-dependencies]
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

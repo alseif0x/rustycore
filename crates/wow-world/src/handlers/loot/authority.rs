@@ -15,42 +15,10 @@ impl WorldSession {
         loot: CreatureLoot,
         personal: bool,
     ) -> Option<(Option<CreatureLoot>, HashMap<ObjectGuid, CreatureLoot>)> {
-        if !personal {
-            return Some((Some(loot), HashMap::new()));
-        }
-
-        let mut looters = loot.allowed_looters.clone();
-        if looters.is_empty() && !player_guid.is_empty() {
-            looters.push(player_guid);
-        }
-        looters.sort_unstable_by_key(|guid| (guid.high_value(), guid.low_value()));
-        looters.dedup();
-
-        let mut personal_loot = HashMap::new();
-        for (index, looter) in looters.into_iter().enumerate() {
-            let mut pool = loot.clone();
-            if index != 0 {
-                pool.loot_guid = self.next_represented_loot_object_guid_like_cpp(owner_guid)?;
-            }
-            pool.coins = self
-                .loot
-                .represented_personal_loot_money
-                .get(&(owner_guid, looter))
-                .copied()
-                .unwrap_or(0);
-            pool.allowed_looters = vec![looter];
-            pool.players_looting.retain(|viewer| *viewer == looter);
-            pool.items.retain(|entry| {
-                entry.allowed_looters.is_empty() || entry.allowed_looters.contains(&looter)
-            });
-            for entry in &mut pool.items {
-                entry.allowed_looters = vec![looter];
-            }
-            rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp(&mut pool);
-            personal_loot.insert(looter, pool);
-        }
-
-        Some((None, personal_loot))
+        // The admitted application owner holds this transition; the World
+        // shell only builds the borrowed loot-release context (#1263 F6).
+        self.loot_release_cx_like_cpp()
+            .represented_loot_authority_pools_like_cpp(owner_guid, player_guid, loot, personal)
     }
 
     pub(super) async fn request_represented_remote_master_loot_give_like_cpp(
@@ -86,7 +54,7 @@ impl WorldSession {
         target: ObjectGuid,
     ) {
         {
-            let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) else {
+            let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) else {
                 return;
             };
 
@@ -170,7 +138,7 @@ impl WorldSession {
             false
         };
 
-        let loot = self.loot.loot_table.get(&owner_guid)?;
+        let loot = self.loot.cached_loot_for_owner_like_cpp(owner_guid)?;
         if loot.loot_method != LOOT_METHOD_MASTER_LIKE_CPP || !is_master_looter {
             return None;
         }
@@ -179,94 +147,5 @@ impl WorldSession {
             loot_obj: loot.loot_guid,
             players: loot.allowed_looters.clone(),
         })
-    }
-}
-
-impl crate::session::LootState {
-    pub(super) fn represented_loot_can_be_opened_by_player_like_cpp(
-        &self,
-        loot_guid: ObjectGuid,
-        loot: &CreatureLoot,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        if !loot.allowed_looters.contains(&player_guid) {
-            return false;
-        }
-
-        if self.represented_loot_money_for_player_like_cpp(loot_guid, loot, player_guid) > 0 {
-            return true;
-        }
-
-        loot_can_be_opened_by_player_like_cpp(loot, player_guid)
-    }
-
-    pub(super) async fn request_represented_remote_master_loot_give_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        target: ObjectGuid,
-        owner_guid: ObjectGuid,
-        loot_obj: ObjectGuid,
-        loot_list_id: u8,
-        dungeon_encounter_id: u32,
-        entry: LootEntry,
-        claim: Option<LootClaimLease>,
-    ) -> MasterLootGiveResult {
-        let Some(player_guid) = hub.core.player_guid() else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-        let Some(registry) = hub.core.player_registry() else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-        let Some(command_address) = registry.control_address(target) else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-
-        let (result_tx, result_rx) = flume::bounded(1);
-        let command = SessionCommand::MasterLootGive(MasterLootGiveCommand {
-            master_guid: player_guid,
-            loot_owner: owner_guid,
-            loot_obj,
-            loot_list_id,
-            dungeon_encounter_id,
-            entry,
-            claim,
-            result_tx,
-        });
-
-        if command_address.try_send(command).is_err() {
-            return MasterLootGiveResult::TargetMismatch;
-        }
-
-        timeout(REMOTE_MASTER_LOOT_COMMAND_TIMEOUT, result_rx.recv_async())
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .unwrap_or(MasterLootGiveResult::TargetMismatch)
-    }
-
-    pub(super) fn represented_master_loot_target_exists_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        target: ObjectGuid,
-    ) -> bool {
-        if hub.core.player_guid() == Some(target) {
-            return true;
-        }
-
-        let instance_id = hub
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        hub.core
-            .player_registry()
-            .and_then(|registry| {
-                registry.loot_delivery_recipient(
-                    target,
-                    hub.core.player_map_id_like_cpp(),
-                    instance_id,
-                )
-            })
-            .is_some()
     }
 }

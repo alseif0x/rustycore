@@ -1,188 +1,75 @@
 //! Represented trade sessions at the Session boundary.
 //!
-//! Moved out of the Session root under #615. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! Moved out of the Session root under #615 and reduced to the Session-side
+//! adapter under #1263 F5: the trade bodies and their canonical/represented
+//! transitions now live in `wow-world-application::trade_handlers`, and this
+//! module only builds the borrowed context for the World callers that still
+//! need it.
 
 use super::*;
+use wow_world_application::TradeHandlerCxLikeCpp;
 
 impl WorldSession {
+    fn trade_handler_cx_like_cpp(&mut self) -> TradeHandlerCxLikeCpp<'_> {
+        let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
+        TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
+    }
+
     pub(in crate::session) fn player_trade_state_snapshot_like_cpp(
         &self,
     ) -> Option<Option<wow_entities::PlayerTradeStateLikeCpp>> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.trade_state_snapshot_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_active_trade_partner_like_cpp
-                    .map(|partner_guid| wow_entities::PlayerTradeStateLikeCpp {
-                        partner_guid,
-                        accepted: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_accepted_like_cpp,
-                        partner_server_state_index: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_partner_trade_server_state_index_like_cpp,
-                        client_state_index: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_client_state_index_like_cpp,
-                        server_state_index: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_server_state_index_like_cpp,
-                        items: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_items_like_cpp,
-                        money: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_money_like_cpp,
-                        spell_id: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_spell_like_cpp,
-                        spell_cast_item_guid: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_spell_cast_item_like_cpp,
-                    }),
-            );
-        }
-        canonical
+        wow_world_application::player_trade_state_snapshot_like_cpp(&self.core, &self.social)
     }
-    #[cfg(test)]
-    pub(in crate::session) fn mutate_player_trade_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut Option<wow_entities::PlayerTradeStateLikeCpp>) -> R,
-    ) -> Option<R> {
-        let mut state = self.player_trade_state_snapshot_like_cpp()?;
-        let result = mutate(&mut state);
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_trade_state_like_cpp(state.clone())
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            if let Some(state) = state {
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_active_trade_partner_like_cpp = Some(state.partner_guid);
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_accepted_like_cpp = state.accepted;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_partner_trade_server_state_index_like_cpp =
-                    state.partner_server_state_index;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_client_state_index_like_cpp = state.client_state_index;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_server_state_index_like_cpp = state.server_state_index;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_items_like_cpp = state.items;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_money_like_cpp = state.money;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_like_cpp = state.spell_id;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_cast_item_like_cpp = state.spell_cast_item_guid;
-            } else {
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_active_trade_partner_like_cpp = None;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_accepted_like_cpp = false;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_partner_trade_server_state_index_like_cpp = 0;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_client_state_index_like_cpp = 1;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_server_state_index_like_cpp = 1;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_items_like_cpp = [None; TRADE_SLOT_COUNT_LIKE_CPP as usize];
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_money_like_cpp = 0;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_like_cpp = 0;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_cast_item_like_cpp = None;
-            }
-            return Some(result);
-        }
-        canonical.then_some(result)
-    }
-    pub(crate) fn set_represented_active_trade_partner_like_cpp(
-        &mut self,
-        partner_guid: Option<ObjectGuid>,
-    ) -> bool {
-        let canonical = partner_guid
-            .map(|partner_guid| {
-                self.core.with_owned_player_mut_like_cpp(|player| {
-                    player.open_trade_like_cpp(partner_guid)
-                })
-            })
-            .unwrap_or_else(|| {
-                self.core
-                    .with_owned_player_mut_like_cpp(|player| player.clear_trade_like_cpp())
-            })
-            .is_some();
-        #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_trade_state_like_cpp(|state| {
-                    *state = partner_guid.map(wow_entities::PlayerTradeStateLikeCpp::new);
-                })
-                .is_some();
-        }
-        canonical
-    }
-    pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.clear_trade_like_cpp())
-            .is_some();
-        #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_trade_state_like_cpp(|state| *state = None)
-                .is_some();
-        }
-        canonical
-    }
+
     pub(crate) fn resolved_represented_active_trade_partner_like_cpp(
         &self,
     ) -> Option<Option<ObjectGuid>> {
         self.player_trade_state_snapshot_like_cpp()
             .map(|state| state.map(|state| state.partner_guid))
     }
+
+    pub(crate) fn set_represented_active_trade_partner_like_cpp(
+        &mut self,
+        partner_guid: Option<ObjectGuid>,
+    ) -> bool {
+        self.trade_handler_cx_like_cpp()
+            .set_represented_active_trade_partner_like_cpp(partner_guid)
+    }
+
+    pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) -> bool {
+        self.trade_handler_cx_like_cpp()
+            .clear_represented_active_trade_partner_like_cpp()
+    }
+
+    pub(crate) fn set_represented_trade_accepted_like_cpp_for_command(
+        &mut self,
+        accepted: bool,
+    ) -> bool {
+        self.trade_handler_cx_like_cpp()
+            .set_represented_trade_accepted_like_cpp_for_command(accepted)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn mutate_player_trade_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut Option<wow_entities::PlayerTradeStateLikeCpp>) -> R,
+    ) -> Option<R> {
+        self.trade_handler_cx_like_cpp()
+            .mutate_player_trade_state_like_cpp(mutate)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
+        self.trade_handler_cx_like_cpp()
+            .accept_represented_trade_like_cpp(state_index)
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_active_trade_partner_like_cpp(&self) -> Option<ObjectGuid> {
         self.resolved_represented_active_trade_partner_like_cpp()
             .expect("test Player trade owner must resolve")
     }
+
     #[cfg(test)]
     pub(crate) fn set_represented_partner_trade_server_state_index_like_cpp(
         &mut self,
@@ -195,235 +82,38 @@ impl WorldSession {
         })
         .is_some()
     }
+
     #[cfg(test)]
     pub(crate) fn represented_trade_accepted_like_cpp(&self) -> bool {
         self.player_trade_state_snapshot_like_cpp()
             .flatten()
             .is_some_and(|state| state.accepted)
     }
+
     #[cfg(test)]
     pub(crate) fn set_represented_trade_accepted_like_cpp_for_test(&mut self, accepted: bool) {
         let _ = self.set_represented_trade_accepted_like_cpp_for_command(accepted);
     }
-    pub(crate) fn set_represented_trade_accepted_like_cpp_for_command(
-        &mut self,
-        accepted: bool,
-    ) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.set_trade_accepted_like_cpp(accepted))
-            .is_some_and(|changed| changed);
-        #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_trade_state_like_cpp(|state| {
-                    if let Some(state) = state {
-                        state.accepted = accepted;
-                    }
-                })
-                .is_some();
-        }
-        canonical
-    }
+
     #[cfg(test)]
     pub(crate) fn represented_trade_client_state_index_like_cpp(&self) -> u32 {
         self.player_trade_state_snapshot_like_cpp()
             .flatten()
             .map_or(1, |state| state.client_state_index)
     }
+
     #[cfg(test)]
     pub(crate) fn represented_trade_server_state_index_like_cpp(&self) -> u32 {
         self.player_trade_state_snapshot_like_cpp()
             .flatten()
             .map_or(1, |state| state.server_state_index)
     }
+
     #[cfg(test)]
     pub(crate) fn represented_trade_money_like_cpp(&self) -> u64 {
         self.player_trade_state_snapshot_like_cpp()
             .flatten()
             .map_or(0, |state| state.money)
-    }
-    pub(crate) fn cancel_represented_trade_like_cpp(&mut self, status: u8, sendback: bool) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        let packet_bytes = TradeStatus::cancel_like_cpp(status).to_bytes();
-        self.social.record_represented_trade_cancel_like_cpp(status);
-        if !self.clear_represented_active_trade_partner_like_cpp() {
-            return;
-        }
-
-        if sendback {
-            self.send_raw_packet(&packet_bytes);
-        }
-
-        self.core.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::CancelRepresentedTradeLikeCpp(
-                crate::session::mailbox::CancelRepresentedTradeLikeCppCommand {
-                    status,
-                    packet_bytes,
-                },
-            ),
-        );
-    }
-    fn set_represented_trade_gold_state_like_cpp(
-        &mut self,
-        coinage: u64,
-        affordable: bool,
-    ) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_trade_gold_like_cpp(coinage, affordable)
-            })
-            .is_some();
-        #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_trade_state_like_cpp(|state| {
-                    let Some(state) = state else { return };
-                    state.client_state_index = state.client_state_index.wrapping_add(1);
-                    if state.money != coinage && affordable {
-                        state.money = coinage;
-                        state.accepted = false;
-                        state.server_state_index = state.server_state_index.wrapping_add(1);
-                    }
-                })
-                .is_some();
-        }
-        canonical
-    }
-    pub(crate) fn set_represented_trade_gold_like_cpp(&mut self, coinage: u64) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if trade.money == coinage {
-            let _ = self.set_represented_trade_gold_state_like_cpp(coinage, true);
-            return;
-        }
-
-        let affordable = self
-            .resolved_player_money_like_cpp()
-            .is_some_and(|player_money| player_money >= coinage);
-        if !affordable {
-            if !self.set_represented_trade_gold_state_like_cpp(coinage, false) {
-                return;
-            }
-            let packet_bytes =
-                TradeStatus::failed_like_cpp(EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, 0).to_bytes();
-            self.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        if !self.set_represented_trade_gold_state_like_cpp(coinage, true) {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.send_raw_packet(&packet_bytes);
-
-        self.core.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::UnacceptRepresentedTradeLikeCpp(
-                crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-    pub(crate) fn accept_represented_trade_like_cpp(&mut self, state_index: u32) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if trade.partner_server_state_index != state_index {
-            let _ = self.set_represented_trade_accepted_like_cpp_for_command(false);
-            let packet_bytes =
-                TradeStatus::status_only_like_cpp(TRADE_STATUS_STATE_CHANGED_LIKE_CPP).to_bytes();
-            self.send_raw_packet(&packet_bytes);
-            return;
-        }
-
-        if !self.set_represented_trade_accepted_like_cpp_for_command(true) {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
-        self.core.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-    pub(crate) fn unaccept_represented_trade_like_cpp(&mut self) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        if !self.set_represented_trade_accepted_like_cpp_for_command(false) {
-            return;
-        }
-
-        let packet_bytes =
-            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.core.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-    pub(crate) fn begin_represented_trade_like_cpp(&mut self) {
-        use wow_packet::ServerPacket;
-
-        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
-            return;
-        };
-        let partner_guid = trade.partner_guid;
-
-        let packet_bytes = TradeStatus::initiated_like_cpp(0).to_bytes();
-        self.send_raw_packet(&packet_bytes);
-
-        self.core.try_send_connected_player_command_like_cpp(
-            partner_guid,
-            SessionCommand::SendRepresentedTradeStatusLikeCpp(
-                crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
-            ),
-        );
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
-        #[cfg(test)]
-        self.trade_test_fixture_like_cpp
-            .represented_trade_cancel_statuses_like_cpp
-            .push(status);
-        #[cfg(not(test))]
-        let _ = status;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
-        &self
-            .trade_test_fixture_like_cpp
-            .represented_trade_cancel_statuses_like_cpp
     }
 }
 

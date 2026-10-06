@@ -134,7 +134,7 @@ async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,

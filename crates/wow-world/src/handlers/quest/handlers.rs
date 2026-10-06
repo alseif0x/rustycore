@@ -13,7 +13,7 @@ mod queries;
 mod reward_flow;
 mod sharing;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AdventureMapStartQuest,
         status: SessionStatus::LoggedIn,
@@ -32,7 +32,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverStatusQuery,
         status: SessionStatus::LoggedIn,
@@ -44,7 +44,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverHello,
         status: SessionStatus::LoggedIn,
@@ -56,7 +56,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverQueryQuest,
         status: SessionStatus::LoggedIn,
@@ -68,7 +68,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverAcceptQuest,
         status: SessionStatus::LoggedIn,
@@ -87,46 +87,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestLogRemoveQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_log_remove_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_log_remove_quest(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryQuestInfo,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_quest_info",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_query_quest_info(pkt).await }),
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryQuestCompletionNpcs,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_quest_completion_npcs",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryQuestCompletionNpcs::read(&mut pkt) {
-                    Ok(query) => session.handle_query_quest_completion_npcs(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryQuestCompletionNpcs: {e}"),
-                }
-            })
-        },
-    }
-}
-
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestPoiQuery,
         status: SessionStatus::LoggedIn,
@@ -143,7 +104,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverRequestReward,
         status: SessionStatus::LoggedIn,
@@ -162,7 +123,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverCompleteQuest,
         status: SessionStatus::LoggedIn,
@@ -174,7 +135,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverChooseReward,
         status: SessionStatus::LoggedIn,
@@ -193,31 +154,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverCloseQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_close_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_close_quest(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestWorldQuestUpdate,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_world_quest_update",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_world_quest_update(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestConfirmAccept,
         status: SessionStatus::LoggedIn,
@@ -236,19 +173,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestPushResult,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_quest_push_result",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_push_result(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PushQuestToParty,
         status: SessionStatus::LoggedIn,
@@ -263,6 +188,9 @@ inventory::submit! {
 // ── Handler implementations ──────────────────────────────────────────────────
 
 /// TrinityCore `MAX_QUEST_LOG_SIZE`; explicit quest-log slots are 0..24.
+
+#[cfg(test)]
+mod test_shims;
 
 impl WorldSession {
     /// CMSG_ADVENTURE_MAP_START_QUEST.
@@ -321,150 +249,5 @@ impl WorldSession {
         });
         self.handle_adventure_map_start_quest_with_catalog_like_cpp(store.as_ref(), pkt)
             .await;
-    }
-
-    pub async fn handle_quest_giver_close_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let quest_id = match pkt.read_uint32() {
-            Ok(quest_id) => quest_id,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    ?error,
-                    "QuestGiverCloseQuest: failed to read QuestID"
-                );
-                return;
-            }
-        };
-
-        let _ = self.acknowledge_auto_accept_quest_like_cpp(quest_id);
-    }
-
-    /// CMSG_REQUEST_WORLD_QUEST_UPDATE — current Trinity 3.4.3 handler sends an empty response.
-    /// C++ refs: `WorldSession::HandleRequestWorldQuestUpdate`, `QuestHandler.cpp:780-788`;
-    /// `RequestWorldQuestUpdate::Read`, `QuestPackets.h:655-661` (`Read() { }`, no payload consumption).
-    pub async fn handle_request_world_quest_update(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.send_packet(&WorldQuestUpdateResponse {
-            updates: Vec::new(),
-        });
-    }
-
-    /// CMSG_QUEST_PUSH_RESULT — response to a shared quest prompt.
-    ///
-    /// C++ anchor: `WorldSession::HandleQuestPushResult`, `QuestHandler.cpp:758-767`.
-    /// Represented-partial: session-local pending sharing state is cleared like C++;
-    /// matching sender responses are recorded as evidence because full `ObjectAccessor::FindPlayer`
-    /// and party sender packet fanout are not represented in this bounded slice.
-    pub async fn handle_quest_push_result(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match QuestPushResult::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    ?error,
-                    "QuestPushResult: failed to read SenderGUID/QuestID/Result"
-                );
-                return;
-            }
-        };
-
-        let Some(pending) = self.represented_pending_quest_sharing_like_cpp() else {
-            debug!(
-                account = self.core.account_id,
-                sender_guid = ?packet.sender_guid,
-                quest_id = packet.quest_id,
-                result = packet.result,
-                "QuestPushResult: no represented pending shared quest"
-            );
-            return;
-        };
-
-        self.clear_represented_pending_quest_sharing_like_cpp();
-
-        if pending.sender_guid != packet.sender_guid {
-            self.quest_state
-                .record_represented_quest_push_result_sender_mismatch_like_cpp();
-            debug!(
-                account = self.core.account_id,
-                pending_sender_guid = ?pending.sender_guid,
-                packet_sender_guid = ?packet.sender_guid,
-                "QuestPushResult: represented sender mismatch, pending state cleared"
-            );
-            return;
-        }
-
-        let Some(receiver_guid) = self.player_guid() else {
-            debug!(
-                account = self.core.account_id,
-                sender_guid = ?packet.sender_guid,
-                "QuestPushResult: represented sender matched but no local receiver guid is available"
-            );
-            return;
-        };
-
-        self.quest_state
-            .record_represented_quest_push_result_response_like_cpp(
-                RepresentedQuestPushResultResponseLikeCpp {
-                    receiver_guid,
-                    sender_guid: packet.sender_guid,
-                    parsed_quest_id: packet.quest_id,
-                    pending_quest_id: pending.quest_id,
-                    result: packet.result,
-                },
-            );
-    }
-
-    /// CMSG_QUEST_LOG_REMOVE_QUEST — abandon quest-log slot.
-
-    /// Represented-partial seam: explicit QuestLog slot lookup + local active quest removal/DB delete.
-    /// Remaining gaps: source-item gates/cleanup, no-abandon-once-begun, timed/PvP state,
-    /// personal summons, quest tracker DB, ScriptMgr callbacks, and criteria update evidence.
-    pub async fn handle_quest_log_remove_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let slot = match pkt.read_uint8() {
-            Ok(slot) => slot,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    ?error,
-                    "QuestLogRemoveQuest: failed to read Entry"
-                );
-                return;
-            }
-        };
-
-        debug!(
-            account = self.core.account_id,
-            slot, "QuestLogRemoveQuest: represented slot-backed abandon request"
-        );
-
-        if slot >= MAX_QUEST_LOG_SIZE_LIKE_CPP {
-            debug!(
-                account = self.core.account_id,
-                slot, "QuestLogRemoveQuest: slot outside MAX_QUEST_LOG_SIZE"
-            );
-            return;
-        }
-
-        let Some(qid) = self.get_quest_slot_quest_id_like_cpp(slot) else {
-            debug!(
-                account = self.core.account_id,
-                slot,
-                "QuestLogRemoveQuest: valid slot empty; criteria update remains an explicit gap"
-            );
-            return;
-        };
-
-        self.invalidate_player_quest_status_authority_like_cpp();
-        let _ = self.remove_represented_quest_status_like_cpp(qid);
-        crate::session::cx_quest_state_ref(self)
-            .delete_quest_from_db(qid)
-            .await;
-        self.sync_player_registry_state_like_cpp();
-        self.send_represented_quest_log_slot_update_like_cpp(slot);
-        info!(
-            account = self.core.account_id,
-            quest_id = qid,
-            slot,
-            "Quest abandoned via represented explicit quest-log slot"
-        );
     }
 }

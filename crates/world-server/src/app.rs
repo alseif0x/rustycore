@@ -3737,9 +3737,9 @@ async fn run_inner(
         active_realm.id.address_like_cpp(),
     ));
 
-    // Build handler dispatch table
-    let table = wow_world::session::registry::build_dispatch_table();
-    info!("Loaded {} packet handlers", table.len());
+    // Build the process-wide packet-handler registry before admitting sessions.
+    let packet_handler_registry = crate::compose_packet_handlers_like_cpp()?;
+    info!("Loaded {} packet handlers", packet_handler_registry.len());
 
     // Build account lookup
     let account_lookup: Arc<dyn AccountLookup> = Arc::new(DbAccountLookup {
@@ -4644,6 +4644,7 @@ async fn run_inner(
     });
     let session_resources = SessionResources {
         core: SessionCoreCapabilitiesLikeCpp {
+            packet_handlers: Arc::clone(&packet_handler_registry),
             handler_catalogs: Arc::new(wow_world::session::SessionHandlerCatalogsLikeCpp {
                 object_mgr: object_mgr_catalogs,
                 player_grid_loader,

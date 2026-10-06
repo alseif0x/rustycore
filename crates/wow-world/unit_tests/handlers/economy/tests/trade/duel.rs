@@ -389,8 +389,7 @@ async fn duel_response_forfeit_records_surrender_spell_like_cpp() {
 
 #[test]
 fn duel_response_handler_metadata_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::DuelResponse)
         .expect("DuelResponse handler entry");
 

@@ -10,157 +10,103 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) -> Option<RepresentedSpellClickCreatureSnapshotLikeCpp> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_spell_click_creature_snapshot_like_cpp(hub, guid)
+        self.world_entities
+            .represented_spell_click_creature_snapshot_like_cpp(
+                &self.core.quest_objective_access_like_cpp(),
+                guid,
+            )
     }
     pub(crate) fn represented_can_see_spell_click_on_creature_like_cpp(
         &self,
         creature_guid: ObjectGuid,
     ) -> RepresentedCanSeeSpellClickOutcomeLikeCpp {
-        let Some(spell_click_store) = self.catalogs.spell_catalogs.npc_spell_click_store.as_ref()
-        else {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-        };
-        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-        };
-        let Some(creature) = self.represented_spell_click_creature_snapshot_like_cpp(creature_guid)
-        else {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-        };
-        if !creature.is_in_world {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
-        }
-
-        if (u64::from(creature.npc_flags) & UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP) == 0 {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
-        }
-
-        let click_bounds = spell_click_store.spell_click_info_map_bounds_like_cpp(creature.entry);
-        if click_bounds.is_empty() {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
-        }
-
-        let Some(clicker_object) =
-            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
-        else {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-        };
-        let mut target_object = WorldObject::new(
-            false,
-            TypeId::Unit,
-            wow_constants::TypeMask::OBJECT | wow_constants::TypeMask::UNIT,
-        );
-        target_object.object_mut().create(creature.guid);
-        target_object.object_mut().set_entry(creature.entry);
-        let _ = target_object.set_map(creature.map_id, creature.instance_id);
-        target_object.relocate(creature.position);
-        *target_object.phase_shift_mut() = creature.phase_shift.clone();
-
-        let Some(player_unit_snapshot) =
-            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
-        else {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-        };
-        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
-        let creature_unit_snapshot = wow_conditions::ConditionUnitSnapshot {
-            level: creature.level,
-            health: creature.health,
-            max_health: creature.max_health,
-            class_mask: 0,
-            race: 0,
-            creature_type: None,
-            is_alive: creature.is_alive,
-            is_charmed: false,
-            in_water: false,
-            unit_state: 0,
-            stand_state: UnitStandStateType::Stand as u32,
-        };
-        let player_condition_store = self.player_condition_store().cloned();
-        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
-        else {
-            return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-        };
-        let area_table_store = self.catalogs.area_table_store.as_ref().cloned();
-
-        for click_info in click_bounds {
-            match click_info.user_type {
-                SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
-                    let player_faction_template =
-                        crate::session::hub_ref(self).player_faction_template_id_like_cpp();
-                    if creature.is_summon
-                        || self.catalogs.factions.template_store.is_none()
-                        || player_faction_template.is_none()
-                    {
-                        return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-                    }
-                    let reaction = crate::session::hub_ref(self)
-                        .represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
-                            self_faction_template_id: player_faction_template.unwrap_or(0),
-                            target_faction_template_id: creature.faction_template_id,
-                            same_object: false,
-                            attackable_by_summoner: false,
-                            same_charmer_or_owner_or_self: false,
-                            self_has_player_owner: true,
-                            target_has_player_owner: false,
-                            target_player_owner_is_current_session: false,
-                            target_owner_forced_rank_for_self: None,
-                            same_player_owner: false,
-                            duel_in_progress: false,
-                            same_raid: false,
-                            self_unit_player_controlled: true,
-                            target_unit_player_controlled: false,
-                            self_ffa_pvp: false,
-                            target_ffa_pvp: false,
-                            self_ignores_reputation: false,
-                            target_ignores_reputation: false,
-                            target_is_unit: true,
-                            target_player_contested_pvp: false,
-                        });
-                    if reaction < wow_data::reputation::ReputationRankLikeCpp::Friendly {
-                        return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
-                    }
-                }
-                SPELL_CLICK_USER_PARTY_LIKE_CPP | SPELL_CLICK_USER_RAID_LIKE_CPP => {
-                    return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
-                }
-                _ => {}
-            }
-
-            if wow_conditions::is_object_meeting_spell_click_conditions_like_cpp(
-                condition_store,
-                creature.entry,
-                click_info.spell_id,
-                Some(&clicker_object),
-                Some(&target_object),
-                |condition, source_info| {
-                    source_info.set_unit_target_snapshot(0, player_unit_snapshot);
-                    source_info.set_player_target_snapshot(0, player_snapshot);
-                    source_info.set_unit_target_snapshot(1, creature_unit_snapshot);
-                    if let Some(store) = player_condition_store.as_ref() {
-                        source_info.set_player_condition_store(store.as_ref());
-                        if let Some(context) = player_condition_context.as_context(self) {
-                            source_info.set_player_condition_context(0, context);
-                        }
-                    }
-                    wow_conditions::condition_meets_basic_like_cpp(
-                        condition,
-                        source_info,
-                        |area_id, required_area_id| {
-                            area_table_store.as_ref().is_some_and(|store| {
-                                store.is_in_area_like_cpp(area_id, required_area_id)
-                            })
-                        },
-                    )
-                    .value()
-                    .unwrap_or(false)
-                },
-            ) {
-                return RepresentedCanSeeSpellClickOutcomeLikeCpp::Visible;
-            }
-        }
-
-        RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden
+        let owner = self.core.quest_objective_access_like_cpp();
+        let npc_access = self
+            .core
+            .npc_interaction_access_with_selected_refs_like_cpp(
+                self.catalogs.factions.store.as_deref(),
+                self.catalogs.factions.template_store.as_deref(),
+                self.catalogs.friendship_rep_reaction_store.as_deref(),
+                #[cfg(any(test, feature = "test-fixtures"))]
+                wow_world_core::session::NpcInteractionFixtureRefsLikeCpp::new(
+                    &self.fixtures.movement.player_position,
+                    &self.fixtures.identity.player_faction_template_like_cpp,
+                    &self.fixtures.identity.player_race,
+                    &self.fixtures.identity.player_class,
+                    &self.fixtures.combat.player_health_like_cpp,
+                    &self.fixtures.combat.player_max_health_like_cpp,
+                    &self.fixtures.combat.player_alive_like_cpp,
+                    &self.fixtures.progression.reputation_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_destinations_like_cpp,
+                    &self.fixtures.vehicles.taxi_flight_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
+                    &self.fixtures.vehicles.taxi_mounted_like_cpp,
+                ),
+            );
+        let player_access = self
+            .core
+            .player_condition_access_with_selected_fixture_refs_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
+                    &self.fixtures.identity.player_race,
+                    &self.fixtures.identity.player_class,
+                    &self.fixtures.identity.player_level,
+                    &self.fixtures.identity.player_gender,
+                    &self
+                        .fixtures
+                        .progression
+                        .represented_primary_specialization_id_like_cpp,
+                    &self.fixtures.movement.player_position,
+                    &self.fixtures.identity.player_zone_id_like_cpp,
+                    &self.fixtures.identity.player_area_id_like_cpp,
+                    &self
+                        .fixtures
+                        .identity
+                        .player_zone_area_authority_complete_like_cpp,
+                    &self.fixtures.combat.player_pvp_hostile_like_cpp,
+                    &self.fixtures.combat.player_pvp_end_timer_like_cpp,
+                    &self.fixtures.combat.player_contested_pvp_timer_like_cpp,
+                    &self.fixtures.identity.represented_is_outdoors_like_cpp,
+                    &self.fixtures.combat.player_health_like_cpp,
+                    &self.fixtures.combat.player_max_health_like_cpp,
+                    &self.fixtures.combat.player_alive_like_cpp,
+                    &self.fixtures.vehicles.taxi_destinations_like_cpp,
+                    &self.fixtures.vehicles.taxi_flight_state_like_cpp,
+                    &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
+                    &self.fixtures.vehicles.taxi_mounted_like_cpp,
+                    &self.fixtures.auras.visible_auras,
+                    &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                    &self
+                        .fixtures
+                        .auras
+                        .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                    &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                    &self
+                        .fixtures
+                        .progression
+                        .player_skill_test_fixture_like_cpp
+                        .player_skill_records_like_cpp,
+                ),
+            );
+        let condition_projection = self.player_condition_projection_cx_like_cpp();
+        wow_world_application::represented_can_see_spell_click_on_like_cpp(
+            &self.world_entities,
+            &owner,
+            &npc_access,
+            &player_access,
+            &condition_projection,
+            &self.social,
+            self.catalogs.chr.specialization_store.as_deref(),
+            creature_guid,
+            self.catalogs
+                .spell_catalogs
+                .npc_spell_click_store
+                .as_deref(),
+            self.catalogs.condition_store.as_deref(),
+            self.catalogs.player_condition_store.as_ref(),
+            self.catalogs.area_table_store.as_ref(),
+            cfg!(test),
+        )
     }
     pub(in crate::session) async fn apply_represented_spell_click_creature_damage_to_clicker_like_cpp(
         &mut self,
@@ -235,42 +181,5 @@ impl WorldSession {
         }
 
         Ok(())
-    }
-}
-
-impl crate::session::state::WorldEntitiesState {
-    pub(in crate::session) fn represented_spell_click_creature_snapshot_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedSpellClickCreatureSnapshotLikeCpp> {
-        if guid.is_empty() || !guid.is_any_type_creature() {
-            return None;
-        }
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = manager.find_map(u32::from(hub.core.player_map_id_like_cpp()), 0)?;
-        map.map()
-            .with_creature_or_pet_like_cpp(guid, |creature, pet_owner_guid| {
-                RepresentedSpellClickCreatureSnapshotLikeCpp {
-                    guid: creature.guid(),
-                    entry: creature.entry(),
-                    map_id: creature.unit().world().map_id(),
-                    instance_id: creature.unit().world().instance_id(),
-                    position: creature.position(),
-                    phase_shift: creature.unit().world().phase_shift().clone(),
-                    npc_flags: creature.ai_ownership().npc_flags,
-                    faction_template_id: creature.unit().data().faction_template.max(0) as u32,
-                    level: u32::from(creature.level()),
-                    health: creature.current_health(),
-                    max_health: creature.max_health(),
-                    is_alive: creature.is_alive(),
-                    is_in_world: creature.unit().world().object().is_in_world(),
-                    is_summon: creature.is_summon_like_cpp(),
-                    owner_guid: pet_owner_guid.or(creature.unit().subsystems().control.owner_guid),
-                }
-            })
     }
 }

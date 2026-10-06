@@ -520,12 +520,9 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
 
     outcome
 }
+#[cfg(test)]
 pub(in crate::session) fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
-    // `Unit::MeleeSpellHitResult` delegates its miss bucket to
-    // `MeleeSpellMissChance`, whose victim miss chance is the constant 5.0%
-    // returned by `Unit::GetUnitMissChance`. Weapon-skill and level deltas are
-    // not applied by this legacy melee-spell path.
-    500
+    wow_world_entities::creature_spell_publication::creature_melee_spell_miss_threshold_3_3_5_like_cpp()
 }
 pub(in crate::session) fn is_creature_melee_los_clear_like_cpp(
     attacker: &wow_entities::WorldObject,

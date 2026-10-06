@@ -6,6 +6,22 @@
 use super::*;
 
 #[test]
+fn removing_flight_flags_retains_disabled_gravity_without_starting_fall_like_cpp() {
+    let (mut session, _, _) = make_session();
+    session.fixtures.movement.player_movement_flags_like_cpp =
+        wow_constants::MovementFlag::CAN_FLY | wow_constants::MovementFlag::DISABLE_GRAVITY;
+    {
+        let mut hub = crate::session::hub_mut(&mut session);
+        let (presentation, mut movement) = hub.aura_removal_mount_accesses_like_cpp();
+        movement.update_flight_flags_for_aura_like_cpp(&presentation, false);
+    }
+    let flags = session.fixtures.movement.player_movement_flags_like_cpp;
+    assert!(!flags.contains(wow_constants::MovementFlag::CAN_FLY));
+    assert!(flags.contains(wow_constants::MovementFlag::DISABLE_GRAVITY));
+    assert!(!flags.contains(wow_constants::MovementFlag::FALLING));
+}
+
+#[test]
 fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);

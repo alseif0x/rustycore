@@ -1,0 +1,478 @@
+use crate::SessionSpellState;
+use std::{collections::HashSet, time::Instant};
+use wow_core::{ObjectGuid, guid::HighGuid};
+use wow_entities::AuraApplicationLikeCpp as AuraApplication;
+use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubMut, HubRef};
+
+pub const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
+
+pub fn player_aura_info_like_cpp(
+    aura: &AuraApplication,
+    player_level: u8,
+    map_id: u16,
+) -> wow_packet::packets::misc::AuraInfoLikeCpp {
+    let duration_ms = (aura.duration_total > 0).then_some(aura.duration_total);
+    let remaining_ms = (aura.duration_remaining > 0).then_some(aura.duration_remaining);
+    let points = if aura.aura_flags & AFLAG_SCALABLE_LIKE_CPP != 0 {
+        aura.represented_effect_amounts
+            .iter()
+            .filter(|effect| {
+                effect.effect_index < u32::BITS as u8
+                    && aura.effect_mask & (1u32 << effect.effect_index) != 0
+            })
+            .map(|effect| effect.amount as f32)
+            .collect()
+    } else {
+        Vec::new()
+    };
+    wow_packet::packets::misc::AuraInfoLikeCpp {
+        slot: aura.slot,
+        aura_data: Some(wow_packet::packets::misc::AuraDataInfoLikeCpp {
+            cast_id: ObjectGuid::create_world_object(
+                HighGuid::Cast,
+                3,
+                aura.caster_guid.realm_id().max(1),
+                map_id,
+                0,
+                u32::try_from(aura.spell_id).unwrap_or(0),
+                i64::from(aura.slot) + 1,
+            ),
+            spell_id: aura.spell_id,
+            spell_visual_id: 0,
+            flags: aura.aura_flags.min(u32::from(u16::MAX)) as u16,
+            active_flags: aura.effect_mask,
+            caster_guid: aura.caster_guid,
+            cast_level: player_level.into(),
+            applications: aura.stack_count.saturating_sub(1),
+            duration_ms,
+            remaining_ms,
+            points,
+        }),
+    }
+}
+
+impl SessionSpellState {
+    pub fn send_initial_player_auras_like_cpp(&self, hub: HubRef<'_>) {
+        let Some(visible_auras) = hub.resolved_player_visible_auras_like_cpp() else {
+            return;
+        };
+        if visible_auras.is_empty() {
+            return;
+        }
+        let Some(player_guid) = hub.core.player_guid() else {
+            return;
+        };
+
+        let mut visible: Vec<_> = visible_auras.values().collect();
+        visible.sort_by_key(|aura| aura.slot);
+        let auras = visible
+            .into_iter()
+            .map(|aura| {
+                player_aura_info_like_cpp(
+                    aura,
+                    hub.player_level_like_cpp(),
+                    hub.core.player_map_id_like_cpp(),
+                )
+            })
+            .collect();
+        hub.core
+            .send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
+                player_guid,
+                auras,
+            ));
+    }
+
+    /// Validate the exact active effect mask retained by one represented
+    /// `AuraApplication`. Whole-spell inertness covers cast-time side effects;
+    /// the mask check additionally proves that every live aura bit maps to a
+    /// represented, allowlisted `APPLY_AURA` effect.
+    pub fn player_visible_aura_is_spell_hit_inert_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+        aura: &AuraApplication,
+    ) -> bool {
+        use wow_data::spell::spell_effect_types;
+
+        let Ok(spell_id) = u32::try_from(aura.spell_id) else {
+            return false;
+        };
+        if aura.effect_mask == 0
+            || !self.player_target_spell_is_hit_inert_like_cpp(hub, spell_id, aura.difficulty_id)
+        {
+            return false;
+        }
+        let Some(effects) = hub
+            .catalogs
+            .spell_catalogs
+            .spell_store
+            .as_ref()
+            .and_then(|store| {
+                store.effects_for_difficulty_like_cpp(
+                    aura.spell_id,
+                    aura.difficulty_id,
+                    hub.catalogs.difficulty_store.as_deref(),
+                )
+            })
+        else {
+            return false;
+        };
+
+        let mut represented_mask = 0_u32;
+        for effect in effects {
+            let Some(bit) = 1_u32.checked_shl(effect.effect_index) else {
+                return false;
+            };
+            if aura.effect_mask & bit == 0 {
+                continue;
+            }
+            if effect.effect != spell_effect_types::SPELL_EFFECT_APPLY_AURA
+                || !wow_data::player_target_spell_effect_is_hit_inert_like_cpp(effect)
+            {
+                return false;
+            }
+            represented_mask |= bit;
+        }
+        represented_mask == aura.effect_mask
+    }
+
+    pub fn insert_player_visible_aura_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        aura: AuraApplication,
+    ) -> bool {
+        self.insert_player_visible_aura_with_provenance_like_cpp(
+            hub,
+            aura,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        )
+    }
+
+    pub fn insert_player_visible_aura_with_provenance_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        aura: AuraApplication,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+    ) -> bool {
+        let spell_store = hub.catalogs.spell_store().map(AsRef::as_ref);
+        self.insert_player_visible_aura_with_access_and_provenance_like_cpp(
+            &mut hub.player_aura_removal_access_like_cpp(),
+            spell_store,
+            aura,
+            provenance,
+        )
+    }
+
+    pub fn insert_player_visible_aura_with_access_like_cpp(
+        &mut self,
+        player: &mut wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+        spell_store: Option<&wow_data::SpellStore>,
+        aura: AuraApplication,
+    ) -> bool {
+        self.insert_player_visible_aura_with_access_and_provenance_like_cpp(
+            player,
+            spell_store,
+            aura,
+            wow_entities::AuraCastProvenanceLikeCpp::default(),
+        )
+    }
+
+    pub fn insert_player_visible_aura_with_access_and_provenance_like_cpp(
+        &mut self,
+        player: &mut wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+        spell_store: Option<&wow_data::SpellStore>,
+        aura: AuraApplication,
+        provenance: wow_entities::AuraCastProvenanceLikeCpp,
+    ) -> bool {
+        let slot = aura.slot;
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = slot;
+        let _fallback = aura.clone();
+        let applied = aura.clone();
+        let _canonical = player.insert_player_visible_aura_canonical_like_cpp(aura, provenance);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if _canonical {
+            self.apply_represented_transform_aura_with_access_like_cpp(
+                player,
+                spell_store,
+                &applied,
+            );
+            return true;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if player.player_handle_absent_like_cpp() {
+            let inserted = player
+                .mutate_player_aura_subsystem_like_cpp(|auras| {
+                    auras.insert_runtime_application_like_cpp(_fallback);
+                    auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                })
+                .is_some();
+            if inserted {
+                self.apply_represented_transform_aura_with_access_like_cpp(
+                    player,
+                    spell_store,
+                    &applied,
+                );
+            }
+            return inserted;
+        }
+        if _canonical {
+            // C++ applies the transform aura effect on the same transition that
+            // makes the application visible, so the canonical `m_transformSpell`
+            // owner is updated once the insert succeeded.
+            self.apply_represented_transform_aura_with_access_like_cpp(
+                player,
+                spell_store,
+                &applied,
+            );
+        }
+        _canonical
+    }
+
+    pub fn next_player_visible_aura_slot_like_cpp(&self, hub: HubRef<'_>) -> Option<u8> {
+        Self::next_visible_aura_slot_from_snapshot_like_cpp(
+            hub.player_aura_subsystem_snapshot_like_cpp(),
+        )
+    }
+
+    pub fn next_player_visible_aura_slot_with_access_like_cpp(
+        player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+    ) -> Option<u8> {
+        Self::next_visible_aura_slot_from_snapshot_like_cpp(
+            player.aura_subsystem_snapshot_like_cpp(),
+        )
+    }
+
+    fn next_visible_aura_slot_from_snapshot_like_cpp(
+        auras: Option<wow_entities::AuraSubsystem>,
+    ) -> Option<u8> {
+        let auras = auras?;
+        (0..u8::MAX).find(|slot| !auras.runtime_applications_like_cpp().contains_key(slot))
+    }
+
+    /// C++ `Player::UpdateZone` dispatches OutdoorPvP and Battlefield handlers
+    /// after `SpellArea`. Their live control state is not represented here, so
+    /// registered zones that can add hit-relevant auras remain fail-closed.
+    /// Nagrand and Terokkar Forest are narrow exceptions: their exact source
+    /// spells are admitted only when the effective spell projection and
+    /// runtime-hook authority prove them hit-inert.
+    pub fn represented_update_zone_script_aura_source_is_hit_inert_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+    ) -> bool {
+        let Some(world_local) = hub.player_world_local_state_like_cpp() else {
+            return false;
+        };
+        if !world_local.has_zone_area_authority_like_cpp() {
+            return false;
+        }
+        let zone_id = world_local.zone_id_like_cpp();
+        let audited_source_spell_id = match zone_id {
+            // OutdoorPvPNA::NA_CAPTURE_BUFF.
+            3_518 => Some(33_795),
+            // OutdoorPvPTF::TF_CAPTURE_BUFF. The C++ handler is instantiated
+            // for map 530 and is therefore reachable here for Terokkar Forest.
+            3_519 => Some(33_377),
+            _ => None,
+        };
+        if let Some(spell_id) = audited_source_spell_id {
+            return self.player_target_spell_is_hit_inert_like_cpp(
+                hub,
+                spell_id,
+                hub.core.current_map_difficulty_id_like_cpp(),
+            );
+        }
+        !matches!(
+            zone_id,
+            // OutdoorPvPSI, the four OutdoorPvPTF dungeon zone IDs,
+            // OutdoorPvPZM, OutdoorPvPHP, and BattlefieldWG respectively.
+            // OutdoorPvPNA and OutdoorPvPTF on map 530 are audited above; the
+            // dungeon IDs remain conservative because this authority does not
+            // model C++'s `(Map*, zone)` OutdoorPvP registration key.
+            1_377
+                | 3_428
+                | 3_429
+                | 3_791
+                | 3_789
+                | 3_792
+                | 3_790
+                | 3_521
+                | 3_607
+                | 3_717
+                | 3_715
+                | 3_716
+                | 3_483
+                | 3_563
+                | 3_562
+                | 3_713
+                | 3_714
+                | 3_836
+                | 4_197
+        )
+    }
+
+    /// C++ `Player::UpdateArea` calls `EnablePvpRules` when the current area
+    /// or any AreaTable ancestor has `FreeForAllPvP`; that path casts 208682
+    /// and 134735. The hierarchy must be complete, non-cyclic, and terminate
+    /// at parent zero before Rust can prove those casts absent.
+    pub fn represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+    ) -> bool {
+        let Some(world_local) = hub.player_world_local_state_like_cpp() else {
+            return false;
+        };
+        if !world_local.has_zone_area_authority_like_cpp() {
+            return false;
+        }
+        let Some(areas) = hub.catalogs.area_table_store.as_ref() else {
+            return false;
+        };
+        let mut area_id = world_local.area_id_like_cpp();
+        if area_id == 0 {
+            return false;
+        }
+
+        let mut visited = HashSet::new();
+        loop {
+            if !visited.insert(area_id) {
+                return false;
+            }
+            let Some(area) = areas.get(area_id) else {
+                return false;
+            };
+            if area.flags & AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP != 0 {
+                return false;
+            }
+            area_id = u32::from(area.parent_area_id);
+            if area_id == 0 {
+                return true;
+            }
+        }
+    }
+
+    pub fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut self, hub: &mut HubMut<'_>) {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            hub.fixtures
+                .vehicles
+                .mount_cancel_expected_vehicle_aura_packets_like_cpp = hub
+                .fixtures
+                .vehicles
+                .mount_cancel_expected_vehicle_aura_packets_like_cpp
+                .saturating_add(1);
+        }
+        hub.core
+            .send_packet(&wow_packet::packets::vehicle::OnCancelExpectedRideVehicleAura);
+    }
+
+    pub fn send_aura_update_applied(
+        &self,
+        hub: HubRef<'_>,
+        spell_id: i32,
+        slot: u8,
+        caster: ObjectGuid,
+        duration: u32,
+        flags: u32,
+        effect_mask: u32,
+    ) {
+        self.send_aura_update_applied_from_queries_like_cpp(
+            &hub.core.packet_publication_access_like_cpp(),
+            spell_id,
+            slot,
+            caster,
+            duration,
+            flags,
+            effect_mask,
+            || hub.core.player_guid(),
+            || hub.core.current_map_difficulty_id_like_cpp(),
+            || hub.player_level_like_cpp(),
+            || hub.core.player_map_id_like_cpp(),
+        );
+    }
+
+    pub fn send_aura_update_applied_with_access_like_cpp(
+        &self,
+        player: &wow_world_core::session::PlayerAuraRemovalAccessLikeCpp<'_>,
+        spell_id: i32,
+        slot: u8,
+        caster: ObjectGuid,
+        duration: u32,
+        flags: u32,
+        effect_mask: u32,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
+    ) {
+        self.send_aura_update_applied_from_queries_like_cpp(
+            &player.packet_publication_like_cpp(),
+            spell_id,
+            slot,
+            caster,
+            duration,
+            flags,
+            effect_mask,
+            || player.player_guid_like_cpp(),
+            || player.aura_difficulty_like_cpp(),
+            || {
+                player.aura_cast_level_like_cpp(
+                    #[cfg(any(test, feature = "test-fixtures"))]
+                    fixture_level,
+                )
+            },
+            || player.aura_cast_map_id_like_cpp(),
+        );
+    }
+
+    fn send_aura_update_applied_from_queries_like_cpp(
+        &self,
+        publication: &wow_world_core::session::PacketPublicationAccessLikeCpp<'_>,
+        spell_id: i32,
+        slot: u8,
+        caster: ObjectGuid,
+        duration: u32,
+        flags: u32,
+        effect_mask: u32,
+        target_guid: impl FnOnce() -> Option<ObjectGuid>,
+        difficulty: impl FnOnce() -> u8,
+        level: impl FnOnce() -> u8,
+        map_id: impl FnOnce() -> u16,
+    ) {
+        let Some(target_guid) = target_guid() else {
+            return;
+        };
+        let aura = AuraApplication {
+            spell_id,
+            difficulty_id: difficulty(),
+            caster_guid: caster,
+            slot,
+            duration_total: duration,
+            duration_remaining: duration,
+            stack_count: 1,
+            aura_flags: flags,
+            effect_mask,
+            aura_interrupt_flags: 0,
+            aura_interrupt_flags2: 0,
+            represented_effect: None,
+            represented_amount: 0,
+            represented_effect_amounts: Vec::new(),
+            represented_misc_value: None,
+            represented_multiplier: 1.0,
+            applied_at: Instant::now(),
+        };
+        publication.send_packet(&wow_packet::packets::misc::AuraUpdate {
+            unit_guid: target_guid,
+            update_all: false,
+            auras: vec![player_aura_info_like_cpp(&aura, level(), map_id())],
+        });
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn visible_aura_slot_for_spell_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+        spell_id: i32,
+    ) -> Option<u8> {
+        hub.resolved_player_visible_auras_like_cpp()
+            .expect("test Player aura owner must resolve")
+            .values()
+            .find_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
+    }
+}

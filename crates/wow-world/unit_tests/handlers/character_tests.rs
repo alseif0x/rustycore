@@ -126,9 +126,9 @@ mod persistence;
 mod pet;
 #[path = "character_tests/quest.rs"]
 mod quest;
+#[path = "character_tests/raw_equip.rs"]
+mod raw_equip;
 #[path = "character_tests/skill.rs"]
 mod skill;
 #[path = "character_tests/spell.rs"]
 mod spell;
-#[path = "character_tests/visibility.rs"]
-mod visibility;

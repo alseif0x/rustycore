@@ -58,11 +58,16 @@ impl WorldSession {
         &self,
         quest_ids: &mut Vec<u32>,
     ) {
-        quest_ids.sort_unstable();
-        quest_ids.dedup();
-        for quest_id in quest_ids.drain(..) {
-            self.save_represented_quest_status_like_cpp(quest_id).await;
-        }
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::save_changed_quest_statuses_like_cpp(
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            &self.lifecycle,
+            quest_ids,
+            cfg!(test),
+        )
+        .await;
     }
 
     #[cfg(test)]
@@ -96,7 +101,7 @@ impl WorldSession {
     ) {
         let completed_quest_ids: Vec<_> = self
             .quest_state
-            .represented_quest_complete_status_updates_like_cpp[completion_evidence_start..]
+            .represented_quest_complete_status_updates_from_like_cpp(completion_evidence_start)
             .iter()
             .filter_map(|evidence| {
                 (evidence.new_status == QUEST_STATUS_COMPLETE_LIKE_CPP).then_some(evidence.quest_id)
@@ -117,67 +122,29 @@ impl WorldSession {
         quest_id: u32,
         status: u8,
     ) -> Option<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp> {
-        let owner_guid = self.player_guid()?.counter() as u64;
-        let quest_state = self.player_quest_gameplay_snapshot_like_cpp();
-        let mut projection = match quest_state
-            .as_ref()
-            .and_then(|state| state.statuses_like_cpp().get(&quest_id))
-        {
-            Some(saved) => self
-                .catalogs
-                .represented_quest_status_persistence_like_cpp(saved),
-            None if status == QUEST_STATUS_REWARDED_LIKE_CPP => {
-                wow_persistence::QuestStatusPersistenceLikeCpp {
-                    quest_id,
-                    status,
-                    explored: false,
-                    accept_time_secs: 0,
-                    end_time_secs: 0,
-                    objectives: Vec::new(),
-                }
-            }
-            None => {
-                warn!(
-                    account = self.core.account_id,
-                    quest_id,
-                    "Quest status save skipped because canonical Player quest state is unavailable"
-                );
-                return None;
-            }
-        };
-        projection.status = status;
-        Some(
-            wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Save {
-                owner_guid,
-                status: projection,
-            },
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::plan_quest_status_save_like_cpp(
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            quest_id,
+            status,
+            cfg!(test),
         )
     }
 
     pub(super) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
-        let port = match self.lifecycle.player_quest_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => return,
-        };
-        let Some(request) = self.plan_quest_status_save_like_cpp(quest_id, status) else {
-            return;
-        };
-
-        match port.persist_status_like_cpp(request).await {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.core.account_id,
-                quest_id,
-                error = %reason,
-                "Failed to save quest status"
-            ),
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.core.account_id,
-                quest_id,
-                error = %reason,
-                "Quest status save commit outcome is unknown"
-            ),
-        }
+        let owner = self.core.quest_objective_access_like_cpp();
+        wow_world_application::save_quest_to_db_like_cpp(
+            &owner,
+            &self.quest_state,
+            &self.catalogs,
+            &self.lifecycle,
+            quest_id,
+            status,
+            cfg!(test),
+        )
+        .await;
     }
 
     /// Load all active quests for this player from the characters DB.
@@ -558,39 +525,4 @@ impl WorldSession {
     }
 }
 
-impl crate::session::QuestStateCxRef<'_> {
-    /// Delete a quest from the characters database (abandon).
-    pub(super) async fn delete_quest_from_db(&self, quest_id: u32) {
-        let owner_guid = match self.hub.core.player_guid() {
-            Some(g) => g.counter() as u64,
-            None => return,
-        };
-        let port = match self.lifecycle.player_quest_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => return,
-        };
-        match port
-            .persist_status_like_cpp(
-                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
-                    owner_guid,
-                    quest_id,
-                },
-            )
-            .await
-        {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.hub.core.account_id,
-                quest_id,
-                error = %reason,
-                "Failed to delete quest"
-            ),
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.hub.core.account_id,
-                quest_id,
-                error = %reason,
-                "Quest deletion commit outcome is unknown"
-            ),
-        }
-    }
-}
+impl crate::session::QuestStateCxRef<'_> {}

@@ -32,12 +32,12 @@ use crate::registrations::{
 };
 
 const HANDLER_PACKAGE_NAME: &str = "wow-handler";
-/// Where the one `inventory::collect!(PacketHandlerEntry)` lives.
+/// Where the one legacy-wrapper inventory collector lives.
 ///
 /// #359 moved the registry beside the session it dispatches to: an entry now
-/// carries a `fn(&mut WorldSession, WorldPacket)` thunk, and `wow-handler` is
-/// the crate `wow-world` depends on, so it cannot name that type. `wow-handler`
-/// keeps the vocabulary; the collector belongs to the dispatcher owner.
+/// carries a `fn(&mut WorldSession, WorldPacket)` thunk. `PacketHandlerEntry`
+/// remains the generic type from `wow-handler`; this crate-local wrapper lets
+/// `wow-world` collect that specialized entry for its dispatcher.
 const REGISTRY_PACKAGE_NAME: &str = "wow-world";
 const REGISTRY_MODULE_PATH: &str = "crate::session::registry";
 const WOW_PROTO_PACKAGE_NAME: &str = "wow-proto";
@@ -122,7 +122,6 @@ struct PackageAuditScope {
     name: String,
     root: PathBuf,
     production_roots: Vec<PathBuf>,
-    production_lib_roots: BTreeSet<PathBuf>,
 }
 
 fn pinned_generated_include_bodies() -> Result<Vec<String>, String> {
@@ -468,7 +467,6 @@ fn package_audit_scopes(
             })?;
 
         let mut production_roots = BTreeSet::new();
-        let mut production_lib_roots = BTreeSet::new();
         for target in required_array(package, "targets", &package_id)? {
             let kinds = required_array(target, "kind", "target")?;
             let production = kinds.iter().any(|kind| {
@@ -477,15 +475,7 @@ fn package_audit_scopes(
             });
             if production {
                 let source_path = PathBuf::from(required_string(target, "src_path", "target")?);
-                production_roots.insert(source_path.clone());
-                if kinds.iter().any(|kind| kind.as_str() == Some("lib")) {
-                    production_lib_roots.insert(source_path.canonicalize().map_err(|error| {
-                        format!(
-                            "cannot resolve production lib root {} for {name}: {error}",
-                            source_path.display()
-                        )
-                    })?);
-                }
+                production_roots.insert(source_path);
             }
         }
         if production_roots.is_empty() {
@@ -498,7 +488,6 @@ fn package_audit_scopes(
             name,
             root,
             production_roots: production_roots.into_iter().collect(),
-            production_lib_roots,
         });
     }
     scopes.sort_by(|left, right| left.name.cmp(&right.name));
@@ -1567,27 +1556,31 @@ pub(crate) fn audit_package_source_mounts(
 /// root, which made a conditional parent impossible by construction; owning it
 /// by module path instead lost that for free, so the mount chain is now checked
 /// explicitly (#363).
+type AuditedSourceGraph = (
+    BTreeMap<PathBuf, BTreeSet<String>>,
+    usize,
+    BTreeSet<PathBuf>,
+    BTreeSet<PathBuf>,
+);
+
 pub(crate) fn audit_package_source_graph(
     package_root: &Path,
     production_roots: &[PathBuf],
-) -> Result<
-    (
-        BTreeMap<PathBuf, BTreeSet<String>>,
-        usize,
-        BTreeSet<PathBuf>,
-    ),
-    String,
-> {
+) -> Result<AuditedSourceGraph, String> {
     let (mounts, explicit_paths) = audit_package_source_mounts(package_root, production_roots)?;
-    let unconditional = mounts
-        .iter()
-        .filter(|(_, contexts)| {
-            contexts
-                .iter()
-                .any(|context| context.production_possible && context.cfg.is_empty())
-        })
-        .map(|(source, _)| source.clone())
-        .collect();
+    let mut unconditional = BTreeSet::new();
+    let mut production_impossible = BTreeSet::new();
+    for (source, contexts) in &mounts {
+        let production = contexts
+            .iter()
+            .any(|c| c.production_possible && c.cfg.is_empty());
+        if production {
+            unconditional.insert(source.clone());
+        }
+        if contexts.iter().all(|c| !c.production_possible) {
+            production_impossible.insert(source.clone());
+        }
+    }
     Ok((
         mounts
             .into_iter()
@@ -1603,11 +1596,13 @@ pub(crate) fn audit_package_source_graph(
             .collect(),
         explicit_paths,
         unconditional,
+        production_impossible,
     ))
 }
 
 /// One physical source and all of its logical production/test mount contexts
 /// in a Cargo workspace package.
+#[derive(Clone)]
 pub(crate) struct WorkspaceSourceMount {
     pub(crate) package: String,
     pub(crate) source_path: PathBuf,
@@ -1752,13 +1747,15 @@ pub(crate) fn workspace_source_mounts(
 fn is_owned_handler_mount(
     package_name: &str,
     logical_paths: &BTreeSet<String>,
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> bool {
-    package_name == owner.package
+    owners.iter().any(|owner| package_name == owner.package)
         && logical_paths.len() == 1
-        && logical_paths
-            .iter()
-            .all(|path| owner.owns_module(package_name, path))
+        && logical_paths.iter().any(|path| {
+            owners
+                .iter()
+                .any(|owner| owner.owns_module(package_name, path))
+        })
 }
 
 #[cfg(test)]
@@ -1774,39 +1771,52 @@ pub(crate) fn audit_package_registration_sources(
         allow_descendants: true,
         tracking_issue: 153,
     };
-    audit_package_registration_sources_with_owner(package_name, sources, unconditional, &test_owner)
+    audit_package_registration_sources_with_owners(
+        package_name,
+        sources,
+        unconditional,
+        &BTreeSet::new(),
+        std::slice::from_ref(&test_owner),
+        false,
+    )
 }
 
-pub(crate) fn audit_package_registration_sources_with_owner(
+pub(crate) fn audit_package_registration_sources_with_owners(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
     unconditional: &BTreeSet<PathBuf>,
-    owner: &CapabilityOwner,
+    production_impossible: &BTreeSet<PathBuf>,
+    owners: &[CapabilityOwner],
+    allow_local_data_module: bool,
 ) -> Result<(), String> {
     let mut errors = Vec::new();
     let mut exact_collectors = 0usize;
     for (source_path, logical_paths) in sources {
-        if is_owned_handler_mount(package_name, logical_paths, owner) {
+        let owned = is_owned_handler_mount(package_name, logical_paths, owners);
+        if owned || production_impossible.contains(source_path) {
             continue;
         }
         let source = fs::read_to_string(source_path)
             .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-        // The collector is no longer a crate root, so it is identified by its
-        // logical module rather than by being lib.rs (#359) — and, because that
-        // no longer rules out a conditional parent by construction, by having an
-        // unconditional production mount (#363).
+        // The legacy adapter collector belongs only to the unconditional World
+        // registry module; package and logical-module identity both matter.
         let collector_owner = package_name == REGISTRY_PACKAGE_NAME
             && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()])
             && unconditional.contains(source_path);
-        match analyze_registration_syntax_outside_handlers(source_path, &source, collector_owner) {
-            Ok(report) => exact_collectors += report.exact_packet_handler_collectors,
+        match analyze_registration_syntax_outside_handlers(
+            source_path,
+            &source,
+            collector_owner,
+            allow_local_data_module,
+        ) {
+            Ok(report) => exact_collectors += report.exact_legacy_wrapper_collectors,
             Err(error) => errors.push(format!("package {package_name}: {error}")),
         }
     }
     if package_name == REGISTRY_PACKAGE_NAME && exact_collectors != 1 {
         errors.push(format!(
             "{REGISTRY_MODULE_PATH} must define exactly one unconditional module-level \
-             inventory::collect!(PacketHandlerEntry), found {exact_collectors}"
+             inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp), found {exact_collectors}"
         ));
     }
     if errors.is_empty() {
@@ -1818,7 +1828,7 @@ pub(crate) fn audit_package_registration_sources_with_owner(
 
 pub(crate) fn audit_registration_ownership(
     repository_root: &Path,
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> Result<RegistrationOwnershipReport, String> {
     let metadata = workspace_metadata(repository_root)?;
     let registry_capable = registry_capable_package_ids(&metadata)?;
@@ -1840,7 +1850,7 @@ pub(crate) fn audit_registration_ownership(
     let mut errors = Vec::new();
     let mut package_names = Vec::new();
     for scope in &scopes {
-        let (sources, explicit_paths, unconditional) =
+        let (sources, explicit_paths, unconditional, production_impossible) =
             audit_package_source_graph(&scope.root, &scope.production_roots).map_err(|error| {
                 format!(
                     "invalid production source graph for {}: {error}",
@@ -1949,11 +1959,14 @@ pub(crate) fn audit_registration_ownership(
             for source_path in sources.keys() {
                 scanned_files.insert((scope.name.clone(), source_path.clone()));
             }
-            if let Err(error) = audit_package_registration_sources_with_owner(
+            let allow_local_data_module = !inventory_capable.contains(&scope.id);
+            if let Err(error) = audit_package_registration_sources_with_owners(
                 &scope.name,
                 &sources,
                 &unconditional,
-                owner,
+                &production_impossible,
+                owners,
+                allow_local_data_module,
             ) {
                 errors.push(error);
             }

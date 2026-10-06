@@ -28,9 +28,7 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -76,16 +74,12 @@ async fn spell_kill_credit_effect_row_rewards_player_monster_objective_like_cpp(
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -128,9 +122,7 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -176,16 +168,12 @@ async fn spell_kill_credit2_effect_row_rewards_current_session_like_cpp_without_
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),

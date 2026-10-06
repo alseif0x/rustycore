@@ -3113,6 +3113,10 @@ dependencies = [
  "wow-script",
  "wow-social",
  "wow-world",
+ "wow-world-application",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-social",
 ]
 
 [[package]]
@@ -3247,6 +3251,10 @@ dependencies = [
 [[package]]
 name = "wow-handler"
 version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-packet",
+]
 
 [[package]]
 name = "wow-instances"
@@ -3463,11 +3471,156 @@ dependencies = [
  "wow-session",
  "wow-social",
  "wow-spell-acquisition",
+ "wow-world",
+ "wow-world-application",
  "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-interaction",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-social",
+ "wow-world-spell",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-application"
+version = "0.1.0"
+dependencies = [
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-conditions",
+ "wow-config",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-instances",
+ "wow-loot",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-script",
+ "wow-social",
+ "wow-spell-acquisition",
+ "wow-world-application",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-instances",
+ "wow-world-interaction",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-social",
+ "wow-world-spell",
+ "wow-world-visibility",
 ]
 
 [[package]]
 name = "wow-world-core"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "flume",
+ "num-traits",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-ai",
+ "wow-conditions",
+ "wow-config",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-instances",
+ "wow-loot",
+ "wow-map",
+ "wow-module-api",
+ "wow-movement",
+ "wow-network",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-recastdetour",
+ "wow-script",
+ "wow-session",
+ "wow-social",
+]
+
+[[package]]
+name = "wow-world-entities"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "tracing",
+ "wow-ai",
+ "wow-conditions",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-loot",
+ "wow-map",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-recastdetour",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-instances"
+version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-instances",
+ "wow-map",
+ "wow-packet",
+ "wow-social",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-interaction"
+version = "0.1.0"
+dependencies = [
+ "wow-core",
+ "wow-entities",
+ "wow-packet",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-inventory"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-packet",
+ "wow-persistence",
+ "wow-progression",
+ "wow-world-core",
+ "wow-world-inventory",
+]
+
+[[package]]
+name = "wow-world-lifecycle"
 version = "0.1.0"
 dependencies = [
  "dashmap",
@@ -3482,11 +3635,78 @@ dependencies = [
  "wow-handler",
  "wow-loot",
  "wow-map",
+ "wow-module-api",
  "wow-movement",
  "wow-packet",
  "wow-persistence",
- "wow-recastdetour",
+ "wow-progression",
  "wow-social",
+ "wow-world-core",
+ "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-loot"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "num-traits",
+ "rand",
+ "tokio",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-loot",
+ "wow-map",
+ "wow-packet",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-social"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "tracing",
+ "wow-chat",
+ "wow-constants",
+ "wow-core",
+ "wow-entities",
+ "wow-handler",
+ "wow-packet",
+ "wow-persistence",
+ "wow-social",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-spell"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "tracing",
+ "wow-combat",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-packet",
+ "wow-spell-acquisition",
+ "wow-world-core",
+ "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-visibility"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-core",
+ "wow-entities",
+ "wow-packet",
+ "wow-world-core",
 ]
 
 [[package]]

@@ -22,8 +22,7 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
     );
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             goober,
             RepresentedGameObjectUseState {
                 map_id: Some(571),
@@ -36,7 +35,7 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
     session.set_player_interaction_source_like_cpp(goober);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 71,
             menu_id: GOSSIP_ID,
@@ -151,8 +150,7 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
         insert_gossip_gameobject(&canonical, gameobject, 9305, position, go_type, in_world);
         session
             .world_entities
-            .represented_gameobject_use_states
-            .insert(
+            .insert_represented_gameobject_use_state_for_test_like_cpp(
                 gameobject,
                 RepresentedGameObjectUseState {
                     map_id: Some(571),
@@ -165,7 +163,7 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
         session.set_player_interaction_source_like_cpp(gameobject);
         session
             .interaction
-            .gossip_options
+            .gossip_options_for_test_mut_like_cpp()
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 81,
                 menu_id: GOSSIP_ID,
@@ -242,8 +240,7 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
     );
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             goober,
             RepresentedGameObjectUseState {
                 map_id: Some(571),
@@ -256,7 +253,7 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
     session.set_player_interaction_source_like_cpp(goober);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 91,
             menu_id: GOSSIP_ID,

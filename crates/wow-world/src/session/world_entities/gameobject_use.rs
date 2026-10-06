@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn add_use_and_get_canonical_gameobject_use_count_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> Option<u32> {
-        self.mutate_canonical_gameobject_by_guid_like_cpp(guid, |gameobject| {
-            gameobject.add_use_like_cpp();
-            gameobject.use_times()
-        })
-    }
     pub(crate) fn represented_gameobject_can_interact_with_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -43,12 +34,13 @@ impl WorldSession {
             return false;
         };
         if no_damage_immune && player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::UseRejectedNoDamageImmune {
-                    gameobject_guid,
-                    player_guid,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::UseRejectedNoDamageImmune {
+                        gameobject_guid,
+                        player_guid,
+                    },
+                );
             return false;
         }
 
@@ -56,34 +48,36 @@ impl WorldSession {
             if !self.remove_represented_mounted_auras_by_type_like_cpp() {
                 return false;
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::RemoveMountedAuras {
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::RemoveMountedAuras {
+                        gameobject_guid,
+                        player_guid,
+                    },
+                );
+        }
+
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::ClearPlayerTalkMenus {
                     gameobject_guid,
                     player_guid,
                 },
             );
-        }
-
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::ClearPlayerTalkMenus {
-                gameobject_guid,
-                player_guid,
-            },
-        );
 
         let handled = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .map(|state| state.gossip_hello_ai_returns_true)
             .unwrap_or(false);
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::GossipHelloAi {
-                gameobject_guid,
-                player_guid,
-                handled,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::GossipHelloAi {
+                    gameobject_guid,
+                    player_guid,
+                    handled,
+                },
+            );
         !handled
     }
     pub(crate) fn apply_represented_gameobject_post_use_spell_like_cpp(
@@ -133,43 +127,46 @@ impl WorldSession {
             .spell_store()
             .is_some_and(|store| store.get(spell_id as i32).is_none());
 
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
-                gameobject_guid,
-                player_guid,
-                gameobject_entry,
-                spell_id,
-                go_type,
-                spell_lookup_difficulty_id,
-                spell_info_missing,
-            },
-        );
-
-        if spell_info_missing {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GameObjectPostUseSpellMissing {
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                     gameobject_guid,
                     player_guid,
                     gameobject_entry,
                     spell_id,
                     go_type,
                     spell_lookup_difficulty_id,
+                    spell_info_missing,
                 },
             );
+
+        if spell_info_missing {
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GameObjectPostUseSpellMissing {
+                        gameobject_guid,
+                        player_guid,
+                        gameobject_entry,
+                        spell_id,
+                        go_type,
+                        spell_lookup_difficulty_id,
+                    },
+                );
             return false;
         }
 
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::GameObjectPostUseSpellCast {
-                gameobject_guid,
-                target_guid: player_guid,
-                caster_guid,
-                spell_id,
-                triggered,
-                caster,
-                spell_lookup_difficulty_id,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::GameObjectPostUseSpellCast {
+                    gameobject_guid,
+                    target_guid: player_guid,
+                    caster_guid,
+                    spell_id,
+                    triggered,
+                    caster,
+                    spell_lookup_difficulty_id,
+                },
+            );
 
         if apply_new_flag_taken_state
             && go_type == wow_entities::GAMEOBJECT_TYPE_NEW_FLAG
@@ -192,19 +189,19 @@ impl WorldSession {
     ) -> bool {
         let linked_trap_guid = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.linked_trap_guid);
         if source.linked_trap_entry != 0 {
             if let Some(trap_guid) = linked_trap_guid {
                 self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
             }
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
-                    gameobject_guid,
-                    trap_entry: source.linked_trap_entry,
-                },
-            );
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(
+                    RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
+                        gameobject_guid,
+                        trap_entry: source.linked_trap_entry,
+                    },
+                );
         }
 
         let mut unique_users = Vec::new();
@@ -212,9 +209,7 @@ impl WorldSession {
         {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
             if source.spell_id != 0 {
                 unique_users = std::mem::take(&mut state.unique_users);
             } else {
@@ -245,113 +240,32 @@ impl WorldSession {
 
         if source.spell_id != 0 {
             for player_guid in unique_users {
-                self.world_entities.represented_gameobject_use_effects.push(
-                    RepresentedGameObjectUseEffect::GooberUniqueUserSpell {
-                        gameobject_guid,
-                        player_guid,
-                        spell_id: source.spell_id,
-                    },
-                );
+                self.world_entities
+                    .record_represented_gameobject_use_effect_like_cpp(
+                        RepresentedGameObjectUseEffect::GooberUniqueUserSpell {
+                            gameobject_guid,
+                            player_guid,
+                            spell_id: source.spell_id,
+                        },
+                    );
             }
         }
 
-        if let Some(state) = self
+        let cleared_effect = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
-        {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GooberCleared {
-                    gameobject_guid,
-                    loot_state: state
-                        .loot_state
-                        .unwrap_or(wow_entities::LootState::NotReady),
-                    go_state: state.go_state,
-                },
-            );
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
+            .map(|state| RepresentedGameObjectUseEffect::GooberCleared {
+                gameobject_guid,
+                loot_state: state
+                    .loot_state
+                    .unwrap_or(wow_entities::LootState::NotReady),
+                go_state: state.go_state,
+            });
+        if let Some(effect) = cleared_effect {
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(effect);
         }
 
         true
-    }
-}
-
-impl crate::session::state::WorldEntitiesState {
-    pub(crate) fn record_represented_gameobject_interact_radius_override_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        interact_radius_override: u32,
-    ) {
-        self.represented_gameobject_use_states
-            .entry(guid)
-            .or_default()
-            .interact_radius_override =
-            (interact_radius_override != 0).then_some(interact_radius_override);
-    }
-
-    pub(crate) fn record_represented_gameobject_icon_interaction_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        allows_interaction: bool,
-    ) {
-        self.represented_gameobject_use_states
-            .entry(guid)
-            .or_default()
-            .icon_name_allows_interaction_like_cpp = Some(allows_interaction);
-    }
-
-    pub(crate) fn represented_gameobject_can_interact_with_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: ObjectGuid,
-        interaction_distance: f32,
-    ) -> Option<RepresentedGameObjectAccessLikeCpp> {
-        let access = hub.core.canonical_gameobject_access_like_cpp(guid)?;
-        let player_position = hub.player_position_like_cpp()?;
-        if access
-            .position
-            .is_within_dist(&player_position, interaction_distance)
-        {
-            Some(access)
-        } else {
-            None
-        }
-    }
-
-    pub(crate) fn represented_gameobject_use_allowed_by_mover_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        gameobject_usable_mounted: bool,
-    ) -> bool {
-        let Some(player_guid) = hub.core.player_guid() else {
-            return false;
-        };
-        if hub.player_moved_unit_guid_like_cpp() == Some(player_guid) {
-            return true;
-        }
-
-        hub.player_vehicle_seat_state_like_cpp()
-            .and_then(|(flags, _)| flags)
-            .is_some()
-            || hub.resolved_player_mounted_like_cpp() == Some(true)
-            || gameobject_usable_mounted
-    }
-
-    pub(crate) fn record_represented_gameobject_report_use_ai_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        let handled = self
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
-            .map(|state| state.report_use_ai_returns_true)
-            .unwrap_or(false);
-        self.represented_gameobject_use_effects
-            .push(RepresentedGameObjectUseEffect::ReportUseAi {
-                gameobject_guid,
-                player_guid,
-                handled,
-            });
-        handled
     }
 }

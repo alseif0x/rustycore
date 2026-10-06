@@ -193,23 +193,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionLifecycleState {
-    /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
-    /// branch reserved for the world filter (`WorldSession.cpp:498-503`).
-    pub(crate) fn run_logout_timer_like_cpp(&mut self, hub: &mut crate::session::HubMut<'_>) {
-        let Some(logout_time) = self.logout_time else {
-            return;
-        };
-        hub.core.record_driver_phase_like_cpp(
-            crate::session::driver::phases::SessionDriverPhaseLikeCpp::LogoutTimer,
-        );
-        if std::time::Instant::now() >= logout_time {
-            self.logout_time = None;
-            self.complete_logout(hub);
-        }
-    }
-}
-
 impl WorldSession {
     /// The rail the canonical producer addresses this session's phases through.
     #[must_use]
@@ -404,7 +387,7 @@ impl WorldSession {
         self.process_pending_with_catalogs_like_cpp(catalogs).await;
         // C++ `WorldSession::Update` decides the logout after the packet loop
         // and the query callbacks, on the `ProcessUnsafe()` branch
-        // (`WorldSession.cpp:498-503`): a `LogoutCancel` queued in this same
+        // (`WorldSession.cpp:505-511`): a `LogoutCancel` queued in this same
         // pass is dispatched above and must be seen before the decision.
         {
             let (s, mut h) = crate::session::split_lifecycle_mut(self);

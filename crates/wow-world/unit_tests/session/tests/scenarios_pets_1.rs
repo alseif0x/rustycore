@@ -6,6 +6,29 @@
 use super::*;
 
 #[test]
+fn dismount_without_pet_still_clears_temporary_react_like_cpp() {
+    let (mut session, _, mut send_rx) = make_session();
+    let state = wow_entities::PlayerPetLifecycleStateLikeCpp {
+        temporary_unsummoned_pet_number: 42,
+        old_pet_spell: 1234,
+        temporary_mount_react_state: Some(2),
+        ..Default::default()
+    };
+    assert!(
+        crate::session::hub_mut(&mut session)
+            .update_player_pet_lifecycle_state_like_cpp(|current| *current = state.clone())
+    );
+    crate::session::hub_mut(&mut session).enable_pet_controls_on_dismount_like_cpp();
+    let mut expected = state;
+    expected.temporary_mount_react_state = None;
+    assert_eq!(
+        session.player_pet_lifecycle_state_snapshot_like_cpp(),
+        Some(expected)
+    );
+    assert!(send_rx.try_recv().is_err());
+}
+
+#[test]
 fn canonical_player_pet_lifecycle_follows_active_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -76,6 +99,17 @@ fn canonical_player_pet_lifecycle_follows_active_detached_and_stale_ownership_li
         .expect("replacement owner");
 
     assert_eq!(session.player_pet_lifecycle_state_snapshot_like_cpp(), None);
+    session.fixtures.movement.movement_counter_like_cpp = 17;
+    {
+        let mut hub = crate::session::hub_mut(&mut session);
+        let (presentation, mut control) = hub.aura_removal_mount_accesses_like_cpp();
+        assert_eq!(
+            presentation.player_unit_presentation_snapshot_like_cpp(),
+            None
+        );
+        control.send_movement_set_collision_height_like_cpp(&presentation, 0);
+    }
+    assert_eq!(session.fixtures.movement.movement_counter_like_cpp, 17);
     assert!(
         !session.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.temporary_unsummoned_pet_number = 7;
@@ -279,18 +313,15 @@ fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
     assert_eq!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .declined_names
-            .get(&42),
+            .pet_load_declined_names_for_pet_number_like_cpp(42),
         Some(&row)
     );
     assert!(session.load_represented_pet_declined_names_like_cpp(42, None));
     assert!(
         !session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .declined_names
-            .contains_key(&42)
+            .pet_load_declined_names_for_pet_number_like_cpp(42)
+            .is_some()
     );
 }
 #[test]
@@ -355,20 +386,41 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
     assert!(
         !session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spells
-            .is_empty()
+            .pet_load_spells_are_empty_for_test_like_cpp()
     );
 
     crate::session::cx_pets(&mut session).begin_represented_character_pet_authority_load_like_cpp();
 
-    let holder = &session.lifecycle.pet_load_query_holder_rows_like_cpp;
-    assert!(holder.spells.is_empty());
-    assert!(holder.spell_cooldowns.is_empty());
-    assert!(holder.spell_charges.is_empty());
-    assert!(holder.auras.is_empty());
-    assert!(holder.aura_effects.is_empty());
-    assert!(holder.declined_names.is_empty());
+    assert!(
+        session
+            .lifecycle
+            .pet_load_spells_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_spell_cooldowns_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_spell_charges_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_auras_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_aura_effects_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_declined_names_are_empty_for_test_like_cpp()
+    );
 }
 #[test]
 fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {

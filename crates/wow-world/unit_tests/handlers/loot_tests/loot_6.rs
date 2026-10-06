@@ -16,7 +16,7 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     session
         .loot
         .add_active_loot_view_owner_like_cpp(secondary_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         secondary_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(secondary_guid),
@@ -48,14 +48,21 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), secondary_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(session.loot.is_active_loot_guid(primary_guid));
-    assert!(session.loot.active_loot_view_owners.contains(&primary_guid));
+    assert!(
+        session
+            .loot
+            .has_active_loot_view_owner_like_cpp(primary_guid)
+    );
     assert!(
         !session
             .loot
-            .active_loot_view_owners
-            .contains(&secondary_guid)
+            .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
-    assert!(session.loot.loot_table.contains_key(&secondary_guid));
+    assert!(
+        session
+            .loot
+            .cached_loot_contains_owner_like_cpp(secondary_guid)
+    );
 }
 #[test]
 fn looted_corpse_decay_uses_cpp_rate_and_ignore_flag() {
@@ -82,7 +89,7 @@ async fn player_corpse_loot_release_removes_corpse_lootable_dynflag_like_cpp() {
     attach_canonical_corpse(&mut session, corpse);
     session.set_player_guid(Some(player_guid));
     session.loot.set_active_loot_guid(corpse_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         corpse_guid,
         CreatureLoot {
             loot_guid: corpse_guid,
@@ -144,7 +151,7 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
     session
         .world_entities
         .record_represented_fishing_hole_max_opens_like_cpp(fishing_hole, 1);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         fishing_hole,
         CreatureLoot {
             loot_guid: fishing_hole,
@@ -182,8 +189,7 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
     assert!(send_rx.try_recv().is_ok());
     let hole_state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&fishing_hole)
+        .represented_gameobject_use_state_like_cpp(fishing_hole)
         .unwrap();
     assert_eq!(hole_state.personal_loot_uses, 1);
     assert_eq!(hole_state.loot_state, Some(LootState::JustDeactivated));
@@ -214,7 +220,7 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
         Position::ZERO,
         GAMEOBJECT_TYPE_GATHERING_NODE as u8,
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         gathering_node,
         CreatureLoot {
             loot_guid: gathering_node,
@@ -245,8 +251,7 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
     );
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gathering_node)
+        .represented_gameobject_use_state_like_cpp(gathering_node)
         .unwrap();
     assert_eq!(state.go_state, Some(GoState::Active));
     assert_eq!(state.loot_state, None);
@@ -307,13 +312,11 @@ fn partial_gathering_node_release_does_not_run_on_loot_release_state_like_cpp() 
         player_guid,
         false,
         false,
-        None,
     );
 
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gathering_node)
+        .represented_gameobject_use_state_like_cpp(gathering_node)
         .unwrap();
     assert_ne!(state.go_state, Some(GoState::Active));
     assert_eq!(state.loot_state, Some(LootState::Activated));

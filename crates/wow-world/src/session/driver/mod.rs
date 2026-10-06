@@ -24,7 +24,7 @@ mod callbacks;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
-pub(super) use callbacks::RenameCallbacks;
+pub(in crate::session) use wow_world_lifecycle::RenameCallbacks;
 mod phase_consumer;
 mod phase_pass;
 
@@ -157,8 +157,10 @@ impl WorldSession {
             // Read the tick owner once; the lock is taken and released inside
             // runtime_tick_owner_like_cpp before any tick work begins.
             let owner = self.runtime_tick_owner_like_cpp();
-            self.world_entities.creature_tick = self.world_entities.creature_tick.wrapping_add(1);
-            if self.world_entities.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
+            self.world_entities.advance_creature_tick_like_cpp();
+            if self.world_entities.creature_tick_like_cpp() % 4 == 0
+                && owner == RuntimeTickOwner::Session
+            {
                 self.tick_creatures_sync();
             }
             // Combat tick every 2 ticks (~100ms), and only when this session
@@ -169,7 +171,9 @@ impl WorldSession {
             // per session on each session's own pass clock. Gated, not deleted:
             // `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps the owner at
             // `Session`, and player auto-attack must keep working there.
-            if self.world_entities.creature_tick % 2 == 0 && owner == RuntimeTickOwner::Session {
+            if self.world_entities.creature_tick_like_cpp() % 2 == 0
+                && owner == RuntimeTickOwner::Session
+            {
                 self.tick_combat_sync();
             }
             // C++ `Player::Update` runs `RegenerateAll()` after
@@ -184,7 +188,7 @@ impl WorldSession {
                 catalogs.player_regeneration_rates.as_ref(),
             );
             // Aura expiry tick every 4 ticks (~200ms) — always, regardless of owner.
-            if self.world_entities.creature_tick % 4 == 0 {
+            if self.world_entities.creature_tick_like_cpp() % 4 == 0 {
                 self.tick_auras();
             }
             self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
@@ -224,7 +228,7 @@ impl WorldSession {
 
         // ── Logout timer ────────────────────────────────────────────
         // C++ decides this **after** the packet loop and the query callbacks,
-        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:498-503`), so a
+        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:505-511`), so a
         // `LogoutCancel` already queued is processed before the decision. A
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.
@@ -322,7 +326,7 @@ impl WorldSession {
         // Process pending creature/gameobject spawn (async DB query)
         self.core
             .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
-        if let Some(spawn) = self.world_entities.pending_creature_spawn.take() {
+        if let Some(spawn) = self.world_entities.take_pending_creature_spawn_like_cpp() {
             self.send_nearby_creatures_with_catalogs_like_cpp(
                 catalogs.creature_spawns.as_ref(),
                 spawn.map_id,

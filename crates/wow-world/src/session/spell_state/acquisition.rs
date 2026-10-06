@@ -11,9 +11,7 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_spell_acquisition = Some(port);
+            .set_player_spell_acquisition_persistence_port_like_cpp(port);
     }
     /// Install the process-wide audited static authority consumed by the
     /// immutable acquisition planner. Absence remains fail-closed.
@@ -22,13 +20,13 @@ impl WorldSession {
         safe_cast_spell_ids: impl IntoIterator<Item = u32>,
         valid_craft_spell_ids: impl IntoIterator<Item = u32>,
     ) {
-        self.spell_state.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
+        self.spell_state.set_spell_acquisition_cast_authority_like_cpp(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp::from_audited_rows_like_cpp(
                 safe_cast_spell_ids,
                 std::iter::empty(),
             ),
         ));
-        self.spell_state.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
+        self.spell_state.set_spell_acquisition_craft_authority_like_cpp(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp::from_audited_rows_like_cpp(
                 valid_craft_spell_ids,
                 std::iter::empty(),
@@ -46,69 +44,42 @@ impl WorldSession {
         money_before: u64,
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(test)]
-        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
-            return success.then_some(money_persistence);
-        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let fixture_result = {
+            #[cfg(test)]
+            {
+                self.lifecycle.loot_money_persistence_test_result_like_cpp()
+            }
+            #[cfg(not(test))]
+            {
+                None
+            }
+        };
 
-        let port = self
-            .lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_spell_acquisition
-            .clone()?;
-        let player_guid = self.player_guid()?;
-        let guid_counter = player_guid.counter() as u64;
-        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            &self.lifecycle.durable_loot_money_persistence_like_cpp,
-        ));
-        let mut operation_token = [0u8; 16];
-        rand::thread_rng().fill_bytes(&mut operation_token);
-        let request =
-            match crate::spell_acquisition::player_spell_acquisition_persistence_request_like_cpp(
-                guid_counter,
+        let core_access = self.core.player_money_transaction_access_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            return wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+                &self.lifecycle,
+                core_access,
+                money_persistence,
                 prepared,
                 money_before,
                 money_after,
-                operation_token,
-            ) {
-                Ok(request) => request,
-                Err(error) => {
-                    cancellation_fence.disarm_like_cpp();
-                    warn!(%error, "trainer purchase request was not persistence-safe");
-                    return None;
-                }
-            };
-        use crate::spell_acquisition::PlayerSpellAcquisitionPersistenceOutcomeLikeCpp as Outcome;
-        match crate::spell_acquisition::persist_player_spell_acquisition_through_port_like_cpp(
-            &*port, request,
+                fixture_result,
+            )
+            .await;
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+            &self.lifecycle,
+            core_access,
+            money_persistence,
+            prepared,
+            money_before,
+            money_after,
         )
         .await
-        {
-            Outcome::Applied => {
-                cancellation_fence.disarm_like_cpp();
-                Some(money_persistence)
-            }
-            Outcome::DefinitelyRolledBack(reason) => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(error = %reason, "trainer purchase transaction definitely rolled back");
-                None
-            }
-            Outcome::ReconciledCommit(reason) => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(error = %reason, "trainer COMMIT reply was lost but durable rows prove commit");
-                Some(money_persistence)
-            }
-            Outcome::Indeterminate(reason) => {
-                self.lifecycle
-                    .durable_loot_money_persistence_like_cpp
-                    .mark_indeterminate_like_cpp();
-                cancellation_fence.disarm_like_cpp();
-                self.kick("trainer purchase COMMIT outcome is unknown; relog required");
-                warn!(error = %reason, "trainer COMMIT outcome remains indeterminate; session quarantined");
-                None
-            }
-        }
     }
     pub(in crate::session) fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
         &mut self,
@@ -196,11 +167,10 @@ impl WorldSession {
             runtime.mark_override_spells_complete_like_cpp();
         });
     }
-    /// Installs one validated spell-acquisition snapshot without an await or a
-    /// second semantic walk. It accepts both the dirty post-`LearnSpell`
-    /// snapshot and the normalized post-save snapshot. Inputs are validated
-    /// into temporary maps first so a malformed prepared result cannot
-    /// partially mutate the live player authority.
+
+    /// Compatibility facade for callers that already hold represented rows.
+    /// Translation, validation and canonical/fixture installation are shared
+    /// with the application runtime provider.
     pub(crate) fn replace_complete_spell_acquisition_runtime_like_cpp(
         &mut self,
         spell_rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
@@ -210,46 +180,31 @@ impl WorldSession {
         occupied_skill_slots: u16,
         non_durable_skill_tombstones: BTreeSet<u16>,
     ) -> bool {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self.fixture_replace_complete_spell_acquisition_runtime_like_cpp(
-                spell_rows,
-                traits,
-                overrides,
-                skill_records,
-                occupied_skill_slots,
-                non_durable_skill_tombstones,
-            );
-        }
-        let Some(prepared) = wow_entities::PreparedPlayerSpellAcquisitionLikeCpp::try_new(
-            spell_rows
-                .into_iter()
-                .map(canonical_player_spell_record_like_cpp),
+        let owner = self.core.player_acquisition_owner_access_like_cpp();
+        let result = wow_world_application::install_represented_spell_acquisition_runtime_like_cpp(
+            &owner,
+            &mut self.spell_state,
+            spell_rows,
             traits,
             overrides,
-            skill_records
-                .into_iter()
-                .map(|(key, skill)| (key, canonical_player_skill_record_like_cpp(skill)))
-                .collect(),
+            skill_records,
             occupied_skill_slots,
             non_durable_skill_tombstones,
-        ) else {
-            return false;
-        };
-        self.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        if self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.apply_prepared_spell_acquisition_like_cpp(prepared)
-            })
-            .is_none()
-        {
-            return false;
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            (
+                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.represented_enchanting_skill,
+            ),
+        );
+        if result.is_ok() {
+            self.sync_player_registry_state_like_cpp();
+            true
+        } else {
+            false
         }
-        self.sync_player_registry_state_like_cpp();
-        true
     }
+
     #[cfg(test)]
     pub(in crate::session) fn fixture_replace_complete_spell_acquisition_runtime_like_cpp(
         &mut self,
@@ -260,169 +215,29 @@ impl WorldSession {
         occupied_skill_slots: u16,
         non_durable_skill_tombstones: BTreeSet<u16>,
     ) -> bool {
-        let mut exact_spells = BTreeMap::new();
-        for spell in spell_rows {
-            if spell.spell_id <= 0 || exact_spells.insert(spell.spell_id, spell).is_some() {
-                return false;
-            }
-        }
-
-        let mut exact_traits = HashMap::new();
-        for (spell_id, trait_definition_id) in traits {
-            if trait_definition_id <= 0
-                || !exact_spells
-                    .get(&spell_id)
-                    .is_some_and(|spell| spell.state != RepresentedPlayerSpellStateLikeCpp::Removed)
-                || exact_traits.insert(spell_id, trait_definition_id).is_some()
-            {
-                return false;
-            }
-        }
-
-        let mut exact_overrides = HashMap::<i32, BTreeSet<i32>>::new();
-        for (overridden_spell_id, overriding_spell_id) in overrides {
-            if overridden_spell_id <= 0 || overriding_spell_id <= 0 {
-                return false;
-            }
-            exact_overrides
-                .entry(overridden_spell_id)
-                .or_default()
-                .insert(overriding_spell_id);
-        }
-
-        if usize::from(occupied_skill_slots) != skill_records.len()
-            || occupied_skill_slots > 256
-            || !skill_records.iter().all(|(skill_id, skill)| {
-                *skill_id != 0
-                    && *skill_id == skill.skill_id
-                    && (skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
-                        || (skill.step == 0
-                            && skill.value == 0
-                            && skill.max == 0
-                            && skill.profession_slot == -1))
-            })
-            || !non_durable_skill_tombstones.iter().all(|skill_id| {
-                skill_records
-                    .get(skill_id)
-                    .is_some_and(crate::session::is_non_durable_skill_tombstone_like_cpp)
-            })
-        {
-            return false;
-        }
-
-        let mut known_spells = exact_spells
-            .values()
-            .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && !spell.disabled
-            })
-            .map(|spell| spell.spell_id)
-            .collect::<Vec<_>>();
-        known_spells.sort_unstable();
-        let dependent_spells = exact_spells
-            .values()
-            .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && spell.dependent
-            })
-            .map(|spell| spell.spell_id)
-            .collect();
-        let favorite_spells = exact_spells
-            .values()
-            .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && spell.favorite
-            })
-            .map(|spell| spell.spell_id)
-            .collect();
-        let removed_spells = exact_spells
-            .values()
-            .filter(|spell| spell.state == RepresentedPlayerSpellStateLikeCpp::Removed)
-            .map(|spell| spell.spell_id)
-            .collect();
-
-        self.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        if self
-            .mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.install_acquisition_snapshot_like_cpp(
-                    wow_entities::PlayerSpellAcquisitionSnapshotLikeCpp {
-                        known_spells,
-                        rows: exact_spells
-                            .into_iter()
-                            .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
-                            .collect(),
-                        dependent_known_spells: dependent_spells,
-                        removed_known_spells: removed_spells,
-                        favorite_known_spells: favorite_spells,
-                        trait_definition_ids: exact_traits.into_iter().collect(),
-                        override_spells: exact_overrides.into_iter().collect(),
-                    },
-                );
-                // Fallback grants and trait-config source evidence are not part
-                // of this prepared result; retain the current owner's values.
-            })
-            .is_none()
-        {
-            return false;
-        }
-        if !self.replace_player_skill_runtime_exact_like_cpp(
+        let owner = self.core.player_acquisition_owner_access_like_cpp();
+        let result = wow_world_application::install_represented_spell_acquisition_runtime_like_cpp(
+            &owner,
+            &mut self.spell_state,
+            spell_rows,
+            traits,
+            overrides,
             skill_records,
-            true,
-            true,
-            Some(occupied_skill_slots),
+            occupied_skill_slots,
             non_durable_skill_tombstones,
-        ) {
-            return false;
+            true,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            (
+                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.represented_enchanting_skill,
+            ),
+        );
+        if result.is_ok() {
+            self.sync_player_registry_state_like_cpp();
+            true
+        } else {
+            false
         }
-        // Cross-session consumers (notably disenchant roll eligibility) read
-        // known spells and enchanting rank from the player registry. Publish
-        // the committed snapshot there before any acquisition action packet.
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
-}
-
-impl crate::session::state::SessionSpellState {
-    pub(crate) fn record_spell_acquisition_post_commit_action_like_cpp(
-        &mut self,
-        action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.represented_spell_acquisition_post_commit_actions_like_cpp
-            .push(action);
-        #[cfg(not(test))]
-        let _ = action;
-    }
-
-    pub(crate) fn begin_spell_acquisition_post_commit_action_batch_like_cpp(&mut self) {
-        #[cfg(test)]
-        self.represented_spell_acquisition_post_commit_actions_like_cpp
-            .clear();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_spell_acquisition_post_commit_actions_like_cpp(
-        &self,
-    ) -> &[crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp] {
-        &self.represented_spell_acquisition_post_commit_actions_like_cpp
-    }
-
-    pub(crate) fn grant_dual_wield_after_spell_acquisition_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) -> bool {
-        hub.core
-            .mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().set_can_dual_wield_like_cpp(true);
-            })
-            .is_some()
-    }
-
-    pub(crate) fn has_canonical_player_for_spell_acquisition_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> bool {
-        hub.core
-            .canonical_player_snapshot_like_cpp(|_| ())
-            .is_some()
     }
 }
 

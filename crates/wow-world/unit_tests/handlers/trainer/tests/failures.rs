@@ -1,5 +1,4 @@
 use super::*;
-use crate::session::registry::PacketHandlerEntry;
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -93,8 +92,7 @@ async fn insufficient_money_uses_prepared_effective_price_without_mutation() {
 #[test]
 fn buy_registration_carries_the_call_while_legacy_shortcuts_stay_disabled() {
     let trainer = include_str!("../../../../src/handlers/trainer.rs");
-    let registrations: Vec<_> = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let registrations: Vec<_> = crate::session::registry::registered_handler_entries_like_cpp()
         .filter(|entry| entry.opcode == ClientOpcodes::TrainerBuySpell)
         .collect();
     assert_eq!(registrations.len(), 1);
@@ -220,6 +218,93 @@ async fn valid_trainer_mismatch_removes_feign_before_silent_reject_like_cpp() {
             DEFAULT_TRAINER_ID as i32
         )
     );
+}
+
+#[tokio::test]
+async fn malformed_trainer_buy_preserves_feign_and_binding_without_publication() {
+    let mut fixture = trainer_fixture();
+    fixture
+        .session
+        .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+    seed_feign_death(&mut fixture.session, 6);
+
+    fixture
+        .session
+        .handle_trainer_buy_spell(WorldPacket::new_empty())
+        .await;
+
+    assert!(canonical_player_has_died_state(&mut fixture.session));
+    assert!(
+        fixture
+            .session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&6)
+    );
+    assert!(
+        fixture.session.player_trainer_interaction_matches_like_cpp(
+            fixture.trainer,
+            DEFAULT_TRAINER_ID as i32,
+        )
+    );
+    assert!(fixture.send_rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn missing_trainer_buy_spell_publishes_feign_removal_before_exact_failure() {
+    let mut fixture = trainer_fixture();
+    fixture
+        .session
+        .set_player_trainer_interaction_like_cpp(fixture.trainer, DEFAULT_TRAINER_ID);
+    fixture.session.set_player_gold_like_cpp(100);
+    seed_feign_death(&mut fixture.session, 6);
+
+    fixture
+        .session
+        .handle_trainer_buy_spell(trainer_buy_packet(
+            fixture.trainer,
+            DEFAULT_TRAINER_ID as i32,
+            i32::MAX,
+        ))
+        .await;
+
+    assert_eq!(
+        fixture.send_rx.try_recv().unwrap(),
+        wow_packet::packets::misc::AuraUpdate {
+            unit_guid: fixture.session.player_guid().expect("active player"),
+            update_all: false,
+            auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                slot: 6,
+                aura_data: None,
+            }],
+        }
+        .to_bytes()
+    );
+    assert_eq!(
+        fixture.send_rx.try_recv().unwrap(),
+        TrainerBuyFailed {
+            trainer_guid: fixture.trainer,
+            spell_id: i32::MAX,
+            reason: 0,
+        }
+        .to_bytes()
+    );
+    assert!(!canonical_player_has_died_state(&mut fixture.session));
+    assert!(
+        !fixture
+            .session
+            .resolved_player_visible_auras_like_cpp()
+            .expect("canonical Player aura owner")
+            .contains_key(&6)
+    );
+    assert!(
+        fixture.session.player_trainer_interaction_matches_like_cpp(
+            fixture.trainer,
+            DEFAULT_TRAINER_ID as i32,
+        )
+    );
+    assert_eq!(fixture.session.player_gold_like_cpp(), 100);
+    assert!(fixture.send_rx.try_recv().is_err());
 }
 
 #[tokio::test]

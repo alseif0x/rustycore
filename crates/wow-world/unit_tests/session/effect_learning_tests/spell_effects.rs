@@ -130,7 +130,7 @@ async fn spell_learn_spell_effect_row_preserves_base_grant_without_richer_author
     );
     let spell_rows = session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_like_cpp()
         .represented_player_spell_rows_like_cpp
         .values()
         .copied()
@@ -206,7 +206,7 @@ async fn spell_learn_spell_fallback_rejects_mount_source_before_character_grant(
     assert!(
         session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_player_spell_rows_like_cpp
             .is_empty()
     );
@@ -259,7 +259,7 @@ async fn spell_learn_spell_effect_row_rejects_missing_base_spell_like_cpp() {
     assert!(
         session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_fallback_player_spell_rows_like_cpp
             .is_empty(),
         "C++ AddSpell does not leave a dirty row for a missing SpellInfo"
@@ -329,7 +329,7 @@ async fn spell_learn_spell_fallback_preserves_disabled_inactive_state_like_cpp()
     assert_eq!(
         session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_player_spell_rows_like_cpp
             .get(&learned_spell_id),
         Some(&RepresentedPlayerSpellLikeCpp {
@@ -409,7 +409,7 @@ async fn spell_learn_spell_fallback_reactivates_inactive_known_spell_like_cpp() 
     assert_eq!(
         session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_player_spell_rows_like_cpp
             .get(&learned_spell_id),
         Some(&RepresentedPlayerSpellLikeCpp {

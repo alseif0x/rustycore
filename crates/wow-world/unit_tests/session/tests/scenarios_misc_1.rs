@@ -84,20 +84,26 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
             skill_id: u32::from(SKILL_RIDING_LIKE_CPP),
         },
     );
-    session.interaction.gossip_options.push(GossipOptionInfo {
-        gossip_option_id: 1,
-        menu_id: 2,
-        order_index: 3,
-        option_npc: 4,
-        action_menu_id: 5,
-    });
+    session
+        .interaction
+        .gossip_options_for_test_mut_like_cpp()
+        .push(GossipOptionInfo {
+            gossip_option_id: 1,
+            menu_id: 2,
+            order_index: 3,
+            option_npc: 4,
+            action_menu_id: 5,
+        });
 
     session.set_player_guid(Some(first_player));
     assert!(
         session.player_trainer_interaction_matches_like_cpp(trainer, 77),
         "reasserting the same Player identity must not reset its PlayerMenu"
     );
-    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert_eq!(
+        session.interaction.gossip_options_for_test_like_cpp().len(),
+        1
+    );
     assert_eq!(
         session
             .fixtures
@@ -122,7 +128,12 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
 
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
-    assert!(session.interaction.gossip_options.is_empty());
+    assert!(
+        session
+            .interaction
+            .gossip_options_for_test_like_cpp()
+            .is_empty()
+    );
     assert!(
         session.fixtures.auras.visible_auras.is_empty(),
         "active auras cannot cross a C++ Player lifetime"
@@ -149,7 +160,12 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
 
     session.set_player_guid(Some(second_player));
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
-    assert!(session.interaction.gossip_options.is_empty());
+    assert!(
+        session
+            .interaction
+            .gossip_options_for_test_like_cpp()
+            .is_empty()
+    );
     assert!(session.fixtures.auras.visible_auras.is_empty());
     assert!(!session.player_aura_authority_complete_like_cpp());
 }
@@ -203,8 +219,7 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp,
+            .fixture_represented_quest_completed_bits_snapshot_like_cpp(),
         BTreeSet::from([65, 66])
     );
     assert!(!session.seasonal_quest_changed_like_cpp());
@@ -227,9 +242,7 @@ fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .is_empty()
+            .fixture_represented_quest_completed_bits_are_empty_like_cpp()
     );
 }
 #[test]
@@ -316,9 +329,7 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -427,7 +438,9 @@ fn represented_player_condition_explored_uses_area_bit_blocks_like_cpp() {
 
     assert!(!session.represented_meets_player_condition_id_like_cpp(42));
 
-    session.instances.represented_explored_zones_like_cpp[1] = 2;
+    session
+        .instances
+        .set_represented_explored_zone_block_for_test_like_cpp(1, 2);
     assert!(session.represented_meets_player_condition_id_like_cpp(42));
     assert!(!session.represented_meets_player_condition_id_like_cpp(43));
 }

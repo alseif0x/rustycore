@@ -41,9 +41,7 @@ async fn reputation_min_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -100,9 +98,7 @@ async fn increase_reputation_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -165,9 +161,7 @@ async fn reputation_max_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -470,7 +464,9 @@ fn reputation_gain_recruit_a_friend_bonus_requires_configured_distance_like_cpp(
     group.add_member(recruit_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_state(SessionState::LoggedIn);

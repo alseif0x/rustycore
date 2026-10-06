@@ -17,19 +17,18 @@ async fn disconnect_after_primary_ae_release_closes_secondary_view_like_cpp() {
     session
         .handle_loot_release(loot_release_packet(primary_guid))
         .await;
-    assert!(session.loot.active_loot_guid.is_empty());
+    assert!(session.loot.active_loot_guid_like_cpp().is_empty());
     assert!(
         session
             .loot
-            .active_loot_view_owners
-            .contains(&secondary_guid)
+            .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
 
     session
         .cleanup_shared_runtime_state_on_disconnect_like_cpp()
         .await;
 
-    assert!(session.loot.active_loot_view_owners.is_empty());
+    assert!(session.loot.active_loot_view_owners_is_empty_like_cpp());
     assert!(
         !secondary_authority
             .snapshot_for_player_like_cpp(player_guid)

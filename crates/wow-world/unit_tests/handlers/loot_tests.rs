@@ -26,17 +26,16 @@ use super::{
     SyncGooberGameobjectStateAndRefreshLikeCppCommand,
     assign_represented_personal_loot_items_like_cpp,
     classify_stored_item_money_reconciliation_like_cpp,
-    creature_loot_is_allowed_to_player_like_cpp, direct_item_count_after_loot_release_like_cpp,
-    generated_creature_loot_item_to_entry_like_cpp,
+    creature_loot_is_allowed_to_player_like_cpp, generated_creature_loot_item_to_entry_like_cpp,
     generated_shared_gameobject_loot_item_to_entry_like_cpp, loot_is_looted_like_cpp,
-    loot_item_context, loot_store_data_can_stack_with_item, loot_type_for_client_like_cpp,
-    looted_corpse_decay_secs_like_cpp, mark_loot_allowed_for_player_like_cpp,
-    mark_loot_item_looted_for_player_like_cpp, prepare_represented_shared_loot_generation_like_cpp,
+    loot_item_context, loot_type_for_client_like_cpp, looted_corpse_decay_secs_like_cpp,
+    mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
+    prepare_represented_shared_loot_generation_like_cpp,
     queue_creature_loot_release_command_reliably_like_cpp,
     represented_gameobject_display_box_contains_like_cpp,
     represented_gameobject_interaction_distance_like_cpp, represented_loot_object_guid_like_cpp,
-    represented_loot_response_items_like_cpp, select_weighted_random_enchantment_like_cpp,
-    start_loot_roll_packet_like_cpp, stored_item_money_zero_without_source_outcome_like_cpp,
+    represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
+    stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{
@@ -119,6 +118,7 @@ use wow_persistence::{
     StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistencePortLikeCpp,
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
+use wow_world_application::direct_item_count_after_loot_release_like_cpp;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{
@@ -171,6 +171,7 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_loot_money_persistence_test_result_like_cpp(true);
     (session, send_rx)
@@ -235,14 +236,12 @@ fn transport_values_command_uses_visible_transport_membership_like_cpp() {
     assert!(send_rx.try_recv().is_err());
     session
         .visibility
-        .client_visible_transports_like_cpp
-        .insert(transport_guid);
+        .insert_client_visible_transport_like_cpp(transport_guid);
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert_eq!(send_rx.try_recv().unwrap(), vec![0x52, 0x26]);
     session
         .visibility
-        .client_visible_transports_like_cpp
-        .clear();
+        .clear_client_visible_transports_like_cpp();
     session.handle_send_visible_object_values_update_command_like_cpp(command());
     assert!(send_rx.try_recv().is_err());
 }
@@ -379,7 +378,7 @@ fn install_active_item_loot_completion_fixture_like_cpp(
     assert!(owner_guid.is_item());
     session.set_player_guid(Some(player_guid));
     session.loot.set_active_loot_guid(owner_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: owner_guid,
@@ -567,9 +566,7 @@ fn install_quest_bound_loot_objective_like_cpp(
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -828,8 +825,7 @@ async fn open_test_ae_pair_like_cpp(
     assert!(
         session
             .loot
-            .active_loot_view_owners
-            .contains(&secondary_guid)
+            .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
     let authority = session
         .represented_owned_loot_authority_like_cpp(secondary_guid)

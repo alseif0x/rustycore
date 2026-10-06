@@ -10,7 +10,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     {
         player.gameplay_state_mut().customizations = session
             .lifecycle
-            .loaded_player_customizations_like_cpp
+            .loaded_player_customizations_for_test_like_cpp()
             .iter()
             .map(|choice| wow_entities::PlayerCustomizationChoice {
                 option_id: choice.option_id,
@@ -46,52 +46,19 @@ pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status:
     });
 }
 
-pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray_level: u8) {
-    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
-        player.set_level_and_gray_level_like_cpp(level, gray_level);
-    });
-}
-
 #[cfg(test)]
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
-    let known_spells = session.known_spells_fixture_like_cpp();
-    let quests = session.player_quest_gameplay_snapshot_like_cpp();
-    let mount_vehicle_kit = session
-        .fixtures
-        .vehicles
-        .player_mount_vehicle_kit_like_cpp
-        .clone();
-    let vehicle_seat_flags = session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp;
-    let vehicle_seat_id = session.fixtures.vehicles.player_vehicle_seat_id_like_cpp;
-    let pet_guid = session.fixtures.pets.represented_pet_guid_like_cpp;
-    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
-        let state = player.gameplay_state_mut();
-        let rows = known_spells
-            .iter()
-            .copied()
-            .map(|spell_id| {
-                (
-                    spell_id,
-                    wow_entities::PlayerKnownSpellRecord {
-                        spell_id,
-                        state: wow_entities::PlayerSpellLoadState::Unchanged,
-                        active: true,
-                        disabled: false,
-                        favorite: false,
-                        dependent: false,
-                    },
-                )
-            })
-            .collect();
-        state
-            .spells
-            .replace_known_spells_and_rows_like_cpp(known_spells.clone(), rows);
-        if let Some(quests) = quests.clone() {
-            state.quests = quests;
-        }
-        state.mount_vehicle_kit = mount_vehicle_kit.clone();
-        state.vehicle_seat_flags = vehicle_seat_flags;
-        state.vehicle_seat_id = vehicle_seat_id;
-        state.pet_guid = pet_guid;
-    });
+    wow_world_application::PlayerRegistryHydrationContext::new(
+        session.core.player_registry_hydration_access_like_cpp(),
+        &session.spell_state,
+        &session.quest_state,
+        (
+            &session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+            &session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+            &session.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+            &session.fixtures.pets.represented_pet_guid_like_cpp,
+        ),
+        true,
+    )
+    .hydrate();
 }

@@ -122,7 +122,7 @@ fn summon_private_object_owner_derives_from_properties_like_cpp() {
         session.summon_private_object_owner_like_cpp(caster, ObjectGuid::EMPTY, &properties),
         caster
     );
-    session.social.group_guid = Some(77);
+    session.social.set_group_guid_for_test_like_cpp(Some(77));
     assert_eq!(
         session.summon_private_object_owner_like_cpp(caster, ObjectGuid::EMPTY, &properties),
         ObjectGuid::create_group(77)

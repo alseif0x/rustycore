@@ -71,7 +71,9 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
@@ -153,9 +155,7 @@ async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![2, 0]);
     let stored_source_item_count: u32 = session
@@ -243,9 +243,7 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![0, 0]);
     let stored_source_item_count: u32 = session
@@ -315,9 +313,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![0, 2]);
     assert!(sender_rx.try_recv().is_err());
@@ -370,9 +366,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("source-item quest should add local quest state");
     assert_eq!(status.objective_counts, vec![2, 0]);
     assert!(sender_rx.try_recv().is_err());
@@ -418,9 +412,7 @@ async fn quest_confirm_accept_source_item_zero_count_normalizes_to_one_and_fails
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     let outcomes = session.represented_quest_confirm_accepts_like_cpp();
     assert_eq!(outcomes.len(), 1);
@@ -475,9 +467,7 @@ async fn quest_confirm_accept_source_item_at_max_count_allows_can_add_gate_like_
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert_eq!(
         session.represented_quest_confirm_accepts_like_cpp(),
@@ -579,9 +569,7 @@ async fn quest_confirm_accept_source_item_limit_category_missing_db2_entry_fails
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert_eq!(
         session.represented_quest_confirm_accepts_like_cpp(),
@@ -654,9 +642,7 @@ async fn quest_confirm_accept_source_item_start_quest_still_respects_limit_categ
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert_eq!(
         session.represented_quest_confirm_accepts_like_cpp(),
@@ -716,16 +702,12 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+            .fixture_player_quest_status_like_cpp(quest_id)
             .expect("no-objective shared quest should be locally tracked")
             .status,
         QUEST_STATUS_COMPLETE_LIKE_CPP
@@ -736,8 +718,7 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
 }
 #[test]
 fn quest_push_inventory_registration_and_dispatcher_contract_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::QuestPushResult)
         .expect("QuestPushResult handler registration");
 
@@ -745,7 +726,7 @@ fn quest_push_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_quest_push_result");
     assert!(
-        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_quest_push_result(pkt).await"),
+        QUEST_HANDLER_REGISTRATIONS.contains(".handle_quest_push_result(pkt)"),
         "the QuestPushResult registration must carry the call itself"
     );
 }
@@ -844,8 +825,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
 }
 #[test]
 fn request_world_quest_update_inventory_entry_matches_cpp_status_and_processing() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::RequestWorldQuestUpdate)
         .expect("RequestWorldQuestUpdate handler registration");
 
@@ -893,8 +873,7 @@ async fn quest_giver_status_multiple_skips_missing_player_item_and_non_questgive
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(non_questgiver_go, state);
+        .insert_represented_gameobject_use_state_for_test_like_cpp(non_questgiver_go, state);
 
     session.handle_quest_giver_status_multiple_query().await;
 
@@ -905,8 +884,7 @@ async fn quest_giver_status_multiple_skips_missing_player_item_and_non_questgive
 }
 #[test]
 fn quest_giver_close_inventory_registration_matches_dispatch_contract_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::QuestGiverCloseQuest)
         .expect("QuestGiverCloseQuest handler registration");
 

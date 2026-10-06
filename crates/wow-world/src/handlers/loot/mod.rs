@@ -49,7 +49,7 @@ mod sources;
 mod storage_plans;
 mod visibility_commands;
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::sync::{
     Arc,
     atomic::{AtomicBool, AtomicU64, Ordering},
@@ -57,8 +57,7 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use rand::Rng;
-use tokio::time::timeout;
-use tracing::{debug, info, warn};
+use tracing::{debug, warn};
 
 use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeCpp};
 use crate::session::mailbox::{
@@ -81,19 +80,23 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_entities::{
-    AccessorObjectKind, CORPSE_DYNFLAG_LOOTABLE, GAMEOBJECT_TYPE_AREADAMAGE,
-    GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CAMERA,
-    GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING,
-    GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_FLAGSTAND,
-    GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_GUILD_BANK,
-    GAMEOBJECT_TYPE_MAILBOX, GAMEOBJECT_TYPE_MAP_OBJECT, GAMEOBJECT_TYPE_MINI_GAME,
-    GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_TEXT, GO_DYNFLAG_LO_NO_INTERACT,
-    GameObjectLootSource, GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE,
-    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount,
-    LootState, MAX_MONEY_AMOUNT, is_bag_pos, make_item_pos,
+    AccessorObjectKind, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_GATHERING_NODE,
+    GAMEOBJECT_TYPE_GOOBER, GO_DYNFLAG_LO_NO_INTERACT, GameObjectLootSource,
+    GatheringNodeUseSource, GoState, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
+    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemPosCount, LootState, MAX_MONEY_AMOUNT,
+    make_item_pos,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
+
+// Test-only represented GameObject/decay constants; production paths read the
+// same values through their own imports.
+#[cfg(test)]
+use wow_entities::{
+    GAMEOBJECT_TYPE_AREADAMAGE, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR,
+    GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER,
+};
+#[cfg(test)]
+use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
 use crate::session::hub_support::RepresentedLootPlayerContext;
 use crate::session::registry::PacketHandlerEntry;
@@ -109,9 +112,7 @@ use wow_loot::{
     loot_item_ui_type_for_player_like_cpp,
 };
 use wow_packet::ServerPacket;
-use wow_packet::packets::item::{
-    ItemExpirePurchaseRefund, ItemInstance, ItemModList, ItemPushResult, ItemPushResultDisplayType,
-};
+use wow_packet::packets::item::ItemInstance;
 use wow_packet::packets::loot::{
     AELootTargets, AELootTargetsAck, CoinRemoved, CreatureLoot, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
     LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP, LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
@@ -148,10 +149,7 @@ use crate::session::{
     RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
     loot_money_durable_outcome_like_cpp,
 };
-use random_properties::{
-    LootStoreRandomProperties, loot_store_data_can_stack_with_item,
-    select_weighted_random_enchantment_like_cpp,
-};
+use random_properties::{LootStoreRandomProperties, loot_store_data_can_stack_with_item};
 use storage_plans::{
     LootItemClaimCommitContextLikeCpp, PlannedDirectLootExistingStack,
     PlannedDisenchantExistingPush, PlannedDisenchantExistingStack, PlannedDisenchantGrant,
@@ -165,10 +163,6 @@ const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
-const LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP: u8 = 0;
-const LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP: u8 = 1;
-const LOOT_SLOT_TYPE_LOCKED_LIKE_CPP: u8 = 2;
-const DISENCHANT_LOOT_ROLL_CRITERIA_SPELL_LIKE_CPP: u32 = 13_262;
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;
 const ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP: u32 = 0x0004;
@@ -181,34 +175,10 @@ const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
 const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
-const REMOTE_MASTER_LOOT_COMMAND_TIMEOUT: Duration = Duration::from_millis(250);
-
-#[derive(Clone)]
-struct AuthoritativeLootReleaseLikeCpp {
-    authority: OwnedLootAuthority,
-    selected_generation: u64,
-    loot: CreatureLoot,
-    whole_object_fully_looted: bool,
-    whole_object_fully_skinned: bool,
-    object_generation: u64,
-    lifecycle_revision: u64,
-    require_no_viewers: bool,
-}
 
 // ── Handler registrations ─────────────────────────────────────────
 
 // ── Handler implementations ───────────────────────────────────────
-
-fn durable_loot_item_fanout_viewers_like_cpp(
-    precommit_viewers: &[ObjectGuid],
-    committed_viewers: &[ObjectGuid],
-) -> HashSet<ObjectGuid> {
-    precommit_viewers
-        .iter()
-        .chain(committed_viewers)
-        .copied()
-        .collect()
-}
 
 fn master_loot_error_for_inventory_result_like_cpp(result: InventoryResult) -> Option<u8> {
     match result {
@@ -243,22 +213,6 @@ fn player_class_mask_like_cpp(class_id: u8) -> Option<u32> {
     } else {
         None
     }
-}
-
-fn player_race_mask_like_cpp(race_id: u8) -> Option<u32> {
-    let bit = match race_id {
-        1..=11 => race_id - 1,
-        22 => 21,
-        24..=32 => race_id - 1,
-        34 => 11,
-        35 => 12,
-        36 => 13,
-        37 => 14,
-        52 => 16,
-        70 => 15,
-        _ => return None,
-    };
-    Some(1_u32 << bit)
 }
 
 fn player_team_for_race_cpp_representable(race: u8) -> u32 {
@@ -337,19 +291,7 @@ where
     entry
 }
 
-#[derive(Debug, Clone)]
-struct RepresentedCreatureLootStateLikeCpp {
-    is_alive: bool,
-    position: wow_core::Position,
-    level: u8,
-    entry: u32,
-    loot_id: u32,
-    gold_min: u32,
-    gold_max: u32,
-    dungeon_encounter_id: u32,
-    tappers: Vec<ObjectGuid>,
-    loot_lifecycle_revision: u64,
-}
+use wow_world_loot::RepresentedCreatureLootStateLikeCpp;
 
 #[derive(Debug, Clone)]
 struct RepresentedGameObjectLootInstallObservationLikeCpp {
@@ -370,74 +312,12 @@ struct RepresentedGameObjectLootStateLikeCpp {
     owner_guid: Option<ObjectGuid>,
 }
 
-pub(crate) fn represented_gameobject_interaction_distance_like_cpp(
-    go_type: Option<u8>,
-    interact_radius_override: Option<u32>,
-) -> f32 {
-    // C++ ref: GameObject.cpp GetInteractionDistance().
-    // Spell-lock range remains with the typed GameObject/SpellInfo port.
-    if let Some(override_hundredths) = interact_radius_override.filter(|value| *value != 0) {
-        return override_hundredths as f32 / 100.0;
-    }
-
-    match go_type.map(u32::from) {
-        Some(GAMEOBJECT_TYPE_AREADAMAGE) => 0.0,
-        Some(GAMEOBJECT_TYPE_QUESTGIVER)
-        | Some(GAMEOBJECT_TYPE_TEXT)
-        | Some(GAMEOBJECT_TYPE_FLAGSTAND)
-        | Some(GAMEOBJECT_TYPE_FLAGDROP)
-        | Some(GAMEOBJECT_TYPE_MINI_GAME) => 5.5555553,
-        Some(GAMEOBJECT_TYPE_BINDER) => 10.0,
-        Some(GAMEOBJECT_TYPE_CHAIR) | Some(GAMEOBJECT_TYPE_BARBER_CHAIR) => 3.0,
-        Some(GAMEOBJECT_TYPE_FISHING_NODE) => 100.0,
-        Some(GAMEOBJECT_TYPE_FISHING_HOLE) => 20.0 + wow_movement::CONTACT_DISTANCE_LIKE_CPP,
-        Some(GAMEOBJECT_TYPE_CAMERA)
-        | Some(GAMEOBJECT_TYPE_MAP_OBJECT)
-        | Some(GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY)
-        | Some(GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING)
-        | Some(GAMEOBJECT_TYPE_DOOR) => 5.0,
-        Some(GAMEOBJECT_TYPE_GUILD_BANK) | Some(GAMEOBJECT_TYPE_MAILBOX) => 10.0,
-        _ => 5.0,
-    }
-}
-
-fn represented_gameobject_display_box_contains_like_cpp(
-    go_position: wow_core::Position,
-    player_position: wow_core::Position,
-    display_info: &wow_data::GameObjectDisplayInfoEntry,
-    scale: f32,
-    rotation: [f32; 4],
-    radius: f32,
-) -> bool {
-    let min_x = display_info.geo_box_min.x * scale - radius;
-    let min_y = display_info.geo_box_min.y * scale - radius;
-    let min_z = display_info.geo_box_min.z * scale - radius;
-    let max_x = display_info.geo_box_max.x * scale + radius;
-    let max_y = display_info.geo_box_max.y * scale + radius;
-    let max_z = display_info.geo_box_max.z * scale + radius;
-
-    let dx = player_position.x - go_position.x;
-    let dy = player_position.y - go_position.y;
-    let dz = player_position.z - go_position.z;
-    let [qx, qy, qz, qw] = rotation;
-    let iqx = -qx;
-    let iqy = -qy;
-    let iqz = -qz;
-
-    let tx = 2.0 * (iqy * dz - iqz * dy);
-    let ty = 2.0 * (iqz * dx - iqx * dz);
-    let tz = 2.0 * (iqx * dy - iqy * dx);
-    let local_x = dx + qw * tx + (iqy * tz - iqz * ty);
-    let local_y = dy + qw * ty + (iqz * tx - iqx * tz);
-    let local_z = dz + qw * tz + (iqx * ty - iqy * tx);
-
-    local_x >= min_x
-        && local_x <= max_x
-        && local_y >= min_y
-        && local_y <= max_y
-        && local_z >= min_z
-        && local_z <= max_z
-}
+// Gameobject interaction geometry is shared with the application layer's
+// LootRelease context; the canonical implementation lives in
+// `wow-world-entities`.
+#[cfg(test)]
+pub(crate) use wow_world_entities::represented_gameobject_display_box_contains_like_cpp;
+pub(crate) use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
 
 #[cfg(test)]
 fn represented_loot_object_guid_like_cpp(owner: ObjectGuid) -> ObjectGuid {
@@ -474,16 +354,6 @@ fn loot_type_for_client_like_cpp(loot_type: u8) -> u8 {
         }
         _ => loot_type,
     }
-}
-
-fn direct_item_count_after_loot_release_like_cpp(
-    current_count: u32,
-    maximum_destroy_count: Option<u32>,
-) -> u32 {
-    let destroy_count = maximum_destroy_count
-        .unwrap_or(current_count)
-        .min(current_count);
-    current_count.saturating_sub(destroy_count)
 }
 
 #[cfg(test)]
@@ -547,24 +417,6 @@ fn represented_loot_response_items_like_cpp(
             })
         })
         .collect()
-}
-
-fn looted_corpse_decay_secs_like_cpp(
-    is_fully_skinned: bool,
-    corpse_delay_secs: u32,
-    ignore_decay_ratio: bool,
-    corpse_decay_looted_rate: f32,
-) -> u32 {
-    if is_fully_skinned {
-        return 0;
-    }
-
-    let rate = if ignore_decay_ratio {
-        1.0
-    } else {
-        corpse_decay_looted_rate.max(0.0)
-    };
-    ((corpse_delay_secs as f32) * rate) as u32
 }
 
 #[cfg(test)]
@@ -687,22 +539,10 @@ fn start_loot_roll_packet_like_cpp(
     }
 }
 
-fn loot_roll_broadcast_item_like_cpp(entry: &LootEntry, ui_type: u8) -> LootItemData {
-    LootItemData {
-        item_type: 0,
-        ui_type,
-        can_trade_to_tap_list: entry.allowed_looters.len() > 1,
-        loot: ItemInstance {
-            item_id: entry.item_id as i32,
-            random_properties_id: entry.random_properties_id,
-            random_properties_seed: entry.random_properties_seed,
-            ..ItemInstance::default()
-        },
-        loot_list_id: entry.loot_list_id,
-        quantity: entry.quantity,
-        loot_item_type: 0,
-    }
-}
+use wow_world_loot::{
+    LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_LOCKED_LIKE_CPP,
+    LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, loot_roll_broadcast_item_like_cpp,
+};
 
 fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(chance: f32, rate: f32, rng: &mut R) -> bool {
     if chance >= 100.0 {
@@ -724,32 +564,6 @@ fn represented_disenchant_loot_plain_row_can_roll_like_cpp(
 
 fn represented_disenchant_loot_reference_row_can_roll_like_cpp(row: &LootStoreItem) -> bool {
     row.can_roll_as_reference_entry_like_cpp(LOOT_MODE_DEFAULT_LIKE_CPP)
-}
-
-fn add_loot_item_stacks_like_cpp(
-    loot_items: &mut Vec<LootEntry>,
-    item_id: u32,
-    mut count: u32,
-    max_stack_size: u32,
-    flags: LootEntryFlags,
-) {
-    while count > 0 && loot_items.len() < MAX_NR_LOOT_ITEMS_LIKE_CPP {
-        let quantity = count.min(max_stack_size);
-        loot_items.push(LootEntry {
-            loot_list_id: loot_items.len() as u8,
-            item_id,
-            quantity,
-            random_properties_id: 0,
-            random_properties_seed: 0,
-            item_context: 0,
-            flags,
-            allowed_looters: Vec::new(),
-            roll_winner: ObjectGuid::EMPTY,
-            ffa_looted_by: Vec::new(),
-            taken: false,
-        });
-        count = count.saturating_sub(max_stack_size);
-    }
 }
 
 #[derive(Debug, Clone)]

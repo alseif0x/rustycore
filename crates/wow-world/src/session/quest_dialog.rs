@@ -4,47 +4,22 @@
 //! Quest dialog: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ActiveState, Arc, InventoryResult, ObjectGuid, PetType, PowerType};
+use super::{ActiveState, Arc, InventoryResult, ObjectGuid};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
-use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP, QuestListEntry};
-use super::{QuestRewardsBlock, ReactState, RepresentedGameObjectUseEffect, SheathState};
-use super::{UnitStandStateType, WorldSession, info, quest};
+use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QuestListEntry};
+use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect};
+use super::{WorldSession, info, quest};
 
 pub(in crate::session) fn quest_has_represented_item_objective_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
 ) -> bool {
-    quest
-        .objectives
-        .iter()
-        .any(|objective| objective.obj_type == QUEST_OBJECTIVE_ITEM_LIKE_CPP)
+    wow_world_application::represented_quest_has_item_objective_like_cpp(quest)
 }
 
 pub(in crate::session) fn quest_rewards_block_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
 ) -> QuestRewardsBlock {
-    let mut rewards = QuestRewardsBlock {
-        money: quest.reward_money_difficulty as i32,
-        completion_spell: quest.reward_spell as i32,
-        ..QuestRewardsBlock::default()
-    };
-    for (idx, reward_item) in quest.reward_items.iter().enumerate() {
-        if let Some(reward_slot) = rewards.items.get_mut(idx) {
-            let amount = quest.reward_amounts.get(idx).copied().unwrap_or(0);
-            *reward_slot = (*reward_item, amount);
-        }
-    }
-    for (idx, display_spell) in quest.reward_display_spell.iter().enumerate() {
-        if let Some(slot) = rewards.display_spells.get_mut(idx) {
-            *slot = *display_spell;
-        }
-    }
-    for (idx, choice_item) in quest.reward_choice_items.iter().enumerate() {
-        if let Some(slot) = rewards.choice_items.get_mut(idx) {
-            *slot = *choice_item;
-        }
-    }
-    rewards.choice_item_types = quest.reward_choice_item_types;
-    rewards
+    wow_world_application::represented_quest_rewards_block_like_cpp(quest)
 }
 
 pub(in crate::session) fn quest_giver_creature_id_from_source_like_cpp(
@@ -57,22 +32,26 @@ pub(in crate::session) fn quest_giver_creature_id_from_source_like_cpp(
     }
 }
 
-pub(in crate::session) const fn react_state_from_db_like_cpp(value: u8) -> ReactState {
-    match value {
-        0 => ReactState::Passive,
-        1 => ReactState::Defensive,
-        2 => ReactState::Aggressive,
-        _ => ReactState::Passive,
-    }
+pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
+    menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
+) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
+    menu_items
+        .iter()
+        .map(|item| {
+            (
+                item.quest.id,
+                item.quest.log_title.clone(),
+                item.quest_icon,
+                item.has_starter_relation,
+                item.has_involved_relation,
+                item.quest.allowable_classes,
+                item.quest.flags,
+            )
+        })
+        .collect()
 }
 
-pub(in crate::session) const fn pet_type_from_db_like_cpp(value: u8) -> PetType {
-    match value {
-        0 => PetType::Summon,
-        1 => PetType::Hunter,
-        _ => PetType::Max,
-    }
-}
+pub(in crate::session) use wow_world_core::session::react_state_from_db_like_cpp;
 
 pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
     match value {
@@ -84,72 +63,11 @@ pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> Acti
     }
 }
 
-pub(in crate::session) const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
-    match power {
-        1 => PowerType::Rage,
-        2 => PowerType::Focus,
-        3 => PowerType::Energy,
-        4 => PowerType::Happiness,
-        5 => PowerType::Runes,
-        6 => PowerType::RunicPower,
-        7 => PowerType::SoulShards,
-        8 => PowerType::LunarPower,
-        9 => PowerType::HolyPower,
-        10 => PowerType::AlternatePower,
-        11 => PowerType::Maelstrom,
-        12 => PowerType::Chi,
-        13 => PowerType::Insanity,
-        14 => PowerType::ComboPoints,
-        15 => PowerType::DemonicFury,
-        16 => PowerType::ArcaneCharges,
-        17 => PowerType::Fury,
-        18 => PowerType::Pain,
-        19 => PowerType::Essence,
-        20 => PowerType::RuneBlood,
-        21 => PowerType::RuneFrost,
-        22 => PowerType::RuneUnholy,
-        23 => PowerType::AlternateQuest,
-        24 => PowerType::AlternateEncounter,
-        25 => PowerType::AlternateMount,
-        _ => PowerType::Mana,
-    }
-}
+pub(in crate::session) use wow_world_core::session::power_type_from_u8_like_cpp;
 
-#[cfg(test)]
-pub(in crate::session) const fn primary_power_type_for_player_class_like_cpp(
-    class_id: u8,
-) -> PowerType {
-    match class_id {
-        1 => PowerType::Rage,
-        4 => PowerType::Energy,
-        6 => PowerType::RunicPower,
-        _ => PowerType::Mana,
-    }
-}
-
-pub(in crate::session) const fn unit_stand_state_from_u8_like_cpp(value: u8) -> UnitStandStateType {
-    match value {
-        1 => UnitStandStateType::Sit,
-        2 => UnitStandStateType::SitChair,
-        3 => UnitStandStateType::Sleep,
-        4 => UnitStandStateType::SitLowChair,
-        5 => UnitStandStateType::SitMediumChair,
-        6 => UnitStandStateType::SitHighChair,
-        7 => UnitStandStateType::Dead,
-        8 => UnitStandStateType::Kneel,
-        9 => UnitStandStateType::Submerged,
-        10 => UnitStandStateType::Max,
-        _ => UnitStandStateType::Stand,
-    }
-}
-
-pub(in crate::session) const fn sheath_state_from_u8_like_cpp(value: u8) -> SheathState {
-    match value {
-        1 => SheathState::Melee,
-        2 => SheathState::Ranged,
-        _ => SheathState::Unarmed,
-    }
-}
+pub(in crate::session) use wow_world_entities::{
+    sheath_state_from_u8_like_cpp, unit_stand_state_from_u8_like_cpp,
+};
 
 #[derive(Debug, Clone)]
 pub(in crate::session) struct RepresentedPreparedQuestMenuItemLikeCpp {
@@ -189,223 +107,25 @@ pub(crate) struct SeasonalQuestStatusDbRowLikeCpp {
     pub completed_time: i64,
 }
 
-/// Session-local representation of C++ `Player::GetPlayerSharingQuest()` state
-/// until full party/ObjectAccessor quest sharing runtime owns it.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedPendingQuestSharingLikeCpp {
-    pub sender_guid: ObjectGuid,
-    pub quest_id: u32,
-}
-
-/// Evidence for the bounded `HandleQuestPushResult` sender-match seam.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestPushResultResponseLikeCpp {
-    pub receiver_guid: ObjectGuid,
-    pub sender_guid: ObjectGuid,
-    pub parsed_quest_id: u32,
-    pub pending_quest_id: u32,
-    pub result: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedPushQuestToPartyOutcomeReasonLikeCpp {
-    NotAllowed,
-    NotDaily,
-    QuestPoolActiveCheckUnrepresented,
-    NotInParty,
-    GroupRuntimeUnrepresented,
-    ReceiverBusy,
-    ReceiverDead,
-    ReceiverAlreadyDone,
-    ReceiverOnQuest,
-    ReceiverLogFull,
-    ReceiverSatisfyQuestDayAlreadyDone,
-    ReceiverSatisfyQuestMinLevelLowLevel,
-    ReceiverSatisfyQuestMaxLevelHighLevel,
-    ReceiverSatisfyQuestClassWrongClass,
-    ReceiverSatisfyQuestRaceWrongRace,
-    ReceiverSatisfyQuestReputationLowFaction,
-    ReceiverSatisfyQuestReputationHighFaction,
-    ReceiverSatisfyQuestPreviousQuestPrerequisite,
-    ReceiverSatisfyQuestDependentPreviousQuestsPrerequisite,
-    ReceiverSatisfyQuestDependentBreadcrumbQuestsPrerequisite,
-    ReceiverSatisfyQuestExpansionRequiredExpansion,
-    ReceiverCanTakeQuestInvalid,
-    #[allow(dead_code)]
-    ReceiverRepeatableTurnInRequestItemsUnrepresented,
-    ReceiverRepeatableTurnInRequestItemsPrompted,
-    ReceiverRepeatableTurnInRequestItemsPromptCommandFailed,
-    ReceiverSuccessQuestDetailsPrompted,
-    ReceiverQuestDetailsPromptCommandFailed,
-    ReceiverEligibilityUnrepresented,
-}
-
-/// Session-local evidence for the bounded sender-side `HandlePushQuestToParty` preflight.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedPushQuestToPartyOutcomeLikeCpp {
-    pub sender_guid: Option<ObjectGuid>,
-    pub quest_id: u32,
-    pub target_guid: Option<ObjectGuid>,
-    pub reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
-    pub quest_pool_active_check_unrepresented: bool,
-    pub group_runtime_unrepresented: bool,
-    pub receiver_fanout_unrepresented: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedAdventureMapStartQuestLikeCpp {
-    pub quest_id: u32,
-    pub adventure_map_poi_id: u32,
-    pub player_condition_id: u32,
-}
-
-/// Represented outcome for the bounded post-template `HandleQuestConfirmAccept` gates.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp {
-    OriginalPlayerMissing,
-    NotInSameRaid,
-    OriginalPlayerNotActiveQuest,
-    ReceiverCanTakeQuestFailed,
-    ReceiverCanAddQuestLogFull,
-    ReceiverCanAddQuestSourceItemFailed,
-    ReceiverGiveQuestSourceItemStartQuestNoGrant,
-    ReceiverGiveQuestSourceItemMaxCountNoGrant,
-    ReceiverGiveQuestSourceItemStoredNewItem,
-    ReceiverGiveQuestSourceItemBoundObjectiveNoGrant,
-    GiveQuestSourceItemStoreNewItemUnrepresented,
-    ReceiverAddQuestLocalStateRepresented,
-    #[allow(dead_code)]
-    AddQuestRuntimeUnrepresented,
-}
-
-/// Evidence that `HandleQuestConfirmAccept` reached the post-clear/template-present seam.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestConfirmAcceptLikeCpp {
-    pub receiver_guid: Option<ObjectGuid>,
-    pub sender_guid_before_clear: ObjectGuid,
-    pub quest_id: u32,
-    pub raw_quest_id: i32,
-    pub reason: RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
-    pub object_accessor_unrepresented: bool,
-    pub party_runtime_unrepresented: bool,
-    pub can_add_source_item_unrepresented: bool,
-    pub can_add_source_item_result: Option<InventoryResult>,
-    pub add_quest_runtime_unrepresented: bool,
-    pub source_spell_unrepresented: bool,
-    /// Source spell id whose C++ triggered self-casts are represented as evidence only.
-    pub represented_source_spell_id: Option<u32>,
-    /// Count of represented triggered self-casts C++ would perform in this shared-confirm path.
-    pub represented_source_spell_self_casts: u8,
-}
-
-/// Evidence for represented `Player::CompleteQuest` status-update side effects.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestCompleteStatusUpdateLikeCpp {
-    pub quest_id: u32,
-    pub old_status: u8,
-    pub new_status: u8,
-    pub send_quest_update_called: bool,
-    pub quest_slot_state_complete_represented: bool,
-    pub quest_slot_state_live_update_unrepresented: bool,
-    pub visible_gameobjects_or_spellclicks_refresh_unrepresented: bool,
-    pub spell_area_runtime_unrepresented: bool,
-    pub tracking_event_auto_reward_unrepresented: bool,
-    pub quest_tracker_complete_time_unrepresented: bool,
-    pub script_status_change_unrepresented: bool,
-}
+pub(crate) use wow_world_application::{
+    RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
+    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    RepresentedQuestPushResultResponseLikeCpp,
+};
+pub(crate) use wow_world_instances::RepresentedAdventureMapStartQuestLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestRewardSpellKindLikeCpp {
-    RewardSpell,
-    RewardDisplaySpell { index: u8 },
-}
+pub(crate) use wow_world_application::{
+    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
+    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
+    RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
-    pub quest_id: u32,
-    pub spell_id: u32,
-    pub kind: RepresentedQuestRewardSpellKindLikeCpp,
-    pub can_delay_teleport_like_cpp: bool,
-    pub spell_info_lookup_unrepresented: bool,
-    pub caster_selection_unrepresented: bool,
-    pub cast_spell_runtime_unrepresented: bool,
-}
+pub(crate) use wow_world_social::RepresentedForceDeselectLikeCpp;
 
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedForceDeselectLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub visibility_range_yards: u32,
-    pub break_target_packet_bytes: Vec<u8>,
-    pub clear_target_packet_bytes: Vec<u8>,
-    pub hostile_visible_fanout_unrepresented: bool,
-    pub attacker_pet_attack_stop_unrepresented: bool,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardTitleLikeCpp {
-    pub quest_id: u32,
-    pub title_id: u32,
-    pub char_title_lookup_unrepresented: bool,
-    pub set_title_runtime_unrepresented: bool,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardTalentPointsLikeCpp {
-    pub quest_id: u32,
-    pub points: u32,
-    pub init_talent_for_level_unrepresented: bool,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardMailLikeCpp {
-    pub quest_id: u32,
-    pub mail_template_id: u32,
-    pub delay_secs: u32,
-    pub sender_entry: Option<u32>,
-    pub quest_giver_guid: Option<ObjectGuid>,
-    pub mail_template_lookup_unrepresented: bool,
-    pub mail_draft_runtime_unrepresented: bool,
-    pub character_db_transaction_unrepresented: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestRewardReputationSourceLikeCpp {
-    Quest,
-    DailyQuest,
-    WeeklyQuest,
-    MonthlyQuest,
-    RepeatableQuest,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedQuestRewardReputationLikeCpp {
-    pub quest_id: u32,
-    pub slot: u8,
-    pub faction_id: u32,
-    pub reward_faction_value: i32,
-    pub reward_faction_override: i32,
-    pub reward_faction_cap_in: i32,
-    pub base_reputation_before_gain: i32,
-    pub reputation_after_low_level_rate_like_cpp: i32,
-    pub reputation_after_reward_rate_like_cpp: i32,
-    pub no_quest_bonus: bool,
-    pub no_spillover: bool,
-    pub source: RepresentedQuestRewardReputationSourceLikeCpp,
-    pub faction_store_lookup_unrepresented: bool,
-    pub quest_faction_reward_store_lookup_unrepresented: bool,
-    pub reputation_reward_rate_lookup_unrepresented: bool,
-    pub gray_level_script_hook_unrepresented: bool,
-    pub reputation_rank_cap_check_unrepresented: bool,
-    pub calculate_reputation_gain_unrepresented: bool,
-    pub modify_reputation_runtime_unrepresented: bool,
-}
+pub(crate) use wow_world_application::RepresentedQuestRewardReputationSourceLikeCpp;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct LoadSeasonalQuestStatusOutcomeLikeCpp {
@@ -489,7 +209,7 @@ impl WorldSession {
             level = crate::session::hub_ref(self).player_level_like_cpp(),
             ender_candidates = ?ender_candidates,
             starter_candidates = ?starter_candidates,
-            menu_items = ?self.quest_state.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
+            menu_items = ?represented_quest_menu_item_log_rows_like_cpp(&menu_items),
             "Prepared creature questgiver fallback menu like C++"
         );
         if menu_items.is_empty() {
@@ -507,13 +227,14 @@ impl WorldSession {
         gameobject_entry: u32,
         source: wow_entities::QuestgiverUseSource,
     ) -> bool {
-        self.world_entities.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::SendGossip {
-                gameobject_guid,
-                player_guid,
-                gossip_id: source.gossip_id,
-            },
-        );
+        self.world_entities
+            .record_represented_gameobject_use_effect_like_cpp(
+                RepresentedGameObjectUseEffect::SendGossip {
+                    gameobject_guid,
+                    player_guid,
+                    gossip_id: source.gossip_id,
+                },
+            );
 
         let Some(quest_store) = self.catalogs.quests.store.as_ref().map(Arc::clone) else {
             return true;
@@ -694,27 +415,5 @@ impl WorldSession {
             important: self.represented_quest_is_important_like_cpp(quest),
             title: quest.log_title.clone(),
         }
-    }
-}
-
-impl crate::session::state::SessionQuestState {
-    pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
-        &self,
-        menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
-    ) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
-        menu_items
-            .iter()
-            .map(|item| {
-                (
-                    item.quest.id,
-                    item.quest.log_title.clone(),
-                    item.quest_icon,
-                    item.has_starter_relation,
-                    item.has_involved_relation,
-                    item.quest.allowable_classes,
-                    item.quest.flags,
-                )
-            })
-            .collect()
     }
 }

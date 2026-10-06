@@ -10,7 +10,13 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    let owners = "world-modules, world-server, wow-handler, wow-world, wow-world-core)";
+    // The reviewed production-package set: the #1263 extraction added the
+    // application, core and domain crates, and the report lists every package
+    // whose source surface the guard checked.
+    let owners = "world-modules, world-server, wow-handler, wow-world, wow-world-application, \
+                  wow-world-core, wow-world-entities, wow-world-instances, wow-world-interaction, \
+                  wow-world-inventory, wow-world-lifecycle, wow-world-loot, wow-world-social, \
+                  wow-world-spell, wow-world-visibility)";
     assert!(report.ends_with(owners), "{report}");
 }
 
@@ -308,7 +314,7 @@ fn module_aware_registration_scan_uses_logical_mounts_and_rejects_duplicate_owne
     )
     .expect("write child registration");
     let mounts = fixture_workspace_mounts("wow-world", &fixture, &crate_root);
-    let report = analyze_handler_mounts(&mounts, &owner)
+    let report = analyze_handler_mounts(&mounts, std::slice::from_ref(&owner))
         .expect("registration scanner follows the logical owner mounts");
     assert_eq!(report.direct_submissions, 1);
     fs::remove_dir_all(&fixture).expect("remove registration fixture");
@@ -328,7 +334,7 @@ fn module_aware_registration_scan_uses_logical_mounts_and_rejects_duplicate_owne
     .expect("write duplicate logical mounts");
     fs::write(&shared, "pub fn harmless() {}\n").expect("write shared registration source");
     let mounts = fixture_workspace_mounts("wow-world", &duplicate_fixture, &duplicate_root);
-    let error = analyze_handler_mounts(&mounts, &owner)
+    let error = analyze_handler_mounts(&mounts, std::slice::from_ref(&owner))
         .expect_err("a source mounted under two capability owners must fail");
     assert!(
         error.contains("duplicate or mixed logical ownership"),
@@ -340,15 +346,18 @@ fn module_aware_registration_scan_uses_logical_mounts_and_rejects_duplicate_owne
 #[test]
 fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
     let valid = r#"{
-        "schema_version": 1,
+        "schema_version": 2,
         "introduced_by_issue": 185,
         "capability_owners": [
             {"capability":"handler_registration","package":"wow-world","module":"crate::installers","allow_descendants":true,"tracking_issue":153},
+            {"capability":"handler_registration","package":"wow-world-inventory","module":"crate::handlers","allow_descendants":true,"tracking_issue":1263},
             {"capability":"packet_dispatcher","package":"wow-world","module":"crate::session","allow_descendants":true,"tracking_issue":152}
         ]
     }"#;
     let policy = parse_handler_module_policy(valid).expect("valid module policy");
-    let owner = policy.owner("handler_registration");
+    let owners = policy.owners("handler_registration");
+    assert_eq!(owners.len(), 2);
+    assert_eq!(policy.owner("packet_dispatcher").module, "crate::session");
 
     let fixture = source_graph_fixture("declared-registration-owner");
     let outside = fixture.join("outside.rs");
@@ -360,19 +369,44 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
     .expect("write outside registration");
     let sources = BTreeMap::from([(
         outside.canonicalize().expect("canonical outside source"),
-        BTreeSet::from(["crate::handlers".to_owned()]),
+        BTreeSet::from(["crate::handlers::outside".to_owned()]),
     )]);
     let unconditional: BTreeSet<_> = sources.keys().cloned().collect();
-    let error =
-        audit_package_registration_sources_with_owner("wow-world", &sources, &unconditional, owner)
-            .expect_err("registration outside declared policy owner must fail");
+    let error = audit_package_registration_sources_with_owners(
+        "wow-world",
+        &sources,
+        &unconditional,
+        &BTreeSet::new(),
+        owners,
+        false,
+    )
+    .expect_err("registration outside declared policy owner must fail");
+    assert!(error.contains("inventory registration macro"), "{error}");
+
+    let unregistered_domain_route = BTreeMap::from([(
+        sources
+            .keys()
+            .next()
+            .expect("synthetic source path")
+            .clone(),
+        BTreeSet::from(["crate::outside".to_owned()]),
+    )]);
+    let error = audit_package_registration_sources_with_owners(
+        "wow-world-inventory",
+        &unregistered_domain_route,
+        &unconditional,
+        &BTreeSet::new(),
+        owners,
+        false,
+    )
+    .expect_err("a package must not inherit another package's declared owner route");
     assert!(error.contains("inventory registration macro"), "{error}");
     fs::remove_dir_all(&fixture).expect("remove registration owner fixture");
 
     for (source, expected_error) in [
         (
-            valid.replace("\"schema_version\": 1", "\"schema_version\": 2"),
-            "schema_version must be 1",
+            valid.replace("\"schema_version\": 2", "\"schema_version\": 1"),
+            "schema_version must be 2",
         ),
         (
             valid.replace("\"tracking_issue\":152", "\"tracking_issue\":0"),
@@ -384,20 +418,23 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
         ),
         (
             valid.replace(
-                "\"capability\":\"packet_dispatcher\"",
-                "\"capability\":\"handler_registration\"",
+                "\"capability\":\"handler_registration\",\"package\":\"wow-world-inventory\"",
+                "\"capability\":\"future_registration\",\"package\":\"wow-world-inventory\"",
             ),
-            "duplicate capability",
+            "unknown capability",
         ),
         (
             valid.replace(
-                "\"schema_version\": 1,",
-                "\"schema_version\": 1, \"unknown\": true,",
+                "\"schema_version\": 2,",
+                "\"schema_version\": 2, \"unknown\": true,",
             ),
             "unknown field",
         ),
         (
-            valid.replace("crate::installers", "crate::session::installers"),
+            valid.replace(
+                r#"{"capability":"handler_registration","package":"wow-world-inventory","module":"crate::handlers","allow_descendants":true,"tracking_issue":1263}"#,
+                r#"{"capability":"handler_registration","package":"wow-world","module":"crate::installers::inventory","allow_descendants":true,"tracking_issue":1263}"#,
+            ),
             "overlapping logical owners",
         ),
     ] {
@@ -407,6 +444,56 @@ fn handler_module_policy_is_strict_and_registration_uses_declared_owner() {
             "expected {expected_error:?}, got {error:?}"
         );
     }
+
+    let duplicate_registration_owner = valid.replace(
+        r#"{"capability":"packet_dispatcher","package":"wow-world","module":"crate::session","allow_descendants":true,"tracking_issue":152}"#,
+        r#"{"capability":"handler_registration","package":"wow-world","module":"crate::installers","allow_descendants":true,"tracking_issue":153},
+            {"capability":"packet_dispatcher","package":"wow-world","module":"crate::session","allow_descendants":true,"tracking_issue":152}"#,
+    );
+    let error = parse_handler_module_policy(&duplicate_registration_owner)
+        .expect_err("an exact owner row must not be declared twice");
+    assert!(
+        error.contains("duplicate owner for capability handler_registration"),
+        "{error}"
+    );
+
+    let overlapping_capabilities = valid.replace(
+        r#"{"capability":"handler_registration","package":"wow-world","module":"crate::installers","allow_descendants":true,"tracking_issue":153}"#,
+        r#"{"capability":"handler_registration","package":"wow-world","module":"crate::session::installers","allow_descendants":true,"tracking_issue":153}"#,
+    );
+    let error = parse_handler_module_policy(&overlapping_capabilities)
+        .expect_err("different capabilities must not claim overlapping module paths");
+    assert!(error.contains("overlapping logical owners"), "{error}");
+
+    let missing_dispatcher = valid.replace("packet_dispatcher", "handler_registration");
+    let error = parse_handler_module_policy(&missing_dispatcher)
+        .expect_err("both required capabilities must remain declared");
+    assert!(error.contains("must declare capabilities"), "{error}");
+
+    let missing_registration = valid
+        .replace(
+            r#"{"capability":"handler_registration","package":"wow-world","module":"crate::installers","allow_descendants":true,"tracking_issue":153},"#,
+            "",
+        )
+        .replace(
+            r#"{"capability":"handler_registration","package":"wow-world-inventory","module":"crate::handlers","allow_descendants":true,"tracking_issue":1263},"#,
+            "",
+        );
+    let error = parse_handler_module_policy(&missing_registration)
+        .expect_err("handler registration must retain at least one declared owner");
+    assert!(error.contains("must declare capabilities"), "{error}");
+
+    let duplicate_dispatcher = valid.replace(
+        r#"{"capability":"packet_dispatcher","package":"wow-world","module":"crate::session","allow_descendants":true,"tracking_issue":152}"#,
+        r#"{"capability":"packet_dispatcher","package":"wow-world","module":"crate::session","allow_descendants":true,"tracking_issue":152},
+            {"capability":"packet_dispatcher","package":"wow-world","module":"crate::session::secondary","allow_descendants":true,"tracking_issue":152}"#,
+    );
+    let error = parse_handler_module_policy(&duplicate_dispatcher)
+        .expect_err("packet dispatch must retain exactly one declared owner");
+    assert!(
+        error.contains("packet_dispatcher must have exactly one owner"),
+        "{error}"
+    );
 }
 
 #[test]

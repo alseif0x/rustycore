@@ -4,6 +4,546 @@
 //! are unchanged and the shared fixtures stay in the parent module.
 
 use super::*;
+use wow_constants::ItemFieldFlags2;
+
+#[path = "scenarios_player_items_2/committed_relocation.rs"]
+mod committed_relocation;
+#[path = "scenarios_player_items_2/committed_swap.rs"]
+mod committed_swap;
+#[path = "scenarios_player_items_2/enchantment_persistence.rs"]
+mod enchantment_persistence;
+#[path = "scenarios_player_items_2/item_publication.rs"]
+mod item_publication;
+#[path = "scenarios_player_items_2/position_publication.rs"]
+mod position_publication;
+
+#[test]
+fn inventory_swap_effects_non_equipment_remove_duration_and_tradeable_refs() {
+    let (mut session, _, send_rx) = make_session();
+    let guid = ObjectGuid::create_player(1, 30_180);
+    let item_guid = ObjectGuid::create_item(1, 30_180);
+    let registry = Arc::new(PlayerRegistry::default());
+    bind_canonical_test_player_to_registry_like_cpp(
+        &mut session,
+        &registry,
+        guid,
+        Position::ZERO,
+        571,
+    );
+    session.set_player_guid(Some(guid));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        INVENTORY_SLOT_ITEM_START,
+        item_guid,
+        30_180,
+        InventoryType::NonEquip,
+    );
+    session.update_inventory_item_object_like_cpp(item_guid, |item| {
+        item.set_expiration(300);
+        item.set_soulbound_tradeable([guid]);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 905, 12_000, 0);
+    });
+    let mut item = session
+        .resolved_inventory_item_object_like_cpp(item_guid)
+        .unwrap();
+    let _ = session.mutate_canonical_player_like_cpp(|player| {
+        player.add_tradeable_item(&item);
+        let _ = player.add_item_durations(&item);
+        let _ = player.add_enchantment_duration(
+            &mut item,
+            EnchantmentSlot::EnhancementTemporary,
+            7_000,
+        );
+    });
+    assert_eq!(
+        session.canonical_player_snapshot_like_cpp(|player| player
+            .soulbound_tradeable_items()
+            .contains(&item_guid)),
+        Some(true)
+    );
+    let _ = drain_server_opcodes(&send_rx);
+    assert!(!session.apply_inventory_item_remove_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_ITEM_START,
+        item_guid,
+        &[]
+    ));
+    assert_eq!(
+        session.canonical_player_snapshot_like_cpp(|player| (
+            player.soulbound_tradeable_items().contains(&item_guid),
+            player.item_durations().is_empty(),
+            player.enchant_durations().is_empty(),
+        )),
+        Some((false, true, true))
+    );
+    assert_eq!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .unwrap()
+            .data()
+            .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+            .duration,
+        7_000
+    );
+    assert!(
+        session
+            .represented_item_mod_reapply_events_like_cpp()
+            .is_empty()
+    );
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+    assert!(!session.apply_inventory_item_store_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        INVENTORY_SLOT_ITEM_START,
+        item_guid
+    ));
+    assert_eq!(
+        session.canonical_player_snapshot_like_cpp(|player| (
+            player.item_durations().len(),
+            player.enchant_durations().len()
+        )),
+        Some((1, 1))
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![
+            ServerOpcodes::ItemTimeUpdate,
+            ServerOpcodes::ItemEnchantTimeUpdate
+        ]
+    );
+}
+
+#[test]
+fn inventory_swap_effects_equipment_records_mods_and_clears_enchantment() {
+    let (mut session, _, _) = make_session();
+    let guid = ObjectGuid::create_item(1, 30_181);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 30_181)));
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_MAINHAND,
+        guid,
+        30_181,
+        InventoryType::Weapon,
+    );
+    session.update_inventory_item_object_like_cpp(guid, |item| {
+        item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 905, 12_000, 0);
+    });
+    let _ = session.apply_inventory_item_remove_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_MAINHAND,
+        guid,
+        &[EnchantmentSlot::EnhancementTemporary],
+    );
+    let item = session
+        .resolved_inventory_item_object_like_cpp(guid)
+        .unwrap();
+    assert!(!item.has_item_flag2(ItemFieldFlags2::EQUIPPED));
+    assert_eq!(
+        item.data().enchantments[EnchantmentSlot::EnhancementTemporary as usize].id,
+        0
+    );
+    let _ = session.apply_inventory_item_store_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_MAINHAND,
+        guid,
+    );
+    assert!(
+        session
+            .resolved_inventory_item_object_like_cpp(guid)
+            .unwrap()
+            .has_item_flag2(ItemFieldFlags2::EQUIPPED)
+    );
+    assert_eq!(
+        session.represented_item_mod_reapply_events_like_cpp(),
+        &[
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: guid,
+                slot: EQUIPMENT_SLOT_MAINHAND,
+                apply: false
+            },
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid: guid,
+                slot: EQUIPMENT_SLOT_MAINHAND,
+                apply: true
+            },
+        ]
+    );
+}
+
+#[test]
+fn inventory_swap_effects_broken_item_skips_mods_but_sets_equipped() {
+    let (mut session, _, _) = make_session();
+    let guid = ObjectGuid::create_item(1, 30_182);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 30_182)));
+    session.set_item_set_store(Arc::new(ItemSetStore::from_entries([ItemSetEntry {
+        id: 718,
+        name: "Broken swap set".to_string(),
+        set_flags: 0,
+        required_skill: 0,
+        required_skill_rank: 0,
+        item_id: std::array::from_fn(|i| if i == 0 { 30_182 } else { 0 }),
+    }])));
+    session.set_item_set_spell_store(Arc::new(ItemSetSpellStore::from_entries([
+        ItemSetSpellEntry {
+            id: 38,
+            chr_spec_id: 0,
+            spell_id: 9038,
+            threshold: 1,
+            item_set_id: 718,
+        },
+    ])));
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_CHEST,
+        guid,
+        30_182,
+        InventoryType::Chest,
+    );
+    session.update_inventory_item_object_like_cpp(guid, |item| {
+        item.set_max_durability(40);
+        item.set_durability(0);
+    });
+    assert!(!session.apply_inventory_item_store_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_CHEST,
+        guid
+    ));
+    assert!(
+        session
+            .resolved_inventory_item_object_like_cpp(guid)
+            .unwrap()
+            .has_item_flag2(ItemFieldFlags2::EQUIPPED)
+    );
+    assert_eq!(
+        session.represented_item_set_spell_events_like_cpp(),
+        &[RepresentedItemSetSpellEventLikeCpp {
+            item_set_id: 718,
+            spell_entry_id: 38,
+            spell_id: 9038,
+            threshold: 1,
+            apply: true
+        },]
+    );
+    assert!(!session.apply_inventory_item_remove_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_CHEST,
+        guid,
+        &[]
+    ));
+    assert!(
+        session
+            .represented_item_mod_reapply_events_like_cpp()
+            .is_empty()
+    );
+    assert_eq!(
+        session
+            .represented_item_set_spell_events_like_cpp()
+            .last()
+            .unwrap()
+            .apply,
+        false
+    );
+}
+
+#[test]
+fn inventory_swap_effects_stale_owner_does_not_mutate_fixture_or_replacement() {
+    let (mut session, _, send_rx) = make_session();
+    let guid = ObjectGuid::create_player(1, 30_183);
+    let item_guid = ObjectGuid::create_item(1, 30_183);
+    let canonical = shared_canonical_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        guid,
+        "StaleSwapEffects".to_string(),
+        Position::ZERO,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("world map");
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_MAINHAND,
+        item_guid,
+        30_183,
+        InventoryType::Weapon,
+    );
+    session.update_inventory_item_object_like_cpp(item_guid, |item| {
+        item.set_item_flag2(ItemFieldFlags2::EQUIPPED);
+        item.set_enchantment(EnchantmentSlot::EnhancementTemporary, 905, 12_000, 0);
+    });
+    assert!(
+        session
+            .resolved_inventory_item_object_like_cpp(item_guid)
+            .is_some()
+    );
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .unwrap();
+    let _ = drain_server_opcodes(&send_rx);
+    assert!(!session.apply_inventory_item_remove_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_MAINHAND,
+        item_guid,
+        &[EnchantmentSlot::EnhancementTemporary]
+    ));
+    assert!(!session.apply_inventory_item_store_side_effects_like_cpp(
+        INVENTORY_SLOT_BAG_0,
+        EQUIPMENT_SLOT_MAINHAND,
+        item_guid
+    ));
+    assert!(
+        session.inventory_item_objects_like_cpp()[&item_guid]
+            .has_item_flag2(ItemFieldFlags2::EQUIPPED)
+    );
+    assert_eq!(
+        session.inventory_item_objects_like_cpp()[&item_guid]
+            .data()
+            .enchantments[EnchantmentSlot::EnhancementTemporary as usize]
+            .id,
+        905
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| (
+                player
+                    .inventory_runtime_like_cpp()
+                    .item_objects()
+                    .is_empty(),
+                player.item_durations().is_empty(),
+                player.enchant_durations().is_empty(),
+            )),
+        Some((true, true, true))
+    );
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+}
+
+#[test]
+fn represented_item_level_area_scaling_raw_fallback_requires_publication_and_targets() {
+    let (mut session, _, send_rx) = make_session();
+    let item_id = 30_166;
+    let item_guid = ObjectGuid::create_item(1, 30_166);
+    session.set_player_guid(Some(ObjectGuid::create_player(1, 30_166)));
+    install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 10);
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_CHEST,
+        item_guid,
+        item_id,
+        InventoryType::Chest,
+    );
+    assert!(session.catalogs.player_stats.is_none());
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+        represented_item_level_area_map_like_cpp(571, wow_data::map::MAP_COMMON, 0),
+    ])));
+    session.set_player_map_position_like_cpp(489, Position::ZERO);
+    let _ = drain_server_opcodes(&send_rx);
+    assert_eq!(
+        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        Some(true),
+    );
+    assert_eq!(
+        drain_server_opcodes(&send_rx),
+        vec![ServerOpcodes::UpdateObject]
+    );
+
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
+    let _ = drain_server_opcodes(&send_rx);
+    assert_eq!(
+        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(false),
+        Some(true),
+    );
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+
+    let (mut empty_session, _, empty_rx) = make_session();
+    empty_session.set_player_guid(Some(ObjectGuid::create_player(1, 30_167)));
+    install_represented_pvp_item_level_fixture_like_cpp(&mut empty_session, item_id, 10);
+    assert!(empty_session.catalogs.player_stats.is_none());
+    empty_session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        represented_item_level_area_map_like_cpp(489, wow_data::map::MAP_BATTLEGROUND, 0),
+    ])));
+    empty_session.set_player_map_position_like_cpp(489, Position::ZERO);
+    let _ = drain_server_opcodes(&empty_rx);
+    assert_eq!(
+        empty_session
+            .update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        Some(true),
+    );
+    assert!(
+        empty_session
+            .represented_item_mod_reapply_events_like_cpp()
+            .is_empty()
+    );
+    assert!(drain_server_opcodes(&empty_rx).is_empty());
+}
+
+#[test]
+fn represented_item_level_area_scaling_rejects_stale_owner_without_mutation_or_publication() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let guid = ObjectGuid::create_player(1, 30_164);
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        guid,
+        "StaleScalingOwner".to_string(),
+        Position::ZERO,
+        571,
+        1,
+        1,
+        20,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("world map");
+    assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
+    let mut replacement = Box::new(Player::new(Some(2), false));
+    replacement.unit_mut().world_mut().object_mut().create(guid);
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        represented_item_level_area_map_like_cpp(
+            571,
+            wow_data::map::MAP_COMMON,
+            wow_data::map::MAP_FLAG2_ACTIVATES_PVP_ITEM_LEVELS_LIKE_CPP,
+        ),
+    ])));
+    let _ = drain_server_opcodes(&send_rx);
+    let before = canonical
+        .lock()
+        .unwrap()
+        .with_player_like_cpp(replacement_handle, |player| {
+            (
+                player.gameplay_state().using_pvp_item_levels,
+                player.unit().data().health,
+                player.unit().data().max_health,
+            )
+        })
+        .expect("replacement state");
+
+    assert_eq!(
+        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        None,
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| {
+                (
+                    player.gameplay_state().using_pvp_item_levels,
+                    player.unit().data().health,
+                    player.unit().data().max_health,
+                )
+            }),
+        Some(before)
+    );
+    assert!(
+        session
+            .represented_item_mod_reapply_events_like_cpp()
+            .is_empty()
+    );
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+}
+
+#[test]
+fn represented_item_level_area_scaling_without_publication_still_reapplies_and_restores_health() {
+    let (mut session, _, send_rx) = make_session();
+    let item_id = 30_163;
+    let item_guid = ObjectGuid::create_item(1, 30_163);
+    let guid = ObjectGuid::create_player(1, 30_163);
+    let registry = Arc::new(PlayerRegistry::default());
+    bind_canonical_test_player_to_registry_like_cpp(
+        &mut session,
+        &registry,
+        guid,
+        Position::ZERO,
+        571,
+    );
+    session.set_player_guid(Some(guid));
+    session.set_loaded_player_name_like_cpp("ScalingRegistryOwner".to_string());
+    session.set_player_registry(Arc::clone(&registry));
+    install_represented_pvp_item_level_fixture_like_cpp(&mut session, item_id, 10);
+    equip_represented_test_item_like_cpp(
+        &mut session,
+        EQUIPMENT_SLOT_CHEST,
+        item_guid,
+        item_id,
+        InventoryType::Chest,
+    );
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        represented_item_level_area_map_like_cpp(571, wow_data::map::MAP_BATTLEGROUND, 0),
+    ])));
+    session.set_player_map_position_like_cpp(571, Position::ZERO);
+    session.set_player_health_like_cpp(1, 3);
+    session.register_in_player_registry();
+    assert!(
+        !registry
+            .vehicle_interaction_snapshot(guid)
+            .unwrap()
+            .has_vehicle_kit
+    );
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(
+        represented_vehicle_kit_with_passenger_like_cpp(guid, test_creature_guid(30_165), true),
+    );
+    let _ = drain_server_opcodes(&send_rx);
+
+    assert_eq!(
+        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(false),
+        Some(true),
+    );
+    assert!(session.represented_using_pvp_item_levels_like_cpp());
+    assert_eq!(session.player_health_like_cpp(), 1);
+    assert!(
+        registry
+            .vehicle_interaction_snapshot(guid)
+            .unwrap()
+            .has_vehicle_kit
+    );
+    assert_eq!(
+        session.represented_item_mod_reapply_events_like_cpp(),
+        &[
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid,
+                slot: EQUIPMENT_SLOT_CHEST,
+                apply: false
+            },
+            RepresentedItemModsReapplyEventLikeCpp {
+                item_guid,
+                slot: EQUIPMENT_SLOT_CHEST,
+                apply: true
+            },
+        ]
+    );
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+    assert_eq!(
+        session.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true),
+        Some(false),
+    );
+    assert_eq!(
+        session.represented_item_mod_reapply_events_like_cpp().len(),
+        2
+    );
+    assert!(drain_server_opcodes(&send_rx).is_empty());
+}
 
 #[test]
 fn represented_item_level_area_scaling_activates_on_map_flag_like_cpp() {

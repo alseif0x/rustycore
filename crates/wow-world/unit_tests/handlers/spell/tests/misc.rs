@@ -567,29 +567,3 @@ fn add_loot_item_stacks_caps_like_cpp_max_nr_loot_items() {
     assert_eq!(capped.len(), 18);
     assert_eq!(capped[17].loot_list_id, 17);
 }
-#[test]
-fn stored_loot_item_persistence_skips_missing_template_and_currency_tokens_like_cpp() {
-    // template missing -> no persist
-    assert!(!stored_loot_item_should_persist_like_cpp(
-        false,
-        BagFamilyMask::NONE
-    ));
-
-    // normal template -> persist
-    assert!(stored_loot_item_should_persist_like_cpp(
-        true,
-        BagFamilyMask::NONE
-    ));
-
-    // currency token -> no persist (C++ ItemTemplate::IsCurrencyToken)
-    assert!(!stored_loot_item_should_persist_like_cpp(
-        true,
-        BagFamilyMask::CURRENCY_TOKENS
-    ));
-
-    // currency token combined with other families still no persist
-    assert!(!stored_loot_item_should_persist_like_cpp(
-        true,
-        BagFamilyMask::CURRENCY_TOKENS | BagFamilyMask::HERBS
-    ));
-}

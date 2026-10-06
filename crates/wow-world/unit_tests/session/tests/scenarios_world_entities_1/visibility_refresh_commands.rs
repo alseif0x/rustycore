@@ -53,7 +53,9 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical viewer map");
     // Prove the command bypasses the 50-yard visibility throttle.
-    session.visibility.last_visibility_pos = Some(player_position);
+    session
+        .visibility
+        .set_last_visibility_pos_like_cpp(player_position);
 
     session
         .session_command_tx()
@@ -88,7 +90,9 @@ async fn refresh_visible_world_creatures_command_rejects_wrong_map_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.core.state = SessionState::LoggedIn;
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.visibility.last_visibility_pos = Some(Position::ZERO);
+    session
+        .visibility
+        .set_last_visibility_pos_like_cpp(Position::ZERO);
 
     session
         .session_command_tx()
@@ -104,7 +108,7 @@ async fn refresh_visible_world_creatures_command_rejects_wrong_map_like_cpp() {
         .await;
 
     assert_eq!(
-        session.visibility.last_visibility_pos,
+        session.visibility.last_visibility_pos_like_cpp(),
         Some(Position::ZERO),
         "wrong-map command must not force visibility"
     );
@@ -140,9 +144,7 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -177,8 +179,7 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
         .insert(gameobject_guid);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),

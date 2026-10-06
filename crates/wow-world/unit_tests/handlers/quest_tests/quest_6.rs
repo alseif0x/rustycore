@@ -243,7 +243,7 @@ async fn push_quest_to_party_missing_group_registry_keeps_explicit_blocker_like_
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7115);
-    session.social.group_guid = Some(1234);
+    session.social.set_group_guid_for_test_like_cpp(Some(1234));
 
     run_push_quest_to_party(&mut session, 7115).await;
 
@@ -263,8 +263,7 @@ async fn push_quest_to_party_missing_group_registry_keeps_explicit_blocker_like_
 }
 #[test]
 fn push_quest_to_party_registration_and_dispatch_are_wired_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::PushQuestToParty)
         .expect("PushQuestToParty handler registration");
 
@@ -307,12 +306,11 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         (
             ClientOpcodes::QueryQuestInfo,
             "handle_query_quest_info",
-            "session.handle_query_quest_info(pkt).await",
+            ".handle_query_quest_info(pkt)",
         ),
     ];
     for (opcode, handler_name, call) in cases {
-        let entry = inventory::iter::<PacketHandlerEntry>
-            .into_iter()
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
             .find(|entry| entry.opcode == opcode)
             .unwrap_or_else(|| panic!("{opcode:?} handler registration"));
 
@@ -466,9 +464,7 @@ async fn quest_giver_status_query_starter_allows_objective_progress_condition_li
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             active_quest_id,
             PlayerQuestStatus {
                 quest_id: active_quest_id,
@@ -517,9 +513,7 @@ async fn quest_giver_status_query_starter_rejects_objective_progress_mismatch_li
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             active_quest_id,
             PlayerQuestStatus {
                 quest_id: active_quest_id,
@@ -615,9 +609,7 @@ async fn quest_giver_status_query_covenant_completed_ender_uses_quest_info_tag_l
     ])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -665,8 +657,7 @@ async fn quest_giver_close_active_existing_template_records_acknowledge_like_cpp
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_auto_accept_acknowledged_quests_like_cpp,
+            .fixture_represented_auto_accept_acknowledged_quests_like_cpp(),
         vec![5901]
     );
     assert!(send_rx.try_recv().is_err());
@@ -681,8 +672,7 @@ async fn quest_giver_close_missing_active_quest_records_no_acknowledge_like_cpp(
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_auto_accept_acknowledged_quests_like_cpp
+            .fixture_represented_auto_accept_acknowledged_quests_like_cpp()
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -698,8 +688,7 @@ async fn quest_giver_close_missing_template_records_no_acknowledge_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_auto_accept_acknowledged_quests_like_cpp
+            .fixture_represented_auto_accept_acknowledged_quests_like_cpp()
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -717,8 +706,7 @@ async fn quest_giver_close_short_packet_records_no_acknowledge_and_sends_no_pack
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_auto_accept_acknowledged_quests_like_cpp
+            .fixture_represented_auto_accept_acknowledged_quests_like_cpp()
             .is_empty()
     );
     assert!(send_rx.try_recv().is_err());
@@ -735,9 +723,7 @@ async fn quest_log_remove_short_packet_does_not_remove_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5911)
+            .fixture_contains_player_quest_status_like_cpp(5911)
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(0), Some(5911));
     assert!(send_rx.try_recv().is_err());
@@ -752,9 +738,7 @@ async fn quest_log_remove_slot_outside_max_does_not_remove_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5912)
+            .fixture_contains_player_quest_status_like_cpp(5912)
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(0), Some(5912));
     assert!(send_rx.try_recv().is_err());
@@ -770,16 +754,12 @@ async fn quest_log_remove_valid_slot_removes_only_that_slot_like_cpp() {
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&880_001)
+            .fixture_contains_player_quest_status_like_cpp(880_001)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&17)
+            .fixture_contains_player_quest_status_like_cpp(17)
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(7), None);
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(3), Some(17));
@@ -809,9 +789,7 @@ async fn quest_log_remove_empty_valid_slot_does_not_remove_other_quest_like_cpp(
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5914)
+            .fixture_contains_player_quest_status_like_cpp(5914)
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(4), Some(5914));
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(3), None);
@@ -828,16 +806,12 @@ async fn quest_log_remove_duplicate_slot_fails_closed_and_removes_none_like_cpp(
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5915)
+            .fixture_contains_player_quest_status_like_cpp(5915)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&5916)
+            .fixture_contains_player_quest_status_like_cpp(5916)
     );
     assert_eq!(session.get_quest_slot_quest_id_like_cpp(2), None);
     assert_eq!(session.first_free_quest_slot_like_cpp(), Some(0));
@@ -862,9 +836,7 @@ fn quest_log_create_entries_preserve_end_time_like_cpp() {
     add_active_quest_in_slot(&mut session, 5917, 4);
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&5917)
+        .fixture_player_quest_status_mut_like_cpp(5917)
         .expect("active quest")
         .end_time_secs = 123_456;
 

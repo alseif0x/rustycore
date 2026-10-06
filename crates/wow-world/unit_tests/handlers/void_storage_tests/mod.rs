@@ -99,6 +99,7 @@ fn make_void_storage_session() -> (
         "esES".into(),
         packet_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     let player_guid = ObjectGuid::create_player(1, 42);
     session.attach_player_controller_like_cpp(SessionPlayerController::new(

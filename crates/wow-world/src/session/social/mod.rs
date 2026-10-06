@@ -8,8 +8,6 @@ mod contacts;
 mod duel;
 mod group;
 mod guild;
-#[cfg(test)]
-pub(crate) mod test_fixtures;
 mod trade;
 
 #[cfg(test)]

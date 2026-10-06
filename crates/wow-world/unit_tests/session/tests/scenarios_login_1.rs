@@ -73,7 +73,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     session.set_known_spells_like_cpp(vec![635, -1, 19740]);
     session
         .set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75), (333, 125)]));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         81,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -87,9 +87,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     );
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             100,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 100,
@@ -103,9 +101,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
         );
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             101,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 101,
@@ -119,9 +115,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
         );
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(200);
+        .fixture_set_rewarded_quest_like_cpp(200, true);
     crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
 
     let owned = session

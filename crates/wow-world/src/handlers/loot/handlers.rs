@@ -11,7 +11,7 @@ use wow_packet::ClientPacket;
 mod item;
 mod money;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootUnit,
         status: SessionStatus::LoggedIn,
@@ -25,7 +25,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootItem,
         status: SessionStatus::LoggedIn,
@@ -42,7 +42,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootMoney,
         status: SessionStatus::LoggedIn,
@@ -61,7 +61,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootRelease,
         status: SessionStatus::LoggedIn,
@@ -71,7 +71,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootRoll,
         status: SessionStatus::LoggedIn,
@@ -96,7 +96,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MasterLootItem,
         status: SessionStatus::LoggedIn,
@@ -127,53 +127,8 @@ inventory::submit! {
 // CMSG_CLIENT_PORT_GRAVEYARD (empty). Rust keeps one enum variant and splits by
 // payload length until the real opcode table is resolved, so this one
 // registration carries all five payload shapes.
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetLootSpecialization,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_loot_specialization",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                if session
-                    .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
-                    .await
-                {
-                    return;
-                }
-                if session
-                    .try_handle_client_port_graveyard_like_cpp(pkt.clone())
-                    .await
-                {
-                    return;
-                }
-                if pkt.remaining() == 1 {
-                    session.handle_clear_raid_marker(pkt).await;
-                } else if pkt.remaining() == 4 {
-                    match wow_packet::packets::loot::SetLootSpecialization::read(&mut pkt) {
-                        Ok(set_loot_specialization) => {
-                            session
-                                .handle_set_loot_specialization(set_loot_specialization)
-                                .await;
-                        }
-                        Err(e) => tracing::warn!("Failed to read SetLootSpecialization: {e}"),
-                    }
-                } else if pkt.remaining() == 9 {
-                    match wow_packet::packets::misc::SetSavedInstanceExtend::read(&mut pkt) {
-                        Ok(query) => session.handle_set_saved_instance_extend(query).await,
-                        Err(e) => tracing::warn!("Failed to read SetSavedInstanceExtend: {e}"),
-                    }
-                } else {
-                    tracing::warn!(
-                        opcode = ?ClientOpcodes::SetLootSpecialization,
-                        remaining = pkt.remaining(),
-                        "unresolved 0xBADD payload shape"
-                    );
-                }
-            })
-        },
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 impl WorldSession {
     #[cfg(test)]
@@ -362,7 +317,7 @@ impl WorldSession {
         let viewer_update = self.creature_loot_release_values_for_viewer_like_cpp(
             command.creature_guid,
             viewer_guid,
-            self.instances.pending_bind.is_some(),
+            self.instances.has_pending_bind_like_cpp(),
             Some(expected_authority),
             command.unit_values_update,
         );
@@ -512,7 +467,7 @@ impl WorldSession {
                     .reconcile_represented_loot_cache_like_cpp(owner_guid, master_loot_item.target);
             }
 
-            let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
+            let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
                 return;
             };
             let dungeon_encounter_id = loot.dungeon_encounter_id;
@@ -559,8 +514,7 @@ impl WorldSession {
             let claim = if let Some(authority) = authority {
                 let Some(expected_generation) = self
                     .loot
-                    .active_loot_view_generations_like_cpp
-                    .get(&owner_guid)
+                    .active_loot_view_generation_like_cpp(owner_guid)
                     .copied()
                 else {
                     self.send_loot_error_like_cpp(
@@ -778,7 +732,10 @@ impl WorldSession {
         command: LootRollVoteCommand,
     ) {
         let roll_key = (command.loot_obj, command.loot_list_id);
-        let Some(current_roll) = self.loot.represented_loot_rolls.get(&roll_key) else {
+        let Some(current_roll) = self
+            .loot
+            .represented_loot_roll_like_cpp(roll_key.0, roll_key.1)
+        else {
             return;
         };
         if !command.targets_identity_like_cpp(&current_roll.command_identity) {
@@ -963,32 +920,5 @@ impl WorldSession {
         );
 
         let _ = command.result_tx.send(result);
-    }
-
-    /// CMSG_SET_LOOT_SPECIALIZATION — select or clear the loot specialization.
-    ///
-    /// C++ accepts non-zero values only when `sChrSpecializationStore` has the
-    /// row and its `ClassID` matches the player's class; `SpecID == 0` clears.
-    pub async fn handle_set_loot_specialization(&mut self, packet: SetLootSpecialization) {
-        if self.player_guid().is_none() {
-            return;
-        }
-
-        if packet.spec_id == 0 {
-            self.set_loot_specialization_id_like_cpp(0);
-            return;
-        }
-
-        let Some(store) = self.chr_specialization_store() else {
-            return;
-        };
-        let Some(spec) = store.get(packet.spec_id) else {
-            return;
-        };
-        if spec.class_id != crate::session::hub_ref(self).player_class_like_cpp() {
-            return;
-        }
-
-        self.set_loot_specialization_id_like_cpp(packet.spec_id);
     }
 }

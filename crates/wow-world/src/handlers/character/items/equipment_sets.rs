@@ -15,30 +15,10 @@ impl WorldSession {
     pub async fn handle_save_equipment_set_with_generator_like_cpp(
         &mut self,
         generator: &wow_core::EquipmentSetGuidGeneratorLikeCpp,
-        mut pkt: WorldPacket,
+        pkt: WorldPacket,
     ) {
-        let request = match SaveEquipmentSet::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad SaveEquipmentSet: {error}");
-                return;
-            }
-        };
-
-        let Some(saved) = ({
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.save_represented_equipment_set_with_generator_like_cpp(&mut h, generator, request.set)
-        }) else {
-            return;
-        };
-
-        if saved.generated_new_guid {
-            self.send_packet(&EquipmentSetId {
-                guid: saved.guid,
-                set_type: saved.raw_set_type,
-                set_id: saved.set_id,
-            });
-        }
+        self.build_equipment_sets_save_handler_cx_like_cpp(generator)
+            .handle_save_equipment_set(pkt);
     }
 
     #[cfg(test)]
@@ -52,27 +32,13 @@ impl WorldSession {
 
     /// Handle CMSG_ASSIGN_EQUIPMENT_SET_SPEC.
     ///
-    /// C++ `Player::AssignEquipmentSetToSpec` only mutates the first equipment
-    /// set whose client SetID matches and does not send an immediate response.
-    /// The represented container keeps the same in-memory assignment/state
-    /// semantics before the next full player-save transaction persists them.
-    pub async fn handle_assign_equipment_set_spec(&mut self, mut pkt: WorldPacket) {
-        let request = match AssignEquipmentSetSpec::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad AssignEquipmentSetSpec: {error}");
-                return;
-            }
-        };
-
-        let _assigned = {
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.assign_represented_equipment_set_to_spec_like_cpp(
-                &mut h,
-                request.set_id,
-                request.spec_index,
-            )
-        };
+    /// C++ `Opcodes.cpp:170` marks this opcode `STATUS_UNHANDLED` and dispatches
+    /// `Handle_NULL`. This Rust handler currently assigns the first matching
+    /// equipment-set ID without a response; the next full player save persists it.
+    /// This version difference requires F6 evidence before claiming parity.
+    pub async fn handle_assign_equipment_set_spec(&mut self, pkt: WorldPacket) {
+        self.build_equipment_sets_handler_cx_like_cpp()
+            .handle_assign_equipment_set_spec(pkt);
     }
 
     /// Handle CMSG_DELETE_EQUIPMENT_SET.
@@ -80,42 +46,16 @@ impl WorldSession {
     /// C++ marks existing equipment/transmog sets as deleted unless the set was
     /// still new in memory, in which case it removes it immediately. The DB
     /// delete happens later in `_SaveEquipmentSets`.
-    pub async fn handle_delete_equipment_set(&mut self, mut pkt: WorldPacket) {
-        let request = match DeleteEquipmentSet::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad DeleteEquipmentSet: {error}");
-                return;
-            }
-        };
-
-        let _deleted = self.delete_represented_equipment_set_like_cpp(request.id);
+    pub async fn handle_delete_equipment_set(&mut self, pkt: WorldPacket) {
+        self.build_equipment_sets_handler_cx_like_cpp()
+            .handle_delete_equipment_set(pkt);
     }
 
     /// Handle CMSG_USE_EQUIPMENT_SET.
     ///
-    /// C++ `HandleUseEquipmentSet` iterates all 19 equipment slots, skips the
-    /// ignored GUID sentinel and non-weapon slots in combat, then uses
-    /// `GetItemByGuid` + `SwapItem` / `CanStoreItem` to move gear. This slice
-    /// mirrors the represented direct-inventory state and the result packet;
-    /// full nested-container validation, `CanEquipItem`, DB writes, and item
-    /// update fanout remain later inventory-runtime work.
-    pub async fn handle_use_equipment_set(&mut self, mut pkt: WorldPacket) {
-        let request = match UseEquipmentSet::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad UseEquipmentSet: {error}");
-                return;
-            }
-        };
-
-        let represented_item_mods_changed = self.use_represented_equipment_set_like_cpp(&request);
-        if represented_item_mods_changed {
-            self.send_represented_item_bonus_player_stat_update_like_cpp();
-        }
-        self.send_packet(&UseEquipmentSetResult {
-            guid: request.guid,
-            reason: 0,
-        });
+    /// Decode and delegate CMSG_USE_EQUIPMENT_SET to its Application owner.
+    pub async fn handle_use_equipment_set(&mut self, pkt: WorldPacket) {
+        self.build_equipment_set_use_context_like_cpp()
+            .handle_use_equipment_set_like_cpp(pkt);
     }
 }

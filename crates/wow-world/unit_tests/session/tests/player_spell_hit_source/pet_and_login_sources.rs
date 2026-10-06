@@ -185,14 +185,10 @@ fn player_spell_hit_source_authority_requires_login_skill_guild_and_quest_source
     session.begin_player_quest_status_authority_load_like_cpp();
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .clear();
+        .fixture_clear_player_quest_statuses_like_cpp();
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             recast.id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: recast.id,

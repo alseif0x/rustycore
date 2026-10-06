@@ -109,7 +109,7 @@ impl WorldSession {
         map_id: u16,
         persisted_transport: Option<PersistedTransportLoginLikeCpp>,
     ) -> Box<InitTransportsPlanLikeCpp> {
-        self.visibility.client_visible_transports_like_cpp.clear();
+        self.visibility.clear_client_visible_transports_like_cpp();
         let mut plan = Box::new(InitTransportsPlanLikeCpp::default());
         let now_ms = crate::session::game_time_ms_like_cpp();
         if let Some(snapshot) = persisted_transport {
@@ -472,12 +472,13 @@ impl WorldSession {
                 "RUST_LOGIN_POWER_SYNC"
             );
         }
-        self.lifecycle.login_time = Some(std::time::Instant::now());
+        self.lifecycle
+            .set_login_time_like_cpp(Some(std::time::Instant::now()));
         self.world_entities
-            .suppress_creature_movement_queued_at_or_before_like_cpp = None;
+            .set_suppress_creature_movement_queued_at_or_before_like_cpp(None);
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.
-        self.loot.loot_table.clear();
+        self.loot.clear_cached_loot_like_cpp();
         self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
         crate::session::hub_mut(self).set_combat_target_like_cpp(None);
         crate::session::hub_mut(self).set_in_combat_like_cpp(false);
@@ -644,8 +645,7 @@ impl WorldSession {
                     fellow_passenger_blocks,
                 ) {
                     self.visibility
-                        .client_visible_transports_like_cpp
-                        .insert(transport_guid);
+                        .insert_client_visible_transport_like_cpp(transport_guid);
                 }
             }
 
@@ -682,7 +682,7 @@ impl WorldSession {
         // C++ clears m_clientGUIDs here, then Player::SendInitialPacketsAfterAddToMap
         // starts with UpdateVisibilityForPlayer. Do not let Rust's movement-distance
         // throttle reuse the previous login/logout position after the clear.
-        self.visibility.last_visibility_pos = None;
+        self.visibility.clear_last_visibility_pos_like_cpp();
         if updateobject_trace_enabled {
             info!(
                 guid = ?guid,
@@ -718,8 +718,9 @@ impl WorldSession {
         // sessionless world tick, so remember the burst boundary and drop only
         // movement commands that were queued at or before it.
         self.world_entities
-            .suppress_creature_movement_queued_at_or_before_like_cpp =
-            Some(std::time::Instant::now());
+            .set_suppress_creature_movement_queued_at_or_before_like_cpp(Some(
+                std::time::Instant::now(),
+            ));
 
         // Rust keeps the session status flip after the initial after-add packet
         // subset so the network loop cannot process normal movement/gameplay
@@ -763,35 +764,5 @@ impl WorldSession {
             updateobject_trace_enabled,
         )
         .await;
-    }
-}
-
-impl crate::session::VisibilityState {
-    /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
-    /// transports other than the player's current transport.
-    fn send_init_transports_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        map_id: u16,
-        plan: Box<InitTransportsPlanLikeCpp>,
-    ) {
-        if plan.other_blocks.is_empty() {
-            return;
-        }
-
-        let InitTransportsPlanLikeCpp {
-            other_blocks,
-            other_visible_guids,
-            ..
-        } = *plan;
-        let update = UpdateObject::create_world_objects(other_blocks, map_id);
-        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-            for line in update.debug_create_summary_like_cpp() {
-                info!("RUST_UPDATEOBJECT init_transports {line}");
-            }
-        }
-        hub.core.send_packet(&update);
-        self.client_visible_transports_like_cpp
-            .extend(other_visible_guids);
     }
 }

@@ -46,9 +46,8 @@ use rand::RngCore;
 use tokio::time::{Duration, sleep};
 use tracing::warn;
 use wow_core::ObjectGuid;
-use wow_data::battle_pet_selection::{
-    BattlePetTrainerSelectionLikeCpp, select_battle_pet_trainer_pet_like_cpp,
-};
+#[cfg(test)]
+use wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp;
 use wow_packet::packets::misc::BattlePetJournalPet;
 use wow_packet::packets::trainer::{LearnedSpells, TrainerBuyFailed};
 use wow_persistence::{
@@ -70,7 +69,7 @@ use crate::battle_pet_account::{
 use crate::session::{
     ExclusivePlayerMoneyPersistenceLikeCpp, PlayerMoneyCommitCancellationFenceLikeCpp, WorldSession,
 };
-use crate::trainer_offer::PreparedBattlePetTrainerOfferLikeCpp;
+use wow_world_application::PreparedBattlePetTrainerOfferLikeCpp;
 
 mod ops_1;
 mod ops_2;

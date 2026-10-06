@@ -22,8 +22,8 @@ fn retired_object_authority_releases_every_session_window_like_cpp() {
     second.close_retired_active_loot_windows_like_cpp(second_guid);
 
     for (session, owner_guid) in [(&first, owner), (&second, owner)] {
-        assert!(!session.loot.active_loot_view_owners.contains(&owner_guid));
-        assert!(!session.loot.loot_table.contains_key(&owner_guid));
+        assert!(!session.loot.has_active_loot_view_owner_like_cpp(owner_guid));
+        assert!(!session.loot.cached_loot_contains_owner_like_cpp(owner_guid));
     }
     for rx in [&first_rx, &second_rx] {
         assert_eq!(
@@ -153,12 +153,10 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     authority.add_viewer_like_cpp(opened_first).unwrap();
     first
         .loot
-        .active_loot_view_generations_like_cpp
-        .insert(owner_guid, replacement_generation);
+        .insert_active_loot_view_generation_for_test_like_cpp(owner_guid, replacement_generation);
     first
         .loot
-        .active_loot_view_authorities_like_cpp
-        .insert(owner_guid, authority.clone());
+        .insert_active_loot_view_authority_for_test_like_cpp(owner_guid, authority.clone());
     assert!(first.reconcile_represented_loot_cache_like_cpp(owner_guid, opened_first));
     let _ = first.mutate_world_creature(owner_guid, |creature| {
         creature
@@ -187,8 +185,7 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     assert!(
         second
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .unwrap()
             .round_robin_player
             .is_empty()

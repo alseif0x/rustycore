@@ -1,6 +1,6 @@
 use super::*;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapInvItem,
         status: SessionStatus::LoggedIn,
@@ -25,7 +25,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoEquipItem,
         status: SessionStatus::LoggedIn,
@@ -50,7 +50,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoEquipItemSlot,
         status: SessionStatus::LoggedIn,
@@ -75,7 +75,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapItem,
         status: SessionStatus::LoggedIn,
@@ -100,7 +100,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoStoreBagItem,
         status: SessionStatus::LoggedIn,
@@ -125,7 +125,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DestroyItem,
         status: SessionStatus::LoggedIn,
@@ -142,24 +142,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelTempEnchantment,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_temp_enchantment",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::item::CancelTempEnchantment::read(&mut pkt) {
-                    Ok(cancel) => session.handle_cancel_temp_enchantment(cancel).await,
-                    Err(e) => tracing::warn!("Failed to read CancelTempEnchantment: {e}"),
-                }
-            })
-        },
-    }
-}
-
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ShowTradeSkill,
         status: SessionStatus::LoggedIn,

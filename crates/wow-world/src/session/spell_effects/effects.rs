@@ -533,12 +533,12 @@ impl WorldSession {
         // before the next visibility read derives the seer from canonical
         // Player state.
         self.send_set_viewpoint_target_visibility_like_cpp(dynamic_object_guid);
-        self.visibility.last_observed_farsight_object_like_cpp = dynamic_object_guid;
+        self.visibility
+            .observe_farsight_object_like_cpp(dynamic_object_guid);
         #[cfg(test)]
         {
             self.visibility
-                .visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp = Some(dynamic_object_guid);
+                .set_represented_seer_guid_fixture_like_cpp(Some(dynamic_object_guid));
         }
         player_set_viewpoint.update_visibility_requested
     }
@@ -666,16 +666,16 @@ impl WorldSession {
                 wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
 
             self.social
-                .duel_test_fixture_like_cpp
-                .represented_force_deselects_like_cpp
-                .push(RepresentedForceDeselectLikeCpp {
-                    caster_guid,
-                    visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
-                    break_target_packet_bytes,
-                    clear_target_packet_bytes,
-                    hostile_visible_fanout_unrepresented: true,
-                    attacker_pet_attack_stop_unrepresented: true,
-                });
+                .record_represented_force_deselect_for_test_like_cpp(
+                    RepresentedForceDeselectLikeCpp {
+                        caster_guid,
+                        visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
+                        break_target_packet_bytes,
+                        clear_target_packet_bytes,
+                        hostile_visible_fanout_unrepresented: true,
+                        attacker_pet_attack_stop_unrepresented: true,
+                    },
+                );
         }
         #[cfg(not(test))]
         let _ = caster_guid;

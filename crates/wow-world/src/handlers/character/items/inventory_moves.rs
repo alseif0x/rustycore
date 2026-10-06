@@ -23,63 +23,16 @@ impl WorldSession {
         swap: bool,
         require_exact_destination: bool,
     ) -> Option<(InventoryResult, InventorySwapTargetLikeCpp)> {
-        let source = self.get_inventory_item_by_pos(source_bag, source_slot)?;
-        let source_count = self
-            .resolved_inventory_item_object_like_cpp(source.guid)?
-            .count();
-        let destination_pos = wow_entities::make_item_pos(destination_bag, destination_slot);
-
-        if is_inventory_pos(destination_bag, destination_slot) {
-            let (mut result, destinations, _) = self
-                .plan_store_existing_inventory_item_at_like_cpp(
-                    source_bag,
-                    source_slot,
-                    destination_bag,
-                    destination_slot,
-                    swap,
-                )?;
-            if require_exact_destination
-                && result == InventoryResult::Ok
-                && (destinations.len() != 1
-                    || destinations[0].pos != destination_pos
-                    || destinations[0].count != source_count)
-            {
-                result = InventoryResult::InternalBagError;
-            }
-            return Some((result, InventorySwapTargetLikeCpp::Inventory));
-        }
-        if is_bank_pos(destination_bag, destination_slot) {
-            let (mut result, destinations) = self.plan_bank_existing_inventory_item_at_like_cpp(
+        let conditions = self.player_condition_projection_cx_like_cpp();
+        wow_world_application::InventoryMovePlanningCxLikeCpp::new(&conditions)
+            .validate_inventory_swap_target_like_cpp(
                 source_bag,
                 source_slot,
                 destination_bag,
                 destination_slot,
                 swap,
-            )?;
-            if require_exact_destination
-                && result == InventoryResult::Ok
-                && (destinations.len() != 1
-                    || destinations[0].pos != destination_pos
-                    || destinations[0].count != source_count)
-            {
-                result = InventoryResult::InternalBagError;
-            }
-            return Some((result, InventorySwapTargetLikeCpp::Bank));
-        }
-        if is_equipment_pos(destination_bag, destination_slot) {
-            let (mut result, dest) = self.plan_equip_existing_inventory_item_like_cpp(
-                source_bag,
-                source_slot,
-                destination_slot,
-                swap,
-            )?;
-            if result == InventoryResult::Ok && dest != destination_pos {
-                result = InventoryResult::InternalBagError;
-            }
-            return Some((result, InventorySwapTargetLikeCpp::Equipment { dest }));
-        }
-
-        Some((InventoryResult::Ok, InventorySwapTargetLikeCpp::None))
+                require_exact_destination,
+            )
     }
 
     pub(crate) async fn execute_inventory_swap_positions_like_cpp(
@@ -749,53 +702,7 @@ impl WorldSession {
     }
 
     pub(crate) fn publish_inventory_position_changes_like_cpp(&mut self, positions: &[(u8, u8)]) {
-        let mut unique_positions = positions.to_vec();
-        unique_positions.sort_unstable();
-        unique_positions.dedup();
-        let mut top_level_changes = Vec::new();
-        let mut visible_item_changes = Vec::new();
-        let mut virtual_item_changes = Vec::new();
-        let mut gear_changed = false;
-
-        for (bag, slot) in unique_positions {
-            if bag != INVENTORY_SLOT_BAG_0 {
-                self.send_bag_slot_values_update_like_cpp(bag, slot);
-                continue;
-            }
-            let item = self.get_inventory_item_by_pos(bag, slot);
-            top_level_changes.push((
-                slot,
-                item.as_ref().map_or(ObjectGuid::EMPTY, |item| item.guid),
-            ));
-            if slot < 19 {
-                gear_changed = true;
-                visible_item_changes.push((
-                    slot,
-                    item.as_ref().map_or(0, |item| item.entry_id as i32),
-                    0,
-                    0,
-                ));
-            }
-            if (15..=17).contains(&slot) {
-                virtual_item_changes.push((
-                    slot - 15,
-                    item.as_ref().map_or(0, |item| item.entry_id as i32),
-                    0,
-                    0,
-                ));
-            }
-        }
-        if !top_level_changes.is_empty() {
-            self.send_player_values_update_from_entity_bridge(
-                &top_level_changes,
-                &visible_item_changes,
-                &virtual_item_changes,
-                &[],
-                None,
-            );
-        }
-        if gear_changed {
-            self.send_stat_update();
-        }
+        self.inventory_position_publication_cx_like_cpp()
+            .publish_inventory_position_changes_like_cpp(positions);
     }
 }

@@ -440,6 +440,7 @@ fn session_for_chat_routing_like_cpp(
         "enUS".to_string(),
         packet_rx,
         send_tx.clone(),
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_player_guid(Some(sender_guid));
     session.set_loaded_player_name_like_cpp(format!("Player{}", sender_guid.counter()));

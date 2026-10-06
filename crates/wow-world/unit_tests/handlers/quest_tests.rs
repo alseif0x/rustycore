@@ -77,13 +77,12 @@ pub(super) use catalog_persistence::{
     quest_poi_blob_row_like_cpp,
 };
 
-/// The quest opcode registrations.
-///
-/// #359 retired the dispatcher's match arms: an opcode is declared once, in
-/// its `PacketHandlerEntry`, which now carries the call as well as the
-/// admission metadata. These tests used to assert the arm and the registration
-/// separately; there is one side left to assert.
-const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("../../src/handlers/quest/handlers.rs");
+/// The quest opcode registrations (#359: one `PacketHandlerEntry` per opcode).
+/// The query slice moved its bodies to `wow-world-application`.
+const QUEST_HANDLER_REGISTRATIONS: &str = concat!(
+    include_str!("../../src/handlers/quest/handlers.rs"),
+    include_str!("../../../wow-world-application/src/quest_query_handlers.rs"),
+);
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -99,6 +98,7 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         "enUS".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
@@ -871,8 +871,7 @@ fn mark_visible_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGu
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(guid, state);
+        .insert_represented_gameobject_use_state_for_test_like_cpp(guid, state);
     mark_visible(session, guid);
 }
 

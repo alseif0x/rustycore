@@ -4,45 +4,16 @@
 //! Action bar adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Player, WorldSession};
+use super::WorldSession;
 
-pub(in crate::session) fn rounded_median_u32(sorted_values: &[u32]) -> u32 {
-    debug_assert!(!sorted_values.is_empty());
-    let mid = sorted_values.len() / 2;
-    if sorted_values.len() % 2 == 1 {
-        sorted_values[mid]
-    } else {
-        ((f64::from(sorted_values[mid - 1]) + f64::from(sorted_values[mid])) / 2.0).round() as u32
-    }
-}
-
-pub(in crate::session) fn set_active_player_update_bit_like_cpp(mask: &mut [u32; 48], bit: usize) {
-    mask[bit / 32] |= 1 << (bit % 32);
-}
-
-pub(in crate::session) fn action_button_action_like_cpp(packed: u32) -> u32 {
-    packed & 0x00FF_FFFF
-}
-
-pub(in crate::session) fn action_button_type_like_cpp(packed: u32) -> u8 {
-    ((packed & 0xFF00_0000) >> 24) as u8
-}
-
-pub(in crate::session) fn make_action_button_like_cpp(action: u32, action_type: u8) -> u32 {
-    action_button_action_like_cpp(action) | ((action_type as u32) << 24)
-}
+pub(in crate::session) use wow_world_core::session::{
+    action_button_action_like_cpp, action_button_type_like_cpp, make_action_button_like_cpp,
+    set_active_player_update_bit_like_cpp,
+};
 
 impl WorldSession {
     pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
-        let Some(current) = self.lifecycle.tutorials_like_cpp.get_mut(index) else {
-            return false;
-        };
-
-        if *current != value {
-            *current = value;
-            self.lifecycle.tutorials_changed_like_cpp = true;
-        }
-        true
+        self.lifecycle.set_tutorial_int_like_cpp(index, value)
     }
 
     pub(crate) fn apply_tutorial_action_like_cpp(
@@ -56,21 +27,21 @@ impl WorldSession {
                     return false;
                 };
                 let index = (tutorial_bit >> 5) as usize;
-                if index >= self.lifecycle.tutorials_like_cpp.len() {
+                if index >= self.lifecycle.tutorial_values_like_cpp().len() {
                     return false;
                 }
-                let flag =
-                    self.lifecycle.tutorials_like_cpp[index] | (1u32 << (tutorial_bit & 0x1F));
+                let flag = self.lifecycle.tutorial_values_like_cpp()[index]
+                    | (1u32 << (tutorial_bit & 0x1F));
                 self.set_tutorial_int_like_cpp(index, flag)
             }
             wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP => {
-                for index in 0..self.lifecycle.tutorials_like_cpp.len() {
+                for index in 0..self.lifecycle.tutorial_values_like_cpp().len() {
                     self.set_tutorial_int_like_cpp(index, u32::MAX);
                 }
                 true
             }
             wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP => {
-                for index in 0..self.lifecycle.tutorials_like_cpp.len() {
+                for index in 0..self.lifecycle.tutorial_values_like_cpp().len() {
                     self.set_tutorial_int_like_cpp(index, 0);
                 }
                 true
@@ -85,194 +56,6 @@ impl WorldSession {
             state.active_local_flags = flags;
         });
         self.sync_current_player_session_visibility_detection_like_cpp();
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub(crate) fn represented_set_action_bar_toggles_like_cpp(&mut self, mask: u8) -> bool {
-        let Some(guid) = self.core.player_guid() else {
-            return false;
-        };
-
-        if self
-            .mutate_active_player_update_state_like_cpp(|state| state.multi_action_bars = mask)
-            .is_none()
-        {
-            return false;
-        }
-        self.shared()
-            .send_active_player_multi_action_bars_update_like_cpp(guid);
-        true
-    }
-
-    pub(crate) fn represented_set_action_button_like_cpp(
-        &mut self,
-        index: u8,
-        packed_action: u32,
-    ) -> bool {
-        let action = action_button_action_like_cpp(packed_action);
-        let action_type = action_button_type_like_cpp(packed_action);
-
-        // C++ delegates deeper validation to `Player::AddActionButton`
-        // (SpellMgr/ObjectMgr/Mount/BattlePet stores). Those runtime stores are
-        // not unified here yet, so this represented path preserves the exact
-        // packed action/type split and slot bounds while leaving store-backed
-        // validation explicit.
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_action_button_like_cpp(index, action, action_type)
-            })
-            .unwrap_or(false);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            let Some(button) = self
-                .fixtures
-                .presentation
-                .represented_action_buttons_like_cpp
-                .get_mut(usize::from(index))
-            else {
-                return false;
-            };
-            *button = make_action_button_like_cpp(action, action_type);
-            return true;
-        }
-        canonical
-    }
-
-    pub(crate) fn reset_represented_action_buttons_like_cpp(&mut self) {
-        let _canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(Player::reset_action_buttons_for_load_like_cpp)
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .presentation
-                .represented_action_buttons_like_cpp =
-                [0; wow_packet::packets::misc::MAX_ACTION_BUTTONS];
-            self.fixtures
-                .presentation
-                .represented_action_buttons_loaded_like_cpp = false;
-        }
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn active_player_local_flags_like_cpp(&self) -> u32 {
-        self.active_player_update_state_like_cpp()
-            .expect("test active Player owner must resolve")
-            .0
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn active_player_multi_action_bars_like_cpp(&self) -> u8 {
-        self.active_player_update_state_like_cpp()
-            .expect("test active Player owner must resolve")
-            .2
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_action_button_like_cpp(&self, index: u8) -> Option<u32> {
-        if let Some(canonical) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.action_button_like_cpp(index))
-        {
-            return canonical;
-        }
-        self.core
-            .player_handle_like_cpp
-            .is_none()
-            .then(|| {
-                self.fixtures
-                    .presentation
-                    .represented_action_buttons_like_cpp
-                    .get(usize::from(index))
-                    .copied()
-            })
-            .flatten()
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub(in crate::session) fn mutate_active_player_update_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
-    ) -> Option<R> {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            let mut state =
-                wow_entities::PlayerGameplayState::with_active_player_update_fields_like_cpp(
-                    self.fixtures
-                        .presentation
-                        .active_player_local_flags_like_cpp,
-                    self.fixtures
-                        .presentation
-                        .active_player_transport_server_time_like_cpp,
-                    self.fixtures
-                        .presentation
-                        .active_player_multi_action_bars_like_cpp,
-                );
-            let result = mutate(&mut state);
-            self.fixtures
-                .presentation
-                .active_player_local_flags_like_cpp = state.active_local_flags;
-            self.fixtures
-                .presentation
-                .active_player_transport_server_time_like_cpp = state.active_transport_server_time;
-            self.fixtures
-                .presentation
-                .active_player_multi_action_bars_like_cpp = state.multi_action_bars;
-            return Some(result);
-        }
-        self.core
-            .with_owned_player_mut_like_cpp(|player| mutate(player.gameplay_state_mut()))
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(in crate::session) fn active_player_update_state_like_cpp(&self) -> Option<(u32, i32, u8)> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            let state = player.gameplay_state();
-            (
-                state.active_local_flags,
-                state.active_transport_server_time,
-                state.multi_action_bars,
-            )
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.fixtures
-                    .presentation
-                    .active_player_local_flags_like_cpp,
-                self.fixtures
-                    .presentation
-                    .active_player_transport_server_time_like_cpp,
-                self.fixtures
-                    .presentation
-                    .active_player_multi_action_bars_like_cpp,
-            ));
-        }
-        canonical
-    }
-
-    pub(crate) fn represented_action_buttons_snapshot_like_cpp(
-        &self,
-    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(Player::action_buttons_snapshot_like_cpp);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .presentation
-                    .represented_action_buttons_like_cpp,
-            );
-        }
-        canonical
     }
 }
 

@@ -1,0 +1,142 @@
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Process-wide composition of world-session packet handlers.
+
+use std::sync::Arc;
+
+use wow_handler::DuplicateHandlerRegistrationLikeCpp;
+use wow_world::session::registry::{
+    WorldPacketHandlerRegistry, WorldPacketHandlerRegistryBuilder,
+    register_remaining_handlers_like_cpp,
+};
+use wow_world::{WorldSession, session::SessionHandlerCatalogsLikeCpp};
+
+/// Compose the immutable packet-handler registry shared by world sessions.
+pub fn compose_packet_handlers_like_cpp()
+-> Result<Arc<WorldPacketHandlerRegistry>, DuplicateHandlerRegistrationLikeCpp> {
+    let mut builder = WorldPacketHandlerRegistryBuilder::new();
+    wow_world_inventory::register_inventory_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_instance_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_equipment_set_use_handler_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_bank_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_social::register_social_inspect_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_lifecycle::register_account_data_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_reputation_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_lifecycle::register_support_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_client_state_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_social::register_calendar_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_social::register_chat_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(
+        &mut builder,
+    )?;
+    wow_world_social::register_social_contacts_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_social::register_arena_team_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_lifecycle::register_battlenet_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_data_service_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_social::register_social_group_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_group_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_social::register_guild_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_quest_query_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_combat_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_player_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_collections_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_travel_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_battleground_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_gameobject_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_vehicle_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_loot_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_character_query_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_trade_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    register_remaining_handlers_like_cpp(&mut builder)?;
+    Ok(Arc::new(builder.build()))
+}

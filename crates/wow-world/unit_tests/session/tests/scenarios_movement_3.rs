@@ -358,8 +358,7 @@ fn canonical_visibility_uses_player_instance_cross_map_blocks_instance_zero_fall
     );
     session
         .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
             default_instance_guid,
             RepresentedGameObjectUseState {
                 display_id: Some(7_620),
@@ -450,8 +449,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
     set_canonical_player_farsight_object_like_cpp(&canonical, player_guid, gameobject_seer_guid);
     session
         .visibility
-        .visibility_test_fixture_like_cpp
-        .represented_seer_guid_like_cpp = Some(gameobject_seer_guid);
+        .set_represented_seer_guid_fixture_like_cpp(Some(gameobject_seer_guid));
 
     assert_eq!(
         session.represented_visibility_source_position_like_cpp(),
@@ -468,7 +466,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
         "unsupported GameObject m_seer must not become the visibility source"
     );
     assert_eq!(
-        session.visibility.last_visibility_pos,
+        session.visibility.last_visibility_pos_like_cpp(),
         Some(player_position)
     );
 }

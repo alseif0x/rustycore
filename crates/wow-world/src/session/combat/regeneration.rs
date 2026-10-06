@@ -27,16 +27,6 @@ const SPELL_VISUAL_KIT_FOOD_LIKE_CPP: i32 = 406;
 /// C++ `SPELL_VISUAL_KIT_DRINK` (`SharedDefines.h:398`).
 const SPELL_VISUAL_KIT_DRINK_LIKE_CPP: i32 = 438;
 
-/// The aura modifiers C++ `Player::RegenerateHealth` reads for one tick.
-struct HealthRegenAuraInputsLikeCpp {
-    mod_regen: i32,
-    health_regen_percent: f32,
-    has_mod_regen_during_combat: bool,
-    mod_regen_during_combat: i32,
-    has_mod_health_regen_in_combat: bool,
-    mod_health_regen_in_combat: i32,
-}
-
 /// One represented power prepared for the C++ `RegenerateAll` power loop.
 struct RepresentedPowerRegenLikeCpp {
     power: PowerType,
@@ -403,22 +393,6 @@ impl WorldSession {
         if food_emote_ready && let Some(kit_record_id) = represented_food_emote_kit_like_cpp(self) {
             self.send_player_food_emote_visual_like_cpp(guid, kit_record_id);
         }
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    /// Test accessor for the canonical five-second-rule state after a cast.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_player_mp5_regen_interrupted_like_cpp(&self) -> bool {
-        self.core
-            .with_owned_player_like_cpp(|player| {
-                player
-                    .unit()
-                    .is_power_regen_interrupted_by_mp5_rule_like_cpp(
-                        crate::session::game_time_ms_like_cpp(),
-                    )
-            })
-            .unwrap_or(false)
     }
 }
 

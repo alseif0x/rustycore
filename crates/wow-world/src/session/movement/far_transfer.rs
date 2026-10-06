@@ -49,7 +49,7 @@ impl WorldSession {
 
         use wow_packet::packets::misc::{SuspendToken, TransferPending};
 
-        if !self.lifecycle.player_logout_like_cpp && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
+        if !self.lifecycle.player_logout_like_cpp() && options & TELE_TO_SEAMLESS_LIKE_CPP == 0 {
             let transfer_pending = TransferPending {
                 map_id,
                 old_map_position: current_pos,
@@ -72,7 +72,7 @@ impl WorldSession {
         }
         self.core.state = SessionState::Transfer;
 
-        if !self.lifecycle.player_logout_like_cpp {
+        if !self.lifecycle.player_logout_like_cpp() {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
                 && !self
                     .core
@@ -118,19 +118,6 @@ impl WorldSession {
             state.active_transport_server_time = 0;
         });
         self.sync_current_player_session_visibility_detection_like_cpp();
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub(crate) fn set_represented_far_teleport_pending_like_cpp(&mut self, pending: bool) -> bool {
-        self.update_player_teleport_state_like_cpp(|state| state.far_pending = pending)
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(crate) fn represented_far_teleport_pending_like_cpp(&self) -> bool {
-        self.player_teleport_state_snapshot_like_cpp()
-            .is_some_and(|state| state.far_pending)
     }
 }
 

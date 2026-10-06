@@ -190,29 +190,6 @@ impl WorldSession {
             }
         }
     }
-    pub(in crate::session) fn remove_represented_mount_capability_speed_auras_like_cpp(
-        &mut self,
-        mount_capability_id: i32,
-    ) {
-        let Some(mod_spell_aura_id) = self
-            .catalogs
-            .represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
-        else {
-            return;
-        };
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return;
-        };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| (aura.spell_id == mod_spell_aura_id).then_some(aura.slot))
-            .collect();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-    }
     #[cfg(test)]
     pub(crate) fn apply_represented_mounted_aura_for_test_like_cpp(
         &mut self,

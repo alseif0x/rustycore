@@ -36,7 +36,7 @@ async fn spell_learn_spell_fallback_defers_without_complete_spell_rows_like_cpp(
     assert!(
         session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_fallback_player_spell_rows_like_cpp
             .is_empty(),
         "an unknown durable row must not be guessed into a targeted UPSERT overlay"
@@ -59,7 +59,7 @@ fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
     let spell_id = 13_351_i32;
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_fallback_player_spell_rows_like_cpp
         .insert(
             spell_id,
@@ -88,7 +88,7 @@ fn fallback_reconciliation_preserves_dependent_promotion_like_cpp() {
 
     let reconciled = session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_like_cpp()
         .represented_player_spell_rows_like_cpp[&spell_id];
     assert!(reconciled.dependent);
     assert_eq!(

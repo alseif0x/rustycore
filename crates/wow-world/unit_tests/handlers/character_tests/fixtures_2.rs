@@ -282,6 +282,7 @@ pub(crate) fn make_session_with_send_capacity(
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
     session.set_equipment_set_guid_generator_like_cpp(Arc::new(

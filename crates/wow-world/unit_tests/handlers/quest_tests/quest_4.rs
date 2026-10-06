@@ -15,7 +15,7 @@ async fn push_quest_to_party_inactive_pooled_quest_records_not_daily_before_grou
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7106);
-    session.social.group_guid = Some(99);
+    session.social.set_group_guid_for_test_like_cpp(Some(99));
 
     run_push_quest_to_party(&mut session, 7106).await;
 
@@ -83,7 +83,7 @@ async fn push_quest_to_party_non_pooled_quest_passes_pool_check_to_group_boundar
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7110);
-    session.social.group_guid = Some(99);
+    session.social.set_group_guid_for_test_like_cpp(Some(99));
 
     run_push_quest_to_party(&mut session, 7110).await;
 

@@ -58,8 +58,7 @@ impl WorldSession {
         }
         let client_has_object = if command.object_guid.is_mo_transport() {
             self.visibility
-                .client_visible_transports_like_cpp
-                .contains(&command.object_guid)
+                .contains_client_visible_transport_like_cpp(&command.object_guid)
         } else {
             self.core
                 .client_visible_guids_like_cpp

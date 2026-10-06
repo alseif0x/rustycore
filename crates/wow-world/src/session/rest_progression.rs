@@ -6,56 +6,7 @@
 
 use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP, REST_STATE_NORMAL_LIKE_CPP};
-use super::{RepresentedAuraEffectLikeCpp, WorldSession, max_level_for_expansion_like_cpp};
-
-/// Handle-less test fixture for RestMgr state and test-only rate configuration.
-/// Production rest authority remains on the canonical `Player`.
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) struct RestMgrTestFixtureLikeCpp {
-    /// C++ `RestMgr::_restBonus[REST_TYPE_XP]`.
-    pub(in crate::session) represented_rest_bonus_xp_like_cpp: f32,
-    /// C++ `UF::ActivePlayerData::RestInfo[REST_TYPE_XP].StateID`.
-    pub(in crate::session) represented_rest_state_xp_like_cpp: u8,
-    /// C++ `RestMgr::_restFlagMask`.
-    pub(in crate::session) represented_rest_flag_mask_like_cpp: u32,
-    /// Whether area and zone fixture updates initialized the rest flags.
-    pub(in crate::session) represented_rest_location_initialized_like_cpp: bool,
-    /// Coalesce area and zone fixture changes into one visible flag transition.
-    pub(in crate::session) represented_defer_rest_flag_sync_like_cpp: bool,
-    /// Deferred transition that marks `PLAYER_FLAGS_RESTING` dirty.
-    pub(in crate::session) represented_deferred_rest_flag_update_dirty_like_cpp: bool,
-    /// C++ `RestMgr::_innAreaTriggerId`.
-    pub(in crate::session) represented_inn_area_trigger_id_like_cpp: u32,
-    /// C++ `RestMgr::_restTime`, represented as Unix seconds.
-    pub(in crate::session) represented_rest_time_secs_like_cpp: u64,
-    /// Test policy value corresponding to `RATE_REST_OFFLINE_IN_WILDERNESS`.
-    pub(in crate::session) rest_offline_wilderness_rate_like_cpp: f32,
-    /// Test policy value corresponding to `RATE_REST_OFFLINE_IN_TAVERN_OR_CITY`.
-    pub(in crate::session) rest_offline_tavern_or_city_rate_like_cpp: f32,
-    /// Test policy value corresponding to `RATE_REST_INGAME`.
-    pub(in crate::session) rest_ingame_rate_like_cpp: f32,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-impl Default for RestMgrTestFixtureLikeCpp {
-    fn default() -> Self {
-        Self {
-            represented_rest_bonus_xp_like_cpp: 0.0,
-            represented_rest_state_xp_like_cpp: REST_STATE_NORMAL_LIKE_CPP,
-            represented_rest_flag_mask_like_cpp: 0,
-            represented_rest_location_initialized_like_cpp: false,
-            represented_defer_rest_flag_sync_like_cpp: false,
-            represented_deferred_rest_flag_update_dirty_like_cpp: false,
-            represented_inn_area_trigger_id_like_cpp: 0,
-            represented_rest_time_secs_like_cpp: 0,
-            rest_offline_wilderness_rate_like_cpp: 1.0,
-            rest_offline_tavern_or_city_rate_like_cpp: 1.0,
-            rest_ingame_rate_like_cpp: 1.0,
-        }
-    }
-}
+use super::{RepresentedAuraEffectLikeCpp, WorldSession};
 
 impl WorldSession {
     #[cfg(test)]
@@ -217,8 +168,7 @@ impl WorldSession {
         if self.core.player_handle_like_cpp.is_none() {
             return self
                 .lifecycle
-                .player_flags_test_fixture_like_cpp
-                .represented_loaded_player_flags_like_cpp
+                .represented_loaded_player_flags_for_test_like_cpp()
                 .is_some_and(|flags| (flags & flag) != 0);
         }
         false
@@ -232,8 +182,7 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .lifecycle
-                .player_flags_test_fixture_like_cpp
-                .represented_loaded_player_flags_like_cpp;
+                .represented_loaded_player_flags_for_test_like_cpp();
         }
         canonical
     }
@@ -251,7 +200,11 @@ impl WorldSession {
             return (0, 0);
         }
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
+        if self
+            .core
+            .with_owned_player_for_rest_like_cpp(|_| ())
+            .is_none()
+        {
             return self.fixture_take_xp_rest_bonus_like_cpp(xp, victim);
         }
         let Some(pct) = crate::session::hub_ref(self)
@@ -263,11 +216,10 @@ impl WorldSession {
         };
         let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
-            })
-            .unwrap_or((0, 0))
+        self.with_owned_player_mut_for_rest_like_cpp(|player| {
+            player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
+        })
+        .unwrap_or((0, 0))
     }
 
     pub(crate) fn set_represented_rest_flag_like_cpp(
@@ -311,8 +263,7 @@ impl WorldSession {
         let canonical_flags_ex =
             if canonical_flags_ex.is_none() && self.core.player_handle_like_cpp.is_none() {
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_ex_like_cpp
+                    .represented_loaded_player_flags_ex_for_test_like_cpp()
                     .or(Some(0))
             } else {
                 canonical_flags_ex
@@ -327,12 +278,10 @@ impl WorldSession {
             .unwrap_or_else(|| {
                 (
                     self.lifecycle
-                        .player_flags_test_fixture_like_cpp
-                        .represented_loaded_player_flags_like_cpp
+                        .represented_loaded_player_flags_for_test_like_cpp()
                         .unwrap_or(0),
                     self.lifecycle
-                        .player_flags_test_fixture_like_cpp
-                        .represented_loaded_player_flags_ex_like_cpp
+                        .represented_loaded_player_flags_ex_for_test_like_cpp()
                         .unwrap_or(0),
                 )
             })
@@ -341,184 +290,21 @@ impl WorldSession {
     pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
         let session_secs: u32 = self
             .lifecycle
-            .login_time
+            .login_time_like_cpp()
             .map(|time| time.elapsed().as_secs() as u32)
             .unwrap_or(0);
         (
             self.lifecycle
-                .total_played_time
+                .total_played_time_like_cpp()
                 .saturating_add(session_secs),
             self.lifecycle
-                .level_played_time
+                .level_played_time_like_cpp()
                 .saturating_add(session_secs),
         )
     }
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         self.take_player_deferred_rest_flag_update_dirty_like_cpp()
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    /// C++ `Player::IsMaxLevel` reads `ActivePlayerData::MaxLevel`, which
-    /// `InitStatsForLevel` derives from both the account's active expansion
-    /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
-    /// check above instead, so keep these two concepts separate.
-    pub(crate) fn player_active_max_level_like_cpp(&self) -> u32 {
-        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.core.expansion));
-        let configured_max = self.config.max_player_level_config_like_cpp;
-        if expansion_max == 80 || expansion_max >= configured_max {
-            configured_max
-        } else {
-            expansion_max
-        }
-    }
-
-    pub(in crate::session) fn player_is_max_level_like_cpp(&self) -> bool {
-        u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
-        if self.player_is_at_configured_max_level_like_cpp() {
-            return Some(false);
-        }
-
-        let next_level_xp = self.resolved_player_next_level_xp_like_cpp()?;
-        Some(next_level_xp != 0 && next_level_xp != u32::MAX)
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
-        Some(
-            self.resolved_player_next_level_xp_like_cpp()? as f32
-                * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP,
-        )
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) fn calc_represented_xp_rest_extra_per_sec_like_cpp(
-        &self,
-        bubble: f32,
-    ) -> Option<f32> {
-        if !self.can_gain_represented_xp_rest_bonus_like_cpp()? {
-            return Some(0.0);
-        }
-        Some(self.resolved_player_next_level_xp_like_cpp()? as f32 / 72_000.0 * bubble)
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_xp_rest_bonus_like_cpp(&self) -> f32 {
-        self.resolved_xp_rest_bonus_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_xp_rest_state_like_cpp(&self) -> u8 {
-        self.resolved_xp_rest_state_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_xp_rest_threshold_like_cpp(&self) -> u32 {
-        self.resolved_xp_rest_threshold_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
-        self.resolved_is_resting_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
-    pub(in crate::session) fn represented_xp_rest_info_changed_since_like_cpp(
-        &self,
-        old_rest_bonus: f32,
-        old_rest_state: u8,
-    ) -> bool {
-        self.resolved_xp_rest_bonus_like_cpp()
-            .zip(self.resolved_xp_rest_state_like_cpp())
-            .is_some_and(|(bonus, state)| {
-                bonus.to_bits() != old_rest_bonus.to_bits() || state != old_rest_state
-            })
-    }
-
-    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
-        // Trait-config-specific action bars are not represented yet. Both load and save must use
-        // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
-        Some((self.represented_active_talent_group_like_cpp()?, 0))
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(crate) fn player_rest_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerRestState> {
-        let canonical = self
-            .core
-            .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerRestState::from_represented_parts_like_cpp(
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_state_xp_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_bonus_xp_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_flag_mask_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_location_initialized_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_defer_rest_flag_sync_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_deferred_rest_flag_update_dirty_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_inn_area_trigger_id_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_time_secs_like_cpp,
-                ),
-            );
-        }
-        canonical
-    }
-
-    pub(crate) fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {
-        self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_bonus_like_cpp())
-    }
-
-    pub(crate) fn resolved_xp_rest_state_like_cpp(&self) -> Option<u8> {
-        self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_state_like_cpp())
-    }
-
-    pub(crate) fn resolved_xp_rest_threshold_like_cpp(&self) -> Option<u32> {
-        Some(
-            self.resolved_xp_rest_bonus_like_cpp()?
-                .clamp(0.0, u32::MAX as f32) as u32,
-        )
-    }
-
-    pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
-        self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.is_resting_by_flag_like_cpp())
     }
 }
 

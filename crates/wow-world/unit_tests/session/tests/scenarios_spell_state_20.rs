@@ -39,12 +39,12 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     );
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .insert(100, 7);
     session
         .spell_state
-        .represented_override_spells_like_cpp
+        .represented_override_spell_fixture_mut_like_cpp()
         .entry(90)
         .or_default()
         .insert(100);
@@ -223,12 +223,12 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
 
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .insert(999, 8);
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .insert(998, 9);
     assert_eq!(
@@ -241,18 +241,18 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     );
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .remove(&999);
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .remove(&998);
 
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .insert(100, 0);
     assert_eq!(
@@ -270,19 +270,19 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     );
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .represented_spell_trait_definition_ids_like_cpp
         .insert(100, 7);
 
     session
         .spell_state
-        .represented_override_spells_like_cpp
+        .represented_override_spell_fixture_mut_like_cpp()
         .entry(-1)
         .or_default()
         .insert(100);
     session
         .spell_state
-        .represented_override_spells_like_cpp
+        .represented_override_spell_fixture_mut_like_cpp()
         .entry(-2)
         .or_default()
         .insert(200);
@@ -301,11 +301,11 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     );
     session
         .spell_state
-        .represented_override_spells_like_cpp
+        .represented_override_spell_fixture_mut_like_cpp()
         .remove(&-1);
     session
         .spell_state
-        .represented_override_spells_like_cpp
+        .represented_override_spell_fixture_mut_like_cpp()
         .remove(&-2);
 
     session.reset_represented_talents_like_cpp();
@@ -406,7 +406,7 @@ fn represented_spell_charge_restore_pops_last_charge_like_cpp() {
     assert_eq!(
         session
             .spell_state
-            .represented_character_spell_charges_like_cpp[&7]
+            .represented_character_spell_charges_for_test_like_cpp()[&7]
             .iter()
             .map(|charge| (
                 charge.recharge_start_unix_secs,

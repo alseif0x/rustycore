@@ -18,13 +18,27 @@ mod cfg_context;
 mod glob_context;
 mod scope;
 mod source_graph;
-use scope::{LocalBinding, ModuleScope, collect_scope, collect_use_specs};
+mod type_identity;
+use scope::{LocalBinding, ModuleScope, collect_use_specs};
 pub(super) use source_graph::ModuleIndex;
+#[cfg(test)]
+pub(crate) use type_identity::resolve_supplied_type_identity;
+pub(crate) use type_identity::{
+    SuppliedTypeIdentity, TypeIdentityError, TypeIdentityKind, TypeIdentityQuery,
+    resolve_supplied_type_identities,
+};
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum ResolverMode {
+    Bridge,
+    TypeIdentity,
+}
 
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum Provenance {
     Authority(BTreeSet<BridgeSide>),
     Module(ModuleIdentity),
+    Nominal(type_identity::NominalProvider),
     NonAuthority,
     Unknown,
 }
@@ -83,6 +97,7 @@ type ResolutionKey = (usize, String, Vec<String>);
 struct Resolver<'a> {
     index: &'a ModuleIndex,
     scopes: Vec<ModuleScope>,
+    mode: ResolverMode,
     memo: BTreeMap<ResolutionKey, Resolution>,
     active: BTreeSet<ResolutionKey>,
 }
@@ -159,19 +174,6 @@ fn uncovered_cfg(context: &[String], guards: &[Vec<String>]) -> Option<Vec<Strin
 }
 
 impl<'a> Resolver<'a> {
-    fn new(index: &'a ModuleIndex, errors: &mut Vec<String>) -> Self {
-        Self {
-            index,
-            scopes: index
-                .modules
-                .iter()
-                .map(|module| collect_scope(module, index, errors))
-                .collect(),
-            memo: BTreeMap::new(),
-            active: BTreeSet::new(),
-        }
-    }
-
     fn diagnostic(&self, node: usize, name: &str, reason: &str) -> String {
         let module = &self.index.modules[node];
         format!(
@@ -193,7 +195,8 @@ impl<'a> Resolver<'a> {
         // A parent may re-export a child that imports super::*. That ordinary
         // glob graph is cyclic, but it is not an alias cycle for every
         // unrelated identifier in the program.
-        if !known_authority_name(name)
+        if self.mode == ResolverMode::Bridge
+            && !known_authority_name(name)
             && !self.has_visible_binding(node, name, &mut BTreeSet::new())
         {
             return Resolution::default();
@@ -235,7 +238,53 @@ impl<'a> Resolver<'a> {
                     )),
                     &branch_cfg,
                 ),
-                LocalBinding::Alias(ty) => self.resolve_type(node, ty, &branch_cfg),
+                LocalBinding::Alias {
+                    ty,
+                    generic,
+                    legacy_authority,
+                } => match (self.mode, legacy_authority) {
+                    (ResolverMode::Bridge, Some(side)) => {
+                        Resolution::one(Provenance::Authority(BTreeSet::from([*side])), &branch_cfg)
+                    }
+                    (ResolverMode::TypeIdentity, _) if *generic => self.unresolved(
+                        node,
+                        name,
+                        &branch_cfg,
+                        "unsupported generic type alias in nominal identity query",
+                    ),
+                    _ => self.resolve_type(node, ty, &branch_cfg),
+                },
+                LocalBinding::Nominal {
+                    kind,
+                    generic,
+                    declaration_index,
+                    legacy_authority,
+                } => match self.mode {
+                    ResolverMode::Bridge => match legacy_authority {
+                        Some(side) => Resolution::one(
+                            Provenance::Authority(BTreeSet::from([*side])),
+                            &branch_cfg,
+                        ),
+                        None => Resolution::one(Provenance::NonAuthority, &branch_cfg),
+                    },
+                    ResolverMode::TypeIdentity if *generic => self.unresolved(
+                        node,
+                        name,
+                        &branch_cfg,
+                        "unsupported generic nominal type in identity query",
+                    ),
+                    ResolverMode::TypeIdentity => Resolution::one(
+                        Provenance::Nominal(type_identity::NominalProvider {
+                            package: self.index.modules[node].package.clone(),
+                            module: self.index.modules[node].module.clone(),
+                            symbol: name.to_owned(),
+                            kind: *kind,
+                            source_path: self.index.modules[node].source_path.clone(),
+                            declaration_index: *declaration_index,
+                        }),
+                        &branch_cfg,
+                    ),
+                },
             };
             result.append(resolved);
         }
@@ -257,6 +306,10 @@ impl<'a> Resolver<'a> {
                             .unwrap_or(Provenance::NonAuthority),
                         &branch_cfg,
                     )
+                } else if let Some(resolved) =
+                    self.resolve_type_self_import(node, name, &import.path, &branch_cfg)
+                {
+                    resolved
                 } else {
                     self.resolve_path(node, &import.path, &branch_cfg)
                 };
@@ -309,7 +362,7 @@ impl<'a> Resolver<'a> {
                         }
                     }
                 }
-                if glob_result.candidates.is_empty() {
+                if self.mode == ResolverMode::Bridge && glob_result.candidates.is_empty() {
                     if let Some(side) = scope.builtins.get(name) {
                         glob_result = Resolution::one(
                             Provenance::Authority(BTreeSet::from([*side])),
@@ -339,24 +392,10 @@ impl<'a> Resolver<'a> {
         result
     }
 
-    fn has_visible_binding(&self, node: usize, name: &str, active: &mut BTreeSet<usize>) -> bool {
-        if !active.insert(node) {
-            return false;
-        }
-        let scope = &self.scopes[node];
-        let found = scope.declarations.contains_key(name)
-            || scope.explicit.contains_key(name)
-            || scope.builtins.contains_key(name)
-            || scope.globs.iter().any(|glob| {
-                self.module_targets(node, &glob.path)
-                    .into_iter()
-                    .any(|target| self.has_visible_binding(target, name, active))
-            });
-        active.remove(&node);
-        found
-    }
-
     fn resolve_type(&mut self, node: usize, ty: &Type, cfg: &[String]) -> Resolution {
+        if self.mode == ResolverMode::TypeIdentity {
+            return self.resolve_nominal_type(node, ty, cfg);
+        }
         let mut collector = PathCollector::default();
         collector.visit_type(ty);
         // Type components coexist, whereas import candidates are alternatives.
@@ -432,6 +471,9 @@ impl<'a> Resolver<'a> {
         if !self.module_ids(&module).is_empty() {
             return self.resolve_from_module(node, &module, &segments[1..], cfg);
         }
+        if let Some(resolution) = self.resolve_type_external_path(node, segments, cfg) {
+            return resolution;
+        }
         if first == "wow_world_core" {
             let core_root = ModuleIdentity::new("wow-world-core", "crate");
             return self.resolve_from_module(node, &core_root, &segments[1..], cfg);
@@ -470,6 +512,17 @@ impl<'a> Resolver<'a> {
                     result.append(self.resolve_from_module(node, module, rest, &candidate.cfg));
                     continue;
                 }
+            }
+            if self.mode == ResolverMode::TypeIdentity
+                && matches!(&candidate.provenance, Provenance::Nominal(_))
+                && !rest.is_empty()
+            {
+                result.issues.insert(self.diagnostic(
+                    node,
+                    &rest.join("::"),
+                    "unsupported associated path after nominal type",
+                ));
+                continue;
             }
             result.candidates.push(candidate);
         }
@@ -619,6 +672,25 @@ impl<'a> Resolver<'a> {
         let module = ModuleIdentity::new(&self.index.modules[node].package, &module);
         let mut targets = self.module_ids(&module);
         if targets.is_empty()
+            && !path
+                .first()
+                .is_some_and(|s| matches!(s.as_str(), "crate" | "self" | "super"))
+            && let Some(first) = path.first()
+            && let Some(package) = self.package_for_crate_root(first)
+        {
+            // `wow_world_spell::melee_damage` names a sibling workspace package's
+            // module, not a `crate::wow_world_spell` child. The index is keyed by
+            // package, so resolve the tail against that package's crate root. This
+            // is only reached when the current-package reading found nothing, so an
+            // existing resolution is never displaced.
+            let sibling_module = if path.len() == 1 {
+                "crate".to_owned()
+            } else {
+                format!("crate::{}", path[1..].join("::"))
+            };
+            targets = self.module_ids(&ModuleIdentity::new(package, &sibling_module));
+        }
+        if targets.is_empty()
             && path.first().is_some_and(|first| first == "wow_world_core")
             && !self.scopes[node]
                 .declarations
@@ -646,6 +718,19 @@ impl<'a> Resolver<'a> {
         targets.sort();
         targets.dedup();
         targets
+    }
+
+    /// The workspace package whose crate root is named `ident`.
+    ///
+    /// A path that starts with a dependency's crate name (`wow_world_spell::…`) is
+    /// absolute: its tail hangs off that package's crate root, not off the module
+    /// that wrote the path.
+    fn package_for_crate_root(&self, ident: &str) -> Option<&str> {
+        self.index
+            .modules
+            .iter()
+            .find(|module| module.module == "crate" && module.package.replace('-', "_") == ident)
+            .map(|module| module.package.as_str())
     }
 
     fn module_ids(&self, module: &ModuleIdentity) -> Vec<usize> {
@@ -867,11 +952,19 @@ fn extracted_application_name(name: &str) -> bool {
 
 fn recognized_absolute_provenance(segments: &[String]) -> Option<Provenance> {
     let first = segments.first()?.as_str();
-    // Extracted application crates provide rule/value vocabulary, not a
-    // canonical or legacy runtime owner. Treat their absolute imports as
-    // non-authority so relative test globs do not manufacture bridge debt.
-    if matches!(first, "wow_conditions" | "wow_spell_acquisition")
-        || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
+    // Application/domain crates provide rule/value or domain vocabulary, not
+    // a canonical or legacy runtime owner. Treat those imports as non-authority
+    // so aliases do not manufacture bridge debt or masquerade as Core.
+    if matches!(
+        first,
+        "wow_conditions"
+            | "wow_spell_acquisition"
+            | "wow_world_social"
+            | "wow_world_spell"
+            | "wow_world_interaction"
+            | "wow_world_instances"
+            | "wow_world_visibility"
+    ) || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
     {
         return Some(Provenance::NonAuthority);
     }

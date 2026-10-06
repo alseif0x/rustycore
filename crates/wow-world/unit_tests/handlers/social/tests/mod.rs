@@ -5,12 +5,16 @@
 use super::*;
 use num_traits::ToPrimitive;
 use std::sync::{Arc, Mutex};
-use wow_constants::ServerOpcodes;
+use wow_constants::{ClientOpcodes, ServerOpcodes};
+use wow_core::ObjectGuid;
+use wow_handler::{PacketProcessing, SessionStatus};
 use wow_persistence::{
-    PersistenceFutureLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp, SocialContactLoadRowLikeCpp,
+    PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, SocialAddCandidateLoadOutcomeLikeCpp,
+    SocialContactListLoadOutcomeLikeCpp, SocialContactLoadRowLikeCpp,
     SocialPartyInviteLookupOutcomeLikeCpp, SocialPersistencePortLikeCpp,
-    SocialRelationshipStateLikeCpp,
+    SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
 };
+use wow_world_social::normalize_player_name_like_cpp;
 
 struct RecordingSocialPort {
     contacts: SocialContactListLoadOutcomeLikeCpp,
@@ -133,6 +137,7 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
             "enUS".into(),
             pkt_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         ),
         send_rx,
     )

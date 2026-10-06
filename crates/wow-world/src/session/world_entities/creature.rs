@@ -5,40 +5,7 @@
 
 use super::*;
 
-pub(crate) fn creature_message_to_set_target_allows_like_cpp(
-    creature: &crate::map_manager::WorldCreature,
-    source_is_visible_like_cpp: bool,
-    player_map_id: u32,
-    player_instance_id: u32,
-    player_position: &wow_core::Position,
-    player_phase_shift: &wow_entities::PhaseShift,
-    required_3d: bool,
-) -> bool {
-    if !source_is_visible_like_cpp {
-        return false;
-    }
-    if creature.map_id() != player_map_id || creature.instance_id() != player_instance_id {
-        return false;
-    }
-    if !player_phase_shift.can_see(creature.phase_shift()) {
-        return false;
-    }
-
-    let range = creature.visibility_range_like_cpp();
-    if required_3d {
-        wow_core::position_is_in_dist_strict_3d_like_cpp(
-            &creature.position(),
-            player_position,
-            range,
-        )
-    } else {
-        wow_core::position_is_in_dist_strict_2d_like_cpp(
-            &creature.position(),
-            player_position,
-            range,
-        )
-    }
-}
+pub(crate) use wow_world_entities::creature_message_to_set_target_allows_like_cpp;
 
 impl WorldSession {
     pub fn set_canonical_creature_private_object_owner_like_cpp(
@@ -330,234 +297,7 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn creature_create_model_scalars_like_cpp(
-        &self,
-        display_id: u32,
-        object_scale: f32,
-        display_scale: f32,
-    ) -> Option<CreatureCreateModelScalarsLikeCpp> {
-        let model = self.creatures.model_info_store.as_ref()?.get(display_id)?;
-        let display_scale = if display_scale <= 0.0 {
-            1.0
-        } else {
-            display_scale
-        };
-        let hover_height = self
-            .creatures
-            .display_info_store
-            .as_ref()
-            .and_then(|display_store| display_store.get(display_id))
-            .and_then(|display| {
-                self.creatures
-                    .model_data_store
-                    .as_ref()
-                    .and_then(|model_store| model_store.get(u32::from(display.model_id)))
-                    .map(|model_data| {
-                        model_data.hover_height
-                            * model_data.model_scale
-                            * display.creature_model_scale
-                            * display_scale
-                    })
-            })
-            .filter(|height| *height > 0.0)
-            .unwrap_or(1.0);
-        Some(CreatureCreateModelScalarsLikeCpp {
-            display_scale,
-            native_x_display_scale: display_scale,
-            bounding_radius: model.bounding_radius * object_scale * display_scale,
-            combat_reach: model.combat_reach * object_scale * display_scale,
-            hover_height,
-        })
-    }
-
-    pub(crate) fn choose_creature_display_like_cpp(
-        &self,
-        entry: u32,
-        spawn_display_id: u32,
-        template_flags_extra: u32,
-        fallback_template_display_id: u32,
-        fallback_template_display_scale: f32,
-    ) -> Option<CreatureCreateDisplaySelectionLikeCpp> {
-        // C++ `ObjectMgr::LoadCreatures` stores creature.modelid as
-        // CreatureData::display with DEFAULT_PLAYER_DISPLAY_SCALE.
-        if spawn_display_id != 0 {
-            return Some(CreatureCreateDisplaySelectionLikeCpp {
-                display_id: spawn_display_id,
-                display_scale: 1.0,
-            });
-        }
-
-        let template = self
-            .creatures
-            .template_lifecycle_store_like_cpp
-            .as_ref()
-            .and_then(|store| store.get(entry));
-        let mut selected = template.and_then(|template| {
-            if template_flags_extra & CreatureFlagsExtra::TRIGGER.bits() != 0 {
-                let model_info_store = self.creatures.model_info_store.as_ref()?;
-                template
-                    .models
-                    .iter()
-                    .copied()
-                    .find(|model| {
-                        model_info_store
-                            .get(model.creature_display_id)
-                            .is_some_and(|info| info.is_trigger)
-                    })
-                    .or(Some(wow_data::CreatureTemplateLifecycleModelLikeCpp {
-                        creature_display_id: 11686,
-                        display_scale: 1.0,
-                        probability: 1.0,
-                    }))
-            } else {
-                match template.models.as_slice() {
-                    [] => None,
-                    [model] => Some(*model),
-                    models => {
-                        let total: f32 =
-                            models.iter().map(|model| model.probability.max(0.0)).sum();
-                        if total <= f32::EPSILON {
-                            models.first().copied()
-                        } else {
-                            let mut roll = rand::thread_rng().gen_range(0.0..total);
-                            let mut picked = *models.last()?;
-                            for model in models {
-                                roll -= model.probability.max(0.0);
-                                if roll <= 0.0 {
-                                    picked = *model;
-                                    break;
-                                }
-                            }
-                            Some(picked)
-                        }
-                    }
-                }
-            }
-        });
-
-        if selected.is_none() && fallback_template_display_id != 0 {
-            selected = Some(wow_data::CreatureTemplateLifecycleModelLikeCpp {
-                creature_display_id: fallback_template_display_id,
-                display_scale: if fallback_template_display_scale <= 0.0 {
-                    1.0
-                } else {
-                    fallback_template_display_scale
-                },
-                probability: 1.0,
-            });
-        }
-
-        let mut selected = selected?;
-        if let Some(other_gender) = self
-            .creatures
-            .model_info_store
-            .as_ref()
-            .and_then(|store| store.get(selected.creature_display_id))
-            .map(|info| info.display_id_other_gender)
-            .filter(|id| *id != 0)
-        {
-            if rand::thread_rng().gen_range(0..=1) == 0 {
-                selected.creature_display_id = other_gender;
-                if let Some(template_model) = template.and_then(|template| {
-                    template
-                        .models
-                        .iter()
-                        .copied()
-                        .find(|model| model.creature_display_id == other_gender)
-                }) {
-                    selected = template_model;
-                }
-            }
-        }
-
-        Some(CreatureCreateDisplaySelectionLikeCpp {
-            display_id: selected.creature_display_id,
-            display_scale: selected.display_scale,
-        })
-    }
-
-    pub(crate) fn creature_display_power_for_class_like_cpp(&self, unit_class: u8) -> u8 {
-        self.chr
-            .classes_store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(unit_class)))
-            .map(|entry| entry.display_power)
-            .unwrap_or_else(|| match unit_class {
-                1 => PowerType::Rage as u8,
-                4 => PowerType::Energy as u8,
-                6 => PowerType::RunicPower as u8,
-                _ => PowerType::Mana as u8,
-            })
-    }
-}
-
-impl crate::session::state::WorldEntitiesState {
-    pub(in crate::session) fn represented_can_see_or_detect_world_creature_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        creature: &crate::map_manager::WorldCreature,
-    ) -> bool {
-        let expected = wow_map::MapKey::new(
-            u32::from(hub.core.player_map_id_like_cpp()),
-            creature.instance_id(),
-        );
-        if hub.core.current_canonical_player_map_key_like_cpp() != Some(expected) {
-            return false;
-        }
-        hub.core
-            .with_owned_player_like_cpp(|player| {
-                player.unit().can_see_or_detect_unit_like_cpp(
-                    creature.creature.unit(),
-                    false,
-                    true,
-                    false,
-                )
-            })
-            .unwrap_or(false)
-    }
-}
-
-impl crate::session::state::SessionCore {
-    pub(crate) fn mutate_canonical_creature_by_guid_like_cpp<R>(
-        &mut self,
-        guid: ObjectGuid,
-        f: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let creature = managed.map_mut().get_typed_creature_mut(guid)?;
-        Some(f(creature))
-    }
-
-    pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = &self.map_manager {
-            return manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .creature_guids(map_id, instance_id);
-        }
-
-        Vec::new()
-    }
-}
-
-/// One creature aura this session applied, with the wall-clock deadline its
-/// represented duration expires at.
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(in crate::session) struct RepresentedCreatureAuraLikeCpp {
-    pub target_guid: ObjectGuid,
-    pub spell_id: i32,
-    pub caster_guid: ObjectGuid,
-    pub slot: u8,
-    pub effect_mask: u32,
-    pub applied_at: Instant,
-    pub duration_ms: u32,
-}
+pub(in crate::session) use wow_world_entities::RepresentedCreatureAuraLikeCpp;
 
 impl WorldSession {
     /// C++ `Spell::EffectApplyAura` for a creature target: create the canonical
@@ -697,8 +437,7 @@ impl WorldSession {
             .canonical_creature_aura_slot_like_cpp(target_guid, spell_key, caster_guid)
             .ok_or("creature aura slot missing after application")?;
         self.world_entities
-            .represented_creature_auras_like_cpp
-            .push(RepresentedCreatureAuraLikeCpp {
+            .record_represented_creature_aura_like_cpp(RepresentedCreatureAuraLikeCpp {
                 target_guid,
                 spell_id,
                 caster_guid,
@@ -785,21 +524,13 @@ impl WorldSession {
     pub(in crate::session) fn tick_represented_creature_auras_like_cpp(&mut self) {
         if self
             .world_entities
-            .represented_creature_auras_like_cpp
-            .is_empty()
+            .represented_creature_auras_are_empty_like_cpp()
         {
             return;
         }
         let expired: Vec<RepresentedCreatureAuraLikeCpp> = self
             .world_entities
-            .represented_creature_auras_like_cpp
-            .iter()
-            .filter(|aura| {
-                aura.duration_ms > 0
-                    && aura.applied_at.elapsed().as_millis() as u32 >= aura.duration_ms
-            })
-            .copied()
-            .collect();
+            .expired_represented_creature_auras_like_cpp();
         for aura in expired {
             let removed = self
                 .core
@@ -829,36 +560,11 @@ impl WorldSession {
                 })
                 .unwrap_or(false);
             self.world_entities
-                .represented_creature_auras_like_cpp
-                .retain(|tracked| *tracked != aura);
+                .retire_represented_creature_aura_like_cpp(aura);
             if removed {
                 self.publish_creature_aura_slot_update_like_cpp(aura.target_guid, aura.slot, false);
             }
         }
-    }
-}
-
-impl crate::session::state::WorldEntitiesState {
-    /// The canonical creature aura slot of one `(spell, caster)` application.
-    fn canonical_creature_aura_slot_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        target_guid: ObjectGuid,
-        spell_id: u32,
-        caster_guid: ObjectGuid,
-    ) -> Option<u8> {
-        hub.core
-            .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
-                creature
-                    .unit()
-                    .subsystems()
-                    .auras
-                    .applied_auras
-                    .iter()
-                    .find(|aura| aura.spell_id == spell_id && aura.caster_guid == caster_guid)
-                    .map(|aura| aura.slot)
-            })
-            .flatten()
     }
 }
 

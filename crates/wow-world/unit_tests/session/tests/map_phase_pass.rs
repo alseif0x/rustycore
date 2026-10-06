@@ -490,8 +490,9 @@ async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decis
     register_session_for_phases(&mut session);
     session.core.state = SessionState::LoggedIn;
     // The logout timer is already due when this step begins.
-    session.lifecycle.logout_time =
-        Some(std::time::Instant::now() - std::time::Duration::from_secs(1));
+    session.lifecycle.set_logout_time_for_test_like_cpp(Some(
+        std::time::Instant::now() - std::time::Duration::from_secs(1),
+    ));
     // `LogoutCancel` is PROCESS_THREAD_UNSAFE, so it belongs to this same pass.
     queued(&mut session, ClientOpcodes::LogoutCancel);
 
@@ -514,9 +515,9 @@ async fn a_logout_cancel_queued_in_the_same_step_is_seen_before_the_logout_decis
     assert!(pending_finalization.is_none());
 
     // C++ decides the logout after the packet loop and the query callbacks
-    // (`WorldSession.cpp:498-503`), so the cancel wins this step.
+    // (`WorldSession.cpp:505-511`), so the cancel wins this step.
     assert!(
-        session.lifecycle.logout_time.is_none(),
+        session.lifecycle.logout_time_for_test_like_cpp().is_none(),
         "the queued cancel must be dispatched before the decision"
     );
     assert_eq!(session.core.state, SessionState::LoggedIn);

@@ -32,7 +32,9 @@ async fn set_role_group_broadcasts_old_new_and_updates_existing_target_like_cpp(
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -92,7 +94,9 @@ async fn set_role_absent_target_broadcasts_but_does_not_mutate_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -142,7 +146,9 @@ async fn random_roll_with_group_broadcasts_to_all_members_including_sender_like_
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -187,7 +193,9 @@ async fn minimap_ping_with_group_broadcasts_to_other_members_excluding_sender_li
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

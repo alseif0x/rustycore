@@ -1,0 +1,39 @@
+[package]
+name = "wow-world-lifecycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-fixtures = ["wow-world-core/test-fixtures"]
+
+[dependencies]
+dashmap = { workspace = true }
+flume = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+wow-core = { workspace = true }
+wow-constants = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-handler = { workspace = true }
+wow-loot = { workspace = true }
+wow-map = { workspace = true }
+wow-module-api = { workspace = true }
+wow-persistence = { workspace = true }
+wow-packet = { workspace = true }
+rand = { workspace = true }
+wow-movement = { workspace = true }
+wow-world-visibility = { workspace = true }
+wow-progression = { workspace = true }
+wow-social = { workspace = true }
+wow-world-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

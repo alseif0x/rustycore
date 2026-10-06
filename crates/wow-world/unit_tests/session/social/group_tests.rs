@@ -36,6 +36,7 @@ fn reader_session_like_cpp() -> (
         "esES".into(),
         pkt_rx,
         send_tx.clone(),
+        crate::session::registry::build_dispatch_table(),
     );
 
     let owner = ObjectGuid::create_player(1, 4_201);

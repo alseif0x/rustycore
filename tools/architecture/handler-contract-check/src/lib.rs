@@ -30,7 +30,10 @@ use std::path::{Path, PathBuf};
 use dispatcher::{assert_single_dispatch_mechanism, dispatcher_contract_from_mounts};
 use module_policy::load_handler_module_policy;
 use ownership::{audit_registration_ownership, workspace_source_mounts};
-use registrations::{EXPECTED_REGISTRATION_MACROS, analyze_handler_mounts};
+use registrations::{
+    DIRECT_REGISTRAR_CONTRACTS, EXPECTED_REGISTRATION_MACROS, analyze_handler_mounts,
+    validate_composition_mounts,
+};
 use snapshot::parse_snapshot_contract;
 
 pub use session_ownership::{
@@ -60,35 +63,49 @@ pub fn check_repository() -> Result<String, String> {
     let snapshot = parse_snapshot_contract(&snapshot_source)
         .map_err(|error| format!("invalid handler contract snapshot: {error}"))?;
     let module_policy = load_handler_module_policy(&module_policy_path)?;
-    let registration_owner = module_policy.owner("handler_registration");
+    let registration_owners = module_policy.owners("handler_registration");
     let dispatcher_owner = module_policy.owner("packet_dispatcher");
 
     // Run the complete source/module ownership audit before the focused
     // parsers so unsupported include/macro/path shapes cannot hide source.
-    let ownership = audit_registration_ownership(&repository_root, registration_owner)
+    let ownership = audit_registration_ownership(&repository_root, registration_owners)
         .map_err(|error| format!("invalid handler registration ownership:\n{error}"))?;
     let mounts = workspace_source_mounts(&repository_root)
         .map_err(|error| format!("invalid workspace module graph: {error}"))?;
+    validate_composition_mounts(&mounts)
+        .map_err(|error| format!("invalid packet-handler composition: {error}"))?;
     let dispatcher = dispatcher_contract_from_mounts(&mounts, dispatcher_owner)
         .map_err(|error| format!("invalid world-session dispatcher: {error}"))?;
     assert_single_dispatch_mechanism(&dispatcher)
         .map_err(|error| format!("world handler dispatch mechanism:\n{error}"))?;
 
-    let source_report = analyze_handler_mounts(&mounts, registration_owner)
+    let source_report = analyze_handler_mounts(&mounts, registration_owners)
         .map_err(|error| format!("invalid handler registration source contract:\n{error}"))?;
+    // The complete finite direct-owner contract set is a property of the
+    // repository scan only: a synthetic or single-owner mount legitimately
+    // contains no registrar for the other owners.
+    if source_report.builder_registrars != DIRECT_REGISTRAR_CONTRACTS.len() {
+        return Err(format!(
+            "handler registration ownership must contain exactly one registrar for each finite \
+             direct-owner contract ({}); found {}",
+            DIRECT_REGISTRAR_CONTRACTS.len(),
+            source_report.builder_registrars
+        ));
+    }
     if source_report.represented_entries() != snapshot.row_count {
         return Err(format!(
             "source registration coverage differs from the linked handler snapshot: \
-             snapshot={} source={} (direct={} macro={}); audit newly introduced registration \
+             snapshot={} source={} (legacy-direct={} builder={} macro={}); audit newly introduced registration \
              syntax before changing this guard",
             snapshot.row_count,
             source_report.represented_entries(),
             source_report.direct_submissions,
+            source_report.builder_entries,
             source_report.registration_macro_invocations
         ));
     }
-    if source_report.direct_submissions == 0 {
-        return Err("the source guard found no direct PacketHandlerEntry submissions".to_owned());
+    if source_report.direct_submissions + source_report.builder_entries == 0 {
+        return Err("the source guard found no direct PacketHandlerEntry registrations".to_owned());
     }
     if source_report.registration_macro_names.is_empty() {
         return Err("the source guard found no PacketHandlerEntry registration macros".to_owned());
@@ -106,12 +123,13 @@ pub fn check_repository() -> Result<String, String> {
     }
 
     Ok(format!(
-        "handler contract: PASS ({} snapshot rows; {} direct + {} macro registrations; \
+        "handler contract: PASS ({} snapshot rows; {} legacy-direct + {} builder + {} macro registrations; \
          one dispatch mechanism; {} production packages / {} sources clean; \
          {} workspace packages / {} production sources checked for handler-capable macro/source \
          generation surfaces; {} #[path] modules verified: {})",
         snapshot.row_count,
         source_report.direct_submissions,
+        source_report.builder_entries,
         source_report.registration_macro_invocations,
         ownership.scanned_packages,
         ownership.scanned_files,

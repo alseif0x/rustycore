@@ -1,6 +1,47 @@
 use super::*;
 
 #[tokio::test]
+async fn removing_one_of_two_form_applications_retains_form_until_last_removal() {
+    let (mut session, _, _) = make_session();
+    let player_guid = ObjectGuid::create_player(1, 182);
+    session.core.player_guid = Some(player_guid);
+    crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let (spell_id, form_id) = represented_cat_form_fixture_like_cpp(
+        &mut session,
+        player_guid,
+        wow_data::SpellStore::new(),
+    );
+    session
+        .apply_aura(spell_id, player_guid, 30_000, 1)
+        .expect("first form application");
+    session
+        .apply_aura(spell_id, player_guid, 30_000, 1)
+        .expect("second form application");
+    session
+        .remove_aura(0)
+        .expect("remove first form application");
+    assert_eq!(
+        crate::session::hub_ref(&session).represented_shapeshift_form_like_cpp(),
+        Some(form_id)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(spell_id),
+        Some(true)
+    );
+    session
+        .remove_aura(1)
+        .expect("remove last form application");
+    assert_eq!(
+        crate::session::hub_ref(&session).represented_shapeshift_form_like_cpp(),
+        Some(0)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(spell_id),
+        Some(false)
+    );
+}
+
+#[tokio::test]
 async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
     let (mut session, _, _) = make_session();
     let player_guid = ObjectGuid::create_player(1, 78);

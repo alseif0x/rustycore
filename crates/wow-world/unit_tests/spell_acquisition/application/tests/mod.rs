@@ -20,6 +20,7 @@ fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
         "enUS".to_string(),
         packet_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
         wow_core::ObjectGuid::create_player(1, 42),
@@ -212,50 +213,4 @@ fn prepared_direct_learn_for_fake_runtime() -> PreparedPlayerSpellAcquisitionLik
         panic!("expected ready direct learn plan");
     };
     prepared
-}
-
-struct RecordingSpellAcquisitionPort {
-    attempt: wow_persistence::PlayerSpellAcquisitionPersistenceAttemptLikeCpp,
-    reconciliation: PlayerSpellAcquisitionMoneyReconciliationLikeCpp,
-    reconciliation_calls: std::sync::atomic::AtomicUsize,
-}
-
-impl PlayerSpellAcquisitionPersistencePortLikeCpp for RecordingSpellAcquisitionPort {
-    fn attempt_player_spell_acquisition_like_cpp(
-        &self,
-        _request: PlayerSpellAcquisitionPersistenceRequestLikeCpp,
-    ) -> wow_persistence::PersistenceFutureLikeCpp<
-        '_,
-        wow_persistence::PlayerSpellAcquisitionPersistenceAttemptLikeCpp,
-    > {
-        Box::pin(std::future::ready(self.attempt.clone()))
-    }
-    fn reconcile_player_spell_acquisition_like_cpp(
-        &self,
-        _request: PlayerSpellAcquisitionPersistenceRequestLikeCpp,
-    ) -> wow_persistence::PersistenceFutureLikeCpp<
-        '_,
-        PlayerSpellAcquisitionMoneyReconciliationLikeCpp,
-    > {
-        self.reconciliation_calls
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        Box::pin(std::future::ready(self.reconciliation))
-    }
-}
-
-fn empty_persistence_request() -> PlayerSpellAcquisitionPersistenceRequestLikeCpp {
-    let authority = DurablePlayerSpellAcquisitionAuthorityLikeCpp {
-        spells: Vec::new(),
-        favorite_spell_ids: Vec::new(),
-        skills: Vec::new(),
-    };
-    PlayerSpellAcquisitionPersistenceRequestLikeCpp {
-        player_guid: 42,
-        money_before: 100,
-        money_after: 80,
-        operation_token: [7; 16],
-        source_authority: authority.clone(),
-        resulting_authority: authority,
-        operations: Vec::new(),
-    }
 }

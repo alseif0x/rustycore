@@ -1,0 +1,23 @@
+[package]
+name = "wow-world-visibility"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-fixtures = ["wow-world-core/test-fixtures"]
+
+[dependencies]
+tracing = { workspace = true }
+wow-core = { workspace = true }
+wow-entities = { workspace = true }
+wow-packet = { workspace = true }
+wow-world-core = { workspace = true }
+
+[dev-dependencies]
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

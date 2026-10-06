@@ -7,6 +7,8 @@
 
 use super::*;
 
+use wow_world_lifecycle::loot_template_rules::player_race_mask_like_cpp;
+
 impl WorldSession {
     pub(in crate::handlers::loot) fn represented_creature_loot_item_allowed_like_cpp(
         &self,

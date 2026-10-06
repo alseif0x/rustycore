@@ -342,11 +342,133 @@ fn source_guard_rejects_handler_grammar_inside_blocks() {
 #[test]
 fn source_guard_rejects_collector_inside_handler_owner() {
     let error = analyze_inline_source("inventory::collect!(PacketHandlerEntry);")
-        .expect_err("the collector belongs only to the wow-handler package root");
+        .expect_err("the generic PacketHandlerEntry collector is not the World legacy bridge");
     assert!(
         error.contains("unsupported item-level macro inventory::collect!"),
         "{error}"
     );
+}
+
+#[test]
+fn qualified_legacy_wrapper_counts_as_one_direct_submission_without_a_template_name() {
+    let report = analyze_inline_source(
+        r#"
+            crate::session::registry::register_packet_handler_like_cpp!(
+                PacketHandlerEntry { opcode: ClientOpcodes::Hidden }
+            );
+        "#,
+    )
+    .expect("the one qualified wrapper invocation with one literal entry is auditable");
+    assert_eq!(report.direct_submissions, 1);
+    assert_eq!(report.registration_macro_invocations, 0);
+    assert!(report.registration_macro_names.is_empty());
+
+    let template = analyze_inline_source(
+        r#"
+            macro_rules! register_move {
+                ($opcode:ident) => {
+                    inventory::submit! {
+                        PacketHandlerEntry { opcode: ClientOpcodes::$opcode }
+                    }
+                };
+            }
+            register_move!(MoveStartForward);
+        "#,
+    )
+    .expect("the existing register_move template remains recognized");
+    assert_eq!(template.direct_submissions, 0);
+    assert_eq!(template.registration_macro_invocations, 1);
+    assert_eq!(
+        template.registration_macro_names,
+        BTreeSet::from(["register_move".to_owned()])
+    );
+
+    let wrapper_template = analyze_inline_source(
+        r#"
+            macro_rules! register_move {
+                ($opcode:ident) => {
+                    crate::session::registry::register_packet_handler_like_cpp! {
+                        PacketHandlerEntry {
+                            opcode: ClientOpcodes::$opcode,
+                            status: SessionStatus::LoggedIn,
+                            processing: PacketProcessing::ThreadSafe,
+                            handler_name: concat!("handle_movement_", stringify!($opcode)),
+                            handler: |session, catalogs, pkt| {
+                                Box::pin(async move {
+                                    session
+                                        .handle_movement_with_catalogs_like_cpp(
+                                            catalogs.area_triggers.as_ref(),
+                                            catalogs.creature_spawns.as_ref(),
+                                            catalogs.progression.as_ref(),
+                                            &catalogs.player_grid_loader,
+                                            pkt,
+                                        )
+                                        .await
+                                })
+                            },
+                        }
+                    }
+                };
+            }
+            register_move!(MoveStartForward);
+        "#,
+    )
+    .expect("the real register_move wrapper template accepts its opcode metavariable");
+    assert_eq!(wrapper_template.direct_submissions, 0);
+    assert_eq!(wrapper_template.registration_macro_invocations, 1);
+    assert_eq!(
+        wrapper_template.registration_macro_names,
+        BTreeSet::from(["register_move".to_owned()])
+    );
+}
+
+#[test]
+fn qualified_legacy_wrapper_rejects_forwarded_or_multiple_entries() {
+    for source in [
+        r#"crate::session::registry::register_packet_handler_like_cpp!(forwarded!());"#,
+        r#"crate::session::registry::register_packet_handler_like_cpp!((
+            PacketHandlerEntry { opcode: ClientOpcodes::First },
+            PacketHandlerEntry { opcode: ClientOpcodes::Second }
+        ));"#,
+        r#"other::registry::register_packet_handler_like_cpp!(
+            PacketHandlerEntry { opcode: ClientOpcodes::Hidden }
+        );"#,
+    ] {
+        let error = analyze_inline_source(source)
+            .expect_err("only one qualified wrapper call with one literal entry is accepted");
+        assert!(error.contains("unsupported item-level macro"), "{error}");
+    }
+
+    let forwarder = analyze_inline_source(
+        r#"
+            macro_rules! forward_entry {
+                ($entry:expr) => {
+                    crate::session::registry::register_packet_handler_like_cpp!($entry)
+                };
+            }
+            forward_entry!(PacketHandlerEntry { opcode: ClientOpcodes::Hidden });
+        "#,
+    )
+    .expect_err("a template that forwards an arbitrary entry is not an audited registration");
+    assert!(
+        forwarder.contains("handler-capable macro forward_entry"),
+        "{forwarder}"
+    );
+
+    let repetition = analyze_inline_source(
+        r#"
+            macro_rules! repeated_entries {
+                ($($opcode:ident),*) => {
+                    $(crate::session::registry::register_packet_handler_like_cpp! {
+                        PacketHandlerEntry { opcode: ClientOpcodes::$opcode }
+                    };)*
+                };
+            }
+            repeated_entries!(First, Second);
+        "#,
+    )
+    .expect_err("a repeated wrapper template cannot prove one entry per invocation");
+    assert!(repetition.contains("macro repetition"), "{repetition}");
 }
 
 #[test]

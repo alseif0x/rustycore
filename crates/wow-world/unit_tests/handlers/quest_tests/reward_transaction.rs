@@ -28,9 +28,7 @@ fn complete_quest_session_like_cpp(
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -70,9 +68,7 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id),
+            .fixture_contains_player_quest_status_like_cpp(quest_id),
         "the operation must have run to completion before it commits"
     );
     let requests = requests.lock().unwrap();

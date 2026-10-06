@@ -4,6 +4,9 @@
 //! are unchanged and the shared fixtures stay in the parent module.
 
 use super::*;
+use wow_constants::UnitFlags;
+use wow_core::ObjectGuid;
+use wow_world_core::phasing::init_db_phase_shift_like_cpp;
 
 #[test]
 fn represented_gameobject_runtime_state_upserts_into_player_instance_like_cpp() {
@@ -115,8 +118,7 @@ fn represented_gameobject_runtime_state_captures_canonical_linked_trap_guid_like
     assert_eq!(
         session
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
             .and_then(|state| state.linked_trap_guid),
         Some(trap_guid)
     );
@@ -257,7 +259,7 @@ fn register_world_creature_applies_db_phase_shift_like_cpp() {
         0,
         None,
         0,
-        crate::phasing::PHASE_USE_FLAGS_INVERSE,
+        wow_world_core::phasing::PHASE_USE_FLAGS_INVERSE,
         0,
         7,
         -1,
@@ -275,7 +277,7 @@ fn register_world_creature_applies_db_phase_shift_like_cpp() {
     );
     assert_eq!(
         creature.creature.ai_ownership().phase_use_flags,
-        crate::phasing::PHASE_USE_FLAGS_INVERSE
+        wow_world_core::phasing::PHASE_USE_FLAGS_INVERSE
     );
     assert_eq!(creature.creature.ai_ownership().phase_group_id, 7);
 }
@@ -329,7 +331,7 @@ fn represented_gameobject_phase_shift_applies_db_phase_and_visible_map_like_cpp(
     session.record_represented_gameobject_db_phase_shift_like_cpp(
         guid,
         571,
-        crate::phasing::PHASE_USE_FLAGS_INVERSE,
+        wow_world_core::phasing::PHASE_USE_FLAGS_INVERSE,
         0,
         7,
         609,
@@ -337,8 +339,7 @@ fn represented_gameobject_phase_shift_applies_db_phase_and_visible_map_like_cpp(
 
     let phase_shift = session
         .world_entities
-        .represented_gameobject_phase_shifts
-        .get(&guid)
+        .represented_gameobject_phase_shift_like_cpp(guid)
         .unwrap();
     assert!(phase_shift.is_db_phase_shift_like_cpp());
     assert!(phase_shift.has_phase_like_cpp(20));
@@ -381,7 +382,7 @@ fn session_db_spawn_phase_visibility_uses_player_phase_can_see_like_cpp() {
 
     let (always_visible_shift, _) = session.db_spawn_phase_shift_like_cpp(
         571,
-        crate::phasing::PHASE_USE_FLAGS_ALWAYS_VISIBLE,
+        wow_world_core::phasing::PHASE_USE_FLAGS_ALWAYS_VISIBLE,
         20,
         0,
         -1,
@@ -834,8 +835,7 @@ async fn spell_damage_kill_keeps_empty_creature_loot_non_lootable_like_cpp() {
 
     let loot = session
         .loot
-        .loot_table
-        .get(&guid)
+        .cached_loot_for_owner_like_cpp(guid)
         .expect("creature corpse loot is generated during kill");
     assert!(loot.allowed_looters.contains(&player));
     assert_eq!(loot.loot_type, LOOT_TYPE_CORPSE_LIKE_CPP);

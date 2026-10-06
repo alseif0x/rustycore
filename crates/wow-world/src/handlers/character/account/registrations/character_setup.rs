@@ -1,6 +1,6 @@
 use super::*;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::EnumCharacters,
         status: SessionStatus::Authed,
@@ -18,7 +18,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CreateCharacter,
         status: SessionStatus::Authed,
@@ -42,7 +42,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CharDelete,
         status: SessionStatus::Authed,
@@ -59,7 +59,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CharacterRenameRequest,
         status: SessionStatus::Authed,
@@ -76,7 +76,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CharCustomize,
         status: SessionStatus::Authed,
@@ -93,7 +93,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PlayerLogin,
         status: SessionStatus::Authed,
@@ -110,7 +110,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::OpeningCinematic,
         status: SessionStatus::LoggedIn,
@@ -122,7 +122,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ConnectToFailed,
         status: SessionStatus::Authed,
@@ -139,7 +139,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GetUndeleteCharacterCooldownStatus,
         status: SessionStatus::Authed,
@@ -151,7 +151,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AlterAppearance,
         status: SessionStatus::LoggedIn,
@@ -161,7 +161,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ConfirmBarbersChoice,
         status: SessionStatus::LoggedIn,
@@ -173,7 +173,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetPlayerDeclinedNames,
         status: SessionStatus::Authed,
@@ -181,61 +181,6 @@ inventory::submit! {
         handler_name: "handle_set_player_declined_names",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_player_declined_names(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SaveEquipmentSet,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_save_equipment_set",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_save_equipment_set_with_generator_like_cpp(
-                        catalogs.id_generators.equipment_set.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AssignEquipmentSetSpec,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_assign_equipment_set_spec",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_assign_equipment_set_spec(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::DeleteEquipmentSet,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_delete_equipment_set",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_delete_equipment_set(pkt).await })
-        },
-    }
-}
-
-inventory::submit! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UseEquipmentSet,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_use_equipment_set",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_use_equipment_set(pkt).await })
         },
     }
 }

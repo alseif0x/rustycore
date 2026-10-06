@@ -20,7 +20,10 @@ pub mod entity_update_bridge;
 pub mod handlers;
 pub mod loot_persistence;
 pub use wow_world_core::map_manager;
-pub mod phasing;
+#[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
+#[cfg(test)]
+#[path = "../unit_tests/handler_contract_tests.rs"]
+mod handler_contract_tests;
 mod player;
 mod player_cast;
 #[path = "session/directory.rs"]
@@ -32,17 +35,10 @@ pub mod session;
 mod session_commands;
 mod session_persistence_capabilities;
 mod session_policy;
+mod session_rules;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
 mod spell_cast_adapter;
-#[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
-pub(crate) mod trainer_offer;
-
-pub(crate) use wow_world_core::catalogs;
-#[cfg(test)]
-#[path = "../unit_tests/handler_contract_tests.rs"]
-mod handler_contract_tests;
-mod session_rules;
 #[cfg(test)]
 #[path = "../unit_tests/teleport_test_fixtures.rs"]
 mod teleport_test_fixtures;

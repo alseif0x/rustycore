@@ -4,9 +4,9 @@
 //! Player binding: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
-use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
-use super::{PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP, Player, WorldSession};
+use super::ObjectGuid;
+use super::WorldSession;
+pub(in crate::session) use wow_world_core::session::PlayerIdentityBootstrapLikeCpp;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
@@ -76,23 +76,6 @@ impl SessionPlayerController {
     }
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) struct PlayerTransportLoginStateLikeCpp {
-    pub(in crate::session) info: wow_packet::packets::movement::TransportInfo,
-}
-
-/// Login-only identity input consumed while the canonical Player is being
-/// constructed. Once a generation-checked Player exists this value is retired;
-/// it is not a second runtime identity authority.
-#[derive(Debug, Clone, Default)]
-pub(in crate::session) struct PlayerIdentityBootstrapLikeCpp {
-    pub(in crate::session) name: Option<String>,
-    pub(in crate::session) race: u8,
-    pub(in crate::session) class: u8,
-    pub(in crate::session) level: u8,
-    pub(in crate::session) gender: u8,
-}
-
 impl WorldSession {
     /// Set the logged-in player GUID.
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
@@ -128,31 +111,15 @@ impl WorldSession {
             #[cfg(test)]
             {
                 self.quest_state
-                    .quest_test_fixture_like_cpp
-                    .player_quest_status_authority_complete_like_cpp = false;
+                    .fixture_set_player_quest_status_authority_complete_like_cpp(false);
                 self.quest_state
-                    .quest_test_fixture_like_cpp
-                    .represented_rewarded_quest_rows_like_cpp
-                    .clear();
+                    .fixture_clear_represented_rewarded_quest_rows_like_cpp();
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_like_cpp = None;
-                self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_ex_like_cpp = None;
-                self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_applied_like_cpp = false;
+                    .reset_loaded_player_flags_fixture_for_test_like_cpp();
             }
             #[cfg(test)]
-            {
-                self.social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_like_cpp = 0;
-                self.social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_authority_complete_like_cpp = false;
-            }
+            self.social
+                .clear_represented_guild_identity_for_test_like_cpp();
             let _ = self.clear_represented_trait_config_rows_like_cpp();
             let _ =
                 crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
@@ -168,8 +135,7 @@ impl WorldSession {
             self.clear_player_gossip_options_like_cpp();
             #[cfg(test)]
             self.spell_state
-                .represented_spell_acquisition_post_commit_actions_like_cpp
-                .clear();
+                .clear_spell_acquisition_post_commit_actions_for_test_like_cpp();
             if previous_player_guid.is_some() {
                 let _ = self.clear_represented_fallback_spell_rows_like_cpp();
             }
@@ -181,12 +147,11 @@ impl WorldSession {
         }
         if let Some(guid) = guid {
             self.core.account_state.recent_player_guid_low_like_cpp = guid.counter() as u64;
-            self.visibility.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            self.visibility.clear_observed_farsight_object_like_cpp();
             #[cfg(test)]
             {
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_seer_guid_like_cpp = Some(guid);
+                    .set_represented_seer_guid_fixture_like_cpp(Some(guid));
             }
         }
         if guid.is_none() {
@@ -198,14 +163,13 @@ impl WorldSession {
             #[cfg(test)]
             {
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_seer_guid_like_cpp = None;
+                    .set_represented_seer_guid_fixture_like_cpp(None);
             }
-            self.visibility.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            self.visibility.clear_observed_farsight_object_like_cpp();
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
-            self.lifecycle.durable_loot_money_persistence_like_cpp =
-                Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+            self.lifecycle
+                .reset_durable_loot_money_persistence_tracker_like_cpp();
         }
     }
 
@@ -222,13 +186,13 @@ impl WorldSession {
             level: controller.level(),
             gender: controller.gender(),
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.identity.player_name = Some(controller.name().to_string());
             self.fixtures.movement.player_position = Some(controller_position);
         }
         self.core.current_map_id = controller.map_id();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.identity.player_race = controller.race();
             self.fixtures.identity.player_class = controller.class();
@@ -238,10 +202,9 @@ impl WorldSession {
         #[cfg(test)]
         {
             self.visibility
-                .visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp = Some(controller.guid());
+                .set_represented_seer_guid_fixture_like_cpp(Some(controller.guid()));
         }
-        self.visibility.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+        self.visibility.clear_observed_farsight_object_like_cpp();
         #[cfg(test)]
         {
             self.core.player_bootstrap_attached_like_cpp = true;
@@ -263,28 +226,43 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
-        let gray_level = crate::session::hub_ref(self).gray_level(level);
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_level_and_gray_level_like_cpp(level, gray_level);
-            })
-            .is_some();
-        if !canonical {
-            #[cfg(not(test))]
-            if self.core.player_handle_like_cpp.is_some() {
-                return;
-            }
-            self.core
-                .player_identity_bootstrap_like_cpp
-                .get_or_insert_default()
-                .level = level;
-            #[cfg(test)]
-            {
-                self.fixtures.identity.player_level = level;
-            }
-        }
-        self.refresh_represented_talent_points_like_cpp();
+        let catalogs = &self.catalogs;
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let quest_state = &self.quest_state;
+        let world_test_consumer = cfg!(test);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(any(test, feature = "test-fixtures"))]
+        wow_world_application::QuestRewardCx::set_player_level_and_refresh_talent_points_like_cpp(
+            &mut player,
+            level,
+            catalogs,
+            quest_state,
+            world_test_consumer,
+            &mut self.fixtures.identity.player_level,
+            &self
+                .fixtures
+                .progression
+                .represented_gray_level_script_overrides_like_cpp,
+            &self.fixtures.progression.represented_talents_like_cpp,
+            &self
+                .fixtures
+                .progression
+                .represented_active_talent_group_like_cpp,
+            &mut self.fixtures.progression.player_character_points_like_cpp,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        wow_world_application::QuestRewardCx::set_player_level_and_refresh_talent_points_like_cpp(
+            &mut player,
+            level,
+            catalogs,
+            world_test_consumer,
+        );
     }
 
     #[cfg(test)]
@@ -318,396 +296,6 @@ impl WorldSession {
     #[inline]
     pub fn player_guid(&self) -> Option<ObjectGuid> {
         self.core.player_guid()
-    }
-}
-
-impl crate::session::state::InventoryState {
-    pub(crate) fn set_player_gold_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        gold: u64,
-    ) -> bool {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.set_money(gold))
-            .is_some();
-        #[cfg(test)]
-        if canonical || hub.core.player_handle_like_cpp.is_none() {
-            self.player_gold = gold;
-        }
-        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    /// C++ `Player::SetFactionForRace`: `Player::LoadFromDB` resolves the
-    /// player's live faction template from `ChrRacesEntry::FactionID` before
-    /// the player is added to the map or published through ObjectAccessor.
-    pub(in crate::session) fn set_player_faction_for_race_like_cpp(&mut self, race: u8) {
-        let Some(chr_races_store) = self.catalogs.chr.races_store.as_ref() else {
-            return;
-        };
-        let faction_template = chr_races_store
-            .get(u32::from(race))
-            .and_then(|entry| u32::try_from(entry.faction_id).ok())
-            .filter(|faction_template| *faction_template != 0);
-        let faction_template = faction_template.unwrap_or(0);
-        let _canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().set_faction(faction_template);
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.identity.player_faction_template_like_cpp =
-                (faction_template != 0).then_some(faction_template);
-        }
-    }
-
-    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) -> bool {
-        let _canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.set_create_mode_like_cpp(create_mode))
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.identity.player_create_mode_like_cpp = create_mode;
-            return true;
-        }
-        _canonical
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_character_points_like_cpp(points);
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.player_character_points_like_cpp = points;
-        }
-        canonical
-            || cfg!(any(test, feature = "test-fixtures"))
-                && self.core.player_handle_like_cpp.is_none()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
-        self.fixtures.identity.player_faction_template_like_cpp =
-            (faction_template != 0).then_some(faction_template);
-        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_faction(faction_template);
-        });
-    }
-}
-
-impl crate::session::state::SessionCore {
-    pub(crate) fn set_canonical_chosen_title_like_cpp(
-        &mut self,
-        title_id: i32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        self.mutate_canonical_player_like_cpp(|player| {
-            player.set_chosen_title_like_cpp(title_id);
-            player.values_update(true)
-        })
-    }
-
-    pub(crate) fn player_is_possessing_like_cpp(&self) -> bool {
-        let Some(player_guid) = self.player_guid else {
-            return false;
-        };
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_some() {
-                return;
-            }
-
-            let map = managed.map();
-            let Some(player) = map.get_typed_player(player_guid) else {
-                return;
-            };
-            let Some(charmed_guid) = player.unit().subsystems().control.charmed_guid else {
-                result = Some(false);
-                return;
-            };
-
-            let target_possessed_by_player = map
-                .get_typed_player(charmed_guid)
-                .map(|target| {
-                    let control = &target.unit().subsystems().control;
-                    control.charmer_guid == Some(player_guid) && control.is_possessed()
-                })
-                .or_else(|| {
-                    map.with_creature_like_cpp(charmed_guid, |target| {
-                        let control = &target.unit().subsystems().control;
-                        control.charmer_guid == Some(player_guid) && control.is_possessed()
-                    })
-                })
-                .unwrap_or(false);
-
-            result = Some(target_possessed_by_player);
-        });
-
-        result.unwrap_or(false)
-    }
-
-    pub(crate) fn represented_player_charmed_guid_like_cpp(&self) -> ObjectGuid {
-        let Some(player_guid) = self.player_guid else {
-            return ObjectGuid::EMPTY;
-        };
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return ObjectGuid::EMPTY;
-        };
-        let Ok(manager) = manager.lock() else {
-            return ObjectGuid::EMPTY;
-        };
-
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_some() {
-                return;
-            }
-
-            let Some(player) = managed.map().get_typed_player(player_guid) else {
-                return;
-            };
-            result = Some(
-                player
-                    .unit()
-                    .subsystems()
-                    .control
-                    .charmed_guid
-                    .unwrap_or(ObjectGuid::EMPTY),
-            );
-        });
-
-        result.unwrap_or(ObjectGuid::EMPTY)
-    }
-
-    pub(crate) fn player_liquid_status_like_cpp(&self) -> Option<u32> {
-        self.canonical_player_snapshot_like_cpp(|player| player.gameplay_state().liquid_status)
-    }
-
-    /// Get the logged-in player GUID.
-    pub fn player_guid(&self) -> Option<ObjectGuid> {
-        self.player_guid
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(in crate::session) fn player_can_never_see_target_like_cpp(&self) -> bool {
-        self.active_player_update_state_like_cpp()
-            .map(|(flags, _, _)| {
-                flags & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP == 0
-            })
-            .unwrap_or(true)
-    }
-
-    pub(in crate::session) fn player_world_local_state_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerWorldLocalState> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
-                    self.fixtures.identity.player_zone_id_like_cpp,
-                    self.fixtures.identity.player_area_id_like_cpp,
-                    self.fixtures
-                        .identity
-                        .player_zone_area_authority_complete_like_cpp,
-                    self.fixtures.combat.player_pvp_hostile_like_cpp,
-                    self.fixtures.combat.player_pvp_end_timer_like_cpp,
-                    self.fixtures.combat.player_contested_pvp_timer_like_cpp,
-                    self.fixtures.identity.represented_is_outdoors_like_cpp,
-                ),
-            );
-        }
-        canonical
-    }
-
-    pub(in crate::session) fn player_war_mode_local_active_like_cpp(&self) -> bool {
-        self.active_player_update_state_like_cpp()
-            .is_some_and(|(flags, _, _)| flags & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP != 0)
-    }
-
-    pub(crate) fn player_name_like_cpp(&self) -> Option<String> {
-        if let Some(name) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.unit().world().name().to_owned())
-        {
-            return Some(name);
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return self.fixtures.identity.player_name.clone();
-        }
-        if self.core.player_handle_like_cpp.is_some() {
-            return None;
-        }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .and_then(|identity| identity.name.clone())
-    }
-
-    pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            u32::try_from(player.unit().data().faction_template)
-                .ok()
-                .filter(|faction| *faction != 0)
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.fixtures.identity.player_faction_template_like_cpp;
-        }
-        canonical.flatten()
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_can_swim_to_fly_transition_like_cpp(&self) -> bool {
-        self.resolved_can_swim_to_fly_transition_like_cpp()
-            .expect("test Player movement owner must resolve")
-    }
-
-    pub(in crate::session) fn resolved_can_swim_to_fly_transition_like_cpp(&self) -> Option<bool> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .movement_control
-                .can_swim_to_fly_transition
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .movement
-                    .represented_can_swim_to_fly_transition_like_cpp,
-            );
-        }
-        canonical
-    }
-
-    pub(in crate::session) fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            player.gameplay_state().movement_control.scale_duration
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.identity.player_scale_duration_like_cpp);
-        }
-        canonical
-    }
-
-    pub(crate) fn player_race_like_cpp(&self) -> u8 {
-        if let Some(race) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.race_like_cpp())
-        {
-            return race;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return self.fixtures.identity.player_race;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
-        }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.race)
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn player_class_like_cpp(&self) -> u8 {
-        if let Some(class) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.class_like_cpp())
-        {
-            return class;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return self.fixtures.identity.player_class;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
-        }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.class)
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn player_create_mode_like_cpp(&self) -> Option<u8> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(Player::create_mode_like_cpp);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.identity.player_create_mode_like_cpp);
-        }
-        canonical
-    }
-
-    pub(crate) fn player_level_like_cpp(&self) -> u8 {
-        if let Some(level) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.level_like_cpp())
-        {
-            return level;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return self.fixtures.identity.player_level;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
-        }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.level)
-            .unwrap_or_default()
-    }
-
-    pub(crate) fn player_gender_like_cpp(&self) -> u8 {
-        if let Some(gender) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.gender_like_cpp())
-        {
-            return gender;
-        }
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return self.fixtures.identity.player_gender;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
-        }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.gender)
-            .unwrap_or_default()
     }
 }
 

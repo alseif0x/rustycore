@@ -54,7 +54,7 @@ impl Fixture {
             String::from_utf8_lossy(&compiler.stderr)
         );
 
-        let (sources, _, _) = audit_package_source_graph(&self.0, std::slice::from_ref(&root))
+        let (sources, ..) = audit_package_source_graph(&self.0, std::slice::from_ref(&root))
             .expect("audit must follow the source tree rustc just compiled");
         let expected: BTreeSet<_> = expected
             .iter()

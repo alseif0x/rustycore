@@ -180,7 +180,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
         currency_entry(395),
         currency_entry(396),
     ])));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         396,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -235,7 +235,7 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
         currency_entry(395),
         currency_entry(396),
     ])));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         396,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,

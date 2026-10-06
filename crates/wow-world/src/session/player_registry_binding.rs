@@ -4,7 +4,7 @@
 //! Player registry binding: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, PendingInvites, PlayerRegistry, PlayerSessionRegistrationLikeCpp, UnitState};
+use super::{Arc, PendingInvites, PlayerRegistry, PlayerSessionRegistrationLikeCpp};
 use super::{WorldSession, debug, registry};
 
 impl WorldSession {
@@ -57,10 +57,7 @@ impl WorldSession {
             .unwrap_or(0);
         let active_loot_rolls = self
             .loot
-            .represented_loot_rolls
-            .values()
-            .map(|state| state.command_identity.clone())
-            .collect();
+            .represented_loot_roll_command_identities_snapshot_like_cpp();
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
@@ -93,7 +90,7 @@ impl WorldSession {
                 client_visible_guids_like_cpp: self.core.client_visible_guids_like_cpp.clone(),
                 client_visible_transports_like_cpp: self
                     .visibility
-                    .client_visible_transports_like_cpp
+                    .client_visible_transports_like_cpp()
                     .clone(),
                 advanced_combat_logging_enabled_like_cpp: Arc::clone(
                     &self.core.flags.advanced_combat_logging_enabled_like_cpp,
@@ -102,7 +99,10 @@ impl WorldSession {
                     &self.core.flags.visibility_refresh_pending_like_cpp,
                 ),
             },
-            Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
+            Arc::clone(
+                self.lifecycle
+                    .durable_loot_money_persistence_tracker_like_cpp(),
+            ),
         );
         // Production already has the canonical Player before publication. The
         // explicit owner-installing test harness creates it while registering,
@@ -120,83 +120,43 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) else {
             return;
         };
-        crate::session::hub_ref(self).update_registry_position();
-        #[cfg(test)]
-        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
-        registry.replace_loot_rolls_for_control_channel(
-            guid,
-            &self.core.session_command_tx,
-            self.loot
-                .represented_loot_rolls
-                .values()
-                .map(|state| state.command_identity.clone())
-                .collect(),
+        let position = self.core.player_registry_sync_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.movement.player_position,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.vehicles.player_transport_login_state_like_cpp,
         );
-        self.sync_player_registry_party_member_party_type_like_cpp();
-    }
-}
-
-impl crate::session::state::SessionCore {
-    /// Get a reference to the shared player registry.
-    pub fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
-        self.player_registry.as_ref()
-    }
-
-    /// Get a reference to the shared pending invites map.
-    pub fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
-        self.directory.pending_invites.as_ref()
-    }
-
-    pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-
-        if let Some(manager) = &self.canonical_map_manager
-            && let Ok(manager) = manager.lock()
-        {
-            let mut canonical_in_world = None;
-            manager.do_for_all_maps(|managed| {
-                if canonical_in_world.is_none()
-                    && let Some(player) = managed.map().get_typed_player(guid)
-                {
-                    canonical_in_world = Some(player.unit().world().object().is_in_world());
-                }
-            });
-            if let Some(is_in_world) = canonical_in_world {
-                return is_in_world;
-            }
-        }
-
-        // Registry insertion happens only after successful character login; logout/disconnect
-        // unregisters instead of leaving a false/stale row behind.
-        true
-    }
-
-    pub(crate) fn player_is_strictly_in_world_like_cpp(&self) -> bool {
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(manager) = self
-            .canonical_map_manager
-            .as_ref()
-            .and_then(|manager| manager.lock().ok())
-        else {
-            return false;
-        };
-        let mut is_in_world = None;
-        manager.do_for_all_maps(|managed| {
-            if is_in_world.is_none()
-                && let Some(player) = managed.map().get_typed_player(guid)
-            {
-                is_in_world = Some(player.unit().world().object().is_in_world());
-            }
-        });
-        is_in_world.unwrap_or(false)
-    }
-
-    pub(crate) fn player_has_unit_state_like_cpp(&self, state: UnitState) -> bool {
-        self.canonical_player_snapshot_like_cpp(|player| player.unit().unit_state())
-            .is_some_and(|unit_state| unit_state & state.bits() != 0)
+        let control = self
+            .core
+            .player_registry_control_binding_like_cpp(guid, registry);
+        let sync = wow_world_application::PlayerRegistrySyncContext::new(
+            position,
+            control,
+            &self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_core::session::RegistrySyncInputs::new_like_cpp(
+                &self.fixtures.combat.player_health_like_cpp,
+                &self.fixtures.combat.player_max_health_like_cpp,
+                &self.fixtures.combat.player_alive_like_cpp,
+            ),
+        );
+        #[cfg(test)]
+        let sync = sync.with_fixture_hydration(
+            wow_world_application::PlayerRegistryHydrationContext::new(
+                self.core.player_registry_hydration_access_like_cpp(),
+                &self.spell_state,
+                &self.quest_state,
+                (
+                    &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                    &self.fixtures.pets.represented_pet_guid_like_cpp,
+                ),
+                true,
+            ),
+        );
+        sync.sync();
     }
 }

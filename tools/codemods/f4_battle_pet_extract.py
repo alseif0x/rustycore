@@ -119,6 +119,10 @@ ROOT_FIXTURE_CFG_BEFORE_REEXPORT = re.compile(
     r'feature\s*=\s*"test-fixtures"\s*\)\s*\)\s*\][ \t]*'
     r"(?:\r?\n[ \t]*)+$"
 )
+ROOT_TEST_CFG_BEFORE_REEXPORT = re.compile(
+    r"(?m)^[ \t]*#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\][ \t]*"
+    r"(?:\r?\n[ \t]*)+$"
+)
 ROOT_FIXTURE_GATE = '#[cfg(any(test, feature = "test-fixtures"))]'
 
 CORE_IMPORTS = """//! Session-owned battle-pet data transfer objects shared with the world shell.
@@ -253,7 +257,7 @@ def _root_reexport_statement(name: str, *, core: bool) -> str:
 
 
 def _root_reexport_layout(session_mod: str, lexer) -> str:
-    """Require all seven shell paths in one complete old or new layout."""
+    """Require one reviewed seven-path old, P4a, or P4b shell layout."""
     code = lexer.blank_noncode(session_mod)
     item_matches: dict[str, tuple[str, re.Match[str]]] = {}
     states: set[str] = set()
@@ -279,22 +283,57 @@ def _root_reexport_layout(session_mod: str, lexer) -> str:
         raise CodemodError("mixed old and Core battle-pet shell reexport set")
     state = next(iter(states))
 
-    for name, (item_state, match) in item_matches.items():
-        requires_fixture_gate = name == "RepresentedBattlePetCageItemLikeCpp" or (
-            name == "RepresentedBattlePetSaveInfoLikeCpp" and item_state == "new"
+    def has_gate(name: str, pattern) -> bool:
+        return _has_exact_attribute_before(
+            session_mod,
+            code,
+            lexer,
+            item_matches[name][1].start(),
+            pattern,
         )
-        if requires_fixture_gate:
-            if not _has_exact_attribute_before(
-                session_mod,
-                code,
-                lexer,
-                match.start(),
-                ROOT_FIXTURE_CFG_BEFORE_REEXPORT,
-            ):
-                raise CodemodError(f"expected one exact fixture gate on {name} reexport")
-        elif _has_unexpected_preceding_attribute(code, match.start()):
+
+    def is_unconditional(name: str) -> bool:
+        return not _has_unexpected_preceding_attribute(
+            code, item_matches[name][1].start()
+        )
+
+    cage = "RepresentedBattlePetCageItemLikeCpp"
+    save_info = "RepresentedBattlePetSaveInfoLikeCpp"
+    test_only = (
+        "RepresentedBattlePetLevelCriteriaLikeCpp",
+        "RepresentedBattlePetQueryCompanionLikeCpp",
+        save_info,
+    )
+    if state == "old":
+        if not has_gate(cage, ROOT_FIXTURE_CFG_BEFORE_REEXPORT):
+            raise CodemodError(f"expected one exact fixture gate on {cage} reexport")
+        if not is_unconditional(save_info):
+            raise CodemodError(f"unexpected attribute on {save_info} shell reexport")
+        gated_names = {cage}
+        layout = "old"
+    else:
+        p4a = (
+            has_gate(cage, ROOT_FIXTURE_CFG_BEFORE_REEXPORT)
+            and has_gate(save_info, ROOT_FIXTURE_CFG_BEFORE_REEXPORT)
+            and all(is_unconditional(name) for name in test_only[:-1])
+        )
+        p4b = all(
+            has_gate(name, ROOT_TEST_CFG_BEFORE_REEXPORT)
+            for name in (cage, *test_only)
+        )
+        if p4a:
+            gated_names = {cage, save_info}
+            layout = "new"
+        elif p4b:
+            gated_names = {cage, *test_only}
+            layout = "new-p4b"
+        else:
+            raise CodemodError("unexpected cfg layout on Core battle-pet shell reexports")
+
+    for name in SHELL_TYPES:
+        if name not in gated_names and not is_unconditional(name):
             raise CodemodError(f"unexpected attribute on {name} shell reexport")
-    return state
+    return layout
 
 
 def _selected_spans(source: str, lexer):
@@ -452,7 +491,10 @@ def _already_applied(source: str, core: str, session_mod: str, lexer) -> bool:
         sum(self_type == name for _, _, self_type in core_impls) == 1 for name in DTO_IMPLS
     )
     try:
-        shell_has_reexports = _root_reexport_layout(session_mod, lexer) == "new"
+        shell_has_reexports = _root_reexport_layout(session_mod, lexer) in {
+            "new",
+            "new-p4b",
+        }
     except CodemodError:
         shell_has_reexports = False
     return (

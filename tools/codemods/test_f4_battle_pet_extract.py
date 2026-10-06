@@ -80,6 +80,33 @@ def fixture_session_mod():
     return "\n".join(lines) + "\n"
 
 
+def p4b_session_mod():
+    lexer = codemod._item_support(Path(REPO))
+    session_mod, _ = codemod._update_shell_reexports(fixture_session_mod(), lexer)
+    test_only = (
+        "RepresentedBattlePetCageItemLikeCpp",
+        "RepresentedBattlePetLevelCriteriaLikeCpp",
+        "RepresentedBattlePetQueryCompanionLikeCpp",
+        "RepresentedBattlePetSaveInfoLikeCpp",
+    )
+    for name in test_only:
+        reexport = codemod._root_reexport_statement(name, core=True)
+        if name in {
+            "RepresentedBattlePetCageItemLikeCpp",
+            "RepresentedBattlePetSaveInfoLikeCpp",
+        }:
+            session_mod = session_mod.replace(
+                codemod.ROOT_FIXTURE_GATE + "\n" + reexport,
+                "#[cfg(test)]\n" + reexport,
+                1,
+            )
+        else:
+            session_mod = session_mod.replace(
+                reexport, "#[cfg(test)]\n" + reexport, 1
+            )
+    return session_mod
+
+
 def write_fixture(root, *, source=None, core=None, session_mod=None):
     for relative, contents in (
         (codemod.SOURCE, fixture_source() if source is None else source),
@@ -183,6 +210,57 @@ class ExactBattlePetCutTests(unittest.TestCase):
             session_mod.replace(other_line, "", 1),
             session_mod + other_line + "\n",
             session_mod + save_info_line + "\n",
+        )
+        for candidate in malformed:
+            with self.subTest(candidate=candidate):
+                self.assertFalse(
+                    codemod._already_applied(remaining, core, candidate, lexer)
+                )
+
+    def test_already_applied_accepts_only_the_exact_p4b_gates(self):
+        lexer = codemod._item_support(Path(REPO))
+        remaining, moved = extract_dto_items(fixture_source(), lexer)
+        core, _ = widen_moved_items(codemod.CORE_IMPORTS + "\n" + moved + "\n", lexer)
+        remaining, _ = codemod._update_shell_import(remaining, lexer)
+        remaining = remaining.replace(codemod.SHELL_IMPORT_NEW, rustfmt_shell_import(), 1)
+        session_mod = p4b_session_mod()
+
+        self.assertEqual(codemod._root_reexport_layout(session_mod, lexer), "new-p4b")
+        self.assertTrue(codemod._already_applied(remaining, core, session_mod, lexer))
+
+        test_only = (
+            "RepresentedBattlePetCageItemLikeCpp",
+            "RepresentedBattlePetLevelCriteriaLikeCpp",
+            "RepresentedBattlePetQueryCompanionLikeCpp",
+            "RepresentedBattlePetSaveInfoLikeCpp",
+        )
+        malformed = []
+        for name in test_only:
+            reexport = codemod._root_reexport_statement(name, core=True)
+            gated = "#[cfg(test)]\n" + reexport
+            malformed.extend(
+                (
+                    session_mod.replace(reexport, "", 1),
+                    session_mod.replace(gated, reexport, 1),
+                    session_mod.replace(
+                        gated,
+                        codemod.ROOT_FIXTURE_GATE + "\n" + reexport,
+                        1,
+                    ),
+                    session_mod.replace(
+                        gated,
+                        "#[cfg(test)]\n#[cfg(test)]\n" + reexport,
+                        1,
+                    ),
+                )
+            )
+
+        malformed.append(
+            session_mod
+            + codemod._root_reexport_statement(
+                "RepresentedBattlePetQueryCompanionLikeCpp", core=True
+            )
+            + "\n"
         )
         for candidate in malformed:
             with self.subTest(candidate=candidate):

@@ -3,6 +3,24 @@
 #![cfg(test)]
 
 use super::*;
+use wow_entities::{
+    PlayerEquipmentSetTypeLikeCpp as RepresentedEquipmentSetTypeLikeCpp,
+    PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
+};
+use wow_persistence::{
+    PlayerActionButtonSaveLikeCpp, PlayerActionButtonsSaveLikeCpp,
+    PlayerCharacterSnapshotSaveLikeCpp, PlayerCufProfileSaveLikeCpp,
+    PlayerCufProfileSlotSaveLikeCpp, PlayerEquipmentSetSaveLikeCpp, PlayerEquipmentSetStateLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerFallbackSpellSaveLikeCpp, PlayerGlyphSaveLikeCpp,
+    PlayerInstanceLockTimeSaveLikeCpp, PlayerPlayedTimeSaveLikeCpp, PlayerPositionSaveLikeCpp,
+    PlayerReputationSaveLikeCpp, PlayerSkillSaveLikeCpp, PlayerSpellChargeSaveLikeCpp,
+    PlayerSpellCooldownSaveLikeCpp, PlayerSpellSaveGroupLikeCpp, PlayerSpellSaveLikeCpp,
+    PlayerSpellStateLikeCpp, PlayerTalentSaveLikeCpp, PlayerVoidStorageSaveLikeCpp,
+    PlayerVoidStorageSlotSaveLikeCpp,
+};
+use wow_world_core::session::RepresentedPlayerSkillStateLikeCpp;
+use wow_world_core::session::persistence_capabilities::character_power_snapshot_values_like_cpp;
+use wow_world_spell::RepresentedPlayerSpellStateLikeCpp;
 
 impl WorldSession {
     #[cfg(test)]
@@ -17,7 +35,7 @@ impl WorldSession {
         // overwrite those non-money rows even if the earlier COMMIT succeeded.
         if self
             .lifecycle
-            .durable_loot_money_persistence_like_cpp
+            .durable_loot_money_persistence_tracker_like_cpp()
             .is_indeterminate_like_cpp()
         {
             return None;
@@ -403,11 +421,11 @@ impl WorldSession {
         // yet. Rewriting every active quest here can delete objective rows that were not mapped
         // into represented state, so preserve them until that dirty tracking exists.
 
-        let tutorials = if self.lifecycle.tutorials_changed_like_cpp {
-            if self.lifecycle.tutorials_loaded_coherently_like_cpp {
+        let tutorials = if self.lifecycle.tutorials_changed_like_cpp() {
+            if self.lifecycle.tutorials_loaded_coherently_like_cpp() {
                 Some(PlayerTutorialsSaveLikeCpp {
-                    tutorials: self.lifecycle.tutorials_like_cpp,
-                    already_persisted: self.lifecycle.tutorials_loaded_from_db_like_cpp,
+                    tutorials: *self.lifecycle.tutorial_values_like_cpp(),
+                    already_persisted: self.lifecycle.tutorials_loaded_from_db_like_cpp(),
                 })
             } else {
                 warn!(
@@ -422,7 +440,7 @@ impl WorldSession {
 
         let instance_lock_times = self
             .instances
-            .represented_instance_reset_times_like_cpp
+            .represented_instance_reset_times_for_test_like_cpp()
             .iter()
             .map(
                 |(&instance_id, &release_time)| PlayerInstanceLockTimeSaveLikeCpp {
@@ -553,10 +571,10 @@ impl WorldSession {
             self.mark_equipment_sets_saved_like_cpp();
         }
         if committed.tutorials_insert {
-            self.lifecycle.tutorials_loaded_from_db_like_cpp = true;
+            self.lifecycle.set_tutorials_loaded_from_db_like_cpp(true);
         }
         if committed.tutorials_changed {
-            self.lifecycle.tutorials_changed_like_cpp = false;
+            self.lifecycle.set_tutorials_changed_like_cpp(false);
         }
         if committed.reputation {
             let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {

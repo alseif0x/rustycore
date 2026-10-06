@@ -7,8 +7,6 @@
 
 use super::*;
 
-mod publication;
-
 impl WorldSession {
     pub(super) fn route_represented_remote_loot_roll_vote_to_owner_like_cpp(
         &self,
@@ -88,7 +86,11 @@ impl WorldSession {
         pass_on_group_loot: bool,
     ) -> bool {
         let roll_key = (roll.loot_obj, roll.loot_list_id);
-        let Some(roll_state) = self.loot.represented_loot_rolls.get(&roll_key).cloned() else {
+        let Some(roll_state) = self
+            .loot
+            .represented_loot_roll_like_cpp(roll_key.0, roll_key.1)
+            .cloned()
+        else {
             return false;
         };
         if self
@@ -105,7 +107,7 @@ impl WorldSession {
 
         let owner_guid = roll_state.owner_guid;
 
-        let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
             return false;
         };
         if !matches!(
@@ -141,8 +143,7 @@ impl WorldSession {
 
         let Some(state) = self
             .loot
-            .represented_loot_rolls
-            .get_mut(&(loot_guid, roll.loot_list_id))
+            .represented_loot_roll_mut_like_cpp(loot_guid, roll.loot_list_id)
         else {
             return false;
         };
@@ -231,7 +232,8 @@ impl WorldSession {
             authority_generation = state.authority_generation,
             "represented loot roll cancelled after owner loot generation changed"
         );
-        self.loot.represented_loot_rolls.remove(&key);
+        self.loot
+            .remove_represented_loot_roll_like_cpp(key.0, key.1);
         self.publish_represented_loot_roll_ownership_like_cpp();
     }
 
@@ -260,8 +262,7 @@ impl WorldSession {
         let owner_guid = state.owner_guid;
         let dungeon_encounter_id = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .map(|loot| loot.dungeon_encounter_id as i32)
             .unwrap_or(0);
 
@@ -300,7 +301,7 @@ impl WorldSession {
         };
         let _ = self.reconcile_represented_loot_cache_like_cpp(owner_guid, scope_player);
 
-        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
+        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
             if let Some(loot_entry) = loot
                 .items
                 .iter_mut()
@@ -314,8 +315,7 @@ impl WorldSession {
         }
 
         self.loot
-            .represented_loot_rolls
-            .remove(&(loot_obj, loot_list_id));
+            .remove_represented_loot_roll_like_cpp(loot_obj, loot_list_id);
         self.publish_represented_loot_roll_ownership_like_cpp();
 
         let Some((winner_guid, winner_vote)) = winner else {
@@ -411,8 +411,7 @@ impl WorldSession {
     ) {
         let dungeon_encounter_id = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .map(|loot| loot.dungeon_encounter_id)
             .unwrap_or(0);
         if winner_vote.vote == ROLL_VOTE_DISENCHANT_LIKE_CPP {
@@ -471,8 +470,7 @@ impl WorldSession {
 
         let mut store_entry = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .and_then(|loot| {
                 loot.items
                     .iter()
@@ -619,8 +617,7 @@ impl WorldSession {
         let mut unblocked_without_roll = Vec::new();
         let item_flags2_by_item_id: HashMap<u32, (Option<u32>, Option<u16>)> = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .map(|loot| {
                 loot.items
                     .iter()
@@ -647,7 +644,7 @@ impl WorldSession {
             return;
         };
 
-        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
+        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
             for entry in &mut loot.items {
                 if !entry.flags.blocked {
                     continue;
@@ -796,9 +793,7 @@ impl WorldSession {
         }
 
         for roll in pending_rolls {
-            self.loot
-                .represented_loot_rolls
-                .insert((roll.loot_obj, roll.loot_list_id), roll);
+            self.loot.insert_represented_loot_roll_like_cpp(roll);
         }
         self.publish_represented_loot_roll_ownership_like_cpp();
 
@@ -841,10 +836,7 @@ impl WorldSession {
         };
         let identities = self
             .loot
-            .represented_loot_rolls
-            .values()
-            .map(|state| state.command_identity.clone())
-            .collect();
+            .represented_loot_roll_command_identities_snapshot_like_cpp();
         let _ = registry.replace_loot_rolls_for_control_channel(
             player_guid,
             &self.session_command_tx(),
@@ -870,13 +862,12 @@ impl WorldSession {
     ) {
         let now = Instant::now();
         let roll_keys: Vec<(ObjectGuid, u8)> =
-            self.loot.represented_loot_rolls.keys().copied().collect();
+            self.loot.represented_loot_roll_keys_snapshot_like_cpp();
 
         for (loot_obj, loot_list_id) in roll_keys {
             let Some(state) = self
                 .loot
-                .represented_loot_rolls
-                .get(&(loot_obj, loot_list_id))
+                .represented_loot_roll_like_cpp(loot_obj, loot_list_id)
                 .cloned()
             else {
                 continue;
@@ -896,15 +887,18 @@ impl WorldSession {
             }
 
             let owner_guid = state.owner_guid;
-            let Some(entry) = self.loot.loot_table.get(&owner_guid).and_then(|loot| {
-                loot.items
-                    .iter()
-                    .find(|entry| entry.loot_list_id == loot_list_id)
-                    .cloned()
-            }) else {
+            let Some(entry) = self
+                .loot
+                .cached_loot_for_owner_like_cpp(owner_guid)
+                .and_then(|loot| {
+                    loot.items
+                        .iter()
+                        .find(|entry| entry.loot_list_id == loot_list_id)
+                        .cloned()
+                })
+            else {
                 self.loot
-                    .represented_loot_rolls
-                    .remove(&(loot_obj, loot_list_id));
+                    .remove_represented_loot_roll_like_cpp(loot_obj, loot_list_id);
                 self.publish_represented_loot_roll_ownership_like_cpp();
                 continue;
             };
@@ -930,113 +924,5 @@ impl WorldSession {
     ) -> Option<u16> {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.represented_loot_roll_disenchant_skill_required_like_cpp(hub, item_valuation, item_id)
-    }
-}
-
-impl crate::session::LootState {
-    pub(super) fn route_represented_remote_loot_roll_vote_to_owner_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        roll: &LootRoll,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        let Some(registry) = hub.core.player_registry() else {
-            return false;
-        };
-        let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp(hub) else {
-            return false;
-        };
-
-        let instance_id = hub
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let Some((registration, roll_identity)) = registry.loot_roll_owner(
-            player_guid,
-            hub.core.player_map_id_like_cpp(),
-            instance_id,
-            roll.loot_obj,
-            roll.loot_list_id,
-        ) else {
-            return false;
-        };
-
-        registry
-            .try_send_current_command(
-                registration,
-                SessionCommand::LootRollVote(LootRollVoteCommand {
-                    voter_guid: player_guid,
-                    loot_obj: roll.loot_obj,
-                    loot_list_id: roll.loot_list_id,
-                    roll_type: roll.roll_type,
-                    pass_on_group_loot,
-                    roll_identity,
-                }),
-            )
-            .is_ok()
-    }
-
-    pub(super) async fn request_represented_remote_loot_roll_winner_store_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        target: ObjectGuid,
-        owner_guid: ObjectGuid,
-        loot_obj: ObjectGuid,
-        loot_list_id: u8,
-        dungeon_encounter_id: u32,
-        entries: Vec<LootEntry>,
-        is_disenchant: bool,
-        claim: Option<LootClaimLease>,
-    ) -> MasterLootGiveResult {
-        let Some(registry) = hub.core.player_registry() else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-        let Some(command_address) = registry.control_address(target) else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-
-        let (result_tx, result_rx) = flume::bounded(1);
-        let command = SessionCommand::LootRollStoreWinner(LootRollStoreWinnerCommand {
-            loot_owner: owner_guid,
-            loot_obj,
-            loot_list_id,
-            dungeon_encounter_id,
-            entries,
-            is_disenchant,
-            claim,
-            result_tx,
-        });
-
-        if command_address.try_send(command).is_err() {
-            return MasterLootGiveResult::TargetMismatch;
-        }
-
-        timeout(REMOTE_MASTER_LOOT_COMMAND_TIMEOUT, result_rx.recv_async())
-            .await
-            .ok()
-            .and_then(Result::ok)
-            .unwrap_or(MasterLootGiveResult::TargetMismatch)
-    }
-
-    fn represented_loot_roll_disenchant_skill_required_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_valuation: &ItemValuationCatalogsLikeCpp,
-        item_id: u32,
-    ) -> Option<u16> {
-        let template = hub
-            .catalogs
-            .item_stats_store()
-            .and_then(|store| store.random_property_template(item_id))?;
-        hub.catalogs
-            .item_disenchant_loot_with_catalogs_like_cpp(
-                item_valuation,
-                item_id,
-                template.quality as u32,
-                u32::from(template.item_level),
-                true,
-            )
-            .map(|(_, skill_required)| skill_required)
     }
 }

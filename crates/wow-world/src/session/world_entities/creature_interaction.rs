@@ -15,26 +15,9 @@ impl WorldSession {
             return npc_flags;
         }
 
-        match self.represented_can_see_spell_click_on_creature_like_cpp(creature_guid) {
-            RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden => {
-                npc_flags & !UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP
-            }
-            RepresentedCanSeeSpellClickOutcomeLikeCpp::Visible
-            | RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented => npc_flags,
-        }
-    }
-}
-
-impl crate::session::state::WorldEntitiesState {
-    pub(crate) fn pause_interacted_creature_movement_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        guid: ObjectGuid,
-    ) -> bool {
-        hub.core
-            .mutate_world_creature(guid, |creature| {
-                creature.pause_interaction_movement_like_cpp()
-            })
-            .unwrap_or(false)
+        wow_world_application::represented_viewer_dependent_creature_npc_flags_like_cpp(
+            npc_flags,
+            self.represented_can_see_spell_click_on_creature_like_cpp(creature_guid),
+        )
     }
 }

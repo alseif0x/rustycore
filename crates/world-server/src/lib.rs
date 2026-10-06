@@ -83,6 +83,7 @@ mod area;
 mod catalogs;
 mod creature_loaded_grid;
 mod gameobject_loaded_grid;
+mod handler_registry;
 mod hotfix;
 mod hotfix_delivery_metadata;
 mod player;
@@ -96,6 +97,8 @@ use session_resources::{
     SessionRealmCapabilitiesLikeCpp, SessionResources, SessionRuntimePolicyCapabilitiesLikeCpp,
     SessionSpellCatalogCapabilitiesLikeCpp, SessionWorldCatalogCapabilitiesLikeCpp,
 };
+
+pub use handler_registry::compose_packet_handlers_like_cpp;
 
 const WORLD_CONFIG_CANDIDATES: &[&str] = &[
     "worldserver.conf",

@@ -20,11 +20,13 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.loot.set_active_loot_guid(loot_owner);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -112,7 +114,9 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.group_guid = Some(group_guid);
+    session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.loot.set_active_loot_guid(loot_owner);
@@ -136,7 +140,7 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
         35,
     );
     session.insert_inventory_item_object(item);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -197,7 +201,7 @@ async fn master_loot_item_self_target_success_marks_removed_like_cpp() {
     let loot_owner = test_creature_guid(19_082);
     let loot_object = represented_loot_object_guid_like_cpp(loot_owner);
 
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -235,7 +239,10 @@ async fn master_loot_item_self_target_success_marks_removed_like_cpp() {
         master_guid,
     );
 
-    let loot = session.loot.loot_table.get(&loot_owner).unwrap();
+    let loot = session
+        .loot
+        .cached_loot_for_owner_like_cpp(loot_owner)
+        .unwrap();
     assert_eq!(loot.items[0].quantity, 0);
     assert!(loot.items[0].is_looted_for_player_like_cpp(master_guid));
     assert_eq!(loot.unlooted_count, 0);
@@ -274,7 +281,9 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     target_info.command_tx = target_session.session_command_tx();
     player_registry.register_or_replace(target_guid, target_info, Default::default());
 
-    master_session.social.group_guid = Some(group_guid);
+    master_session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     master_session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -282,7 +291,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     master_session.set_player_registry(Arc::clone(&player_registry));
     master_session.set_player_guid(Some(master_guid));
     master_session.loot.set_active_loot_guid(loot_owner);
-    master_session.loot.loot_table.insert(
+    master_session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -365,8 +374,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     assert!(
         !master_session
             .loot
-            .loot_table
-            .get(&loot_owner)
+            .cached_loot_for_owner_like_cpp(loot_owner)
             .unwrap()
             .items[0]
             .taken
@@ -395,12 +403,14 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     target_info.command_tx = command_tx;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
 
-    master_session.social.group_guid = Some(group_guid);
+    master_session
+        .social
+        .set_group_guid_for_test_like_cpp(Some(group_guid));
     master_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     master_session.set_player_registry(player_registry);
     master_session.set_player_guid(Some(master_guid));
     master_session.loot.set_active_loot_guid(loot_owner);
-    master_session.loot.loot_table.insert(
+    master_session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -462,7 +472,7 @@ async fn loot_item_request_uses_loot_object_to_find_active_owner_like_cpp() {
     let loot_object_guid = represented_loot_object_guid_like_cpp(owner_guid);
     session.set_player_guid(Some(player_guid));
     session.loot.set_active_loot_guid(owner_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object_guid,
@@ -506,7 +516,14 @@ async fn loot_item_request_uses_loot_object_to_find_active_owner_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), owner_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), loot_object_guid);
     assert_eq!(sent.read_uint8().unwrap(), LOOT_ERROR_NO_LOOT_LIKE_CPP);
-    assert!(!session.loot.loot_table.get(&owner_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(owner_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(owner_guid));
 }
 #[tokio::test]
@@ -521,7 +538,7 @@ async fn loot_item_request_can_use_secondary_active_loot_object_like_cpp() {
     session
         .loot
         .add_active_loot_view_owner_like_cpp(secondary_owner);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         secondary_owner,
         CreatureLoot {
             loot_guid: secondary_loot_object,
@@ -565,17 +582,22 @@ async fn loot_item_request_can_use_secondary_active_loot_object_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), secondary_owner);
     assert_eq!(sent.read_packed_guid().unwrap(), secondary_loot_object);
     assert_eq!(sent.read_uint8().unwrap(), LOOT_ERROR_NO_LOOT_LIKE_CPP);
-    assert!(!session.loot.loot_table.get(&secondary_owner).unwrap().items[0].taken);
     assert!(
-        session
+        !session
             .loot
-            .active_loot_view_owners
-            .contains(&primary_owner)
+            .cached_loot_for_owner_like_cpp(secondary_owner)
+            .unwrap()
+            .items[0]
+            .taken
     );
     assert!(
         session
             .loot
-            .active_loot_view_owners
-            .contains(&secondary_owner)
+            .has_active_loot_view_owner_like_cpp(primary_owner)
+    );
+    assert!(
+        session
+            .loot
+            .has_active_loot_view_owner_like_cpp(secondary_owner)
     );
 }

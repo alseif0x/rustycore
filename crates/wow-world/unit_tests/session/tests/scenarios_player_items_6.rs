@@ -628,7 +628,9 @@ fn add_item_appearance_records_transmog_criteria_like_cpp() {
         .add_item_appearance_like_cpp(65)
         .expect("first permanent piece should update transmog state");
     assert_eq!(
-        session.inventory.represented_transmog_criteria_events,
+        session
+            .inventory
+            .represented_transmog_criteria_events_for_test_like_cpp(),
         vec![RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
             equipment_slot: EQUIPMENT_SLOT_HEAD as u32,
             item_modified_appearance_id: 65,
@@ -637,13 +639,14 @@ fn add_item_appearance_records_transmog_criteria_like_cpp() {
 
     session
         .inventory
-        .represented_transmog_criteria_events
-        .clear();
+        .clear_represented_transmog_criteria_events_for_test_like_cpp();
     session
         .add_item_appearance_like_cpp(96)
         .expect("second permanent piece should complete the set");
     assert_eq!(
-        session.inventory.represented_transmog_criteria_events,
+        session
+            .inventory
+            .represented_transmog_criteria_events_for_test_like_cpp(),
         vec![
             RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
                 equipment_slot: EQUIPMENT_SLOT_CHEST as u32,

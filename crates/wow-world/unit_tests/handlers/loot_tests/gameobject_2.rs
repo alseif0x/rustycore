@@ -36,7 +36,9 @@ async fn represented_gameobject_chest_push_unique_use_records_effects_like_cpp()
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,
@@ -81,7 +83,9 @@ async fn represented_gameobject_chest_no_loot_unique_use_records_effects_like_cp
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session
+            .world_entities
+            .represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,
@@ -116,8 +120,7 @@ async fn represented_gameobject_chest_use_sets_activated_loot_state_like_cpp() {
 
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("represented chest use records GO loot state");
     assert_eq!(state.loot_state, Some(LootState::Activated));
     assert_eq!(state.loot_state_unit_guid, player_guid);
@@ -223,8 +226,7 @@ async fn chest_state_sync_command_updates_receiver_before_refresh_like_cpp() {
 
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("synced chest state");
     assert_eq!(
         state.go_type,
@@ -268,9 +270,7 @@ fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
     session.set_player_registry(player_registry);
     session
         .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .linked_trap_entry = Some(190_015);
 
     assert!(session.use_represented_gameobject_goober_state_like_cpp(
@@ -336,8 +336,7 @@ async fn goober_state_sync_command_updates_receiver_before_refresh_like_cpp() {
 
     let state = session
         .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("synced goober state");
     assert_eq!(state.go_type, Some(GAMEOBJECT_TYPE_GOOBER as u8));
     assert_eq!(state.gameobject_flags & wow_entities::GO_FLAG_IN_USE, 1);
@@ -773,7 +772,7 @@ async fn loot_item_missing_gameobject_uses_cpp_release() {
     let loot_guid = test_gameobject_guid(19_010);
     session.set_player_guid(Some(player_guid));
     session.loot.set_active_loot_guid(loot_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -816,7 +815,14 @@ async fn loot_item_missing_gameobject_uses_cpp_release() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
@@ -840,7 +846,7 @@ async fn loot_item_gameobject_too_far_uses_cpp_release() {
         go_position,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -883,6 +889,13 @@ async fn loot_item_gameobject_too_far_uses_cpp_release() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
+    assert!(
+        !session
+            .loot
+            .cached_loot_for_owner_like_cpp(loot_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(session.loot.is_active_loot_guid(loot_guid));
 }

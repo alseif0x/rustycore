@@ -20,7 +20,7 @@ fn apply_player_session_visibility_detection_like_cpp(
 
 impl WorldSession {
     fn player_session_never_visible_for_seer_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.lifecycle.player_logout_like_cpp || self.lifecycle.player_loading == Some(guid)
+        self.lifecycle.player_logout_like_cpp() || self.lifecycle.player_loading() == Some(guid)
     }
     pub(crate) fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
@@ -145,9 +145,7 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.visibility
-                    .visibility_test_fixture_like_cpp
-                    .represented_player_phase_shift
-                    .clone(),
+                    .represented_player_phase_shift_fixture_like_cpp(),
             );
         }
         canonical
@@ -175,8 +173,7 @@ impl WorldSession {
             }
             return Some(
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_like_cpp
+                    .represented_loaded_player_flags_for_test_like_cpp()
                     .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
                     .unwrap_or(rest.is_resting_by_flag_like_cpp()),
             );
@@ -202,11 +199,7 @@ impl WorldSession {
                 return Some(farsight);
             }
             #[cfg(test)]
-            if let Some(seer_guid) = self
-                .visibility
-                .visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp
-            {
+            if let Some(seer_guid) = self.visibility.represented_seer_guid_fixture_like_cpp() {
                 // Detached fixtures can model the short C++ ordering window
                 // between writing FarsightObject and SetSeer(this).
                 if !seer_guid.is_empty() && seer_guid != player_guid {
@@ -217,10 +210,7 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        return self
-            .visibility
-            .visibility_test_fixture_like_cpp
-            .represented_seer_guid_like_cpp;
+        return self.visibility.represented_seer_guid_fixture_like_cpp();
 
         #[cfg(not(test))]
         None
@@ -234,7 +224,7 @@ impl WorldSession {
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
-        self.visibility.last_visibility_pos = None;
+        self.visibility.clear_last_visibility_pos_like_cpp();
         self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
             .await;
     }
@@ -260,186 +250,6 @@ impl WorldSession {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.force_update_visibility_with_catalogs_like_cpp(&catalogs)
             .await;
-    }
-}
-
-impl crate::session::state::VisibilityState {
-    pub(crate) fn set_represented_player_phase_shift_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        phase_shift: PhaseShift,
-    ) -> bool {
-        let mut phase_shift = Some(phase_shift);
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                *player.unit_mut().world_mut().phase_shift_mut() =
-                    phase_shift.take().expect("phase mutation runs once");
-            })
-            .is_some();
-        if canonical {
-            return true;
-        }
-        #[cfg(test)]
-        if hub.core.player_handle_like_cpp.is_none() {
-            self.visibility_test_fixture_like_cpp
-                .represented_player_phase_shift =
-                phase_shift.take().expect("fixture phase remains available");
-            return true;
-        }
-        false
-    }
-
-    /// Send represented `ActivePlayerData::FarsightObject` VALUES update after
-    /// the canonical AddFarsight `Player::SetViewpoint(..., true)` success.
-    ///
-    /// C++ anchors: `Player::SetViewpoint` writes
-    /// `UF::ActivePlayerData::FarsightObject`; `ActivePlayerData::WriteUpdate`
-    /// emits the field under parent block `changesMask[0]` and field bit 26.
-    pub(in crate::session) fn send_active_player_farsight_object_values_update_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        player_guid: ObjectGuid,
-        farsight_guid: ObjectGuid,
-    ) {
-        use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
-
-        let mut data = ActivePlayerDataValuesUpdate::default();
-        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 0);
-        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 26);
-        data.farsight_object = farsight_guid;
-        hub.core
-            .send_packet(&UpdateObject::full_active_player_values_update(
-                player_guid,
-                hub.core.player_map_id_like_cpp(),
-                data,
-            ));
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.visibility_test_fixture_like_cpp
-            .represented_seer_guid_like_cpp
-    }
-
-    pub(in crate::session) fn current_canonical_farsight_object_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<ObjectGuid> {
-        let value = hub
-            .core
-            .current_canonical_player_farsight_object_value_like_cpp()?;
-        (!value.is_empty()).then_some(value)
-    }
-
-    /// Consume the represented `Player::SetViewpoint(target, false)`/`SetSeer(this)`
-    /// side effect after canonical DynamicObject viewpoint removal has already
-    /// cleared the map-owned Player `ActivePlayerData::FarsightObject`.
-    ///
-    /// Ownership remains one-way: canonical map Player state is the source of
-    /// truth. The session keeps only a publication fence so a clear VALUES
-    /// packet is emitted once when the map-owned viewpoint disappears.
-    pub(crate) fn sync_represented_farsight_clear_from_canonical_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) -> bool {
-        let Some(player_guid) = hub.core.player_guid() else {
-            return false;
-        };
-        let Some(canonical_farsight_object) = hub
-            .core
-            .current_canonical_player_farsight_object_value_like_cpp()
-        else {
-            return false;
-        };
-        if !canonical_farsight_object.is_empty() {
-            self.last_observed_farsight_object_like_cpp = canonical_farsight_object;
-            return false;
-        }
-
-        #[cfg(test)]
-        let had_non_player_seer = self
-            .represented_seer_guid_like_cpp()
-            .is_some_and(|seer_guid| !seer_guid.is_empty() && seer_guid != player_guid);
-        #[cfg(not(test))]
-        let had_non_player_seer = !self.last_observed_farsight_object_like_cpp.is_empty();
-        if !had_non_player_seer {
-            return false;
-        }
-
-        #[cfg(test)]
-        {
-            self.visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp = Some(player_guid);
-        }
-        self.last_observed_farsight_object_like_cpp = ObjectGuid::EMPTY;
-        self.send_active_player_farsight_object_values_update_like_cpp(
-            hub.shared(),
-            player_guid,
-            ObjectGuid::EMPTY,
-        );
-        self.last_visibility_pos = None;
-        true
-    }
-
-    pub(crate) fn clear_pending_visibility_refresh_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) {
-        hub.core
-            .flags
-            .visibility_refresh_pending_like_cpp
-            .store(false, Ordering::Release);
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    fn object_id_visibility_conditions_met_like_cpp(
-        &self,
-        target: &WorldObject,
-        seer: &WorldObject,
-    ) -> bool {
-        let Some(condition_store) = self.condition_store.as_ref() else {
-            return true;
-        };
-
-        let area_table_store = self.area_table_store.as_ref().map(Arc::clone);
-        wow_conditions::is_object_meeting_visibility_by_object_id_conditions_like_cpp(
-            condition_store,
-            target.object().type_id() as u32,
-            target.object().entry(),
-            Some(seer),
-            |condition, source_info| {
-                wow_conditions::condition_meets_basic_like_cpp(
-                    condition,
-                    source_info,
-                    |area_id, required_area_id| {
-                        area_table_store.as_ref().is_some_and(|store| {
-                            store.is_in_area_like_cpp(area_id, required_area_id)
-                        })
-                    },
-                )
-                .value()
-                .unwrap_or(false)
-            },
-        )
-    }
-}
-
-impl crate::session::state::SessionCore {
-    fn current_canonical_player_farsight_object_value_like_cpp(&self) -> Option<ObjectGuid> {
-        let guid = self.player_guid()?;
-        let key = self.current_canonical_player_map_key_like_cpp()?;
-        let manager = self.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        Some(
-            manager
-                .find_map(key.map_id, key.instance_id)?
-                .map()
-                .get_typed_player(guid)?
-                .active_data()
-                .farsight_object,
-        )
     }
 }
 

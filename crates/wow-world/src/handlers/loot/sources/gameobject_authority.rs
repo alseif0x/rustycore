@@ -9,14 +9,16 @@ impl WorldSession {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
         else {
             return (represented_local_loot_fixture_allowed_like_cpp()
-                && self.loot.loot_table.contains_key(&gameobject_guid))
+                && self
+                    .loot
+                    .cached_loot_contains_owner_like_cpp(gameobject_guid))
             .then_some(());
         };
-        let loot = self.loot.loot_table.get(&gameobject_guid)?.clone();
-        let is_personal = self
+        let loot = self
             .loot
-            .represented_personal_loot_owners
-            .contains(&gameobject_guid);
+            .cached_loot_for_owner_like_cpp(gameobject_guid)?
+            .clone();
+        let is_personal = self.loot.is_personal_loot_owner_like_cpp(gameobject_guid);
         let (shared, personal) = self.represented_loot_authority_pools_like_cpp(
             gameobject_guid,
             player_guid,
@@ -31,10 +33,10 @@ impl WorldSession {
                 .snapshot_for_player_like_cpp(player_guid)
                 .is_none()
         {
-            self.loot.loot_table.remove(&gameobject_guid);
             self.loot
-                .represented_loot_cache_generations_like_cpp
-                .remove(&gameobject_guid);
+                .remove_cached_loot_for_owner_like_cpp(gameobject_guid);
+            self.loot
+                .remove_cached_loot_generation_like_cpp(gameobject_guid);
             return None;
         }
         self.refresh_owned_loot_summary_like_cpp(gameobject_guid);
@@ -127,127 +129,21 @@ impl WorldSession {
         Some(())
     }
 
-    pub(in crate::handlers::loot) fn canonical_gameobject_fully_looted_after_represented_sync_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        fallback_fully_looted: bool,
-    ) -> bool {
-        if self
-            .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
-            .is_some()
-        {
-            return crate::session::cx_loot(self)
-                .canonical_gameobject_is_fully_looted_like_cpp(gameobject_guid)
-                .unwrap_or(fallback_fully_looted);
-        }
-
-        fallback_fully_looted
-    }
-
-    fn represented_gameobject_spell_lock_range_like_cpp(
-        &self,
-        lock_id: Option<u32>,
-    ) -> Option<f32> {
-        let lock_id = lock_id?;
-        let lock = self.catalogs.lock_store()?.get(lock_id)?;
-        for i in 0..wow_data::lock::MAX_LOCK_CASE {
-            let lock_type = lock.lock_type[i];
-            if lock_type == 0 {
-                continue;
-            }
-
-            if lock_type == LOCK_KEY_SPELL_LIKE_CPP {
-                if let Some(range) = self
-                    .catalogs
-                    .represented_spell_max_range_like_cpp(lock.index[i])
-                {
-                    return Some(range);
-                }
-            }
-
-            if lock_type != LOCK_KEY_SKILL_LIKE_CPP {
-                break;
-            }
-
-            for spell_id in self.known_spells_like_cpp() {
-                let Some(spell) = self.spell_store().and_then(|store| store.get(spell_id)) else {
-                    continue;
-                };
-                let can_open_lock = spell.effects().iter().any(|effect| {
-                    effect.effect == SPELL_EFFECT_OPEN_LOCK_LIKE_CPP
-                        && effect.effect_misc_value_1 == lock.index[i]
-                        && effect.effect_base_points >= i32::from(lock.skill[i])
-                });
-                if can_open_lock {
-                    if let Some(range) =
-                        self.catalogs.represented_spell_max_range_like_cpp(spell_id)
-                    {
-                        return Some(range);
-                    }
-                }
-            }
-        }
-
-        None
-    }
-
+    /// World facade over the single App authority for the autostore distance,
+    /// display-box and spell-lock gates.
     pub(in crate::handlers::loot) fn represented_gameobject_can_autostore_loot_item_like_cpp(
         &self,
         guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(state) =
-            crate::session::cx_loot_ref(self).represented_gameobject_loot_state_like_cpp(guid)
-        else {
-            return false;
-        };
-
-        // C++ ref: LootHandler.cpp HandleAutostoreLootItemOpcode skips distance
-        // for owned GameObjects and GAMEOBJECT_TYPE_FISHINGHOLE. DB spawns do
-        // not carry CreatedBy; apply the owner exception only when runtime GO
-        // state explicitly recorded GetOwnerGUID.
-        if state.owner_guid == Some(player_guid)
-            || state.go_type == Some(GAMEOBJECT_TYPE_FISHING_HOLE as u8)
-        {
-            return true;
-        }
-
-        match (
-            crate::session::hub_ref(self).player_position_like_cpp(),
-            state.position,
-        ) {
-            (Some(player), Some(position)) => {
-                let radius = represented_gameobject_interaction_distance_like_cpp(
-                    state.go_type,
-                    state.interact_radius_override,
-                );
-                let radius = self
-                    .represented_gameobject_spell_lock_range_like_cpp(state.lock_id)
-                    .unwrap_or(radius);
-                if let Some(display_info) =
-                    self.catalogs
-                        .gameobject_display_info_store()
-                        .and_then(|store| {
-                            state
-                                .display_id
-                                .and_then(|display_id| store.get(display_id))
-                        })
-                {
-                    represented_gameobject_display_box_contains_like_cpp(
-                        position,
-                        player,
-                        display_info,
-                        state.scale,
-                        state.rotation,
-                        radius,
-                    )
-                } else {
-                    player.is_within_dist(&position, radius)
-                }
-            }
-            _ => true,
-        }
+        wow_world_application::represented_gameobject_can_autostore_loot_item_like_cpp(
+            &self.loot,
+            &self.world_entities,
+            crate::session::hub_ref(self),
+            &self.known_spells_like_cpp(),
+            guid,
+            player_guid,
+        )
     }
 }
 
@@ -273,8 +169,7 @@ impl crate::session::LootCxRef<'_> {
             .canonical_gameobject_owner_for_loot_like_cpp(self.hub, guid);
         let represented_state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid);
+            .represented_gameobject_use_state_like_cpp(guid);
         if canonical_position.is_none()
             && represented_state.and_then(|state| state.position).is_none()
             && !self.hub.core.client_visible_guids_like_cpp.contains(&guid)
@@ -335,25 +230,6 @@ impl crate::session::LootCx<'_> {
                     })
                 },
             )
-    }
-}
-
-impl crate::session::LootState {
-    fn canonical_gameobject_owner_for_loot_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
-        let owner_guid = map.get_typed_game_object(guid)?.owner_guid();
-        (!owner_guid.is_empty()).then_some(owner_guid)
     }
 }
 
