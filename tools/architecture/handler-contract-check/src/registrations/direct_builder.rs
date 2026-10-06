@@ -725,6 +725,27 @@ pub(crate) const SPELL_REGISTRAR: DirectRegistrarContract = DirectRegistrarContr
     facades: SPELL_FACADES,
 };
 
+const GUILD_BANK_ROOT_EXPORTS: &[&str] = &[
+    "GuildBankHandlerCxLikeCpp",
+    "GuildBankHandlerHostLikeCpp",
+    "register_guild_bank_handlers_like_cpp",
+];
+const GUILD_BANK_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "guild_bank_handlers",
+    exports: GUILD_BANK_ROOT_EXPORTS,
+}];
+
+pub(crate) const GUILD_BANK_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationGuildBank",
+    package: "wow-world-application",
+    module: "crate::guild_bank_handlers",
+    registrar: "register_guild_bank_handlers_like_cpp",
+    host_trait: "GuildBankHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: GUILD_BANK_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -758,6 +779,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     CHARACTER_QUERY_REGISTRAR,
     TRADE_REGISTRAR,
     SPELL_REGISTRAR,
+    GUILD_BANK_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

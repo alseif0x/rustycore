@@ -2,19 +2,30 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private guild capability handlers extracted from the legacy misc owner.
+//!
+//! The guild-bank family moved to `wow-world-application::guild_bank_handlers`
+//! under #1263 F5; this module lends the World session's state to it and keeps
+//! the auto-decline handler, which still re-publishes the registry state.
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketProcessing, SessionStatus};
+use wow_world_application::{GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp};
 
 use crate::session::registry::PacketHandlerEntry;
+use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 use wow_packet::ClientPacket;
-use wow_packet::packets::misc::{
-    AcceptGuildInvite, AutoGuildBankItem, AutoStoreGuildBankItem, DeclineGuildInvites,
-    GuildBankActivate, GuildBankBuyTab, GuildBankDepositMoney, GuildBankLogQuery,
-    GuildBankQueryTab, GuildBankSetTabText, GuildBankTextQuery, GuildBankUpdateTab,
-    GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
-};
+use wow_packet::packets::misc::DeclineGuildInvites;
+
+impl GuildBankHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn guild_bank_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        _catalogs: &'a SessionHandlerCatalogsLikeCpp,
+    ) -> GuildBankHandlerCxLikeCpp<'a> {
+        let (inventory, social, world_entities, hub) = crate::session::split_guild_bank_mut(self);
+        GuildBankHandlerCxLikeCpp::new(hub, inventory, social, world_entities, cfg!(test))
+    }
+}
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -24,138 +35,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
         handler_name: "handle_decline_guild_invites",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_decline_guild_invites(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankActivate,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_activate",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_activate(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankQueryTab,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_query_tab",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_query_tab(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankBuyTab,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_buy_tab",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_buy_tab(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankUpdateTab,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_update_tab",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_update_tab(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankDepositMoney,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_deposit_money",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_deposit_money(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankWithdrawMoney,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_withdraw_money",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_withdraw_money(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankLogQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_log_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_log_query(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankTextQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_text_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_text_query(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankSetTabText,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_set_tab_text",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_set_tab_text(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AutoGuildBankItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_auto_guild_bank_item",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_auto_guild_bank_item(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AutoStoreGuildBankItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_auto_store_guild_bank_item",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_auto_store_guild_bank_item(pkt).await })
         },
     }
 }
@@ -177,271 +56,6 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_auto_decline_guild_invites_like_cpp(request.allow);
-    }
-
-    /// CMSG_GUILD_BANK_ACTIVATE — click a guild-bank GameObject.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankActivate`.
-
-    pub async fn handle_guild_bank_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankActivate::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankActivate parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        if crate::session::cx_inventory_ref(self)
-            .represented_guild_bank_gameobject_can_interact_like_cpp(packet.banker)
-            .is_none()
-        {
-            return;
-        }
-
-        match self.resolved_represented_guild_id_like_cpp() {
-            Some(0) => {
-                self.send_packet(&GuildCommandResult::player_not_in_guild_view_tab_like_cpp());
-                return;
-            }
-            Some(_) => {}
-            None => return,
-        }
-
-        let _accepted =
-            self.record_guild_bank_list_request_like_cpp(packet.banker, 0, packet.full_update);
-    }
-
-    /// CMSG_GUILD_BANK_QUERY_TAB — request a single guild-bank tab.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankQueryTab`.
-
-    pub async fn handle_guild_bank_query_tab(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankQueryTab::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankQueryTab parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        if crate::session::cx_inventory_ref(self)
-            .represented_guild_bank_gameobject_can_interact_like_cpp(packet.banker)
-            .is_none()
-        {
-            return;
-        }
-
-        if self
-            .resolved_represented_guild_id_like_cpp()
-            .is_none_or(|guild_id| guild_id == 0)
-        {
-            return;
-        }
-
-        let _accepted =
-            self.record_guild_bank_list_request_like_cpp(packet.banker, packet.tab, true);
-    }
-
-    /// CMSG_GUILD_BANK_BUY_TAB — buy a guild-bank tab.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankBuyTab`.
-
-    pub async fn handle_guild_bank_buy_tab(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankBuyTab::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankBuyTab parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_buy_tab_like_cpp(packet.banker, packet.bank_tab);
-    }
-
-    /// CMSG_GUILD_BANK_UPDATE_TAB — rename/update a guild-bank tab.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankUpdateTab`.
-
-    pub async fn handle_guild_bank_update_tab(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankUpdateTab::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankUpdateTab parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_update_tab_like_cpp(
-            packet.banker,
-            packet.bank_tab,
-            packet.name,
-            packet.icon,
-        );
-    }
-
-    /// CMSG_GUILD_BANK_DEPOSIT_MONEY — deposit player money into the guild bank.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankDepositMoney`.
-
-    pub async fn handle_guild_bank_deposit_money(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankDepositMoney::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankDepositMoney parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_money_move_like_cpp(packet.banker, true, packet.money);
-    }
-
-    /// CMSG_GUILD_BANK_WITHDRAW_MONEY — withdraw money from the guild bank.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankWithdrawMoney`.
-
-    pub async fn handle_guild_bank_withdraw_money(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankWithdrawMoney::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankWithdrawMoney parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_money_move_like_cpp(packet.banker, false, packet.money);
-    }
-
-    /// CMSG_GUILD_BANK_LOG_QUERY — request a guild-bank tab log.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankLogQuery`.
-
-    pub async fn handle_guild_bank_log_query(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankLogQuery::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankLogQuery parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_log_query_like_cpp(packet.tab);
-    }
-
-    /// CMSG_GUILD_BANK_TEXT_QUERY — request a guild-bank tab text.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankTextQuery`.
-
-    pub async fn handle_guild_bank_text_query(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankTextQuery::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankTextQuery parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_text_query_like_cpp(packet.tab);
-    }
-
-    /// CMSG_GUILD_BANK_SET_TAB_TEXT — update a guild-bank tab text.
-    ///
-    /// C++ ref: `WorldSession::HandleGuildBankSetTabText`.
-
-    pub async fn handle_guild_bank_set_tab_text(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match GuildBankSetTabText::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "GuildBankSetTabText parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_set_tab_text_like_cpp(packet.tab, packet.tab_text);
-    }
-
-    /// CMSG_AUTO_GUILD_BANK_ITEM — move from player inventory into a guild-bank slot.
-    ///
-    /// C++ ref: `WorldSession::HandleAutoGuildBankItem`.
-
-    pub async fn handle_auto_guild_bank_item(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match AutoGuildBankItem::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "AutoGuildBankItem parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let player_bag = packet
-            .container_slot
-            .unwrap_or(wow_entities::INVENTORY_SLOT_BAG_0);
-        let _accepted = self.guild_bank_inventory_move_like_cpp(
-            packet.banker,
-            false,
-            packet.bank_tab,
-            packet.bank_slot,
-            player_bag,
-            packet.container_item_slot,
-            0,
-        );
-    }
-
-    /// CMSG_AUTO_STORE_GUILD_BANK_ITEM — auto-store from a guild-bank slot into inventory.
-    ///
-    /// C++ ref: `WorldSession::HandleAutoStoreGuildBankItem`.
-
-    pub async fn handle_auto_store_guild_bank_item(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match AutoStoreGuildBankItem::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "AutoStoreGuildBankItem parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let _accepted = self.guild_bank_inventory_move_like_cpp(
-            packet.banker,
-            true,
-            packet.bank_tab,
-            packet.bank_slot,
-            wow_entities::INVENTORY_SLOT_BAG_0,
-            wow_entities::NULL_SLOT,
-            0,
-        );
     }
 }
 

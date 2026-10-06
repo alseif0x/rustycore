@@ -3,13 +3,11 @@
 
 //! Compatibility paths for Session-owned guild inventory contracts.
 
-pub(crate) use wow_world_inventory::{
-    RepresentedBankItemMoveLikeCpp, RepresentedGuildBankTabActionKindLikeCpp,
-    RepresentedGuildRepairBankStateLikeCpp,
-};
+pub(crate) use wow_world_inventory::RepresentedBankItemMoveLikeCpp;
 #[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp,
-    RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp,
+    RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionKindLikeCpp,
+    RepresentedGuildBankTabActionLikeCpp, RepresentedGuildRepairBankStateLikeCpp,
     RepresentedGuildRepairBankWithdrawLikeCpp,
 };

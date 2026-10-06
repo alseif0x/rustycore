@@ -234,6 +234,30 @@ pub(crate) fn split_aura_application_mut(
     )
 }
 
+/// Inventory, social and world-entity state plus the mutable hub, from disjoint
+/// fields: the participants of the application guild-bank context.
+pub(crate) fn split_guild_bank_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut InventoryState,
+    &SessionSocialLimits,
+    &WorldEntitiesState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.inventory,
+        &s.social,
+        &s.world_entities,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Interaction and world-entity state plus the mutable hub, from disjoint fields.
 pub(crate) fn split_interaction_world_entities_mut(
     s: &mut WorldSession,

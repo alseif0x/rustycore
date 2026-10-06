@@ -679,6 +679,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::guild",
+          "trait_path": "GuildBankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::guild::test_shims",
           "trait_path": null,
           "cfg": [
@@ -7773,34 +7779,6 @@
           "module": "crate::handlers::guild",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_auto_guild_bank_item",
-          "visibility": "pub",
-          "signature": "async fn handle_auto_guild_bank_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_auto_store_guild_bank_item",
-          "visibility": "pub",
-          "signature": "async fn handle_auto_store_guild_bank_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_decline_guild_invites",
           "visibility": "pub",
           "signature": "async fn handle_decline_guild_invites (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -7813,128 +7791,16 @@
         },
         {
           "module": "crate::handlers::guild",
-          "trait_path": null,
+          "trait_path": "GuildBankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "handle_guild_bank_activate",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_activate (& mut self , mut pkt : wow_packet :: WorldPacket)",
+          "name": "guild_bank_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn guild_bank_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GuildBankHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_buy_tab",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_buy_tab (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_deposit_money",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_deposit_money (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_log_query",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_log_query (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_query_tab",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_query_tab (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_set_tab_text",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_set_tab_text (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_text_query",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_text_query (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_update_tab",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_update_tab (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_guild_bank_withdraw_money",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_withdraw_money (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {
@@ -7957,9 +7823,185 @@
           "module": "crate::handlers::guild::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_auto_guild_bank_item",
+          "visibility": "pub",
+          "signature": "async fn handle_auto_guild_bank_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_auto_store_guild_bank_item",
+          "visibility": "pub",
+          "signature": "async fn handle_auto_store_guild_bank_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_activate",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_activate (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_buy_tab",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_buy_tab (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_deposit_money",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_deposit_money (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_log_query",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_log_query (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_query_tab",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_query_tab (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_guild_bank_remaining_withdraw_money_query",
           "visibility": "pub",
           "signature": "async fn handle_guild_bank_remaining_withdraw_money_query (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_set_tab_text",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_set_tab_text (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_text_query",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_text_query (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_update_tab",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_update_tab (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_withdraw_money",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_withdraw_money (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -21406,118 +21448,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "guild_bank_buy_tab_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_buy_tab_like_cpp (& mut self , banker : ObjectGuid , tab : u8) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_inventory_move_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_inventory_move_like_cpp (& mut self , banker : ObjectGuid , to_char : bool , bank_tab : u8 , bank_slot : u8 , player_bag : u8 , player_slot : u8 , stack_count : u32 ,) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_log_query_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_log_query_like_cpp (& mut self , tab : i32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_money_move_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_money_move_like_cpp (& mut self , banker : ObjectGuid , deposit : bool , money : u64 ,) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_set_tab_text_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_set_tab_text_like_cpp (& mut self , tab : i32 , text : String) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_tab_action_without_banker_like_cpp",
-          "visibility": "private",
-          "signature": "fn guild_bank_tab_action_without_banker_like_cpp (& mut self , tab : i32 , action : RepresentedGuildBankTabActionKindLikeCpp ,) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_text_query_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_text_query_like_cpp (& mut self , tab : i32) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "guild_bank_update_tab_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn guild_bank_update_tab_like_cpp (& mut self , banker : ObjectGuid , tab : u8 , name : String , icon : String ,) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_destroy_visible_object_like_cpp_command_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_destroy_visible_object_like_cpp_command_like_cpp (& mut self , command : DestroyVisibleObjectLikeCppCommand ,)",
@@ -27317,21 +27247,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "record_guild_bank_list_request_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn record_guild_bank_list_request_like_cpp (& mut self , banker : ObjectGuid , tab : u8 , full_update : bool ,) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "record_loaded_character_spell_charge_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn record_loaded_character_spell_charge_like_cpp (& mut self , category_id : u32 , recharge_start_unix_secs : i64 , recharge_end_unix_secs : i64 ,)",
@@ -30491,19 +30406,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_guild_bank_can_interact_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_guild_bank_can_interact_like_cpp (& self , banker : ObjectGuid ,) -> Option < u64 >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]

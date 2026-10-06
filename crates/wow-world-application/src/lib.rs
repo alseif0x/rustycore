@@ -16,6 +16,7 @@ mod data_service_handlers;
 mod dungeon_finding_handlers;
 mod gameobject_handlers;
 mod group_handlers;
+mod guild_bank_handlers;
 mod instances;
 mod loot_handlers;
 mod loot_release;
@@ -113,6 +114,9 @@ pub use group_handlers::GroupPublicationTailLikeCpp;
 pub use group_handlers::resolved_group_guid_like_cpp;
 pub use group_handlers::{
     GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
+};
+pub use guild_bank_handlers::{
+    GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp, register_guild_bank_handlers_like_cpp,
 };
 pub use instances::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,

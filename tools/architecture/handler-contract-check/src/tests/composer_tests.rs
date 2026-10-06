@@ -11,12 +11,13 @@ use crate::registrations::{
     BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR, CHARACTER_QUERY_REGISTRAR,
     CHAT_REGISTRAR, CLIENT_STATE_REGISTRAR, COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR,
     DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DUNGEON_FINDING_REGISTRAR,
-    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR, GUILD_REGISTRAR,
-    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, LOOT_REGISTRAR, PLAYER_REGISTRAR,
-    QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
-    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR,
-    SUPPORT_REGISTRAR, TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR,
-    validate_composition_mounts, validate_composition_mounts_with_contracts,
+    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR,
+    GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR,
+    LOOT_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR,
+    RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR,
+    SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR, TRADE_REGISTRAR,
+    TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, validate_composition_mounts,
+    validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -162,6 +163,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             SPELL_REGISTRAR.module,
             "crates/wow-world-application/src/spell_handlers.rs",
             include_str!("../../../../../crates/wow-world-application/src/spell_handlers.rs"),
+        ),
+        mount(
+            GUILD_BANK_REGISTRAR.package,
+            GUILD_BANK_REGISTRAR.module,
+            "crates/wow-world-application/src/guild_bank_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/guild_bank_handlers.rs"),
         ),
         mount(
             LOOT_REGISTRAR.package,
