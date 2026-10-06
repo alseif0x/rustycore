@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37270,
-    "measured_requirement": 37270,
+    "budget": 37303,
+    "measured_requirement": 37303,
     "recorded_at_revision": "639c3111f90ca2e64327a0c0e0cc4edff655f545",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74487, G_move = 115781, ratio and slack credits = 74487 * 1.05 + 300 = 78511.35, so the requirement is 37269.65 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74598, G_move = 115930, ratio and slack credits = 74598 * 1.05 + 300 = 78627.90, so the requirement is 37302.10 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -383,6 +383,13 @@
         "destination_growth": 198,
         "new_code": 83,
         "note": "CanDuel and DuelResponse moved into the existing ApplicationTrade owner, which already borrows the social state and the hub. The represented duel arbiter/state transitions moved to the application crate as free functions so the World spell-effect duel path keeps thin wrappers, and DUEL_COUNTDOWN_MS_LIKE_CPP is now owned by wow-world-social. Both registrations keep their original LoggedIn/ThreadUnsafe metadata."
+      },
+      {
+        "phase": "F5 petition handlers (7d722f82a..HEAD, three handlers)",
+        "shrink": 104,
+        "destination_growth": 149,
+        "new_code": 45,
+        "note": "SignPetition, DeclinePetition and QueryPetition moved into the existing ApplicationTrade owner, which already borrows the social state and the hub. The represented petition evidence stays a fixture-only concern (the World PetsCx recorders disappear and the application calls the social recorders under test-fixtures); the query keeps its not-found reply. Both registration metadata stay LoggedIn/ThreadUnsafe."
       }
     ],
     "areas": [

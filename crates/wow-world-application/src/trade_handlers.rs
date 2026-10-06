@@ -22,9 +22,10 @@ use wow_handler::{
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::misc::{
-    AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DuelCountdown, DuelResponse,
-    EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, SetTradeGold, SetTradeItem,
-    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DeclinePetition, DuelCountdown,
+    DuelResponse, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, QueryPetition,
+    QueryPetitionResponse, SetTradeGold, SetTradeItem, SignPetition, TRADE_SLOT_COUNT_LIKE_CPP,
+    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
     UnacceptTrade,
@@ -658,6 +659,85 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         self.cancel_with_status_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP);
     }
 
+    /// CMSG_SIGN_PETITION — record the represented signature evidence.
+    pub fn handle_sign_petition(&mut self, mut pkt: WorldPacket) {
+        let packet = match SignPetition::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "SignPetition parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.social
+            .record_represented_sign_petition_for_test_like_cpp(
+                wow_world_social::RepresentedSignPetitionLikeCpp {
+                    petition_guid: packet.petition_guid,
+                    choice: packet.choice,
+                },
+            );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = (packet.petition_guid, packet.choice);
+    }
+
+    /// CMSG_DECLINE_PETITION — record the represented decline evidence.
+    pub fn handle_decline_petition(&mut self, mut pkt: WorldPacket) {
+        let packet = match DeclinePetition::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "DeclinePetition parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.social
+            .record_represented_decline_petition_for_test_like_cpp(
+                wow_world_social::RepresentedDeclinePetitionLikeCpp {
+                    petition_guid: packet.petition_guid,
+                },
+            );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = packet.petition_guid;
+    }
+
+    /// CMSG_QUERY_PETITION — record the evidence and answer not-found.
+    pub fn handle_query_petition(&mut self, mut pkt: WorldPacket) {
+        let packet = match QueryPetition::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "QueryPetition parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.social
+            .record_represented_query_petition_for_test_like_cpp(
+                wow_world_social::RepresentedQueryPetitionLikeCpp {
+                    petition_id: packet.petition_id,
+                    item_guid: packet.item_guid,
+                },
+            );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = (packet.petition_id, packet.item_guid);
+
+        self.hub
+            .shared()
+            .core
+            .send_packet(&QueryPetitionResponse::not_found_like_cpp(packet.item_guid));
+    }
+
     /// CMSG_CAN_DUEL — validate a duel request and answer the client.
     pub fn handle_can_duel(&mut self, mut pkt: WorldPacket) {
         let packet = match CanDuel::read(&mut pkt) {
@@ -961,6 +1041,54 @@ where
     })
 }
 
+fn handle_sign_petition_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_sign_petition(pkt);
+    })
+}
+
+fn handle_decline_petition_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_decline_petition(pkt);
+    })
+}
+
+fn handle_query_petition_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_query_petition(pkt);
+    })
+}
+
 /// Registers the trade handlers on the packet registry.
 pub fn register_trade_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -1045,6 +1173,27 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_duel_response",
         handler: handle_duel_response_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SignPetition,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_sign_petition",
+        handler: handle_sign_petition_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::DeclinePetition,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_decline_petition",
+        handler: handle_decline_petition_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryPetition,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_query_petition",
+        handler: handle_query_petition_thunk::<S, C>,
     })?;
     Ok(())
 }

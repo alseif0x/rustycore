@@ -56,6 +56,18 @@ impl WorldSession {
         self.trade_test_cx_like_cpp().handle_begin_trade(pkt).await;
     }
 
+    pub async fn handle_sign_petition(&mut self, pkt: WorldPacket) {
+        self.trade_test_cx_like_cpp().handle_sign_petition(pkt);
+    }
+
+    pub async fn handle_decline_petition(&mut self, pkt: WorldPacket) {
+        self.trade_test_cx_like_cpp().handle_decline_petition(pkt);
+    }
+
+    pub async fn handle_query_petition(&mut self, pkt: WorldPacket) {
+        self.trade_test_cx_like_cpp().handle_query_petition(pkt);
+    }
+
     pub async fn handle_can_duel(&mut self, pkt: WorldPacket) {
         self.trade_test_cx_like_cpp().handle_can_duel(pkt);
     }

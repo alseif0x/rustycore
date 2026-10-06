@@ -99,48 +99,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::PetsCx<'_> {
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_sign_petition_like_cpp(
-        &mut self,
-        petition_guid: ObjectGuid,
-        choice: u8,
-    ) {
-        #[cfg(test)]
-        self.social
-            .record_represented_sign_petition_for_test_like_cpp(RepresentedSignPetitionLikeCpp {
-                petition_guid,
-                choice,
-            });
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_decline_petition_like_cpp(
-        &mut self,
-        petition_guid: ObjectGuid,
-    ) {
-        #[cfg(test)]
-        self.social
-            .record_represented_decline_petition_for_test_like_cpp(
-                RepresentedDeclinePetitionLikeCpp { petition_guid },
-            );
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_query_petition_like_cpp(
-        &mut self,
-        petition_id: u32,
-        item_guid: ObjectGuid,
-    ) {
-        #[cfg(test)]
-        self.social
-            .record_represented_query_petition_for_test_like_cpp(RepresentedQueryPetitionLikeCpp {
-                petition_id,
-                item_guid,
-            });
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/pets/pet/f3_shims.rs"]
 mod f3_shims;

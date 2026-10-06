@@ -14,9 +14,7 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
-use wow_packet::packets::misc::{
-    DeclinePetition, QueryPetition, QueryPetitionResponse, SetTradeSpell, SignPetition,
-};
+use wow_packet::packets::misc::SetTradeSpell;
 
 #[cfg(test)]
 mod test_shims;
@@ -28,36 +26,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_trade_spell",
         handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_trade_spell(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SignPetition,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_sign_petition",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_sign_petition(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::DeclinePetition,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_decline_petition",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_decline_petition(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryPetition,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_query_petition",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_query_petition(pkt).await }),
     }
 }
 
@@ -79,54 +47,5 @@ impl crate::session::WorldSession {
             packet.pack_slot,
             packet.item_slot_in_pack,
         );
-    }
-
-    pub async fn handle_sign_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SignPetition::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SignPetition parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self)
-            .record_represented_sign_petition_like_cpp(packet.petition_guid, packet.choice);
-    }
-
-    pub async fn handle_decline_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match DeclinePetition::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "DeclinePetition parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self)
-            .record_represented_decline_petition_like_cpp(packet.petition_guid);
-    }
-
-    pub async fn handle_query_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match QueryPetition::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "QueryPetition parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self)
-            .record_represented_query_petition_like_cpp(packet.petition_id, packet.item_guid);
-        self.send_packet(&QueryPetitionResponse::not_found_like_cpp(packet.item_guid));
     }
 }

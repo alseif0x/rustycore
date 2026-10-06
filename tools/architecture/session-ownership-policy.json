@@ -6639,51 +6639,9 @@
           "module": "crate::handlers::economy::trade",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_decline_petition",
-          "visibility": "pub",
-          "signature": "async fn handle_decline_petition (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_petition",
-          "visibility": "pub",
-          "signature": "async fn handle_query_petition (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_set_trade_spell",
           "visibility": "pub",
           "signature": "async fn handle_set_trade_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_sign_petition",
-          "visibility": "pub",
-          "signature": "async fn handle_sign_petition (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6791,6 +6749,22 @@
           "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_decline_petition",
+          "visibility": "pub",
+          "signature": "async fn handle_decline_petition (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_duel_response",
           "visibility": "pub",
           "signature": "async fn handle_duel_response (& mut self , pkt : WorldPacket)",
@@ -6823,6 +6797,22 @@
           "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_query_petition",
+          "visibility": "pub",
+          "signature": "async fn handle_query_petition (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_set_trade_gold",
           "visibility": "pub",
           "signature": "async fn handle_set_trade_gold (& mut self , pkt : WorldPacket)",
@@ -6842,6 +6832,22 @@
           "name": "handle_set_trade_item",
           "visibility": "pub",
           "signature": "async fn handle_set_trade_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_sign_petition",
+          "visibility": "pub",
+          "signature": "async fn handle_sign_petition (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],

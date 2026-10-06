@@ -6278,6 +6278,25 @@ filas); `check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1
 
 **No validado aún.** Sin campaña `final` nueva; quedan **146 registros literales**.
 
+#### F5: handlers de peticiones (`SignPetition`, `DeclinePetition`, `QueryPetition`) — 2026-10-05, `7d722f82a..HEAD`
+
+Los tres handlers de peticiones pasan al dueño existente `ApplicationTrade`, que ya presta el estado
+social y el hub. La evidencia representada de peticiones queda como preocupación solo de fixture: los
+recorders del `PetsCx` del shell desaparecen y el dueño App llama directamente a los recorders de
+`wow-world-social` bajo `cfg(any(test, feature = "test-fixtures"))`; la consulta conserva su respuesta
+`not_found_like_cpp`. El shell conserva delegados `cfg(test)` y los registros mantienen
+`LoggedIn`/`ThreadUnsafe`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **3 tests de `petition`**, **50 de `trade`**, **74 de
+`pets`** y **25 de `dispatch`** (478 opcodes intactos) en verde; `cargo check` de `wow-world` (con
+`test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del tool **443/443** (501,19 s);
+`session-ownership-check check --syntax-only` **PASS** (204 owners / 3.142 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.598`,
+`G_move = 115.930`, requisito `37.302,10` → **presupuesto 37.303**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **143 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
