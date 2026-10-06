@@ -7,11 +7,15 @@ use std::path::PathBuf;
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
-    ACCOUNT_DATA_REGISTRAR, BANK_REGISTRAR, CALENDAR_REGISTRAR, CHAT_REGISTRAR,
-    CLIENT_STATE_REGISTRAR,
-    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
-    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
-    ARENA_TEAM_REGISTRAR, BATTLENET_REGISTRAR, DATA_SERVICE_REGISTRAR, APPLICATION_GROUP_REGISTRAR, GUILD_REGISTRAR, QUEST_QUERY_REGISTRAR, COMBAT_REGISTRAR, PLAYER_REGISTRAR, COLLECTIONS_REGISTRAR, TRAVEL_REGISTRAR, BATTLEGROUND_REGISTRAR, DUNGEON_FINDING_REGISTRAR, GAMEOBJECT_REGISTRAR, VEHICLE_REGISTRAR, LOOT_REGISTRAR, CHARACTER_QUERY_REGISTRAR, TRADE_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_CONTACTS_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR, validate_composition_mounts,
+    ACCOUNT_DATA_REGISTRAR, APPLICATION_GROUP_REGISTRAR, ARENA_TEAM_REGISTRAR, BANK_REGISTRAR,
+    BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR, CHARACTER_QUERY_REGISTRAR,
+    CHAT_REGISTRAR, CLIENT_STATE_REGISTRAR, COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR,
+    DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS, DUNGEON_FINDING_REGISTRAR,
+    DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR, GUILD_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, LOOT_REGISTRAR, PLAYER_REGISTRAR,
+    QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
+    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR,
+    TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, validate_composition_mounts,
     validate_composition_mounts_with_contracts,
 };
 
@@ -143,7 +147,9 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             CHARACTER_QUERY_REGISTRAR.package,
             CHARACTER_QUERY_REGISTRAR.module,
             "crates/wow-world-application/src/character_query_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/character_query_handlers.rs"),
+            include_str!(
+                "../../../../../crates/wow-world-application/src/character_query_handlers.rs"
+            ),
         ),
         mount(
             TRADE_REGISTRAR.package,
@@ -173,13 +179,17 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             DUNGEON_FINDING_REGISTRAR.package,
             DUNGEON_FINDING_REGISTRAR.module,
             "crates/wow-world-application/src/dungeon_finding_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/dungeon_finding_handlers.rs"),
+            include_str!(
+                "../../../../../crates/wow-world-application/src/dungeon_finding_handlers.rs"
+            ),
         ),
         mount(
             BATTLEGROUND_REGISTRAR.package,
             BATTLEGROUND_REGISTRAR.module,
             "crates/wow-world-application/src/battleground_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/battleground_handlers.rs"),
+            include_str!(
+                "../../../../../crates/wow-world-application/src/battleground_handlers.rs"
+            ),
         ),
         mount(
             TRAVEL_REGISTRAR.package,
@@ -233,7 +243,9 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             DATA_SERVICE_REGISTRAR.package,
             DATA_SERVICE_REGISTRAR.module,
             "crates/wow-world-application/src/data_service_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/data_service_handlers.rs"),
+            include_str!(
+                "../../../../../crates/wow-world-application/src/data_service_handlers.rs"
+            ),
         ),
         mount(
             BATTLENET_REGISTRAR.package,
