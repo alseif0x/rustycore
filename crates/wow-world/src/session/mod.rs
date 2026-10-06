@@ -15,6 +15,7 @@ mod driver;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod arena_team_handler_contexts;
+mod battleground_handler_contexts;
 mod battlenet_handler_contexts;
 mod calendar_handler_contexts;
 mod chat_handler_contexts;
@@ -561,6 +562,7 @@ pub(crate) use state::{
     split_spell_state_mut, split_spell_state_ref, split_visibility_mut, split_visibility_ref,
     split_world_entities_mut, split_world_entities_ref,
 };
+
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;
@@ -882,8 +884,7 @@ pub(crate) use wow_constants::rest::{
 
 /// Live seam for C++ `ScriptMgr::OnAreaTrigger`.
 ///
-/// A ported content script receives the mutable session and returns the same
-/// consumed/not-consumed boolean that controls C++ handler continuation.
+/// A ported content script receives the mutable session and returns the same consumed/not-consumed boolean that controls C++ handler continuation.
 pub type AreaTriggerScriptDispatcherLikeCpp =
     Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
 
@@ -1012,8 +1013,7 @@ const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
 /// Compatibility name while handler modules move to the Player-owned type.
 pub use wow_entities::PlayerGossipOptionLikeCpp as GossipOptionInfo;
 
-/// Compatibility name retained while handlers move onto Player-owned inventory
-/// commands and queries. The concrete record is owned by `wow_entities::Player`.
+/// Compatibility name retained while handlers move onto Player-owned inventory commands and queries; the concrete record is owned by `wow_entities::Player`.
 pub use wow_entities::PlayerInventoryItem as InventoryItem;
 
 pub(crate) use wow_entities::{

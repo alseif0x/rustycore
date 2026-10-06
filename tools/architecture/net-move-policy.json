@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35371,
-    "measured_requirement": 35371,
+    "budget": 35640,
+    "measured_requirement": 35640,
     "recorded_at_revision": "316c171c3d46e09292e00a51c7a3f487556eb411",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72839, G_move = 112151, ratio and slack credits = 72839 * 1.05 + 300 = 76780.95, so the requirement is 35370.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72966, G_move = 112554, ratio and slack credits = 72966 * 1.05 + 300 = 76914.3, so the requirement is 35639.7 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -278,6 +278,13 @@
         "destination_growth": 68,
         "new_code": 46,
         "note": "StandStateChange moved into the ApplicationPlayer owner: the owner parses and validates the C++ stand-state values and builds the typed represented->live intent, while the session-owned represented->live bridge stays a bounded host seam (it mutates the canonical unit and records fixture evidence). This closes the entities/player family. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 battleground port/leave and PvP flags (316c171c3..HEAD)",
+        "shrink": 127,
+        "destination_growth": 403,
+        "new_code": 276,
+        "note": "BattlefieldPort, BattlefieldLeave, TogglePvp, SetPvp, RequestRatedPvpInfo and RequestPvpRewards moved to a new ApplicationBattleground registrar whose context is hub-only; the PvP flag transitions keep the registry-sync seam. The new contract carries the usual Cx, host trait, six thunks and registrar boilerplate, which is most of the net growth. The battlemaster-list and queue bodies stay while they need the shell queue/lifecycle orchestration. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

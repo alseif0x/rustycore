@@ -118,40 +118,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlefieldPort,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlefield_port",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_battlefield_port(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestRatedPvpInfo,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_rated_pvp_info",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_rated_pvp_info(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlefieldLeave,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlefield_leave",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battlefield_leave(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::AcceptWargameInvite,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -159,38 +125,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_accept_wargame_invite(pkt).await })
         },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestPvpRewards,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_pvp_rewards",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_pvp_rewards(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::TogglePvp,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_toggle_pvp",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_toggle_pvp(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetPvp,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_pvp",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_pvp(pkt).await }),
     }
 }
 
@@ -387,51 +321,6 @@ impl crate::session::WorldSession {
             .await;
     }
 
-    /// CMSG_BATTLEFIELD_PORT — player accepts an invite or leaves a BG queue slot.
-    /// C++ ref: `WorldSession::HandleBattleFieldPortOpcode`.
-
-    pub async fn handle_battlefield_port(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let port = match BattlefieldPort::read(&mut pkt) {
-            Ok(port) => port,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlefieldPort parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        // C++ returns silently for not-in-queue, invalid queue slot, and
-        // AcceptedInvite without an invitation. The accepted/leave branch is
-        // represented only until live BattlegroundQueue/BattlegroundMgr exists.
-        let _accepted = crate::session::hub_mut(self)
-            .battlefield_port_like_cpp(port.ticket, port.accepted_invite);
-    }
-
-    /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
-    /// C++ ref: `WorldSession::HandleBattlefieldLeaveOpcode`.
-
-    pub async fn handle_battlefield_leave(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = BattlefieldLeave::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "BattlefieldLeave parse failed: {error}"
-            );
-            return;
-        }
-
-        if crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false)
-            && crate::session::hub_ref(self).player_in_represented_battleground_like_cpp()
-            && !crate::session::hub_ref(self)
-                .represented_battleground_status_is_wait_leave_like_cpp()
-        {
-            return;
-        }
-
-        self.request_represented_battleground_leave_like_cpp();
-    }
-
     pub async fn handle_accept_wargame_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match AcceptWargameInvite::read(&mut pkt) {
             Ok(packet) => packet,
@@ -445,42 +334,5 @@ impl crate::session::WorldSession {
         };
 
         self.accept_represented_wargame_invite_like_cpp(&packet.inviter_name);
-    }
-
-    pub async fn handle_request_rated_pvp_info(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.send_packet_realm(&RatedPvpInfo::default());
-    }
-
-    pub async fn handle_request_pvp_rewards(&mut self, _pkt: wow_packet::WorldPacket) {
-        // C++ dispatches to Player::SendPvpRewards(), but that method's
-        // SMSG_REQUEST_PVP_REWARDS_RESPONSE send is commented out in the
-        // canonical source, so the observable behavior is silence.
-    }
-
-    pub async fn handle_toggle_pvp(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = TogglePvp::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "TogglePvP parse failed: {error}"
-            );
-            return;
-        }
-
-        self.apply_toggle_pvp_like_cpp();
-    }
-
-    pub async fn handle_set_pvp(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetPvp::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetPvP parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.apply_set_pvp_like_cpp(packet.enable_pvp);
     }
 }

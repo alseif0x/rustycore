@@ -557,6 +557,27 @@ pub(crate) const TRAVEL_REGISTRAR: DirectRegistrarContract = DirectRegistrarCont
     facades: TRAVEL_FACADES,
 };
 
+const BATTLEGROUND_ROOT_EXPORTS: &[&str] = &[
+    "BattlegroundHandlerCxLikeCpp",
+    "BattlegroundHandlerHostLikeCpp",
+    "register_battleground_handlers_like_cpp",
+];
+const BATTLEGROUND_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "battleground_handlers",
+    exports: BATTLEGROUND_ROOT_EXPORTS,
+}];
+
+pub(crate) const BATTLEGROUND_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationBattleground",
+    package: "wow-world-application",
+    module: "crate::battleground_handlers",
+    registrar: "register_battleground_handlers_like_cpp",
+    host_trait: "BattlegroundHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: BATTLEGROUND_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -582,6 +603,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     PLAYER_REGISTRAR,
     COLLECTIONS_REGISTRAR,
     TRAVEL_REGISTRAR,
+    BATTLEGROUND_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

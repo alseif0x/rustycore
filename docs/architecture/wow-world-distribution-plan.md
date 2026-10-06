@@ -5959,6 +5959,29 @@ seams acotados.
 
 **No validado aún.** Sin campaña `final` nueva; quedan **185 registros literales**.
 
+#### F5: battlegrounds, corte de puerto/salida y banderas PvP (6 opcodes) — 2026-10-05, `316c171c3..HEAD`
+
+Se estrena el dueño `ApplicationBattleground` (`crates/wow-world-application/src/battleground_handlers.rs`)
+con contexto hub-only y seis opcodes: `BattlefieldPort`, `BattlefieldLeave`, `TogglePvp`, `SetPvp`,
+`RequestRatedPvpInfo` y `RequestPvpRewards`. Las dos transiciones de bandera PvP
+(`apply_toggle_pvp_like_cpp` / `apply_set_pvp_like_cpp`) se mueven completas al dueño —incluidas las
+compuertas de *war mode*, el temporizador de fin de PvP y el registro de fixture bajo
+`cfg(any(test, feature = "test-fixtures"))`— y la republicación de estado de registro queda como
+**seam acotado del host** (`sync_player_registry_state_after_pvp_change_like_cpp`). Los cuerpos de
+battlemaster/cola se quedan mientras necesitan la orquestación de cola/lifecycle del shell.
+`battlegrounds/pvp.rs` queda con **7 registros literales**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**31 de `battlegrounds`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (192 owners / 3.142 items / 711 filas);
+`check_architecture.py check` **PASS** (3.388 ficheros / 102 techos); hotspots reconciliados
+(`session/mod.rs`: producción 61.148, test 138.186, total 199.334; `world-server/lib.rs`: producción
+31.800, total 60.511). R1 v2: `S = 72.966`, `G_move = 112.554`, requisito `35.639,70` →
+**presupuesto 35.640**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **179 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
