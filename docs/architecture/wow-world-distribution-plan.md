@@ -6681,7 +6681,15 @@ módulo App.
 sin errores ni avisos en los ficheros tocados; `wow-world` `--lib` **3.634 ✓**; ownership **PASS** (salen 7 ítems de
 producción, entran 4 shims de test y la función del host: 3.127 → 3.126); arquitectura **PASS** con el techo del
 agregado de sesión ajustado a su valor vivo (producción 60.096 → 60.069); R1 `S = 134`, `G_move = 192`, presupuesto
-0. Registros literales en `wow-world`: **112 → 108**. Pendiente: `final`.
+0. Registros literales en `wow-world`: **112 → 108**.
+
+**Aceptación `final`:** sobre **`25d96dea9`**, **verde en 207 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T200333.883466Z-1231359-final.json`).
+Vuelve por debajo de 600 s: al ampliar un dueño existente no se toca `world-server` ni el tool, así que el runner no
+enruta su suite ni recompila el composer. Cobertura del manifiesto: `cargo check --tests` de `world-modules`,
+`world-server`, `wow-world` y App (58 s) y suites `--lib` completas de `wow-world` y App (15 s), más política de
+arquitectura (60 s), ownership por sintaxis (53 s) y R1 (7 s). La suite del tool de contratos se ejecutó aparte
+(443/443) porque este corte modifica fuentes que el tool lee con `include_str!`, aunque no el crate del tool.
 
 ## 9. Herramientas
 
