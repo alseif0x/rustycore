@@ -56,6 +56,19 @@ use wow_world_social::group_fanout::{
     target_social_ignores_inviter_like_cpp,
 };
 
+/// Resolve C++ `Player::m_group` through the hub's generation-checked canonical
+/// Player handle. An unresolved owner never falls back in production.
+pub fn resolved_group_guid_like_cpp(
+    hub: wow_world_core::session::HubRef<'_>,
+    social: &SessionSocialLimits,
+) -> Option<u64> {
+    let owner = hub.core.player_group_owner_access_like_cpp();
+    social.resolved_group_guid_with_access_like_cpp(
+        &owner,
+        cfg!(any(test, feature = "test-fixtures")),
+    )
+}
+
 /// Deferred publication tail for one group transition.
 ///
 /// C++ runs the registry-state sync (`Player::SetGroup`/`SetSubGroup`) and the

@@ -6316,6 +6316,24 @@ errores; composer contracts **8/8**; suite del tool **443/443** (506,82 s);
 
 **No validado aún.** Sin campaña `final` nueva; quedan **142 registros literales**.
 
+#### F5: acotado del seam `resolved_group_guid_like_cpp` — 2026-10-05, `0355b0d3a..HEAD`
+
+La lectura canónica del grupo del Player (`resolved_group_guid_like_cpp`, con su fallback de fixture
+representado) se traslada a `wow-world-application` (dueño de grupo) y el método del shell queda como
+wrapper fino sobre `split_social_ref`. Es uno de los seams que el plan F5 nombra para que los cuerpos de
+handler de grupo/loot/quest resuelvan `Player::m_group` sin un handle `WorldSession`. **No mueve ningún
+opcode**; quedan 142 registros literales.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **248 tests de `group`** y **25 de `dispatch`** (478
+opcodes intactos) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443** (506,22 s);
+`session-ownership-check check --syntax-only` **PASS** (203 owners / 3.140 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.709`,
+`G_move = 116.108`, requisito `37.363,55` → **presupuesto 37.364**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **142 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

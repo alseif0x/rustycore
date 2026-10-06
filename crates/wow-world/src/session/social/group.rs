@@ -95,9 +95,8 @@ impl WorldSession {
     /// generation-checked canonical Player handle. An unresolved owner never
     /// falls back in production.
     pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        let owner = self.core.player_group_owner_access_like_cpp();
-        self.social
-            .resolved_group_guid_with_access_like_cpp(&owner, cfg!(test))
+        let (state, hub) = crate::session::split_social_ref(self);
+        wow_world_application::resolved_group_guid_like_cpp(hub, state)
     }
     pub(crate) fn set_owned_player_group_like_cpp(
         &mut self,

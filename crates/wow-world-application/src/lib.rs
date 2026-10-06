@@ -109,6 +109,7 @@ pub use gameobject_handlers::{
     GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp, register_gameobject_handlers_like_cpp,
 };
 pub use group_handlers::GroupPublicationTailLikeCpp;
+pub use group_handlers::resolved_group_guid_like_cpp;
 pub use group_handlers::{
     GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
 };

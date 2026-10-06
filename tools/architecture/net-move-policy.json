@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37351,
-    "measured_requirement": 37351,
+    "budget": 37364,
+    "measured_requirement": 37364,
     "recorded_at_revision": "0355b0d3aa3dcffc71929b1b4035ed93b36960d2",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74708, G_move = 116094, ratio and slack credits = 74708 * 1.05 + 300 = 78743.40, so the requirement is 37350.60 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74709, G_move = 116108, ratio and slack credits = 74709 * 1.05 + 300 = 78744.45, so the requirement is 37363.55 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -397,6 +397,13 @@
         "destination_growth": 164,
         "new_code": 54,
         "note": "SetTradeSpell moved into the ApplicationTrade owner, whose context now also borrows the spell state for the known-spell gate (with the represented fixture fallback) and reads the spell store from the catalog bundle. The spell-trade transitions left the World spell publication module and the shell keeps cfg(test) delegates; the registration keeps its LoggedIn/ThreadUnsafe metadata. handlers/economy now has no literal registration."
+      },
+      {
+        "phase": "F5 grouped-player seam (0355b0d3a..HEAD, no opcode moved)",
+        "shrink": 1,
+        "destination_growth": 14,
+        "new_code": 13,
+        "note": "Bounded the resolved_group_guid_like_cpp seam: the canonical Player group read (with its represented fixture fallback) moved to the application group owner and the World method is a thin wrapper over split_social_ref. No registration changed; the goal is to let group, loot and quest handler bodies resolve Player::m_group without a WorldSession handle."
       }
     ],
     "areas": [
