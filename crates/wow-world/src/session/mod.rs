@@ -4,7 +4,6 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! `WorldSession` — per-player session that receives packets from the [`WorldSocket`](wow_network::WorldSocket) and dispatches them to handlers.
-
 mod admission;
 mod appearance;
 mod connection;
@@ -32,6 +31,7 @@ mod group_handler_contexts;
 mod guild_handler_contexts;
 mod loot_handler_contexts;
 mod player_handler_contexts;
+mod trade_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
@@ -562,9 +562,9 @@ pub(crate) use state::{
     split_interaction_world_entities_mut, split_inventory_mut, split_inventory_ref,
     split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
     split_player_handler_states_mut, split_quest_state_mut, split_quest_state_ref,
-    split_social_lifecycle_mut, split_social_mut, split_social_ref, split_spell_state_mut,
-    split_spell_state_ref, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
-    split_world_entities_ref,
+    split_social_inventory_mut, split_social_lifecycle_mut, split_social_mut, split_social_ref,
+    split_spell_state_mut, split_spell_state_ref, split_visibility_mut, split_visibility_ref,
+    split_world_entities_mut, split_world_entities_ref,
 };
 
 mod summon_object_contracts;

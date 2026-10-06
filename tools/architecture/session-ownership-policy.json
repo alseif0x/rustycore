@@ -609,6 +609,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::entities::corpse",
           "trait_path": null,
           "cfg": [],
@@ -1365,6 +1373,12 @@
         {
           "module": "crate::session",
           "trait_path": "SupportHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TradeHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -6645,79 +6659,9 @@
           "module": "crate::handlers::economy::trade",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_accept_trade",
-          "visibility": "pub",
-          "signature": "async fn handle_accept_trade (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_begin_trade",
-          "visibility": "pub",
-          "signature": "async fn handle_begin_trade (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_busy_trade",
-          "visibility": "pub",
-          "signature": "async fn handle_busy_trade (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_can_duel",
           "visibility": "pub",
           "signature": "async fn handle_can_duel (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_trade",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_trade (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_clear_trade_item",
-          "visibility": "pub",
-          "signature": "async fn handle_clear_trade_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6757,51 +6701,9 @@
           "module": "crate::handlers::economy::trade",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_ignore_trade",
-          "visibility": "pub",
-          "signature": "async fn handle_ignore_trade (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_query_petition",
           "visibility": "pub",
           "signature": "async fn handle_query_petition (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_trade_gold",
-          "visibility": "pub",
-          "signature": "async fn handle_set_trade_gold (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_trade_item",
-          "visibility": "pub",
-          "signature": "async fn handle_set_trade_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6838,17 +6740,162 @@
           ]
         },
         {
-          "module": "crate::handlers::economy::trade",
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_accept_trade",
+          "visibility": "pub",
+          "signature": "async fn handle_accept_trade (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_begin_trade",
+          "visibility": "pub",
+          "signature": "async fn handle_begin_trade (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_busy_trade",
+          "visibility": "pub",
+          "signature": "async fn handle_busy_trade (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_trade",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_trade (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_clear_trade_item",
+          "visibility": "pub",
+          "signature": "async fn handle_clear_trade_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_ignore_trade",
+          "visibility": "pub",
+          "signature": "async fn handle_ignore_trade (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_trade_gold",
+          "visibility": "pub",
+          "signature": "async fn handle_set_trade_gold (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_trade_item",
+          "visibility": "pub",
+          "signature": "async fn handle_set_trade_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_unaccept_trade",
           "visibility": "pub",
-          "signature": "async fn handle_unaccept_trade (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_unaccept_trade (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "trade_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn trade_test_cx_like_cpp (& mut self) -> TradeHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -14232,8 +14279,10 @@
           "name": "accept_represented_trade_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn accept_represented_trade_like_cpp (& mut self , state_index : u32)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -17767,19 +17816,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "begin_represented_trade_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn begin_represented_trade_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "begin_represented_trait_authority_load_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn begin_represented_trait_authority_load_like_cpp (& mut self) -> bool",
@@ -18399,19 +18435,6 @@
           "name": "cancel_pending_spell_cast_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn cancel_pending_spell_cast_request_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "cancel_represented_trade_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn cancel_represented_trade_like_cpp (& mut self , status : u8 , sendback : bool)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -19191,19 +19214,6 @@
           "name": "clear_represented_resurrection_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_represented_resurrection_request_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "clear_represented_trade_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn clear_represented_trade_item_like_cpp (& mut self , trade_slot : u8)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -24758,7 +24768,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "mutate_player_trade_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
+          "visibility": "pub (crate)",
           "signature": "fn mutate_player_trade_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut Option < wow_entities :: PlayerTradeStateLikeCpp >) -> R ,) -> Option < R >",
           "cfg": [
             "cfg (test)"
@@ -40645,47 +40655,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_represented_trade_gold_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_trade_gold_like_cpp (& mut self , coinage : u64)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_trade_gold_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_represented_trade_gold_state_like_cpp (& mut self , coinage : u64 , affordable : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_trade_item_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_trade_item_like_cpp (& mut self , trade_slot : u8 , pack_slot : u8 , item_slot_in_pack : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_represented_trade_item_like_cpp_for_test",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_trade_item_like_cpp_for_test (& mut self , slot : u8 , item_guid : ObjectGuid ,)",
@@ -43163,6 +43132,17 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "trade_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn trade_handler_cx_like_cpp (& mut self) -> TradeHandlerCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "trainer_buy_admission_context_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn trainer_buy_admission_context_like_cpp (& mut self ,) -> wow_world_application :: AppTrainerBuyAdmissionCxLikeCpp < '_ >",
@@ -43304,19 +43284,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "unaccept_represented_trade_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn unaccept_represented_trade_like_cpp (& mut self)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -45204,6 +45171,19 @@
           "name": "support_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn support_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SupportHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TradeHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "trade_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn trade_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> TradeHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

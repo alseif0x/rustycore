@@ -29,6 +29,7 @@ mod registry_sync;
 mod reputation;
 mod spell_acquisition;
 pub mod spell_click_values;
+mod trade_handlers;
 mod travel_handlers;
 mod vehicle_handlers;
 pub mod vendor;
@@ -221,6 +222,10 @@ pub use spell_acquisition::{
 pub use stats::{
     CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
     primary_max_power_for_class_like_cpp,
+};
+pub use trade_handlers::player_trade_state_snapshot_like_cpp;
+pub use trade_handlers::{
+    TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp, register_trade_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_purchase::TrainerAcquisitionFixturesLikeCpp;

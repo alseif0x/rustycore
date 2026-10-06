@@ -1,7 +1,12 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Private trade capability handlers extracted from the legacy misc owner.
+//! Private trade/duel/petition capability handlers extracted from the legacy misc owner.
+//!
+//! Under #1263 F5 the trade bodies moved to
+//! `wow-world-application::trade_handlers`; this module keeps the spell-trade,
+//! petition and duel handlers while they need the shell spell store and pet
+//! state, plus the cfg(test) delegates for the moved bodies.
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -10,61 +15,12 @@ use wow_handler::{PacketProcessing, SessionStatus};
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
-    AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DeclinePetition, DuelResponse,
-    IgnoreTrade, QueryPetition, QueryPetitionResponse, SetTradeGold, SetTradeItem, SetTradeSpell,
-    SignPetition, TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP,
-    UnacceptTrade,
+    CanDuel, DeclinePetition, DuelResponse, QueryPetition, QueryPetitionResponse, SetTradeSpell,
+    SignPetition,
 };
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelTrade,
-        status: SessionStatus::LoggedInOrRecentlyLogout,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_cancel_trade",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_cancel_trade(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AcceptTrade,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_accept_trade",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_accept_trade(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ClearTradeItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_clear_trade_item",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_clear_trade_item(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetTradeItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_trade_item",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_trade_item(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetTradeGold,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_trade_gold",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_set_trade_gold(pkt).await }),
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -108,36 +64,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::UnacceptTrade,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_unaccept_trade",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_unaccept_trade(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BusyTrade,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_busy_trade",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_busy_trade(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BeginTrade,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_begin_trade",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_begin_trade(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::CanDuel,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -156,87 +82,7 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::IgnoreTrade,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_ignore_trade",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_ignore_trade(pkt).await }),
-    }
-}
-
 impl crate::session::WorldSession {
-    pub async fn handle_cancel_trade(&mut self, _pkt: wow_packet::WorldPacket) {
-        // C++ calls Player::TradeCancel(true) for a present player; TradeCancel
-        // itself is a no-op when no active TradeData exists.
-        self.cancel_represented_trade_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP, true);
-    }
-
-    pub async fn handle_accept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match AcceptTrade::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "AcceptTrade parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.accept_represented_trade_like_cpp(packet.state_index);
-    }
-
-    pub async fn handle_clear_trade_item(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match ClearTradeItem::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "ClearTradeItem parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.clear_represented_trade_item_like_cpp(packet.trade_slot);
-    }
-
-    pub async fn handle_set_trade_item(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetTradeItem::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetTradeItem parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.set_represented_trade_item_like_cpp(
-            packet.trade_slot,
-            packet.pack_slot,
-            packet.item_slot_in_pack,
-        );
-    }
-
-    pub async fn handle_set_trade_gold(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetTradeGold::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetTradeGold parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.set_represented_trade_gold_like_cpp(packet.coinage);
-    }
-
     pub async fn handle_set_trade_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match SetTradeSpell::read(&mut pkt) {
             Ok(packet) => packet,
@@ -305,45 +151,6 @@ impl crate::session::WorldSession {
         self.send_packet(&QueryPetitionResponse::not_found_like_cpp(packet.item_guid));
     }
 
-    pub async fn handle_unaccept_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = UnacceptTrade::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "UnacceptTrade parse failed: {error}"
-            );
-            return;
-        }
-
-        self.unaccept_represented_trade_like_cpp();
-    }
-
-    pub async fn handle_busy_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = BusyTrade::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "BusyTrade parse failed: {error}"
-            );
-            return;
-        }
-
-        self.cancel_represented_trade_like_cpp(
-            crate::session::TRADE_STATUS_PLAYER_BUSY_LIKE_CPP,
-            true,
-        );
-    }
-
-    pub async fn handle_begin_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = BeginTrade::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "BeginTrade parse failed: {error}"
-            );
-            return;
-        }
-
-        self.begin_represented_trade_like_cpp();
-    }
-
     pub async fn handle_can_duel(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match CanDuel::read(&mut pkt) {
             Ok(packet) => packet,
@@ -375,17 +182,5 @@ impl crate::session::WorldSession {
         };
 
         self.handle_duel_response_like_cpp(packet.arbiter_guid, packet.accepted, packet.forfeited);
-    }
-
-    pub async fn handle_ignore_trade(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = IgnoreTrade::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "IgnoreTrade parse failed: {error}"
-            );
-            return;
-        }
-
-        self.cancel_represented_trade_like_cpp(TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP, true);
     }
 }

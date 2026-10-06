@@ -6111,6 +6111,31 @@ total 60.531). R1 v2: `S = 73.400`, `G_move = 113.833`, requisito `36.463,00` �
 
 **No validado aún.** Sin campaña `final` nueva; quedan **165 registros literales**.
 
+#### F5: trade, corte de nueve opcodes (9 opcodes) — 2026-10-05, `5e09b33d6..HEAD`
+
+`CancelTrade`, `AcceptTrade`, `ClearTradeItem`, `SetTradeItem`, `SetTradeGold`, `UnacceptTrade`,
+`BusyTrade`, `BeginTrade` e `IgnoreTrade` pasan al nuevo dueño `ApplicationTrade`
+(`crates/wow-world-application/src/trade_handlers.rs`, contexto `{ hub, social, inventory }`). Con
+ellos se trasladan las transiciones de estado de trade (`TradeCancel`, `TradeAccept`,
+`TradeUnaccept`, `SetTradeItem`, `SetTradeGold`, `begin`) y el snapshot canónico del Player
+(`player_trade_state_snapshot_like_cpp`, con el fallback de fixture representado en
+`wow-world-social`). El contexto usa el nuevo `split_social_inventory_mut`, que presta social,
+inventario y hub disjuntos. El shell conserva wrappers finos para sus consumidores restantes
+(`handlers/social.rs`, publicación de item/spell) y delegados `cfg(test)` en
+`handlers/economy/trade/test_shims.rs`. `SetTradeSpell`, las peticiones y el duelo siguen en el
+shell mientras necesitan su spell store y su estado de mascotas.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **50 tests de `trade`**, **60 de `economy`** y
+**25 de `dispatch`** (478 opcodes intactos) en verde; `cargo check` de `wow-world` (con
+`test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del tool
+**443/443** (487,34 s); `session-ownership-check check --syntax-only` **PASS** (204 owners / 3.147
+items / 711 filas); `check_architecture.py check` **PASS** (3.406 ficheros / 102 techos); hotspots
+reconciliados (`session/mod.rs`: producción 60.935, test 138.198, total 199.133;
+`world-server/lib.rs`: producción 31.824, total 60.535). R1 v2: `S = 73.843`, `G_move = 114.696`,
+requisito `36.860,85` → **presupuesto 36.861**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **156 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
