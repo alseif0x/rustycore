@@ -208,6 +208,32 @@ pub(crate) fn split_player_handler_states_mut(
     )
 }
 
+/// Spell, inventory, loot and quest state plus the mutable hub, from disjoint
+/// fields: the participants of the application aura-application context.
+pub(crate) fn split_aura_application_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSpellState,
+    &mut InventoryState,
+    &LootState,
+    &SessionQuestState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.spell_state,
+        &mut s.inventory,
+        &s.loot,
+        &s.quest_state,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Interaction and world-entity state plus the mutable hub, from disjoint fields.
 pub(crate) fn split_interaction_world_entities_mut(
     s: &mut WorldSession,

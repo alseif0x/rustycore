@@ -68,7 +68,7 @@ mod aura_removal;
 pub use aura_removal::AuraApplicationFixtureRefsLikeCpp;
 pub use aura_removal::{
     AuraApplicationCatalogsLikeCpp, AuraRemovalCxLikeCpp as PlayerAuraApplicationCxLikeCpp,
-    plan_item_set_aura_refresh_with_access_like_cpp,
+    plan_item_set_aura_refresh_with_access_like_cpp, player_aura_application_cx_like_cpp,
 };
 
 pub use battleground_handlers::{
