@@ -2243,36 +2243,6 @@
           "module": "crate::handlers::battlegrounds::pvp",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_battlemaster_join_arena",
-          "visibility": "pub",
-          "signature": "async fn handle_battlemaster_join_arena (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battlemaster_join_arena_with_catalog_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_battlemaster_join_arena_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_battlemaster_join_skirmish",
           "visibility": "pub",
           "signature": "async fn handle_battlemaster_join_skirmish (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -2561,6 +2531,22 @@
           "name": "handle_battlemaster_join",
           "visibility": "pub",
           "signature": "async fn handle_battlemaster_join (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battlemaster_join_arena",
+          "visibility": "pub",
+          "signature": "async fn handle_battlemaster_join_arena (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -17819,21 +17805,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battlemaster_join_arena_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battlemaster_join_arena_like_cpp (& mut self , battlemaster_lists : & BattlemasterListStore , team_size_index : u8 , roles : u8 ,) -> bool",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -58350,81 +58321,6 @@
           "package": "wow-world",
           "module": "crate::session::battleground_adapter",
           "source": "crates/wow-world/src/session/battleground_adapter.rs",
-          "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "member",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "fingerprint": "self . core . directory . group_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::battleground_adapter",
-          "source": "crates/wow-world/src/session/battleground_adapter.rs",
-          "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_guid",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "fingerprint": "group_guid:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::battleground_adapter",
-          "source": "crates/wow-world/src/session/battleground_adapter.rs",
-          "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "group_registry",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "fingerprint": "group_registry:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::battleground_adapter",
-          "source": "crates/wow-world/src/session/battleground_adapter.rs",
-          "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "local_alias",
-          "symbol": "player_guid",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "fingerprint": "player_guid:GroupRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::battleground_adapter",
-          "source": "crates/wow-world/src/session/battleground_adapter.rs",
-          "enclosing": "impl WorldSession::battlemaster_join_arena_like_cpp",
-          "registry": "GroupRegistry",
-          "operation": "get",
-          "symbol": "get",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg_attr (not (test) , allow (unused_variables))"
-          ],
-          "fingerprint": "get(& group_guid)",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::battleground_adapter",
-          "source": "crates/wow-world/src/session/battleground_adapter.rs",
           "enclosing": "impl WorldSession::battlemaster_join_skirmish_like_cpp",
           "registry": "GroupRegistry",
           "operation": "member",
@@ -60054,6 +59950,81 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::battleground_handlers",
+          "source": "crates/wow-world-application/src/battleground_handlers.rs",
+          "enclosing": "impl BattlegroundHandlerCxLikeCpp::battlemaster_join_arena_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "member",
+          "symbol": "group_registry",
+          "visibility": "",
+          "cfg": [
+            "cfg_attr (not (any (test , feature = \"test-fixtures\")) , allow (unused_variables))"
+          ],
+          "fingerprint": "self . hub . core . directory . group_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::battleground_handlers",
+          "source": "crates/wow-world-application/src/battleground_handlers.rs",
+          "enclosing": "impl BattlegroundHandlerCxLikeCpp::battlemaster_join_arena_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_guid",
+          "visibility": "",
+          "cfg": [
+            "cfg_attr (not (any (test , feature = \"test-fixtures\")) , allow (unused_variables))"
+          ],
+          "fingerprint": "group_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::battleground_handlers",
+          "source": "crates/wow-world-application/src/battleground_handlers.rs",
+          "enclosing": "impl BattlegroundHandlerCxLikeCpp::battlemaster_join_arena_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "group_registry",
+          "visibility": "",
+          "cfg": [
+            "cfg_attr (not (any (test , feature = \"test-fixtures\")) , allow (unused_variables))"
+          ],
+          "fingerprint": "group_registry:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::battleground_handlers",
+          "source": "crates/wow-world-application/src/battleground_handlers.rs",
+          "enclosing": "impl BattlegroundHandlerCxLikeCpp::battlemaster_join_arena_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "local_alias",
+          "symbol": "player_guid",
+          "visibility": "",
+          "cfg": [
+            "cfg_attr (not (any (test , feature = \"test-fixtures\")) , allow (unused_variables))"
+          ],
+          "fingerprint": "player_guid:GroupRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::battleground_handlers",
+          "source": "crates/wow-world-application/src/battleground_handlers.rs",
+          "enclosing": "impl BattlegroundHandlerCxLikeCpp::battlemaster_join_arena_like_cpp",
+          "registry": "GroupRegistry",
+          "operation": "get",
+          "symbol": "get",
+          "visibility": "",
+          "cfg": [
+            "cfg_attr (not (any (test , feature = \"test-fixtures\")) , allow (unused_variables))"
+          ],
+          "fingerprint": "get(& group_guid)",
           "count": 1
         },
         {

@@ -159,14 +159,20 @@ pub(crate) fn split_character_handler_mut(
     )
 }
 
-/// World-entity and instance state plus the mutable hub, from disjoint fields:
-/// the participants of the application battleground context.
+/// World-entity, instance and social state plus the mutable hub, from disjoint
+/// fields: the participants of the application battleground context.
 pub(crate) fn split_battleground_mut(
     s: &mut WorldSession,
-) -> (&WorldEntitiesState, &mut InstanceState, HubMut<'_>) {
+) -> (
+    &WorldEntitiesState,
+    &mut InstanceState,
+    &SessionSocialLimits,
+    HubMut<'_>,
+) {
     (
         &s.world_entities,
         &mut s.instances,
+        &s.social,
         HubMut {
             core: &mut s.core,
             catalogs: &s.catalogs,

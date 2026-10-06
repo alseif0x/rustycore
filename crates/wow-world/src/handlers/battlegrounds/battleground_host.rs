@@ -16,8 +16,8 @@ impl BattlegroundHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSess
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> BattlegroundHandlerCxLikeCpp<'a> {
-        let (world_entities, instances, hub) = crate::session::split_battleground_mut(self);
-        BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances)
+        let (world_entities, instances, social, hub) = crate::session::split_battleground_mut(self);
+        BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances, social, cfg!(test))
     }
 
     fn sync_player_registry_state_after_pvp_change_like_cpp(&mut self) {
