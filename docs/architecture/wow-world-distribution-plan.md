@@ -6066,6 +6066,26 @@ errores; composer contracts **8/8**; suite del tool **443/443**; `session-owners
 
 **No validado aún.** Sin campaña `final` nueva; quedan **169 registros literales**.
 
+#### F5: loot, corte de especialización (1 opcode) — 2026-10-05, `2c70a2352..HEAD`
+
+Nuevo dueño `ApplicationLoot` (`crates/wow-world-application/src/loot_handlers.rs`, contexto
+`{ hub, loot }`): `SetLootSpecialization` con las compuertas C++ (`SpecID == 0` limpia; un valor no
+cero requiere fila en `sChrSpecializationStore` —catálogo de Core vía hub— y coincidencia de
+`ClassID` con la clase del jugador) y la transición en el dueño de loot. Es la primera pieza del
+dueño App de loot, que irá recibiendo el resto de la familia cuando se muevan sus orquestaciones de
+item/dinero/criatura. `loot/handlers.rs` queda con **6 registros literales**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**316 de `loot`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (200 owners / 3.151 items / 711 filas); `check_architecture.py check`
+**PASS** (3.400 ficheros / 102 techos); hotspots reconciliados (`session/mod.rs`: producción 61.212,
+test 138.194, total 199.406; `handlers/loot/mod.rs`: test 17.351; `world-server/lib.rs`: producción
+31.816, total 60.527). R1 v2: `S = 73.231`, `G_move = 113.511`, requisito `36.318,45` →
+**presupuesto 36.319**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **168 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

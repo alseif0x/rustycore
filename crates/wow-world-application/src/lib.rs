@@ -16,6 +16,7 @@ mod dungeon_finding_handlers;
 mod gameobject_handlers;
 mod group_handlers;
 mod instances;
+mod loot_handlers;
 mod loot_release;
 mod player_conditions;
 mod player_handlers;
@@ -119,6 +120,9 @@ pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
 pub use inventory_valuation::{
     can_equip_inventory_item_like_cpp, can_equip_unique_item_like_cpp,
     can_use_inventory_item_represented_with_loading_like_cpp,
+};
+pub use loot_handlers::{
+    LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, register_loot_handlers_like_cpp,
 };
 pub use player_conditions::{
     PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,

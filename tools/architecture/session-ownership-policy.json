@@ -775,6 +775,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::loot::handlers::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::loot::money",
           "trait_path": null,
           "cfg": [],
@@ -1289,6 +1297,12 @@
         {
           "module": "crate::session",
           "trait_path": "InventoryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -8628,20 +8642,6 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_loot_specialization",
-          "visibility": "pub",
-          "signature": "async fn handle_set_loot_specialization (& mut self , packet : SetLootSpecialization)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::loot::handlers::item",
           "trait_path": null,
           "kind": "method",
@@ -8743,6 +8743,37 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_loot_specialization",
+          "visibility": "pub",
+          "signature": "async fn handle_set_loot_specialization (& mut self , packet : SetLootSpecialization)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "loot_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_test_cx_like_cpp (& mut self) -> LootHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -44804,6 +44835,19 @@
           "name": "item_text_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn item_text_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> LootHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

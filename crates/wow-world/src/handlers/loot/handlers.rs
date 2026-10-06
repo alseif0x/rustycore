@@ -127,53 +127,8 @@ crate::session::registry::register_packet_handler_like_cpp! {
 // CMSG_CLIENT_PORT_GRAVEYARD (empty). Rust keeps one enum variant and splits by
 // payload length until the real opcode table is resolved, so this one
 // registration carries all five payload shapes.
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetLootSpecialization,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_loot_specialization",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                if session
-                    .try_handle_cancel_mod_speed_no_control_auras_like_cpp(pkt.clone())
-                    .await
-                {
-                    return;
-                }
-                if session
-                    .try_handle_client_port_graveyard_like_cpp(pkt.clone())
-                    .await
-                {
-                    return;
-                }
-                if pkt.remaining() == 1 {
-                    session.handle_clear_raid_marker(pkt).await;
-                } else if pkt.remaining() == 4 {
-                    match wow_packet::packets::loot::SetLootSpecialization::read(&mut pkt) {
-                        Ok(set_loot_specialization) => {
-                            session
-                                .handle_set_loot_specialization(set_loot_specialization)
-                                .await;
-                        }
-                        Err(e) => tracing::warn!("Failed to read SetLootSpecialization: {e}"),
-                    }
-                } else if pkt.remaining() == 9 {
-                    match wow_packet::packets::misc::SetSavedInstanceExtend::read(&mut pkt) {
-                        Ok(query) => session.handle_set_saved_instance_extend(query).await,
-                        Err(e) => tracing::warn!("Failed to read SetSavedInstanceExtend: {e}"),
-                    }
-                } else {
-                    tracing::warn!(
-                        opcode = ?ClientOpcodes::SetLootSpecialization,
-                        remaining = pkt.remaining(),
-                        "unresolved 0xBADD payload shape"
-                    );
-                }
-            })
-        },
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 impl WorldSession {
     #[cfg(test)]
@@ -965,32 +920,5 @@ impl WorldSession {
         );
 
         let _ = command.result_tx.send(result);
-    }
-
-    /// CMSG_SET_LOOT_SPECIALIZATION — select or clear the loot specialization.
-    ///
-    /// C++ accepts non-zero values only when `sChrSpecializationStore` has the
-    /// row and its `ClassID` matches the player's class; `SpecID == 0` clears.
-    pub async fn handle_set_loot_specialization(&mut self, packet: SetLootSpecialization) {
-        if self.player_guid().is_none() {
-            return;
-        }
-
-        if packet.spec_id == 0 {
-            self.set_loot_specialization_id_like_cpp(0);
-            return;
-        }
-
-        let Some(store) = self.chr_specialization_store() else {
-            return;
-        };
-        let Some(spec) = store.get(packet.spec_id) else {
-            return;
-        };
-        if spec.class_id != crate::session::hub_ref(self).player_class_like_cpp() {
-            return;
-        }
-
-        self.set_loot_specialization_id_like_cpp(packet.spec_id);
     }
 }

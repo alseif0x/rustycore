@@ -641,6 +641,27 @@ pub(crate) const VEHICLE_REGISTRAR: DirectRegistrarContract = DirectRegistrarCon
     facades: VEHICLE_FACADES,
 };
 
+const LOOT_ROOT_EXPORTS: &[&str] = &[
+    "LootHandlerCxLikeCpp",
+    "LootHandlerHostLikeCpp",
+    "register_loot_handlers_like_cpp",
+];
+const LOOT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "loot_handlers",
+    exports: LOOT_ROOT_EXPORTS,
+}];
+
+pub(crate) const LOOT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationLoot",
+    package: "wow-world-application",
+    module: "crate::loot_handlers",
+    registrar: "register_loot_handlers_like_cpp",
+    host_trait: "LootHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: LOOT_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -670,6 +691,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     DUNGEON_FINDING_REGISTRAR,
     GAMEOBJECT_REGISTRAR,
     VEHICLE_REGISTRAR,
+    LOOT_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

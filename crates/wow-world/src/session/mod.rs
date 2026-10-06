@@ -29,6 +29,7 @@ mod gameobject_handler_contexts;
 mod group_application_handler_contexts;
 mod group_handler_contexts;
 mod guild_handler_contexts;
+mod loot_handler_contexts;
 mod player_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
@@ -44,9 +45,7 @@ mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
 use legacy_runtime::*;
-// The legacy tick entry points are called from world-server as
-// `wow_world::session::run_legacy_*`. `legacy_runtime` is private, so the
-// original external path is preserved by re-exporting them here.
+// The legacy tick entry points are called from world-server as `wow_world::session::run_legacy_*`; `legacy_runtime` is private, so the original external path is preserved by re-exporting them here.
 pub use legacy_runtime::{
     run_legacy_creature_aggro_tick_once_like_cpp,
     run_legacy_creature_aggro_tick_once_with_config_like_cpp,
