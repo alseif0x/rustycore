@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 0,
-    "measured_requirement": 0,
-    "recorded_at_revision": "a08b1f10f21d4db7ee63b20bfa1495e7568e5cd5",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 62b419b10, the #1276 integration): S = -95, G_move = 0, ratio and slack credits = 200.25, so the requirement is -200.25 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 60,
+    "measured_requirement": 60,
+    "recorded_at_revision": "f820bb56fdbebe5c822e0620ce11b5f04915407d",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 3c42b9f00, the #1277 integration): S = 460, G_move = 843, ratio and slack credits = 783.00, so the requirement is 60.00 and the reviewed budget above is 60. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -572,6 +572,20 @@
         "destination_growth": 0,
         "new_code": 0,
         "note": "The 33-entry ordered composition existed verbatim in wow-world's fixture builder and world-server's production composer. It now lives once in the crate-level wow-world module handler_composition; the fixture builder and world-server consume it, the session aggregate returns to its tightened ceiling (test/total -68) and world-server falls 139 lines. No registrar order, set or metadata changed."
+      },
+      {
+        "phase": "Base reset at the #1277 integration (3c42b9f00)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1277 integrated the single composition authority; the merge-base moved to 3c42b9f00."
+      },
+      {
+        "phase": "F5 ApplicationBattlePet owner (3c42b9f00..HEAD)",
+        "shrink": 460,
+        "destination_growth": 843,
+        "new_code": 60,
+        "note": "The eight C++ BattlePetHandler.cpp handlers move to a new application owner with their private chain and the four shared helpers; the session tree loses 240 production lines and world-server is untouched, which is the first delivery that exercises the single-composition authority."
       }
     ],
     "areas": [
@@ -582,7 +596,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 0,
+        "lines": 843,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {

@@ -6815,6 +6815,33 @@ Desglose medido: arquitectura con self-test 129 s, ownership 50 s, `cargo check 
 disponibles de 23 GB (el valor más alto de la sesión; conviene vigilarlo si se repite). **El efecto prometido —dueño
 nuevo por debajo de 600 s— sigue sin medir** y se comprobará en la próxima entrega que cree uno.
 
+#### F5: dueño nuevo `ApplicationBattlePet` — primera entrega tras la autoridad única — 2026-10-06, `3c42b9f00..f820bb56f`
+
+**Integración previa:** #1277 dejó una sola autoridad de composición (`3c42b9f00`, `final` verde en 824 s por ser el corte que
+tocaba `world-server` y el tool a la vez).
+
+**Alcance por evidencia C++.** Los ocho handlers de `BattlePetHandler.cpp` (`a5f8da2e`): `HandleBattlePetRequestJournal`,
+`RequestJournalLock`, `SetBattleSlot`, `QueryBattlePetName`, `SetFlags`, `ClearFanfare`, `Summon` y `UpdateNotify`. Se
+**excluyen** deliberadamente `DismissCritter` (su handler C++ está en `PetHandler.cpp`, familia de mascotas de cazador) y
+`BattlePetUpdateDisplayNotify` (opcode que el 3.4.3 deja `STATUS_UNHANDLED`; sigue bajo la decisión de divergencias). Ambos
+quedan intactos. Dueño nuevo `ApplicationBattlePet` (`crate::battle_pet_handlers`) con contexto propio
+(hub + lifecycle + flag de test del host), sus cinco funciones de cadena y los cuatro helpers compartidos implementados **una
+vez** en App; tres de ellos conservan envoltorio en World por sus llamadores reales (`spell_effects/checks.rs`,
+`handlers/character/world_entry.rs`) y el cuarto no lo tiene porque habría sido código muerto.
+
+**Fidelidad revisada por el coordinador.** Diff por tokens del handler más largo: solo las adaptaciones de acceso previstas.
+Las siete conversiones `cfg(test)`/`cfg(not(test))` mantienen las ramas exactas (canónica primero; con el flag del host se
+ejecuta la rama de test y se retorna; si no, la de producción). Registro, metadatos, orden de gates y textos de log sin
+cambios; los dos opcodes excluidos conservan registro y cuerpo.
+
+**Efecto medido.** El árbol de sesión pierde **240 líneas de producción** (59.964 → 59.724) y 227 en total; registros
+literales en `wow-world`: **106 → 98**. La lista de composición se editó **una sola vez** (`handler_composition.rs`) y
+**`crates/world-server/` no se tocó** — verificado por el coordinador con `git diff` vacío —, que es justo el ahorro que
+perseguía el corte anterior. Ownership PASS (208 dueños / 3.127 ítems, delta revisado: −8 handlers de producción, +1 método
+del host, +9 shims de test); arquitectura PASS con ambos techos de sesión apretados a los valores vivos; suite del tool
+**446/446** (con la baseline reimpresa tras revisar el delta). R1 con presupuesto 0.
+**Frontera:** la campaña `final` de esta entrega es la primera que mide el objetivo (1) con dueño nuevo; se registra abajo.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

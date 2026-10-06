@@ -947,6 +947,20 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::pets::battle_pet_host",
+          "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::progression::session_shims",
           "trait_path": null,
           "cfg": [
@@ -10834,20 +10848,6 @@
           "module": "crate::handlers::pets",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_battle_pet_clear_fanfare",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_clear_fanfare (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_battle_pet_delete_pet_represented_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_battle_pet_delete_pet_represented_like_cpp (& mut self , pkt : wow_packet :: WorldPacket ,)",
@@ -10876,93 +10876,9 @@
           "module": "crate::handlers::pets",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_battle_pet_request_journal",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_request_journal (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battle_pet_request_journal_lock",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_request_journal_lock (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battle_pet_set_battle_slot",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_set_battle_slot (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battle_pet_set_flags",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_set_flags (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battle_pet_summon",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_summon (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_battle_pet_update_display_notify",
           "visibility": "pub",
           "signature": "async fn handle_battle_pet_update_display_notify (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battle_pet_update_notify",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_update_notify (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -11001,14 +10917,142 @@
           ]
         },
         {
-          "module": "crate::handlers::pets",
+          "module": "crate::handlers::pets::battle_pet_host",
+          "trait_path": "BattlePetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "battle_pet_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn battle_pet_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> BattlePetHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_clear_fanfare",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_clear_fanfare (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_request_journal",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_request_journal (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_request_journal_lock",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_request_journal_lock (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_set_battle_slot",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_set_battle_slot (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_set_flags",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_set_flags (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_summon",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_summon (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battle_pet_update_notify",
+          "visibility": "pub",
+          "signature": "async fn handle_battle_pet_update_notify (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::pets::test_shims",
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_battle_pet_name",
           "visibility": "pub",
-          "signature": "async fn handle_query_battle_pet_name (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "async fn handle_query_battle_pet_name (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -17801,6 +17845,21 @@
           "name": "battle_pet_unlock_slot_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_unlock_slot_like_cpp (& mut self , slot : u8) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "battle_pet_update_notify_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn battle_pet_update_notify_like_cpp (& mut self , pet_guid : ObjectGuid) -> bool",
           "cfg": [
             "cfg (test)"
           ],
