@@ -6543,7 +6543,11 @@ registro); suite del tool **443/443**; ownership `--syntax-only` **PASS** con de
 producción, entran 11 shims de test y el método del host; 3.137 → **3.128** ítems); arquitectura **PASS**, con el techo
 del agregado de sesión ajustado a su valor vivo (producción 60.371 → 60.168) y +4 líneas del composer de
 `world-server`; R1 `S = 530`, `G_move = 863`, presupuesto revisado **7**. Registros literales en `wow-world`:
-**130 → 119**. Pendiente: `final` sobre el candidato commiteado.
+**130 → 119**.
+
+**Aceptación `final`:** sobre **`8e6d525bd`**, **verde en 420 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T165833.862357Z-1138426-final.json`;
+pico de 12,1 GB usados, mínimo de 11,9 GB disponibles).
 
 ## 9. Herramientas
 
