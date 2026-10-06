@@ -9,74 +9,9 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
-use wow_packet::packets::gossip::Hello;
 use wow_packet::packets::misc::{
-    AcceptWargameInvite, BattlefieldLeave, BattlefieldListRequest, BattlefieldPort,
-    BattlemasterJoin, BattlemasterJoinArena, BattlemasterJoinSkirmish, RatedPvpInfo,
-    RequestBattlefieldStatus, SetPvp, TogglePvp,
+    AcceptWargameInvite, BattlemasterJoinArena, BattlemasterJoinSkirmish,
 };
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestBattlefieldStatus,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_battlefield_status",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_battlefield_status(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlemasterHello,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlemaster_hello",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battlemaster_hello(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlefieldList,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlefield_list",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_battlefield_list_with_catalog_like_cpp(
-                        catalogs.battlemaster_lists.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlemasterJoin,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlemaster_join",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_battlemaster_join_with_catalog_like_cpp(
-                        catalogs.battlemaster_lists.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -129,98 +64,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 }
 
 impl crate::session::WorldSession {
-    pub async fn handle_request_battlefield_status(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = RequestBattlefieldStatus::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "RequestBattlefieldStatus parse failed: {error}"
-            );
-            return;
-        }
-
-        // C++ iterates PLAYER_MAX_BATTLEGROUND_QUEUES and sends active,
-        // confirmation, or queued status only for non-empty queue slots.
-        // Rust has no represented battleground queue state in this handler yet,
-        // so the no-queue branch is silent.
-    }
-
-    /// CMSG_BATTLEMASTER_HELLO — player asks a battlemaster NPC for its queue list.
-    /// C++ ref: `WorldSession::HandleBattlemasterHelloOpcode`.
-
-    pub async fn handle_battlemaster_hello(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let hello = match Hello::read(&mut pkt) {
-            Ok(hello) => hello,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlemasterHello parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        // C++ returns silently when the target cannot be interacted with as a
-        // battlemaster. The accepted branch records the list intent until
-        // BattlegroundMgr::SendBattlegroundList is live in Rust.
-        let _accepted = crate::session::hub_mut(self).battlemaster_hello_like_cpp(hello.unit);
-    }
-
-    /// CMSG_BATTLEFIELD_LIST — player asks for the queue list of a battleground type.
-    /// C++ ref: `WorldSession::HandleBattlefieldListOpcode`.
-
-    pub(crate) async fn handle_battlefield_list_with_catalog_like_cpp(
-        &mut self,
-        battlemaster_lists: &wow_data::BattlemasterListStore,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
-        let request = match BattlefieldListRequest::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlefieldList parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        // C++ returns silently when sBattlemasterListStore has no ListID row.
-        // The accepted branch records the SendBattlegroundList intent until
-        // BattlegroundMgr owns live queue/list packets in Rust.
-        let _accepted = crate::session::hub_mut(self)
-            .battlefield_list_like_cpp(battlemaster_lists, request.list_id);
-    }
-
-    /// CMSG_BATTLEMASTER_JOIN — player asks to join a battleground queue.
-    /// C++ ref: `WorldSession::HandleBattlemasterJoinOpcode`.
-
-    pub(crate) async fn handle_battlemaster_join_with_catalog_like_cpp(
-        &mut self,
-        battlemaster_lists: &wow_data::BattlemasterListStore,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
-        let join = match BattlemasterJoin::read(&mut pkt) {
-            Ok(join) => join,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlemasterJoin parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        // C++ returns silently for missing/invalid queues and early queue gates.
-        // The accepted branch records the queue intent until BattlegroundQueue
-        // and BattlegroundMgr queue-status packets are live in Rust.
-        let _accepted = crate::session::hub_mut(self).battlemaster_join_like_cpp(
-            battlemaster_lists,
-            &join.queue_ids,
-            join.roles,
-            join.blacklist_map,
-        );
-    }
-
     /// CMSG_BATTLEMASTER_JOIN_ARENA — player asks to join a rated arena queue.
     /// C++ ref: `WorldSession::HandleBattlemasterJoinArena`.
 
@@ -291,20 +134,6 @@ impl crate::session::WorldSession {
             .unwrap_or_else(|| {
                 std::sync::Arc::new(wow_data::BattlemasterListStore::from_entries([]))
             })
-    }
-
-    #[cfg(test)]
-    pub async fn handle_battlefield_list(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
-        self.handle_battlefield_list_with_catalog_like_cpp(catalog.as_ref(), pkt)
-            .await;
-    }
-
-    #[cfg(test)]
-    pub async fn handle_battlemaster_join(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
-        self.handle_battlemaster_join_with_catalog_like_cpp(catalog.as_ref(), pkt)
-            .await;
     }
 
     #[cfg(test)]

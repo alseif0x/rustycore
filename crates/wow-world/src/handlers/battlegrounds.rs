@@ -8,6 +8,7 @@
 //! The arena-team family moved to `wow-world-social` in #1263 F5; the
 //! battleground family stays here until its turn.
 
+mod battleground_host;
 mod pvp;
 
 #[cfg(test)]

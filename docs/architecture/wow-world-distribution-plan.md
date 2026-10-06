@@ -6660,6 +6660,37 @@ nuevo, el corte toca a la vez App, el composer de `world-server` y el tool de co
 composer monte los registradores App a través de una única función de composición de App, de modo que un dueño nuevo
 no edite `world-server`, sin debilitar el contrato de orden que hoy verifica el tool.
 
+#### F5: colas de batalla (status, hello, list, join) → `ApplicationBattleground` — 2026-10-06, `411dada0f..HEAD`
+
+**Integración previa:** #1273 integró el dueño `ApplicationCharacter` (`411dada0f`; `final` verde en 810 s, por encima
+del objetivo, causa registrada). La propuesta de un único composer de App que evite editar `world-server` al crear un
+dueño queda pendiente de decisión del usuario (toca un contrato del tool); mientras, las entregas amplían dueños
+existentes, que no tocan `world-server` ni el tool.
+
+`RequestBattlefieldStatus`, `BattlemasterHello`, `BattlefieldList` y `BattlemasterJoin` (C++ `BattleGroundHandler.cpp`)
+pasan a `ApplicationBattleground` con cuerpos, logs, comentarios C++ y metadatos idénticos (`LoggedIn`/`ThreadUnsafe`);
+sus transiciones ya eran del hub. Para que los thunks genéricos obtengan `BattlemasterList.db2`, el trait del host gana
+una función asociada `battlemaster_lists_like_cpp(catalogs)` que lo selecciona de los catálogos de petición (igual que
+hacía el closure de registro de World). Los shims de test despachan por el registro con los catálogos de prueba de la
+propia sesión, que ya contienen ese store. El host del dueño sale de `session/` a
+`handlers/battlegrounds/battleground_host.rs` (`session/mod.rs` 1.045 → 1.044 líneas). Arena, escaramuza y wargame se
+quedan mientras dependan del grupo resuelto y de fixtures del shell. Se limpian los imports sin uso de `pvp.rs` y del
+módulo App.
+
+**Evidencia enfocada:** `cargo check --all-targets` de App, `wow-world` (con y sin `test-fixtures`) y `world-server`
+sin errores ni avisos en los ficheros tocados; `wow-world` `--lib` **3.634 ✓**; ownership **PASS** (salen 7 ítems de
+producción, entran 4 shims de test y la función del host: 3.127 → 3.126); arquitectura **PASS** con el techo del
+agregado de sesión ajustado a su valor vivo (producción 60.096 → 60.069); R1 `S = 134`, `G_move = 192`, presupuesto
+0. Registros literales en `wow-world`: **112 → 108**.
+
+**Aceptación `final`:** sobre **`25d96dea9`**, **verde en 207 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T200333.883466Z-1231359-final.json`).
+Vuelve por debajo de 600 s: al ampliar un dueño existente no se toca `world-server` ni el tool, así que el runner no
+enruta su suite ni recompila el composer. Cobertura del manifiesto: `cargo check --tests` de `world-modules`,
+`world-server`, `wow-world` y App (58 s) y suites `--lib` completas de `wow-world` y App (15 s), más política de
+arquitectura (60 s), ownership por sintaxis (53 s) y R1 (7 s). La suite del tool de contratos se ejecutó aparte
+(443/443) porque este corte modifica fuentes que el tool lee con `include_str!`, aunque no el crate del tool.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
