@@ -6840,7 +6840,22 @@ literales en `wow-world`: **106 → 98**. La lista de composición se editó **u
 perseguía el corte anterior. Ownership PASS (208 dueños / 3.127 ítems, delta revisado: −8 handlers de producción, +1 método
 del host, +9 shims de test); arquitectura PASS con ambos techos de sesión apretados a los valores vivos; suite del tool
 **446/446** (con la baseline reimpresa tras revisar el delta). R1 con presupuesto 0.
-**Frontera:** la campaña `final` de esta entrega es la primera que mide el objetivo (1) con dueño nuevo; se registra abajo.
+**Aceptación `final` y medición del objetivo (1):** sobre **`efb6d42bf`**, **verde en 616 s** (`dirty: false`;
+verificada con `--require-profile final`; manifiesto
+`target/validation-v2/manifests/20261006T231833.700700Z-1291417-final.json`). **El criterio ≤600 s sigue sin cumplirse en
+una entrega con dueño nuevo: 616 s, 16 s por encima.**
+
+Pero el ahorro prometido **aparece donde se predijo**: las suites `--lib` caen de 274 s a **16,5 s** porque
+`world-server` no se toca (ahorro ≈258 s), y el total baja de **810 s a 616 s (−194 s, −24 %)** para el mismo tipo de
+entrega. El resto se reparte así: `cargo check --tests` aguas abajo 281 s (App cambia ⇒ se recompilan los targets de test
+de `world-server` y `world-modules`), suite del tool 142 s (el contrato nuevo obliga a recompilar el checker), política de
+arquitectura con self-test 105 s, ownership 50 s. Memoria: pico de 15,0 GB usados y mínimo de 9,0 GB disponibles.
+
+**Siguiente palanca, con dos candidatos:** (a) medir la campaña con 3 jobs de Cargo (el margen de memoria lo permite:
+9 GB libres de 23) para atacar los 281 s + 142 s; (b) hacer que el checker descubra la lista de dueños desde la propia
+autoridad de composición y la política de módulos en vez de declararla en su código, en cuyo caso añadir un dueño dejaría
+de recompilar el tool (≈142 s) y de paso eliminaría la edición duplicada del contrato. Ninguna de las dos se ha ejecutado
+todavía.
 
 ## 9. Herramientas
 
