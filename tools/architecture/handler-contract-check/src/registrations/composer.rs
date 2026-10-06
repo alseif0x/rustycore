@@ -28,71 +28,30 @@ fn path_is(path: &syn::Path, expected: &[&str]) -> bool {
             .all(|(segment, expected)| segment.ident.to_string() == *expected)
 }
 
-fn collect_use_tree(
-    tree: &UseTree,
-    prefix: &mut Vec<String>,
-    leaves: &mut Vec<(Vec<String>, String, bool)>,
-) {
-    match tree {
-        UseTree::Path(path) => {
-            prefix.push(path.ident.to_string());
-            collect_use_tree(&path.tree, prefix, leaves);
-            prefix.pop();
+/// The ordered authority defines the legacy registrar in its own module, so any
+/// import of that name is either a duplicate definition or an alias that could
+/// redirect the ordered legacy registration.
+fn has_no_legacy_import(items: &[Item]) -> bool {
+    !items.iter().any(|item| match item {
+        Item::Use(item_use) => {
+            tree_mentions(&item_use.tree, "register_remaining_handlers_like_cpp")
         }
-        UseTree::Name(name) => {
-            let mut path = prefix.clone();
-            path.push(name.ident.to_string());
-            leaves.push((path, name.ident.to_string(), false));
-        }
-        UseTree::Rename(rename) => {
-            let mut path = prefix.clone();
-            path.push(rename.ident.to_string());
-            leaves.push((path, rename.rename.to_string(), true));
-        }
-        UseTree::Group(group) => {
-            for item in &group.items {
-                collect_use_tree(item, prefix, leaves);
-            }
-        }
-        UseTree::Glob(_) => {}
-    }
+        _ => false,
+    })
 }
 
-fn has_exact_legacy_import(items: &[Item]) -> bool {
-    let mut matching = 0usize;
-    let mut invalid = false;
-    for item in items {
-        let Item::Use(item_use) = item else {
-            continue;
-        };
-        let mut leaves = Vec::new();
-        collect_use_tree(&item_use.tree, &mut Vec::new(), &mut leaves);
-        for (path, local, renamed) in leaves {
-            if path
-                .last()
-                .is_none_or(|name| name != "register_remaining_handlers_like_cpp")
-            {
-                continue;
-            }
-            matching += 1;
-            let expected = [
-                "wow_world",
-                "session",
-                "registry",
-                "register_remaining_handlers_like_cpp",
-            ];
-            invalid |= path.len() != expected.len()
-                || !path
-                    .iter()
-                    .zip(expected)
-                    .all(|(actual, expected)| actual == expected)
-                || local != "register_remaining_handlers_like_cpp"
-                || renamed
-                || !item_use.attrs.is_empty()
-                || !matches!(&item_use.vis, Visibility::Inherited);
+/// The flat path of an ordinary `a::b::c` use tree; groups, renames and globs
+/// are not an exact path.
+fn use_tree_path(tree: &UseTree) -> Option<Vec<String>> {
+    match tree {
+        UseTree::Path(path) => {
+            let mut prefix = vec![path.ident.to_string()];
+            prefix.extend(use_tree_path(&path.tree)?);
+            Some(prefix)
         }
+        UseTree::Name(name) => Some(vec![name.ident.to_string()]),
+        UseTree::Rename(_) | UseTree::Group(_) | UseTree::Glob(_) => None,
     }
-    matching == 1 && !invalid
 }
 
 fn is_plain_path(ty: &Type, expected: &[&str]) -> bool {
@@ -253,11 +212,7 @@ fn try_call(statement: &Stmt) -> Option<&syn::ExprCall> {
     Some(call)
 }
 
-fn is_domain_registration(
-    statement: &Stmt,
-    allow_inferred_types: bool,
-    contract: DirectRegistrarContract,
-) -> bool {
+fn is_domain_registration(statement: &Stmt, contract: DirectRegistrarContract) -> bool {
     let Some(call) = try_call(statement) else {
         return false;
     };
@@ -277,15 +232,6 @@ fn is_domain_registration(
         || !builder_mut_ref(&call.args[0])
     {
         return false;
-    }
-    if allow_inferred_types {
-        return matches!(&registrar.arguments, syn::PathArguments::None)
-            && function
-                .path
-                .segments
-                .iter()
-                .take(function.path.segments.len() - 1)
-                .all(|segment| matches!(&segment.arguments, syn::PathArguments::None));
     }
     let syn::PathArguments::AngleBracketed(arguments) = &registrar.arguments else {
         return false;
@@ -315,8 +261,13 @@ fn is_legacy_registration(statement: &Stmt) -> bool {
         && builder_mut_ref(&call.args[0])
 }
 
-fn fixture_expect_call(statement: &Stmt, expected_path: &[&str], domain: bool) -> bool {
-    let Stmt::Expr(expression, Some(_)) = statement else {
+/// The fixture dispatch builder must not repeat the ordered list: it delegates
+/// to the single authority and keeps the legacy panic-on-duplicate contract.
+fn is_fixture_delegation(statements: &[Stmt]) -> bool {
+    let [statement] = statements else {
+        return false;
+    };
+    let Stmt::Expr(expression, None) = statement else {
         return false;
     };
     let Expr::MethodCall(expect) = expression else {
@@ -332,32 +283,13 @@ fn fixture_expect_call(statement: &Stmt, expected_path: &[&str], domain: bool) -
     {
         return false;
     }
-    let Expr::Call(call) = &*expect.receiver else {
-        return false;
-    };
-    if !call.attrs.is_empty() {
-        return false;
-    }
-    let Expr::Path(path) = &*call.func else {
-        return false;
-    };
-    if !path.attrs.is_empty() {
-        return false;
-    }
-    if domain {
-        let Some(registrar) = path.path.segments.last() else {
-            return false;
-        };
-        if registrar.ident.to_string() != expected_path.last().copied().unwrap_or_default()
-            || !path_is(&path.path, expected_path)
-            || !matches!(&registrar.arguments, syn::PathArguments::None)
-        {
-            return false;
-        }
-    } else if !path_is(&path.path, expected_path) {
-        return false;
-    }
-    call.args.len() == 1 && builder_mut_ref(&call.args[0])
+    matches!(&*expect.receiver, Expr::Call(call)
+        if call.attrs.is_empty()
+            && call.args.is_empty()
+            && matches!(&*call.func, Expr::Path(path)
+                if path.attrs.is_empty()
+                    && path.qself.is_none()
+                    && path_is(&path.path, &["compose_packet_handlers_like_cpp"])))
 }
 
 fn is_builder_result(statement: &Stmt) -> bool {
@@ -405,102 +337,36 @@ fn is_builder_result(statement: &Stmt) -> bool {
             if path.attrs.is_empty() && path.path.is_ident("builder"))
 }
 
-fn is_fixture_builder_result(statement: &Stmt) -> bool {
-    let Stmt::Expr(expression, None) = statement else {
-        return false;
-    };
-    let Expr::Call(arc_call) = expression else {
-        return false;
-    };
-    if !arc_call.attrs.is_empty()
-        || !path_is(
-            match &*arc_call.func {
-                Expr::Path(path) if path.attrs.is_empty() => &path.path,
-                _ => return false,
-            },
-            &["Arc", "new"],
-        )
-        || arc_call.args.len() != 1
-    {
-        return false;
-    }
-    let Expr::MethodCall(build_call) = &arc_call.args[0] else {
-        return false;
-    };
-    build_call.method == "build"
-        && build_call.turbofish.is_none()
-        && build_call.args.is_empty()
-        && build_call.attrs.is_empty()
-        && matches!(&*build_call.receiver, Expr::Path(path)
-            if path.attrs.is_empty() && path.path.is_ident("builder"))
-}
-
-fn exact_body(function: &ItemFn, fixture: bool, contracts: &[DirectRegistrarContract]) -> bool {
+fn exact_body(function: &ItemFn, contracts: &[DirectRegistrarContract]) -> bool {
     let statements = &function.block.stmts;
     if statements.len() != contracts.len() + 3 || !is_builder_initializer(&statements[0]) {
         return false;
     }
     let legacy_registration = &statements[contracts.len() + 1];
-    let legacy_matches = if fixture {
-        fixture_expect_call(
-            legacy_registration,
-            &["register_remaining_handlers_like_cpp"],
-            false,
-        )
-    } else {
-        is_legacy_registration(legacy_registration)
-    };
-    if !legacy_matches {
+    if !is_legacy_registration(legacy_registration) {
         return false;
     }
-    let registrations_match = contracts.iter().enumerate().all(|(index, contract)| {
-        if fixture {
-            let crate_name = crate_ident(contract.package);
-            fixture_expect_call(
-                &statements[index + 1],
-                &[crate_name.as_str(), contract.registrar],
-                true,
-            )
-        } else {
-            is_domain_registration(&statements[index + 1], false, *contract)
-        }
-    });
-    registrations_match
-        && if fixture {
-            is_fixture_builder_result(&statements[contracts.len() + 2])
-        } else {
-            is_builder_result(&statements[contracts.len() + 2])
-        }
+    let registrations_match = contracts
+        .iter()
+        .enumerate()
+        .all(|(index, contract)| is_domain_registration(&statements[index + 1], *contract));
+    registrations_match && is_builder_result(&statements[contracts.len() + 2])
 }
 
-fn exact_function(function: &ItemFn, fixture: bool, contracts: &[DirectRegistrarContract]) -> bool {
-    let name = if fixture {
-        "build_dispatch_table"
-    } else {
-        "compose_packet_handlers_like_cpp"
-    };
+fn exact_function(function: &ItemFn, contracts: &[DirectRegistrarContract]) -> bool {
     let mut doc_count = 0usize;
-    let mut must_use_count = 0usize;
-    let mut cfg_count = 0usize;
     let attributes_valid = function.attrs.iter().all(|attribute| {
         if attribute.path().is_ident("doc") {
             doc_count += 1;
             true
-        } else if fixture && attribute.path().is_ident("must_use") {
-            must_use_count += 1;
-            matches!(&attribute.meta, Meta::Path(_))
-        } else if fixture && attribute.path().is_ident("cfg") {
-            cfg_count += 1;
-            exact_cfg_fixture(attribute)
         } else {
             false
         }
     });
-    function.sig.ident == name
+    function.sig.ident == "compose_packet_handlers_like_cpp"
         && matches!(&function.vis, Visibility::Public(_))
         && attributes_valid
         && doc_count > 0
-        && must_use_count == usize::from(fixture)
         && function.sig.generics.params.is_empty()
         && function.sig.inputs.is_empty()
         && function.sig.constness.is_none()
@@ -508,9 +374,140 @@ fn exact_function(function: &ItemFn, fixture: bool, contracts: &[DirectRegistrar
         && function.sig.unsafety.is_none()
         && function.sig.abi.is_none()
         && function.sig.variadic.is_none()
-        && cfg_count == usize::from(fixture)
-        && is_composer_output(&function.sig.output, fixture)
-        && exact_body(function, fixture, contracts)
+        && is_composer_output(&function.sig.output, false)
+        && exact_body(function, contracts)
+}
+
+/// The fixture dispatch table keeps its fixture gate, `#[must_use]` marker and
+/// `Arc<WorldPacketHandlerRegistry>` output, and delegates to the authority.
+fn exact_fixture_delegator(function: &ItemFn) -> bool {
+    let mut doc_count = 0usize;
+    let mut must_use_count = 0usize;
+    let mut cfg_count = 0usize;
+    let attributes_valid = function.attrs.iter().all(|attribute| {
+        if attribute.path().is_ident("doc") {
+            doc_count += 1;
+            true
+        } else if attribute.path().is_ident("must_use") {
+            must_use_count += 1;
+            matches!(&attribute.meta, Meta::Path(_))
+        } else if attribute.path().is_ident("cfg") {
+            cfg_count += 1;
+            exact_cfg_fixture(attribute)
+        } else {
+            false
+        }
+    });
+    function.sig.ident == "build_dispatch_table"
+        && matches!(&function.vis, Visibility::Public(_))
+        && attributes_valid
+        && doc_count > 0
+        && must_use_count == 1
+        && cfg_count == 1
+        && function.sig.generics.params.is_empty()
+        && function.sig.inputs.is_empty()
+        && function.sig.constness.is_none()
+        && function.sig.asyncness.is_none()
+        && function.sig.unsafety.is_none()
+        && function.sig.abi.is_none()
+        && function.sig.variadic.is_none()
+        && is_composer_output(&function.sig.output, true)
+        && is_fixture_delegation(&function.block.stmts)
+}
+
+/// The publish-only consumer either re-exports the authority under its own name
+/// or wraps it in a body that only calls the authority.
+fn exact_authority_reexport(items: &[Item]) -> bool {
+    let mut matching = 0usize;
+    for item in items {
+        let Item::Use(item_use) = item else {
+            continue;
+        };
+        if !tree_mentions(&item_use.tree, "compose_packet_handlers_like_cpp") {
+            continue;
+        }
+        matching += 1;
+        let expected = [
+            "wow_world",
+            "session",
+            "registry",
+            "compose_packet_handlers_like_cpp",
+        ];
+        let path_is_exact = use_tree_path(&item_use.tree).is_some_and(|path| {
+            path.len() == expected.len()
+                && path
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| actual == expected)
+        });
+        if !path_is_exact
+            || item_use.leading_colon.is_some()
+            || !item_use.attrs.is_empty()
+            || !matches!(&item_use.vis, Visibility::Public(_))
+        {
+            return false;
+        }
+    }
+    matching == 1
+}
+
+fn exact_server_delegator(function: &ItemFn) -> bool {
+    let attributes_are_doc = function.attrs.iter().all(|attribute| {
+        attribute.path().is_ident("doc") && matches!(&attribute.meta, Meta::NameValue(_))
+    });
+    let body_is_delegation = matches!(function.block.stmts.as_slice(), [Stmt::Expr(expression, None)]
+    if matches!(expression, Expr::Call(call)
+        if call.attrs.is_empty()
+            && call.args.is_empty()
+            && matches!(&*call.func, Expr::Path(path)
+                if path.attrs.is_empty()
+                    && path.qself.is_none()
+                    && path_is(&path.path, &[
+                        "wow_world",
+                        "session",
+                        "registry",
+                        "compose_packet_handlers_like_cpp",
+                    ]))));
+    function.sig.ident == "compose_packet_handlers_like_cpp"
+        && matches!(&function.vis, Visibility::Public(_))
+        && attributes_are_doc
+        && function.sig.generics.params.is_empty()
+        && function.sig.inputs.is_empty()
+        && function.sig.constness.is_none()
+        && function.sig.asyncness.is_none()
+        && function.sig.unsafety.is_none()
+        && function.sig.abi.is_none()
+        && function.sig.variadic.is_none()
+        && is_composer_output(&function.sig.output, false)
+        && body_is_delegation
+}
+
+/// `world-server` must publish the authority for process-wide consumers without
+/// holding a second ordered list or calling any contract registrar.
+fn validate_server_publication(mount: &WorkspaceSourceMount) -> Result<(), String> {
+    let syntax = syn::parse_file(&mount.source)
+        .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+    let functions: Vec<_> = syntax
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Fn(function) => Some(function),
+            _ => None,
+        })
+        .collect();
+    let publishes = match functions.as_slice() {
+        [] => exact_authority_reexport(&syntax.items),
+        [function] => exact_server_delegator(function),
+        _ => false,
+    };
+    if !publishes {
+        return Err(format!(
+            "{} must publish compose_packet_handlers_like_cpp by re-exporting or delegating to \
+             wow_world::session::registry::compose_packet_handlers_like_cpp, with no registrar list",
+            mount.source_path.display()
+        ));
+    }
+    Ok(())
 }
 
 #[derive(Default)]
@@ -891,18 +888,18 @@ pub(crate) fn validate_composition_mounts_with_contracts(
             ));
         }
 
+        let world_authority_context = mount.package == "wow-world"
+            && mount.contexts.len() == 1
+            && mount
+                .contexts
+                .iter()
+                .all(|context| context_is(context, "crate::session::registry", true));
         let server_context = mount.package == "world-server"
             && mount.contexts.len() == 1
             && mount
                 .contexts
                 .iter()
                 .all(|context| context_is(context, "crate::handler_registry", false));
-        let world_fixture_context = mount.package == "wow-world"
-            && mount.contexts.len() == 1
-            && mount
-                .contexts
-                .iter()
-                .all(|context| context_is(context, "crate::session::registry", true));
         let functions: Vec<_> = syntax
             .items
             .iter()
@@ -911,36 +908,43 @@ pub(crate) fn validate_composition_mounts_with_contracts(
                 _ => None,
             })
             .collect();
-        if server_context {
-            let composers: Vec<_> = functions
+        if world_authority_context {
+            let authorities: Vec<_> = functions
                 .iter()
                 .filter(|function| function.sig.ident == "compose_packet_handlers_like_cpp")
                 .collect();
-            if composers.len() != 1
-                || !has_exact_legacy_import(&syntax.items)
-                || !exact_function(composers[0], false, &contracts)
+            if authorities.len() != 1
+                || !has_no_legacy_import(&syntax.items)
+                || !exact_function(authorities[0], &contracts)
             {
                 return Err(format!(
-                    "{} must contain one unconditional composer with each direct registrar then legacy registration",
+                    "{} must contain one unconditional ordered compose_packet_handlers_like_cpp \
+                     authority with each direct registrar then the legacy registration",
+                    mount.source_path.display()
+                ));
+            }
+            let fixtures: Vec<_> = functions
+                .iter()
+                .filter(|function| function.sig.ident == "build_dispatch_table")
+                .collect();
+            if fixtures.len() != 1 || !exact_fixture_delegator(fixtures[0]) {
+                return Err(format!(
+                    "{} fixture dispatch builder must delegate to \
+                     compose_packet_handlers_like_cpp with its exact expect contract and gate",
                     mount.source_path.display()
                 ));
             }
             production_composers += 1;
-        } else if world_fixture_context {
-            let composers: Vec<_> = functions
-                .iter()
-                .filter(|function| function.sig.ident == "build_dispatch_table")
-                .collect();
-            if composers.len() != 1 || !exact_function(composers[0], true, &contracts) {
-                return Err(format!(
-                    "{} fixture dispatch builder must preserve its exact registrar set, legacy call, and gate",
-                    mount.source_path.display()
-                ));
-            }
             fixture_composers += 1;
+        } else if server_context {
+            return Err(format!(
+                "{} must not call any direct registrar or hold a second ordered list; the ordered \
+                 composition lives in wow_world::session::registry::compose_packet_handlers_like_cpp",
+                mount.source_path.display()
+            ));
         } else {
             return Err(format!(
-                "a direct registrar is called outside the production composer or fixture dispatch builder: {} ({:?})",
+                "a direct registrar is called outside the ordered authority or its fixture dispatch builder: {} ({:?})",
                 mount.source_path.display(),
                 mount
                     .contexts
@@ -949,6 +953,26 @@ pub(crate) fn validate_composition_mounts_with_contracts(
                     .collect::<Vec<_>>()
             ));
         }
+    }
+
+    let mut server_mounts = 0usize;
+    for mount in mounts {
+        let server_context = mount.package == "world-server"
+            && mount.contexts.len() == 1
+            && mount
+                .contexts
+                .iter()
+                .all(|context| context_is(context, "crate::handler_registry", false));
+        if server_context {
+            server_mounts += 1;
+            validate_server_publication(mount)?;
+        }
+    }
+    if server_mounts != 1 {
+        return Err(format!(
+            "expected exactly one world-server handler_registry source publishing \
+             compose_packet_handlers_like_cpp, found {server_mounts}"
+        ));
     }
 
     let mismatched_facades: Vec<String> = contracts
