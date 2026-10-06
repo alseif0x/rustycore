@@ -140,8 +140,8 @@ pub(crate) use battleground_adapter::RepresentedBattlemasterJoinArenaLikeCpp;
 pub(crate) use battleground_adapter::RepresentedBattlemasterJoinLikeCpp;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlemasterJoinSkirmishLikeCpp;
+use battleground_adapter::arena_skirmish_type_like_cpp;
 pub(crate) use battleground_adapter::battleground_queue_type_id_from_packed_like_cpp;
-use battleground_adapter::{arena_skirmish_type_like_cpp, arena_team_type_by_slot_like_cpp};
 mod buyback_adapter;
 mod catalog_capabilities;
 pub use catalog_capabilities::AreaTriggerCatalogsLikeCpp;

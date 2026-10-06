@@ -85,8 +85,8 @@ impl WorldSession {
     }
 
     fn battleground_test_cx_like_cpp(&mut self) -> BattlegroundHandlerCxLikeCpp<'_> {
-        let (world_entities, instances, hub) = crate::session::split_battleground_mut(self);
-        BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances)
+        let (world_entities, instances, social, hub) = crate::session::split_battleground_mut(self);
+        BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances, social, cfg!(test))
     }
 
     pub async fn handle_battlefield_port(&mut self, pkt: WorldPacket) {
@@ -177,5 +177,9 @@ impl WorldSession {
 
     pub async fn handle_battlemaster_join(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterJoin, pkt).await;
+    }
+
+    pub async fn handle_battlemaster_join_arena(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterJoinArena, pkt).await;
     }
 }

@@ -9,28 +9,7 @@ use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
-use wow_packet::packets::misc::{
-    AcceptWargameInvite, BattlemasterJoinArena, BattlemasterJoinSkirmish,
-};
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlemasterJoinArena,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlemaster_join_arena",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_battlemaster_join_arena_with_catalog_like_cpp(
-                        catalogs.battlemaster_lists.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
+use wow_packet::packets::misc::{AcceptWargameInvite, BattlemasterJoinSkirmish};
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -64,36 +43,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 }
 
 impl crate::session::WorldSession {
-    /// CMSG_BATTLEMASTER_JOIN_ARENA — player asks to join a rated arena queue.
-    /// C++ ref: `WorldSession::HandleBattlemasterJoinArena`.
-
-    pub(crate) async fn handle_battlemaster_join_arena_with_catalog_like_cpp(
-        &mut self,
-        battlemaster_lists: &wow_data::BattlemasterListStore,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
-        let join = match BattlemasterJoinArena::read(&mut pkt) {
-            Ok(join) => join,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlemasterJoinArena parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        // C++ gates on already-in-BG, the all-arenas template, disabled arena,
-        // group and leader before entering ArenaTeamMgr/queue code. Rust records
-        // the bounded queue intent after those representable gates until the
-        // live rated-arena manager is ported.
-        let _accepted = self.battlemaster_join_arena_like_cpp(
-            battlemaster_lists,
-            join.team_size_index,
-            join.roles,
-        );
-    }
-
     /// CMSG_BATTLEMASTER_JOIN_SKIRMISH — player asks to join an arena skirmish queue.
     /// C++ ref: `WorldSession::HandleBattlemasterJoinSkirmish`.
 
@@ -134,13 +83,6 @@ impl crate::session::WorldSession {
             .unwrap_or_else(|| {
                 std::sync::Arc::new(wow_data::BattlemasterListStore::from_entries([]))
             })
-    }
-
-    #[cfg(test)]
-    pub async fn handle_battlemaster_join_arena(&mut self, pkt: wow_packet::WorldPacket) {
-        let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
-        self.handle_battlemaster_join_arena_with_catalog_like_cpp(catalog.as_ref(), pkt)
-            .await;
     }
 
     #[cfg(test)]

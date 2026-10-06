@@ -21,15 +21,6 @@ pub(crate) use wow_world_core::session::{
 
 pub(crate) use wow_world_core::session::battleground_queue_type_id_from_packed_like_cpp;
 
-pub(in crate::session) fn arena_team_type_by_slot_like_cpp(slot: u8) -> Option<u8> {
-    match slot {
-        0 => Some(2),
-        1 => Some(3),
-        2 => Some(5),
-        _ => None,
-    }
-}
-
 pub(in crate::session) fn arena_skirmish_type_like_cpp(bg_type_id: u32, bracket_id: u32) -> u8 {
     if bg_type_id == 3 || bg_type_id == 5 {
         bg_type_id as u8
@@ -41,85 +32,6 @@ pub(in crate::session) fn arena_skirmish_type_like_cpp(bg_type_id: u32, bracket_
 }
 
 impl WorldSession {
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn battlemaster_join_arena_like_cpp(
-        &mut self,
-        battlemaster_lists: &BattlemasterListStore,
-        team_size_index: u8,
-        roles: u8,
-    ) -> bool {
-        if crate::session::hub_ref(self).player_in_represented_battleground_like_cpp() {
-            return false;
-        }
-
-        let Some(arena_type) = arena_team_type_by_slot_like_cpp(team_size_index) else {
-            return false;
-        };
-        let queue_type_id = RepresentedBattlegroundQueueTypeIdLikeCpp {
-            battlemaster_list_id: wow_data::BATTLEGROUND_AA_LIKE_CPP as u16,
-            queue_type: 1,
-            rated: true,
-            team_size: arena_type,
-        };
-        if !crate::session::hub_ref(self)
-            .is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id)
-        {
-            return false;
-        }
-        if self
-            .catalogs
-            .disable_mgr
-            .as_ref()
-            .map(|disable_mgr| {
-                disable_mgr.is_disabled_for_like_cpp(
-                    DISABLE_TYPE_BATTLEGROUND,
-                    wow_data::BATTLEGROUND_AA_LIKE_CPP,
-                    None,
-                    0,
-                    None,
-                )
-            })
-            .unwrap_or(false)
-        {
-            return false;
-        }
-
-        let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
-            self.player_guid(),
-            self.resolved_group_guid_like_cpp(),
-            self.core.directory.group_registry.as_ref(),
-        ) else {
-            return false;
-        };
-        let is_group_leader = group_registry
-            .get(&group_guid)
-            .map(|group| {
-                group.members.contains(&player_guid) && group.is_leader_like_cpp(player_guid)
-            })
-            .unwrap_or(false);
-        if !is_group_leader {
-            return false;
-        }
-
-        // C++ continues with Player::GetArenaTeamId, ArenaTeamMgr::GetArenaTeamById,
-        // Group::CanJoinBattlegroundQueue, AddGroup and status packets. Rust
-        // does not have the live rated-arena team/queue manager in this seam yet,
-        // so the bounded port records the accepted intent after the representable
-        // gates above without pretending that the queue was live.
-        #[cfg(test)]
-        self.fixtures
-            .battleground
-            .represented_battlemaster_join_arenas_like_cpp
-            .push(RepresentedBattlemasterJoinArenaLikeCpp {
-                team_size_index,
-                roles,
-                arena_type,
-                group_guid,
-                queue_type_id,
-            });
-        true
-    }
-
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn battlemaster_join_skirmish_like_cpp(
         &mut self,

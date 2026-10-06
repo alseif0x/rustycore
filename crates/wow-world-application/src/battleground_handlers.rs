@@ -12,9 +12,10 @@
 //! spirit-healer query/queue handlers (`BattleGroundHandler.cpp`) also live
 //! here and borrow the world-entity and instance state, as do the battlefield
 //! status, battlemaster hello, battlefield list and battlemaster join handlers,
-//! which record their represented intents through the hub. The arena and
-//! skirmish joins, the wargame accept and hearth-and-resurrect stay in the World
-//! shell while they need its group/registry or teleport orchestration.
+//! which record their represented intents through the hub. The rated arena join
+//! and its single-user arena chain now live here too; the skirmish join, the
+//! wargame accept and hearth-and-resurrect stay in the World shell while they
+//! need its group/registry or teleport orchestration.
 
 use tracing::debug;
 use tracing::warn;
@@ -26,15 +27,19 @@ use wow_handler::{
 use wow_packet::packets::gossip::Hello;
 use wow_packet::packets::misc::{
     AreaSpiritHealerQuery, AreaSpiritHealerQueue, AreaSpiritHealerTime, BattlefieldLeave,
-    BattlefieldListRequest, BattlefieldPort, BattlemasterJoin, RatedPvpInfo,
+    BattlefieldListRequest, BattlefieldPort, BattlemasterJoin, BattlemasterJoinArena, RatedPvpInfo,
     RequestBattlefieldStatus, SetPvp, TogglePvp,
 };
 use wow_packet::{ClientPacket, WorldPacket};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::RepresentedBattlemasterJoinArenaLikeCpp;
 use wow_world_core::session::{
     HubMut, PLAYER_FLAGS_IN_PVP_LIKE_CPP, PacketPublicationAccessLikeCpp,
+    RepresentedBattlegroundQueueTypeIdLikeCpp,
 };
 use wow_world_entities::WorldEntitiesState;
 use wow_world_instances::InstanceState;
+use wow_world_social::SessionSocialLimits;
 
 /// C++ `PLAYER_FLAGS_PVP_TIMER` (private in `wow-entities`).
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
@@ -44,6 +49,21 @@ pub struct BattlegroundHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
     world_entities: &'a WorldEntitiesState,
     instances: &'a mut InstanceState,
+    social: &'a SessionSocialLimits,
+    /// The host's World-test flag (World passes `cfg!(test)`); the represented
+    /// arena-join records are World-test evidence only.
+    world_test_consumer: bool,
+}
+
+/// C++ arena-team slot → team size used by the rated arena join
+/// (`ArenaTeamMgr` resolves the slot through the all-arenas template).
+fn arena_team_type_by_slot_like_cpp(slot: u8) -> Option<u8> {
+    match slot {
+        0 => Some(2),
+        1 => Some(3),
+        2 => Some(5),
+        _ => None,
+    }
 }
 
 impl<'a> BattlegroundHandlerCxLikeCpp<'a> {
@@ -51,11 +71,15 @@ impl<'a> BattlegroundHandlerCxLikeCpp<'a> {
         hub: HubMut<'a>,
         world_entities: &'a WorldEntitiesState,
         instances: &'a mut InstanceState,
+        social: &'a SessionSocialLimits,
+        world_test_consumer: bool,
     ) -> Self {
         Self {
             hub,
             world_entities,
             instances,
+            social,
+            world_test_consumer,
         }
     }
 
@@ -144,6 +168,36 @@ impl<'a> BattlegroundHandlerCxLikeCpp<'a> {
             &join.queue_ids,
             join.roles,
             join.blacklist_map,
+        );
+    }
+
+    /// CMSG_BATTLEMASTER_JOIN_ARENA — player asks to join a rated arena queue.
+    /// C++ ref: `WorldSession::HandleBattlemasterJoinArena`.
+
+    pub async fn handle_battlemaster_join_arena(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: WorldPacket,
+    ) {
+        let join = match BattlemasterJoinArena::read(&mut pkt) {
+            Ok(join) => join,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "BattlemasterJoinArena parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ gates on already-in-BG, the all-arenas template, disabled arena,
+        // group and leader before entering ArenaTeamMgr/queue code. Rust records
+        // the bounded queue intent after those representable gates until the
+        // live rated-arena manager is ported.
+        let _accepted = self.battlemaster_join_arena_like_cpp(
+            battlemaster_lists,
+            join.team_size_index,
+            join.roles,
         );
     }
 
@@ -411,6 +465,102 @@ impl<'a> BattlegroundHandlerCxLikeCpp<'a> {
                 .saturating_add(1);
         }
     }
+
+    /// C++ `WorldSession::HandleBattlemasterJoinArena` gates up to the group
+    /// leader check; the accepted intent is recorded while the rated-arena
+    /// team/queue manager is still represented rather than live.
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
+    fn battlemaster_join_arena_like_cpp(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        team_size_index: u8,
+        roles: u8,
+    ) -> bool {
+        if self
+            .hub
+            .shared()
+            .player_in_represented_battleground_like_cpp()
+        {
+            return false;
+        }
+
+        let Some(arena_type) = arena_team_type_by_slot_like_cpp(team_size_index) else {
+            return false;
+        };
+        let queue_type_id = RepresentedBattlegroundQueueTypeIdLikeCpp {
+            battlemaster_list_id: wow_data::BATTLEGROUND_AA_LIKE_CPP as u16,
+            queue_type: 1,
+            rated: true,
+            team_size: arena_type,
+        };
+        if !self
+            .hub
+            .shared()
+            .is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id)
+        {
+            return false;
+        }
+        if self
+            .hub
+            .catalogs
+            .disable_mgr
+            .as_ref()
+            .map(|disable_mgr| {
+                disable_mgr.is_disabled_for_like_cpp(
+                    wow_data::DISABLE_TYPE_BATTLEGROUND,
+                    wow_data::BATTLEGROUND_AA_LIKE_CPP,
+                    None,
+                    0,
+                    None,
+                )
+            })
+            .unwrap_or(false)
+        {
+            return false;
+        }
+
+        let (Some(player_guid), Some(group_guid), Some(group_registry)) = (
+            self.hub.shared().core.player_guid(),
+            crate::resolved_group_guid_like_cpp(
+                self.hub.shared(),
+                self.social,
+                self.world_test_consumer,
+            ),
+            self.hub.core.directory.group_registry.as_ref(),
+        ) else {
+            return false;
+        };
+        let is_group_leader = group_registry
+            .get(&group_guid)
+            .map(|group| {
+                group.members.contains(&player_guid) && group.is_leader_like_cpp(player_guid)
+            })
+            .unwrap_or(false);
+        if !is_group_leader {
+            return false;
+        }
+
+        // C++ continues with Player::GetArenaTeamId, ArenaTeamMgr::GetArenaTeamById,
+        // Group::CanJoinBattlegroundQueue, AddGroup and status packets. Rust
+        // does not have the live rated-arena team/queue manager in this seam yet,
+        // so the bounded port records the accepted intent after the representable
+        // gates above without pretending that the queue was live.
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.world_test_consumer {
+            self.hub
+                .fixtures
+                .battleground
+                .represented_battlemaster_join_arenas_like_cpp
+                .push(RepresentedBattlemasterJoinArenaLikeCpp {
+                    team_size_index,
+                    roles,
+                    arena_type,
+                    group_guid,
+                    queue_type_id,
+                });
+        }
+        true
+    }
 }
 
 /// Builds a battleground handler context from a host's hub.
@@ -493,6 +643,23 @@ where
         session
             .battleground_handler_cx_like_cpp(catalogs)
             .handle_battlemaster_join(S::battlemaster_lists_like_cpp(catalogs), pkt)
+            .await;
+    })
+}
+
+fn handle_battlemaster_join_arena_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_battlemaster_join_arena(S::battlemaster_lists_like_cpp(catalogs), pkt)
             .await;
     })
 }
@@ -730,6 +897,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join",
         handler: handle_battlemaster_join_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterJoinArena,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_join_arena",
+        handler: handle_battlemaster_join_arena_thunk::<S, C>,
     })?;
     Ok(())
 }
