@@ -603,12 +603,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "cfg": [
@@ -6636,20 +6630,6 @@
           ]
         },
         {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_trade_spell",
-          "visibility": "pub",
-          "signature": "async fn handle_set_trade_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "kind": "method",
@@ -6832,6 +6812,22 @@
           "name": "handle_set_trade_item",
           "visibility": "pub",
           "signature": "async fn handle_set_trade_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_trade_spell",
+          "visibility": "pub",
+          "signature": "async fn handle_set_trade_spell (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -40616,20 +40612,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_represented_trade_spell_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_trade_spell_like_cpp (& mut self , spell_id : u32 , pack_slot : u8 , item_slot_in_pack : u8 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_represented_trade_spell_like_cpp_for_test",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_trade_spell_like_cpp_for_test (& mut self , spell_id : u32 , cast_item_guid : Option < ObjectGuid > ,)",
@@ -40640,19 +40622,6 @@
           "guards": [
             "setter",
             "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_trade_spell_state_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_represented_trade_spell_state_like_cpp (& mut self , partner_guid : ObjectGuid , spell_id : u32 , cast_item_guid : Option < ObjectGuid > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "setter"
           ]
         },
         {

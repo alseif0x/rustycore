@@ -285,6 +285,29 @@ pub(crate) fn split_inventory_mut(s: &mut WorldSession) -> (&mut InventoryState,
     )
 }
 
+/// `&mut` social and inventory state, the shared spell state and the mutable hub.
+pub(crate) fn split_trade_mut(
+    s: &mut WorldSession,
+) -> (
+    &mut SessionSocialLimits,
+    &mut InventoryState,
+    &SessionSpellState,
+    HubMut<'_>,
+) {
+    (
+        &mut s.social,
+        &mut s.inventory,
+        &s.spell_state,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Shared group state plus the shared hub for `&self` methods.
 pub(crate) fn split_inventory_ref(s: &WorldSession) -> (&InventoryState, HubRef<'_>) {
     (&s.inventory, hub_ref(s))

@@ -12,8 +12,8 @@ use crate::session::WorldSession;
 
 impl WorldSession {
     fn trade_test_cx_like_cpp(&mut self) -> TradeHandlerCxLikeCpp<'_> {
-        let (social, inventory, hub) = crate::session::split_social_inventory_mut(self);
-        TradeHandlerCxLikeCpp::new(hub, social, inventory)
+        let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
+        TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
     }
 
     pub async fn handle_cancel_trade(&mut self, pkt: WorldPacket) {
@@ -54,6 +54,10 @@ impl WorldSession {
 
     pub async fn handle_begin_trade(&mut self, pkt: WorldPacket) {
         self.trade_test_cx_like_cpp().handle_begin_trade(pkt).await;
+    }
+
+    pub async fn handle_set_trade_spell(&mut self, pkt: WorldPacket) {
+        self.trade_test_cx_like_cpp().handle_set_trade_spell(pkt);
     }
 
     pub async fn handle_sign_petition(&mut self, pkt: WorldPacket) {

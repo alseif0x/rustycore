@@ -17,7 +17,7 @@ impl TradeHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> TradeHandlerCxLikeCpp<'a> {
-        let (social, inventory, hub) = crate::session::split_social_inventory_mut(self);
-        TradeHandlerCxLikeCpp::new(hub, social, inventory)
+        let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
+        TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
     }
 }

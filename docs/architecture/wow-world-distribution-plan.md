@@ -6297,6 +6297,25 @@ recorders del `PetsCx` del shell desaparecen y el dueño App llama directamente 
 
 **No validado aún.** Sin campaña `final` nueva; quedan **143 registros literales**.
 
+#### F5: handler de hechizo en trade (`SetTradeSpell`) — 2026-10-05, `4061aaa88..HEAD`
+
+`SetTradeSpell` pasa al dueño `ApplicationTrade`, cuyo contexto añade el préstamo del estado de hechizos
+para la compuerta de hechizo conocido (con el fallback de fixture representado) y lee el spell store del
+bundle de catálogos. Las transiciones de spell-trade salen del módulo de publicación de hechizos del
+shell y el shell conserva delegados `cfg(test)`; el registro mantiene `LoggedIn`/`ThreadUnsafe`. Se añade
+`split_trade_mut` (social + inventario + estado de hechizos + hub) y `handlers/economy` queda **sin
+registros literales**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **50 tests de `trade`** y **25 de `dispatch`** (478
+opcodes intactos) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443** (506,82 s);
+`session-ownership-check check --syntax-only` **PASS** (203 owners / 3.140 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.708`,
+`G_move = 116.094`, requisito `37.350,60` → **presupuesto 37.351**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **142 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

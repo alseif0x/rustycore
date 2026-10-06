@@ -16,7 +16,9 @@
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_entities::{PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerTradeStateLikeCpp};
+use wow_entities::{
+    NULL_BAG, NULL_SLOT, PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerTradeStateLikeCpp,
+};
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
@@ -24,8 +26,8 @@ use wow_handler::{
 use wow_packet::packets::misc::{
     AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DeclinePetition, DuelCountdown,
     DuelResponse, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, QueryPetition,
-    QueryPetitionResponse, SetTradeGold, SetTradeItem, SignPetition, TRADE_SLOT_COUNT_LIKE_CPP,
-    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    QueryPetitionResponse, SetTradeGold, SetTradeItem, SetTradeSpell, SignPetition,
+    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
     UnacceptTrade,
@@ -38,6 +40,7 @@ use wow_world_core::session::mailbox::{
 use wow_world_core::session::{HubMut, SessionCore};
 use wow_world_inventory::InventoryState;
 use wow_world_social::SessionSocialLimits;
+use wow_world_spell::SessionSpellState;
 
 /// Reads the canonical trade snapshot, falling back to the represented fixture
 /// on a handle-less test session (Core hub plus Social bookkeeping).
@@ -95,6 +98,7 @@ pub struct TradeHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
     social: &'a mut SessionSocialLimits,
     inventory: &'a mut InventoryState,
+    spell_state: &'a SessionSpellState,
 }
 
 impl<'a> TradeHandlerCxLikeCpp<'a> {
@@ -102,12 +106,149 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         hub: HubMut<'a>,
         social: &'a mut SessionSocialLimits,
         inventory: &'a mut InventoryState,
+        spell_state: &'a SessionSpellState,
     ) -> Self {
         Self {
             hub,
             social,
             inventory,
+            spell_state,
         }
+    }
+
+    /// CMSG_SET_TRADE_SPELL — offer a known spell for trade.
+    pub fn handle_set_trade_spell(&mut self, mut pkt: WorldPacket) {
+        let packet = match SetTradeSpell::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "SetTradeSpell parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.set_represented_trade_spell_like_cpp(
+            packet.spell_id,
+            packet.pack_slot,
+            packet.item_slot_in_pack,
+        );
+    }
+
+    fn set_represented_trade_spell_like_cpp(
+        &mut self,
+        spell_id: u32,
+        pack_slot: u8,
+        item_slot_in_pack: u8,
+    ) {
+        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
+            return;
+        };
+        let partner_guid = trade.partner_guid;
+
+        if spell_id == 0 {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        }
+
+        let cast_item_guid = if pack_slot != NULL_BAG || item_slot_in_pack != NULL_SLOT {
+            self.inventory
+                .get_inventory_item_by_pos(self.hub.shared(), pack_slot, item_slot_in_pack)
+                .map(|item| item.guid)
+        } else {
+            None
+        };
+
+        let Ok(spell_id_i32) = i32::try_from(spell_id) else {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        };
+
+        let Some(spell_store) = self.hub.catalogs.spell_store() else {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        };
+
+        if spell_store.get(spell_id_i32).is_none() {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        }
+
+        if !self.known_spells_like_cpp().contains(&spell_id_i32) {
+            self.set_represented_trade_spell_state_like_cpp(partner_guid, 0, None);
+            return;
+        }
+
+        self.set_represented_trade_spell_state_like_cpp(partner_guid, spell_id, cast_item_guid);
+    }
+
+    fn known_spells_like_cpp(&self) -> Vec<i32> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.hub.shared().core.player_handle_like_cpp.is_none() {
+            let snapshot = self
+                .spell_state
+                .represented_spell_runtime_fixture_like_cpp();
+            let runtime = wow_world_spell::canonical_player_spell_runtime_like_cpp(snapshot);
+            return runtime.known_spells_like_cpp().to_vec();
+        }
+        self.hub
+            .shared()
+            .core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .spell_runtime_like_cpp()
+                    .known_spells_like_cpp()
+                    .to_vec()
+            })
+            .unwrap_or_default()
+    }
+
+    fn set_represented_trade_spell_state_like_cpp(
+        &mut self,
+        partner_guid: ObjectGuid,
+        spell_id: u32,
+        cast_item_guid: Option<ObjectGuid>,
+    ) {
+        let Some(Some(trade)) = self.player_trade_state_snapshot_like_cpp() else {
+            return;
+        };
+        if trade.partner_guid != partner_guid {
+            return;
+        }
+        if trade.spell_id == spell_id && trade.spell_cast_item_guid == cast_item_guid {
+            return;
+        }
+
+        let canonical = self
+            .hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_trade_spell_like_cpp(spell_id, cast_item_guid)
+            })
+            .is_some_and(|changed| changed);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let canonical = if !canonical && self.hub.shared().core.player_handle_like_cpp.is_none() {
+            self.mutate_player_trade_state_like_cpp(|state| {
+                if let Some(state) = state {
+                    state.spell_id = spell_id;
+                    state.spell_cast_item_guid = cast_item_guid;
+                    state.accepted = false;
+                    state.server_state_index = state.server_state_index.wrapping_add(1);
+                }
+            })
+            .is_some()
+        } else {
+            canonical
+        };
+        if !canonical {
+            return;
+        }
+
+        let packet_bytes =
+            TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
+        self.hub.shared().core.send_raw_packet(&packet_bytes);
+        self.send_unaccept_to_partner_like_cpp(partner_guid, packet_bytes);
     }
 
     /// Canonical Player trade snapshot with the represented fixture fallback.
@@ -1009,6 +1150,22 @@ where
     })
 }
 
+fn handle_set_trade_spell_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_set_trade_spell(pkt);
+    })
+}
+
 fn handle_can_duel_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -1194,6 +1351,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_petition",
         handler: handle_query_petition_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SetTradeSpell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_set_trade_spell",
+        handler: handle_set_trade_spell_thunk::<S, C>,
     })?;
     Ok(())
 }

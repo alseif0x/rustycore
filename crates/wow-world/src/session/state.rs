@@ -41,7 +41,8 @@ pub(crate) use hub::{
     split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
     split_quest_state_ref, split_social_inventory_mut, split_social_lifecycle_mut,
     split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
-    split_visibility_mut, split_visibility_ref, split_world_entities_mut, split_world_entities_ref,
+    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
 mod session_core;
 pub(crate) use session_core::SessionCore;

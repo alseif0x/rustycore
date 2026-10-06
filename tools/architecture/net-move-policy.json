@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37303,
-    "measured_requirement": 37303,
+    "budget": 37351,
+    "measured_requirement": 37351,
     "recorded_at_revision": "92cdf526c983f203249763c174123c9a9ea43ae5",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74598, G_move = 115930, ratio and slack credits = 74598 * 1.05 + 300 = 78627.90, so the requirement is 37302.10 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74708, G_move = 116094, ratio and slack credits = 74708 * 1.05 + 300 = 78743.40, so the requirement is 37350.60 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -390,6 +390,13 @@
         "destination_growth": 149,
         "new_code": 45,
         "note": "SignPetition, DeclinePetition and QueryPetition moved into the existing ApplicationTrade owner, which already borrows the social state and the hub. The represented petition evidence stays a fixture-only concern (the World PetsCx recorders disappear and the application calls the social recorders under test-fixtures); the query keeps its not-found reply. Both registration metadata stay LoggedIn/ThreadUnsafe."
+      },
+      {
+        "phase": "F5 spell-trade handler (4061aaa88..HEAD, one handler)",
+        "shrink": 110,
+        "destination_growth": 164,
+        "new_code": 54,
+        "note": "SetTradeSpell moved into the ApplicationTrade owner, whose context now also borrows the spell state for the known-spell gate (with the represented fixture fallback) and reads the spell store from the catalog bundle. The spell-trade transitions left the World spell publication module and the shell keeps cfg(test) delegates; the registration keeps its LoggedIn/ThreadUnsafe metadata. handlers/economy now has no literal registration."
       }
     ],
     "areas": [

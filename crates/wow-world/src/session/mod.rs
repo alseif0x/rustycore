@@ -564,9 +564,9 @@ pub(crate) use state::{
     split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
     split_quest_state_ref, split_social_inventory_mut, split_social_lifecycle_mut,
     split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
-    split_visibility_mut, split_visibility_ref, split_world_entities_mut, split_world_entities_ref,
+    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
-
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;

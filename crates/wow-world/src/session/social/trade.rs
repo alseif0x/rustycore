@@ -11,8 +11,8 @@ use wow_world_application::TradeHandlerCxLikeCpp;
 
 impl WorldSession {
     fn trade_handler_cx_like_cpp(&mut self) -> TradeHandlerCxLikeCpp<'_> {
-        let (social, inventory, hub) = crate::session::split_social_inventory_mut(self);
-        TradeHandlerCxLikeCpp::new(hub, social, inventory)
+        let (social, inventory, spell_state, hub) = crate::session::split_trade_mut(self);
+        TradeHandlerCxLikeCpp::new(hub, social, inventory, spell_state)
     }
 
     pub(in crate::session) fn player_trade_state_snapshot_like_cpp(
