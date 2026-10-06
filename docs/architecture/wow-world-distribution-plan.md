@@ -6728,6 +6728,43 @@ cambiadas `wow-world`, `wow-world-application` y `wow-world-core` (10 s), más p
 ownership por sintaxis (53 s) y R1 (7 s). Sigue por debajo de 600 s porque el corte amplía un dueño existente y no
 toca el composer de `world-server` ni el tool.
 
+#### F5: `CMSG_BATTLEMASTER_JOIN_ARENA` a `ApplicationBattleground`, y auditoría de opcodes sin manejar (F6) — 2026-10-06, `641646ef4..6ab99316f`
+
+**Integración previa:** #1275 integró `CMSG_LOOT_RELEASE` en el contexto de release de App (`641646ef4`, `final` verde
+en 241 s).
+
+**Movimiento estructural.** `CMSG_BATTLEMASTER_JOIN_ARENA` (C++ `BattleGroundHandler.cpp:516`, despachado en
+`Opcodes.cpp:217` como `STATUS_LOGGEDIN`/`PROCESS_THREADUNSAFE`) pasa al dueño existente `ApplicationBattleground`
+como método del contexto, con su cadena de un solo usuario (`battlemaster_join_arena_like_cpp` y
+`arena_team_type_by_slot_like_cpp`). Metadatos idénticos (`LoggedIn`/`ThreadUnsafe`/`handle_battlemaster_join_arena`).
+Un diff por tokens del cuerpo antiguo contra el nuevo muestra **solo** las adaptaciones de acceso previstas
+(`hub_ref` → `hub.shared()`, `self.catalogs` → `self.hub.catalogs`, `player_guid` desde el core,
+`resolved_group_guid_like_cpp` de App, el prefijo `wow_data::` y la puerta de fixture por flag del host): el orden de
+gates, las comparaciones, los textos de log y los cinco campos registrados en la fixture son idénticos. El contexto
+gana `social` y el flag de test del host; `split_battleground_mut` pasa a devolver cuatro piezas. El agregado de
+sesión cae 82 líneas de producción (60.046 → 59.964). Registros literales en `wow-world`: **107 → 106**.
+
+**Auditoría de fidelidad (F6, no es un refactor).** Una pasada mecánica sobre los 104 registros contra la tabla de
+despacho del 3.4.3 (`/home/server/woltk-trinity-legacy` @ `a5f8da2e`) encontró **cinco opcodes registrados en Rust que
+3.4.3 deja `STATUS_UNHANDLED`/`Handle_NULL`**: `CMSG_BATTLEMASTER_JOIN_SKIRMISH` (`Opcodes.cpp:220`),
+`CMSG_ACCEPT_WARGAME_INVITE` (`:144`), `CMSG_SET_CURRENCY_FLAGS` (`:888`), `CMSG_SHOW_TRADE_SKILL` (`:925`) y
+`CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` (`:243`, ya documentado como salida intencionada con cuerpo vacío). Los dos
+primeros citan funciones C++ (`HandleBattlemasterJoinSkirmish`, `HandleAcceptWargameInvite`) que **no existen** en el
+árbol objetivo. Ninguno publica paquete al cliente; el registro queda en `docs/migration/EXISTING-CODE-DEFECTS.md`
+con anclajes exactos y la decisión pendiente (alinear con 3.4.3 o contrato de salida intencionada). El mismo pase
+señaló `CMSG_CONNECT_TO_FAILED` (`STATUS_NEVER`/`Handle_EarlyProccess` en `:387` frente a `Authed` en Rust) y se
+**cerró como no-hallazgo** al comprobar que `SessionStatus::Authed => true` (`session/dispatch.rs:109`) no aplica
+puerta de estado, el mismo efecto de admisión que el despacho temprano del C++. Por esa decisión abierta, los dos
+opcodes de batalla afectados **no** se reubican y siguen donde estaban.
+
+**Evidencia enfocada:** `cargo check` de `wow-world-core`, `wow-world-application` y `wow-world` (con y sin
+`test-fixtures`) sin errores ni avisos nuevos; `wow-world` `--lib` filtrado de pvp **50 ✓** (incluye los escenarios de
+arena, que ejercitan el shim despachando por el thunk de producción); suite del tool **443/443** (aparte, porque el
+corte cambia fuentes que el tool lee con `include_str!`); ownership `--syntax-only` **PASS** con delta revisado (salen
+el handler, su cadena y sus filas de acceso directo al registro; entra el shim de test); arquitectura **PASS** con el
+techo del agregado de sesión apretado a su valor vivo; R1 `S = 136`, `G_move = 174`, presupuesto 0. Pendiente:
+`final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

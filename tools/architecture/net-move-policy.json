@@ -17,8 +17,8 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "86dfe9575e0720116288875975afcd0096b0722e",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base ff70f7842, the #1274 integration): S = 16, G_move = 66, ratio and slack credits = 16 * 1.05 + 300 = 316.80, so the requirement is -250.80 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "recorded_at_revision": "6ab99316fba1b1594fbb47b4084db8b8d60b02d8",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 641646ef4, the #1275 integration): S = 136, G_move = 174, ratio and slack credits = 442.80, so the requirement is -268.80 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -544,17 +544,31 @@
         "destination_growth": 66,
         "new_code": 0,
         "note": "CMSG_LOOT_RELEASE moves onto the application loot-release context it already owned; the loot host moves next to the handlers and the session aggregate shrinks by 23 production lines."
+      },
+      {
+        "phase": "Base reset at the #1275 integration (641646ef4)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1275 integrated the loot-release handler; the merge-base moved to 641646ef4."
+      },
+      {
+        "phase": "F5 arena battleground join (641646ef4..HEAD)",
+        "shrink": 136,
+        "destination_growth": 174,
+        "new_code": 0,
+        "note": "CMSG_BATTLEMASTER_JOIN_ARENA moves to ApplicationBattleground with its single-user arena chain; the session aggregate falls 82 production lines. The two sibling opcodes that 3.4.3 leaves UNHANDLED stay in place pending a behaviour decision recorded in EXISTING-CODE-DEFECTS.md."
       }
     ],
     "areas": [
       {
         "area": "crates/wow-world-core/src",
-        "lines": 5,
+        "lines": 0,
         "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder plus the #1263 F5 chat policy capacity re-export."
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 61,
+        "lines": 174,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
