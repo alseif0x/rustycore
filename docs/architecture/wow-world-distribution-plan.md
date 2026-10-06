@@ -6621,7 +6621,11 @@ errores ni avisos nuevos (los presentes ya estaban en la base); `wow-world` `--l
 ownership **PASS** (salen 3 ítems de producción, entran 2 shims de test: 3.128 → 3.127); arquitectura **PASS**, con
 los techos de `handlers/character/mod.rs` (producción 17.070 → 16.962) y del agregado de sesión (60.168 → 60.106)
 ajustados a sus valores vivos; R1 `S = 73`, `G_move = 145`, presupuesto 0. Registros literales en
-`wow-world`: **118 → 116**. Pendiente: `final`.
+`wow-world`: **118 → 116**.
+
+**Aceptación `final`:** sobre **`c978e772b`**, **verde en 454 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T180057.827042Z-1187968-final.json`).
+El coste dominante es `cargo check --tests` aguas abajo tras cambiar App (276 s); sigue por debajo de 600 s.
 
 ## 9. Herramientas
 
