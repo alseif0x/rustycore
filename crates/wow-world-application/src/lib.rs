@@ -134,7 +134,8 @@ pub use loot_handlers::{
 };
 pub use player_conditions::{
     PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,
-    RepresentedPlayerConditionContextLikeCpp,
+    RepresentedPlayerConditionContextLikeCpp, meets_player_condition_id_like_cpp,
+    player_condition_projection_cx_like_cpp,
 };
 pub use player_save::{
     PlayerSavePersistenceResultLikeCpp, apply_player_save_acknowledgement_like_cpp,

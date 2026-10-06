@@ -272,7 +272,10 @@ class NetMoveTests(unittest.TestCase):
         self.assertTrue(policy["reviewed"])
         self.assertEqual(policy["shrink_root"], net_move.SHRINK_ROOT)
         self.assertEqual(len(policy["destination_roots"]), 11)
-        self.assertGreater(policy["reviewed_new_code"], 0)
+        # The reviewed budget is the measured requirement against the current
+        # merge-base; it restarts at each integration (0 right after #1266).
+        self.assertGreaterEqual(policy["reviewed_new_code"], 0)
+        self.assertEqual(policy["reviewed_new_code"], policy["measured_requirement"])
         # All five original duplicates were retired into their admitted
         # owners under #1263 F6; the copy gate now allows none.
         self.assertEqual(len(policy["duplicates"]), 0)

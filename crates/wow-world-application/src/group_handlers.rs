@@ -57,16 +57,15 @@ use wow_world_social::group_fanout::{
 };
 
 /// Resolve C++ `Player::m_group` through the hub's generation-checked canonical
-/// Player handle. An unresolved owner never falls back in production.
+/// Player handle. An unresolved owner never falls back in production;
+/// `consumer_test` is the caller's World-test flag (World passes `cfg!(test)`).
 pub fn resolved_group_guid_like_cpp(
     hub: wow_world_core::session::HubRef<'_>,
     social: &SessionSocialLimits,
+    consumer_test: bool,
 ) -> Option<u64> {
     let owner = hub.core.player_group_owner_access_like_cpp();
-    social.resolved_group_guid_with_access_like_cpp(
-        &owner,
-        cfg!(any(test, feature = "test-fixtures")),
-    )
+    social.resolved_group_guid_with_access_like_cpp(&owner, consumer_test)
 }
 
 /// Deferred publication tail for one group transition.
@@ -124,6 +123,8 @@ pub struct GroupHandlerCxLikeCpp<'a> {
     instances: &'a InstanceState,
     policy: &'a GroupInvitePolicyLikeCpp,
     hub: HubMut<'a>,
+    /// The host's World-test flag (World passes `cfg!(test)`).
+    world_test_consumer: bool,
 }
 
 impl<'a> GroupHandlerCxLikeCpp<'a> {
@@ -134,6 +135,7 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
         instances: &'a InstanceState,
         policy: &'a GroupInvitePolicyLikeCpp,
         hub: HubMut<'a>,
+        world_test_consumer: bool,
     ) -> Self {
         Self {
             social,
@@ -142,15 +144,12 @@ impl<'a> GroupHandlerCxLikeCpp<'a> {
             instances,
             policy,
             hub,
+            world_test_consumer,
         }
     }
 
     fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        let owner = self.hub.shared().core.player_group_owner_access_like_cpp();
-        self.social.resolved_group_guid_with_access_like_cpp(
-            &owner,
-            cfg!(any(test, feature = "test-fixtures")),
-        )
+        resolved_group_guid_like_cpp(self.hub.shared(), self.social, self.world_test_consumer)
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {

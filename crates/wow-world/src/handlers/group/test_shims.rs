@@ -15,6 +15,25 @@ use wow_world_social::SocialGroupHandlerCxLikeCpp;
 use crate::session::WorldSession;
 
 impl WorldSession {
+    /// Builds the application group context exactly as the production host
+    /// does, with the test-only invite policy.
+    fn group_test_cx_like_cpp<'a>(
+        &'a mut self,
+        policy: &'a crate::session::GroupInvitePolicyLikeCpp,
+    ) -> wow_world_application::GroupHandlerCxLikeCpp<'a> {
+        let (social, lifecycle, loot, instances, hub) =
+            crate::session::split_group_handler_states_mut(self);
+        wow_world_application::GroupHandlerCxLikeCpp::new(
+            social,
+            lifecycle,
+            loot,
+            instances,
+            policy,
+            hub,
+            cfg!(test),
+        )
+    }
+
     pub async fn handle_set_loot_method(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
@@ -101,58 +120,38 @@ impl WorldSession {
 
     pub async fn handle_set_party_leader(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_set_party_leader(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_set_party_leader(pkt)
+            .await;
     }
 
     pub async fn handle_set_assistant_leader(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_set_assistant_leader(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_set_assistant_leader(pkt)
+            .await;
     }
 
     pub async fn handle_set_everyone_is_assistant(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_set_everyone_is_assistant(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_set_everyone_is_assistant(pkt)
+            .await;
     }
 
     pub async fn handle_set_party_assignment(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_set_party_assignment(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_set_party_assignment(pkt)
+            .await;
     }
 
     pub async fn handle_change_sub_group(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
-            let (social, lifecycle, loot, instances, hub) =
-                crate::session::split_group_handler_states_mut(self);
-            wow_world_application::GroupHandlerCxLikeCpp::new(
-                social, lifecycle, loot, instances, &policy, hub,
-            )
-            .handle_change_sub_group(pkt)
-            .await
+            self.group_test_cx_like_cpp(&policy)
+                .handle_change_sub_group(pkt)
+                .await
         };
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
@@ -160,13 +159,9 @@ impl WorldSession {
     pub async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
-            let (social, lifecycle, loot, instances, hub) =
-                crate::session::split_group_handler_states_mut(self);
-            wow_world_application::GroupHandlerCxLikeCpp::new(
-                social, lifecycle, loot, instances, &policy, hub,
-            )
-            .handle_swap_sub_groups(pkt)
-            .await
+            self.group_test_cx_like_cpp(&policy)
+                .handle_swap_sub_groups(pkt)
+                .await
         };
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
@@ -174,13 +169,9 @@ impl WorldSession {
     pub async fn handle_leave_group(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
-            let (social, lifecycle, loot, instances, hub) =
-                crate::session::split_group_handler_states_mut(self);
-            wow_world_application::GroupHandlerCxLikeCpp::new(
-                social, lifecycle, loot, instances, &policy, hub,
-            )
-            .handle_leave_group(pkt)
-            .await
+            self.group_test_cx_like_cpp(&policy)
+                .handle_leave_group(pkt)
+                .await
         };
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
@@ -188,13 +179,9 @@ impl WorldSession {
     pub async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
-            let (social, lifecycle, loot, instances, hub) =
-                crate::session::split_group_handler_states_mut(self);
-            wow_world_application::GroupHandlerCxLikeCpp::new(
-                social, lifecycle, loot, instances, &policy, hub,
-            )
-            .handle_convert_raid(pkt)
-            .await
+            self.group_test_cx_like_cpp(&policy)
+                .handle_convert_raid(pkt)
+                .await
         };
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
@@ -202,13 +189,9 @@ impl WorldSession {
     pub async fn handle_party_invite_response(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
-            let (social, lifecycle, loot, instances, hub) =
-                crate::session::split_group_handler_states_mut(self);
-            wow_world_application::GroupHandlerCxLikeCpp::new(
-                social, lifecycle, loot, instances, &policy, hub,
-            )
-            .handle_party_invite_response(pkt)
-            .await
+            self.group_test_cx_like_cpp(&policy)
+                .handle_party_invite_response(pkt)
+                .await
         };
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
@@ -218,58 +201,38 @@ impl WorldSession {
         pkt: WorldPacket,
         policy: &crate::session::GroupInvitePolicyLikeCpp,
     ) {
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, policy, hub,
-        )
-        .handle_party_invite(pkt)
-        .await;
+        self.group_test_cx_like_cpp(policy)
+            .handle_party_invite(pkt)
+            .await;
     }
 
     pub async fn handle_party_invite(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_party_invite(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_party_invite(pkt)
+            .await;
     }
 
     pub async fn handle_random_roll(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_random_roll(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_random_roll(pkt)
+            .await;
     }
 
     pub async fn handle_opt_out_of_loot(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
-        let (social, lifecycle, loot, instances, hub) =
-            crate::session::split_group_handler_states_mut(self);
-        wow_world_application::GroupHandlerCxLikeCpp::new(
-            social, lifecycle, loot, instances, &policy, hub,
-        )
-        .handle_opt_out_of_loot(pkt)
-        .await;
+        self.group_test_cx_like_cpp(&policy)
+            .handle_opt_out_of_loot(pkt)
+            .await;
     }
 
     pub async fn handle_party_uninvite(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
-            let (social, lifecycle, loot, instances, hub) =
-                crate::session::split_group_handler_states_mut(self);
-            wow_world_application::GroupHandlerCxLikeCpp::new(
-                social, lifecycle, loot, instances, &policy, hub,
-            )
-            .handle_party_uninvite(pkt)
-            .await
+            self.group_test_cx_like_cpp(&policy)
+                .handle_party_uninvite(pkt)
+                .await
         };
         self.apply_group_publication_tail_like_cpp(tail).await;
     }

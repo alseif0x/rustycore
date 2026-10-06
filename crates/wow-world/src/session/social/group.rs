@@ -96,7 +96,7 @@ impl WorldSession {
     /// falls back in production.
     pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
         let (state, hub) = crate::session::split_social_ref(self);
-        wow_world_application::resolved_group_guid_like_cpp(hub, state)
+        wow_world_application::resolved_group_guid_like_cpp(hub, state, cfg!(test))
     }
     pub(crate) fn set_owned_player_group_like_cpp(
         &mut self,

@@ -6,6 +6,10 @@ P4a aceptada en `d9c9e3637`, con publicación/integración registradas en #1263.
 continuación de [#1241](https://github.com/alseif0x/rustycore/issues/1241) bajo #584.
 #1241 ya está cerrada en GitHub; ese estado no demuestra que F4–F6 estén terminadas.
 
+**Integración parcial — 2026-10-06:** #1266 integró en `3.4.3` (`793851676`) el checkpoint F4b/F5 con
+`final` verde; no cierra #1263, que GitHub cerró automáticamente por la rama vinculada y se reabrió.
+La continuación va en la rama `1263-f5-domains`, creada desde `793851676` sin vincular a la issue.
+
 **Checkpoint de pausa solicitado por el usuario — 2026-10-04.** Se detuvo a los
 tres trabajadores para conservar el avance de #1263 y preparar commit/publicación.
 El checkpoint es WIP y no acredita compilación, pruebas ni aceptación de F5/F6.
@@ -6390,6 +6394,49 @@ de 600 s**; lo dominan la suite del tool (516 s) y el self-test de arquitectura 
 campaña tardó 1.219 s porque el cambio de features invalidó la caché. Esta evidencia cubre el código
 hasta `d3d4ea6e1`; el commit que la registra es solo documentación. Quedan **142 registros literales**;
 la issue sigue abierta (F5, remates F4 y F6).
+
+#### F5 tras la integración: rendimiento de `final` y seam de condiciones — 2026-10-06, `793851676..HEAD`
+
+**Tiempo de `final`.** La medición por test de la suite de `handler-contract-check` (`--report-time`)
+mostró cuatro recorridos completos del workspace de 235–264 s cada uno y los tests de composición a
+30–52 s: parseo `syn`/`proc-macro2` en el perfil de test sin optimizar. Con
+`[profile.dev.package."*"] opt-level = 3` (solo dependencias) la suite pasa de **503 s a 111 s** de pared
+con los 443 tests en verde, conservando debug assertions y overflow checks del crate; optimizar también el
+crate (`opt-level = 1`) ahorraba 14 s más a cambio de ~125 s de compilación por cada cambio del tool y se
+descartó. Además, el binario release del tool, que `final` ejecuta en el self-test de arquitectura y en el
+check de ownership, se recompilaba en ~191 s tras cualquier cambio del tool; con `incremental = true` en su
+perfil release la recompilación tras un cambio realista baja a ~3 s, sin cambiar su tiempo de ejecución
+(ownership `--syntax-only` 49–50 s frente a 49 s; self-test 62 s frente a 61 s). `final` sobre `2e42f2901`
+(solo el primer cambio, plan acotado al tool): **verde en 420 s**, con la suite del tool en 120 s.
+
+**Seam `as_context(self)`/condiciones.** El constructor de la proyección de condiciones
+(`player_condition_projection_cx_like_cpp`) pasa de World a `wow-world-application` y se apoya en
+`HubRef::player_condition_access_like_cpp`, que ya construía la misma lista de referencias de fixture: World
+tenía una segunda copia de esa lista (~70 líneas) y desaparece. El accesor de core devuelve ahora el
+préstamo con la vida del hub (`'a`), no la del `&self` temporal. App gana también
+`meets_player_condition_id_like_cpp` con el orden de admisión representado (id 0 cumple, sin store falla,
+condición desconocida cumple, Player no proyectable falla). Los métodos de World quedan como wrappers, de
+modo que los handlers App que tengan inventario y social pueden evaluar condiciones sin un handle de
+`WorldSession`.
+
+**Flag de consumidor de test.** Las APIs cuyo contrato recibe `world_test_consumer`/`consumer_test` reciben
+ahora el flag del host (World pasa `cfg!(test)`) en lugar de calcular
+`cfg!(any(test, feature = "test-fixtures"))` en App: contexto de quest-query, contexto de grupo de App y
+seam `resolved_group_guid_like_cpp`. En producción ambos valen `false`; difieren en los builds que compilan
+`wow-world` con la feature y sin `cfg(test)` (tests de integración y de `world-server`). Los bloques
+compilados condicionalmente siguen la convención del crate, la misma que usa core. Los shims de test de
+grupo construyen su contexto mediante un único helper, igual que los de trade.
+
+**R1 rebasado.** Con la base movida a `793851676`, el presupuesto revisado de 37.363 líneas (medido contra
+`24a513855`) dejaba de tener sentido; se reinicia al requisito medido contra la base nueva (**0**) y el test
+de la política exige ahora `presupuesto == requisito medido` en lugar de `presupuesto > 0`. Este corte:
+`S = 113`, `G_move = 77`, PASS.
+
+**Evidencia enfocada:** `cargo check --all-targets` de `wow-world-application`, `wow-world` (con
+`test-fixtures`) y `world-server` sin errores; `wow-world` `--lib` **3.634 ✓**; integración
+`production_login_player_owner` **34 ✓** y el otro target **12 ✓**; `wow-world-application` **58 ✓**;
+ownership `--syntax-only` **PASS** (203 / 3.140 / 711, sin delta de baseline); `check_architecture.py check`
+**PASS**; `test_net_move.py` **16/16**. Pendiente: `final` sobre el candidato commiteado.
 
 ## 9. Herramientas
 

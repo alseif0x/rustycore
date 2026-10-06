@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37363,
-    "measured_requirement": 37363,
+    "budget": 0,
+    "measured_requirement": 0,
     "recorded_at_revision": "812926caa113ef893937605e0fcaed615e0e819c",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74719, G_move = 116117, ratio and slack credits = 74719 * 1.05 + 300 = 78754.95, so the requirement is 37362.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 113, G_move = 77, ratio and slack credits = 113 * 1.05 + 300 = 418.65, so the requirement is -341.65 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -411,66 +411,80 @@
         "destination_growth": 9,
         "new_code": 9,
         "note": "Restores the QuestLogRemoveQuest completion log that the move had dropped (the owner now returns the quest id with the slot) and renames the shared quest registry-sync host seam. The rest of the repair is outside the destination roots: Cargo feature alignment for the application, inventory and spell test builds, the Inventory registrar exact-set regression, the production SuspendTokenResponse integration test and cfg(test) shims that dispatch through the registry."
+      },
+      {
+        "phase": "Base reset at the #1266 integration (793851676)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1266 integrated the F4b/F5 checkpoint into 3.4.3, so the merge-base moved from 24a513855 to 793851676 and the 37363-line reviewed budget measured against the old base no longer applies. The budget restarts from the measured requirement against the new base; the phases above are the history of the previous base."
+      },
+      {
+        "phase": "F5 player-condition projection seam (793851676..HEAD)",
+        "shrink": 113,
+        "destination_growth": 77,
+        "new_code": 0,
+        "note": "The condition projection constructor moves from the World session to the application crate, built on the core hub's own condition access instead of a second copy of its fixture-reference list, together with the application evaluation of one PlayerCondition id. The World methods become wrappers; the application group context, resolved group seam and quest-query context receive the host's World-test flag instead of computing their own cfg, and the group test shims build their context through one helper."
       }
     ],
     "areas": [
       {
         "area": "crates/wow-world-core/src",
-        "lines": 34962,
+        "lines": 2,
         "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder plus the #1263 F5 chat policy capacity re-export."
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 29701,
+        "lines": 75,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
         "area": "crates/wow-world-inventory/src",
-        "lines": 10761,
+        "lines": 0,
         "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
       },
       {
         "area": "crates/wow-world-lifecycle/src",
-        "lines": 8711,
+        "lines": 0,
         "reason": "lifecycle state, load/finalization owners, account-data and support handler families and the F5 battle.net service handlers with their hub context."
       },
       {
         "area": "crates/wow-world-spell/src",
-        "lines": 6091,
+        "lines": 0,
         "reason": "spell state, melee rules and spell-acquisition adapters."
       },
       {
         "area": "crates/wow-world-entities/src",
-        "lines": 5261,
+        "lines": 0,
         "reason": "world-entity registries and creature contracts."
       },
       {
         "area": "crates/wow-world-loot/src",
-        "lines": 2743,
+        "lines": 0,
         "reason": "loot state, roll publication and random properties."
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 6667,
+        "lines": 0,
         "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
       },
       {
         "area": "crates/wow-world-instances/src",
-        "lines": 1268,
+        "lines": 0,
         "reason": "instance difficulty and lock operations."
       },
       {
         "area": "crates/wow-world-visibility/src",
-        "lines": 662,
+        "lines": 0,
         "reason": "object-update projection."
       },
       {
         "area": "crates/wow-world-interaction/src",
-        "lines": 571,
+        "lines": 0,
         "reason": "NPC interaction and support features."
       }
     ],
-    "review_note": "The reviewed duplication gate below is what proves this growth is not a copy of code still present in crates/wow-world/src: it now finds no duplicated body at all, every former exception having been retired into its admitted owner. Re-measure and re-record this budget whenever destination growth changes; unbudgeted growth fails R1."
+    "review_note": "The reviewed duplication gate below is what proves this growth is not a copy of code still present in crates/wow-world/src: it now finds no duplicated body at all, every former exception having been retired into its admitted owner. Re-measure and re-record this budget whenever destination growth changes; unbudgeted growth fails R1. Since the #1266 integration the area figures are measured against merge-base 793851676; the cumulative figures of the previous base are recorded in the phases history."
   },
   "duplicates": []
 }

@@ -22,10 +22,12 @@ impl crate::session::HubRef<'_> {
     }
 }
 
-impl crate::session::HubRef<'_> {
+impl<'a> crate::session::HubRef<'a> {
+    /// Condition access borrowed for the hub's own lifetime, so a projection
+    /// built from a by-value hub view can outlive the view itself.
     pub fn player_condition_access_like_cpp(
         &self,
-    ) -> crate::session::PlayerConditionAccessLikeCpp<'_> {
+    ) -> crate::session::PlayerConditionAccessLikeCpp<'a> {
         self.core
             .player_condition_access_with_selected_fixture_refs_like_cpp(
                 #[cfg(any(test, feature = "test-fixtures"))]
