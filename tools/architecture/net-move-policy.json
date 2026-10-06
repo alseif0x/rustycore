@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "812926caa113ef893937605e0fcaed615e0e819c",
+    "recorded_at_revision": "3e50c0455763c1a54025282edfb171d326c68f6c",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 113, G_move = 77, ratio and slack credits = 113 * 1.05 + 300 = 418.65, so the requirement is -341.65 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
