@@ -6771,6 +6771,41 @@ los targets de test de `wow-world` tras cambiar su `hub.rs`/adaptador) y suites 
 librerías cambiadas (16 s), más política de arquitectura (60 s), ownership por sintaxis (50 s) y R1 (7 s). Sigue por
 debajo de 600 s porque el corte amplía un dueño existente y no toca `world-server` ni el tool.
 
+#### Autoridad única de composición de handlers (criterio 1 del objetivo) — 2026-10-06, `62b419b10..a08b1f10f`
+
+**Problema medido.** La lista ordenada de registradores directos existía **duplicada literalmente** en dos crates:
+`crates/wow-world/src/session/registry.rs::build_dispatch_table()` (solo fixtures) y
+`crates/world-server/src/handler_registry.rs::compose_packet_handlers_like_cpp()` (producción). Comprobado
+mecánicamente: **33 llamadas idénticas en contenido y orden** en ambas. Consecuencia: cada dueño nuevo había que
+añadirlo dos veces, y editar `world-server` obligaba a recompilar todo su binario de test y a ejecutar su suite de
+librería: la campaña `final` de la entrega que creó `ApplicationCharacter` costó **810 s** (frente a 241–421 s de las
+entregas que solo amplían un dueño existente).
+
+**Cambio.** La lista vive ahora **una sola vez**, en el módulo de nivel de crate
+`crates/wow-world/src/handler_composition.rs` (la composición es un asunto del crate, no de la sesión).
+`build_dispatch_table()` delega en ella conservando su puerta `cfg` de fixtures, su `#[must_use]` y su mensaje exacto
+de `expect`, y `world-server` solo la re-exporta. Invariante verificado byte a byte: el **cuerpo movido es idéntico**
+al anterior y la **secuencia de 33 llamadas es la misma, elemento a elemento** (sin altas, bajas ni reordenaciones);
+el conjunto registrado y los metadatos no cambian.
+
+**Contrato del checker, retargetizado sin debilitarlo.** La suite del tool verifica ahora: (a) **una** autoridad
+ordenada en `crate::handler_composition` con la forma estricta de siempre (init del builder, una llamada por contrato
+en orden de contrato, registro legacy, resultado, y ninguna llamada a registrador fuera de ella); (b) el builder de
+fixtures como **delegador exacto** (`crate::handler_composition::compose_packet_handlers_like_cpp()` +
+`expect` con el mensaje exacto, con su cfg y su `#[must_use]`); (c) que `world-server` **publique** la composición
+(re-export exacto o delegador exacto) y **no** pueda contener una segunda lista, cosa que antes era obligatoria; y
+(d) que cada registrador se llame exactamente una vez en todo el workspace y que cada fachada sea exacta. Se añadieron
+**dos tests de rechazo** —`composition_guard_rejects_a_world_server_source_that_relists_registrars` y
+`composition_guard_rejects_the_ordered_list_back_in_the_session_tree`— y se readaptaron (no se borró) el resto de los
+casos negativos: suite del tool **446/446**.
+
+**Efecto medido.** `crates/world-server/src/` cae **139 líneas de producción** (31.836 → 31.697) y su agregado total
+60.547 → 60.408; el árbol de sesión vuelve a su techo apretado, con test/total **−68** (producción 59.964 sin cambio)
+al no alojar ya la lista. La lista se edita en **un** sitio, así que un dueño nuevo ya no toca `world-server`.
+**Frontera:** el efecto sobre el tiempo de campaña (objetivo: ≤600 s también al crear dueño) aún **no está medido**;
+se comprobará en la primera entrega que cree un dueño nuevo. R1 clasifica este corte como `NOT-APPLICABLE` (no es un
+movimiento neto entre roots: reubica código dentro de `crates/wow-world/src/`) con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
