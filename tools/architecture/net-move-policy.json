@@ -18,7 +18,7 @@
     "budget": 0,
     "measured_requirement": 0,
     "recorded_at_revision": "3e50c0455763c1a54025282edfb171d326c68f6c",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 113, G_move = 77, ratio and slack credits = 113 * 1.05 + 300 = 418.65, so the requirement is -341.65 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 112, G_move = 77, ratio and slack credits = 112 * 1.05 + 300 = 417.60, so the requirement is -340.60 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -421,7 +421,7 @@
       },
       {
         "phase": "F5 player-condition projection seam (793851676..HEAD)",
-        "shrink": 113,
+        "shrink": 112,
         "destination_growth": 77,
         "new_code": 0,
         "note": "The condition projection constructor moves from the World session to the application crate, built on the core hub's own condition access instead of a second copy of its fixture-reference list, together with the application evaluation of one PlayerCondition id. The World methods become wrappers; the application group context, resolved group seam and quest-query context receive the host's World-test flag instead of computing their own cfg, and the group test shims build their context through one helper."

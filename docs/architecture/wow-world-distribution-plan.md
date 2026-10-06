@@ -6430,7 +6430,8 @@ grupo construyen su contexto mediante un único helper, igual que los de trade.
 **R1 rebasado.** Con la base movida a `793851676`, el presupuesto revisado de 37.363 líneas (medido contra
 `24a513855`) dejaba de tener sentido; se reinicia al requisito medido contra la base nueva (**0**) y el test
 de la política exige ahora `presupuesto == requisito medido` en lugar de `presupuesto > 0`. Este corte:
-`S = 113`, `G_move = 77`, PASS.
+`S = 112`, `G_move = 77`, PASS. El helper de los shims de grupo es una función libre del módulo, no un
+método de `WorldSession`, para no ampliar la superficie R5.
 
 **Evidencia enfocada:** `cargo check --all-targets` de `wow-world-application`, `wow-world` (con
 `test-fixtures`) y `world-server` sin errores; `wow-world` `--lib` **3.634 ✓**; integración
