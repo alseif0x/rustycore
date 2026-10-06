@@ -55,6 +55,21 @@ impl<'a> AuctionHandlerCxLikeCpp<'a> {
         self.hub.shared().core.packet_publication_access_like_cpp()
     }
 
+    /// CMSG_AUCTION_HELLO_REQUEST — open the auctioneer window.
+    pub async fn handle_auction_hello_request(&mut self, mut pkt: wow_packet::WorldPacket) {
+        use wow_packet::packets::misc::AuctionHelloResponse;
+        let guid = pkt
+            .read_packed_guid()
+            .unwrap_or(wow_core::ObjectGuid::EMPTY);
+        info!(
+            "AuctionHelloRequest from {:?} account {}",
+            guid,
+            self.hub.shared().core.account_id
+        );
+        self.publication_like_cpp()
+            .send_packet(&AuctionHelloResponse::open(guid));
+    }
+
     pub async fn handle_auction_list_bidder_items(&mut self, _pkt: wow_packet::WorldPacket) {
         use wow_packet::packets::misc::AuctionListBidderItemsResult;
         self.publication_like_cpp()
@@ -278,6 +293,23 @@ impl<'a> AuctionHandlerCxLikeCpp<'a> {
         self.publication_like_cpp()
             .send_packet(&CommerceTokenGetLogResponse::success_empty(request.unk_int));
     }
+}
+
+pub(crate) fn handle_auction_hello_request_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: crate::handlers::InventoryHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .auction_handler_cx_like_cpp(catalogs)
+            .handle_auction_hello_request(pkt)
+            .await;
+    })
 }
 
 pub(crate) fn handle_auction_list_bidder_items_thunk<'a, S, C>(

@@ -27,7 +27,7 @@ impl WorldSession {
     pub async fn handle_request_world_quest_update(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
             .handle_request_world_quest_update(pkt)
             .await;
     }
@@ -35,7 +35,7 @@ impl WorldSession {
     pub async fn handle_query_quest_info(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
             .handle_query_quest_info(pkt)
             .await;
     }
@@ -57,7 +57,7 @@ impl WorldSession {
     pub async fn handle_quest_giver_close_quest(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
             .handle_quest_giver_close_quest(pkt);
     }
 
@@ -67,7 +67,7 @@ impl WorldSession {
     ) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
             .handle_query_quest_completion_npcs(query)
             .await;
     }

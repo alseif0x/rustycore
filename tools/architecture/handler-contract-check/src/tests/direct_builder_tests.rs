@@ -103,9 +103,10 @@ fn direct_inventory_registrar_accepts_current_source_and_counts_entries() {
         "../../../../../crates/wow-world-inventory/src/handlers/equipment_sets.rs"
     ))
     .expect("the production Inventory registrar matches its direct-builder grammar");
-    // 5 equipment-set/item/enchantment entries plus the 11 auction entries the
-    // #1263 F5 auction family added to the same registrar.
-    assert_eq!(report.entries, 16);
+    // 5 equipment-set/item/enchantment entries plus the 12 auction entries the
+    // #1263 F5 auction family added to the same registrar (AuctionHelloRequest
+    // joined its family after the #1266 integration).
+    assert_eq!(report.entries, 17);
     assert_eq!(report.registrar_count, 1);
     assert_eq!(analyze(ONE_ENTRY).expect("single direct entry").entries, 1);
     let harmless_text =

@@ -39,6 +39,9 @@ pub struct QuestQueryHandlerCxLikeCpp<'a> {
     quest_store: Option<Arc<QuestStore>>,
     quest_state: &'a mut crate::SessionQuestState,
     lifecycle: &'a SessionLifecycleState,
+    /// The host's World-test flag (World passes `cfg!(test)`), forwarded to
+    /// the quest-state APIs whose contract takes it.
+    world_test_consumer: bool,
 }
 
 /// Deferred tail of one quest-push-result handler invocation.
@@ -67,12 +70,14 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
         quest_store: Option<Arc<QuestStore>>,
         quest_state: &'a mut crate::SessionQuestState,
         lifecycle: &'a SessionLifecycleState,
+        world_test_consumer: bool,
     ) -> Self {
         Self {
             hub,
             quest_store,
             quest_state,
             lifecycle,
+            world_test_consumer,
         }
     }
 
@@ -142,7 +147,7 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
 
     /// Records the moved-tail evidence once the host synced the registry.
     pub fn finish_quest_push_result(&mut self, tail: QuestPushResultTailLikeCpp) {
-        let world_test = cfg!(any(test, feature = "test-fixtures"));
+        let world_test = self.world_test_consumer;
         match tail {
             QuestPushResultTailLikeCpp::NotPending
             | QuestPushResultTailLikeCpp::ClearedWithoutResponse => {}
@@ -201,7 +206,7 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
             return None;
         }
 
-        let world_test = cfg!(any(test, feature = "test-fixtures"));
+        let world_test = self.world_test_consumer;
         let owner = self.hub.shared().core.quest_objective_access_like_cpp();
         let Some(qid) =
             crate::get_quest_slot_quest_id_like_cpp(&owner, self.quest_state, slot, world_test)
@@ -238,7 +243,7 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
             self.hub.catalogs,
             &publication,
             slot,
-            cfg!(any(test, feature = "test-fixtures")),
+            self.world_test_consumer,
         );
         info!(
             account = self.hub.shared().core.account_id,
@@ -306,7 +311,7 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
             &owner,
             self.quest_state,
             quest_id,
-            cfg!(any(test, feature = "test-fixtures")),
+            self.world_test_consumer,
         )
         .is_none()
         {

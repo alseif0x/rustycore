@@ -27,6 +27,7 @@ impl GroupHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
             instances,
             catalogs.group_invite_policy.as_ref(),
             hub,
+            cfg!(test),
         )
     }
 

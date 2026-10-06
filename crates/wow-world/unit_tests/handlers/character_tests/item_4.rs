@@ -244,6 +244,10 @@ fn inventory_domain_registration_exact_set_includes_cancel_temp_enchantment() {
             "handle_delete_equipment_set",
         ),
         (
+            ClientOpcodes::AuctionHelloRequest,
+            "handle_auction_hello_request",
+        ),
+        (
             ClientOpcodes::AuctionListBidderItems,
             "handle_auction_list_bidder_items",
         ),

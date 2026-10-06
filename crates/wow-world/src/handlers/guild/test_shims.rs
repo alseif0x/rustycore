@@ -18,6 +18,13 @@ impl WorldSession {
             .await;
     }
 
+    pub async fn handle_guild_bank_remaining_withdraw_money_query(&mut self, pkt: WorldPacket) {
+        let (social, hub) = crate::session::split_social_mut(self);
+        GuildHandlerCxLikeCpp::new(social, hub)
+            .handle_guild_bank_remaining_withdraw_money_query(pkt)
+            .await;
+    }
+
     pub async fn handle_guild_decline_invitation(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         GuildHandlerCxLikeCpp::new(social, hub)

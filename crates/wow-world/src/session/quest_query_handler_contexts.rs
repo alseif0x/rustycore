@@ -18,7 +18,7 @@ impl QuestQueryHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessio
     ) -> QuestQueryHandlerCxLikeCpp<'a> {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
     }
 
     fn sync_player_registry_state_after_quest_change_like_cpp(&mut self) {

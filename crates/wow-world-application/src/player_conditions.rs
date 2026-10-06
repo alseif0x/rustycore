@@ -329,6 +329,76 @@ impl<'a> PlayerConditionProjectionCxLikeCpp<'a> {
     }
 }
 
+/// Selects the condition-projection participants from the hub and the domain
+/// states that own them, without reading them. World and application handlers
+/// share this one construction; `consumer_test` is the caller's World-test
+/// flag (World passes `cfg!(test)`), not this crate's own cfg.
+pub fn player_condition_projection_cx_like_cpp<'a>(
+    hub: wow_world_core::session::HubRef<'a>,
+    inventory: &'a InventoryState,
+    social: &'a SessionSocialLimits,
+    #[cfg(any(test, feature = "test-fixtures"))] spell_state: &'a SessionSpellState,
+    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &'a crate::SessionQuestState,
+    #[cfg(any(test, feature = "test-fixtures"))] instances: &'a InstanceState,
+    #[cfg(any(test, feature = "test-fixtures"))] consumer_test: bool,
+) -> PlayerConditionProjectionCxLikeCpp<'a> {
+    PlayerConditionProjectionCxLikeCpp::new(
+        hub.player_condition_access_like_cpp(),
+        inventory,
+        social,
+        hub.catalogs.chr_specialization_store().map(Arc::as_ref),
+        #[cfg(any(test, feature = "test-fixtures"))]
+        spell_state,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        quest_state,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        instances,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures.battleground,
+        hub.catalogs.inventory_valuation_catalog_view_like_cpp(),
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures.progression.reputation_state_like_cpp,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures
+            .battleground
+            .represented_battleground_status_like_cpp,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures
+            .progression
+            .player_skill_test_fixture_like_cpp
+            .player_skill_records_complete_like_cpp,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures.combat.in_combat,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        consumer_test,
+    )
+}
+
+/// C++ `ConditionMgr::IsPlayerMeetingCondition` for one `PlayerCondition` id,
+/// with the represented admission order: id 0 passes, a missing store fails,
+/// an unknown condition passes, an unprojectable Player fails.
+pub fn meets_player_condition_id_like_cpp(
+    projection: &PlayerConditionProjectionCxLikeCpp<'_>,
+    store: Option<&PlayerConditionStore>,
+    player_condition_id: u32,
+) -> bool {
+    if player_condition_id == 0 {
+        return true;
+    }
+    let Some(store) = store else {
+        return false;
+    };
+    let Some(condition) = store.get(player_condition_id) else {
+        return true;
+    };
+    let Some(values) = projection.project_like_cpp() else {
+        return false;
+    };
+    projection
+        .condition_context_like_cpp(&values)
+        .is_some_and(|context| wow_data::is_player_meeting_condition_like_cpp(condition, &context))
+}
+
 impl RepresentedPlayerConditionContextLikeCpp {
     /// Project one source collection at its original PlayerCondition snapshot
     /// point. The holder owns only the vectors consumed by the evaluator.

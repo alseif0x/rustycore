@@ -22,6 +22,17 @@ syn = { version = "2", features = ["full", "visit"] }
 # The architecture gate runs in release because a full workspace scan is the
 # job's dominant cost, but its debug assertions cross-check the semantic row
 # counts against the exact inventory. Keep them: the scan stays optimized and
-# the safety net survives the profile change.
+# the safety net survives the profile change. Incremental release compilation
+# turns the ~190 s rebuild after each checker change into a few seconds; the
+# scan itself is measured separately before adopting it.
 [profile.release]
 debug-assertions = true
+incremental = true
+
+# The unit-test suite repeats full workspace scans (handler contract, bridge
+# provenance, runtime ledger anchors, session ownership). Under the default
+# unoptimized test profile, syn/proc-macro2 parsing dominated final's wall time.
+# Optimizing the dependencies keeps every test, debug assertion and overflow
+# check of this crate while removing that cost.
+[profile.dev.package."*"]
+opt-level = 3
