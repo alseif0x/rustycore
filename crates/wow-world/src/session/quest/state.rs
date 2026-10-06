@@ -9,15 +9,8 @@ impl WorldSession {
     pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerQuestGameplayState> {
-        #[cfg(test)]
-        let hydration_access = self.core.player_registry_hydration_access_like_cpp();
-        #[cfg(test)]
-        if hydration_access.owner_handle_absent_like_cpp() {
-            return Some(self.player_quest_gameplay_fixture_like_cpp());
-        }
-        #[cfg(not(test))]
-        let hydration_access = self.core.player_registry_hydration_access_like_cpp();
-        hydration_access.owned_player_quest_gameplay_snapshot_like_cpp()
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        wow_world_application::player_quest_gameplay_snapshot_like_cpp(hub, state)
     }
 
     pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
@@ -200,36 +193,8 @@ impl WorldSession {
         &mut self,
         mutate: impl FnOnce(&mut PlayerQuestGameplayState) -> R,
     ) -> Option<R> {
-        let mut mutate = Some(mutate);
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let mut fixture = self.player_quest_gameplay_fixture_like_cpp();
-            let result = mutate.take().expect("test quest mutation executes once")(&mut fixture);
-            self.quest_state
-                .apply_player_quest_gameplay_fixture_like_cpp(fixture);
-            return Some(result);
-        }
-        let canonical = self.core.mutate_canonical_player_like_cpp(|player| {
-            mutate.take().expect("Player quest mutation executes once")(
-                &mut player.gameplay_state_mut().quests,
-            )
-        });
-        if canonical.is_some() {
-            #[cfg(test)]
-            if let Some(state) = self
-                .core
-                .with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
-            {
-                self.quest_state
-                    .apply_player_quest_core_compatibility_like_cpp(&state);
-            }
-            return canonical;
-        }
-        None
-    }
-    #[cfg(test)]
-    fn player_quest_gameplay_fixture_like_cpp(&self) -> PlayerQuestGameplayState {
-        self.quest_state.player_quest_gameplay_fixture_like_cpp()
+        let (state, hub) = crate::session::split_quest_state_mut(self);
+        wow_world_application::mutate_player_quest_gameplay_like_cpp(hub, state, mutate)
     }
     pub(in crate::session) fn represented_quest_login_aura_sources_are_hit_inert_like_cpp(
         &self,

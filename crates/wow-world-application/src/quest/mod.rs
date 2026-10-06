@@ -53,7 +53,6 @@ pub use self::reward::QuestRewardReputationFixtureRefsLikeCpp;
 pub use self::reward::QuestXpGainFixtureRefsLikeCpp;
 pub use self::reward_commit::QuestRewardCommitCx;
 pub use self::reward_plan::QuestRewardDurablePlanLikeCpp;
-pub use self::session_state::SessionQuestState;
 pub use self::session_state::contracts::{
     RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
@@ -66,6 +65,10 @@ pub use self::session_state::contracts::{
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
+};
+pub use self::session_state::{
+    SessionQuestState, mutate_player_quest_gameplay_like_cpp,
+    player_quest_gameplay_snapshot_like_cpp,
 };
 pub use self::visibility::QuestEligibilityCx;
 pub use self::visibility::{

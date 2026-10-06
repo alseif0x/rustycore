@@ -219,3 +219,58 @@ impl SessionQuestState {
         let _ = (record_test_evidence, outcome);
     }
 }
+
+/// Canonical `Player::m_QuestStatus`/`m_RewardedQuests` snapshot with the
+/// represented fixture fallback the World session applied at its read point.
+///
+/// This is the bounded seam of #1263 F5: the owner is still the canonical
+/// Player behind the Core hub, and the fixture fallback stays a
+/// `test-fixtures` concern inside the crate that owns the state.
+pub fn player_quest_gameplay_snapshot_like_cpp(
+    hub: wow_world_core::session::HubRef<'_>,
+    quest_state: &SessionQuestState,
+) -> Option<wow_entities::PlayerQuestGameplayState> {
+    let hydration_access = hub.core.player_registry_hydration_access_like_cpp();
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if hydration_access.owner_handle_absent_like_cpp() {
+        return Some(quest_state.player_quest_gameplay_fixture_like_cpp());
+    }
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = quest_state;
+    hydration_access.owned_player_quest_gameplay_snapshot_like_cpp()
+}
+
+/// Canonical Player quest mutation with the same represented fixture fallback.
+pub fn mutate_player_quest_gameplay_like_cpp<R>(
+    hub: wow_world_core::session::HubMut<'_>,
+    quest_state: &mut SessionQuestState,
+    mutate: impl FnOnce(&mut wow_entities::PlayerQuestGameplayState) -> R,
+) -> Option<R> {
+    let mut mutate = Some(mutate);
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if hub.shared().core.player_handle_like_cpp.is_none() {
+        let mut fixture = quest_state.player_quest_gameplay_fixture_like_cpp();
+        let result = mutate.take().expect("test quest mutation executes once")(&mut fixture);
+        quest_state.apply_player_quest_gameplay_fixture_like_cpp(fixture);
+        return Some(result);
+    }
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = &mut *quest_state;
+    let canonical = hub.core.mutate_canonical_player_like_cpp(|player| {
+        mutate.take().expect("Player quest mutation executes once")(
+            &mut player.gameplay_state_mut().quests,
+        )
+    });
+    if canonical.is_some() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if let Some(state) = hub
+            .shared()
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
+        {
+            quest_state.apply_player_quest_core_compatibility_like_cpp(&state);
+        }
+        return canonical;
+    }
+    None
+}

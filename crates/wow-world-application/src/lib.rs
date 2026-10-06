@@ -181,6 +181,7 @@ pub use quest::{
     RepresentedQuestCompleteDialogLikeCpp, represented_quest_complete_dialog_like_cpp,
     represented_quest_has_item_objective_like_cpp, represented_quest_rewards_block_like_cpp,
 };
+pub use quest::{mutate_player_quest_gameplay_like_cpp, player_quest_gameplay_snapshot_like_cpp};
 pub use quest::{
     represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,

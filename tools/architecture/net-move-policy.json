@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 36941,
-    "measured_requirement": 36941,
+    "budget": 36964,
+    "measured_requirement": 36964,
     "recorded_at_revision": "6d7d43462f6ea86e514ce188c2af951e9eb55661",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74141, G_move = 115089, ratio and slack credits = 74141 * 1.05 + 300 = 77848.05, so the requirement is 36940.95 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74176, G_move = 115148, ratio and slack credits = 74176 * 1.05 + 300 = 78184.80, so the requirement is 36963.20 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -348,6 +348,13 @@
         "destination_growth": 87,
         "new_code": 49,
         "note": "QueryCorpseLocationFromClient and QueryCorpseTransport moved into the existing ApplicationCharacterQuery owner; both only build the not-found response from the hub, so the shell keeps the cfg(test) delegates. The registrar preserves the original ThreadUnsafe processing metadata."
+      },
+      {
+        "phase": "F5 quest gameplay seam (f1d19d7b9..HEAD, no opcode moved)",
+        "shrink": 35,
+        "destination_growth": 59,
+        "new_code": 24,
+        "note": "Bounded the player-quest gameplay seam of #1263 F5: the canonical snapshot and mutation (with their represented fixture fallback) moved from the World shell into the application crate that already owns SessionQuestState, and the World methods are now thin wrappers over split_quest_state_ref/split_quest_state_mut. No registration changed; the goal is to let quest, spell and loot handler bodies reach the canonical quest state without a WorldSession handle."
       }
     ],
     "areas": [

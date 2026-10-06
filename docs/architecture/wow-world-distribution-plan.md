@@ -6177,6 +6177,28 @@ producción 17.115, total 32.452). R1 v2: `S = 74.141`, `G_move = 115.089`, requ
 
 **No validado aún.** Sin campaña `final` nueva; quedan **151 registros literales**.
 
+#### F5: acotado del seam de estado de quest (`player_quest_gameplay_*`) — 2026-10-05, `f1d19d7b9..HEAD`
+
+Se traslada a `wow-world-application` (junto a `SessionQuestState`, que ya es su dueño) el seam canónico
+de estado de quest: `player_quest_gameplay_snapshot_like_cpp` y
+`mutate_player_quest_gameplay_like_cpp`, incluido el fallback de fixture representado, ahora bajo
+`cfg(any(test, feature = "test-fixtures"))`. Los métodos de `wow-world` quedan como wrappers finos sobre
+`split_quest_state_ref`/`split_quest_state_mut`, sin cambio de comportamiento (el helper privado
+`player_quest_gameplay_fixture_like_cpp` del shell desaparece). Es uno de los seams que el plan F5 nombra
+para desbloquear los cuerpos de quest/spell/loot: el dueño canónico sigue siendo el Player del hub Core
+y el fallback de fixture queda en el crate que ya posee el estado. **No mueve ningún opcode**; quedan
+151 registros literales.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **428 tests de `quest`** y **25 de `dispatch`** (478
+opcodes intactos) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443** (492,72 s);
+`session-ownership-check check --syntax-only` **PASS** (204 owners / 3.144 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.176`,
+`G_move = 115.148`, requisito `36.963,20` → **presupuesto 36.964**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **151 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
