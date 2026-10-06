@@ -6691,6 +6691,35 @@ enruta su suite ni recompila el composer. Cobertura del manifiesto: `cargo check
 arquitectura (60 s), ownership por sintaxis (53 s) y R1 (7 s). La suite del tool de contratos se ejecutó aparte
 (443/443) porque este corte modifica fuentes que el tool lee con `include_str!`, aunque no el crate del tool.
 
+#### F5: `CMSG_LOOT_RELEASE` al contexto de release de App — 2026-10-06, `ff70f7842..86dfe9575`
+
+**Integración previa:** #1274 integró los handlers de cola de batalla (`ff70f7842`, `final` verde en 207 s).
+
+`CMSG_LOOT_RELEASE` pasa al contexto de release que la aplicación ya poseía
+(`wow_world_application::LootReleaseCxLikeCpp`), como método del propio contexto: el dueño App ya tenía los catorce
+participantes de la transición, así que **no se ensanchó ningún contexto ni se añadió un seam de host artificial**.
+El cuerpo (parseo, `warn!`, `debug!` con `account`/`unit`, retorno temprano sin guid de jugador, y
+`release_owner_like_cpp`) se movió literalmente, con su documentación C++ (`WorldSession::DoLootRelease`); solo se
+sustituyó la llamada al envoltorio de World por la función que ese envoltorio invocaba. Metadatos idénticos:
+`LoggedIn`/`ThreadUnsafe`/`handle_loot_release`. El único añadido en core es un accesor de solo lectura
+(`account_id_like_cpp`); `player_guid_like_cpp` ya existía.
+
+**Decisión estructural:** el host del dueño (`LootHandlerHostLikeCpp`) se traslada de
+`session/loot_handler_contexts.rs` a `handlers/loot/loot_host.rs`, junto a sus handlers. Esto evita crecer el agregado
+de sesión **y** evita ampliar `loot_release_cx_like_cpp`, que sigue siendo `pub(in crate::handlers::loot)` porque el
+host vive ya dentro de ese ámbito. No se tocaron los dos composers ni el tool: el registrador de LOOT ya existía, así
+que el corte mantiene el coste de campaña bajo.
+
+**Evidencia enfocada:** `cargo check` de `wow-world-core`, `wow-world-application` y `wow-world` (con y sin
+`test-fixtures`) sin errores ni avisos nuevos; `wow-world` `--lib` filtrado de loot **316 ✓** (los escenarios de loot
+ejercitan el shim, que despacha por el thunk de producción registrado); suite del tool **443/443** (ejecutada aparte
+porque este corte modifica fuentes que el tool lee con `include_str!`); ownership `--syntax-only` **PASS** con delta
+revisado (sale el handler de producción y el host del módulo de sesión; entran el shim de test, el host reubicado y su
+fábrica; 206 dueños / 3.127 ítems); arquitectura **PASS** tras registrar el crecimiento revisado del agregado de loot
+(+7 producción, porque el host entró en ese árbol) y ajustar el techo del agregado de sesión a su valor vivo
+(producción 60.069 → 60.046, **−23**); R1 `S = 16`, `G_move = 66`, presupuesto 0. Registros literales en `wow-world`:
+**108 → 107**. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
