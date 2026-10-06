@@ -56,6 +56,14 @@ impl WorldSession {
         self.trade_test_cx_like_cpp().handle_begin_trade(pkt).await;
     }
 
+    pub async fn handle_can_duel(&mut self, pkt: WorldPacket) {
+        self.trade_test_cx_like_cpp().handle_can_duel(pkt);
+    }
+
+    pub async fn handle_duel_response(&mut self, pkt: WorldPacket) {
+        self.trade_test_cx_like_cpp().handle_duel_response(pkt);
+    }
+
     pub async fn handle_ignore_trade(&mut self, pkt: WorldPacket) {
         self.trade_test_cx_like_cpp().handle_ignore_trade(pkt).await;
     }

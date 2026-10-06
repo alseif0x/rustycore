@@ -11,6 +11,9 @@ use std::sync::Arc;
 use wow_core::ObjectGuid;
 use wow_world_core::session::{HubMut, HubRef, mailbox::SessionCommand};
 
+/// C++ `DUEL_COUNTDOWN` before `SMSG_DUEL_COUNTDOWN`.
+pub const DUEL_COUNTDOWN_MS_LIKE_CPP: u32 = 3000;
+
 impl SessionSocialLimits {
     pub fn canonical_player_duel_in_progress_like_cpp(
         &self,

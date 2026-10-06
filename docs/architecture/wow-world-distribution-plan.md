@@ -6259,6 +6259,25 @@ opcodes intactos y metadata exacta) en verde; `cargo check` de `wow-world` (con 
 
 **No validado aún.** Sin campaña `final` nueva; quedan **148 registros literales**.
 
+#### F5: handlers de duelo (`CanDuel`, `DuelResponse`) — 2026-10-05, `680c24d29..HEAD`
+
+`CanDuel` y `DuelResponse` pasan al dueño existente `ApplicationTrade`, que ya presta el estado social y
+el hub. Las transiciones representadas de árbitro y de estado de duelo se mueven a
+`wow-world-application` como funciones libres, de modo que el camino de efecto de hechizo del shell
+(`apply_duel_effect_like_cpp`) conserva wrappers finos; `DUEL_COUNTDOWN_MS_LIKE_CPP` pasa a ser propiedad
+de `wow-world-social` y `wow-world` lo reexporta en la ruta histórica. El shell conserva delegados
+`cfg(test)` y ambos registros mantienen `LoggedIn`/`ThreadUnsafe`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **12 tests de `duel`**, **50 de `trade`**, **25 de
+`dispatch`** (478 opcodes intactos y metadata exacta) y **23 de `collections`** en verde; `cargo check`
+de `wow-world` (con `test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del
+tool **443/443** (499,18 s); `session-ownership-check check --syntax-only` **PASS** (204 owners / 3.142 items / 711
+filas); `check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.487`,
+`G_move = 115.781`, requisito `37.269,65` → **presupuesto 37.270**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **146 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

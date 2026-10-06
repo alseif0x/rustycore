@@ -228,9 +228,12 @@ pub use stats::{
     CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
     primary_max_power_for_class_like_cpp,
 };
-pub use trade_handlers::player_trade_state_snapshot_like_cpp;
 pub use trade_handlers::{
     TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp, register_trade_handlers_like_cpp,
+};
+pub use trade_handlers::{
+    player_trade_state_snapshot_like_cpp, resolved_represented_duel_arbiter_guid_like_cpp,
+    set_represented_duel_arbiter_guid_like_cpp, set_represented_duel_state_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_purchase::TrainerAcquisitionFixturesLikeCpp;

@@ -6639,37 +6639,9 @@
           "module": "crate::handlers::economy::trade",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_can_duel",
-          "visibility": "pub",
-          "signature": "async fn handle_can_duel (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_decline_petition",
           "visibility": "pub",
           "signature": "async fn handle_decline_petition (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::economy::trade",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_duel_response",
-          "visibility": "pub",
-          "signature": "async fn handle_duel_response (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6771,6 +6743,22 @@
           "module": "crate::handlers::economy::trade::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_can_duel",
+          "visibility": "pub",
+          "signature": "async fn handle_can_duel (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_cancel_trade",
           "visibility": "pub",
           "signature": "async fn handle_cancel_trade (& mut self , pkt : WorldPacket)",
@@ -6790,6 +6778,22 @@
           "name": "handle_clear_trade_item",
           "visibility": "pub",
           "signature": "async fn handle_clear_trade_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::economy::trade::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_duel_response",
+          "visibility": "pub",
+          "signature": "async fn handle_duel_response (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -21480,30 +21484,6 @@
           "name": "handle_destroy_visible_object_like_cpp_command_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn handle_destroy_visible_object_like_cpp_command_like_cpp (& mut self , command : DestroyVisibleObjectLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_duel_accepted_like_cpp",
-          "visibility": "private",
-          "signature": "fn handle_duel_accepted_like_cpp (& mut self , arbiter_guid : ObjectGuid) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_duel_response_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_duel_response_like_cpp (& mut self , arbiter_guid : ObjectGuid , accepted : bool , forfeited : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

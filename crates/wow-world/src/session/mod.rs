@@ -998,11 +998,11 @@ use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP
 const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
 const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32 = 0x0000_0080;
 const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
+pub use wow_world_core::session::SharedCanonicalMapManager;
+pub(crate) use wow_world_social::DUEL_COUNTDOWN_MS_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use wow_world_social::SPELL_DUEL_BEG_LIKE_CPP;
 pub(crate) use wow_world_social::{SPELL_DUEL_LIKE_CPP, SPELL_MOUNTED_DUEL_LIKE_CPP};
-pub(crate) const DUEL_COUNTDOWN_MS_LIKE_CPP: u32 = 3000;
-pub use wow_world_core::session::SharedCanonicalMapManager;
 
 // Compatibility paths while #578 moves cast consumers out of the Session adapter.
 pub(crate) use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;

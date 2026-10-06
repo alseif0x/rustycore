@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37194,
-    "measured_requirement": 37194,
+    "budget": 37270,
+    "measured_requirement": 37270,
     "recorded_at_revision": "ac7122c1e29abc10963e8ba51a537af0d7c4ee6a",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74368, G_move = 115580, ratio and slack credits = 74368 * 1.05 + 300 = 78386.40, so the requirement is 37193.60 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74487, G_move = 115781, ratio and slack credits = 74487 * 1.05 + 300 = 78511.35, so the requirement is 37269.65 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -376,6 +376,13 @@
         "destination_growth": 185,
         "new_code": 105,
         "note": "QuestPushResult moved into the quest-query owner. The owner returns a typed tail for the pending-share clear, the host runs the registry sync in place and the owner records the moved evidence, preserving the C++ order; the pending-share read/clear seam also moved to the application crate so acceptance/sharing keep thin World wrappers. The registration keeps its original LoggedIn/ThreadUnsafe metadata."
+      },
+      {
+        "phase": "F5 duel handlers (680c24d29..HEAD, two handlers)",
+        "shrink": 115,
+        "destination_growth": 198,
+        "new_code": 83,
+        "note": "CanDuel and DuelResponse moved into the existing ApplicationTrade owner, which already borrows the social state and the hub. The represented duel arbiter/state transitions moved to the application crate as free functions so the World spell-effect duel path keeps thin wrappers, and DUEL_COUNTDOWN_MS_LIKE_CPP is now owned by wow-world-social. Both registrations keep their original LoggedIn/ThreadUnsafe metadata."
       }
     ],
     "areas": [

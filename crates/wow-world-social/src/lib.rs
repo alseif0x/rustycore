@@ -76,6 +76,9 @@ pub use state::SessionSocialLimits;
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
 pub const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
 pub const SPELL_DUEL_LIKE_CPP: u32 = 7266;
+
+/// C++ `DUEL_COUNTDOWN` before `SMSG_DUEL_COUNTDOWN`.
+pub use duel::DUEL_COUNTDOWN_MS_LIKE_CPP;
 pub const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;

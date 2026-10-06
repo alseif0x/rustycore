@@ -16,15 +16,15 @@
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_entities::PlayerTradeStateLikeCpp;
+use wow_entities::{PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerTradeStateLikeCpp};
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::misc::{
-    AcceptTrade, BeginTrade, BusyTrade, ClearTradeItem, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
-    IgnoreTrade, SetTradeGold, SetTradeItem, TRADE_SLOT_COUNT_LIKE_CPP,
-    TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
+    AcceptTrade, BeginTrade, BusyTrade, CanDuel, ClearTradeItem, DuelCountdown, DuelResponse,
+    EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, IgnoreTrade, SetTradeGold, SetTradeItem,
+    TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP, TRADE_STATUS_CANCELLED_LIKE_CPP,
     TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, TRADE_STATUS_PLAYER_IGNORED_LIKE_CPP,
     TRADE_STATUS_STATE_CHANGED_LIKE_CPP, TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
     UnacceptTrade,
@@ -53,6 +53,40 @@ pub fn player_trade_state_snapshot_like_cpp(
     #[cfg(not(any(test, feature = "test-fixtures")))]
     let _ = social;
     canonical
+}
+
+/// Canonical `Player::SetDuelInfo` through the hub's canonical-player access.
+pub fn set_represented_duel_state_like_cpp(
+    hub: &mut HubMut<'_>,
+    player_guid: ObjectGuid,
+    opponent_guid: ObjectGuid,
+    state: PlayerDuelStateLikeCpp,
+) {
+    let _ = hub
+        .core
+        .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+            player.set_duel_info_like_cpp(Some(PlayerDuelInfoLikeCpp {
+                opponent: opponent_guid,
+                state,
+            }));
+        });
+}
+
+/// C++ represented arbiter install through the Social owner.
+pub fn set_represented_duel_arbiter_guid_like_cpp(
+    hub: &mut HubMut<'_>,
+    social: &mut SessionSocialLimits,
+    guid: Option<ObjectGuid>,
+) {
+    social.set_represented_duel_arbiter_guid_like_cpp(hub, guid);
+}
+
+/// C++ represented arbiter query through the Social owner.
+pub fn resolved_represented_duel_arbiter_guid_like_cpp(
+    hub: wow_world_core::session::HubRef<'_>,
+    social: &SessionSocialLimits,
+) -> Option<Option<ObjectGuid>> {
+    social.resolved_represented_duel_arbiter_guid_like_cpp(hub)
 }
 
 /// Borrowed inputs of one trade handler invocation.
@@ -623,6 +657,118 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         // itself is a no-op when no active TradeData exists.
         self.cancel_with_status_like_cpp(TRADE_STATUS_CANCELLED_LIKE_CPP);
     }
+
+    /// CMSG_CAN_DUEL — validate a duel request and answer the client.
+    pub fn handle_can_duel(&mut self, mut pkt: WorldPacket) {
+        let packet = match CanDuel::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "CanDuel parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.social.handle_can_duel_like_cpp(
+            &mut self.hub,
+            packet.target_guid,
+            packet.to_the_death,
+        );
+    }
+
+    /// CMSG_DUEL_RESPONSE — accept or cancel a represented duel request.
+    pub fn handle_duel_response(&mut self, mut pkt: WorldPacket) {
+        let packet = match DuelResponse::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "DuelResponse parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if packet.accepted && !packet.forfeited {
+            let _ = self.handle_duel_accepted_like_cpp(packet.arbiter_guid);
+        } else {
+            self.social.handle_duel_cancelled_like_cpp(&mut self.hub);
+        }
+    }
+
+    fn handle_duel_accepted_like_cpp(&mut self, arbiter_guid: ObjectGuid) -> bool {
+        let Some(player_guid) = self.hub.shared().core.player_guid() else {
+            return false;
+        };
+        if resolved_represented_duel_arbiter_guid_like_cpp(self.hub.shared(), self.social)
+            != Some(Some(arbiter_guid))
+        {
+            return false;
+        }
+
+        let Some(duel) = self
+            .social
+            .represented_current_duel_info_like_cpp(&mut self.hub)
+        else {
+            return false;
+        };
+        if duel.state != PlayerDuelStateLikeCpp::Challenged {
+            return false;
+        }
+
+        let opponent_guid = duel.opponent;
+        let Some(opponent_duel) = self
+            .social
+            .represented_duel_opponent_info_like_cpp(&mut self.hub, opponent_guid)
+        else {
+            return false;
+        };
+        if opponent_duel.opponent != player_guid {
+            return false;
+        }
+
+        set_represented_duel_state_like_cpp(
+            &mut self.hub,
+            player_guid,
+            opponent_guid,
+            PlayerDuelStateLikeCpp::Countdown,
+        );
+        set_represented_duel_state_like_cpp(
+            &mut self.hub,
+            opponent_guid,
+            player_guid,
+            PlayerDuelStateLikeCpp::Countdown,
+        );
+
+        let packet_bytes = DuelCountdown {
+            countdown_ms: duel_countdown_ms_like_cpp(),
+        }
+        .to_bytes();
+        self.hub.shared().core.send_raw_packet(&packet_bytes);
+        self.social
+            .send_represented_duel_countdown_to_opponent_like_cpp(
+                self.hub.shared(),
+                opponent_guid,
+                packet_bytes,
+            );
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.social
+            .record_represented_duel_accept_for_test_like_cpp(
+                wow_world_social::RepresentedDuelAcceptedLikeCpp {
+                    opponent_guid,
+                    arbiter_guid,
+                    countdown_ms: duel_countdown_ms_like_cpp(),
+                },
+            );
+        true
+    }
+}
+
+/// C++ `DUEL_COUNTDOWN` before `SMSG_DUEL_COUNTDOWN`.
+fn duel_countdown_ms_like_cpp() -> u32 {
+    wow_world_social::DUEL_COUNTDOWN_MS_LIKE_CPP
 }
 
 /// Builds a trade handler context from a host's social and inventory state.
@@ -783,6 +929,38 @@ where
     })
 }
 
+fn handle_can_duel_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_can_duel(pkt);
+    })
+}
+
+fn handle_duel_response_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TradeHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .trade_handler_cx_like_cpp(catalogs)
+            .handle_duel_response(pkt);
+    })
+}
+
 /// Registers the trade handlers on the packet registry.
 pub fn register_trade_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -853,6 +1031,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_ignore_trade",
         handler: ignore_trade_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::CanDuel,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_can_duel",
+        handler: handle_can_duel_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::DuelResponse,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_duel_response",
+        handler: handle_duel_response_thunk::<S, C>,
     })?;
     Ok(())
 }

@@ -8,13 +8,13 @@ use super::*;
 impl WorldSession {
     pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         let (state, mut hub) = crate::session::split_social_mut(self);
-        state.set_represented_duel_arbiter_guid_like_cpp(&mut hub, guid)
+        wow_world_application::set_represented_duel_arbiter_guid_like_cpp(&mut hub, state, guid);
     }
     pub(crate) fn resolved_represented_duel_arbiter_guid_like_cpp(
         &self,
     ) -> Option<Option<ObjectGuid>> {
         let (state, hub) = crate::session::split_social_ref(self);
-        state.resolved_represented_duel_arbiter_guid_like_cpp(hub)
+        wow_world_application::resolved_represented_duel_arbiter_guid_like_cpp(hub, state)
     }
     fn set_represented_duel_state_like_cpp(
         &mut self,
@@ -22,14 +22,13 @@ impl WorldSession {
         opponent_guid: ObjectGuid,
         state: wow_entities::PlayerDuelStateLikeCpp,
     ) {
-        let _ = self
-            .core
-            .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
-                player.set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
-                    opponent: opponent_guid,
-                    state,
-                }));
-            });
+        let mut hub = crate::session::hub_mut(self);
+        wow_world_application::set_represented_duel_state_like_cpp(
+            &mut hub,
+            player_guid,
+            opponent_guid,
+            state,
+        );
     }
     /// C++ `Spell::EffectDuel`.
     ///
@@ -127,78 +126,6 @@ impl WorldSession {
                 to_the_death: false,
             });
         true
-    }
-    fn handle_duel_accepted_like_cpp(&mut self, arbiter_guid: ObjectGuid) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        if self.resolved_represented_duel_arbiter_guid_like_cpp() != Some(Some(arbiter_guid)) {
-            return false;
-        }
-
-        let Some(duel) = ({
-            let (s, mut h) = crate::session::split_social_mut(self);
-            s.represented_current_duel_info_like_cpp(&mut h)
-        }) else {
-            return false;
-        };
-        if duel.state != wow_entities::PlayerDuelStateLikeCpp::Challenged {
-            return false;
-        }
-
-        let opponent_guid = duel.opponent;
-        let Some(opponent_duel) = ({
-            let (s, mut h) = crate::session::split_social_mut(self);
-            s.represented_duel_opponent_info_like_cpp(&mut h, opponent_guid)
-        }) else {
-            return false;
-        };
-        if opponent_duel.opponent != player_guid {
-            return false;
-        }
-
-        self.set_represented_duel_state_like_cpp(
-            player_guid,
-            opponent_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-        self.set_represented_duel_state_like_cpp(
-            opponent_guid,
-            player_guid,
-            wow_entities::PlayerDuelStateLikeCpp::Countdown,
-        );
-
-        use wow_packet::ServerPacket;
-        let packet = wow_packet::packets::misc::DuelCountdown {
-            countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-        };
-        let packet_bytes = packet.to_bytes();
-        self.send_raw_packet(&packet_bytes);
-        {
-            let (s, h) = crate::session::split_social_ref(self);
-            s.send_represented_duel_countdown_to_opponent_like_cpp(h, opponent_guid, packet_bytes)
-        };
-        #[cfg(test)]
-        self.social
-            .record_represented_duel_accept_for_test_like_cpp(RepresentedDuelAcceptedLikeCpp {
-                opponent_guid,
-                arbiter_guid,
-                countdown_ms: DUEL_COUNTDOWN_MS_LIKE_CPP,
-            });
-        true
-    }
-    pub(crate) fn handle_duel_response_like_cpp(
-        &mut self,
-        arbiter_guid: ObjectGuid,
-        accepted: bool,
-        forfeited: bool,
-    ) -> bool {
-        if accepted && !forfeited {
-            self.handle_duel_accepted_like_cpp(arbiter_guid)
-        } else {
-            let (s, mut h) = crate::session::split_social_mut(self);
-            s.handle_duel_cancelled_like_cpp(&mut h)
-        }
     }
 }
 
