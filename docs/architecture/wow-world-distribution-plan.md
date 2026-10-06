@@ -6046,6 +6046,26 @@ permitidos / 0 obsoletos.
 
 **No validado aún.** Sin campaña `final` nueva; quedan **171 registros literales**.
 
+#### F5: vehículos, corte de asientos adyacentes (2 opcodes) — 2026-10-05, `1bd5f293d..HEAD`
+
+`RequestVehiclePrevSeat` y `RequestVehicleNextSeat` pasan al dueño `ApplicationVehicle`. Además, el
+**vocabulario puro de acciones de vehículo** (`VehicleHandlerAction` y los seis ayudantes
+`*_action_like_cpp`, sin estado) se traslada a `wow-world-application` y `handlers/vehicle.rs` lo
+**reexporta**, de modo que los llamadores del shell (`session/quest/state.rs`,
+`session/movement/state.rs`, `session/taxi/operations.rs`) y las pruebas conservan sus rutas. La
+transición de asiento adyacente usa el hub y registra la petición de fixture bajo
+`cfg(any(test, feature = "test-fixtures"))`. `handlers/vehicle.rs` queda con **4 registros literales**
+(`MoveDismissVehicle`, `MoveChangeVehicleSeats`, `RequestVehicleSwitchSeat`, `RideVehicleInteract`).
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**42 de `vehicle`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (198 owners / 3.149 items / 711 filas, baseline sin cambios);
+`check_architecture.py check` **PASS**. R1 v2: `S = 73.206`, `G_move = 113.398`, requisito
+`36.231,70` → **presupuesto 36.232**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **169 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

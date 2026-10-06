@@ -23,6 +23,29 @@ impl WorldSession {
             .await;
     }
 
+    pub async fn handle_request_vehicle_prev_seat(
+        &mut self,
+        packet: wow_packet::packets::vehicle::RequestVehiclePrevSeat,
+    ) {
+        self.vehicle_test_cx_like_cpp()
+            .handle_request_vehicle_prev_seat(packet)
+            .await;
+    }
+
+    pub async fn handle_request_vehicle_next_seat(
+        &mut self,
+        packet: wow_packet::packets::vehicle::RequestVehicleNextSeat,
+    ) {
+        self.vehicle_test_cx_like_cpp()
+            .handle_request_vehicle_next_seat(packet)
+            .await;
+    }
+
+    pub fn represented_request_adjacent_vehicle_seat_like_cpp(&mut self, next: bool) -> bool {
+        self.vehicle_test_cx_like_cpp()
+            .represented_request_adjacent_vehicle_seat_like_cpp(next)
+    }
+
     pub async fn handle_request_vehicle_exit(
         &mut self,
         packet: wow_packet::packets::vehicle::RequestVehicleExit,

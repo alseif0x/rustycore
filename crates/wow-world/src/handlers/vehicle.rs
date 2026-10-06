@@ -23,157 +23,15 @@ use wow_packet::packets::vehicle::{
 
 use crate::session::WorldSession;
 
+pub use wow_world_application::{
+    VehicleHandlerAction, eject_passenger_action_like_cpp,
+    move_change_vehicle_seats_action_like_cpp, move_dismiss_vehicle_action_like_cpp,
+    request_adjacent_vehicle_seat_action_like_cpp, request_vehicle_exit_action_like_cpp,
+    request_vehicle_switch_seat_action_like_cpp, ride_vehicle_interact_action_like_cpp,
+};
+
 #[cfg(test)]
 mod test_shims;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum VehicleHandlerAction {
-    Noop,
-    Reject,
-    ValidateMovementAndExitVehicle,
-    ChangeSeat { seat_id: i8, next: bool },
-    ValidateMovementAndChangeSeat { next: bool },
-    HandleSpellClick { vehicle: ObjectGuid, seat_id: i8 },
-    EnterVehicle { vehicle: ObjectGuid },
-    ExitVehicle,
-}
-
-pub fn move_dismiss_vehicle_action_like_cpp(charmed_vehicle: ObjectGuid) -> VehicleHandlerAction {
-    if charmed_vehicle.is_empty() {
-        VehicleHandlerAction::Noop
-    } else {
-        VehicleHandlerAction::ValidateMovementAndExitVehicle
-    }
-}
-
-pub fn request_adjacent_vehicle_seat_action_like_cpp(
-    has_vehicle_base: bool,
-    can_switch_from_current_seat: bool,
-    next: bool,
-) -> VehicleHandlerAction {
-    if !has_vehicle_base {
-        return VehicleHandlerAction::Noop;
-    }
-    if !can_switch_from_current_seat {
-        return VehicleHandlerAction::Reject;
-    }
-    VehicleHandlerAction::ChangeSeat { seat_id: -1, next }
-}
-
-pub fn move_change_vehicle_seats_action_like_cpp(
-    has_vehicle_base: bool,
-    can_switch_from_current_seat: bool,
-    vehicle_base_guid: ObjectGuid,
-    status_guid: ObjectGuid,
-    dst_vehicle: ObjectGuid,
-    dst_seat_index: u8,
-    dst_vehicle_exists_with_empty_seat: bool,
-) -> VehicleHandlerAction {
-    if !has_vehicle_base {
-        return VehicleHandlerAction::Noop;
-    }
-    if !can_switch_from_current_seat {
-        return VehicleHandlerAction::Reject;
-    }
-    if vehicle_base_guid != status_guid {
-        return VehicleHandlerAction::Noop;
-    }
-    if dst_vehicle.is_empty() {
-        return VehicleHandlerAction::ValidateMovementAndChangeSeat {
-            next: dst_seat_index != u8::MAX,
-        };
-    }
-    if dst_vehicle_exists_with_empty_seat {
-        return VehicleHandlerAction::HandleSpellClick {
-            vehicle: dst_vehicle,
-            seat_id: dst_seat_index as i8,
-        };
-    }
-    VehicleHandlerAction::Noop
-}
-
-pub fn request_vehicle_switch_seat_action_like_cpp(
-    has_vehicle_base: bool,
-    can_switch_from_current_seat: bool,
-    vehicle_base_guid: ObjectGuid,
-    requested_vehicle: ObjectGuid,
-    seat_index: u8,
-    requested_vehicle_exists_with_empty_seat: bool,
-) -> VehicleHandlerAction {
-    if !has_vehicle_base {
-        return VehicleHandlerAction::Noop;
-    }
-    if !can_switch_from_current_seat {
-        return VehicleHandlerAction::Reject;
-    }
-    if vehicle_base_guid == requested_vehicle {
-        return VehicleHandlerAction::ChangeSeat {
-            seat_id: seat_index as i8,
-            next: true,
-        };
-    }
-    if requested_vehicle_exists_with_empty_seat {
-        return VehicleHandlerAction::HandleSpellClick {
-            vehicle: requested_vehicle,
-            seat_id: seat_index as i8,
-        };
-    }
-    VehicleHandlerAction::Noop
-}
-
-pub fn ride_vehicle_interact_action_like_cpp(
-    vehicle: ObjectGuid,
-    target_is_player_with_vehicle_kit: bool,
-    target_is_raid_member: bool,
-    target_is_within_interaction_distance: bool,
-    map_exists: bool,
-    map_is_battle_arena: bool,
-) -> VehicleHandlerAction {
-    if !target_is_player_with_vehicle_kit
-        || !target_is_raid_member
-        || !target_is_within_interaction_distance
-        || !map_exists
-        || map_is_battle_arena
-    {
-        return VehicleHandlerAction::Noop;
-    }
-    VehicleHandlerAction::EnterVehicle { vehicle }
-}
-
-pub fn eject_passenger_action_like_cpp(
-    player_has_vehicle_kit: bool,
-    passenger: ObjectGuid,
-    passenger_found: bool,
-    passenger_on_same_vehicle: bool,
-    passenger_seat_is_ejectable: bool,
-) -> VehicleHandlerAction {
-    if !player_has_vehicle_kit
-        || !passenger.is_unit()
-        || !passenger_found
-        || !passenger_on_same_vehicle
-    {
-        return VehicleHandlerAction::Reject;
-    }
-    if passenger_seat_is_ejectable {
-        VehicleHandlerAction::ExitVehicle
-    } else {
-        VehicleHandlerAction::Reject
-    }
-}
-
-pub fn request_vehicle_exit_action_like_cpp(
-    has_vehicle: bool,
-    current_seat_can_enter_or_exit: bool,
-) -> VehicleHandlerAction {
-    if !has_vehicle {
-        return VehicleHandlerAction::Noop;
-    }
-    if current_seat_can_enter_or_exit {
-        VehicleHandlerAction::ExitVehicle
-    } else {
-        VehicleHandlerAction::Reject
-    }
-}
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -202,16 +60,6 @@ impl WorldSession {
         self.represented_move_dismiss_vehicle_like_cpp(&mut packet.status);
     }
 
-    /// C++ `HandleRequestVehiclePrevSeat`.
-    pub async fn handle_request_vehicle_prev_seat(&mut self, _packet: RequestVehiclePrevSeat) {
-        self.represented_request_adjacent_vehicle_seat_like_cpp(false);
-    }
-
-    /// C++ `HandleRequestVehicleNextSeat`.
-    pub async fn handle_request_vehicle_next_seat(&mut self, _packet: RequestVehicleNextSeat) {
-        self.represented_request_adjacent_vehicle_seat_like_cpp(true);
-    }
-
     /// C++ `HandleMoveChangeVehicleSeats`.
     pub async fn handle_move_change_vehicle_seats(&mut self, mut packet: MoveChangeVehicleSeats) {
         self.represented_move_change_vehicle_seats_like_cpp(
@@ -229,40 +77,6 @@ impl WorldSession {
     /// C++ `HandleRideVehicleInteract`.
     pub async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
         self.represented_ride_vehicle_interact_like_cpp(packet.vehicle);
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestVehiclePrevSeat,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_vehicle_prev_seat",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::RequestVehiclePrevSeat::read(&mut pkt) {
-                    Ok(packet) => session.handle_request_vehicle_prev_seat(packet).await,
-                    Err(e) => tracing::warn!("Failed to read RequestVehiclePrevSeat: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestVehicleNextSeat,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_vehicle_next_seat",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::RequestVehicleNextSeat::read(&mut pkt) {
-                    Ok(packet) => session.handle_request_vehicle_next_seat(packet).await,
-                    Err(e) => tracing::warn!("Failed to read RequestVehicleNextSeat: {e}"),
-                }
-            })
-        },
     }
 }
 

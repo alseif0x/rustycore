@@ -426,33 +426,6 @@ impl WorldSession {
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
         self.social.represented_duel_requests_for_test_like_cpp()
     }
-    pub(crate) fn represented_request_adjacent_vehicle_seat_like_cpp(
-        &mut self,
-        next: bool,
-    ) -> bool {
-        let mut hub = crate::session::hub_mut(self);
-        match crate::handlers::vehicle::request_adjacent_vehicle_seat_action_like_cpp(
-            hub.shared()
-                .player_vehicle_seat_state_like_cpp()
-                .and_then(|(flags, _)| flags)
-                .is_some(),
-            hub.shared()
-                .represented_current_vehicle_seat_can_switch_from_like_cpp(),
-            next,
-        ) {
-            crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
-                #[cfg(test)]
-                hub.fixtures
-                    .vehicles
-                    .represented_vehicle_seat_change_requests_like_cpp
-                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
-                #[cfg(not(test))]
-                let _ = (seat_id, next);
-                true
-            }
-            _ => false,
-        }
-    }
     #[cfg(test)]
     pub(crate) fn represented_vehicle_seat_change_requests_like_cpp(
         &self,

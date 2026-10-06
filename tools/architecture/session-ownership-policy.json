@@ -13658,34 +13658,6 @@
           "module": "crate::handlers::vehicle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_request_vehicle_next_seat",
-          "visibility": "pub",
-          "signature": "async fn handle_request_vehicle_next_seat (& mut self , _packet : RequestVehicleNextSeat)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::vehicle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_vehicle_prev_seat",
-          "visibility": "pub",
-          "signature": "async fn handle_request_vehicle_prev_seat (& mut self , _packet : RequestVehiclePrevSeat)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::vehicle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_request_vehicle_switch_seat",
           "visibility": "pub",
           "signature": "async fn handle_request_vehicle_switch_seat (& mut self , packet : RequestVehicleSwitchSeat)",
@@ -13733,6 +13705,54 @@
           "name": "handle_request_vehicle_exit",
           "visibility": "pub",
           "signature": "async fn handle_request_vehicle_exit (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehicleExit ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_vehicle_next_seat",
+          "visibility": "pub",
+          "signature": "async fn handle_request_vehicle_next_seat (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehicleNextSeat ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_vehicle_prev_seat",
+          "visibility": "pub",
+          "signature": "async fn handle_request_vehicle_prev_seat (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehiclePrevSeat ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_request_adjacent_vehicle_seat_like_cpp",
+          "visibility": "pub",
+          "signature": "fn represented_request_adjacent_vehicle_seat_like_cpp (& mut self , next : bool) -> bool",
           "cfg": [
             "cfg (test)"
           ],
@@ -32071,19 +32091,6 @@
           "name": "represented_recruit_a_friend_xp_rest_state_applies_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp (& self ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_request_adjacent_vehicle_seat_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_request_adjacent_vehicle_seat_like_cpp (& mut self , next : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

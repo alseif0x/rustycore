@@ -238,5 +238,11 @@ pub use travel_handlers::{
     TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
 };
 pub use vehicle_handlers::{
+    VehicleHandlerAction, eject_passenger_action_like_cpp,
+    move_change_vehicle_seats_action_like_cpp, move_dismiss_vehicle_action_like_cpp,
+    request_adjacent_vehicle_seat_action_like_cpp, request_vehicle_exit_action_like_cpp,
+    request_vehicle_switch_seat_action_like_cpp, ride_vehicle_interact_action_like_cpp,
+};
+pub use vehicle_handlers::{
     VehicleHandlerCxLikeCpp, VehicleHandlerHostLikeCpp, register_vehicle_handlers_like_cpp,
 };
