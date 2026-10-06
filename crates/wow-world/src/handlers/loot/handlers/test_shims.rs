@@ -5,6 +5,8 @@
 //! Test-only entry points for the loot handlers moved to
 //! `wow-world-application` (#1263 F5).
 
+use wow_constants::ClientOpcodes;
+use wow_packet::WorldPacket;
 use wow_packet::packets::loot::SetLootSpecialization;
 use wow_world_application::LootHandlerCxLikeCpp;
 
@@ -20,5 +22,15 @@ impl WorldSession {
         self.loot_test_cx_like_cpp()
             .handle_set_loot_specialization(packet)
             .await;
+    }
+
+    /// Dispatches through the registered production thunk so the release
+    /// context built by the host trait is exercised by every caller.
+    pub async fn handle_loot_release(&mut self, pkt: WorldPacket) {
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
+            .find(|entry| entry.opcode == ClientOpcodes::LootRelease)
+            .expect("registered loot release handler");
+        let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        (entry.handler)(self, &catalogs, pkt).await;
     }
 }

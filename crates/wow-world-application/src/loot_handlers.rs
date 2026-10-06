@@ -65,6 +65,12 @@ impl<'a> LootHandlerCxLikeCpp<'a> {
 /// Builds a loot handler context from a host's loot state and hub.
 pub trait LootHandlerHostLikeCpp<C> {
     fn loot_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> LootHandlerCxLikeCpp<'a>;
+
+    /// Builds the application loot-release context from the host's disjoint state.
+    fn loot_release_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> crate::LootReleaseCxLikeCpp<'a>;
 }
 
 fn handle_set_loot_specialization_thunk<'a, S, C>(
@@ -90,6 +96,23 @@ where
     })
 }
 
+fn handle_loot_release_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .loot_release_handler_cx_like_cpp(catalogs)
+            .handle_loot_release(pkt)
+            .await;
+    })
+}
+
 /// Registers the loot handlers on the packet registry.
 pub fn register_loot_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -104,6 +127,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_set_loot_specialization",
         handler: handle_set_loot_specialization_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::LootRelease,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_loot_release",
+        handler: handle_loot_release_thunk::<S, C>,
     })?;
     Ok(())
 }

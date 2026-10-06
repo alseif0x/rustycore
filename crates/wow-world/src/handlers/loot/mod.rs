@@ -39,6 +39,7 @@ mod combat_commands;
 mod fanout;
 mod generation;
 mod handlers;
+mod loot_host;
 mod money;
 mod persistence;
 mod random_properties;
@@ -123,9 +124,9 @@ use wow_packet::packets::loot::{
     LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP, LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
     LOOT_TYPE_INSIGNIA_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP,
     LOOT_TYPE_SKINNING_LIKE_CPP, LootAllPassed, LootEntry, LootEntryFlags, LootItemData,
-    LootItemPkt, LootList, LootMoney, LootMoneyNotify, LootRelease, LootReleaseAll, LootRemoved,
-    LootResponse, LootRoll, LootRollBroadcast, LootRollWon, LootUnit, MasterLootCandidateList,
-    MasterLootItem, SLootRelease, SetLootSpecialization, StartLootRoll,
+    LootItemPkt, LootList, LootMoney, LootMoneyNotify, LootReleaseAll, LootRemoved, LootResponse,
+    LootRoll, LootRollBroadcast, LootRollWon, LootUnit, MasterLootCandidateList, MasterLootItem,
+    SLootRelease, SetLootSpecialization, StartLootRoll,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_persistence::{

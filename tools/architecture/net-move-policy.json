@@ -17,8 +17,8 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "76da1e3cbd445f7c7f1bff4719308ede9c1ab761",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 411dada0f, the #1273 integration): S = 134, G_move = 192, ratio and slack credits = 134 * 1.05 + 300 = 440.70, so the requirement is -248.70 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "recorded_at_revision": "86dfe9575e0720116288875975afcd0096b0722e",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base ff70f7842, the #1274 integration): S = 16, G_move = 66, ratio and slack credits = 16 * 1.05 + 300 = 316.80, so the requirement is -250.80 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -530,17 +530,31 @@
         "destination_growth": 192,
         "new_code": 0,
         "note": "RequestBattlefieldStatus, BattlemasterHello, BattlefieldList and BattlemasterJoin move to the existing ApplicationBattleground owner; the host trait selects the BattlemasterList catalog for the generic thunks, and the battleground host moves out of the session aggregate."
+      },
+      {
+        "phase": "Base reset at the #1274 integration (ff70f7842)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1274 integrated the battlemaster queue handlers; the merge-base moved to ff70f7842."
+      },
+      {
+        "phase": "F5 loot release handler (ff70f7842..HEAD)",
+        "shrink": 16,
+        "destination_growth": 66,
+        "new_code": 0,
+        "note": "CMSG_LOOT_RELEASE moves onto the application loot-release context it already owned; the loot host moves next to the handlers and the session aggregate shrinks by 23 production lines."
       }
     ],
     "areas": [
       {
         "area": "crates/wow-world-core/src",
-        "lines": 0,
+        "lines": 5,
         "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder plus the #1263 F5 chat policy capacity re-export."
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 192,
+        "lines": 61,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
