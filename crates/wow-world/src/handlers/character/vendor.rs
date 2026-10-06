@@ -72,21 +72,6 @@ impl WorldSession {
         true
     }
 
-    /// CMSG_TABARD_VENDOR_ACTIVATE — player talks to a tabard designer.
-    /// C++ refs: `HandleTabardVendorActivateOpcode` /
-    /// `SendTabardVendorActivate` (`Handlers/NPCHandler.cpp:49-91`).
-    pub async fn handle_tabard_vendor_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
-        let guid = pkt
-            .read_packed_guid()
-            .unwrap_or(wow_core::ObjectGuid::EMPTY);
-        info!(
-            "TabardVendorActivate {:?} account {}",
-            guid, self.core.account_id
-        );
-        self.send_packet(&NpcInteractionOpenResult::new(guid, 14)); // GuildTabardVendor
-    }
-
     /// CMSG_REPAIR_ITEM — player repairs item at a repair vendor.
     /// C++ ref: WorldSession::HandleRepairItemOpcode.
     pub async fn handle_repair_item_with_generator_like_cpp(

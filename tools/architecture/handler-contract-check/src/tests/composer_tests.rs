@@ -13,7 +13,7 @@ use crate::registrations::{
     COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
     DUNGEON_FINDING_REGISTRAR, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR,
-    INVENTORY_REGISTRAR, LOOT_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
+    INVENTORY_REGISTRAR, LOOT_REGISTRAR, NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
     REPUTATION_REGISTRAR, RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR,
     SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR,
     TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, validate_composition_mounts,
@@ -203,6 +203,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             BATTLE_PET_REGISTRAR.module,
             "crates/wow-world-application/src/battle_pet_handlers.rs",
             include_str!("../../../../../crates/wow-world-application/src/battle_pet_handlers.rs"),
+        ),
+        mount(
+            NPC_REGISTRAR.package,
+            NPC_REGISTRAR.module,
+            "crates/wow-world-application/src/npc_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/npc_handlers.rs"),
         ),
         mount(
             VEHICLE_REGISTRAR.package,

@@ -788,6 +788,27 @@ pub(crate) const BATTLE_PET_REGISTRAR: DirectRegistrarContract = DirectRegistrar
     facades: BATTLE_PET_FACADES,
 };
 
+const NPC_ROOT_EXPORTS: &[&str] = &[
+    "NpcHandlerCxLikeCpp",
+    "NpcHandlerHostLikeCpp",
+    "register_npc_handlers_like_cpp",
+];
+const NPC_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "npc_handlers",
+    exports: NPC_ROOT_EXPORTS,
+}];
+
+pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationNpc",
+    package: "wow-world-application",
+    module: "crate::npc_handlers",
+    registrar: "register_npc_handlers_like_cpp",
+    host_trait: "NpcHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: NPC_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -824,6 +845,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     GUILD_BANK_REGISTRAR,
     CHARACTER_REGISTRAR,
     BATTLE_PET_REGISTRAR,
+    NPC_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

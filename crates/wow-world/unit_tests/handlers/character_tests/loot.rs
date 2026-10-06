@@ -69,7 +69,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/items/inventory_moves/real_swap.rs"),
         include_str!("../../../src/handlers/character/items/login_load.rs"),
         include_str!("../../../src/handlers/character/lifecycle.rs"),
-        include_str!("../../../src/handlers/character/pets.rs"),
         include_str!("../../../src/handlers/character/query.rs"),
         include_str!("../../../src/handlers/character/session_state.rs"),
         include_str!("../../../../wow-world-spell/src/login_spell_rules.rs"),
