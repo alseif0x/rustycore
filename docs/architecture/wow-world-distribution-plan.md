@@ -6718,7 +6718,15 @@ revisado (sale el handler de producción y el host del módulo de sesión; entra
 fábrica; 206 dueños / 3.127 ítems); arquitectura **PASS** tras registrar el crecimiento revisado del agregado de loot
 (+7 producción, porque el host entró en ese árbol) y ajustar el techo del agregado de sesión a su valor vivo
 (producción 60.069 → 60.046, **−23**); R1 `S = 16`, `G_move = 66`, presupuesto 0. Registros literales en `wow-world`:
-**108 → 107**. Pendiente: `final`.
+**108 → 107**.
+
+**Aceptación `final`:** sobre **`4557a5cae`**, **verde en 241 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T203346.762112Z-1246263-final.json`;
+pico de 10,6 GB usados y mínimo de 13,4 GB disponibles). Cobertura del manifiesto: `cargo check --tests` de los crates
+aguas abajo y de los cambiados, incluidos `wow-world-core` (97 s), y suites `--lib` completas de las tres librerías
+cambiadas `wow-world`, `wow-world-application` y `wow-world-core` (10 s), más política de arquitectura (61 s),
+ownership por sintaxis (53 s) y R1 (7 s). Sigue por debajo de 600 s porque el corte amplía un dueño existente y no
+toca el composer de `world-server` ni el tool.
 
 ## 9. Herramientas
 
