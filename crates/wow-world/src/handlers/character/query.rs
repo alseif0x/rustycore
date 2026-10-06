@@ -11,37 +11,6 @@ use super::*;
 mod test_shims;
 
 impl WorldSession {
-    /// CMSG_AREA_SPIRIT_HEALER_QUEUE — select an area spirit healer for resurrection.
-    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueueOpcode`.
-    pub async fn handle_area_spirit_healer_queue(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let queue = match AreaSpiritHealerQueue::read(&mut pkt) {
-            Ok(queue) => queue,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "AreaSpiritHealerQueue parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        if self
-            .represented_area_spirit_healer_access_like_cpp(queue.healer_guid)
-            .is_none()
-        {
-            debug!(
-                account = self.core.account_id,
-                healer = ?queue.healer_guid,
-                "AreaSpiritHealerQueue ignored without represented area spirit healer"
-            );
-            return;
-        }
-
-        // C++ also casts SPELL_WAITING_FOR_RESURRECT; deferred until the
-        // player spell/aura runtime owns battleground spirit resurrection.
-        self.set_area_spirit_healer_guid_like_cpp(queue.healer_guid);
-    }
-
     /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
     /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
     pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -79,14 +48,6 @@ impl WorldSession {
             healer = ?request.healer,
             "SpiritHealerActivate validated; resurrection runtime pending"
         );
-    }
-
-    pub(super) fn represented_area_spirit_healer_access_like_cpp(
-        &self,
-        healer_guid: ObjectGuid,
-    ) -> Option<crate::session::RepresentedCreatureAccessLikeCpp> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_area_spirit_healer_access_like_cpp(hub, healer_guid)
     }
 
     pub(super) fn collect_quest_giver_status_multiple_like_cpp(
@@ -182,51 +143,6 @@ impl WorldSession {
     pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
         self.build_item_text_query_handler_cx_like_cpp()
             .handle_item_text_query(query);
-    }
-
-    /// CMSG_AREA_SPIRIT_HEALER_QUERY — ask an area spirit healer for resurrection timer.
-    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueryOpcode`.
-    pub async fn handle_area_spirit_healer_query(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let query = match AreaSpiritHealerQuery::read(&mut pkt) {
-            Ok(query) => query,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "AreaSpiritHealerQuery parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let Some(access) = self.represented_area_spirit_healer_access_like_cpp(query.healer_guid)
-        else {
-            debug!(
-                account = self.core.account_id,
-                healer = ?query.healer_guid,
-                "AreaSpiritHealerQuery ignored without represented area spirit healer"
-            );
-            return;
-        };
-
-        // C++ sends the current shared channel timer or the individual aura
-        // duration after casting SPELL_SPIRIT_HEAL_PLAYER_AURA. Spell/aura/channel
-        // runtime is still outside this represented handler, so the packet shape
-        // and validation are ported and the timer remains zero for now.
-        if (access.npc_flags2
-            & wow_constants::unit::NPCFlags2::AREA_SPIRIT_HEALER_INDIVIDUAL.bits())
-            != 0
-        {
-            debug!(
-                account = self.core.account_id,
-                healer = ?query.healer_guid,
-                "AreaSpiritHealerQuery individual aura/channel timer is not represented yet"
-            );
-        }
-
-        self.send_packet(&AreaSpiritHealerTime {
-            healer_guid: query.healer_guid,
-            time_left_ms: 0,
-        });
     }
 
     #[cfg(test)]

@@ -17,8 +17,8 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "96fec0b7f28bb776a6da6afb7d2290be8fc25cd7",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base df80e7030, the #1270 integration): S = 22, G_move = 50, ratio and slack credits = 22 * 1.05 + 300 = 323.10, so the requirement is -273.10 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "recorded_at_revision": "45a0b47bbe79ccdbc5245ebed26eff08ed2d6a88",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 3c5187542, the #1271 integration): S = 73, G_move = 145, ratio and slack credits = 73 * 1.05 + 300 = 376.65, so the requirement is -231.65 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -488,6 +488,20 @@
         "destination_growth": 50,
         "new_code": 0,
         "note": "mutate_player_spell_runtime_like_cpp and its read twin with_player_spell_runtime_like_cpp move to wow-world-spell as SessionSpellState methods over the hub; World keeps wrappers for their 37 and 13 callers."
+      },
+      {
+        "phase": "Base reset at the #1271 integration (3c5187542)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1271 integrated the spell-runtime seam; the merge-base moved to 3c5187542."
+      },
+      {
+        "phase": "F5 area spirit-healer handlers (3c5187542..HEAD)",
+        "shrink": 73,
+        "destination_growth": 145,
+        "new_code": 0,
+        "note": "AreaSpiritHealerQuery and AreaSpiritHealerQueue (C++ BattleGroundHandler.cpp) move to the ApplicationBattleground owner, whose context now borrows the world-entity and instance state; bodies unchanged."
       }
     ],
     "areas": [
@@ -498,7 +512,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 0,
+        "lines": 145,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
@@ -513,7 +527,7 @@
       },
       {
         "area": "crates/wow-world-spell/src",
-        "lines": 50,
+        "lines": 0,
         "reason": "spell state, melee rules and spell-acquisition adapters."
       },
       {

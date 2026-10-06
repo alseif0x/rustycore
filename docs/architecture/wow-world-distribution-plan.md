@@ -6598,6 +6598,35 @@ plan (condiciones, aplicación de auras, sincronización de registro y runtime d
 **Aceptación `final`:** sobre **`82e663809`**, **verde en 205 s** con 2 jobs (`dirty: false`; verificada con
 `--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T173249.772601Z-1173490-final.json`).
 
+#### F5: handlers de ángel de área → `ApplicationBattleground` — 2026-10-06, `3c5187542..HEAD`
+
+**Integración previa:** #1271 integró el seam del runtime de hechizos (`3c5187542`, `final` verde en 205 s); los
+cuatro seams con nombre del plan están fuera del shell.
+
+**Decisión de dueño por evidencia C++ (`a5f8da2e`).** `HandleAreaSpiritHealerQueryOpcode` y
+`HandleAreaSpiritHealerQueueOpcode` están en `BattleGroundHandler.cpp` (líneas 658 y 688), así que van a
+`ApplicationBattleground`. `HandleSpiritHealerActivate` está en `NPCHandler.cpp` (331) y se queda para la familia
+NPC; `HandleHearthAndResurrect` (`BattleGroundHandler.cpp:703`) se queda en World mientras dependa del teleport del
+shell. **La familia de mascotas de combate se aplazó** tras inventariarla: sus helpers (~600 líneas) tienen ramas `#[cfg(test)]`
+sobre fixtures y consumidores en loot, entrenador y efectos de hechizo, y requieren su propio corte.
+
+Los dos handlers mantienen cuerpo, logs y metadatos (`LoggedIn`/`ThreadUnsafe`). El contexto de batalla pasa a prestar
+también `WorldEntitiesState` (búsqueda del ángel) e `InstanceState` (GUID del ángel en cola) mediante el nuevo
+`split_battleground_mut`; el wrapper World `represented_area_spirit_healer_access_like_cpp` sale del shell y
+`set_area_spirit_healer_guid_like_cpp` se queda (lo usan escenarios). Los shims de test del dueño construyen el
+contexto con el mismo split. `session/mod.rs` se mantiene en 1.046 líneas.
+
+**Evidencia enfocada:** `cargo check --all-targets` de App, `wow-world` (con `test-fixtures`) y `world-server` sin
+errores ni avisos nuevos (los presentes ya estaban en la base); `wow-world` `--lib` **3.634 ✓**; tool **443/443**;
+ownership **PASS** (salen 3 ítems de producción, entran 2 shims de test: 3.128 → 3.127); arquitectura **PASS**, con
+los techos de `handlers/character/mod.rs` (producción 17.070 → 16.962) y del agregado de sesión (60.168 → 60.106)
+ajustados a sus valores vivos; R1 `S = 73`, `G_move = 145`, presupuesto 0. Registros literales en
+`wow-world`: **118 → 116**.
+
+**Aceptación `final`:** sobre **`c978e772b`**, **verde en 454 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T180057.827042Z-1187968-final.json`).
+El coste dominante es `cargo check --tests` aguas abajo tras cambiar App (276 s); sigue por debajo de 600 s.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

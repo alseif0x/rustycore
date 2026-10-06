@@ -2382,6 +2382,38 @@
           "module": "crate::handlers::battlegrounds::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_area_spirit_healer_query",
+          "visibility": "pub",
+          "signature": "async fn handle_area_spirit_healer_query (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_area_spirit_healer_queue",
+          "visibility": "pub",
+          "signature": "async fn handle_area_spirit_healer_queue (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_arena_team_accept",
           "visibility": "pub",
           "signature": "async fn handle_arena_team_accept (& mut self , pkt : WorldPacket)",
@@ -4232,34 +4264,6 @@
           "module": "crate::handlers::character::query",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_area_spirit_healer_query",
-          "visibility": "pub",
-          "signature": "async fn handle_area_spirit_healer_query (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_area_spirit_healer_queue",
-          "visibility": "pub",
-          "signature": "async fn handle_area_spirit_healer_queue (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_db_query_bulk",
           "visibility": "pub",
           "signature": "async fn handle_db_query_bulk (& mut self , query : wow_packet :: packets :: misc :: DbQueryBulk)",
@@ -4353,20 +4357,6 @@
           "name": "handle_spirit_healer_activate",
           "visibility": "pub",
           "signature": "async fn handle_spirit_healer_activate (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_area_spirit_healer_access_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_area_spirit_healer_access_like_cpp (& self , healer_guid : ObjectGuid ,) -> Option < crate :: session :: RepresentedCreatureAccessLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [

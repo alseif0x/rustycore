@@ -3,7 +3,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the arena-team handlers moved to
-//! `wow-world-social` (#1263 F5).
+//! `wow-world-social` and the battleground handlers moved to
+//! `wow-world-application` (#1263 F5).
 
 use wow_packet::WorldPacket;
 use wow_world_application::BattlegroundHandlerCxLikeCpp;
@@ -69,7 +70,8 @@ impl WorldSession {
     }
 
     fn battleground_test_cx_like_cpp(&mut self) -> BattlegroundHandlerCxLikeCpp<'_> {
-        BattlegroundHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        let (world_entities, instances, hub) = crate::session::split_battleground_mut(self);
+        BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances)
     }
 
     pub async fn handle_battlefield_port(&mut self, pkt: WorldPacket) {
@@ -117,7 +119,8 @@ impl WorldSession {
     }
 
     pub fn apply_toggle_pvp_like_cpp(&mut self) {
-        let changed = BattlegroundHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        let changed = self
+            .battleground_test_cx_like_cpp()
             .apply_toggle_pvp_like_cpp();
         if changed {
             self.sync_player_registry_state_like_cpp();
@@ -125,10 +128,23 @@ impl WorldSession {
     }
 
     pub fn apply_set_pvp_like_cpp(&mut self, enable_pvp: bool) {
-        let changed = BattlegroundHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+        let changed = self
+            .battleground_test_cx_like_cpp()
             .apply_set_pvp_like_cpp(enable_pvp);
         if changed {
             self.sync_player_registry_state_like_cpp();
         }
+    }
+
+    pub async fn handle_area_spirit_healer_query(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_area_spirit_healer_query(pkt)
+            .await;
+    }
+
+    pub async fn handle_area_spirit_healer_queue(&mut self, pkt: WorldPacket) {
+        self.battleground_test_cx_like_cpp()
+            .handle_area_spirit_healer_queue(pkt)
+            .await;
     }
 }

@@ -8,10 +8,13 @@
 //! `MiscHandler.cpp` for the PvP flag opcodes. The represented queue state, the
 //! PvP flag transitions and packet publication live in the Core hub, so the
 //! World session only builds the borrowed hub context and runs the deferred
-//! registry-state publication through a bounded seam (#1263 F5). The
-//! battlemaster-list and battleground-master bodies stay in the World shell
-//! while they need the shell queue/lifecycle orchestration.
+//! registry-state publication through a bounded seam (#1263 F5). The area
+//! spirit-healer query/queue handlers (`BattleGroundHandler.cpp`) also live
+//! here and borrow the world-entity and instance state. The battlemaster-list,
+//! battleground-master and hearth-and-resurrect bodies stay in the World shell
+//! while they need the shell queue/lifecycle/teleport orchestration.
 
+use tracing::debug;
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_handler::{
@@ -19,12 +22,15 @@ use wow_handler::{
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::misc::{
-    BattlefieldLeave, BattlefieldPort, RatedPvpInfo, SetPvp, TogglePvp,
+    AreaSpiritHealerQuery, AreaSpiritHealerQueue, AreaSpiritHealerTime, BattlefieldLeave,
+    BattlefieldPort, RatedPvpInfo, SetPvp, TogglePvp,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::{
     HubMut, PLAYER_FLAGS_IN_PVP_LIKE_CPP, PacketPublicationAccessLikeCpp,
 };
+use wow_world_entities::WorldEntitiesState;
+use wow_world_instances::InstanceState;
 
 /// C++ `PLAYER_FLAGS_PVP_TIMER` (private in `wow-entities`).
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
@@ -32,11 +38,102 @@ const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 /// Borrowed inputs of one battleground/PvP handler invocation.
 pub struct BattlegroundHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
+    world_entities: &'a WorldEntitiesState,
+    instances: &'a mut InstanceState,
 }
 
 impl<'a> BattlegroundHandlerCxLikeCpp<'a> {
-    pub fn new(hub: HubMut<'a>) -> Self {
-        Self { hub }
+    pub fn new(
+        hub: HubMut<'a>,
+        world_entities: &'a WorldEntitiesState,
+        instances: &'a mut InstanceState,
+    ) -> Self {
+        Self {
+            hub,
+            world_entities,
+            instances,
+        }
+    }
+
+    /// CMSG_AREA_SPIRIT_HEALER_QUERY — ask an area spirit healer for resurrection timer.
+    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueryOpcode`.
+    pub async fn handle_area_spirit_healer_query(&mut self, mut pkt: WorldPacket) {
+        let query = match AreaSpiritHealerQuery::read(&mut pkt) {
+            Ok(query) => query,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "AreaSpiritHealerQuery parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let Some(access) = self
+            .world_entities
+            .represented_area_spirit_healer_access_like_cpp(self.hub.shared(), query.healer_guid)
+        else {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                healer = ?query.healer_guid,
+                "AreaSpiritHealerQuery ignored without represented area spirit healer"
+            );
+            return;
+        };
+
+        // C++ sends the current shared channel timer or the individual aura
+        // duration after casting SPELL_SPIRIT_HEAL_PLAYER_AURA. Spell/aura/channel
+        // runtime is still outside this represented handler, so the packet shape
+        // and validation are ported and the timer remains zero for now.
+        if (access.npc_flags2
+            & wow_constants::unit::NPCFlags2::AREA_SPIRIT_HEALER_INDIVIDUAL.bits())
+            != 0
+        {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                healer = ?query.healer_guid,
+                "AreaSpiritHealerQuery individual aura/channel timer is not represented yet"
+            );
+        }
+
+        self.publication_like_cpp()
+            .send_packet(&AreaSpiritHealerTime {
+                healer_guid: query.healer_guid,
+                time_left_ms: 0,
+            });
+    }
+
+    /// CMSG_AREA_SPIRIT_HEALER_QUEUE — select an area spirit healer for resurrection.
+    /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueueOpcode`.
+    pub async fn handle_area_spirit_healer_queue(&mut self, mut pkt: WorldPacket) {
+        let queue = match AreaSpiritHealerQueue::read(&mut pkt) {
+            Ok(queue) => queue,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "AreaSpiritHealerQueue parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        if self
+            .world_entities
+            .represented_area_spirit_healer_access_like_cpp(self.hub.shared(), queue.healer_guid)
+            .is_none()
+        {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                healer = ?queue.healer_guid,
+                "AreaSpiritHealerQueue ignored without represented area spirit healer"
+            );
+            return;
+        }
+
+        // C++ also casts SPELL_WAITING_FOR_RESURRECT; deferred until the
+        // player spell/aura runtime owns battleground spirit resurrection.
+        self.instances
+            .set_area_spirit_healer_guid_like_cpp(&mut self.hub, queue.healer_guid);
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
@@ -236,6 +333,40 @@ pub trait BattlegroundHandlerHostLikeCpp<C> {
     fn sync_player_registry_state_after_pvp_change_like_cpp(&mut self);
 }
 
+fn handle_area_spirit_healer_query_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_area_spirit_healer_query(pkt)
+            .await;
+    })
+}
+
+fn handle_area_spirit_healer_queue_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_area_spirit_healer_queue(pkt)
+            .await;
+    })
+}
+
 fn handle_battlefield_port_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -393,6 +524,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlefield_leave",
         handler: handle_battlefield_leave_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AreaSpiritHealerQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_area_spirit_healer_query",
+        handler: handle_area_spirit_healer_query_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AreaSpiritHealerQueue,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_area_spirit_healer_queue",
+        handler: handle_area_spirit_healer_queue_thunk::<S, C>,
     })?;
     Ok(())
 }
