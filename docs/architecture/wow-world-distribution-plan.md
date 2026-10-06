@@ -6437,7 +6437,17 @@ método de `WorldSession`, para no ampliar la superficie R5.
 `test-fixtures`) y `world-server` sin errores; `wow-world` `--lib` **3.634 ✓**; integración
 `production_login_player_owner` **34 ✓** y el otro target **12 ✓**; `wow-world-application` **58 ✓**;
 ownership `--syntax-only` **PASS** (203 / 3.140 / 711, sin delta de baseline); `check_architecture.py check`
-**PASS**; `test_net_move.py` **16/16**. Pendiente: `final` sobre el candidato commiteado.
+**PASS**; `test_net_move.py` **16/16**.
+
+**Aceptación `final`:** una primera campaña sobre `94a20c526` falló en el gate de ownership porque el helper de los
+shims de grupo era un ítem nuevo de `impl WorldSession`; pasó a función libre (`281fed88f`). La campaña
+`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre **`4cf799526`** queda **verde**
+(`dirty: false`; verificada con `--require-profile final`; manifiesto
+`target/validation-v2/manifests/20261006T151351.958964Z-1080710-final.json`). **Tiempo de pared: 824 s, por
+encima de 600 s.** El tool ya no domina (self-test 60 s, ownership 50 s, suite 122 s): el 65 % es
+`cargo check --tests` de los crates aguas abajo (537 s), porque tocar `wow-world-core` recompila todo lo que
+depende de él con un solo job. Pico de memoria por proceso ~3 GB con ~15 GB libres: el siguiente paso es medir
+`VALIDATION_V2_CARGO_JOBS=2` con ese margen, como exige AGENTS.md antes de subir jobs.
 
 ## 9. Herramientas
 
