@@ -6157,6 +6157,26 @@ producción 17.147, total 32.484). R1 v2: `S = 74.107`,
 
 **No validado aún.** Sin campaña `final` nueva; quedan **153 registros literales**.
 
+#### F5: corpse query, cola de localización/transporte (2 opcodes) — 2026-10-05, `2e1170ff1..HEAD`
+
+`QueryCorpseLocationFromClient` y `QueryCorpseTransport` pasan al dueño `ApplicationCharacterQuery`.
+Ambos solo construyen la respuesta `not_found_like_cpp` desde el hub (el lookup vivo de corpse/raid
+sigue sin representar, igual que en C++ cuando falta el objetivo), así que no añaden préstamos nuevos;
+`world_queries.rs` queda con 3 registros literales y `handlers/character/lifecycle.rs` conserva solo los
+delegados `cfg(test)`. El registro conserva `ThreadUnsafe` para ambos opcodes, verificado por la tabla
+de dispatch.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **26 tests de `misc_3`** y **25 de `dispatch`** (478
+opcodes intactos y metadata exacta) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443** (492,33 s);
+`session-ownership-check check --syntax-only` **PASS** (204 owners / 3.145 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos); hotspots reconciliados
+(`session/mod.rs`: producción 60.937, test 138.198, total 199.135; `handlers/character/mod.rs`:
+producción 17.115, total 32.452). R1 v2: `S = 74.141`, `G_move = 115.089`, requisito `36.940,95` →
+**presupuesto 36.941**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **151 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

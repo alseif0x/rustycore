@@ -6,7 +6,8 @@
 //! `wow-world-application` (#1263 F5).
 
 use wow_packet::packets::query::{
-    QueryCreature, QueryGameObject, QueryPageText, QueryPetName, QueryPlayerNames, QueryRealmName,
+    QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature, QueryGameObject,
+    QueryPageText, QueryPetName, QueryPlayerNames, QueryRealmName,
 };
 use wow_world_application::CharacterQueryHandlerCxLikeCpp;
 
@@ -55,6 +56,18 @@ impl WorldSession {
     pub async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
         self.character_query_test_cx_like_cpp()
             .handle_query_player_names(query)
+            .await;
+    }
+
+    pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_corpse_location(query)
+            .await;
+    }
+
+    pub async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_corpse_transport(query)
             .await;
     }
 

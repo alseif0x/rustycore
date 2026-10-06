@@ -578,19 +578,6 @@ impl WorldSession {
         });
     }
 
-    pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
-        // C++ sends an invalid CorpseLocation when the queried player is missing,
-        // has no corpse, or is not in the querying player's raid. Rust does not
-        // yet have the live corpse/raid lookup needed for the valid branch.
-        self.send_packet(&CorpseLocation::not_found_like_cpp(query.player));
-    }
-
-    pub async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
-        // C++ always sends CorpseTransportQuery. Position/facing remain default
-        // unless the queried player is in raid and has a corpse on this transport.
-        self.send_packet(&CorpseTransportQuery::not_found_like_cpp(query.player));
-    }
-
     /// CMSG_HEARTH_AND_RESURRECT — battlefield hearth/resurrection escape.
     /// C++ ref: `WorldSession::HandleHearthAndResurrect`.
     pub async fn handle_hearth_and_resurrect(&mut self, mut pkt: wow_packet::WorldPacket) {

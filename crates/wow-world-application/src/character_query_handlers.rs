@@ -21,13 +21,14 @@ use wow_handler::{
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::query::GameObjectStats;
-use wow_packet::packets::query::{CreatureDisplayStats, CreatureStats, CreatureXDisplay};
 use wow_packet::packets::query::{
-    NameCacheLookupResult, PageTextInfo, PlayerGuidLookupData, QueryCreature,
+    CorpseLocation, CorpseTransportQuery, NameCacheLookupResult, PageTextInfo,
+    PlayerGuidLookupData, QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature,
     QueryCreatureResponse, QueryGameObject, QueryGameObjectResponse, QueryPageText,
     QueryPageTextResponse, QueryPetName, QueryPetNameResponse, QueryPlayerNames,
     QueryPlayerNamesResponse, QueryRealmName, RealmQueryResponse,
 };
+use wow_packet::packets::query::{CreatureDisplayStats, CreatureStats, CreatureXDisplay};
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::directory::PlayerNameQuerySnapshotLikeCpp;
 use wow_world_core::session::{HubMut, ObjectMgrCatalogsLikeCpp, PacketPublicationAccessLikeCpp};
@@ -404,6 +405,25 @@ impl<'a> CharacterQueryHandlerCxLikeCpp<'a> {
         self.publication_like_cpp()
             .send_packet_realm(&QueryPlayerNamesResponse { players: results });
     }
+
+    /// CMSG_QUERY_CORPSE_LOCATION_FROM_CLIENT — answer an invalid corpse
+    /// location while the live corpse/raid lookup is not represented.
+    pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
+        // C++ sends an invalid CorpseLocation when the queried player is missing,
+        // has no corpse, or is not in the querying player's raid. Rust does not
+        // yet have the live corpse/raid lookup needed for the valid branch.
+        self.publication_like_cpp()
+            .send_packet(&CorpseLocation::not_found_like_cpp(query.player));
+    }
+
+    /// CMSG_QUERY_CORPSE_TRANSPORT — answer an invalid corpse transport while
+    /// the transport corpse lookup is not represented.
+    pub async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
+        // C++ always sends CorpseTransportQuery. Position/facing remain default
+        // unless the queried player is in raid and has a corpse on this transport.
+        self.publication_like_cpp()
+            .send_packet(&CorpseTransportQuery::not_found_like_cpp(query.player));
+    }
 }
 
 /// C++ `WorldSession::HandleQueryRealmName` response projection.
@@ -575,6 +595,52 @@ where
     })
 }
 
+fn handle_query_corpse_location_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CharacterQueryHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let mut pkt = pkt;
+        match QueryCorpseLocationFromClient::read(&mut pkt) {
+            Ok(query) => {
+                session
+                    .character_query_handler_cx_like_cpp(catalogs)
+                    .handle_query_corpse_location(query)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read QueryCorpseLocationFromClient: {e}"),
+        }
+    })
+}
+
+fn handle_query_corpse_transport_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CharacterQueryHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let mut pkt = pkt;
+        match QueryCorpseTransport::read(&mut pkt) {
+            Ok(query) => {
+                session
+                    .character_query_handler_cx_like_cpp(catalogs)
+                    .handle_query_corpse_transport(query)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read QueryCorpseTransport: {e}"),
+        }
+    })
+}
+
 /// Registers the character query handlers on the packet registry.
 pub fn register_character_query_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -624,6 +690,20 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_player_names",
         handler: handle_query_player_names_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryCorpseLocationFromClient,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_query_corpse_location",
+        handler: handle_query_corpse_location_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryCorpseTransport,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_query_corpse_transport",
+        handler: handle_query_corpse_transport_thunk::<S, C>,
     })?;
     Ok(())
 }

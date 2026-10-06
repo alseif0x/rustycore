@@ -4107,34 +4107,6 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_query_corpse_location",
-          "visibility": "pub",
-          "signature": "async fn handle_query_corpse_location (& mut self , query : QueryCorpseLocationFromClient)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_corpse_transport",
-          "visibility": "pub",
-          "signature": "async fn handle_query_corpse_transport (& mut self , query : QueryCorpseTransport)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_set_player_declined_names",
           "visibility": "pub",
           "signature": "async fn handle_set_player_declined_names (& mut self , mut pkt : WorldPacket)",
@@ -4440,6 +4412,38 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_corpse_location",
+          "visibility": "pub",
+          "signature": "async fn handle_query_corpse_location (& mut self , query : QueryCorpseLocationFromClient)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_corpse_transport",
+          "visibility": "pub",
+          "signature": "async fn handle_query_corpse_transport (& mut self , query : QueryCorpseTransport)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
           ]
         },
         {

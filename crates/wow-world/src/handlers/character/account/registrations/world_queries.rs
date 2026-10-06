@@ -2,40 +2,6 @@ use super::*;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryCorpseLocationFromClient,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_query_corpse_location",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryCorpseLocationFromClient::read(&mut pkt) {
-                    Ok(query) => session.handle_query_corpse_location(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryCorpseLocationFromClient: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryCorpseTransport,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_query_corpse_transport",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryCorpseTransport::read(&mut pkt) {
-                    Ok(query) => session.handle_query_corpse_transport(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryCorpseTransport: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::TalkToGossip,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
