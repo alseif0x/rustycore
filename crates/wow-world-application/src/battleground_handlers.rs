@@ -10,9 +10,11 @@
 //! World session only builds the borrowed hub context and runs the deferred
 //! registry-state publication through a bounded seam (#1263 F5). The area
 //! spirit-healer query/queue handlers (`BattleGroundHandler.cpp`) also live
-//! here and borrow the world-entity and instance state. The battlemaster-list,
-//! battleground-master and hearth-and-resurrect bodies stay in the World shell
-//! while they need the shell queue/lifecycle/teleport orchestration.
+//! here and borrow the world-entity and instance state, as do the battlefield
+//! status, battlemaster hello, battlefield list and battlemaster join handlers,
+//! which record their represented intents through the hub. The arena and
+//! skirmish joins, the wargame accept and hearth-and-resurrect stay in the World
+//! shell while they need its group/registry or teleport orchestration.
 
 use tracing::debug;
 use tracing::warn;
@@ -21,11 +23,13 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::packets::gossip::Hello;
 use wow_packet::packets::misc::{
     AreaSpiritHealerQuery, AreaSpiritHealerQueue, AreaSpiritHealerTime, BattlefieldLeave,
-    BattlefieldPort, RatedPvpInfo, SetPvp, TogglePvp,
+    BattlefieldListRequest, BattlefieldPort, BattlemasterJoin, RatedPvpInfo,
+    RequestBattlefieldStatus, SetPvp, TogglePvp,
 };
-use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
+use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::{
     HubMut, PLAYER_FLAGS_IN_PVP_LIKE_CPP, PacketPublicationAccessLikeCpp,
 };
@@ -53,6 +57,94 @@ impl<'a> BattlegroundHandlerCxLikeCpp<'a> {
             world_entities,
             instances,
         }
+    }
+
+    /// CMSG_REQUEST_BATTLEFIELD_STATUS — client asks for its queue-slot statuses.
+    pub async fn handle_request_battlefield_status(&mut self, mut pkt: WorldPacket) {
+        if let Err(error) = RequestBattlefieldStatus::read(&mut pkt) {
+            warn!(
+                account = self.hub.shared().core.account_id,
+                "RequestBattlefieldStatus parse failed: {error}"
+            );
+            return;
+        }
+
+        // C++ iterates PLAYER_MAX_BATTLEGROUND_QUEUES and sends active,
+        // confirmation, or queued status only for non-empty queue slots.
+        // Rust has no represented battleground queue state in this handler yet,
+        // so the no-queue branch is silent.
+    }
+    /// CMSG_BATTLEMASTER_HELLO — player asks a battlemaster NPC for its queue list.
+    /// C++ ref: `WorldSession::HandleBattlemasterHelloOpcode`.
+    pub async fn handle_battlemaster_hello(&mut self, mut pkt: WorldPacket) {
+        let hello = match Hello::read(&mut pkt) {
+            Ok(hello) => hello,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "BattlemasterHello parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when the target cannot be interacted with as a
+        // battlemaster. The accepted branch records the list intent until
+        // BattlegroundMgr::SendBattlegroundList is live in Rust.
+        let _accepted = self.hub.battlemaster_hello_like_cpp(hello.unit);
+    }
+    /// CMSG_BATTLEFIELD_LIST — player asks for the queue list of a battleground type.
+    /// C++ ref: `WorldSession::HandleBattlefieldListOpcode`.
+    pub async fn handle_battlefield_list(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: WorldPacket,
+    ) {
+        let request = match BattlefieldListRequest::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "BattlefieldList parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently when sBattlemasterListStore has no ListID row.
+        // The accepted branch records the SendBattlegroundList intent until
+        // BattlegroundMgr owns live queue/list packets in Rust.
+        let _accepted = self
+            .hub
+            .battlefield_list_like_cpp(battlemaster_lists, request.list_id);
+    }
+    /// CMSG_BATTLEMASTER_JOIN — player asks to join a battleground queue.
+    /// C++ ref: `WorldSession::HandleBattlemasterJoinOpcode`.
+    pub async fn handle_battlemaster_join(
+        &mut self,
+        battlemaster_lists: &wow_data::BattlemasterListStore,
+        mut pkt: WorldPacket,
+    ) {
+        let join = match BattlemasterJoin::read(&mut pkt) {
+            Ok(join) => join,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "BattlemasterJoin parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        // C++ returns silently for missing/invalid queues and early queue gates.
+        // The accepted branch records the queue intent until BattlegroundQueue
+        // and BattlegroundMgr queue-status packets are live in Rust.
+        let _accepted = self.hub.battlemaster_join_like_cpp(
+            battlemaster_lists,
+            &join.queue_ids,
+            join.roles,
+            join.blacklist_map,
+        );
     }
 
     /// CMSG_AREA_SPIRIT_HEALER_QUERY — ask an area spirit healer for resurrection timer.
@@ -331,6 +423,78 @@ pub trait BattlegroundHandlerHostLikeCpp<C> {
     /// Re-publishes the registry state after a PvP flag change; the World
     /// session still owns the registry-sync providers.
     fn sync_player_registry_state_after_pvp_change_like_cpp(&mut self);
+
+    /// Selects the `BattlemasterList.db2` catalog from the host's request
+    /// catalogs (C++ `sBattlemasterListStore`).
+    fn battlemaster_lists_like_cpp(catalogs: &C) -> &wow_data::BattlemasterListStore;
+}
+
+fn handle_request_battlefield_status_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_request_battlefield_status(pkt)
+            .await;
+    })
+}
+
+fn handle_battlemaster_hello_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_battlemaster_hello(pkt)
+            .await;
+    })
+}
+
+fn handle_battlefield_list_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_battlefield_list(S::battlemaster_lists_like_cpp(catalogs), pkt)
+            .await;
+    })
+}
+
+fn handle_battlemaster_join_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .battleground_handler_cx_like_cpp(catalogs)
+            .handle_battlemaster_join(S::battlemaster_lists_like_cpp(catalogs), pkt)
+            .await;
+    })
 }
 
 fn handle_area_spirit_healer_query_thunk<'a, S, C>(
@@ -538,6 +702,34 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_area_spirit_healer_queue",
         handler: handle_area_spirit_healer_queue_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::RequestBattlefieldStatus,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_request_battlefield_status",
+        handler: handle_request_battlefield_status_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterHello,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_hello",
+        handler: handle_battlemaster_hello_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlefieldList,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlefield_list",
+        handler: handle_battlefield_list_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterJoin,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_join",
+        handler: handle_battlemaster_join_thunk::<S, C>,
     })?;
     Ok(())
 }

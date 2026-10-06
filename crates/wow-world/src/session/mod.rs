@@ -15,7 +15,6 @@ mod dungeon_finding_handler_contexts;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod arena_team_handler_contexts;
-mod battleground_handler_contexts;
 mod battlenet_handler_contexts;
 mod calendar_handler_contexts;
 mod character_query_handler_contexts;

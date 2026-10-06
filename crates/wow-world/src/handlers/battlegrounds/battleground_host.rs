@@ -16,11 +16,17 @@ impl BattlegroundHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSess
         &'a mut self,
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> BattlegroundHandlerCxLikeCpp<'a> {
-        let (world_entities, instances, hub) = crate::session::state::split_battleground_mut(self);
+        let (world_entities, instances, hub) = crate::session::split_battleground_mut(self);
         BattlegroundHandlerCxLikeCpp::new(hub, world_entities, instances)
     }
 
     fn sync_player_registry_state_after_pvp_change_like_cpp(&mut self) {
         self.sync_player_registry_state_like_cpp();
+    }
+
+    fn battlemaster_lists_like_cpp(
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) -> &wow_data::BattlemasterListStore {
+        catalogs.battlemaster_lists.as_ref()
     }
 }

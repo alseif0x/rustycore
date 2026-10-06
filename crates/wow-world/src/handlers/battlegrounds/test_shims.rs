@@ -6,11 +6,26 @@
 //! `wow-world-social` and the battleground handlers moved to
 //! `wow-world-application` (#1263 F5).
 
+use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
 use wow_world_application::BattlegroundHandlerCxLikeCpp;
 use wow_world_social::ArenaTeamHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
+
+/// Dispatches through the registered production thunk with the session's own
+/// request catalogs (the battlemaster list among them).
+async fn dispatch_registered_like_cpp(
+    session: &mut WorldSession,
+    opcode: ClientOpcodes,
+    pkt: WorldPacket,
+) {
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
+        .find(|entry| entry.opcode == opcode)
+        .expect("registered battleground handler");
+    let catalogs = session.session_handler_catalogs_for_test_like_cpp();
+    (entry.handler)(session, &catalogs, pkt).await;
+}
 
 impl WorldSession {
     pub async fn handle_arena_team_roster(&mut self, pkt: WorldPacket) {
@@ -146,5 +161,21 @@ impl WorldSession {
         self.battleground_test_cx_like_cpp()
             .handle_area_spirit_healer_queue(pkt)
             .await;
+    }
+
+    pub async fn handle_request_battlefield_status(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::RequestBattlefieldStatus, pkt).await;
+    }
+
+    pub async fn handle_battlemaster_hello(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterHello, pkt).await;
+    }
+
+    pub async fn handle_battlefield_list(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlefieldList, pkt).await;
+    }
+
+    pub async fn handle_battlemaster_join(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::BattlemasterJoin, pkt).await;
     }
 }

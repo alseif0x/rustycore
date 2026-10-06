@@ -169,6 +169,12 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::battlegrounds::battleground_host",
+          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::battlegrounds::pvp",
           "trait_path": null,
           "cfg": [],
@@ -1238,12 +1244,6 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::session",
           "trait_path": "BattlenetHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
@@ -2169,6 +2169,48 @@
           ]
         },
         {
+          "module": "crate::handlers::battlegrounds::battleground_host",
+          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "battleground_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn battleground_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> BattlegroundHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::battleground_host",
+          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "battlemaster_lists_like_cpp",
+          "visibility": "private",
+          "signature": "fn battlemaster_lists_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & wow_data :: BattlemasterListStore",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::battleground_host",
+          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sync_player_registry_state_after_pvp_change_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_registry_state_after_pvp_change_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
           "module": "crate::handlers::battlegrounds::pvp",
           "trait_path": null,
           "kind": "method",
@@ -2192,66 +2234,6 @@
           "signature": "async fn handle_accept_wargame_invite (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battlefield_list",
-          "visibility": "pub",
-          "signature": "async fn handle_battlefield_list (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battlefield_list_with_catalog_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_battlefield_list_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battlemaster_hello",
-          "visibility": "pub",
-          "signature": "async fn handle_battlemaster_hello (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battlemaster_join",
-          "visibility": "pub",
-          "signature": "async fn handle_battlemaster_join (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -2310,34 +2292,6 @@
           "name": "handle_battlemaster_join_skirmish_with_catalog_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn handle_battlemaster_join_skirmish_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_battlemaster_join_with_catalog_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_battlemaster_join_with_catalog_like_cpp (& mut self , battlemaster_lists : & wow_data :: BattlemasterListStore , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::battlegrounds::pvp",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_battlefield_status",
-          "visibility": "pub",
-          "signature": "async fn handle_request_battlefield_status (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -2556,6 +2510,22 @@
           "module": "crate::handlers::battlegrounds::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_battlefield_list",
+          "visibility": "pub",
+          "signature": "async fn handle_battlefield_list (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_battlefield_port",
           "visibility": "pub",
           "signature": "async fn handle_battlefield_port (& mut self , pkt : WorldPacket)",
@@ -2572,9 +2542,57 @@
           "module": "crate::handlers::battlegrounds::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_battlemaster_hello",
+          "visibility": "pub",
+          "signature": "async fn handle_battlemaster_hello (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_battlemaster_join",
+          "visibility": "pub",
+          "signature": "async fn handle_battlemaster_join (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_query_arena_team",
           "visibility": "pub",
           "signature": "async fn handle_query_arena_team (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::battlegrounds::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_battlefield_status",
+          "visibility": "pub",
+          "signature": "async fn handle_request_battlefield_status (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -44199,32 +44217,6 @@
           "name": "arena_team_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn arena_team_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> ArenaTeamHandlerCxLikeCpp < 'a >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "battleground_handler_cx_like_cpp",
-          "visibility": "private",
-          "signature": "fn battleground_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> BattlegroundHandlerCxLikeCpp < 'a >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "BattlegroundHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "sync_player_registry_state_after_pvp_change_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_player_registry_state_after_pvp_change_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

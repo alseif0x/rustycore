@@ -18,7 +18,7 @@
     "budget": 0,
     "measured_requirement": 0,
     "recorded_at_revision": "57769b4ea4875fe555f960661d71f0b07044e6df",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 28e34b066, the #1272 integration): S = 83, G_move = 312, ratio and slack credits = 83 * 1.05 + 300 = 387.15, so the requirement is -75.15 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 411dada0f, the #1273 integration): S = 134, G_move = 192, ratio and slack credits = 134 * 1.05 + 300 = 440.70, so the requirement is -248.70 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -516,6 +516,20 @@
         "destination_growth": 312,
         "new_code": 0,
         "note": "GetUndeleteCharacterCooldownStatus, AlterAppearance, ConfirmBarbersChoice and SetPlayerDeclinedNames (C++ CharacterHandler.cpp) move to the new ApplicationCharacter owner with the barber-chair gate."
+      },
+      {
+        "phase": "Base reset at the #1273 integration (411dada0f)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1273 integrated the ApplicationCharacter owner; the merge-base moved to 411dada0f."
+      },
+      {
+        "phase": "F5 battlemaster queue handlers (411dada0f..HEAD)",
+        "shrink": 134,
+        "destination_growth": 192,
+        "new_code": 0,
+        "note": "RequestBattlefieldStatus, BattlemasterHello, BattlefieldList and BattlemasterJoin move to the existing ApplicationBattleground owner; the host trait selects the BattlemasterList catalog for the generic thunks, and the battleground host moves out of the session aggregate."
       }
     ],
     "areas": [
@@ -526,7 +540,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 312,
+        "lines": 192,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
