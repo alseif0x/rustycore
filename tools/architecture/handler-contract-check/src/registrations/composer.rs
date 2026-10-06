@@ -28,16 +28,43 @@ fn path_is(path: &syn::Path, expected: &[&str]) -> bool {
             .all(|(segment, expected)| segment.ident.to_string() == *expected)
 }
 
-/// The ordered authority defines the legacy registrar in its own module, so any
-/// import of that name is either a duplicate definition or an alias that could
-/// redirect the ordered legacy registration.
-fn has_no_legacy_import(items: &[Item]) -> bool {
-    !items.iter().any(|item| match item {
-        Item::Use(item_use) => {
-            tree_mentions(&item_use.tree, "register_remaining_handlers_like_cpp")
+/// The ordered authority consumes the legacy registrar from its owner module,
+/// so the only accepted mention is the exact
+/// `crate::session::registry::register_remaining_handlers_like_cpp` import; a
+/// rename, re-export or second import could redirect the ordered legacy
+/// registration.
+fn has_exact_legacy_import(items: &[Item]) -> bool {
+    let mut matching = 0usize;
+    for item in items {
+        let Item::Use(item_use) = item else {
+            continue;
+        };
+        if !tree_mentions(&item_use.tree, "register_remaining_handlers_like_cpp") {
+            continue;
         }
-        _ => false,
-    })
+        matching += 1;
+        let expected = [
+            "crate",
+            "session",
+            "registry",
+            "register_remaining_handlers_like_cpp",
+        ];
+        let path_is_exact = use_tree_path(&item_use.tree).is_some_and(|path| {
+            path.len() == expected.len()
+                && path
+                    .iter()
+                    .zip(expected)
+                    .all(|(actual, expected)| actual == expected)
+        });
+        if !path_is_exact
+            || item_use.leading_colon.is_some()
+            || !item_use.attrs.is_empty()
+            || !matches!(&item_use.vis, Visibility::Inherited)
+        {
+            return false;
+        }
+    }
+    matching == 1
 }
 
 /// The flat path of an ordinary `a::b::c` use tree; groups, renames and globs
@@ -262,7 +289,8 @@ fn is_legacy_registration(statement: &Stmt) -> bool {
 }
 
 /// The fixture dispatch builder must not repeat the ordered list: it delegates
-/// to the single authority and keeps the legacy panic-on-duplicate contract.
+/// to the single crate-level authority and keeps the legacy panic-on-duplicate
+/// contract.
 fn is_fixture_delegation(statements: &[Stmt]) -> bool {
     let [statement] = statements else {
         return false;
@@ -284,12 +312,16 @@ fn is_fixture_delegation(statements: &[Stmt]) -> bool {
         return false;
     }
     matches!(&*expect.receiver, Expr::Call(call)
-        if call.attrs.is_empty()
-            && call.args.is_empty()
-            && matches!(&*call.func, Expr::Path(path)
-                if path.attrs.is_empty()
-                    && path.qself.is_none()
-                    && path_is(&path.path, &["compose_packet_handlers_like_cpp"])))
+    if call.attrs.is_empty()
+        && call.args.is_empty()
+        && matches!(&*call.func, Expr::Path(path)
+            if path.attrs.is_empty()
+                && path.qself.is_none()
+                && path_is(&path.path, &[
+                    "crate",
+                    "handler_composition",
+                    "compose_packet_handlers_like_cpp",
+                ])))
 }
 
 fn is_builder_result(statement: &Stmt) -> bool {
@@ -429,8 +461,7 @@ fn exact_authority_reexport(items: &[Item]) -> bool {
         matching += 1;
         let expected = [
             "wow_world",
-            "session",
-            "registry",
+            "handler_composition",
             "compose_packet_handlers_like_cpp",
         ];
         let path_is_exact = use_tree_path(&item_use.tree).is_some_and(|path| {
@@ -464,8 +495,7 @@ fn exact_server_delegator(function: &ItemFn) -> bool {
                     && path.qself.is_none()
                     && path_is(&path.path, &[
                         "wow_world",
-                        "session",
-                        "registry",
+                        "handler_composition",
                         "compose_packet_handlers_like_cpp",
                     ]))));
     function.sig.ident == "compose_packet_handlers_like_cpp"
@@ -503,7 +533,32 @@ fn validate_server_publication(mount: &WorkspaceSourceMount) -> Result<(), Strin
     if !publishes {
         return Err(format!(
             "{} must publish compose_packet_handlers_like_cpp by re-exporting or delegating to \
-             wow_world::session::registry::compose_packet_handlers_like_cpp, with no registrar list",
+             wow_world::handler_composition::compose_packet_handlers_like_cpp, with no registrar list",
+            mount.source_path.display()
+        ));
+    }
+    Ok(())
+}
+
+/// `build_dispatch_table` stays in the session registry mount next to the
+/// session thunk, and must delegate to the crate-level authority without
+/// repeating the ordered list.
+fn validate_fixture_dispatch_delegator(mount: &WorkspaceSourceMount) -> Result<(), String> {
+    let syntax = syn::parse_file(&mount.source)
+        .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+    let fixtures: Vec<_> = syntax
+        .items
+        .iter()
+        .filter_map(|item| match item {
+            Item::Fn(function) if function.sig.ident == "build_dispatch_table" => Some(function),
+            _ => None,
+        })
+        .collect();
+    if fixtures.len() != 1 || !exact_fixture_delegator(fixtures[0]) {
+        return Err(format!(
+            "{} fixture dispatch builder must delegate to \
+             crate::handler_composition::compose_packet_handlers_like_cpp with its exact expect \
+             contract and gate",
             mount.source_path.display()
         ));
     }
@@ -784,7 +839,9 @@ impl<'ast> Visit<'ast> for OwnerModuleShadows {
     }
 }
 
-/// Verify both composition sites against the finite direct registrars that were analyzed.
+/// Verify the crate-level ordered authority, its session-tree fixture delegator
+/// and the world-server publication against the finite direct registrars that
+/// were analyzed.
 pub(crate) fn validate_composition_mounts(mounts: &[WorkspaceSourceMount]) -> Result<(), String> {
     validate_composition_mounts_with_contracts(mounts, DIRECT_REGISTRAR_CONTRACTS)
 }
@@ -893,7 +950,7 @@ pub(crate) fn validate_composition_mounts_with_contracts(
             && mount
                 .contexts
                 .iter()
-                .all(|context| context_is(context, "crate::session::registry", true));
+                .all(|context| context_is(context, "crate::handler_composition", false));
         let server_context = mount.package == "world-server"
             && mount.contexts.len() == 1
             && mount
@@ -914,7 +971,7 @@ pub(crate) fn validate_composition_mounts_with_contracts(
                 .filter(|function| function.sig.ident == "compose_packet_handlers_like_cpp")
                 .collect();
             if authorities.len() != 1
-                || !has_no_legacy_import(&syntax.items)
+                || !has_exact_legacy_import(&syntax.items)
                 || !exact_function(authorities[0], &contracts)
             {
                 return Err(format!(
@@ -923,23 +980,11 @@ pub(crate) fn validate_composition_mounts_with_contracts(
                     mount.source_path.display()
                 ));
             }
-            let fixtures: Vec<_> = functions
-                .iter()
-                .filter(|function| function.sig.ident == "build_dispatch_table")
-                .collect();
-            if fixtures.len() != 1 || !exact_fixture_delegator(fixtures[0]) {
-                return Err(format!(
-                    "{} fixture dispatch builder must delegate to \
-                     compose_packet_handlers_like_cpp with its exact expect contract and gate",
-                    mount.source_path.display()
-                ));
-            }
             production_composers += 1;
-            fixture_composers += 1;
         } else if server_context {
             return Err(format!(
                 "{} must not call any direct registrar or hold a second ordered list; the ordered \
-                 composition lives in wow_world::session::registry::compose_packet_handlers_like_cpp",
+                 composition lives in wow_world::handler_composition::compose_packet_handlers_like_cpp",
                 mount.source_path.display()
             ));
         } else {
@@ -957,6 +1002,16 @@ pub(crate) fn validate_composition_mounts_with_contracts(
 
     let mut server_mounts = 0usize;
     for mount in mounts {
+        let session_fixture_context = mount.package == "wow-world"
+            && mount.contexts.len() == 1
+            && mount
+                .contexts
+                .iter()
+                .all(|context| context_is(context, "crate::session::registry", true));
+        if session_fixture_context {
+            fixture_composers += 1;
+            validate_fixture_dispatch_delegator(mount)?;
+        }
         let server_context = mount.package == "world-server"
             && mount.contexts.len() == 1
             && mount

@@ -5,11 +5,11 @@
 
 //! Publication of the process-wide world-session packet-handler composition.
 //!
-//! The single ordered composition lives in `wow-world` — the crate that owns
-//! `WorldSession` — as
-//! `wow_world::session::registry::compose_packet_handlers_like_cpp`. This
+//! The single ordered composition lives in `wow-world`'s crate-level
+//! `handler_composition` module as
+//! `wow_world::handler_composition::compose_packet_handlers_like_cpp`. This
 //! module only re-exports it, so the fixture dispatch table and every
 //! process-wide consumer share one ordered-list authority and a new handler
 //! owner is registered exactly once.
 
-pub use wow_world::session::registry::compose_packet_handlers_like_cpp;
+pub use wow_world::handler_composition::compose_packet_handlers_like_cpp;

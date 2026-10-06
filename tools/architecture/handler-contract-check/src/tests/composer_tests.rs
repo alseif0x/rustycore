@@ -54,6 +54,22 @@ fn mount(
     }
 }
 
+/// Index of the crate-level ordered authority mount inside `actual_mounts()`.
+///
+/// The authority moved out of the session tree, so the tests locate it by its
+/// real source path instead of a fixed position.
+fn authority_index(mounts: &[WorkspaceSourceMount]) -> usize {
+    mounts
+        .iter()
+        .position(|mount| {
+            mount.package == "wow-world"
+                && mount
+                    .source_path
+                    .ends_with("crates/wow-world/src/handler_composition.rs")
+        })
+        .expect("crate-level ordered authority mount exists")
+}
+
 fn actual_mounts() -> Vec<WorkspaceSourceMount> {
     vec![
         mount(
@@ -314,6 +330,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "crates/wow-world-lifecycle/src/support.rs",
             include_str!("../../../../../crates/wow-world-lifecycle/src/support.rs"),
         ),
+        mount(
+            "wow-world",
+            "crate::handler_composition",
+            "crates/wow-world/src/handler_composition.rs",
+            include_str!("../../../../../crates/wow-world/src/handler_composition.rs"),
+        ),
     ]
 }
 
@@ -343,12 +365,14 @@ where
     .replace("$OPCODE", opcode)
 }
 
-/// The synthetic single ordered authority plus its delegating fixture table.
+/// The synthetic single ordered authority.
 ///
-/// Both live in `wow-world`'s `crate::session::registry` module, exactly like
-/// the real tree: one mount holds the ordered list and the fixture delegation.
-fn synthetic_world_registry_source() -> String {
+/// Only this crate-level `crate::handler_composition` mount calls the finite
+/// direct registrars, exactly like the real tree.
+fn synthetic_world_authority_source() -> String {
     r#"
+use crate::session::registry::register_remaining_handlers_like_cpp;
+
 /// Synthetic ordered authority for the finite two-owner test.
 pub fn compose_packet_handlers_like_cpp() -> Result<
     Arc<WorldPacketHandlerRegistry>,
@@ -360,16 +384,21 @@ pub fn compose_packet_handlers_like_cpp() -> Result<
     register_remaining_handlers_like_cpp(&mut builder)?;
     Ok(Arc::new(builder.build()))
 }
+"#
+    .to_owned()
+}
 
+/// The synthetic session registry mount keeps only the delegating fixture
+/// dispatch table, exactly like the real tree.
+const SYNTHETIC_WORLD_SESSION_REGISTRY_SOURCE: &str = r#"
 /// Synthetic fixture dispatch table delegating to the ordered authority.
 #[must_use]
 #[cfg(any(test, feature = "test-fixtures"))]
 pub fn build_dispatch_table() -> Arc<WorldPacketHandlerRegistry> {
-    compose_packet_handlers_like_cpp().expect("invalid duplicate packet handler composition")
+    crate::handler_composition::compose_packet_handlers_like_cpp()
+        .expect("invalid duplicate packet handler composition")
 }
-"#
-    .to_owned()
-}
+"#;
 
 /// The synthetic publish-only `world-server` consumer (delegating body form).
 const SYNTHETIC_WORLD_SERVER_SOURCE: &str = r#"
@@ -378,7 +407,7 @@ pub fn compose_packet_handlers_like_cpp() -> Result<
     Arc<WorldPacketHandlerRegistry>,
     DuplicateHandlerRegistrationLikeCpp,
 > {
-    wow_world::session::registry::compose_packet_handlers_like_cpp()
+    wow_world::handler_composition::compose_packet_handlers_like_cpp()
 }
 "#;
 
@@ -412,9 +441,15 @@ pub use equipment_sets::{
         ),
         mount(
             "wow-world",
+            "crate::handler_composition",
+            "synthetic/wow-world/handler_composition.rs",
+            &synthetic_world_authority_source(),
+        ),
+        mount(
+            "wow-world",
             "crate::session::registry",
             "synthetic/wow-world/session/registry.rs",
-            &synthetic_world_registry_source(),
+            SYNTHETIC_WORLD_SESSION_REGISTRY_SOURCE,
         ),
         mount(
             INVENTORY_REGISTRAR.package,
@@ -475,7 +510,7 @@ fn composition_guard_accepts_a_finite_two_owner_synthetic_fixture() {
 #[test]
 fn composition_guard_rejects_a_world_server_source_that_relists_registrars() {
     let mut relisted = synthetic_two_owner_mounts();
-    relisted[0].source = synthetic_world_registry_source();
+    relisted[0].source = synthetic_world_authority_source();
     let error = validate_composition_mounts_with_contracts(
         &relisted,
         &[INVENTORY_REGISTRAR, SYNTHETIC_OWNER],
@@ -497,7 +532,8 @@ fn composition_guard_accepts_actual_production_fixture_and_both_exact_facades() 
 #[test]
 fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
     let actual = actual_mounts();
-    for index in [1, 5] {
+    let authority = authority_index(&actual);
+    for index in [authority, 5] {
         let mut missing = actual.clone();
         missing[index].source = mutate_fixture(
             &missing[index].source,
@@ -507,15 +543,15 @@ fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
         assert_rejected(&missing, "missing Bank composition or facade");
     }
     let mut aliased = actual.clone();
-    aliased[1].source = mutate_fixture(
-        &aliased[1].source,
+    aliased[authority].source = mutate_fixture(
+        &aliased[authority].source,
         "wow_world_application::register_bank_handlers_like_cpp",
         "other_application::register_bank_handlers_like_cpp",
     );
     assert_rejected(&aliased, "aliased Bank provider");
     let mut duplicate = actual;
-    duplicate[1].source = mutate_fixture(
-        &duplicate[1].source,
+    duplicate[authority].source = mutate_fixture(
+        &duplicate[authority].source,
         "    register_remaining_handlers_like_cpp(&mut builder)?;",
         "    wow_world_application::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
     );
@@ -525,8 +561,9 @@ fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
 #[test]
 fn composition_guard_rejects_a_reordered_authority_list() {
     let mut reordered = actual_mounts();
-    reordered[1].source = mutate_fixture(
-        &reordered[1].source,
+    let authority = authority_index(&reordered);
+    reordered[authority].source = mutate_fixture(
+        &reordered[authority].source,
         "    wow_world_application::register_bank_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;\n    wow_world_social::register_social_inspect_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;",
         "    wow_world_social::register_social_inspect_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;\n    wow_world_application::register_bank_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;",
     );
@@ -536,18 +573,21 @@ fn composition_guard_rejects_a_reordered_authority_list() {
 #[test]
 fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls() {
     let mut missing = actual_mounts();
-    missing[1].source = mutate_fixture(
-        &missing[1].source,
+    let authority = authority_index(&missing);
+    missing[authority].source = mutate_fixture(
+        &missing[authority].source,
         "register_equipment_set_use_handler_like_cpp",
         "unowned_equipment_set_use_handler_like_cpp",
     );
     assert_rejected(&missing, "missing authority EquipmentSetUse registrar");
 
     let mut broken_fixture = actual_mounts();
+    // Index 1 is the session registry mount, which holds only the delegating
+    // fixture table: the delegation target is the mutation to reject.
     broken_fixture[1].source = mutate_fixture(
         &broken_fixture[1].source,
-        "compose_packet_handlers_like_cpp().expect(",
-        "unowned_dispatch_table().expect(",
+        "crate::handler_composition::compose_packet_handlers_like_cpp()",
+        "crate::handler_composition::unowned_dispatch_table()",
     );
     assert_rejected(
         &broken_fixture,
@@ -555,9 +595,10 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     );
 
     let mut aliased = actual_mounts();
-    aliased[1].source = mutate_fixture(
+    let authority = authority_index(&aliased);
+    aliased[authority].source = mutate_fixture(
         &mutate_fixture(
-            &aliased[1].source,
+            &aliased[authority].source,
             "wow_world_application::register_equipment_set_use_handler_like_cpp",
             "application_alias::register_equipment_set_use_handler_like_cpp",
         ),
@@ -567,8 +608,9 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     assert_rejected(&aliased, "aliased Application EquipmentSetUse registrar");
 
     let mut wrong_owner = actual_mounts();
-    wrong_owner[1].source = mutate_fixture(
-        &wrong_owner[1].source,
+    let authority = authority_index(&wrong_owner);
+    wrong_owner[authority].source = mutate_fixture(
+        &wrong_owner[authority].source,
         "wow_world_application::register_equipment_set_use_handler_like_cpp",
         "wow_world_application::register_instance_handlers_like_cpp",
     );
@@ -626,16 +668,18 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
 #[test]
 fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls() {
     let mut missing_legacy = actual_mounts();
-    missing_legacy[1].source = mutate_fixture(
-        &missing_legacy[1].source,
+    let authority = authority_index(&missing_legacy);
+    missing_legacy[authority].source = mutate_fixture(
+        &missing_legacy[authority].source,
         "    register_remaining_handlers_like_cpp(&mut builder)?;\n",
         "",
     );
     assert_rejected(&missing_legacy, "missing legacy authority call");
 
     let mut duplicate = actual_mounts();
-    duplicate[1].source = mutate_fixture(
-        &duplicate[1].source,
+    let authority = authority_index(&duplicate);
+    duplicate[authority].source = mutate_fixture(
+        &duplicate[authority].source,
         "    register_remaining_handlers_like_cpp(&mut builder)?;",
         "    wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
     );
@@ -643,17 +687,19 @@ fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls()
 
     let call = "    wow_world_inventory::register_inventory_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;";
     let mut nested = actual_mounts();
-    nested[1].source = mutate_fixture(
-        &nested[1].source,
+    let authority = authority_index(&nested);
+    nested[authority].source = mutate_fixture(
+        &nested[authority].source,
         call,
         "    if true {\n        wow_world_inventory::register_inventory_handlers_like_cpp::<\n            WorldSession,\n            SessionHandlerCatalogsLikeCpp,\n        >(&mut builder)?;\n    }",
     );
     assert_rejected(&nested, "conditional/nested registration");
 
     let mut aliased = actual_mounts();
-    aliased[1].source = mutate_fixture(
+    let authority = authority_index(&aliased);
+    aliased[authority].source = mutate_fixture(
         &mutate_fixture(
-            &aliased[1].source,
+            &aliased[authority].source,
             "use std::sync::Arc;",
             "use std::sync::Arc;\nuse wow_world_inventory as inventory_owner;",
         ),
@@ -663,9 +709,10 @@ fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls()
     assert_rejected(&aliased, "alternate registrar alias");
 
     let mut shadowed_package = actual_mounts();
-    shadowed_package[1].source = format!(
+    let authority = authority_index(&shadowed_package);
+    shadowed_package[authority].source = format!(
         "mod wow_world_application {{}}\n{}",
-        shadowed_package[1].source
+        shadowed_package[authority].source
     );
     assert_rejected(
         &shadowed_package,
@@ -676,7 +723,8 @@ fn composition_guard_rejects_missing_duplicate_nested_and_aliased_domain_calls()
 #[test]
 fn composition_guard_rejects_wrong_mount_and_aliased_legacy_import() {
     let mut wrong_module = actual_mounts();
-    wrong_module[1].contexts = BTreeSet::from([SourceMountContext {
+    let authority = authority_index(&wrong_module);
+    wrong_module[authority].contexts = BTreeSet::from([SourceMountContext {
         logical_module_path: "crate::handlers::other".to_owned(),
         cfg: Vec::new(),
         production_possible: true,
@@ -685,10 +733,11 @@ fn composition_guard_rejects_wrong_mount_and_aliased_legacy_import() {
     assert_rejected(&wrong_module, "authority mounted outside its owner");
 
     let mut aliased_legacy = actual_mounts();
-    aliased_legacy[1].source = mutate_fixture(
-        &aliased_legacy[1].source,
-        "use super::{SessionHandlerCatalogsLikeCpp, WorldSession};",
-        "use super::{SessionHandlerCatalogsLikeCpp, WorldSession};\nuse wow_world::session::registry::register_remaining_handlers_like_cpp as register_legacy_handlers;",
+    let authority = authority_index(&aliased_legacy);
+    aliased_legacy[authority].source = mutate_fixture(
+        &aliased_legacy[authority].source,
+        "use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};",
+        "use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};\nuse wow_world::session::registry::register_remaining_handlers_like_cpp as register_legacy_handlers;",
     );
     assert_rejected(
         &aliased_legacy,
@@ -697,8 +746,22 @@ fn composition_guard_rejects_wrong_mount_and_aliased_legacy_import() {
 }
 
 #[test]
+fn composition_guard_rejects_the_ordered_list_back_in_the_session_tree() {
+    let mut relocated = actual_mounts();
+    let authority = authority_index(&relocated);
+    let authority_source = relocated[authority].source.clone();
+    // Index 1 is the session registry mount: the ordered registrar list must not
+    // move back into the audited session tree.
+    relocated[1].source = authority_source;
+    let error = validate_composition_mounts(&relocated)
+        .expect_err("the ordered registrar list must not live in the session tree");
+    assert!(error.contains("outside the ordered authority"), "{error}");
+}
+
+#[test]
 fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     let mut ungated_fixture = actual_mounts();
+    // Index 1 is the session registry mount that owns the fixture dispatch table.
     ungated_fixture[1].source = mutate_fixture(
         &ungated_fixture[1].source,
         "#[cfg(any(test, feature = \"test-fixtures\"))]\n#[must_use]\npub fn build_dispatch_table",
@@ -707,6 +770,7 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     assert_rejected(&ungated_fixture, "missing test-fixtures gate");
 
     let mut altered_expect = actual_mounts();
+    // Index 1 is the session registry mount that owns the fixture dispatch table.
     altered_expect[1].source = mutate_fixture(
         &altered_expect[1].source,
         "invalid duplicate packet handler composition",
@@ -782,25 +846,28 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
     );
 
     let mut missing = actual_mounts();
-    missing[1].source = mutate_fixture(
-        &missing[1].source,
+    let authority = authority_index(&missing);
+    missing[authority].source = mutate_fixture(
+        &missing[authority].source,
         "wow_world_application::register_instance_handlers_like_cpp",
         "wow_world_application::unowned_instance_registration",
     );
     assert!(validate_composition_mounts_with_contracts(&missing, contracts).is_err());
 
     let mut duplicated = actual_mounts();
-    duplicated[1].source = mutate_fixture(
-        &duplicated[1].source,
+    let authority = authority_index(&duplicated);
+    duplicated[authority].source = mutate_fixture(
+        &duplicated[authority].source,
         "    register_remaining_handlers_like_cpp(&mut builder)?;",
         "    wow_world_inventory::register_inventory_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
     );
     assert!(validate_composition_mounts_with_contracts(&duplicated, contracts).is_err());
 
     let mut aliased = actual_mounts();
-    aliased[1].source = mutate_fixture(
+    let authority = authority_index(&aliased);
+    aliased[authority].source = mutate_fixture(
         &mutate_fixture(
-            &aliased[1].source,
+            &aliased[authority].source,
             "wow_world_application::register_instance_handlers_like_cpp",
             "application_alias::register_instance_handlers_like_cpp",
         ),
@@ -819,8 +886,9 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
     assert!(validate_composition_mounts_with_contracts(&outside_composer, contracts).is_err());
 
     let mut wrong_type_arguments = actual_mounts();
-    wrong_type_arguments[1].source = mutate_fixture(
-        &wrong_type_arguments[1].source,
+    let authority = authority_index(&wrong_type_arguments);
+    wrong_type_arguments[authority].source = mutate_fixture(
+        &wrong_type_arguments[authority].source,
         "WorldSession,",
         "OtherSession,",
     );
