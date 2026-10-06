@@ -217,6 +217,13 @@ where
         handler: super::auction::handle_auction_list_bidder_items_thunk::<S, C>,
     })?;
     builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AuctionHelloRequest,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_auction_hello_request",
+        handler: super::auction::handle_auction_hello_request_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionListItems,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,

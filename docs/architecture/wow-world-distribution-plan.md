@@ -6449,6 +6449,27 @@ encima de 600 s.** El tool ya no domina (self-test 60 s, ownership 50 s, suite 1
 depende de él con un solo job. Pico de memoria por proceso ~3 GB con ~15 GB libres: el siguiente paso es medir
 `VALIDATION_V2_CARGO_JOBS=2` con ese margen, como exige AGENTS.md antes de subir jobs.
 
+#### F5: NPC text, auction hello y consulta del banco de hermandad — 2026-10-06, `01bc871cb..HEAD`
+
+Tres handlers con dueño ya existente salen del shell sin cambiar cuerpo, metadatos ni texto de log:
+`QueryNpcText` → `ApplicationCharacterQuery` (`Inplace`, conserva el `warn!` de parseo y la respuesta por
+defecto con BroadcastTextID 0); `AuctionHelloRequest` → el dueño de subastas de `wow-world-inventory`, junto
+al resto de su familia (`ThreadUnsafe`); `GuildBankRemainingWithdrawMoneyQuery` → `SocialGuild`
+(`ThreadUnsafe`, silencioso sin hermandad como en C++). El test de conjunto exacto del registrador de
+inventario pasa a 17 filas. Se descartaron deliberadamente `TabardVendorActivate`,
+`GetUndeleteCharacterCooldownStatus` y `ShowTradeSkill`: tienen cuerpos triviales pero su dueño semántico
+(vendedor, configuración de personaje, profesiones) aún no existe, y moverlos a un dueño ajeno solo para
+contar opcodes sería un mal diseño. Los cuatro handlers de vehículo restantes dependen de seams de
+movimiento y spell-click que siguen en World.
+
+**Evidencia enfocada:** `cargo check --all-targets` de `wow-world-inventory`, `wow-world-social`,
+`wow-world-application`, `wow-world` (con `test-fixtures`) y `world-server` sin errores; `wow-world` `--lib`
+**3.634 ✓** (incluye el test dorado de dispatch y el de conjunto exacto); ownership `--syntax-only` **PASS**
+con el delta revisado (salen tres métodos de producción y el `impl` vacío de subastas, entra un shim de test):
+202 dueños / **3.138** ítems (R5: 3.140 → 3.138); `check_architecture.py check` **PASS** con el hotspot de
+personaje en producción 17.070 / test 15.374; R1 `S = 188`, `G_move = 192`, presupuesto 0, PASS. Registros
+literales en `wow-world`: **142 → 139**. Pendiente: `final` sobre el candidato commiteado.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

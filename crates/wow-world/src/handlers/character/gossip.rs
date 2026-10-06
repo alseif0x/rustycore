@@ -744,18 +744,4 @@ impl WorldSession {
             }
         }
     }
-
-    // ── NPC activation handlers ───────────────────────────────────────────────
-
-    /// Handle CMSG_QUERY_NPC_TEXT — client requests NPC text for gossip.
-    pub async fn handle_query_npc_text(&mut self, query: QueryNpcText) {
-        debug!(
-            "QueryNpcText: text_id={} for account {}",
-            query.text_id, self.core.account_id
-        );
-
-        // For now, respond with a default "found" response.
-        // BroadcastTextID=0 tells the client to use local DB2 data for text.
-        self.send_packet(&QueryNpcTextResponse::with_text(query.text_id, 0));
-    }
 }

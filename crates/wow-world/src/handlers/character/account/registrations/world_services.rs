@@ -115,18 +115,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::AuctionHelloRequest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_auction_hello_request",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_auction_hello_request(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::BankerActivate,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

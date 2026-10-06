@@ -18,7 +18,7 @@
     "budget": 0,
     "measured_requirement": 0,
     "recorded_at_revision": "281fed88fba6309aa33903ccfec25d8b919cddd7",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 112, G_move = 77, ratio and slack credits = 112 * 1.05 + 300 = 417.60, so the requirement is -340.60 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 188, G_move = 192, ratio and slack credits = 188 * 1.05 + 300 = 497.40, so the requirement is -305.40 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -425,6 +425,13 @@
         "destination_growth": 77,
         "new_code": 0,
         "note": "The condition projection constructor moves from the World session to the application crate, built on the core hub's own condition access instead of a second copy of its fixture-reference list, together with the application evaluation of one PlayerCondition id. The World methods become wrappers; the application group context, resolved group seam and quest-query context receive the host's World-test flag instead of computing their own cfg, and the group test shims build their context through one helper."
+      },
+      {
+        "phase": "F5 NPC text, auction hello and guild-bank query (01bc871cb..HEAD, three handlers)",
+        "shrink": 76,
+        "destination_growth": 115,
+        "new_code": 0,
+        "note": "QueryNpcText moves to the application character-query owner, AuctionHelloRequest to the wow-world-inventory auction owner (with the rest of its family) and GuildBankRemainingWithdrawMoneyQuery to the wow-world-social guild owner. Bodies, registration metadata and log text are unchanged; the World keeps a cfg(test) delegate for the guild-bank query scenario."
       }
     ],
     "areas": [
@@ -435,12 +442,12 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 75,
+        "lines": 120,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
         "area": "crates/wow-world-inventory/src",
-        "lines": 0,
+        "lines": 39,
         "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
       },
       {
@@ -465,7 +472,7 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 0,
+        "lines": 31,
         "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
       },
       {

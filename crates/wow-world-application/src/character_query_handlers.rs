@@ -20,6 +20,7 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::packets::gossip::{QueryNpcText, QueryNpcTextResponse};
 use wow_packet::packets::query::GameObjectStats;
 use wow_packet::packets::query::{
     CorpseLocation, CorpseTransportQuery, NameCacheLookupResult, PageTextInfo,
@@ -197,6 +198,20 @@ impl<'a> CharacterQueryHandlerCxLikeCpp<'a> {
 
         let response = realm_query_response_like_cpp(core, virtual_realm_address);
         self.publication_like_cpp().send_packet_realm(&response);
+    }
+
+    /// CMSG_QUERY_NPC_TEXT — client requests NPC text for gossip.
+    pub async fn handle_query_npc_text(&mut self, query: QueryNpcText) {
+        debug!(
+            "QueryNpcText: text_id={} for account {}",
+            query.text_id,
+            self.hub.shared().core.account_id
+        );
+
+        // For now, respond with a default "found" response.
+        // BroadcastTextID=0 tells the client to use local DB2 data for text.
+        self.publication_like_cpp()
+            .send_packet(&QueryNpcTextResponse::with_text(query.text_id, 0));
     }
 
     /// CMSG_QUERY_PAGE_TEXT — answer a page-text chain query.
@@ -457,6 +472,29 @@ pub trait CharacterQueryHandlerHostLikeCpp<C> {
     ) -> CharacterQueryHandlerCxLikeCpp<'a>;
 }
 
+fn handle_query_npc_text_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CharacterQueryHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let mut pkt = pkt;
+        match QueryNpcText::read(&mut pkt) {
+            Ok(query) => {
+                session
+                    .character_query_handler_cx_like_cpp(catalogs)
+                    .handle_query_npc_text(query)
+                    .await;
+            }
+            Err(e) => tracing::warn!("Failed to read QueryNpcText: {e}"),
+        }
+    })
+}
+
 fn handle_query_creature_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -704,6 +742,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_query_corpse_transport",
         handler: handle_query_corpse_transport_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::QueryNpcText,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_query_npc_text",
+        handler: handle_query_npc_text_thunk::<S, C>,
     })?;
     Ok(())
 }

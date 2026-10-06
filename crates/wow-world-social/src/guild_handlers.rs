@@ -102,6 +102,13 @@ impl<'a> GuildHandlerCxLikeCpp<'a> {
         }
     }
 
+    /// CMSG_GUILD_BANK_REMAINING_WITHDRAW_MONEY_QUERY.
+    pub async fn handle_guild_bank_remaining_withdraw_money_query(&mut self, _pkt: WorldPacket) {
+        // C++ only sends GuildBankRemainingWithdrawMoney when GetPlayer()->GetGuild()
+        // resolves a live guild. Rust has no represented guild-bank manager here
+        // yet, so the no-guild branch is correctly silent.
+    }
+
     pub async fn handle_guild_decline_invitation(&mut self, _pkt: WorldPacket) {
         self.decline_guild_invitation_like_cpp();
     }
@@ -137,6 +144,23 @@ where
         session
             .guild_handler_cx_like_cpp(catalogs)
             .handle_guild_set_achievement_tracking(pkt)
+            .await;
+    })
+}
+
+fn handle_guild_bank_remaining_withdraw_money_query_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GuildHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .guild_handler_cx_like_cpp(catalogs)
+            .handle_guild_bank_remaining_withdraw_money_query(pkt)
             .await;
     })
 }
@@ -203,6 +227,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_guild_invite",
         handler: handle_accept_guild_invite_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_guild_bank_remaining_withdraw_money_query",
+        handler: handle_guild_bank_remaining_withdraw_money_query_thunk::<S, C>,
     })?;
     Ok(())
 }

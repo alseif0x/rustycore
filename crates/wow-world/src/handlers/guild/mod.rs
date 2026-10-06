@@ -30,18 +30,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_guild_bank_remaining_withdraw_money_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_guild_bank_remaining_withdraw_money_query(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankActivate,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -189,15 +177,6 @@ impl crate::session::WorldSession {
         };
 
         self.represented_set_auto_decline_guild_invites_like_cpp(request.allow);
-    }
-
-    pub async fn handle_guild_bank_remaining_withdraw_money_query(
-        &mut self,
-        _pkt: wow_packet::WorldPacket,
-    ) {
-        // C++ only sends GuildBankRemainingWithdrawMoney when GetPlayer()->GetGuild()
-        // resolves a live guild. Rust has no represented guild-bank manager here
-        // yet, so the no-guild branch is correctly silent.
     }
 
     /// CMSG_GUILD_BANK_ACTIVATE — click a guild-bank GameObject.

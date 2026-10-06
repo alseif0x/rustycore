@@ -589,12 +589,6 @@
           "source_class": "test_fixture"
         },
         {
-          "module": "crate::handlers::economy::auction",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "cfg": [
@@ -3304,20 +3298,6 @@
           "name": "handle_npc_direct_interaction",
           "visibility": "pub (super)",
           "signature": "async fn handle_npc_direct_interaction (& mut self , hello : Hello , npc_flags : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::gossip",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_npc_text",
-          "visibility": "pub",
-          "signature": "async fn handle_query_npc_text (& mut self , query : QueryNpcText)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6488,20 +6468,6 @@
           ]
         },
         {
-          "module": "crate::handlers::economy::auction",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_auction_hello_request",
-          "visibility": "pub",
-          "signature": "async fn handle_auction_hello_request (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::economy::auction::session_shims",
           "trait_path": null,
           "kind": "method",
@@ -7905,20 +7871,6 @@
           "module": "crate::handlers::guild",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_guild_bank_remaining_withdraw_money_query",
-          "visibility": "pub",
-          "signature": "async fn handle_guild_bank_remaining_withdraw_money_query (& mut self , _pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_guild_bank_set_tab_text",
           "visibility": "pub",
           "signature": "async fn handle_guild_bank_set_tab_text (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -7978,6 +7930,22 @@
           "name": "handle_accept_guild_invite",
           "visibility": "pub",
           "signature": "async fn handle_accept_guild_invite (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_guild_bank_remaining_withdraw_money_query",
+          "visibility": "pub",
+          "signature": "async fn handle_guild_bank_remaining_withdraw_money_query (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],

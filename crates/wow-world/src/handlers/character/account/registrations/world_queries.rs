@@ -33,20 +33,3 @@ crate::session::registry::register_packet_handler_like_cpp! {
         },
     }
 }
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryNpcText,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_npc_text",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::gossip::QueryNpcText::read(&mut pkt) {
-                    Ok(query) => session.handle_query_npc_text(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryNpcText: {e}"),
-                }
-            })
-        },
-    }
-}
