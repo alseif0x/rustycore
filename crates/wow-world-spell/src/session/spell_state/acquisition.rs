@@ -131,3 +131,53 @@ impl crate::SessionSpellState {
             .has_canonical_player_like_cpp()
     }
 }
+
+impl crate::SessionSpellState {
+    /// C++ `Player::AddSpell`/`RemoveSpell`: mutate the Player's own spell map
+    /// inside the one generation-checked owner access. While no Player handle
+    /// is installed, a World-test host (`world_test_consumer`, World passes
+    /// `cfg!(test)`) mutates the represented fixture runtime instead.
+    pub fn mutate_player_spell_runtime_like_cpp<R>(
+        &mut self,
+        hub: wow_world_core::session::HubRef<'_>,
+        world_test_consumer: bool,
+        f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
+    ) -> Option<R> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if world_test_consumer && hub.core.player_handle_like_cpp.is_none() {
+            let mut runtime = canonical_player_spell_runtime_like_cpp(
+                self.represented_spell_runtime_fixture_like_cpp(),
+            );
+            let result = f(&mut runtime);
+            self.store_represented_spell_runtime_fixture_like_cpp(
+                represented_player_spell_runtime_like_cpp(&runtime),
+            );
+            return Some(result);
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = world_test_consumer;
+        hub.core
+            .with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().spells))
+    }
+
+    /// C++ `Player::GetSpellMap`: read the owner's spell map, not a Session
+    /// copy, with the same World-test fixture fallback as the mutation.
+    pub fn with_player_spell_runtime_like_cpp<R>(
+        &self,
+        hub: wow_world_core::session::HubRef<'_>,
+        world_test_consumer: bool,
+        query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
+    ) -> Option<R> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if world_test_consumer && hub.core.player_handle_like_cpp.is_none() {
+            let runtime = canonical_player_spell_runtime_like_cpp(
+                self.represented_spell_runtime_fixture_like_cpp(),
+            );
+            return Some(query(&runtime));
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = world_test_consumer;
+        hub.core
+            .with_owned_player_like_cpp(|player| query(player.spell_runtime_like_cpp()))
+    }
+}
