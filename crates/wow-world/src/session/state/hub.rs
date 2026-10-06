@@ -223,6 +223,24 @@ pub(crate) fn split_lifecycle_ref(s: &WorldSession) -> (&SessionLifecycleState, 
     (&s.lifecycle, hub_ref(s))
 }
 
+/// Shared lifecycle state plus the mutable hub (core and fixtures), borrowed
+/// from disjoint fields: the participants of the application battle-pet handler
+/// context (#1263 F5).
+pub(crate) fn split_battle_pet_handler_mut(
+    s: &mut WorldSession,
+) -> (&SessionLifecycleState, HubMut<'_>) {
+    (
+        &s.lifecycle,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Player-handler state plus the mutable hub, borrowed from disjoint fields.
 pub(crate) fn split_player_handler_states_mut(
     s: &mut WorldSession,
@@ -592,6 +610,10 @@ pub(crate) fn cx_pets(s: &mut WorldSession) -> PetsCx<'_> {
 }
 
 impl PetsCx<'_> {
+    /// Reborrows this mutable context as its shared counterpart. Only the
+    /// test-gated represented battle-pet bodies still need it (#1263 F5 moved
+    /// the production callers onto the application owner).
+    #[cfg(test)]
     pub(crate) fn shared(&self) -> PetsCxRef<'_> {
         PetsCxRef {
             lifecycle: &*self.lifecycle,

@@ -549,11 +549,11 @@ pub(crate) use state::{
     HubMut, HubRef, InventoryCx, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef,
     PetsCx, PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory, cx_inventory_ref, cx_lifecycle,
     cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
-    cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_battleground_mut,
-    split_character_handler_mut, split_group_handler_states_mut, split_guild_bank_mut,
-    split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
-    split_interaction_world_entities_mut, split_inventory_mut, split_inventory_ref,
-    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
+    cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_battle_pet_handler_mut,
+    split_battleground_mut, split_character_handler_mut, split_group_handler_states_mut,
+    split_guild_bank_mut, split_instances_mut, split_instances_ref, split_interaction,
+    split_interaction_ref, split_interaction_world_entities_mut, split_inventory_mut,
+    split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
     split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
     split_quest_state_ref, split_social_inventory_mut, split_social_lifecycle_mut,
     split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
@@ -864,12 +864,12 @@ const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{
-    AFLAG_SCALABLE_LIKE_CPP, BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP,
-    PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
+    AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
+    SKILL_ENCHANTING_LIKE_CPP,
 };
 #[cfg(test)]
 pub(crate) use wow_world_core::session::{
-    PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
+    BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
     battle_pet_adapter::DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP,
 };
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
@@ -973,8 +973,8 @@ const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 pub(crate) use wow_entities::PlayerAccountHeirloomDataLikeCpp as AccountHeirloomDataLikeCpp;
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 
+#[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP;
-pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_SLOT_COUNT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 #[allow(dead_code)]

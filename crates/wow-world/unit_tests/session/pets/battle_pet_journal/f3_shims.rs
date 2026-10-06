@@ -58,7 +58,11 @@ impl crate::session::WorldSession {
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
-        crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
+        wow_world_application::represented_battle_pet_journal_like_cpp(
+            crate::session::hub_ref(self),
+            &self.lifecycle,
+            cfg!(test),
+        )
     }
     pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
         crate::session::cx_pets_ref(self)

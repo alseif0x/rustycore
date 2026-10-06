@@ -576,39 +576,6 @@ impl WorldSession {
 }
 
 impl crate::session::PetsCx<'_> {
-    pub(crate) async fn battle_pet_clear_fanfare_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-    ) -> bool {
-        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
-            #[cfg(test)]
-            return self
-                .hub
-                .fixtures
-                .pets
-                .battle_pet_clear_fanfare_like_cpp(pet_guid);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        match owner
-            .try_mutate_pet_without_lease_like_cpp(pet_guid, |pet| {
-                pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
-            })
-            .await
-        {
-            Ok(_) => true,
-            Err(error) => {
-                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
-                    "clear fanfare",
-                    pet_guid,
-                    &error,
-                );
-                false
-            }
-        }
-    }
-
     /// C++ `BattlePetMgr::RemovePet`.
     #[cfg(test)]
     pub(crate) fn battle_pet_remove_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
@@ -652,46 +619,6 @@ impl crate::session::PetsCx<'_> {
                 self.hub
                     .shared()
                     .log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
-                false
-            }
-        }
-    }
-
-    pub(crate) async fn battle_pet_set_flags_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        flags: u16,
-        control_type: u8,
-    ) -> bool {
-        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
-            #[cfg(test)]
-            return self.hub.fixtures.pets.battle_pet_set_flags_like_cpp(
-                pet_guid,
-                flags,
-                control_type,
-            );
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
-        match owner
-            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
-                if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
-                    pet.flags |= flags;
-                } else {
-                    pet.flags &= !flags;
-                }
-            })
-            .await
-        {
-            Ok(_) => true,
-            Err(error) => {
-                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
-                    "set flags",
-                    pet_guid,
-                    &error,
-                );
                 false
             }
         }
@@ -744,34 +671,6 @@ impl crate::session::PetsCx<'_> {
                     .push(species);
             }
         }
-    }
-
-    /// C++ `WorldSession::HandleBattlePetSummon` represented toggle.
-    ///
-    /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
-    /// the summon spell; `DismissPet` clears the active summoned companion.
-    pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        if self
-            .hub
-            .shared()
-            .represented_summoned_battle_pet_guid_like_cpp()
-            == Some(pet_guid)
-        {
-            return self
-                .hub
-                .set_represented_summoned_battle_pet_guid_like_cpp(None);
-        }
-
-        if self
-            .shared()
-            .represented_battle_pet_like_cpp(pet_guid)
-            .is_none()
-        {
-            return false;
-        }
-
-        self.hub
-            .set_represented_summoned_battle_pet_guid_like_cpp(Some(pet_guid))
     }
 }
 
@@ -892,24 +791,22 @@ impl crate::session::PetsCxRef<'_> {
         None
     }
 
+    /// One represented battle pet from the canonical owner or the World-test
+    /// fixture.
+    ///
+    /// Thin World wrapper over the application owner's shared helper (#1263 F5);
+    /// the battle-pet spell-effect admission path
+    /// (`session/spell_effects/checks.rs`) still calls it.
     pub(crate) fn represented_battle_pet_like_cpp(
         &self,
         pet_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
-            return attachment.owner_like_cpp().pet_snapshot_like_cpp(pet_guid);
-        }
-        #[cfg(test)]
-        return self
-            .hub
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .get(&pet_guid)
-            .cloned();
-        #[cfg(not(test))]
-        None
+        wow_world_application::represented_battle_pet_like_cpp(
+            self.hub,
+            self.lifecycle,
+            cfg!(test),
+            pet_guid,
+        )
     }
 }
 
