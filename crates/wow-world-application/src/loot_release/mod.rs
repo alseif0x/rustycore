@@ -5,6 +5,7 @@
 //! crate; the World facade that constructs the context lands with its release
 //! delegation follow-up.
 
+use tracing::{debug, warn};
 use wow_core::ObjectGuid;
 use wow_entities::ItemObjectUpdateLikeCpp;
 use wow_entities::{
@@ -17,8 +18,10 @@ use wow_loot::{
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::LootList;
+use wow_packet::packets::loot::LootRelease;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP};
+use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore};
 
 /// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
@@ -324,6 +327,34 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
 }
 
 impl LootReleaseCxLikeCpp<'_> {
+    /// CMSG_LOOT_RELEASE — player closes the loot window.
+    ///
+    /// C++ `WorldSession::DoLootRelease` creature branch:
+    /// `loot->isLooted() && creature->IsFullyLooted()` removes the lootable
+    /// dynamic flag and calls `Creature::AllLootRemovedFromCorpse` for a corpse.
+    pub async fn handle_loot_release(&mut self, mut pkt: WorldPacket) {
+        let req = match LootRelease::read(&mut pkt) {
+            Ok(r) => r,
+            Err(e) => {
+                warn!("Bad LootRelease: {e}");
+                return;
+            }
+        };
+
+        debug!(
+            account = self.owner.account_id_like_cpp(),
+            unit = ?req.unit,
+            "CMSG_LOOT_RELEASE"
+        );
+
+        let player_guid = match self.player_guid() {
+            Some(g) => g,
+            None => return,
+        };
+
+        self.release_owner_like_cpp(req.unit, player_guid).await;
+    }
+
     pub async fn release_all_like_cpp(&mut self, player_guid: ObjectGuid) {
         let mut owners = self.loot.active_loot_view_owners_snapshot_like_cpp();
         if owners.is_empty() && !self.loot.active_loot_guid_like_cpp().is_empty() {

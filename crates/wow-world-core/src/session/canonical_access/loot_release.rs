@@ -80,6 +80,11 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         self.core.player_guid()
     }
 
+    /// Account id the World shell logged for the loot-release request.
+    pub fn account_id_like_cpp(&self) -> u32 {
+        self.core.account_id
+    }
+
     /// Shared view of the same canonical session, for read-only projections the
     /// release context builds on the fly (C++ reads the Player/Map directly).
     pub fn core_ref_like_cpp(&self) -> &SessionCore {

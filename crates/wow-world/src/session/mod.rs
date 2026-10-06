@@ -28,7 +28,6 @@ mod gameobject_handler_contexts;
 mod group_application_handler_contexts;
 mod group_handler_contexts;
 mod guild_handler_contexts;
-mod loot_handler_contexts;
 mod player_handler_contexts;
 mod spell_handler_contexts;
 mod trade_handler_contexts;

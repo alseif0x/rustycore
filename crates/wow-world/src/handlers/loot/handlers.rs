@@ -63,16 +63,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::LootRelease,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_loot_release",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_loot_release(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::LootRoll,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,

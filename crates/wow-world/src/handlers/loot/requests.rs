@@ -7,7 +7,6 @@
 
 use super::*;
 use wow_entities::ItemObjectUpdateLikeCpp;
-use wow_packet::ClientPacket;
 
 mod context;
 mod item_storage;
@@ -234,31 +233,6 @@ impl WorldSession {
     ) {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.close_stale_active_loot_view_like_cpp(&mut hub, owner_guid, player_guid)
-    }
-
-    /// CMSG_LOOT_RELEASE — player closes the loot window.
-    ///
-    /// C++ `WorldSession::DoLootRelease` creature branch:
-    /// `loot->isLooted() && creature->IsFullyLooted()` removes the lootable
-    /// dynamic flag and calls `Creature::AllLootRemovedFromCorpse` for a corpse.
-    pub async fn handle_loot_release(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let req = match LootRelease::read(&mut pkt) {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("Bad LootRelease: {e}");
-                return;
-            }
-        };
-
-        debug!(account = self.core.account_id, unit = ?req.unit, "CMSG_LOOT_RELEASE");
-
-        let player_guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-
-        self.do_loot_release_owner_like_cpp(req.unit, player_guid)
-            .await;
     }
 }
 
