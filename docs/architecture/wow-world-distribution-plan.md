@@ -6804,7 +6804,16 @@ casos negativos: suite del tool **446/446**.
 al no alojar ya la lista. La lista se edita en **un** sitio, así que un dueño nuevo ya no toca `world-server`.
 **Frontera:** el efecto sobre el tiempo de campaña (objetivo: ≤600 s también al crear dueño) aún **no está medido**;
 se comprobará en la primera entrega que cree un dueño nuevo. R1 clasifica este corte como `NOT-APPLICABLE` (no es un
-movimiento neto entre roots: reubica código dentro de `crates/wow-world/src/`) con presupuesto 0. Pendiente: `final`.
+movimiento neto entre roots: reubica código dentro de `crates/wow-world/src/`) con presupuesto 0.
+
+**Aceptación `final`:** sobre **`149e9ec74`**, **verde pero en 824 s** (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T220950.887567Z-1270946-final.json`).
+**Supera el objetivo de 600 s y el objetivo de rendimiento no se cumple en esta entrega**, como estaba previsto: es el
+corte que toca a la vez `world-server` y el tool, exactamente la combinación que este cambio elimina para el futuro.
+Desglose medido: arquitectura con self-test 129 s, ownership 50 s, `cargo check --tests` aguas abajo 216 s, suites
+`--lib` incluyendo `world-server` 274 s y suite del tool 134 s. Memoria: pico de 16,3 GB usados y mínimo de 7,7 GB
+disponibles de 23 GB (el valor más alto de la sesión; conviene vigilarlo si se repite). **El efecto prometido —dueño
+nuevo por debajo de 600 s— sigue sin medir** y se comprobará en la próxima entrega que cree uno.
 
 ## 9. Herramientas
 
