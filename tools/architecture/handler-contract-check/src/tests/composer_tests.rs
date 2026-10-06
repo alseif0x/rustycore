@@ -8,9 +8,9 @@ use std::path::PathBuf;
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
     ACCOUNT_DATA_REGISTRAR, APPLICATION_GROUP_REGISTRAR, ARENA_TEAM_REGISTRAR, BANK_REGISTRAR,
-    BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR, CHARACTER_QUERY_REGISTRAR,
-    CHARACTER_REGISTRAR, CHAT_REGISTRAR, CLIENT_STATE_REGISTRAR, COLLECTIONS_REGISTRAR,
-    COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
+    BATTLE_PET_REGISTRAR, BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR,
+    CHARACTER_QUERY_REGISTRAR, CHARACTER_REGISTRAR, CHAT_REGISTRAR, CLIENT_STATE_REGISTRAR,
+    COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
     DUNGEON_FINDING_REGISTRAR, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR,
     INVENTORY_REGISTRAR, LOOT_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
@@ -197,6 +197,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             LOOT_REGISTRAR.module,
             "crates/wow-world-application/src/loot_handlers.rs",
             include_str!("../../../../../crates/wow-world-application/src/loot_handlers.rs"),
+        ),
+        mount(
+            BATTLE_PET_REGISTRAR.package,
+            BATTLE_PET_REGISTRAR.module,
+            "crates/wow-world-application/src/battle_pet_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/battle_pet_handlers.rs"),
         ),
         mount(
             VEHICLE_REGISTRAR.package,

@@ -4,7 +4,15 @@
 
 //! Application-level operations shared by World adapters.
 
+mod battle_pet_handlers;
 mod battleground_handlers;
+pub use battle_pet_handlers::{
+    BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp, register_battle_pet_handlers_like_cpp,
+};
+pub use battle_pet_handlers::{
+    has_represented_battle_pet_journal_lock_like_cpp, represented_battle_pet_journal_like_cpp,
+    represented_battle_pet_like_cpp, send_battle_pet_journal_lock_status_like_cpp,
+};
 pub mod character_creation;
 pub mod character_enumeration;
 mod character_handlers;

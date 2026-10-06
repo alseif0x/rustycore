@@ -2,6 +2,12 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private battle_pet capability handlers extracted from the legacy misc owner.
+//!
+//! The eight C++ `BattlePetHandler.cpp` handlers moved to the
+//! `wow-world-application` `ApplicationBattlePet` owner under #1263 F5; their
+//! World-side host lives in [`battle_pet_host`]. The two excluded opcodes stay
+//! here: `BattlePetUpdateDisplayNotify` (C++ `STATUS_UNHANDLED`) and
+//! `DismissCritter` (C++ `PetHandler.cpp`).
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -12,96 +18,12 @@ use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 #[cfg(test)]
 use wow_packet::packets::misc::CageBattlePet;
-use wow_packet::packets::misc::{
-    BattlePetClearFanfare, BattlePetDeletePet, BattlePetModifyName, BattlePetRequestJournal,
-    BattlePetSetBattleSlot, BattlePetSetFlags, BattlePetSummon, BattlePetUpdateNotify,
-    QueryBattlePetName, QueryBattlePetNameResponse,
-};
+use wow_packet::packets::misc::{BattlePetDeletePet, BattlePetModifyName};
 use wow_packet::packets::pet::DismissCritter;
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetRequestJournal,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_request_journal",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_request_journal(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetRequestJournalLock,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_request_journal_lock",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_request_journal_lock(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetClearFanfare,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_clear_fanfare",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_clear_fanfare(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetSetFlags,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_set_flags",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_set_flags(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetSetBattleSlot,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_set_battle_slot",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_set_battle_slot(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetSummon,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_battle_pet_summon",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_summon(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetUpdateNotify,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_update_notify",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_update_notify(pkt).await })
-        },
-    }
-}
+mod battle_pet_host;
+#[cfg(test)]
+mod test_shims;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -125,86 +47,7 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryBattlePetName,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_battle_pet_name",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_query_battle_pet_name(pkt).await })
-        },
-    }
-}
-
 impl crate::session::WorldSession {
-    /// CMSG_BATTLE_PET_REQUEST_JOURNAL — send represented journal.
-    ///
-    /// C++ `BattlePetMgr::SendJournal` first acquires/sends journal-lock status
-    /// when needed, then sends `SMSG_BATTLE_PET_JOURNAL`.
-    pub async fn handle_battle_pet_request_journal(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = BattlePetRequestJournal::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "BattlePetRequestJournal parse failed: {error}"
-            );
-            return;
-        }
-
-        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
-            crate::session::cx_pets(self)
-                .send_battle_pet_journal_lock_status_like_cpp()
-                .await;
-        }
-
-        if let Some(journal) =
-            crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
-        {
-            self.send_packet_realm(&journal);
-        }
-    }
-
-    /// CMSG_BATTLE_PET_REQUEST_JOURNAL_LOCK — acquire represented journal lock.
-    ///
-    /// C++ `HandleBattlePetRequestJournalLock` sends lock status and, when the
-    /// lock is held, sends the journal.
-
-    pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
-        crate::session::cx_pets(self)
-            .send_battle_pet_journal_lock_status_like_cpp()
-            .await;
-        if crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
-            if let Some(journal) =
-                crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
-            {
-                self.send_packet_realm(&journal);
-            }
-        }
-    }
-
-    /// CMSG_BATTLE_PET_CLEAR_FANFARE — clear the account battle-pet fanfare bit.
-    ///
-    /// C++ ref: `WorldSession::HandleBattlePetClearFanfare` forwards only the
-    /// pet guid to `BattlePetMgr::ClearFanfare`, which silently ignores unknown
-    /// pets.
-
-    pub async fn handle_battle_pet_clear_fanfare(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match BattlePetClearFanfare::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetClearFanfare parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self)
-            .battle_pet_clear_fanfare_durable_like_cpp(request.pet_guid)
-            .await;
-    }
-
     pub async fn handle_battle_pet_delete_pet_represented_like_cpp(
         &mut self,
         pkt: wow_packet::WorldPacket,
@@ -252,100 +95,6 @@ impl crate::session::WorldSession {
             .await
     }
 
-    /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
-    ///
-    /// C++ first requires the journal lock and then silently ignores unknown
-    /// pets.
-
-    pub async fn handle_battle_pet_set_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match BattlePetSetFlags::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetSetFlags parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
-            return;
-        }
-
-        crate::session::cx_pets(self)
-            .battle_pet_set_flags_durable_like_cpp(
-                request.pet_guid,
-                request.flags,
-                request.control_type,
-            )
-            .await;
-    }
-
-    /// CMSG_BATTLE_PET_SET_BATTLE_SLOT — assign an owned pet to a battle slot.
-    ///
-    /// C++ silently ignores unknown pets and invalid slots.
-
-    pub async fn handle_battle_pet_set_battle_slot(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match BattlePetSetBattleSlot::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetSetBattleSlot parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self)
-            .battle_pet_set_battle_slot_durable_like_cpp(request.pet_guid, request.slot)
-            .await;
-    }
-
-    /// CMSG_BATTLE_PET_SUMMON — toggle represented summoned battle-pet guid.
-    ///
-    /// C++ compares `ActivePlayerData::SummonedBattlePetGUID`; unknown pets are
-    /// ignored by `BattlePetMgr::SummonPet`, and matching active pets dismiss.
-    /// Full spell cast, creature summon/despawn and `SetBattlePetData` update
-    /// fields remain part of the later live battle-pet runtime.
-
-    pub async fn handle_battle_pet_summon(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match BattlePetSummon::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetSummon parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self).battle_pet_summon_toggle_like_cpp(request.pet_guid);
-    }
-
-    /// CMSG_BATTLE_PET_UPDATE_NOTIFY — represented update of active companion data.
-    ///
-    /// C++ `BattlePetMgr::UpdateBattlePetData` ignores unknown pets and only
-    /// updates player/summoned-creature battle-pet fields when the currently
-    /// summoned companion GUID matches the requested pet GUID.
-
-    pub async fn handle_battle_pet_update_notify(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match BattlePetUpdateNotify::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetUpdateNotify parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        crate::session::cx_pets(self).battle_pet_update_notify_like_cpp(request.pet_guid);
-    }
-
     /// CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY — explicit no-op.
     ///
     /// C++ registers this opcode as `STATUS_UNHANDLED` and dispatches it to
@@ -373,63 +122,6 @@ impl crate::session::WorldSession {
         };
 
         crate::session::hub_mut(self).represented_dismiss_critter_like_cpp(request.critter_guid);
-    }
-
-    /// CMSG_QUERY_BATTLE_PET_NAME — represented summoned-companion name lookup.
-    ///
-    /// C++ first resolves the requested unit through ObjectAccessor and requires
-    /// a summon. Only after that does it copy `CreatureID` and companion-name
-    /// timestamp, then it gates on player owner, known battle-pet row, and a
-    /// non-empty name before setting `Allow=true`.
-
-    pub async fn handle_query_battle_pet_name(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match QueryBattlePetName::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "QueryBattlePetName parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let Some(companion) = crate::session::hub_ref(self)
-            .represented_battle_pet_query_companion_like_cpp(request.unit_guid)
-        else {
-            self.send_packet(&QueryBattlePetNameResponse::not_allowed(
-                request.battle_pet_id,
-            ));
-            return;
-        };
-
-        if !companion.is_summon {
-            self.send_packet(&QueryBattlePetNameResponse::not_allowed(
-                request.battle_pet_id,
-            ));
-            return;
-        }
-
-        let mut response = QueryBattlePetNameResponse {
-            battle_pet_id: request.battle_pet_id,
-            creature_id: companion.creature_id,
-            timestamp: companion.name_timestamp,
-            allow: false,
-            name: String::new(),
-            declined_names: None,
-        };
-
-        if companion.owner_is_player {
-            if let Some(pet) = crate::session::cx_pets_ref(self)
-                .represented_battle_pet_like_cpp(request.battle_pet_id)
-            {
-                response.name = pet.name;
-                response.declined_names = pet.declined_names;
-                response.allow = !response.name.is_empty();
-            }
-        }
-
-        self.send_packet(&response);
     }
 }
 

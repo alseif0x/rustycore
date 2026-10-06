@@ -246,6 +246,13 @@
       "module": "crate::support",
       "allow_descendants": false,
       "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::battle_pet_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
     }
   ]
 }

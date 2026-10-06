@@ -535,15 +535,15 @@ fn battle_pet_update_notify_requires_known_active_pet_like_cpp() {
         RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
     );
 
-    assert!(!crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(pet_guid));
+    assert!(!session.battle_pet_update_notify_like_cpp(pet_guid));
     assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
 
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
-    assert!(!crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(other_guid));
-    assert!(!crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(unknown_guid));
+    assert!(!session.battle_pet_update_notify_like_cpp(other_guid));
+    assert!(!session.battle_pet_update_notify_like_cpp(unknown_guid));
     assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
 
-    assert!(crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(pet_guid));
+    assert!(session.battle_pet_update_notify_like_cpp(pet_guid));
     assert_eq!(
         session.represented_battle_pet_data_updates_like_cpp(),
         &[pet_guid]
@@ -604,7 +604,7 @@ fn battle_pet_update_notify_sets_canonical_player_pet_data_like_cpp() {
     );
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
-    assert!(crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(pet_guid));
+    assert!(session.battle_pet_update_notify_like_cpp(pet_guid));
 
     let (summoned_guid, quality, level, player_mask, active_mask, unit_mask) = session
         .mutate_canonical_player_like_cpp(|player| {
