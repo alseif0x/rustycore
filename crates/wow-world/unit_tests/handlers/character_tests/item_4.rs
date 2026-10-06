@@ -224,34 +224,67 @@ fn inventory_domain_registration_exact_set_includes_cancel_temp_enchantment() {
     wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder)
         .expect("Inventory registrations");
     let registry = builder.build();
-    assert_eq!(registry.len(), 5);
-    for (opcode, processing, name) in [
-        (
-            ClientOpcodes::SaveEquipmentSet,
-            PacketProcessing::ThreadUnsafe,
-            "handle_save_equipment_set",
-        ),
+    // Exact Inventory registrar set: equipment sets, temporary enchantment,
+    // item text and the auction/commerce-token family moved by #1263 F5.
+    let inplace = [
         (
             ClientOpcodes::AssignEquipmentSetSpec,
-            PacketProcessing::Inplace,
             "handle_assign_equipment_set_spec",
         ),
         (
+            ClientOpcodes::CancelTempEnchantment,
+            "handle_cancel_temp_enchantment",
+        ),
+        (ClientOpcodes::ItemTextQuery, "handle_item_text_query"),
+    ];
+    let thread_unsafe = [
+        (ClientOpcodes::SaveEquipmentSet, "handle_save_equipment_set"),
+        (
             ClientOpcodes::DeleteEquipmentSet,
-            PacketProcessing::ThreadUnsafe,
             "handle_delete_equipment_set",
         ),
         (
-            ClientOpcodes::CancelTempEnchantment,
-            PacketProcessing::Inplace,
-            "handle_cancel_temp_enchantment",
+            ClientOpcodes::AuctionListBidderItems,
+            "handle_auction_list_bidder_items",
+        ),
+        (ClientOpcodes::AuctionListItems, "handle_auction_list_items"),
+        (ClientOpcodes::AuctionPlaceBid, "handle_auction_place_bid"),
+        (
+            ClientOpcodes::AuctionRemoveItem,
+            "handle_auction_remove_item",
+        ),
+        (ClientOpcodes::AuctionSellItem, "handle_auction_sell_item"),
+        (
+            ClientOpcodes::AuctionReplicateItems,
+            "handle_auction_replicate_items",
         ),
         (
-            ClientOpcodes::ItemTextQuery,
-            PacketProcessing::Inplace,
-            "handle_item_text_query",
+            ClientOpcodes::AuctionListOwnerItems,
+            "handle_auction_list_owner_items",
         ),
-    ] {
+        (
+            ClientOpcodes::AuctionListPendingSales,
+            "handle_auction_list_pending_sales",
+        ),
+        (
+            ClientOpcodes::AuctionableTokenSell,
+            "handle_auctionable_token_sell",
+        ),
+        (
+            ClientOpcodes::AuctionableTokenSellAtMarketPrice,
+            "handle_auctionable_token_sell_at_market_price",
+        ),
+        (
+            ClientOpcodes::CommerceTokenGetLog,
+            "handle_commerce_token_get_log",
+        ),
+    ];
+    assert_eq!(registry.len(), inplace.len() + thread_unsafe.len());
+    let expected = inplace
+        .map(|(opcode, name)| (opcode, PacketProcessing::Inplace, name))
+        .into_iter()
+        .chain(thread_unsafe.map(|(opcode, name)| (opcode, PacketProcessing::ThreadUnsafe, name)));
+    for (opcode, processing, name) in expected {
         let entry = registry.get(opcode).expect("expected Inventory opcode");
         assert_eq!(entry.status, SessionStatus::LoggedIn);
         assert_eq!(entry.processing, processing);

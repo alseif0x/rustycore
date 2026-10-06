@@ -3616,6 +3616,7 @@ dependencies = [
  "wow-persistence",
  "wow-progression",
  "wow-world-core",
+ "wow-world-inventory",
 ]
 
 [[package]]
@@ -3694,6 +3695,7 @@ dependencies = [
  "wow-packet",
  "wow-spell-acquisition",
  "wow-world-core",
+ "wow-world-spell",
 ]
 
 [[package]]

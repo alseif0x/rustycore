@@ -21,7 +21,7 @@ impl QuestQueryHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessio
         QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
     }
 
-    fn sync_player_registry_state_after_quest_log_change_like_cpp(&mut self) {
+    fn sync_player_registry_state_after_quest_change_like_cpp(&mut self) {
         self.sync_player_registry_state_like_cpp();
     }
 }

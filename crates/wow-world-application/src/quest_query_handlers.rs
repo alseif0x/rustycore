@@ -13,7 +13,7 @@
 
 use std::sync::Arc;
 
-use tracing::{debug, warn};
+use tracing::{debug, info, warn};
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_data::quest::QuestStore;
@@ -168,10 +168,14 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
 
     /// CMSG_QUEST_LOG_REMOVE_QUEST — abandon one quest-log slot.
     ///
-    /// Returns the slot the host must finish after re-publishing the player
-    /// registry state, preserving the C++ order (invalidate authority, remove
-    /// status, delete the DB row, registry sync, quest-log slot update).
-    pub async fn handle_quest_log_remove_quest(&mut self, mut pkt: WorldPacket) -> Option<u8> {
+    /// Returns `(slot, quest_id)` for the host to finish after re-publishing
+    /// the player registry state, preserving the C++ order (invalidate
+    /// authority, remove status, delete the DB row, registry sync, quest-log
+    /// slot update).
+    pub async fn handle_quest_log_remove_quest(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> Option<(u8, u32)> {
         let slot = match pkt.read_uint8() {
             Ok(slot) => slot,
             Err(error) => {
@@ -221,11 +225,11 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
         });
         self.delete_quest_from_db_like_cpp(qid).await;
 
-        Some(slot)
+        Some((slot, qid))
     }
 
     /// Sends the quest-log slot update once the host has synced the registry.
-    pub fn finish_quest_log_remove_quest(&mut self, slot: u8) {
+    pub fn finish_quest_log_remove_quest(&mut self, slot: u8, quest_id: u32) {
         let owner = self.hub.shared().core.quest_objective_access_like_cpp();
         let publication = self.hub.shared().core.packet_publication_access_like_cpp();
         crate::send_represented_quest_log_slot_update_like_cpp(
@@ -235,6 +239,10 @@ impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
             &publication,
             slot,
             cfg!(any(test, feature = "test-fixtures")),
+        );
+        info!(
+            account = self.hub.shared().core.account_id,
+            quest_id, slot, "Quest abandoned via represented explicit quest-log slot"
         );
     }
 
@@ -477,9 +485,10 @@ pub trait QuestQueryHandlerHostLikeCpp<C> {
         catalogs: &'a C,
     ) -> QuestQueryHandlerCxLikeCpp<'a>;
 
-    /// Re-publishes the registry state after a quest-log removal; the World
-    /// session still owns the registry-sync providers.
-    fn sync_player_registry_state_after_quest_log_change_like_cpp(&mut self);
+    /// Re-publishes the registry state after a quest-log removal or a
+    /// pending-share clear; the World session still owns the registry-sync
+    /// providers.
+    fn sync_player_registry_state_after_quest_change_like_cpp(&mut self);
 }
 
 fn handle_quest_push_result_thunk<'a, S, C>(
@@ -497,7 +506,7 @@ where
             cx.handle_quest_push_result(pkt)
         };
         if !matches!(tail, QuestPushResultTailLikeCpp::NotPending) {
-            session.sync_player_registry_state_after_quest_log_change_like_cpp();
+            session.sync_player_registry_state_after_quest_change_like_cpp();
         }
         session
             .quest_query_handler_cx_like_cpp(catalogs)
@@ -515,15 +524,15 @@ where
     C: Sync,
 {
     Box::pin(async move {
-        let slot = {
+        let removal = {
             let mut cx = session.quest_query_handler_cx_like_cpp(catalogs);
             cx.handle_quest_log_remove_quest(pkt).await
         };
-        if let Some(slot) = slot {
-            session.sync_player_registry_state_after_quest_log_change_like_cpp();
+        if let Some((slot, quest_id)) = removal {
+            session.sync_player_registry_state_after_quest_change_like_cpp();
             session
                 .quest_query_handler_cx_like_cpp(catalogs)
-                .finish_quest_log_remove_quest(slot);
+                .finish_quest_log_remove_quest(slot, quest_id);
         }
     })
 }

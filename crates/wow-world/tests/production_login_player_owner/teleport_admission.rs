@@ -2,6 +2,17 @@
 //! (Player.cpp:1237-1244; GridDefines.h:231-248), unlike the lower Map cell check.
 use super::*;
 
+/// Production `CMSG_SUSPEND_TOKEN_RESPONSE` path: since #1263 F5 the body lives
+/// in the application travel owner, so the only production entry is the
+/// registered packet handler (no `WorldSession` method remains).
+async fn dispatch_suspend_token_response(session: &mut WorldSession) {
+    let entry = wow_world::session::registry::registered_handler_entries_like_cpp()
+        .find(|entry| entry.opcode == wow_constants::ClientOpcodes::SuspendTokenResponse)
+        .expect("SuspendTokenResponse registration");
+    let catalogs = SessionHandlerCatalogsLikeCpp::default();
+    (entry.handler)(session, &catalogs, wow_packet::WorldPacket::new_empty()).await;
+}
+
 #[tokio::test]
 async fn production_worldport_cannot_finish_with_incomplete_self_create() {
     // Login deliberately stopped before complete trait hydration. The controlled
@@ -148,9 +159,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
         "an old ACK cannot complete the new recovery before NewWorld"
     );
     assert_eq!(session.state(), SessionState::Transfer);
-    session
-        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
-        .await;
+    dispatch_suspend_token_response(&mut session).await;
     let bytes = receiver
         .try_recv()
         .expect("failed admission retains pending transfer");
@@ -175,9 +184,7 @@ async fn production_rejected_worldport_recovers_once_then_saves_retained_source(
             "terminal rejection cannot start another handshake"
         );
     }
-    session
-        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
-        .await;
+    dispatch_suspend_token_response(&mut session).await;
     assert!(receiver.is_empty());
     save::assert_terminal_source_save(&mut session, &port).await;
 }
@@ -237,9 +244,7 @@ async fn production_detached_return_to_source_requires_world_entry_handshake() {
             .player_count(),
         0
     );
-    session
-        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
-        .await;
+    dispatch_suspend_token_response(&mut session).await;
     let bytes = receiver
         .try_recv()
         .expect("retained Player answers recovery suspend ACK");
@@ -282,9 +287,7 @@ async fn production_far_transfer_retains_owner_until_suspend_ack() {
     while receiver.try_recv().is_ok() {}
     // This public production path reads far_pending through the retained owner.
     // Dropping the detached Player would suppress NewWorld and strand the client.
-    session
-        .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())
-        .await;
+    dispatch_suspend_token_response(&mut session).await;
     let bytes = receiver
         .try_recv()
         .expect("retained Player answers suspend ACK");

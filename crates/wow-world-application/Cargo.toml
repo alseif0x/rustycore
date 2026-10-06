@@ -17,6 +17,7 @@ test-fixtures = [
     "wow-world-loot/test-fixtures",
     "wow-world-social/test-fixtures",
     "wow-world-spell/test-fixtures",
+    "wow-world-visibility/test-fixtures",
 ]
 
 [dependencies]

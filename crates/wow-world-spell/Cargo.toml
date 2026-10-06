@@ -28,6 +28,9 @@ wow-world-core = { workspace = true }
 [dev-dependencies]
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+# Keep this crate cfg-aligned with core in all-targets tests: core's dev-only
+# fixtures add arguments that this library passes only under its own feature.
+wow-world-spell = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

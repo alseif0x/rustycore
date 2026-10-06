@@ -6334,6 +6334,51 @@ errores; composer contracts **8/8**; suite del tool **443/443** (506,22 s);
 
 **No validado aún.** Sin campaña `final` nueva; quedan **142 registros literales**.
 
+#### F5: reparación de aceptación tras la revisión de la rama publicada — 2026-10-06, `4ef885fa3..HEAD`
+
+La revisión de la rama publicada (`4ef885fa3`, PR #1266) encontró que **no pasaba `final`**. Las validaciones
+por corte solo ejecutaban filtros (`quest`, `trade`, `dispatch`…), nunca la suite completa ni
+`cargo check --all-targets`, así que tres roturas introducidas el 2026‑10‑05 —**después** de la última
+`final` verde (`f7553c7d0`) y **antes** de los cortes 96–107— quedaron ocultas y se publicaron:
+
+- `wow-world` `--lib`: `inventory_domain_registration_exact_set_includes_cancel_temp_enchantment` seguía
+  esperando 5 registros tras mover la familia de subastas/commerce-token al registrador de inventario
+  (`2c8446066`); ahora fija los 16 con su `processing` exacto.
+- `wow-world` test de integración `production_login_player_owner`: llamaba a
+  `handle_suspend_token_response`, que `1bf1703f3` dejó solo bajo `cfg(test)`; ahora despacha la entrada
+  registrada de `SuspendTokenResponse`, que es la ruta de producción real.
+- `wow-world-application`, `wow-world-inventory` y `wow-world-spell` no compilaban su suite por separado
+  (`cargo test -p <crate>`), oculto en `final` por la unificación de features: App no propagaba
+  `wow-world-visibility/test-fixtures` (`272ff315b2`), e inventario/hechizos compilaban su librería sin su
+  propia feature mientras core la tenía por dev-dependency. Se alinea con el patrón ya usado por App
+  (dev-dependency a sí mismo con `test-fixtures`); `Cargo.lock` solo gana esas dos aristas.
+
+Además, de la revisión de los cortes 96–107:
+
+- Se restaura el `info!("Quest abandoned via represented explicit quest-log slot")` que el movimiento de
+  `QuestLogRemoveQuest` había perdido (`82f9065e2`), en su posición original tras la actualización del slot;
+  el dueño devuelve ahora `(slot, quest_id)`.
+- Los shims `cfg(test)` de `QuestLogRemoveQuest` y `QuestPushResult` despachan por la entrada registrada, de
+  modo que todos sus tests de comportamiento ejercitan el thunk de producción de dos fases en lugar de una
+  copia de su orquestación.
+- El seam de host compartido pasa a llamarse `sync_player_registry_state_after_quest_change_like_cpp`
+  (lo usan log-remove y push-result).
+- El resto de cortes de la serie se contrastó contra su cuerpo original: sin otros literales perdidos;
+  duelo, `SetTradeSpell`, invalidación de autoridad de quest y push-result equivalentes; las
+  sustituciones `cfg!(test)` → `cfg!(any(test, feature = "test-fixtures"))` son seguras porque
+  `test-fixtures` solo entra por `dev-dependencies` (verificado con `cargo tree -e normal,build`).
+
+**Evidencia enfocada:** `wow-world` `--lib` **3.634 ✓ / 0 ✗** (antes 1 ✗); `production_login_player_owner`
+**34 ✓** (antes no compilaba); `wow-world-application` **58 ✓**, `wow-world-spell` **12 ✓**,
+`wow-world-inventory` compila (antes no compilaban); `world-server` **598 ✓**; `wow-world-core` **247 ✓**;
+`session-ownership-check check --syntax-only` **PASS** (203 / 3.140 / 711; único delta de baseline: el
+renombrado del método del seam); `check_architecture.py check` **PASS** con el ledger de
+`handlers/character/mod.rs` ajustado a +33 líneas de test (el conjunto exacto ampliado, agrupado por
+`processing`); R1 v2 `S = 74.719`, `G_move = 116.117`, requisito `37.362,05` → **presupuesto 37.363**.
+
+**Pendiente en esta entrada:** campaña `final` sobre el candidato commiteado. Quedan **142 registros
+literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

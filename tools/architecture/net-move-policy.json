@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37364,
-    "measured_requirement": 37364,
+    "budget": 37363,
+    "measured_requirement": 37363,
     "recorded_at_revision": "766a29946488b19a9cef54d1c8da22ae034a6e8f",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74709, G_move = 116108, ratio and slack credits = 74709 * 1.05 + 300 = 78744.45, so the requirement is 37363.55 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74719, G_move = 116117, ratio and slack credits = 74719 * 1.05 + 300 = 78754.95, so the requirement is 37362.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -404,6 +404,13 @@
         "destination_growth": 14,
         "new_code": 13,
         "note": "Bounded the resolved_group_guid_like_cpp seam: the canonical Player group read (with its represented fixture fallback) moved to the application group owner and the World method is a thin wrapper over split_social_ref. No registration changed; the goal is to let group, loot and quest handler bodies resolve Player::m_group without a WorldSession handle."
+      },
+      {
+        "phase": "F5 acceptance repair (4ef885fa3..HEAD, no opcode moved)",
+        "shrink": 0,
+        "destination_growth": 9,
+        "new_code": 9,
+        "note": "Restores the QuestLogRemoveQuest completion log that the move had dropped (the owner now returns the quest id with the slot) and renames the shared quest registry-sync host seam. The rest of the repair is outside the destination roots: Cargo feature alignment for the application, inventory and spell test builds, the Inventory registrar exact-set regression, the production SuspendTokenResponse integration test and cfg(test) shims that dispatch through the registry."
       }
     ],
     "areas": [

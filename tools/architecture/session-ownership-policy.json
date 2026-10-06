@@ -44809,9 +44809,9 @@
           "module": "crate::session",
           "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "sync_player_registry_state_after_quest_log_change_like_cpp",
+          "name": "sync_player_registry_state_after_quest_change_like_cpp",
           "visibility": "private",
-          "signature": "fn sync_player_registry_state_after_quest_log_change_like_cpp (& mut self)",
+          "signature": "fn sync_player_registry_state_after_quest_change_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
