@@ -11235,20 +11235,6 @@
           "module": "crate::handlers::quest::handlers",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_quest_log_remove_quest",
-          "visibility": "pub",
-          "signature": "async fn handle_quest_log_remove_quest (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_quest_push_result",
           "visibility": "pub",
           "signature": "async fn handle_quest_push_result (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -11546,6 +11532,22 @@
           "name": "handle_quest_giver_close_quest",
           "visibility": "pub",
           "signature": "async fn handle_quest_giver_close_quest (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_log_remove_quest",
+          "visibility": "pub",
+          "signature": "async fn handle_quest_log_remove_quest (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -44840,6 +44842,19 @@
           "name": "quest_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn quest_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> QuestQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sync_player_registry_state_after_quest_log_change_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_registry_state_after_quest_log_change_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -89,18 +89,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestLogRemoveQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_log_remove_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_log_remove_quest(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QuestPoiQuery,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -339,60 +327,5 @@ impl WorldSession {
                     result: packet.result,
                 },
             );
-    }
-
-    /// CMSG_QUEST_LOG_REMOVE_QUEST — abandon quest-log slot.
-
-    /// Represented-partial seam: explicit QuestLog slot lookup + local active quest removal/DB delete.
-    /// Remaining gaps: source-item gates/cleanup, no-abandon-once-begun, timed/PvP state,
-    /// personal summons, quest tracker DB, ScriptMgr callbacks, and criteria update evidence.
-    pub async fn handle_quest_log_remove_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let slot = match pkt.read_uint8() {
-            Ok(slot) => slot,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    ?error,
-                    "QuestLogRemoveQuest: failed to read Entry"
-                );
-                return;
-            }
-        };
-
-        debug!(
-            account = self.core.account_id,
-            slot, "QuestLogRemoveQuest: represented slot-backed abandon request"
-        );
-
-        if slot >= MAX_QUEST_LOG_SIZE_LIKE_CPP {
-            debug!(
-                account = self.core.account_id,
-                slot, "QuestLogRemoveQuest: slot outside MAX_QUEST_LOG_SIZE"
-            );
-            return;
-        }
-
-        let Some(qid) = self.get_quest_slot_quest_id_like_cpp(slot) else {
-            debug!(
-                account = self.core.account_id,
-                slot,
-                "QuestLogRemoveQuest: valid slot empty; criteria update remains an explicit gap"
-            );
-            return;
-        };
-
-        self.invalidate_player_quest_status_authority_like_cpp();
-        let _ = self.remove_represented_quest_status_like_cpp(qid);
-        crate::session::cx_quest_state_ref(self)
-            .delete_quest_from_db(qid)
-            .await;
-        self.sync_player_registry_state_like_cpp();
-        self.send_represented_quest_log_slot_update_like_cpp(slot);
-        info!(
-            account = self.core.account_id,
-            quest_id = qid,
-            slot,
-            "Quest abandoned via represented explicit quest-log slot"
-        );
     }
 }

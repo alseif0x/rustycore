@@ -28,6 +28,17 @@ pub struct HubMut<'a> {
 }
 
 impl HubMut<'_> {
+    /// Reborrows the mutable hub view for a nested owner call.
+    pub fn reborrow_like_cpp(&mut self) -> HubMut<'_> {
+        HubMut {
+            core: &mut *self.core,
+            catalogs: self.catalogs,
+            config: self.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut *self.fixtures,
+        }
+    }
+
     pub fn shared(&self) -> HubRef<'_> {
         HubRef {
             core: &*self.core,

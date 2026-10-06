@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 37002,
-    "measured_requirement": 37002,
+    "budget": 37092,
+    "measured_requirement": 37092,
     "recorded_at_revision": "8ae6c5a58954cfb7c6d6f364b6ad66b7c1f265fd",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74225, G_move = 115238, ratio and slack credits = 74225 * 1.05 + 300 = 78236.25, so the requirement is 37001.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74289, G_move = 115395, ratio and slack credits = 74289 * 1.05 + 300 = 78303.45, so the requirement is 37091.55 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -362,6 +362,13 @@
         "destination_growth": 90,
         "new_code": 41,
         "note": "QuestGiverCloseQuest moved into the existing quest-query owner, whose context now also borrows the quest state so the handler reaches find_quest_slot_like_cpp and the represented fixture tail without a WorldSession handle; the acknowledge helper moved with it and the shell keeps a cfg(test) delegate. The registration keeps its original LoggedIn/Inplace metadata."
+      },
+      {
+        "phase": "F5 quest log-remove handler (9ba305694..HEAD, one handler)",
+        "shrink": 61,
+        "destination_growth": 158,
+        "new_code": 97,
+        "note": "QuestLogRemoveQuest moved into the quest-query owner, whose context now also borrows the lifecycle state for the quest-status persistence port. The owner returns the slot the host must finish after re-publishing the registry state, preserving the C++ order (invalidate authority, remove status, delete the DB row, registry sync, quest-log slot update); the shell keeps a cfg(test) delegate and the registration keeps its original LoggedIn/Inplace metadata."
       }
     ],
     "areas": [

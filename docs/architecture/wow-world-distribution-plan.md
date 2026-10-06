@@ -6218,6 +6218,27 @@ errores; composer contracts **8/8**; suite del tool **443/443** (496,86 s);
 
 **No validado aún.** Sin campaña `final` nueva; quedan **150 registros literales**.
 
+#### F5: handler de abandono de quest (`QuestLogRemoveQuest`) — 2026-10-05, `9ba305694..HEAD`
+
+`QuestLogRemoveQuest` pasa al dueño `ApplicationQuestQuery`, cuyo contexto añade el préstamo del estado de
+ciclo de vida para el puerto persistente de estado de quest. El dueño devuelve el slot que el host debe
+terminar tras re-publicar el registro, conservando el orden C++ (invalidar autoridad → quitar estado →
+borrar fila de DB → sincronización de registro → actualización de slot del log); el thunk invoca el seam
+de host `sync_player_registry_state_after_quest_log_change_like_cpp` entre las dos partes. El helper
+`delete_quest_from_db` sale del shell (`handlers/quest/persistence.rs`). Se añade
+`HubMut::reborrow_like_cpp` para el préstamo anidado del hub y `split_quest_state_lifecycle_mut` para
+prestar estado de quest y ciclo de vida disjuntos. El registro mantiene `LoggedIn`/`Inplace`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **428 tests de `quest`** y **25 de `dispatch`** (478
+opcodes intactos) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443** (502,83 s);
+`session-ownership-check check --syntax-only` **PASS** (204 owners / 3.144 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.289`,
+`G_move = 115.395`, requisito `37.091,55` → **presupuesto 37.092**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **149 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

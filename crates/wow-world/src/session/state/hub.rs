@@ -328,6 +328,23 @@ pub(crate) fn split_quest_state_ref(s: &WorldSession) -> (&SessionQuestState, Hu
     (&s.quest_state, hub_ref(s))
 }
 
+/// `&mut` quest state, shared lifecycle state and the mutable hub, from disjoint fields.
+pub(crate) fn split_quest_state_lifecycle_mut(
+    s: &mut WorldSession,
+) -> (&mut SessionQuestState, &SessionLifecycleState, HubMut<'_>) {
+    (
+        &mut s.quest_state,
+        &s.lifecycle,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Capped group context (#1241 F3): the `inventory` state, sibling states and hub members its
 /// moved fns read, borrowed from disjoint WorldSession fields.
 pub(crate) struct InventoryCx<'a> {

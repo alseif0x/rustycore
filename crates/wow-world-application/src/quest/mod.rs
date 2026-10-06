@@ -34,7 +34,8 @@ pub use self::money_persistence::{
     reconcile_durable_loot_money_before_save_like_cpp,
 };
 pub use self::objective_progress::{
-    MAX_QUEST_LOG_SIZE_LIKE_CPP, find_quest_slot_like_cpp, plan_quest_status_save_like_cpp,
+    MAX_QUEST_LOG_SIZE_LIKE_CPP, find_quest_slot_like_cpp,
+    invalidate_player_quest_status_authority_like_cpp, plan_quest_status_save_like_cpp,
     save_changed_quest_statuses_like_cpp, save_quest_to_db_like_cpp,
 };
 pub use self::objectives::QuestObjectiveProgressCx;

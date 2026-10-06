@@ -15,7 +15,7 @@ fn quest_log_remove_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.processing, PacketProcessing::Inplace);
     assert_eq!(entry.handler_name, "handle_quest_log_remove_quest");
     assert!(
-        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_quest_log_remove_quest(pkt).await"),
+        QUEST_HANDLER_REGISTRATIONS.contains(".handle_quest_log_remove_quest(pkt)"),
         "the QuestLogRemoveQuest registration must carry the call itself"
     );
 }
