@@ -23,6 +23,9 @@ use wow_packet::packets::vehicle::{
 
 use crate::session::WorldSession;
 
+#[cfg(test)]
+mod test_shims;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum VehicleHandlerAction {
     Noop,
@@ -227,16 +230,6 @@ impl WorldSession {
     pub async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
         self.represented_ride_vehicle_interact_like_cpp(packet.vehicle);
     }
-
-    /// C++ `HandleEjectPassenger`.
-    pub async fn handle_eject_passenger(&mut self, packet: EjectPassenger) {
-        crate::session::hub_mut(self).represented_eject_passenger_like_cpp(packet.passenger);
-    }
-
-    /// C++ `HandleRequestVehicleExit`.
-    pub async fn handle_request_vehicle_exit(&mut self, _packet: RequestVehicleExit) {
-        self.represented_request_vehicle_exit_like_cpp();
-    }
 }
 
 crate::session::registry::register_packet_handler_like_cpp! {
@@ -318,40 +311,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 match wow_packet::packets::vehicle::RideVehicleInteract::read(&mut pkt) {
                     Ok(packet) => session.handle_ride_vehicle_interact(packet).await,
                     Err(e) => tracing::warn!("Failed to read RideVehicleInteract: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::EjectPassenger,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_eject_passenger",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::EjectPassenger::read(&mut pkt) {
-                    Ok(packet) => session.handle_eject_passenger(packet).await,
-                    Err(e) => tracing::warn!("Failed to read EjectPassenger: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestVehicleExit,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_vehicle_exit",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::RequestVehicleExit::read(&mut pkt) {
-                    Ok(packet) => session.handle_request_vehicle_exit(packet).await,
-                    Err(e) => tracing::warn!("Failed to read RequestVehicleExit: {e}"),
                 }
             })
         },

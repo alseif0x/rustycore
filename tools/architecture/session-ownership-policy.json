@@ -1113,6 +1113,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::void_storage::items",
           "trait_path": null,
           "cfg": [],
@@ -1335,6 +1343,12 @@
         {
           "module": "crate::session",
           "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "VehicleHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -13616,20 +13630,6 @@
           "module": "crate::handlers::vehicle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_eject_passenger",
-          "visibility": "pub",
-          "signature": "async fn handle_eject_passenger (& mut self , packet : EjectPassenger)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::vehicle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_move_change_vehicle_seats",
           "visibility": "pub",
           "signature": "async fn handle_move_change_vehicle_seats (& mut self , mut packet : MoveChangeVehicleSeats)",
@@ -13647,20 +13647,6 @@
           "name": "handle_move_dismiss_vehicle",
           "visibility": "pub",
           "signature": "async fn handle_move_dismiss_vehicle (& mut self , mut packet : MoveDismissVehicle)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::vehicle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_vehicle_exit",
-          "visibility": "pub",
-          "signature": "async fn handle_request_vehicle_exit (& mut self , _packet : RequestVehicleExit)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13722,6 +13708,69 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_eject_passenger",
+          "visibility": "pub",
+          "signature": "async fn handle_eject_passenger (& mut self , packet : wow_packet :: packets :: vehicle :: EjectPassenger ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_vehicle_exit",
+          "visibility": "pub",
+          "signature": "async fn handle_request_vehicle_exit (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehicleExit ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_request_vehicle_exit_like_cpp",
+          "visibility": "pub",
+          "signature": "fn represented_request_vehicle_exit_like_cpp (& mut self) -> bool",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::vehicle::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "vehicle_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn vehicle_test_cx_like_cpp (& mut self) -> VehicleHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
           ]
         },
         {
@@ -32045,19 +32094,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_request_vehicle_exit_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_request_vehicle_exit_like_cpp (& mut self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_request_vehicle_switch_seat_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_request_vehicle_switch_seat_like_cpp (& mut self , requested_vehicle : ObjectGuid , seat_index : u8 ,) -> bool",
@@ -45125,6 +45161,32 @@
           "name": "travel_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn travel_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> TravelHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "VehicleHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sync_player_registry_state_after_vehicle_change_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_registry_state_after_vehicle_change_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "VehicleHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "vehicle_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn vehicle_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> VehicleHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

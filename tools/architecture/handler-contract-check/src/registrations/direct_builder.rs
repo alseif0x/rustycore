@@ -620,6 +620,27 @@ pub(crate) const GAMEOBJECT_REGISTRAR: DirectRegistrarContract = DirectRegistrar
     facades: GAMEOBJECT_FACADES,
 };
 
+const VEHICLE_ROOT_EXPORTS: &[&str] = &[
+    "VehicleHandlerCxLikeCpp",
+    "VehicleHandlerHostLikeCpp",
+    "register_vehicle_handlers_like_cpp",
+];
+const VEHICLE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "vehicle_handlers",
+    exports: VEHICLE_ROOT_EXPORTS,
+}];
+
+pub(crate) const VEHICLE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationVehicle",
+    package: "wow-world-application",
+    module: "crate::vehicle_handlers",
+    registrar: "register_vehicle_handlers_like_cpp",
+    host_trait: "VehicleHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: VEHICLE_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -648,6 +669,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     BATTLEGROUND_REGISTRAR,
     DUNGEON_FINDING_REGISTRAR,
     GAMEOBJECT_REGISTRAR,
+    VEHICLE_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

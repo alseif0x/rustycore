@@ -426,23 +426,6 @@ impl WorldSession {
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
         self.social.represented_duel_requests_for_test_like_cpp()
     }
-    pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
-        let Some(seat_flags) = crate::session::hub_ref(self)
-            .player_vehicle_seat_state_like_cpp()
-            .and_then(|(flags, _)| flags)
-        else {
-            return false;
-        };
-        if !wow_data::vehicle_seat_flags_can_enter_or_exit_like_cpp(seat_flags) {
-            return false;
-        }
-
-        if !crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(None, None) {
-            return false;
-        }
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
     pub(crate) fn represented_request_adjacent_vehicle_seat_like_cpp(
         &mut self,
         next: bool,

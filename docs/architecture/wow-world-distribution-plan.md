@@ -6025,6 +6025,27 @@ fixture de criteria queda bajo `cfg(any(test, feature = "test-fixtures"))`. El c
 
 **No validado aún.** Sin campaña `final` nueva; quedan **173 registros literales**.
 
+#### F5: vehículos, corte de expulsión/salida (2 opcodes) — 2026-10-05, `bd2d3ded9..HEAD`
+
+Nuevo dueño `ApplicationVehicle` (`crates/wow-world-application/src/vehicle_handlers.rs`, hub-only +
+seam de sincronización de registro): `EjectPassenger` (transición del hub) y `RequestVehicleExit`
+(puerto de la transición de asiento al hub con la compuerta
+`vehicle_seat_flags_can_enter_or_exit_like_cpp`). Los cortes de asiento, `MoveDismissVehicle` y
+`RideVehicleInteract` se quedan en el shell mientras necesitan el saneado de movimiento y la
+planificación de *spell click* propios de la sesión. `handlers/vehicle.rs` queda con **6 registros
+literales**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**42 de `vehicle`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443**; `session-ownership-check check
+--syntax-only` **PASS** (198 owners / 3.149 items / 711 filas); `check_architecture.py check`
+**PASS** (3.397 ficheros / 102 techos); hotspots reconciliados (`session/mod.rs`: producción 61.218,
+test 138.192, total 199.410; `world-server/lib.rs`: producción 31.812, total 60.523). R1 v2:
+`S = 73.016`, `G_move = 113.125`, requisito `36.158,20` → **presupuesto 36.159**, 0 violaciones / 0
+permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **171 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

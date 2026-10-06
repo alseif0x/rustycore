@@ -31,6 +31,7 @@ mod group_handler_contexts;
 mod guild_handler_contexts;
 mod player_handler_contexts;
 mod travel_handler_contexts;
+mod vehicle_handler_contexts;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod account_data_handler_contexts;
 mod effect_learning;
@@ -969,8 +970,7 @@ const MAP_ARENA_LIKE_CPP: i8 = 4;
 pub(crate) use wow_world_social::GROUP_XP_DISTANCE_LIKE_CPP;
 const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
-// The capture contract validates this field rather than treating it as a
-// runtime counter, so keep the canonical numeric value here.
+// The capture contract validates this field rather than treating it as a runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
 /// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`); `SendSpellStart` and `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.

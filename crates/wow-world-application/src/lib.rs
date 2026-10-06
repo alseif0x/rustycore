@@ -28,6 +28,7 @@ mod reputation;
 mod spell_acquisition;
 pub mod spell_click_values;
 mod travel_handlers;
+mod vehicle_handlers;
 pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
@@ -235,4 +236,7 @@ pub use trainer_purchase::{
 };
 pub use travel_handlers::{
     TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
+};
+pub use vehicle_handlers::{
+    VehicleHandlerCxLikeCpp, VehicleHandlerHostLikeCpp, register_vehicle_handlers_like_cpp,
 };

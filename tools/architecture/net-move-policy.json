@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35985,
-    "measured_requirement": 35985,
+    "budget": 36159,
+    "measured_requirement": 36159,
     "recorded_at_revision": "bd2d3ded91b47a2af6fdeb78143412c0924cfa72",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 73033, G_move = 112969, ratio and slack credits = 73033 * 1.05 + 300 = 76984.65, so the requirement is 35984.35 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 73016, G_move = 113125, ratio and slack credits = 73016 * 1.05 + 300 = 76966.8, so the requirement is 36158.2 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -299,6 +299,13 @@
         "destination_growth": 226,
         "new_code": 176,
         "note": "CloseInteraction and GameObjReportUse moved to a new ApplicationGameObject registrar whose context borrows the interaction and world-entity domain states through a new split helper; the GameObjUse body stays while it needs the shell loot/spell/quest orchestration. The new contract boilerplate is most of the net growth, and one doc comment was compacted in session/mod.rs to keep its physical ceiling. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 vehicle eject/exit (bd2d3ded9..HEAD)",
+        "shrink": -17,
+        "destination_growth": 156,
+        "new_code": 173,
+        "note": "EjectPassenger and RequestVehicleExit moved to a new ApplicationVehicle registrar with a hub-only context plus the registry-sync seam; the seat-change, dismiss and ride-interact bodies stay while they need the shell movement sanitization and spell-click planning helpers. The new contract boilerplate is most of the net growth and session/mod.rs lost a doc line while gaining the context module, so the shrink root grew slightly. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [
