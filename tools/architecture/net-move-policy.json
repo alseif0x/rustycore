@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35640,
-    "measured_requirement": 35640,
+    "budget": 35811,
+    "measured_requirement": 35811,
     "recorded_at_revision": "97e4fd9a2ef999469bf1b22cd118a32058f92ad4",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72966, G_move = 112554, ratio and slack credits = 72966 * 1.05 + 300 = 76914.3, so the requirement is 35639.7 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72983, G_move = 112743, ratio and slack credits = 72983 * 1.05 + 300 = 76932.15, so the requirement is 35810.85 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -285,6 +285,13 @@
         "destination_growth": 403,
         "new_code": 276,
         "note": "BattlefieldPort, BattlefieldLeave, TogglePvp, SetPvp, RequestRatedPvpInfo and RequestPvpRewards moved to a new ApplicationBattleground registrar whose context is hub-only; the PvP flag transitions keep the registry-sync seam. The new contract carries the usual Cx, host trait, six thunks and registrar boilerplate, which is most of the net growth. The battlemaster-list and queue bodies stay while they need the shell queue/lifecycle orchestration. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 dungeon-finding status tail (97e4fd9a2..HEAD)",
+        "shrink": 17,
+        "destination_growth": 189,
+        "new_code": 172,
+        "note": "DfGetJoinStatus, RequestConquestFormulaConstants, RequestLfgListBlacklist and LfgListGetStatus moved to a new ApplicationDungeonFinding registrar with a hub-only context; the system-info body stays while it needs the LFG dungeon catalog and the shell reward projection. The new contract boilerplate is most of the net growth, and one doc comment was compacted in session/mod.rs to keep its physical ceiling. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

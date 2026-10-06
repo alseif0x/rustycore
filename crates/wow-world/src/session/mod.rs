@@ -12,6 +12,7 @@ mod deferred_visibility;
 pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
+mod dungeon_finding_handler_contexts;
 mod lifecycle;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod arena_team_handler_contexts;
@@ -972,8 +973,7 @@ const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // runtime counter, so keep the canonical numeric value here.
 pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 
-/// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`). `SendSpellStart` and
-/// `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
+/// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`); `SendSpellStart` and `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
 pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
 const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 

@@ -54,6 +54,13 @@
     {
       "capability": "handler_registration",
       "package": "wow-world-application",
+      "module": "crate::dungeon_finding_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
       "module": "crate::battleground_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263

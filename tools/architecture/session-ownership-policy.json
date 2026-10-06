@@ -573,6 +573,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::dungeon_finding::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::economy::auction",
           "trait_path": null,
           "cfg": [],
@@ -1223,6 +1231,12 @@
         {
           "module": "crate::session",
           "trait_path": "DataServiceHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "DungeonFindingHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -6279,20 +6293,6 @@
           "module": "crate::handlers::dungeon_finding",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_df_get_join_status",
-          "visibility": "pub",
-          "signature": "async fn handle_df_get_join_status (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::dungeon_finding",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_df_get_system_info",
           "visibility": "pub",
           "signature": "async fn handle_df_get_system_info (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -6312,48 +6312,6 @@
           "name": "handle_df_get_system_info_with_catalog_like_cpp",
           "visibility": "pub (crate)",
           "signature": "async fn handle_df_get_system_info_with_catalog_like_cpp (& mut self , lfg_dungeons : & wow_data :: LfgDungeonStoreLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::dungeon_finding",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_lfg_list_get_status",
-          "visibility": "pub",
-          "signature": "async fn handle_lfg_list_get_status (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::dungeon_finding",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_conquest_formula_constants",
-          "visibility": "pub",
-          "signature": "async fn handle_request_conquest_formula_constants (& mut self , _pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::dungeon_finding",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_lfg_list_blacklist",
-          "visibility": "pub",
-          "signature": "async fn handle_request_lfg_list_blacklist (& mut self , _pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -6410,6 +6368,85 @@
           "signature": "fn populate_lfg_player_dungeon_reward_like_cpp (& self , dungeon_info : & mut LfgPlayerDungeonInfo , reward : & wow_data :: LfgDungeonRewardLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::dungeon_finding::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "dungeon_finding_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn dungeon_finding_test_cx_like_cpp (& mut self) -> DungeonFindingHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::dungeon_finding::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_df_get_join_status",
+          "visibility": "pub",
+          "signature": "async fn handle_df_get_join_status (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::dungeon_finding::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_lfg_list_get_status",
+          "visibility": "pub",
+          "signature": "async fn handle_lfg_list_get_status (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::dungeon_finding::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_conquest_formula_constants",
+          "visibility": "pub",
+          "signature": "async fn handle_request_conquest_formula_constants (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::dungeon_finding::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_lfg_list_blacklist",
+          "visibility": "pub",
+          "signature": "async fn handle_request_lfg_list_blacklist (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44405,6 +44442,19 @@
           "name": "data_service_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn data_service_handler_cx_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> DataServiceHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "DungeonFindingHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "dungeon_finding_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn dungeon_finding_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> DungeonFindingHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

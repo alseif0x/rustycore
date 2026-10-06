@@ -578,6 +578,27 @@ pub(crate) const BATTLEGROUND_REGISTRAR: DirectRegistrarContract = DirectRegistr
     facades: BATTLEGROUND_FACADES,
 };
 
+const DUNGEON_FINDING_ROOT_EXPORTS: &[&str] = &[
+    "DungeonFindingHandlerCxLikeCpp",
+    "DungeonFindingHandlerHostLikeCpp",
+    "register_dungeon_finding_handlers_like_cpp",
+];
+const DUNGEON_FINDING_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "dungeon_finding_handlers",
+    exports: DUNGEON_FINDING_ROOT_EXPORTS,
+}];
+
+pub(crate) const DUNGEON_FINDING_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationDungeonFinding",
+    package: "wow-world-application",
+    module: "crate::dungeon_finding_handlers",
+    registrar: "register_dungeon_finding_handlers_like_cpp",
+    host_trait: "DungeonFindingHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: DUNGEON_FINDING_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -604,6 +625,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     COLLECTIONS_REGISTRAR,
     TRAVEL_REGISTRAR,
     BATTLEGROUND_REGISTRAR,
+    DUNGEON_FINDING_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

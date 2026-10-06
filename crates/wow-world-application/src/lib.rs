@@ -12,6 +12,7 @@ mod client_state;
 mod collections_handlers;
 mod combat_handlers;
 mod data_service_handlers;
+mod dungeon_finding_handlers;
 mod group_handlers;
 mod instances;
 mod loot_release;
@@ -83,6 +84,10 @@ pub use combat_handlers::{
 pub use data_service_handlers::{
     DataServiceHandlerCxLikeCpp, DataServiceHandlerHostLikeCpp,
     register_data_service_handlers_like_cpp,
+};
+pub use dungeon_finding_handlers::{
+    DungeonFindingHandlerCxLikeCpp, DungeonFindingHandlerHostLikeCpp,
+    register_dungeon_finding_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;

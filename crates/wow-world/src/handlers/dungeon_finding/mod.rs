@@ -45,53 +45,8 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::DfGetJoinStatus,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_df_get_join_status",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_df_get_join_status(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestConquestFormulaConstants,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_conquest_formula_constants",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_conquest_formula_constants(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestLfgListBlacklist,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_lfg_list_blacklist",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_lfg_list_blacklist(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::LfgListGetStatus,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_lfg_list_get_status",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_lfg_list_get_status(pkt).await })
-        },
-    }
-}
+#[cfg(test)]
+mod test_shims;
 
 impl crate::session::WorldSession {
     pub(crate) async fn handle_df_get_system_info_with_catalog_like_cpp(
@@ -432,42 +387,6 @@ impl crate::session::WorldSession {
         }
 
         !recurrence.rewarded_quest_ids_like_cpp().contains(&quest.id)
-    }
-
-    pub async fn handle_df_get_join_status(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = DfGetJoinStatus::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "DFGetJoinStatus parse failed: {error}"
-            );
-            return;
-        }
-
-        // C++ `HandleDFGetJoinStatus` returns before sending anything when
-        // `Player::isUsingLfg()` is false. Rust has no represented active LFG
-        // join state in this handler yet, so preserve that observable branch.
-    }
-
-    pub async fn handle_request_conquest_formula_constants(
-        &mut self,
-        _pkt: wow_packet::WorldPacket,
-    ) {
-        // C++ registers CMSG_REQUEST_CONQUEST_FORMULA_CONSTANTS as
-        // STATUS_UNHANDLED/Handle_NULL.
-    }
-
-    pub async fn handle_request_lfg_list_blacklist(&mut self, _pkt: wow_packet::WorldPacket) {
-        // C++ builds this from `sLFGMgr->GetLockedDungeons(playerGuid)`.
-        // Rust does not have that manager state yet, so represent the
-        // well-defined no-locks response instead of leaving the client waiting.
-        self.send_packet_realm(&LfgListBlacklist::empty());
-    }
-
-    pub async fn handle_lfg_list_get_status(&mut self, _pkt: wow_packet::WorldPacket) {
-        // C++ `HandleLfgListGetStatus` always sends LFGUpdateStatus for a live
-        // player. Until `sLFGMgr` state is ported, Rust represents the
-        // well-defined no-ticket/no-queue branch.
-        self.send_packet_realm(&LfgUpdateStatus::removed_from_queue());
     }
 }
 

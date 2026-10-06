@@ -5982,6 +5982,27 @@ battlemaster/cola se quedan mientras necesitan la orquestación de cola/lifecycl
 
 **No validado aún.** Sin campaña `final` nueva; quedan **179 registros literales**.
 
+#### F5: dungeon-finding, cola de estado (4 opcodes) — 2026-10-05, `97e4fd9a2..HEAD`
+
+Nuevo dueño `ApplicationDungeonFinding` (`crates/wow-world-application/src/dungeon_finding_handlers.rs`,
+contexto hub-only) con `DfGetJoinStatus` (parse + rama observable «sin LFG activo»),
+`RequestConquestFormulaConstants` (Handle_NULL), `RequestLfgListBlacklist` (respuesta canónica
+`empty()`) y `LfgListGetStatus` (`removed_from_queue()`). Los cuatro responden solo con estado de
+sesión representado y publicación por el hub. El cuerpo grande `DfGetSystemInfo` se queda en el shell
+mientras necesita el catálogo de mazmorras LFG y la proyección de recompensas.
+`dungeon_finding/mod.rs` queda con **1 registro literal**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**11 de `dungeon_finding`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (194 owners / 3.144 items / 711 filas);
+`check_architecture.py check` **PASS** (3.391 ficheros / 102 techos); hotspots reconciliados
+(`session/mod.rs`: producción 61.169, test 138.188, total 199.357; `world-server/lib.rs`: producción
+31.804, total 60.515). R1 v2: `S = 72.983`, `G_move = 112.743`, requisito `35.810,85` →
+**presupuesto 35.811**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **175 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
