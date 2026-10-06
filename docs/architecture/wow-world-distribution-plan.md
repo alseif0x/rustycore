@@ -6549,6 +6549,29 @@ del agregado de sesión ajustado a su valor vivo (producción 60.371 → 60.168)
 `--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T165833.862357Z-1138426-final.json`;
 pico de 12,1 GB usados, mínimo de 11,9 GB disponibles).
 
+#### F5: seam de sincronización de registro y auto-rechazo de hermandad — 2026-10-06, `60a95e559..HEAD`
+
+**Integración previa:** #1269 integró la familia del banco de hermandad (`60a95e559`, `final` verde en 420 s).
+
+**Seam de sincronización de registro.** El cuerpo de `sync_player_registry_state_like_cpp` (posición, hidratación de
+fixtures de test, publicación de loot y grupo) pasa a `wow-world-application` como función libre sobre el hub, el
+estado de loot y, en builds con fixtures, los estados de hechizos y quest. La hidratación que World hacía con
+`#[cfg(test)]` se selecciona ahora con el flag del host (`cfg!(test)` en World): equivalencia exacta. World conserva
+el wrapper, que usan ~85 llamadores. La baseline de ownership refleja el traslado de ese
+cuerpo (sus filas de `player_registry_binding` se reubican; el total de filas de registro directo sigue en 711). Los dueños de App pueden sincronizar el registro sin
+un handle de `WorldSession`.
+
+**`DeclineGuildInvites` → `SocialGuild`.** `wow-world-social` no puede depender de App, así que se usa el patrón de
+seam de host: el dueño cambia `PLAYER_FLAGS_AUTO_DECLINE_GUILD` en el Player canónico y devuelve si lo mutó; el thunk
+pide entonces al host la re-publicación del registro. El orden observable es el del original (mutar, sincronizar; la
+lectura final del flag solo calculaba un resultado que el handler descartaba). Metadatos `LoggedIn`/`ThreadUnsafe`. El
+helper de World sale del shell y `handlers/guild/mod.rs` queda sin registros, solo con el host del banco.
+
+**Evidencia enfocada:** `cargo check --all-targets` de `wow-world-application`, `wow-world-social`, `wow-world` (con
+`test-fixtures`) y `world-server` sin errores ni avisos nuevos (los de `wow-world-social` ya estaban en la base);
+`wow-world` `--lib` **3.634 ✓**; tool **443/443**; ownership **PASS** con delta revisado; arquitectura **PASS**; R1
+`S = 89`, `G_move = 125`, presupuesto 0. Registros literales en `wow-world`: **119 → 118**. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

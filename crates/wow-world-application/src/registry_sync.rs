@@ -151,3 +151,61 @@ impl<'a> PlayerRegistryHydrationContext<'a> {
         );
     }
 }
+
+/// C++ registry publication of the logged-in Player's state: position, the
+/// World-test fixture hydration seam, then loot and party state. World and
+/// application handlers share this one construction; `world_test_consumer` is
+/// the host's World-test flag (World passes `cfg!(test)`), which selects the
+/// fixture hydration exactly where the World session used `#[cfg(test)]`.
+pub fn sync_player_registry_state_like_cpp(
+    hub: wow_world_core::session::HubRef<'_>,
+    loot: &LootState,
+    #[cfg(any(test, feature = "test-fixtures"))] spell_state: &wow_world_spell::SessionSpellState,
+    #[cfg(any(test, feature = "test-fixtures"))] quest_state: &super::SessionQuestState,
+    world_test_consumer: bool,
+) {
+    let core = hub.core;
+    let (Some(guid), Some(registry)) = (core.player_guid(), &core.player_registry) else {
+        return;
+    };
+    let position = core.player_registry_sync_access_like_cpp(
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures.movement.player_position,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures.identity.player_level,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        &hub.fixtures.vehicles.player_transport_login_state_like_cpp,
+    );
+    let control = core.player_registry_control_binding_like_cpp(guid, registry);
+    let sync = PlayerRegistrySyncContext::new(
+        position,
+        control,
+        loot,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        RegistrySyncInputs::new_like_cpp(
+            &hub.fixtures.combat.player_health_like_cpp,
+            &hub.fixtures.combat.player_max_health_like_cpp,
+            &hub.fixtures.combat.player_alive_like_cpp,
+        ),
+    );
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let sync = if world_test_consumer {
+        sync.with_fixture_hydration(PlayerRegistryHydrationContext::new(
+            core.player_registry_hydration_access_like_cpp(),
+            spell_state,
+            quest_state,
+            (
+                &hub.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                &hub.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                &hub.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                &hub.fixtures.pets.represented_pet_guid_like_cpp,
+            ),
+            true,
+        ))
+    } else {
+        sync
+    };
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = world_test_consumer;
+    sync.sync();
+}

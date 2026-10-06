@@ -97,4 +97,8 @@ impl WorldSession {
     pub async fn handle_auto_store_guild_bank_item(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::AutoStoreGuildBankItem, pkt).await;
     }
+
+    pub async fn handle_decline_guild_invites(&mut self, pkt: WorldPacket) {
+        dispatch_registered_like_cpp(self, ClientOpcodes::DeclineGuildInvites, pkt).await;
+    }
 }
