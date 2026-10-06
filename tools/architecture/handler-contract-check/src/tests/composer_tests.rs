@@ -14,9 +14,9 @@ use crate::registrations::{
     DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR, GUILD_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, LOOT_REGISTRAR, PLAYER_REGISTRAR,
     QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
-    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SUPPORT_REGISTRAR,
-    TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, validate_composition_mounts,
-    validate_composition_mounts_with_contracts,
+    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR,
+    SUPPORT_REGISTRAR, TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR,
+    validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -156,6 +156,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             TRADE_REGISTRAR.module,
             "crates/wow-world-application/src/trade_handlers.rs",
             include_str!("../../../../../crates/wow-world-application/src/trade_handlers.rs"),
+        ),
+        mount(
+            SPELL_REGISTRAR.package,
+            SPELL_REGISTRAR.module,
+            "crates/wow-world-application/src/spell_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/spell_handlers.rs"),
         ),
         mount(
             LOOT_REGISTRAR.package,

@@ -29,6 +29,7 @@ mod registry_sync;
 mod reputation;
 mod spell_acquisition;
 pub mod spell_click_values;
+mod spell_handlers;
 mod trade_handlers;
 mod travel_handlers;
 mod vehicle_handlers;
@@ -68,7 +69,7 @@ mod aura_removal;
 pub use aura_removal::AuraApplicationFixtureRefsLikeCpp;
 pub use aura_removal::{
     AuraApplicationCatalogsLikeCpp, AuraRemovalCxLikeCpp as PlayerAuraApplicationCxLikeCpp,
-    plan_item_set_aura_refresh_with_access_like_cpp,
+    plan_item_set_aura_refresh_with_access_like_cpp, player_aura_application_cx_like_cpp,
 };
 
 pub use battleground_handlers::{
@@ -225,6 +226,13 @@ pub use spell_acquisition::{
     prepare_player_spell_acquisition_like_cpp, snapshot_has_pending_durable_save_like_cpp,
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
+};
+pub use spell_handlers::{
+    SpellHandlerCxLikeCpp, SpellHandlerHostLikeCpp, register_spell_handlers_like_cpp,
+};
+pub use spell_handlers::{
+    cancel_pending_spell_cast_request_like_cpp, interrupt_player_cast_like_cpp,
+    mutate_cast_execution_like_cpp, remove_represented_cancelable_auras_by_effect_like_cpp,
 };
 pub use stats::{
     CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,

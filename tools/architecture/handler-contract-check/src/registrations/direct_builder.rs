@@ -704,6 +704,27 @@ pub(crate) const TRADE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContr
     facades: TRADE_FACADES,
 };
 
+const SPELL_ROOT_EXPORTS: &[&str] = &[
+    "SpellHandlerCxLikeCpp",
+    "SpellHandlerHostLikeCpp",
+    "register_spell_handlers_like_cpp",
+];
+const SPELL_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "spell_handlers",
+    exports: SPELL_ROOT_EXPORTS,
+}];
+
+pub(crate) const SPELL_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationSpell",
+    package: "wow-world-application",
+    module: "crate::spell_handlers",
+    registrar: "register_spell_handlers_like_cpp",
+    host_trait: "SpellHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: SPELL_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -736,6 +757,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     LOOT_REGISTRAR,
     CHARACTER_QUERY_REGISTRAR,
     TRADE_REGISTRAR,
+    SPELL_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

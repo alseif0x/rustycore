@@ -9,182 +9,18 @@ impl WorldSession {
     pub(crate) fn player_aura_application_cx_like_cpp(
         &mut self,
     ) -> wow_world_application::PlayerAuraApplicationCxLikeCpp<'_> {
-        let presentation = self.core.player_aura_removal_access_like_cpp(
+        let (spell_state, inventory, loot, quest_state, hub) =
+            crate::session::state::split_aura_application_mut(self);
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = quest_state;
+        wow_world_application::player_aura_application_cx_like_cpp(
+            hub,
+            spell_state,
+            inventory,
+            loot,
             #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_core::session::AuraRemovalFixtureRefsLikeCpp::new(
-                &mut self.fixtures.auras.player_aura_authority_complete_like_cpp,
-                &mut self
-                    .fixtures
-                    .auras
-                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
-                &mut self.fixtures.auras.visible_auras,
-                &mut self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
-                &mut self.fixtures.vehicles.player_mount_display_id_like_cpp,
-                &mut self.fixtures.vehicles.player_mounted_like_cpp,
-                &mut self.fixtures.presentation.player_unit_flags_like_cpp,
-                &self.fixtures.presentation.player_object_scale_like_cpp,
-            ),
-        );
-        let control = self.core.aura_mount_control_access_like_cpp(
-            self.catalogs.creatures.display_info_store.as_deref(),
-            self.catalogs.creatures.model_data_store.as_deref(),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_core::session::AuraMountControlFixtureRefsLikeCpp::new(
-                &mut self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
-                &mut self.fixtures.movement.movement_counter_like_cpp,
-                &mut self.fixtures.movement.player_collision_height_like_cpp,
-                &self.fixtures.movement.player_position,
-                &mut self.fixtures.movement.player_movement_flags_like_cpp,
-                &self.fixtures.movement.player_movement_time_like_cpp,
-                &mut self
-                    .fixtures
-                    .movement
-                    .represented_can_swim_to_fly_transition_like_cpp,
-                &self.fixtures.identity.player_scale_duration_like_cpp,
-                &self.fixtures.identity.player_race,
-                &self.fixtures.identity.player_gender,
-                wow_world_core::session::AuraDismountPetFixtureRefsLikeCpp::new(
-                    &self.fixtures.pets.represented_pet_guid_like_cpp,
-                    &mut self.fixtures.pets.represented_pet_react_state_like_cpp,
-                    &mut self.fixtures.pets.represented_pet_command_state_like_cpp,
-                    &mut self.fixtures.pets.represented_pet_stable_like_cpp,
-                    &mut self
-                        .fixtures
-                        .pets
-                        .represented_character_pet_rows_empty_authority_complete_like_cpp,
-                    &mut self
-                        .fixtures
-                        .pets
-                        .represented_temporary_unsummoned_pet_number_like_cpp,
-                    &mut self.fixtures.pets.represented_old_pet_spell_like_cpp,
-                    &mut self.fixtures.pets.temporary_mount_pet_react_state_like_cpp,
-                ),
-                &mut self.fixtures.movement.movement_speed_rates_like_cpp,
-                &mut self.fixtures.movement.forced_speed_changes_like_cpp,
-                &self.fixtures.pets.represented_pet_guid_like_cpp,
-                &mut self
-                    .fixtures
-                    .pets
-                    .represented_pet_movement_speed_rates_like_cpp,
-                &mut self
-                    .fixtures
-                    .pets
-                    .represented_pet_speed_propagations_like_cpp,
-                &self.fixtures.combat.in_combat,
-                &mut self.fixtures.movement.last_fall_time_like_cpp,
-                &mut self.fixtures.movement.last_fall_z_like_cpp,
-            ),
-        );
-        let stats = self.core.aura_stats_access_builder_like_cpp(
-            &self.catalogs,
-            &self.config,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
-                &mut self.fixtures.combat.player_health_like_cpp,
-                &mut self.fixtures.combat.player_max_health_like_cpp,
-                &mut self.fixtures.combat.player_alive_like_cpp,
-                &mut self.fixtures.combat.represented_player_powers_like_cpp[0],
-                &mut self.fixtures.combat.represented_player_max_powers_like_cpp[0],
-                &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
-            ),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_race,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_class,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-        );
-        let item_sets = self.core.owned_item_set_access_like_cpp(
-            self.catalogs.items.set_store.as_deref(),
-            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
-            self.catalogs.spell_catalogs.spell_store.as_deref(),
-            self.catalogs.heirloom_store.as_deref(),
-            self.catalogs.items.stats_store.as_deref(),
-            self.catalogs.curve_store.as_deref(),
-            self.catalogs.curve_point_store.as_deref(),
-            self.catalogs.content_tuning_store.as_deref(),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self
-                .fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self
-                .fixtures
-                .progression
-                .represented_primary_specialization_id_like_cpp,
-        );
-        let catalogs = wow_world_application::AuraApplicationCatalogsLikeCpp::new(
-            self.catalogs.mount_capability_store.as_deref(),
-            self.catalogs.spell_catalogs.spell_store.as_ref(),
-            self.catalogs.chr.classes_store.as_deref(),
-            self.catalogs.difficulty_store().map(AsRef::as_ref),
-            self.catalogs.items.store.as_ref(),
-            self.catalogs.items.stats_store.as_ref(),
-            self.catalogs.items.effect_store.as_ref(),
-            self.catalogs
-                .spell_catalogs
-                .spell_shapeshift_form_store
-                .as_deref(),
-            self.catalogs.map_store().map(AsRef::as_ref),
-            wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
-                self.catalogs.items.store.as_ref(),
-                self.catalogs.items.stats_store.as_ref(),
-                self.catalogs.scaling_stat_distribution_store.as_ref(),
-                self.catalogs.scaling_stat_values_store.as_ref(),
-                self.catalogs.shield_block_regular_game_table.as_ref(),
-                self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
-            ),
-        );
-        wow_world_application::PlayerAuraApplicationCxLikeCpp::new(
-            &mut self.spell_state,
-            &mut self.inventory,
-            presentation,
-            control,
-            stats,
-            item_sets,
-            catalogs,
-            &self.loot,
+            quest_state,
             cfg!(test),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_application::AuraApplicationFixtureRefsLikeCpp::new(
-                &mut self.fixtures.auras.represented_shapeshift_form_like_cpp,
-                &self.fixtures.identity.player_class,
-                &self.fixtures.identity.player_level,
-                &self.quest_state,
-                &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
-                &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
-                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
-                &mut self.fixtures.vehicles.player_mount_vehicle_id_like_cpp,
-                &mut self
-                    .fixtures
-                    .vehicles
-                    .player_mount_vehicle_accessories_like_cpp,
-                &mut self
-                    .fixtures
-                    .vehicles
-                    .player_mount_vehicle_seat_count_like_cpp,
-                &mut self
-                    .fixtures
-                    .vehicles
-                    .player_mount_vehicle_usable_seat_count_like_cpp,
-                &mut self
-                    .fixtures
-                    .vehicles
-                    .mount_vehicle_remove_requests_like_cpp,
-                &mut self
-                    .fixtures
-                    .pets
-                    .mount_pet_control_enable_requests_like_cpp,
-                &mut self.fixtures.pets.mount_pet_resummon_requests_like_cpp,
-                &mut self
-                    .fixtures
-                    .vehicles
-                    .mount_collision_height_update_requests_like_cpp,
-            ),
         )
     }
 
@@ -599,11 +435,6 @@ impl WorldSession {
 
         represented_removed + canonical_removed
     }
-    pub(crate) fn remove_represented_growth_auras_cancelable_like_cpp(&mut self) -> usize {
-        self.remove_represented_cancelable_auras_by_effect_like_cpp(
-            RepresentedAuraEffectLikeCpp::ModScale,
-        )
-    }
     pub(crate) fn remove_represented_mod_speed_no_control_auras_cancelable_like_cpp(
         &mut self,
     ) -> usize {
@@ -615,97 +446,20 @@ impl WorldSession {
         &mut self,
         represented_effect: RepresentedAuraEffectLikeCpp,
     ) -> usize {
-        let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
-                // cancelable, positive, and non-passive; the same predicate is
-                // used for SPELL_AURA_MOD_SCALE in CancelGrowthAura. These
-                // represented effects model positive player-cancelable paths;
-                // SpellMisc attributes preserve the C++ no-player-cancel gate.
-                if self
-                    .catalogs
-                    .spell_catalogs
-                    .spell_store
-                    .as_ref()
-                    .is_some_and(|store| {
-                        store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
-                    })
-                {
-                    return None;
-                }
-                (aura.represented_effect == Some(represented_effect)).then_some(aura.slot)
-            })
-            .collect();
-
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
-    }
-    pub(crate) fn remove_represented_cancelable_owned_aura_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-    ) -> usize {
-        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
-            return 0;
-        };
-        if spell_store.get(spell_id).is_none()
-            || spell_store.has_attribute0_like_cpp(
-                spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
-            )
-            || spell_store.is_channeled_like_cpp(spell_id)
-            || spell_store.is_passive_like_cpp(spell_id)
-        {
-            return 0;
-        }
-
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                if aura.spell_id != spell_id {
-                    return None;
-                }
-                if !caster_guid.is_empty() && aura.caster_guid != caster_guid {
-                    return None;
-                }
-                // C++ checks SpellInfo before RemoveOwnedAura: no
-                // SPELL_ATTR0_NO_AURA_CANCEL, positive, and non-passive.
-                // Full SpellInfo::IsPositive is not represented yet; allow
-                // the locally materialized positive/cancelable aura shapes,
-                // including the single-effect generic represented aura.
-                (aura.represented_effect.is_none()
-                    || matches!(
-                        aura.represented_effect,
-                        Some(
-                            RepresentedAuraEffectLikeCpp::Mounted
-                                | RepresentedAuraEffectLikeCpp::ModScale
-                                | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
-                        )
-                    ))
-                .then_some(aura.slot)
-            })
-            .collect();
-
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
+        let (spell_state, inventory, loot, quest_state, hub) =
+            crate::session::state::split_aura_application_mut(self);
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = quest_state;
+        wow_world_application::remove_represented_cancelable_auras_by_effect_like_cpp(
+            hub,
+            spell_state,
+            inventory,
+            loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            quest_state,
+            cfg!(test),
+            represented_effect,
+        )
     }
     pub(crate) fn remove_auras_with_interrupt_flags_like_cpp(
         &mut self,

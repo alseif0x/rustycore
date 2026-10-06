@@ -21,6 +21,7 @@ mod trainer_views;
 pub use context::AuraApplicationCatalogsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use context::AuraApplicationFixtureRefsLikeCpp;
+pub use context::player_aura_application_cx_like_cpp;
 
 pub struct AuraRemovalCxLikeCpp<'a> {
     spell: &'a mut wow_world_spell::SessionSpellState,

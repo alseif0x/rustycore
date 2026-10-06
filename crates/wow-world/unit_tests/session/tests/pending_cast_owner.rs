@@ -19,7 +19,7 @@ fn cancelled(id: i64) -> Vec<u8> {
         cast_id: ObjectGuid::new(6, id),
         spell_id: 133,
         visual: Default::default(),
-        reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
+        reason: wow_constants::SpellCastResult::DontReport as i32,
         fail_arg1: 0,
         fail_arg2: 0,
     }

@@ -6479,6 +6479,45 @@ mínimo de 12,9 GB disponibles (23 GB totales). Los pasos de compilación del wo
 por la campaña anterior, así que esto acredita el margen de 2 jobs y una campaña caliente por debajo de
 600 s, no todavía la ganancia de 2 jobs tras un cambio en `wow-world-core`.
 
+#### F5: seam de aplicación de auras y familia de cancelación de hechizos — 2026-10-06, `68c395c8e..HEAD`
+
+**Integración previa:** #1267 integró en `3.4.3` (`68c395c8e`) el checkpoint anterior (tiempo de `final`, seam de
+condiciones y tres handlers) con `final` verde; #1263 sigue abierta. La continuación va en `1263-f5-spell`.
+
+**Seam de aplicación de auras.** El constructor del contexto App de retirada/aplicación de auras
+(`player_aura_application_cx_like_cpp`: accesos de presentación, montura, stats e item sets sobre el core, catálogos
+de auras, estado de hechizos, inventario, loot y quest, y referencias de fixture) pasa de World a
+`wow-world-application`. Recibe el hub por valor y lo divide en un préstamo compartido del core y préstamos disjuntos
+de campos de fixture, igual que hacía World; el cuerpo se derivó mecánicamente del original (`self.core` → `core`,
+`self.fixtures` → `fixtures`, `cfg!(test)` → flag del host). World conserva un wrapper sobre
+`split_aura_application_mut`.
+
+**Familia de cancelación.** `CancelCast`, `CancelAura`, `CancelAutoRepeatSpell`, `CancelChannelling`,
+`CancelGrowthAura`, `CancelMountAura`, `CancelQueuedSpell`, `PetCancelAura` y `TotemDestroyed` pasan al nuevo dueño
+`ApplicationSpell` (`crate::spell_handlers`) con metadatos idénticos (`CancelCast` `ThreadSafe`, el resto `Inplace`,
+todos `LoggedIn`). Con ellos se mueven sus transiciones: interrupción del canalizado actual, cancelación de la petición
+de cast del cliente y de la cola, y retirada de auras cancelables por dueño o por efecto representado. Los helpers con
+otros usuarios en World (`mutate_cast_execution_like_cpp`, `cancel_pending_spell_cast_request_like_cpp`,
+`interrupt_player_cast_like_cpp`, `remove_represented_cancelable_auras_by_effect_like_cpp`) quedan como funciones
+App con wrappers en World; el resto sale del shell. La constante privada `SPELL_FAILED_DONT_REPORT_LIKE_CPP` se retira
+en favor de `SpellCastResult::DontReport` (mismo valor, 32). Los shims `cfg(test)` de los handlers despachan por el
+registro y los de los helpers construyen el contexto por el trait del host.
+
+**Evidencia enfocada:** `cargo check --all-targets` de `wow-world-application`, `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; `wow-world` `--lib` **3.634 ✓** (incluye el test dorado de dispatch); suite del tool
+**443/443**; ownership `--syntax-only` **PASS** con delta revisado (salen 14 ítems de producción —9 handlers y 5
+helpers—, entran 12 shims de test y el método del trait del host); `check_architecture.py check` **PASS** con el
+agregado de sesión en producción 60.371 (era 60.937) y +4 líneas del composer de `world-server`; R1 `S = 460`,
+`G_move = 949`, presupuesto revisado **166** (estructura de registrador sin contrapartida en World: nueve thunks
+explícitos, contexto y trait del host; 0 cuerpos duplicados). Registros literales en `wow-world`: **139 → 130**.
+
+**Aceptación `final`:** `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre **`88bb92524`**
+**verde en 482 s** con `VALIDATION_V2_CARGO_JOBS=2` (`dirty: false`; verificada con `--require-profile final`;
+manifiesto `target/validation-v2/manifests/20261006T162757.815645Z-1121400-final.json`). A diferencia de la
+campaña anterior, incluye compilación real de los crates afectados (`cargo check --tests` 88 s y `cargo test --lib`
+con `world-server` 144 s): es la primera medida de 2 jobs con compilación no caliente, por debajo de 600 s. Memoria:
+pico de 13,3 GB usados, mínimo de 10,7 GB disponibles de 23 GB.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

@@ -31,6 +31,7 @@ mod group_handler_contexts;
 mod guild_handler_contexts;
 mod loot_handler_contexts;
 mod player_handler_contexts;
+mod spell_handler_contexts;
 mod trade_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
@@ -1007,8 +1008,6 @@ pub(crate) use wow_world_social::{SPELL_DUEL_LIKE_CPP, SPELL_MOUNTED_DUEL_LIKE_C
 // Compatibility paths while #578 moves cast consumers out of the Session adapter.
 pub(crate) use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;
 pub use wow_entities::{SpellCastBattlePetItemModifiersLikeCpp, SpellCastMetadata, SpellCastState};
-
-const SPELL_FAILED_DONT_REPORT_LIKE_CPP: i32 = 32;
 
 /// Compatibility name while handler modules move to the Player-owned type.
 pub use wow_entities::PlayerGossipOptionLikeCpp as GossipOptionInfo;

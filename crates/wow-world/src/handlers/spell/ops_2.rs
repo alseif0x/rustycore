@@ -383,120 +383,6 @@ impl WorldSession {
         )
         .await;
     }
-    /// Handle `CMSG_CANCEL_CAST` — player cancels an in-progress cast.
-    pub async fn handle_cancel_cast(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match CancelCast::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "CancelCast parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.cancel_client_cast_request_like_cpp(
-            (request.spell_id != 0).then_some(request.spell_id as i32),
-        );
-    }
-    /// Handle `CMSG_CANCEL_AURA` — player requests removing a cancelable owned aura.
-    pub async fn handle_cancel_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match CancelAura::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "CancelAura parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        debug!(
-            account = self.core.account_id,
-            spell_id = request.spell_id,
-            caster_guid = ?request.caster_guid,
-            "CMSG_CANCEL_AURA parsed"
-        );
-        let Some(spell_store) = self.spell_store() else {
-            return;
-        };
-        if spell_store.get(request.spell_id).is_none()
-            || spell_store.has_attribute0_like_cpp(
-                request.spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
-            )
-        {
-            return;
-        }
-        if spell_store.is_channeled_like_cpp(request.spell_id) {
-            self.interrupt_current_channeled_spell_like_cpp(request.spell_id);
-            return;
-        }
-        if spell_store.is_passive_like_cpp(request.spell_id) {
-            return;
-        }
-        self.remove_represented_cancelable_owned_aura_like_cpp(
-            request.spell_id,
-            request.caster_guid,
-        );
-    }
-    /// Handle `CMSG_CANCEL_AUTO_REPEAT_SPELL`.
-    pub async fn handle_cancel_auto_repeat_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = CancelAutoRepeatSpell::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "CancelAutoRepeatSpell parse failed: {error}"
-            );
-        }
-        // C++ interrupts CURRENT_AUTOREPEAT_SPELL. Rust does not yet represent
-        // a separate auto-repeat current-spell slot, so this remains silent.
-    }
-    /// Handle `CMSG_CANCEL_CHANNELLING` — player stops a channelled spell.
-    pub async fn handle_cancel_channelling(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match CancelChannelling::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "CancelChannelling parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let Some(spell_store) = self.spell_store() else {
-            return;
-        };
-
-        if spell_store.get(request.channel_spell).is_none()
-            || spell_store.has_attribute0_like_cpp(
-                request.channel_spell,
-                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
-            )
-        {
-            return;
-        }
-
-        debug!(
-            account = self.core.account_id,
-            channel_spell = request.channel_spell,
-            reason = request.reason,
-            "CMSG_CANCEL_CHANNELLING parsed"
-        );
-        self.interrupt_current_channeled_spell_like_cpp(request.channel_spell);
-    }
-    /// Handle `CMSG_CANCEL_GROWTH_AURA`.
-    pub async fn handle_cancel_growth_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = CancelGrowthAura::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "CancelGrowthAura parse failed: {error}"
-            );
-        }
-        self.remove_represented_growth_auras_cancelable_like_cpp();
-    }
     /// Handle the represented `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS`.
     ///
     /// The inspected opcode table assigns this packet to the shared unresolved
@@ -519,30 +405,6 @@ impl WorldSession {
 
         self.remove_represented_mod_speed_no_control_auras_cancelable_like_cpp();
         true
-    }
-    /// Handle `CMSG_CANCEL_MOUNT_AURA`.
-    pub async fn handle_cancel_mount_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = CancelMountAura::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "CancelMountAura parse failed: {error}"
-            );
-        }
-        self.remove_represented_mount_auras_cancelable_like_cpp();
-    }
-    /// Handle `CMSG_CANCEL_QUEUED_SPELL`.
-    pub async fn handle_cancel_queued_spell(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = CancelQueuedSpell::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "CancelQueuedSpell parse failed: {error}"
-            );
-            return;
-        }
-        // C++ cancels `Player::CancelPendingCastRequest`, not the current
-        // non-melee spell. The represented queue is separate from
-        // `active_spell_cast`, so this keeps casts already in progress alive.
-        self.cancel_pending_spell_cast_request_like_cpp();
     }
     /// Handle `CMSG_SELF_RES`.
     pub async fn handle_self_res_with_generator_like_cpp(
@@ -604,50 +466,6 @@ impl WorldSession {
             pkt,
         )
         .await;
-    }
-    /// Handle `CMSG_PET_CANCEL_AURA`.
-    pub async fn handle_pet_cancel_aura(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match PetCancelAura::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "PetCancelAura parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        debug!(
-            account = self.core.account_id,
-            pet_guid = ?request.pet_guid,
-            spell_id = request.spell_id,
-            "CMSG_PET_CANCEL_AURA parsed"
-        );
-        crate::session::hub_mut(self)
-            .cancel_represented_pet_aura_like_cpp(request.pet_guid, request.spell_id);
-    }
-    /// Handle `CMSG_TOTEM_DESTROYED`.
-    pub async fn handle_totem_destroyed(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match TotemDestroyed::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "TotemDestroyed parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        debug!(
-            account = self.core.account_id,
-            slot = request.slot,
-            totem_guid = ?request.totem_guid,
-            "CMSG_TOTEM_DESTROYED parsed"
-        );
-        crate::session::hub_mut(self)
-            .destroy_represented_totem_like_cpp(request.slot, request.totem_guid);
     }
     pub(crate) fn is_spell_disabled_for_player_like_cpp(&self, spell_id: i32) -> bool {
         let Some(disable_mgr) = self.disable_mgr() else {
