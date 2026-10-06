@@ -6468,7 +6468,16 @@ movimiento y spell-click que siguen en World.
 con el delta revisado (salen tres métodos de producción y el `impl` vacío de subastas, entra un shim de test):
 202 dueños / **3.138** ítems (R5: 3.140 → 3.138); `check_architecture.py check` **PASS** con el hotspot de
 personaje en producción 17.070 / test 15.374; R1 `S = 188`, `G_move = 192`, presupuesto 0, PASS. Registros
-literales en `wow-world`: **142 → 139**. Pendiente: `final` sobre el candidato commiteado.
+literales en `wow-world`: **142 → 139**.
+
+**Aceptación `final`:** la primera campaña sobre `2c3f9d00c` falló en la suite del tool: la regresión del
+direct-builder fija el número de entradas del registrador de inventario (16 → 17); se corrigió en
+`68f6f88d4`. La campaña sobre **`68f6f88d4`** queda **verde en 257 s** (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T155039.784659Z-1101596-final.json`)
+con `VALIDATION_V2_CARGO_JOBS=2`: margen de memoria medido durante la campaña, pico de 11,1 GB usados y
+mínimo de 12,9 GB disponibles (23 GB totales). Los pasos de compilación del workspace estaban calientes
+por la campaña anterior, así que esto acredita el margen de 2 jobs y una campaña caliente por debajo de
+600 s, no todavía la ganancia de 2 jobs tras un cambio en `wow-world-core`.
 
 ## 9. Herramientas
 
