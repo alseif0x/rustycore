@@ -223,6 +223,20 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::character::condition_objects",
           "trait_path": null,
           "cfg": [],
@@ -3212,6 +3226,84 @@
           ]
         },
         {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "character_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn character_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> CharacterHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_alter_appearance",
+          "visibility": "pub",
+          "signature": "async fn handle_alter_appearance (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_confirm_barbers_choice",
+          "visibility": "pub",
+          "signature": "async fn handle_confirm_barbers_choice (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_get_undelete_cooldown_status",
+          "visibility": "pub",
+          "signature": "async fn handle_get_undelete_cooldown_status (& mut self)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_set_player_declined_names",
+          "visibility": "pub",
+          "signature": "async fn handle_set_player_declined_names (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::character::condition_objects",
           "trait_path": null,
           "kind": "method",
@@ -3999,20 +4091,6 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_alter_appearance",
-          "visibility": "pub",
-          "signature": "async fn handle_alter_appearance (& mut self , mut pkt : WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_char_customize",
           "visibility": "pub",
           "signature": "async fn handle_char_customize (& mut self , request : CharCustomize)",
@@ -4055,20 +4133,6 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_confirm_barbers_choice",
-          "visibility": "pub",
-          "signature": "async fn handle_confirm_barbers_choice (& mut self , mut pkt : WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_create_character",
           "visibility": "pub",
           "signature": "async fn handle_create_character (& mut self , pkt : CreateCharacter)",
@@ -4099,37 +4163,9 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_get_undelete_cooldown_status",
-          "visibility": "pub",
-          "signature": "async fn handle_get_undelete_cooldown_status (& mut self)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_hearth_and_resurrect",
           "visibility": "pub",
           "signature": "async fn handle_hearth_and_resurrect (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_set_player_declined_names",
-          "visibility": "pub",
-          "signature": "async fn handle_set_player_declined_names (& mut self , mut pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -30681,19 +30717,6 @@
           "name": "represented_inventory_item_counts_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_inventory_item_counts_like_cpp (& self) -> Option < HashMap < u32 , u32 > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_is_on_barber_chair_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_is_on_barber_chair_like_cpp (& self) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

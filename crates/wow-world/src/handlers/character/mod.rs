@@ -12,6 +12,9 @@
 
 mod account;
 mod bank;
+mod character_handler_host;
+#[cfg(test)]
+mod character_handler_shims;
 mod condition_objects;
 mod creation_support;
 mod entry_zone;
@@ -119,12 +122,13 @@ use crate::session::{
     CharacterPetSpellChargeRowLikeCpp, CharacterPetSpellCooldownRowLikeCpp,
     CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp, CreatureSpawnCatalogsLikeCpp,
     GLOBAL_CACHE_MASK_LIKE_CPP, PlayerBootstrapCatalogsLikeCpp, REST_STATE_NORMAL_LIKE_CPP,
-    REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAlterAppearanceLikeCpp,
-    RepresentedAutoUnequipOffhandLikeCpp, RepresentedBankItemMoveLikeCpp,
-    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedGameObjectUseState,
-    RepresentedHomebindLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
-    RepresentedVoidStorageItemLikeCpp, SpellCastMetadata, SupportFeaturePolicyLikeCpp,
+    REST_STATE_RAF_LINKED_LIKE_CPP, RepresentedAutoUnequipOffhandLikeCpp,
+    RepresentedBankItemMoveLikeCpp, RepresentedGameObjectUseState, RepresentedHomebindLikeCpp,
+    RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
+    SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
+#[cfg(test)]
+use crate::session::{RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp};
 pub(crate) use creation_support::default_display_id;
 use creation_support::{
     default_character_power1_like_cpp, default_health_mana, max_health_u32_like_cpp,

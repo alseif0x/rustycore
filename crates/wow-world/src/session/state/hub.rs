@@ -141,6 +141,24 @@ pub(crate) fn split_spell_state_ref(s: &WorldSession) -> (&SessionSpellState, Hu
     (&s.spell_state, hub_ref(s))
 }
 
+/// Inventory and world-entity state plus the mutable hub, from disjoint fields:
+/// the participants of the application character context.
+pub(crate) fn split_character_handler_mut(
+    s: &mut WorldSession,
+) -> (&mut InventoryState, &WorldEntitiesState, HubMut<'_>) {
+    (
+        &mut s.inventory,
+        &s.world_entities,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// World-entity and instance state plus the mutable hub, from disjoint fields:
 /// the participants of the application battleground context.
 pub(crate) fn split_battleground_mut(

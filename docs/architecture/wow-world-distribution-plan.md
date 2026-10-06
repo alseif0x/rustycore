@@ -6627,6 +6627,39 @@ ajustados a sus valores vivos; R1 `S = 73`, `G_move = 145`, presupuesto 0. Regis
 `--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T180057.827042Z-1187968-final.json`).
 El coste dominante es `cargo check --tests` aguas abajo tras cambiar App (276 s); sigue por debajo de 600 s.
 
+#### F5: dueño `ApplicationCharacter` (barbería, nombres declinados, cooldown de undelete) — 2026-10-06, `28e34b066..HEAD`
+
+**Integración previa:** #1272 integró los handlers de ángel de área en `ApplicationBattleground` (`28e34b066`, `final`
+verde en 454 s).
+
+Nuevo dueño `ApplicationCharacter` (`crate::character_handlers`) para la familia de `CharacterHandler.cpp`
+(`a5f8da2e`). Arranca con `HandleGetUndeleteCooldownStatus` (2612, `Authed`), `HandleAlterAppearance` (1671,
+`LoggedIn`), `HandleConfirmBarbersChoice` (`LoggedIn`) y `HandleSetPlayerDeclinedNames` (1611, `Authed`), todos
+`ThreadUnsafe`, con cuerpos, logs y documentación idénticos. El gate de silla de barbero (único llamador
+`AlterAppearance`) se mueve con ellos; como `UnitStandStateType` es un enum `#[repr(u8)]` sin campos, la conversión
+`state as u32` equivale exactamente al `ToPrimitive::to_u32` anterior (siempre `Some(discriminante)`), lo que evita
+añadir `num-traits` a App. El contexto presta hub, inventario y world-entities mediante `split_character_handler_mut`;
+el host vive en `handlers/character/character_handler_host.rs` (no en `session/`, para no crecer el agregado de
+sesión). Enumeración, creación, borrado, renombrado, personalización y login se quedan en World mientras dependan de
+la orquestación de cuenta, reino y conexión del shell. Los contratos de petición de barbería ya solo los leen
+accesores de test y pasan a `cfg(test)` (agrupados; `session/mod.rs` 1.046 → 1.045 líneas).
+
+**Evidencia enfocada:** `cargo check --all-targets` de App, `wow-world` (con y sin `test-fixtures`) y `world-server`
+sin errores ni avisos nuevos; `wow-world` `--lib` **3.634 ✓**; tool **443/443**; ownership **PASS** (salen 5 ítems
+de producción, entran 4 shims de test y el host reubicado: 3.127 ítems); arquitectura **PASS** con techos ajustados a
+valores vivos (personaje producción 16.962 → 16.882; agregado de sesión producción 60.106 → 60.096) y crecimientos
+revisados de test (+3 sesión, +4 personaje) y composer (+4); R1 `S = 83`, `G_move = 312`, presupuesto 0.
+Registros literales en `wow-world`: **116 → 112**.
+
+**Aceptación `final`:** sobre **`703f6bb58`**, **verde pero en 810 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T183639.001204Z-1207067-final.json`).
+**Supera el objetivo de 600 s; en esta entrega el objetivo de rendimiento no se cumple.** Causa medida: al crear un dueño
+nuevo, el corte toca a la vez App, el composer de `world-server` y el tool de contratos, así que el runner enruta
+`cargo check --tests` aguas abajo (277 s), `cargo test --lib` incluyendo `world-server` (272 s) y la suite del tool
+(129 s). Las entregas que solo amplían un dueño existente se quedan en 192–454 s. Seguimiento: estudiar que cada
+composer monte los registradores App a través de una única función de composición de App, de modo que un dueño nuevo
+no edite `world-server`, sin debilitar el contrato de orden que hoy verifica el tool.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

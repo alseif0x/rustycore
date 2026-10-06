@@ -330,33 +330,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn represented_is_on_barber_chair_like_cpp(&self) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let Some(current_stand_state) = crate::session::hub_ref(self)
-            .resolved_player_stand_state_like_cpp()
-            .and_then(|state| num_traits::ToPrimitive::to_u32(&state))
-        else {
-            return false;
-        };
-
-        self.world_entities
-            .represented_gameobject_use_effects_since_like_cpp(0)
-            .iter()
-            .rev()
-            .any(|effect| {
-                matches!(
-                    effect,
-                    RepresentedGameObjectUseEffect::BarberChairUsed {
-                        player_guid: effect_player_guid,
-                        stand_state,
-                        ..
-                    } if *effect_player_guid == player_guid && *stand_state == current_stand_state
-                )
-            })
-    }
-
     #[cfg(test)]
     pub(crate) fn represented_titan_grip_penalty_actions_like_cpp(
         &self,
