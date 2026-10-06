@@ -168,18 +168,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverCloseQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_close_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_close_quest(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QuestConfirmAccept,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -285,22 +273,6 @@ impl WorldSession {
         });
         self.handle_adventure_map_start_quest_with_catalog_like_cpp(store.as_ref(), pkt)
             .await;
-    }
-
-    pub async fn handle_quest_giver_close_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let quest_id = match pkt.read_uint32() {
-            Ok(quest_id) => quest_id,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    ?error,
-                    "QuestGiverCloseQuest: failed to read QuestID"
-                );
-                return;
-            }
-        };
-
-        let _ = self.acknowledge_auto_accept_quest_like_cpp(quest_id);
     }
 
     /// CMSG_QUEST_PUSH_RESULT — response to a shared quest prompt.

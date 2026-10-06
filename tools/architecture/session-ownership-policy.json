@@ -11235,20 +11235,6 @@
           "module": "crate::handlers::quest::handlers",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_quest_giver_close_quest",
-          "visibility": "pub",
-          "signature": "async fn handle_quest_giver_close_quest (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::handlers",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_quest_log_remove_quest",
           "visibility": "pub",
           "signature": "async fn handle_quest_log_remove_quest (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -11544,6 +11530,22 @@
           "name": "handle_query_quest_info",
           "visibility": "pub",
           "signature": "async fn handle_query_quest_info (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_quest_giver_close_quest",
+          "visibility": "pub",
+          "signature": "async fn handle_quest_giver_close_quest (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -12297,20 +12299,6 @@
           "name": "store_quest_source_item_with_generator_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn store_quest_source_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , entry_id : u32 , quantity : u32 , dest : & [ItemPosCount] ,) -> Option < QuestSourceItemStoreOutcomeLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "acknowledge_auto_accept_quest_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn acknowledge_auto_accept_quest_like_cpp (& mut self , quest_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

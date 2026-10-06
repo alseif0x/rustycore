@@ -13,16 +13,25 @@ use crate::session::WorldSession;
 impl WorldSession {
     pub async fn handle_request_world_quest_update(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
-        QuestQueryHandlerCxLikeCpp::new(crate::session::hub_mut(self), quest_store)
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state)
             .handle_request_world_quest_update(pkt)
             .await;
     }
 
     pub async fn handle_query_quest_info(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
-        QuestQueryHandlerCxLikeCpp::new(crate::session::hub_mut(self), quest_store)
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state)
             .handle_query_quest_info(pkt)
             .await;
+    }
+
+    pub async fn handle_quest_giver_close_quest(&mut self, pkt: WorldPacket) {
+        let quest_store = self.catalogs.quests.store.clone();
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state)
+            .handle_quest_giver_close_quest(pkt);
     }
 
     pub async fn handle_query_quest_completion_npcs(
@@ -30,7 +39,8 @@ impl WorldSession {
         query: wow_packet::packets::query::QueryQuestCompletionNpcs,
     ) {
         let quest_store = self.catalogs.quests.store.clone();
-        QuestQueryHandlerCxLikeCpp::new(crate::session::hub_mut(self), quest_store)
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state)
             .handle_query_quest_completion_npcs(query)
             .await;
     }

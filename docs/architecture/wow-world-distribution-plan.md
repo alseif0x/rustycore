@@ -6199,6 +6199,25 @@ errores; composer contracts **8/8**; suite del tool **443/443** (492,72 s);
 
 **No validado aún.** Sin campaña `final` nueva; quedan **151 registros literales**.
 
+#### F5: handler de cierre de quest (`QuestGiverCloseQuest`) — 2026-10-05, `7d6568a2e..HEAD`
+
+`QuestGiverCloseQuest` pasa al dueño `ApplicationQuestQuery`, cuyo contexto añade un préstamo del estado de
+quest (`SessionQuestState`), de modo que el handler alcanza `find_quest_slot_like_cpp` y el registro de
+fixture del tail sin un handle `WorldSession`. El helper `acknowledge_auto_accept_quest_like_cpp` se
+traslada con él conservando el orden C++ (slot activo, plantilla de quest, tail) y desaparece del shell,
+que conserva solo el delegado `cfg(test)`. El registro mantiene `LoggedIn`/`Inplace`. Es el primer cuerpo
+de handler que se apoya en el seam de estado de quest acotado en el corte anterior.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **428 tests de `quest`** y **25 de `dispatch`** (478
+opcodes intactos) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y `world-server` sin
+errores; composer contracts **8/8**; suite del tool **443/443** (496,86 s);
+`session-ownership-check check --syntax-only` **PASS** (204 owners / 3.143 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.226`,
+`G_move = 115.238`, requisito `37.000,70` → **presupuesto 37.001**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **150 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

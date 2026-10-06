@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 36964,
-    "measured_requirement": 36964,
+    "budget": 37002,
+    "measured_requirement": 37002,
     "recorded_at_revision": "1e2d3d1a6603e569d803a4fd441188347de9ef41",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74176, G_move = 115148, ratio and slack credits = 74176 * 1.05 + 300 = 78184.80, so the requirement is 36963.20 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74225, G_move = 115238, ratio and slack credits = 74225 * 1.05 + 300 = 78236.25, so the requirement is 37001.75 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -355,6 +355,13 @@
         "destination_growth": 59,
         "new_code": 24,
         "note": "Bounded the player-quest gameplay seam of #1263 F5: the canonical snapshot and mutation (with their represented fixture fallback) moved from the World shell into the application crate that already owns SessionQuestState, and the World methods are now thin wrappers over split_quest_state_ref/split_quest_state_mut. No registration changed; the goal is to let quest, spell and loot handler bodies reach the canonical quest state without a WorldSession handle."
+      },
+      {
+        "phase": "F5 quest close handler (7d6568a2e..HEAD, one handler)",
+        "shrink": 49,
+        "destination_growth": 90,
+        "new_code": 41,
+        "note": "QuestGiverCloseQuest moved into the existing quest-query owner, whose context now also borrows the quest state so the handler reaches find_quest_slot_like_cpp and the represented fixture tail without a WorldSession handle; the acknowledge helper moved with it and the shell keeps a cfg(test) delegate. The registration keeps its original LoggedIn/Inplace metadata."
       }
     ],
     "areas": [

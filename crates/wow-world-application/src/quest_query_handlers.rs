@@ -34,11 +34,78 @@ use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
 pub struct QuestQueryHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
     quest_store: Option<Arc<QuestStore>>,
+    quest_state: &'a mut crate::SessionQuestState,
 }
 
 impl<'a> QuestQueryHandlerCxLikeCpp<'a> {
-    pub fn new(hub: HubMut<'a>, quest_store: Option<Arc<QuestStore>>) -> Self {
-        Self { hub, quest_store }
+    pub fn new(
+        hub: HubMut<'a>,
+        quest_store: Option<Arc<QuestStore>>,
+        quest_state: &'a mut crate::SessionQuestState,
+    ) -> Self {
+        Self {
+            hub,
+            quest_store,
+            quest_state,
+        }
+    }
+
+    /// CMSG_QUEST_GIVER_CLOSE_QUEST — acknowledge the auto-accept dialog.
+    pub fn handle_quest_giver_close_quest(&mut self, mut pkt: WorldPacket) {
+        let quest_id = match pkt.read_uint32() {
+            Ok(quest_id) => quest_id,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    ?error,
+                    "QuestGiverCloseQuest: failed to read QuestID"
+                );
+                return;
+            }
+        };
+
+        let _ = self.acknowledge_auto_accept_quest_like_cpp(quest_id);
+    }
+
+    /// C++ order: FindQuestSlot(QuestID), then GetQuestTemplate(QuestID), then
+    /// the acknowledge tail.
+    fn acknowledge_auto_accept_quest_like_cpp(&mut self, quest_id: u32) -> bool {
+        let owner = self.hub.shared().core.quest_objective_access_like_cpp();
+        if crate::find_quest_slot_like_cpp(
+            &owner,
+            self.quest_state,
+            quest_id,
+            cfg!(any(test, feature = "test-fixtures")),
+        )
+        .is_none()
+        {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                quest_id, "QuestGiverCloseQuest: represented active quest log miss"
+            );
+            return false;
+        }
+
+        let Some(quest_store) = self.quest_store.as_ref() else {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                quest_id, "QuestGiverCloseQuest: missing represented quest store"
+            );
+            return false;
+        };
+
+        if quest_store.get(quest_id).is_none() {
+            debug!(
+                account = self.hub.shared().core.account_id,
+                quest_id, "QuestGiverCloseQuest: represented quest template miss"
+            );
+            return false;
+        }
+
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.quest_state
+            .fixture_record_auto_accept_acknowledged_quest_like_cpp(quest_id);
+        true
     }
 
     fn publication_like_cpp(&self) -> PacketPublicationAccessLikeCpp<'_> {
@@ -188,6 +255,22 @@ pub trait QuestQueryHandlerHostLikeCpp<C> {
     ) -> QuestQueryHandlerCxLikeCpp<'a>;
 }
 
+fn handle_quest_giver_close_quest_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: QuestQueryHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .quest_query_handler_cx_like_cpp(catalogs)
+            .handle_quest_giver_close_quest(pkt);
+    })
+}
+
 fn handle_request_world_quest_update_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -272,6 +355,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_request_world_quest_update",
         handler: handle_request_world_quest_update_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::QuestGiverCloseQuest,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_quest_giver_close_quest",
+        handler: handle_quest_giver_close_quest_thunk::<S, C>,
     })?;
     Ok(())
 }

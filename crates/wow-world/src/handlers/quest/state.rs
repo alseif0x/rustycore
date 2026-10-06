@@ -190,39 +190,6 @@ impl WorldSession {
         duplicate_quest_ids
     }
 
-    pub(crate) fn acknowledge_auto_accept_quest_like_cpp(&mut self, quest_id: u32) -> bool {
-        // C++ order: FindQuestSlot(QuestID), then GetQuestTemplate(QuestID), then
-        // ScriptMgr::OnQuestAcknowledgeAutoAccept(player, quest).
-        if self.find_quest_slot_like_cpp(quest_id).is_none() {
-            debug!(
-                account = self.core.account_id,
-                quest_id, "QuestGiverCloseQuest: represented active quest log miss"
-            );
-            return false;
-        }
-
-        let Some(quest_store) = &self.catalogs.quests.store else {
-            debug!(
-                account = self.core.account_id,
-                quest_id, "QuestGiverCloseQuest: missing represented quest store"
-            );
-            return false;
-        };
-
-        if quest_store.get(quest_id).is_none() {
-            debug!(
-                account = self.core.account_id,
-                quest_id, "QuestGiverCloseQuest: represented quest template miss"
-            );
-            return false;
-        }
-
-        #[cfg(test)]
-        self.quest_state
-            .fixture_record_auto_accept_acknowledged_quest_like_cpp(quest_id);
-        true
-    }
-
     pub(super) async fn add_quest_confirm_accept_local_state_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

@@ -17,6 +17,7 @@ impl QuestQueryHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSessio
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> QuestQueryHandlerCxLikeCpp<'a> {
         let quest_store = self.catalogs.quests.store.clone();
-        QuestQueryHandlerCxLikeCpp::new(crate::session::hub_mut(self), quest_store)
+        let (quest_state, hub) = crate::session::split_quest_state_mut(self);
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state)
     }
 }
