@@ -6762,8 +6762,14 @@ opcodes de batalla afectados **no** se reubican y siguen donde estaban.
 arena, que ejercitan el shim despachando por el thunk de producción); suite del tool **443/443** (aparte, porque el
 corte cambia fuentes que el tool lee con `include_str!`); ownership `--syntax-only` **PASS** con delta revisado (salen
 el handler, su cadena y sus filas de acceso directo al registro; entra el shim de test); arquitectura **PASS** con el
-techo del agregado de sesión apretado a su valor vivo; R1 `S = 136`, `G_move = 174`, presupuesto 0. Pendiente:
-`final`.
+techo del agregado de sesión apretado a su valor vivo; R1 `S = 136`, `G_move = 174`, presupuesto 0.
+
+**Aceptación `final`:** sobre **`3e45add98`**, **verde en 421 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T210941.654201Z-1256670-final.json`).
+Cobertura: `cargo check --tests` de `world-modules`, `world-server`, `wow-world` y App (274 s, que incluye recompilar
+los targets de test de `wow-world` tras cambiar su `hub.rs`/adaptador) y suites `--lib` completas de las dos
+librerías cambiadas (16 s), más política de arquitectura (60 s), ownership por sintaxis (50 s) y R1 (7 s). Sigue por
+debajo de 600 s porque el corte amplía un dueño existente y no toca `world-server` ni el tool.
 
 ## 9. Herramientas
 
