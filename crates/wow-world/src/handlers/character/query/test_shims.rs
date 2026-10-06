@@ -5,7 +5,9 @@
 //! Test-only entry points for the character query handlers moved to
 //! `wow-world-application` (#1263 F5).
 
-use wow_packet::packets::query::{QueryCreature, QueryGameObject, QueryRealmName};
+use wow_packet::packets::query::{
+    QueryCreature, QueryGameObject, QueryPageText, QueryPetName, QueryPlayerNames, QueryRealmName,
+};
 use wow_world_application::CharacterQueryHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
@@ -16,10 +18,8 @@ impl WorldSession {
             .world_query_catalogs_like_cpp()
             .cloned()
             .unwrap_or_default();
-        CharacterQueryHandlerCxLikeCpp::new(
-            crate::session::hub_mut(self),
-            std::sync::Arc::new(catalogs),
-        )
+        let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
+        CharacterQueryHandlerCxLikeCpp::new(hub, std::sync::Arc::new(catalogs), lifecycle)
     }
 
     pub async fn handle_query_creature(&mut self, query: QueryCreature) {
@@ -37,6 +37,24 @@ impl WorldSession {
     pub async fn handle_query_realm_name(&mut self, query: QueryRealmName) {
         self.character_query_test_cx_like_cpp()
             .handle_query_realm_name(query)
+            .await;
+    }
+
+    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_page_text(query)
+            .await;
+    }
+
+    pub async fn handle_query_pet_name(&mut self, query: QueryPetName) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_pet_name(query)
+            .await;
+    }
+
+    pub async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
+        self.character_query_test_cx_like_cpp()
+            .handle_query_player_names(query)
             .await;
     }
 

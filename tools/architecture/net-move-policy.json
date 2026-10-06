@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 36861,
-    "measured_requirement": 36861,
+    "budget": 36897,
+    "measured_requirement": 36897,
     "recorded_at_revision": "ed460b078205c0a137da16cd7264144d3f266981",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 73843, G_move = 114696, ratio and slack credits = 73843 * 1.05 + 300 = 77835.15, so the requirement is 36860.85 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 74107, G_move = 115009, ratio and slack credits = 74107 * 1.05 + 300 = 78112.35, so the requirement is 36896.65 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -334,6 +334,13 @@
         "destination_growth": 863,
         "new_code": 420,
         "note": "CancelTrade, AcceptTrade, ClearTradeItem, SetTradeItem, SetTradeGold, UnacceptTrade, BusyTrade, BeginTrade and IgnoreTrade moved to a new ApplicationTrade registrar whose context borrows the social state, the inventory state and the hub; the trade item/gold/accept/begin/cancel transitions and the canonical Player trade-state snapshot moved with them, while the World shell keeps thin wrappers for its remaining consumers (handlers/social.rs, item and spell publication) and cfg(test) delegates. The spell-trade, petition and duel handlers stay in the World shell while they need its spell store and pet state."
+      },
+      {
+        "phase": "F5 character query tail (5f6b1ab69..HEAD, three handlers)",
+        "shrink": 264,
+        "destination_growth": 313,
+        "new_code": 49,
+        "note": "QueryPageText, QueryPetName and QueryPlayerNames moved into the existing ApplicationCharacterQuery owner, whose context now also borrows the lifecycle state for the name-cache persistence port; the world query registration file and the character query module keep only cfg(test) delegates. Most of the growth is the moved player-name projection, offset by the deleted shell bodies."
       }
     ],
     "areas": [

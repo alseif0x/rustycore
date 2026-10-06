@@ -36,64 +36,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryPageText,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_page_text",
-        handler: |session, catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryPageText::read(&mut pkt) {
-                    Ok(query) => {
-                        session
-                            .handle_query_page_text_with_catalogs_like_cpp(
-                                catalogs.object_mgr.as_ref(),
-                                query,
-                            )
-                            .await
-                    }
-                    Err(e) => tracing::warn!("Failed to read QueryPageText: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryPetName,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_pet_name",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryPetName::read(&mut pkt) {
-                    Ok(query) => session.handle_query_pet_name(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryPetName: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryPlayerNames,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_player_names",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryPlayerNames::read(&mut pkt) {
-                    Ok(query) => session.handle_query_player_names(query).await,
-                    Err(e) => tracing::warn!("Failed to read QueryPlayerNames: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::TalkToGossip,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

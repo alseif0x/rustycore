@@ -4330,64 +4330,6 @@
           "module": "crate::handlers::character::query",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_query_page_text",
-          "visibility": "pub",
-          "signature": "async fn handle_query_page_text (& mut self , query : QueryPageText)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_page_text_with_catalogs_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_query_page_text_with_catalogs_like_cpp (& mut self , catalogs : & crate :: session :: ObjectMgrCatalogsLikeCpp , query : QueryPageText ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_pet_name",
-          "visibility": "pub",
-          "signature": "async fn handle_query_pet_name (& mut self , query : QueryPetName)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_query_player_names",
-          "visibility": "pub",
-          "signature": "async fn handle_query_player_names (& mut self , query : QueryPlayerNames)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_quest_giver_status_multiple_query",
           "visibility": "pub",
           "signature": "async fn handle_quest_giver_status_multiple_query (& mut self)",
@@ -4476,20 +4418,6 @@
           "module": "crate::handlers::character::query",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_query_canonical_pet_name_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_query_canonical_pet_name_like_cpp (& self , unit_guid : ObjectGuid ,) -> Option < (String , u32) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
           "name": "send_quest_giver_status",
           "visibility": "private",
           "signature": "fn send_quest_giver_status (& self , guid : ObjectGuid , status : u32)",
@@ -4537,6 +4465,54 @@
           "name": "handle_query_game_object",
           "visibility": "pub",
           "signature": "async fn handle_query_game_object (& mut self , query : QueryGameObject)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_page_text",
+          "visibility": "pub",
+          "signature": "async fn handle_query_page_text (& mut self , query : QueryPageText)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_pet_name",
+          "visibility": "pub",
+          "signature": "async fn handle_query_pet_name (& mut self , query : QueryPetName)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::query::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_query_player_names",
+          "visibility": "pub",
+          "signature": "async fn handle_query_player_names (& mut self , query : QueryPlayerNames)",
           "cfg": [
             "cfg (test)"
           ],
@@ -57248,32 +57224,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::handlers::character::query",
-          "source": "crates/wow-world/src/handlers/character/query.rs",
-          "enclosing": "impl WorldSession::handle_query_player_names",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::handlers::character::query",
-          "source": "crates/wow-world/src/handlers/character/query.rs",
-          "enclosing": "impl WorldSession::handle_query_player_names",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "connected",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "connected:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::handlers::character::session_state",
           "source": "crates/wow-world/src/handlers/character/session_state.rs",
           "enclosing": "impl WorldSession::init_self_fellow_transport_passenger_blocks_like_cpp",
@@ -60289,6 +60239,32 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::character_query_handlers",
+          "source": "crates/wow-world-application/src/character_query_handlers.rs",
+          "enclosing": "impl CharacterQueryHandlerCxLikeCpp::handle_query_player_names",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::character_query_handlers",
+          "source": "crates/wow-world-application/src/character_query_handlers.rs",
+          "enclosing": "impl CharacterQueryHandlerCxLikeCpp::handle_query_player_names",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "connected",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "connected:PlayerRegistry",
           "count": 1
         },
         {

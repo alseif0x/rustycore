@@ -6136,6 +6136,27 @@ requisito `36.860,85` → **presupuesto 36.861**, 0 violaciones / 0 permitidos /
 
 **No validado aún.** Sin campaña `final` nueva; quedan **156 registros literales**.
 
+#### F5: character query, cola de page text/mascota/nombres de jugador (3 opcodes) — 2026-10-05, `5f6b1ab69..HEAD`
+
+`QueryPageText`, `QueryPetName` y `QueryPlayerNames` pasan al dueño existente `ApplicationCharacterQuery`,
+cuyo contexto (`{ hub, object_mgr, lifecycle }`) añade un préstamo del estado de ciclo de vida para el
+puerto persistente de la caché de nombres. El page-text usa el catálogo `ObjectMgrCatalogsLikeCpp` ya
+presente; el nombre de mascota resuelve por el `canonical_map_manager` del hub; los nombres de jugador
+conservan la consulta a la caché de personajes más el overlay de la sesión conectada y la publicación
+realm. `world_queries.rs` y `handlers/character/query.rs` conservan solo delegados `cfg(test)`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **81 tests de `query`**, **199 de `pet`**, **26 de
+`misc_3`**, **348 de `creature`** y **25 de `dispatch`** (478 opcodes intactos) en verde; `cargo check`
+de `wow-world` (con `test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del
+tool **443/443** (488,10 s); `session-ownership-check check --syntax-only` **PASS** (204 owners / 3.145 items /
+711 filas); `check_architecture.py check` **PASS** (3.406 ficheros / 102 techos); hotspots reconciliados
+(`session/mod.rs`: producción 60.937, test 138.198, total 199.135; `handlers/character/mod.rs`:
+producción 17.147, total 32.484). R1 v2: `S = 74.107`,
+`G_move = 115.009`, requisito `36.896,85` → **presupuesto 36.897**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **153 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

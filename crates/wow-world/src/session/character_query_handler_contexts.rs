@@ -16,9 +16,11 @@ impl CharacterQueryHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSe
         &'a mut self,
         catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> CharacterQueryHandlerCxLikeCpp<'a> {
+        let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
         CharacterQueryHandlerCxLikeCpp::new(
-            crate::session::hub_mut(self),
+            hub,
             std::sync::Arc::clone(&catalogs.object_mgr),
+            lifecycle,
         )
     }
 }
