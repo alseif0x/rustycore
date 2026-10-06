@@ -19,6 +19,7 @@ mod arena_team_handler_contexts;
 mod battleground_handler_contexts;
 mod battlenet_handler_contexts;
 mod calendar_handler_contexts;
+mod character_query_handler_contexts;
 mod chat_handler_contexts;
 mod client_state_handler_contexts;
 mod collections_handler_contexts;

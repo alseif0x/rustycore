@@ -662,6 +662,27 @@ pub(crate) const LOOT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContra
     facades: LOOT_FACADES,
 };
 
+const CHARACTER_QUERY_ROOT_EXPORTS: &[&str] = &[
+    "CharacterQueryHandlerCxLikeCpp",
+    "CharacterQueryHandlerHostLikeCpp",
+    "register_character_query_handlers_like_cpp",
+];
+const CHARACTER_QUERY_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "character_query_handlers",
+    exports: CHARACTER_QUERY_ROOT_EXPORTS,
+}];
+
+pub(crate) const CHARACTER_QUERY_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationCharacterQuery",
+    package: "wow-world-application",
+    module: "crate::character_query_handlers",
+    registrar: "register_character_query_handlers_like_cpp",
+    host_trait: "CharacterQueryHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: CHARACTER_QUERY_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -692,6 +713,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     GAMEOBJECT_REGISTRAR,
     VEHICLE_REGISTRAR,
     LOOT_REGISTRAR,
+    CHARACTER_QUERY_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

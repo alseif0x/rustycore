@@ -2,54 +2,6 @@ use super::*;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryCreature,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_creature",
-        handler: |session, catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryCreature::read(&mut pkt) {
-                    Ok(query) => {
-                        session
-                            .handle_query_creature_with_catalogs_like_cpp(
-                                catalogs.object_mgr.as_ref(),
-                                query,
-                            )
-                            .await
-                    }
-                    Err(e) => tracing::warn!("Failed to read QueryCreature: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryGameObject,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_game_object",
-        handler: |session, catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryGameObject::read(&mut pkt) {
-                    Ok(query) => {
-                        session
-                            .handle_query_game_object_with_catalogs_like_cpp(
-                                catalogs.object_mgr.as_ref(),
-                                query,
-                            )
-                            .await
-                    }
-                    Err(e) => tracing::warn!("Failed to read QueryGameObject: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::QueryCorpseLocationFromClient,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -134,23 +86,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 match wow_packet::packets::query::QueryPlayerNames::read(&mut pkt) {
                     Ok(query) => session.handle_query_player_names(query).await,
                     Err(e) => tracing::warn!("Failed to read QueryPlayerNames: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryRealmName,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_query_realm_name",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QueryRealmName::read(&mut pkt) {
-                    Ok(query) => session.handle_query_realm_name(query),
-                    Err(e) => tracing::warn!("Failed to read QueryRealmName: {e}"),
                 }
             })
         },

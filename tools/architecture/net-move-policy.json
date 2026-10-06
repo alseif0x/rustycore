@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 36319,
-    "measured_requirement": 36319,
+    "budget": 36463,
+    "measured_requirement": 36463,
     "recorded_at_revision": "a6adf9b2e9d37e40f86f16668be3f3b2efeb7d8e",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 73231, G_move = 113511, ratio and slack credits = 73231 * 1.05 + 300 = 77192.55, so the requirement is 36318.45 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 73400, G_move = 113833, ratio and slack credits = 73400 * 1.05 + 300 = 77370.00, so the requirement is 36463.00 and the reviewed budget above is that figure. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -320,6 +320,13 @@
         "destination_growth": 113,
         "new_code": 88,
         "note": "SetLootSpecialization moved to a new ApplicationLoot registrar borrowing the loot state and the hub; the specialization/class gates use the Core catalog. The new contract boilerplate is most of the net growth and three comments were compacted in session/mod.rs to keep its physical ceiling. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 character query slice (636d0f2d2..HEAD, three handlers)",
+        "shrink": 169,
+        "destination_growth": 322,
+        "new_code": 153,
+        "note": "QueryCreature, QueryGameObject and QueryRealmName moved from the World shell to a new ApplicationCharacterQuery registrar whose context only receives the read-only ObjectMgr catalogs (Arc clone) beside the hub; the character world-query registration file and the character query module keep no literal packet registration, only cfg(test) shims that delegate to the application free realm-query reply. The new contract boilerplate is most of the net growth."
       }
     ],
     "areas": [

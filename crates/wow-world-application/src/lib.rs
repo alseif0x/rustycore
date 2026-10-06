@@ -8,6 +8,7 @@ mod battleground_handlers;
 pub mod character_creation;
 pub mod character_enumeration;
 pub mod character_login_support;
+mod character_query_handlers;
 mod client_state;
 mod collections_handlers;
 mod combat_handlers;
@@ -72,6 +73,11 @@ pub use aura_removal::{
 pub use battleground_handlers::{
     BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp,
     register_battleground_handlers_like_cpp,
+};
+pub use character_query_handlers::realm_query_response_like_cpp;
+pub use character_query_handlers::{
+    CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
+    register_character_query_handlers_like_cpp,
 };
 pub use client_state::{
     ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp,

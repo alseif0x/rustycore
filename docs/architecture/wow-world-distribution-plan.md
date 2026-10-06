@@ -6086,6 +6086,31 @@ test 138.194, total 199.406; `handlers/loot/mod.rs`: test 17.351; `world-server/
 
 **No validado aún.** Sin campaña `final` nueva; quedan **168 registros literales**.
 
+#### F5: character query, corte de criatura/objeto/reino (3 opcodes) — 2026-10-05, `636d0f2d2..HEAD`
+
+`QueryCreature`, `QueryGameObject` y `QueryRealmName` pasan al nuevo dueño `ApplicationCharacterQuery`
+(`crates/wow-world-application/src/character_query_handlers.rs`, contexto `{ hub, object_mgr }`). El
+contexto recibe **solo** el hub mutable y un clon `Arc` del catálogo `ObjectMgrCatalogsLikeCpp` (las
+plantillas de criatura/gameobject y los nombres de reino ya viven en Core), de modo que ninguna
+referencia a `WorldSession` cruza al dueño. `realm_query_response_like_cpp` queda como función libre
+del crate App y el shim de `wow-world` delega en ella para las pruebas que aún la usan.
+`world_queries.rs` y `handlers/character/query.rs` dejan de tener registro literal y conservan solo
+delegados `cfg(test)` en `handlers/character/query/test_shims.rs`. El resto (page text, nombre de
+mascota/jugador, corpse, gossip) sigue en el shell.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **348 tests de `creature`**, **81 de `query`**, **31 de
+`scenarios_misc_10`** y **25 de `dispatch`** (478 opcodes intactos) en verde; `cargo check` de
+`wow-world` (con `test-fixtures`) y `world-server` sin errores; composer contracts **8/8**; suite del
+tool **443/443**; `session-ownership-check check --syntax-only` **PASS** (202 owners / 3.151 items /
+711 filas); `check_architecture.py check` **PASS** (3.403 ficheros / 102 techos); hotspots
+reconciliados (`session/mod.rs`: producción 61.237, test 138.196, total 199.433;
+`handlers/character/mod.rs`: producción 17.413, test 15.337, total 32.750;
+`handlers/quest/mod.rs`: producción 6.703, total 17.921; `world-server/lib.rs`: producción 31.820,
+total 60.531). R1 v2: `S = 73.400`, `G_move = 113.833`, requisito `36.463,00` → **presupuesto 36.463**,
+0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **165 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

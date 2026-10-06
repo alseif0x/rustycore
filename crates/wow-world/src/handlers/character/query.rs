@@ -7,6 +7,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod test_shims;
+
 impl WorldSession {
     /// CMSG_AREA_SPIRIT_HEALER_QUEUE — select an area spirit healer for resurrection.
     /// C++ ref: `WorldSession::HandleAreaSpiritHealerQueueOpcode`.
@@ -181,152 +184,7 @@ impl WorldSession {
     /// The client sends this automatically after receiving an UpdateObject with
     /// unknown creature entries. Without a response, NPC names don't display
     /// and interaction menus don't work.
-    pub(crate) async fn handle_query_creature_with_catalogs_like_cpp(
-        &mut self,
-        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
-        query: QueryCreature,
-    ) {
-        let row = match catalogs
-            .creature
-            .resolve_like_cpp(query.creature_id, &self.core.locale)
-        {
-            Some(row) => row,
-            None => {
-                self.send_packet(&QueryCreatureResponse {
-                    creature_id: query.creature_id,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-        };
-
-        let total_probability = row.displays.iter().map(|display| display.probability).sum();
-        let displays = row
-            .displays
-            .iter()
-            .map(|display| CreatureXDisplay {
-                creature_display_id: display.display_id,
-                scale: display.scale,
-                probability: display.probability,
-            })
-            .collect();
-
-        let mut names: [String; 4] = Default::default();
-        names[0] = row.name;
-
-        let stats = CreatureStats {
-            title: row.subname,
-            title_alt: row.title_alt,
-            cursor_name: row.icon_name,
-            civilian: row.civilian,
-            leader: row.racial_leader,
-            names,
-            name_alts: Default::default(),
-            flags: row.type_flags,
-            creature_type: row.creature_type,
-            creature_family: row.creature_family,
-            classification: row.classification,
-            proxy_creature_ids: row.kill_credits,
-            display: CreatureDisplayStats {
-                displays,
-                total_probability,
-            },
-            hp_multi: row.hp_multi,
-            energy_multi: row.energy_multi,
-            quest_items: Vec::new(),
-            creature_movement_info_id: row.movement_id,
-            health_scaling_expansion: 0,
-            required_expansion: row.required_expansion,
-            vignette_id: row.vignette_id,
-            unit_class: row.unit_class,
-            creature_difficulty_id: row.creature_difficulty_id,
-            widget_set_id: row.widget_set_id,
-            widget_set_unit_condition_id: row.widget_set_unit_condition_id,
-        };
-
-        self.send_packet(&QueryCreatureResponse {
-            creature_id: query.creature_id,
-            allow: true,
-            stats: Some(stats),
-        });
-    }
-
-    #[cfg(test)]
-    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
-        let catalogs = self
-            .world_query_catalogs_like_cpp()
-            .cloned()
-            .unwrap_or_default();
-        self.handle_query_creature_with_catalogs_like_cpp(&catalogs, query)
-            .await;
-    }
-
     /// Handle CMSG_QUERY_GAME_OBJECT — client requests gameobject template data.
-    pub(crate) async fn handle_query_game_object_with_catalogs_like_cpp(
-        &mut self,
-        catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
-        query: wow_packet::packets::query::QueryGameObject,
-    ) {
-        let row = match catalogs
-            .gameobject
-            .resolve_like_cpp(query.game_object_id, &self.core.locale)
-        {
-            Some(row) => row,
-            None => {
-                self.send_packet(&QueryGameObjectResponse {
-                    game_object_id: query.game_object_id,
-                    guid: query.guid,
-                    allow: false,
-                    stats: None,
-                });
-                return;
-            }
-        };
-
-        let mut names: [String; 4] = Default::default();
-        names[0] = row.name;
-
-        let stats = GameObjectStats {
-            names,
-            icon_name: row.icon_name,
-            cast_bar_caption: row.cast_bar_caption,
-            unk_string: row.unk_string,
-            go_type: row.go_type,
-            display_id: row.display_id,
-            data: row.data,
-            size: row.size,
-            quest_items: catalogs
-                .gameobject_quest_items
-                .get_gameobject_quest_item_list_like_cpp(query.game_object_id)
-                .into_iter()
-                .flatten()
-                .filter_map(|item| i32::try_from(*item).ok())
-                .collect(),
-            content_tuning_id: row.content_tuning_id,
-        };
-
-        self.send_packet(&QueryGameObjectResponse {
-            game_object_id: query.game_object_id,
-            guid: query.guid,
-            allow: true,
-            stats: Some(stats),
-        });
-    }
-
-    #[cfg(test)]
-    pub async fn handle_query_game_object(
-        &mut self,
-        query: wow_packet::packets::query::QueryGameObject,
-    ) {
-        let catalogs = self
-            .world_query_catalogs_like_cpp()
-            .cloned()
-            .unwrap_or_default();
-        self.handle_query_game_object_with_catalogs_like_cpp(&catalogs, query)
-            .await;
-    }
-
     pub(crate) async fn handle_query_page_text_with_catalogs_like_cpp(
         &mut self,
         catalogs: &crate::session::ObjectMgrCatalogsLikeCpp,
@@ -550,44 +408,6 @@ impl WorldSession {
             self.core.account_id
         );
         self.send_packet_realm(&QueryPlayerNamesResponse { players: results });
-    }
-
-    pub fn handle_query_realm_name(&mut self, query: QueryRealmName) {
-        debug!(
-            "QueryRealmName: VRA=0x{:08X}, ours=0x{:08X}, local={}",
-            query.virtual_realm_address,
-            self.core.virtual_realm_address(),
-            query.virtual_realm_address == self.core.virtual_realm_address()
-        );
-
-        let resp = self.realm_query_response_like_cpp(query.virtual_realm_address);
-        self.send_packet_realm(&resp);
-    }
-
-    pub(crate) fn realm_query_response_like_cpp(
-        &self,
-        virtual_realm_address: u32,
-    ) -> RealmQueryResponse {
-        if let Some((realm_name_actual, realm_name_normalized)) = self
-            .core
-            .realm_names_for_address_like_cpp(virtual_realm_address)
-        {
-            RealmQueryResponse {
-                virtual_realm_address,
-                lookup_state: 0, // RESPONSE_SUCCESS
-                realm_name_actual: realm_name_actual.to_string(),
-                realm_name_normalized: realm_name_normalized.to_string(),
-                is_local: virtual_realm_address == self.core.virtual_realm_address(),
-            }
-        } else {
-            RealmQueryResponse {
-                virtual_realm_address,
-                lookup_state: 1, // RESPONSE_FAILURE
-                realm_name_actual: String::new(),
-                realm_name_normalized: String::new(),
-                is_local: false,
-            }
-        }
     }
 
     /// CMSG_AREA_SPIRIT_HEALER_QUERY — ask an area spirit healer for resurrection timer.
