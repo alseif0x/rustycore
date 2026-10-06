@@ -244,30 +244,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::AreaSpiritHealerQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_area_spirit_healer_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_area_spirit_healer_query(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AreaSpiritHealerQueue,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_area_spirit_healer_queue",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_area_spirit_healer_queue(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::HearthAndResurrect,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
