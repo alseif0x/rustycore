@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 7,
-    "measured_requirement": 7,
-    "recorded_at_revision": "49ca6f24b0828efe8cff6a07e46a7aa34a3967cc",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base f944577d1, the #1268 integration): S = 530, G_move = 863, ratio and slack credits = 530 * 1.05 + 300 = 856.50, so the requirement is 6.50 and the reviewed budget above is 7. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 0,
+    "measured_requirement": 0,
+    "recorded_at_revision": "0b1869539bd57725623198d1e3fe0cb89069909c",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 60a95e559, the #1269 integration): S = 89, G_move = 125, ratio and slack credits = 89 * 1.05 + 300 = 393.45, so the requirement is -268.45 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -460,6 +460,20 @@
         "destination_growth": 863,
         "new_code": 7,
         "note": "The eleven guild-bank handlers and their helpers (interaction gate, list request, tab actions, money and inventory moves) move to the new ApplicationGuildBank owner, mechanically derived from the World bodies; the represented request records stay World-test evidence through the host's flag. The 7 reviewed lines are registrar structure with no World counterpart (the context, its interaction gate wrapper and the host trait); the copy gate finds no duplicated body."
+      },
+      {
+        "phase": "Base reset at the #1269 integration (60a95e559)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1269 integrated the guild bank family; the merge-base moved to 60a95e559."
+      },
+      {
+        "phase": "F5 registry-sync seam and guild auto-decline (60a95e559..HEAD)",
+        "shrink": 89,
+        "destination_growth": 125,
+        "new_code": 0,
+        "note": "The registry-sync body moves to the application crate (World keeps a wrapper) and DeclineGuildInvites moves to the SocialGuild owner, which reports the canonical flag change so the host re-publishes the registry state."
       }
     ],
     "areas": [
@@ -470,7 +484,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 863,
+        "lines": 59,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
@@ -500,7 +514,7 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 0,
+        "lines": 66,
         "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
       },
       {

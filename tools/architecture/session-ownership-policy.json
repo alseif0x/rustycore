@@ -674,12 +674,6 @@
         },
         {
           "module": "crate::handlers::guild",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::handlers::guild",
           "trait_path": "GuildBankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
@@ -7777,20 +7771,6 @@
         },
         {
           "module": "crate::handlers::guild",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_decline_guild_invites",
-          "visibility": "pub",
-          "signature": "async fn handle_decline_guild_invites (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::guild",
           "trait_path": "GuildBankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
           "name": "guild_bank_handler_cx_like_cpp",
@@ -7842,6 +7822,22 @@
           "name": "handle_auto_store_guild_bank_item",
           "visibility": "pub",
           "signature": "async fn handle_auto_store_guild_bank_item (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::guild::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_decline_guild_invites",
+          "visibility": "pub",
+          "signature": "async fn handle_decline_guild_invites (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -32070,19 +32066,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_set_auto_decline_guild_invites_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_set_auto_decline_guild_invites_like_cpp (& mut self , allow : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_set_chosen_title_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_set_chosen_title_like_cpp (& mut self , title_id : i32)",
@@ -44515,6 +44498,19 @@
           "name": "guild_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn guild_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GuildHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "GuildHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sync_player_registry_state_after_guild_change_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_registry_state_after_guild_change_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -59106,58 +59102,6 @@
           "package": "wow-world",
           "module": "crate::session::player_registry_binding",
           "source": "crates/wow-world/src/session/player_registry_binding.rs",
-          "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "self . core . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::player_registry_binding",
-          "source": "crates/wow-world/src/session/player_registry_binding.rs",
-          "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "guid",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::player_registry_binding",
-          "source": "crates/wow-world/src/session/player_registry_binding.rs",
-          "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::player_registry_binding",
-          "source": "crates/wow-world/src/session/player_registry_binding.rs",
-          "enclosing": "impl WorldSession::sync_player_registry_state_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "argument_escape",
-          "symbol": "player_registry_control_binding_like_cpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::player_registry_binding",
-          "source": "crates/wow-world/src/session/player_registry_binding.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -61414,6 +61358,58 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-application/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "member",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-application/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "guid",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-application/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-application",
+          "module": "crate::registry_sync",
+          "source": "crates/wow-world-application/src/registry_sync.rs",
+          "enclosing": "fn sync_player_registry_state_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "argument_escape",
+          "symbol": "player_registry_control_binding_like_cpp",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry",
           "count": 1
         },
         {

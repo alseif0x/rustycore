@@ -207,6 +207,7 @@ pub use quest_query_handlers::{
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use registry_sync::PlayerRegistrySyncContext;
+pub use registry_sync::sync_player_registry_state_like_cpp;
 pub use reputation::{
     ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp, register_reputation_handlers_like_cpp,
 };

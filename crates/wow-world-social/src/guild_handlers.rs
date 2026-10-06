@@ -9,9 +9,10 @@
 //! `HandleAcceptGuildInvite` and `HandleGuildSetAchievementTracking`
 //! (`GuildHandler.cpp`). The family owns the packet bodies and the canonical
 //! guild-state transitions; the World session only builds the borrowed social
-//! state plus hub context (#1263 F5). The guild-bank handlers stay in the
-//! World shell, and the auto-decline handler stays until its registry sync is
-//! available to this context.
+//! state plus hub context (#1263 F5). The guild-bank handlers live in the
+//! application crate. The auto-decline handler reports whether the canonical
+//! Player flag changed so the host re-publishes the registry state at the
+//! original point (`HandleDeclineGuildInvites`, `GuildHandler.cpp`).
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -19,7 +20,9 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
-use wow_packet::packets::misc::{AcceptGuildInvite, GuildSetAchievementTracking};
+use wow_packet::packets::misc::{
+    AcceptGuildInvite, DeclineGuildInvites, GuildSetAchievementTracking,
+};
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::HubMut;
 
@@ -34,6 +37,38 @@ pub struct GuildHandlerCxLikeCpp<'a> {
 impl<'a> GuildHandlerCxLikeCpp<'a> {
     pub fn new(social: &'a mut SessionSocialLimits, hub: HubMut<'a>) -> Self {
         Self { social, hub }
+    }
+
+    /// CMSG_DECLINE_GUILD_INVITES — toggle `PLAYER_FLAGS_AUTO_DECLINE_GUILD`.
+    ///
+    /// Returns whether the canonical Player was mutated; the host then
+    /// re-publishes the registry state, as the World session did inline.
+    pub async fn handle_decline_guild_invites(&mut self, mut pkt: WorldPacket) -> bool {
+        let request = match DeclineGuildInvites::read(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.hub.shared().core.account_id,
+                    "DeclineGuildInvites parse failed: {error}"
+                );
+                return false;
+            }
+        };
+
+        if self.hub.shared().core.player_guid().is_none() {
+            return false;
+        }
+
+        self.hub
+            .core
+            .mutate_canonical_player_like_cpp(|player| {
+                if request.allow {
+                    player.set_player_flag(crate::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
+                } else {
+                    player.remove_player_flag(crate::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
+                }
+            })
+            .is_some()
     }
 
     fn player_guild_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerGuildState> {
@@ -129,6 +164,30 @@ impl<'a> GuildHandlerCxLikeCpp<'a> {
 /// Builds a guild invitation handler context from a host's social state and hub.
 pub trait GuildHandlerHostLikeCpp<C> {
     fn guild_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> GuildHandlerCxLikeCpp<'a>;
+
+    /// Re-publishes the registry state after a guild-flag change; the host
+    /// owns the registry-sync participants.
+    fn sync_player_registry_state_after_guild_change_like_cpp(&mut self);
+}
+
+fn handle_decline_guild_invites_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GuildHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let changed = session
+            .guild_handler_cx_like_cpp(catalogs)
+            .handle_decline_guild_invites(pkt)
+            .await;
+        if changed {
+            session.sync_player_registry_state_after_guild_change_like_cpp();
+        }
+    })
 }
 
 fn handle_guild_set_achievement_tracking_thunk<'a, S, C>(
@@ -227,6 +286,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_accept_guild_invite",
         handler: handle_accept_guild_invite_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::DeclineGuildInvites,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_decline_guild_invites",
+        handler: handle_decline_guild_invites_thunk::<S, C>,
     })?;
     builder.register(PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery,

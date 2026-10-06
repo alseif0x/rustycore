@@ -70,37 +70,6 @@ impl WorldSession {
             .and_then(|state| state.invited_guild_id)
             .unwrap_or(0)
     }
-    pub(crate) fn represented_set_auto_decline_guild_invites_like_cpp(
-        &mut self,
-        allow: bool,
-    ) -> bool {
-        let Some(guid) = self.player_guid() else {
-            return false;
-        };
-
-        let changed = self
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                if allow {
-                    player.set_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
-                } else {
-                    player.remove_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
-                }
-            })
-            .is_some();
-
-        if changed {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        self.core
-            .canonical_player_has_player_flag_like_cpp(
-                guid,
-                PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
-            )
-            .unwrap_or(false)
-            == allow
-    }
 }
 
 #[cfg(test)]

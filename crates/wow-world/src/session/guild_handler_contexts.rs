@@ -19,4 +19,8 @@ impl GuildHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         let (social, hub) = crate::session::split_social_mut(self);
         GuildHandlerCxLikeCpp::new(social, hub)
     }
+
+    fn sync_player_registry_state_after_guild_change_like_cpp(&mut self) {
+        self.sync_player_registry_state_like_cpp();
+    }
 }
