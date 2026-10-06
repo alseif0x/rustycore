@@ -9,13 +9,13 @@ use super::WorldSession;
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::RepresentedAtLoginFlagRemovalLikeCpp;
 
-pub(crate) use wow_world_core::session::{
-    RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
-    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
-};
 #[cfg(test)]
 pub(crate) use wow_world_core::session::{
+    RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
+};
+pub(crate) use wow_world_core::session::{
+    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
 };
 
 impl WorldSession {

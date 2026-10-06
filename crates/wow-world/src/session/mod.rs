@@ -156,16 +156,14 @@ pub use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 use wow_world_core::session::character_availability::default_available_classes;
 mod character_customization;
-pub(crate) use character_customization::RepresentedAlterAppearanceLikeCpp;
-#[cfg(test)]
-pub(crate) use character_customization::RepresentedAtLoginFlagRemovalLikeCpp;
-pub(crate) use character_customization::RepresentedConfirmBarbersChoiceLikeCpp;
 pub(crate) use character_customization::RepresentedConfirmRespecWipeLikeCpp;
-#[cfg(test)]
-pub(crate) use character_customization::RepresentedTalentResetScriptHookLikeCpp;
-#[cfg(test)]
-pub(crate) use character_customization::RepresentedTalentRespecCriteriaEventLikeCpp;
 pub(crate) use character_customization::RepresentedTalentRespecVisualSpellCastLikeCpp;
+#[cfg(test)]
+pub(crate) use character_customization::{
+    RepresentedAlterAppearanceLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp,
+    RepresentedConfirmBarbersChoiceLikeCpp, RepresentedTalentResetScriptHookLikeCpp,
+    RepresentedTalentRespecCriteriaEventLikeCpp,
+};
 mod cinematic_adapter;
 mod collection_adapter;
 pub(crate) use collection_adapter::AccountHeirloomSaveRowLikeCpp;
@@ -554,14 +552,15 @@ pub(crate) use state::{
     PetsCx, PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory, cx_inventory_ref, cx_lifecycle,
     cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
     cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_battleground_mut,
-    split_group_handler_states_mut, split_guild_bank_mut, split_instances_mut, split_instances_ref,
-    split_interaction, split_interaction_ref, split_interaction_world_entities_mut,
-    split_inventory_mut, split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref,
-    split_loot_mut, split_loot_ref, split_player_handler_states_mut,
-    split_quest_state_lifecycle_mut, split_quest_state_mut, split_quest_state_ref,
-    split_social_inventory_mut, split_social_lifecycle_mut, split_social_mut, split_social_ref,
-    split_spell_state_mut, split_spell_state_ref, split_trade_mut, split_visibility_mut,
-    split_visibility_ref, split_world_entities_mut, split_world_entities_ref,
+    split_character_handler_mut, split_group_handler_states_mut, split_guild_bank_mut,
+    split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
+    split_interaction_world_entities_mut, split_inventory_mut, split_inventory_ref,
+    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
+    split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
+    split_quest_state_ref, split_social_inventory_mut, split_social_lifecycle_mut,
+    split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
+    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;

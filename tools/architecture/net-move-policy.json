@@ -18,7 +18,7 @@
     "budget": 0,
     "measured_requirement": 0,
     "recorded_at_revision": "45a0b47bbe79ccdbc5245ebed26eff08ed2d6a88",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 3c5187542, the #1271 integration): S = 73, G_move = 145, ratio and slack credits = 73 * 1.05 + 300 = 376.65, so the requirement is -231.65 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 28e34b066, the #1272 integration): S = 83, G_move = 312, ratio and slack credits = 83 * 1.05 + 300 = 387.15, so the requirement is -75.15 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -502,6 +502,20 @@
         "destination_growth": 145,
         "new_code": 0,
         "note": "AreaSpiritHealerQuery and AreaSpiritHealerQueue (C++ BattleGroundHandler.cpp) move to the ApplicationBattleground owner, whose context now borrows the world-entity and instance state; bodies unchanged."
+      },
+      {
+        "phase": "Base reset at the #1272 integration (28e34b066)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1272 integrated the area spirit-healer move; the merge-base moved to 28e34b066."
+      },
+      {
+        "phase": "F5 character handlers (28e34b066..HEAD)",
+        "shrink": 83,
+        "destination_growth": 312,
+        "new_code": 0,
+        "note": "GetUndeleteCharacterCooldownStatus, AlterAppearance, ConfirmBarbersChoice and SetPlayerDeclinedNames (C++ CharacterHandler.cpp) move to the new ApplicationCharacter owner with the barber-chair gate."
       }
     ],
     "areas": [
@@ -512,7 +526,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 145,
+        "lines": 312,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
