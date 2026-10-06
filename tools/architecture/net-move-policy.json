@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 166,
-    "measured_requirement": 166,
-    "recorded_at_revision": "2c6f17802dcfe46960238f9c40ffebfe25988d91",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 68c395c8e, the #1267 integration): S = 460, G_move = 949, ratio and slack credits = 460 * 1.05 + 300 = 783.00, so the requirement is 166.00 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 7,
+    "measured_requirement": 7,
+    "recorded_at_revision": "49ca6f24b0828efe8cff6a07e46a7aa34a3967cc",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base f944577d1, the #1268 integration): S = 530, G_move = 863, ratio and slack credits = 530 * 1.05 + 300 = 856.50, so the requirement is 6.50 and the reviewed budget above is 7. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -446,6 +446,20 @@
         "destination_growth": 949,
         "new_code": 166,
         "note": "The aura-application context constructor moves from the World session to the application crate (mechanically derived body), and the nine spell cancel handlers (CancelCast, CancelAura, CancelAutoRepeatSpell, CancelChannelling, CancelGrowthAura, CancelMountAura, CancelQueuedSpell, PetCancelAura, TotemDestroyed) move to the new ApplicationSpell owner with their cast/aura cancellation transitions. The reviewed new code is the registrar structure that has no World counterpart: nine explicit generic thunks, the context with its constructor and the host trait, which are larger than the deleted World registration macro blocks. No body is duplicated (the copy gate finds none)."
+      },
+      {
+        "phase": "Base reset at the #1268 integration (f944577d1)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1268 integrated the spell cancel family; the merge-base moved to f944577d1 and the budget restarts from the requirement measured against it."
+      },
+      {
+        "phase": "F5 guild bank family (f944577d1..HEAD, eleven handlers)",
+        "shrink": 530,
+        "destination_growth": 863,
+        "new_code": 7,
+        "note": "The eleven guild-bank handlers and their helpers (interaction gate, list request, tab actions, money and inventory moves) move to the new ApplicationGuildBank owner, mechanically derived from the World bodies; the represented request records stay World-test evidence through the host's flag. The 7 reviewed lines are registrar structure with no World counterpart (the context, its interaction gate wrapper and the host trait); the copy gate finds no duplicated body."
       }
     ],
     "areas": [
@@ -456,7 +470,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 949,
+        "lines": 863,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {

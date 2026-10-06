@@ -294,17 +294,12 @@ pub(crate) use gameobject_interaction::RepresentedNewFlagStateRequest;
 mod guild_inventory_contracts;
 pub(crate) use guild_inventory_contracts::RepresentedBankItemMoveLikeCpp;
 #[cfg(test)]
-pub(crate) use guild_inventory_contracts::RepresentedGuildBankInventoryMoveLikeCpp;
-#[cfg(test)]
-pub(crate) use guild_inventory_contracts::RepresentedGuildBankListRequestLikeCpp;
-#[cfg(test)]
-pub(crate) use guild_inventory_contracts::RepresentedGuildBankMoneyMoveLikeCpp;
-pub(crate) use guild_inventory_contracts::RepresentedGuildBankTabActionKindLikeCpp;
-#[cfg(test)]
-pub(crate) use guild_inventory_contracts::RepresentedGuildBankTabActionLikeCpp;
-pub(crate) use guild_inventory_contracts::RepresentedGuildRepairBankStateLikeCpp;
-#[cfg(test)]
-pub(crate) use guild_inventory_contracts::RepresentedGuildRepairBankWithdrawLikeCpp;
+pub(crate) use guild_inventory_contracts::{
+    RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp,
+    RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionKindLikeCpp,
+    RepresentedGuildBankTabActionLikeCpp, RepresentedGuildRepairBankStateLikeCpp,
+    RepresentedGuildRepairBankWithdrawLikeCpp,
+};
 mod instance_bind_contracts;
 use instance_bind_contracts::HomebindPersistenceJobLikeCpp;
 pub(crate) use instance_bind_contracts::RepresentedHomebindLikeCpp;
@@ -559,9 +554,9 @@ pub(crate) use state::{
     PetsCx, PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory, cx_inventory_ref, cx_lifecycle,
     cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
     cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_group_handler_states_mut,
-    split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
-    split_interaction_world_entities_mut, split_inventory_mut, split_inventory_ref,
-    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
+    split_guild_bank_mut, split_instances_mut, split_instances_ref, split_interaction,
+    split_interaction_ref, split_interaction_world_entities_mut, split_inventory_mut,
+    split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
     split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
     split_quest_state_ref, split_social_inventory_mut, split_social_lifecycle_mut,
     split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,

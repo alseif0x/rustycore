@@ -6518,6 +6518,37 @@ campaña anterior, incluye compilación real de los crates afectados (`cargo che
 con `world-server` 144 s): es la primera medida de 2 jobs con compilación no caliente, por debajo de 600 s. Memoria:
 pico de 13,3 GB usados, mínimo de 10,7 GB disponibles de 23 GB.
 
+#### F5: familia del banco de hermandad — 2026-10-06, `f944577d1..HEAD`
+
+**Integración previa:** #1268 integró en `3.4.3` (`f944577d1`) el seam de aplicación de auras y la familia de
+cancelación de hechizos con `final` verde (482 s); #1263 sigue abierta.
+
+Los once handlers del banco de hermandad (`GuildBankActivate`, `GuildBankQueryTab`, `GuildBankBuyTab`,
+`GuildBankUpdateTab`, `GuildBankDepositMoney`, `GuildBankWithdrawMoney`, `GuildBankLogQuery`,
+`GuildBankTextQuery`, `GuildBankSetTabText`, `AutoGuildBankItem`, `AutoStoreGuildBankItem`; todos
+`LoggedIn`/`ThreadUnsafe`) pasan al nuevo dueño `ApplicationGuildBank` (`crate::guild_bank_handlers`) con sus diez
+helpers (gate de interacción con el GameObject de banco, petición de listado, acciones de pestaña, movimientos de
+dinero e inventario). Todos tenían como únicos llamadores esos handlers, así que salen del shell sin wrappers. Los
+cuerpos se derivaron mecánicamente de los originales (`self.core` → `self.hub.shared().core`, gate de interacción como
+método del contexto); los registros de evidencia representada, antes `#[cfg(test)]`, se emiten ahora solo cuando el
+flag del host (`cfg!(test)` en World) lo pide, con lo que la equivalencia es exacta. El contexto presta hub, inventario,
+social y world-entities mediante el nuevo `split_guild_bank_mut`; el host vive en `handlers/guild/mod.rs`, que conserva
+solo `DeclineGuildInvites` (aún re-publica el estado del registro). Los reexports de contratos de banco de hermandad
+que solo usan los tests pasan a `cfg(test)` y se agrupan, con lo que `session/mod.rs` baja de 1.052 a 1.046 líneas.
+
+**Evidencia enfocada:** `cargo check --all-targets` de `wow-world-application`, `wow-world` (con `test-fixtures`) y
+`world-server` sin errores ni avisos nuevos (los de código muerto en `bank.rs`/`social/guild.rs` ya existían en la
+base); `wow-world` `--lib` **3.634 ✓** (incluye los escenarios de banco de hermandad, que ahora despachan por el
+registro); suite del tool **443/443**; ownership `--syntax-only` **PASS** con delta revisado (salen 21 ítems de
+producción, entran 11 shims de test y el método del host; 3.137 → **3.128** ítems); arquitectura **PASS**, con el techo
+del agregado de sesión ajustado a su valor vivo (producción 60.371 → 60.168) y +4 líneas del composer de
+`world-server`; R1 `S = 530`, `G_move = 863`, presupuesto revisado **7**. Registros literales en `wow-world`:
+**130 → 119**.
+
+**Aceptación `final`:** sobre **`8e6d525bd`**, **verde en 420 s** con 2 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261006T165833.862357Z-1138426-final.json`;
+pico de 12,1 GB usados, mínimo de 11,9 GB disponibles).
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
