@@ -502,35 +502,15 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn clear_represented_pending_quest_sharing_like_cpp(&mut self) {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.quest_state
-                .fixture_set_represented_pending_quest_sharing_like_cpp(None);
-            self.sync_player_registry_state_like_cpp();
-            return;
-        }
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.set_pending_share_like_cpp(None);
-        });
+        let (state, hub) = crate::session::split_quest_state_mut(self);
+        wow_world_application::clear_represented_pending_quest_sharing_like_cpp(hub, state);
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn represented_pending_quest_sharing_like_cpp(
         &self,
     ) -> Option<RepresentedPendingQuestSharingLikeCpp> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .quest_state
-                .fixture_represented_pending_quest_sharing_like_cpp();
-        }
-        self.player_quest_gameplay_snapshot_like_cpp()
-            .and_then(|state| state.pending_share_like_cpp())
-            .map(
-                |(sender_guid, quest_id)| RepresentedPendingQuestSharingLikeCpp {
-                    sender_guid,
-                    quest_id,
-                },
-            )
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        wow_world_application::represented_pending_quest_sharing_like_cpp(hub, state)
     }
     pub(crate) fn set_represented_df_quest_like_cpp_for_test(
         &mut self,

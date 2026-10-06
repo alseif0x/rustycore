@@ -6239,6 +6239,26 @@ errores; composer contracts **8/8**; suite del tool **443/443** (502,83 s);
 
 **No validado aún.** Sin campaña `final` nueva; quedan **149 registros literales**.
 
+#### F5: handler de resultado de quest compartida (`QuestPushResult`) — 2026-10-05, `0968a7fd7..HEAD`
+
+`QuestPushResult` pasa al dueño `ApplicationQuestQuery` con un tail tipado (`QuestPushResultTailLikeCpp`):
+el dueño lee y limpia el estado de sharing pendiente —seam
+`represented_pending_quest_sharing_like_cpp`/`clear_represented_pending_quest_sharing_like_cpp`, movido a App
+con su fallback de fixture— y devuelve qué queda; el thunk ejecuta el seam de host de sincronización de
+registro en el punto exacto y después el dueño registra la evidencia (mismatch de emisor o respuesta),
+preservando el orden C++. `handlers/quest/handlers/acceptance.rs` y `sharing.rs` conservan wrappers finos
+sobre las funciones App del seam. El registro mantiene `LoggedIn`/`ThreadUnsafe`.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **428 tests de `quest`** y **25 de `dispatch`** (478
+opcodes intactos y metadata exacta) en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443** (499,89 s);
+`session-ownership-check check --syntax-only` **PASS** (204 owners / 3.144 items / 711 filas);
+`check_architecture.py check` **PASS** (3.406 ficheros / 102 techos). R1 v2: `S = 74.368`,
+`G_move = 115.580`, requisito `37.193,60` → **presupuesto 37.194**, 0 violaciones / 0 permitidos /
+0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **148 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

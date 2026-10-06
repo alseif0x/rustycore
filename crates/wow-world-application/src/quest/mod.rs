@@ -68,8 +68,9 @@ pub use self::session_state::contracts::{
     RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
 pub use self::session_state::{
-    SessionQuestState, mutate_player_quest_gameplay_like_cpp,
-    player_quest_gameplay_snapshot_like_cpp,
+    SessionQuestState, clear_represented_pending_quest_sharing_like_cpp,
+    mutate_player_quest_gameplay_like_cpp, player_quest_gameplay_snapshot_like_cpp,
+    represented_pending_quest_sharing_like_cpp,
 };
 pub use self::visibility::QuestEligibilityCx;
 pub use self::visibility::{

@@ -274,3 +274,41 @@ pub fn mutate_player_quest_gameplay_like_cpp<R>(
     }
     None
 }
+
+/// Represented pending quest share with the fixture fallback the World session
+/// applied at its read point.
+pub fn represented_pending_quest_sharing_like_cpp(
+    hub: wow_world_core::session::HubRef<'_>,
+    quest_state: &SessionQuestState,
+) -> Option<contracts::RepresentedPendingQuestSharingLikeCpp> {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if hub.core.player_handle_like_cpp.is_none() {
+        return quest_state.fixture_represented_pending_quest_sharing_like_cpp();
+    }
+    player_quest_gameplay_snapshot_like_cpp(hub, quest_state)
+        .and_then(|state| state.pending_share_like_cpp())
+        .map(
+            |(sender_guid, quest_id)| contracts::RepresentedPendingQuestSharingLikeCpp {
+                sender_guid,
+                quest_id,
+            },
+        )
+}
+
+/// Clears the represented pending quest share. The caller re-publishes the
+/// registry state, which stays a World responsibility.
+pub fn clear_represented_pending_quest_sharing_like_cpp(
+    hub: wow_world_core::session::HubMut<'_>,
+    quest_state: &mut SessionQuestState,
+) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if hub.shared().core.player_handle_like_cpp.is_none() {
+        quest_state.fixture_set_represented_pending_quest_sharing_like_cpp(None);
+        return;
+    }
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = &mut *quest_state;
+    let _ = mutate_player_quest_gameplay_like_cpp(hub, quest_state, |state| {
+        state.set_pending_share_like_cpp(None);
+    });
+}

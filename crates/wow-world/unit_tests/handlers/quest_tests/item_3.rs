@@ -726,7 +726,7 @@ fn quest_push_inventory_registration_and_dispatcher_contract_like_cpp() {
     assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(entry.handler_name, "handle_quest_push_result");
     assert!(
-        QUEST_HANDLER_REGISTRATIONS.contains("session.handle_quest_push_result(pkt).await"),
+        QUEST_HANDLER_REGISTRATIONS.contains(".handle_quest_push_result(pkt)"),
         "the QuestPushResult registration must carry the call itself"
     );
 }

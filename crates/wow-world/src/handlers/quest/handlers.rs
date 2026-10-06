@@ -175,18 +175,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestPushResult,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_quest_push_result",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_push_result(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::PushQuestToParty,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -261,71 +249,5 @@ impl WorldSession {
         });
         self.handle_adventure_map_start_quest_with_catalog_like_cpp(store.as_ref(), pkt)
             .await;
-    }
-
-    /// CMSG_QUEST_PUSH_RESULT — response to a shared quest prompt.
-    ///
-    /// C++ anchor: `WorldSession::HandleQuestPushResult`, `QuestHandler.cpp:758-767`.
-    /// Represented-partial: session-local pending sharing state is cleared like C++;
-    /// matching sender responses are recorded as evidence because full `ObjectAccessor::FindPlayer`
-    /// and party sender packet fanout are not represented in this bounded slice.
-    pub async fn handle_quest_push_result(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match QuestPushResult::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    ?error,
-                    "QuestPushResult: failed to read SenderGUID/QuestID/Result"
-                );
-                return;
-            }
-        };
-
-        let Some(pending) = self.represented_pending_quest_sharing_like_cpp() else {
-            debug!(
-                account = self.core.account_id,
-                sender_guid = ?packet.sender_guid,
-                quest_id = packet.quest_id,
-                result = packet.result,
-                "QuestPushResult: no represented pending shared quest"
-            );
-            return;
-        };
-
-        self.clear_represented_pending_quest_sharing_like_cpp();
-
-        if pending.sender_guid != packet.sender_guid {
-            self.quest_state
-                .record_represented_quest_push_result_sender_mismatch_like_cpp(cfg!(test));
-            debug!(
-                account = self.core.account_id,
-                pending_sender_guid = ?pending.sender_guid,
-                packet_sender_guid = ?packet.sender_guid,
-                "QuestPushResult: represented sender mismatch, pending state cleared"
-            );
-            return;
-        }
-
-        let Some(receiver_guid) = self.player_guid() else {
-            debug!(
-                account = self.core.account_id,
-                sender_guid = ?packet.sender_guid,
-                "QuestPushResult: represented sender matched but no local receiver guid is available"
-            );
-            return;
-        };
-
-        self.quest_state
-            .record_represented_quest_push_result_response_like_cpp(
-                cfg!(test),
-                RepresentedQuestPushResultResponseLikeCpp {
-                    receiver_guid,
-                    sender_guid: packet.sender_guid,
-                    parsed_quest_id: packet.quest_id,
-                    pending_quest_id: pending.quest_id,
-                    result: packet.result,
-                },
-            );
     }
 }

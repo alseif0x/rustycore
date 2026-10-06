@@ -27,6 +27,25 @@ impl WorldSession {
             .await;
     }
 
+    pub async fn handle_quest_push_result(&mut self, pkt: WorldPacket) {
+        let quest_store = self.catalogs.quests.store.clone();
+        let tail = {
+            let (quest_state, lifecycle, hub) =
+                crate::session::split_quest_state_lifecycle_mut(self);
+            QuestQueryHandlerCxLikeCpp::new(hub, quest_store.clone(), quest_state, lifecycle)
+                .handle_quest_push_result(pkt)
+        };
+        if !matches!(
+            tail,
+            wow_world_application::QuestPushResultTailLikeCpp::NotPending
+        ) {
+            self.sync_player_registry_state_like_cpp();
+        }
+        let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
+        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle)
+            .finish_quest_push_result(tail);
+    }
+
     pub async fn handle_quest_log_remove_quest(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let slot = {
