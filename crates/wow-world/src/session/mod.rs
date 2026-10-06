@@ -25,6 +25,7 @@ mod collections_handler_contexts;
 mod combat;
 mod combat_handler_contexts;
 mod data_service_handler_contexts;
+mod gameobject_handler_contexts;
 mod group_application_handler_contexts;
 mod group_handler_contexts;
 mod guild_handler_contexts;
@@ -557,11 +558,12 @@ pub(crate) use state::{
     cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
     cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_group_handler_states_mut,
     split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
-    split_inventory_mut, split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref,
-    split_loot_mut, split_loot_ref, split_player_handler_states_mut, split_quest_state_mut,
-    split_quest_state_ref, split_social_lifecycle_mut, split_social_mut, split_social_ref,
-    split_spell_state_mut, split_spell_state_ref, split_visibility_mut, split_visibility_ref,
-    split_world_entities_mut, split_world_entities_ref,
+    split_interaction_world_entities_mut, split_inventory_mut, split_inventory_ref,
+    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
+    split_player_handler_states_mut, split_quest_state_mut, split_quest_state_ref,
+    split_social_lifecycle_mut, split_social_mut, split_social_ref, split_spell_state_mut,
+    split_spell_state_ref, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
 
 mod summon_object_contracts;
@@ -883,9 +885,7 @@ pub(crate) use wow_constants::rest::{
     REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP,
 };
 
-/// Live seam for C++ `ScriptMgr::OnAreaTrigger`.
-///
-/// A ported content script receives the mutable session and returns the same consumed/not-consumed boolean that controls C++ handler continuation.
+/// Live seam for C++ `ScriptMgr::OnAreaTrigger`: a ported content script receives the mutable session and returns the same consumed/not-consumed boolean that controls C++ handler continuation.
 pub type AreaTriggerScriptDispatcherLikeCpp =
     Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
 

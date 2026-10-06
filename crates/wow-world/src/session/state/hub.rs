@@ -191,6 +191,23 @@ pub(crate) fn split_player_handler_states_mut(
     )
 }
 
+/// Interaction and world-entity state plus the mutable hub, from disjoint fields.
+pub(crate) fn split_interaction_world_entities_mut(
+    s: &mut WorldSession,
+) -> (&mut InteractionState, &mut WorldEntitiesState, HubMut<'_>) {
+    (
+        &mut s.interaction,
+        &mut s.world_entities,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
 /// Group-handler state plus the mutable hub, borrowed from disjoint fields.
 pub(crate) fn split_group_handler_states_mut(
     s: &mut WorldSession,

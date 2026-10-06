@@ -599,6 +599,27 @@ pub(crate) const DUNGEON_FINDING_REGISTRAR: DirectRegistrarContract = DirectRegi
     facades: DUNGEON_FINDING_FACADES,
 };
 
+const GAMEOBJECT_ROOT_EXPORTS: &[&str] = &[
+    "GameObjectHandlerCxLikeCpp",
+    "GameObjectHandlerHostLikeCpp",
+    "register_gameobject_handlers_like_cpp",
+];
+const GAMEOBJECT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "gameobject_handlers",
+    exports: GAMEOBJECT_ROOT_EXPORTS,
+}];
+
+pub(crate) const GAMEOBJECT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationGameObject",
+    package: "wow-world-application",
+    module: "crate::gameobject_handlers",
+    registrar: "register_gameobject_handlers_like_cpp",
+    host_trait: "GameObjectHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: GAMEOBJECT_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     INVENTORY_REGISTRAR,
@@ -626,6 +647,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     TRAVEL_REGISTRAR,
     BATTLEGROUND_REGISTRAR,
     DUNGEON_FINDING_REGISTRAR,
+    GAMEOBJECT_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

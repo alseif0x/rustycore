@@ -613,6 +613,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::entities::gameobject::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::entities::player",
           "trait_path": null,
           "cfg": [],
@@ -1243,6 +1251,12 @@
         {
           "module": "crate::session",
           "trait_path": "EffectLearningRuntimeLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "GameObjectHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -6907,34 +6921,6 @@
           "module": "crate::handlers::entities::gameobject",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_close_interaction",
-          "visibility": "pub",
-          "signature": "async fn handle_close_interaction (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::gameobject",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_game_obj_report_use",
-          "visibility": "pub",
-          "signature": "async fn handle_game_obj_report_use (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::gameobject",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_game_obj_use",
           "visibility": "pub",
           "signature": "async fn handle_game_obj_use (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -6970,6 +6956,53 @@
           "signature": "fn represented_gameobject_gossip_can_interact_with_like_cpp (& self , gameobject_guid : ObjectGuid ,) -> Option < RepresentedGameObjectAccessLikeCpp >",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::gameobject::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "gameobject_test_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn gameobject_test_cx_like_cpp (& mut self) -> GameObjectHandlerCxLikeCpp < '_ >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::gameobject::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_close_interaction",
+          "visibility": "pub",
+          "signature": "async fn handle_close_interaction (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::gameobject::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_game_obj_report_use",
+          "visibility": "pub",
+          "signature": "async fn handle_game_obj_report_use (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -44572,6 +44605,19 @@
           "name": "project_learning",
           "visibility": "private",
           "signature": "fn project_learning (& self , spell : u32) -> SpellAcquisitionOutcomeLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "GameObjectHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "gameobject_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn gameobject_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> GameObjectHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

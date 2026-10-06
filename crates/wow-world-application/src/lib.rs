@@ -13,6 +13,7 @@ mod collections_handlers;
 mod combat_handlers;
 mod data_service_handlers;
 mod dungeon_finding_handlers;
+mod gameobject_handlers;
 mod group_handlers;
 mod instances;
 mod loot_release;
@@ -94,6 +95,9 @@ pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 pub use equipment_set_use::{
     EquipmentSetUseContextLikeCpp, EquipmentSetUseHandlerHostLikeCpp,
     EquipmentSetUseItemModsStoresLikeCpp, register_equipment_set_use_handler_like_cpp,
+};
+pub use gameobject_handlers::{
+    GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp, register_gameobject_handlers_like_cpp,
 };
 pub use group_handlers::GroupPublicationTailLikeCpp;
 pub use group_handlers::{

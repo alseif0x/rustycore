@@ -6003,6 +6003,28 @@ mientras necesita el catálogo de mazmorras LFG y la proyección de recompensas.
 
 **No validado aún.** Sin campaña `final` nueva; quedan **175 registros literales**.
 
+#### F5: gameobject, corte de cierre/informe de uso (2 opcodes) — 2026-10-05, `eb5bce569..HEAD`
+
+Nuevo dueño `ApplicationGameObject` (`crates/wow-world-application/src/gameobject_handlers.rs`):
+`CloseInteraction` (limpia la fuente de interacción representada) y `GameObjReportUse` (compuertas
+de GUID/moved-unit, distancia de interacción, acceso canónico o de visibilidad de cliente y registro
+de IA/criteria). El contexto toma prestados los estados de **interacción** y **world entities** (ambos
+crates de dominio) mediante el split nuevo `split_interaction_world_entities_mut`; el registro de
+fixture de criteria queda bajo `cfg(any(test, feature = "test-fixtures"))`. El cuerpo grande
+`GameObjUse` se queda en el shell mientras necesita la orquestación de loot/spell/quest.
+`entities/gameobject.rs` queda con **1 registro literal**.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**54 de `handlers::entities`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (196 owners / 3.146 items / 711 filas);
+`check_architecture.py check` **PASS** (3.394 ficheros / 102 techos); hotspots reconciliados
+(`session/mod.rs`: producción 61.210, test 138.190, total 199.400; `world-server/lib.rs`: producción
+31.808, total 60.519). R1 v2: `S = 73.033`, `G_move = 112.969`, requisito `35.984,35` →
+**presupuesto 35.985**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **173 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
