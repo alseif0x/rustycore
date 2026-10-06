@@ -62,4 +62,14 @@ impl WorldSession {
             .handle_get_item_purchase_data(pkt)
             .await;
     }
+
+    pub async fn handle_stand_state_change(&mut self, pkt: WorldPacket) {
+        if let Some(intent) = self
+            .player_test_cx_like_cpp()
+            .handle_stand_state_change(pkt)
+            .await
+        {
+            let _ = self.apply_represented_live_intent_like_cpp(intent);
+        }
+    }
 }

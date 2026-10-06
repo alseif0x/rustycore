@@ -14,7 +14,7 @@
 
 use crate::SessionQuestState;
 use tracing::info;
-use wow_constants::ClientOpcodes;
+use wow_constants::{ClientOpcodes, UnitStandStateType};
 use wow_core::{GameTime, ObjectGuid};
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
@@ -22,12 +22,15 @@ use wow_handler::{
 };
 use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::item::{GetItemPurchaseData, SetItemPurchaseData};
-use wow_packet::packets::misc::FarSight;
+use wow_packet::packets::misc::{FarSight, StandStateChange};
 use wow_packet::packets::misc::{MailNextTimeEntry, MailQueryNextTimeResult, QueryTimeResponse};
 use wow_packet::packets::spell::SetActionButton;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::entity_update_bridge::player_values_update_to_update_object;
-use wow_world_core::session::{HubMut, PacketPublicationAccessLikeCpp};
+use wow_world_core::session::{
+    HubMut, PacketPublicationAccessLikeCpp, RepresentedLiveIntentApplyOutcomeLikeCpp,
+    RepresentedLiveIntentLikeCpp, RepresentedStandStateChangedLikeCpp,
+};
 use wow_world_instances::InstanceState;
 use wow_world_inventory::InventoryState;
 use wow_world_lifecycle::SessionLifecycleState;
@@ -177,6 +180,37 @@ impl<'a> PlayerHandlerCxLikeCpp<'a> {
         }
 
         self.publication_like_cpp().send_packet_realm(&packet);
+    }
+
+    /// CMSG_STAND_STATE_CHANGE — builds the typed live intent after the C++
+    /// validation; the session-owned represented->live bridge that applies it
+    /// stays with the World host.
+    pub async fn handle_stand_state_change(
+        &mut self,
+        mut pkt: WorldPacket,
+    ) -> Option<RepresentedLiveIntentLikeCpp> {
+        let packet = match StandStateChange::read(&mut pkt) {
+            Ok(packet) => packet,
+            Err(error) => {
+                tracing::warn!(
+                    account = self.hub.shared().core.account_id,
+                    "StandStateChange parse failed: {error}"
+                );
+                return None;
+            }
+        };
+
+        let stand_state = match packet.stand_state {
+            state if state == UnitStandStateType::Stand as u32 => UnitStandStateType::Stand,
+            state if state == UnitStandStateType::Sit as u32 => UnitStandStateType::Sit,
+            state if state == UnitStandStateType::Sleep as u32 => UnitStandStateType::Sleep,
+            state if state == UnitStandStateType::Kneel as u32 => UnitStandStateType::Kneel,
+            _ => return None,
+        };
+
+        Some(RepresentedLiveIntentLikeCpp::StandStateChanged(
+            RepresentedStandStateChangedLikeCpp { state: stand_state },
+        ))
     }
 
     /// CMSG_FAR_SIGHT — switch the represented seer; the forced visibility
@@ -391,6 +425,13 @@ pub trait PlayerHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> HandlerFuture<'a, ()>;
+
+    /// Applies one typed represented->live intent through the session-owned
+    /// bridge.
+    fn apply_represented_live_intent_like_cpp(
+        &mut self,
+        intent: RepresentedLiveIntentLikeCpp,
+    ) -> RepresentedLiveIntentApplyOutcomeLikeCpp;
 }
 
 fn handle_query_time_thunk<'a, S, C>(
@@ -441,6 +482,26 @@ where
             .player_handler_cx_like_cpp(catalogs)
             .handle_set_selection(pkt)
             .await;
+    })
+}
+
+fn handle_stand_state_change_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: PlayerHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        if let Some(intent) = session
+            .player_handler_cx_like_cpp(catalogs)
+            .handle_stand_state_change(pkt)
+            .await
+        {
+            let _ = session.apply_represented_live_intent_like_cpp(intent);
+        }
     })
 }
 
@@ -571,6 +632,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_far_sight",
         handler: handle_far_sight_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::StandStateChange,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_stand_state_change",
+        handler: handle_stand_state_change_thunk::<S, C>,
     })?;
     Ok(())
 }

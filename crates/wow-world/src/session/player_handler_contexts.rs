@@ -37,4 +37,11 @@ impl PlayerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
                 .await;
         })
     }
+
+    fn apply_represented_live_intent_like_cpp(
+        &mut self,
+        intent: wow_world_core::session::RepresentedLiveIntentLikeCpp,
+    ) -> wow_world_core::session::RepresentedLiveIntentApplyOutcomeLikeCpp {
+        WorldSession::apply_represented_live_intent_like_cpp(self, intent)
+    }
 }

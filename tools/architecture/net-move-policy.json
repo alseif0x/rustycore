@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 35326,
-    "measured_requirement": 35326,
+    "budget": 35371,
+    "measured_requirement": 35371,
     "recorded_at_revision": "33770d0079069d3ab32addb90643dd12e767105d",
-    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72817, G_move = 112083, ratio and slack credits = 72817 * 1.05 + 300 = 76757.85, so the requirement is 35325.15 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = G_move - (S * (1 + ratio) + slack), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 24a513855e): S = 72839, G_move = 112151, ratio and slack credits = 72839 * 1.05 + 300 = 76780.95, so the requirement is 35370.05 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -271,6 +271,13 @@
         "destination_growth": 350,
         "new_code": 104,
         "note": "PartyInvite moved into the existing ApplicationGroup registrar, which now also borrows the instances state and receives the invite policy catalog from the host context. The map/instance projection moved as a shared free function. This closes the group family: no literal packet registration remains in crates/wow-world/src/handlers/group.rs. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
+      },
+      {
+        "phase": "F5 player stand state (33770d007..HEAD)",
+        "shrink": 22,
+        "destination_growth": 68,
+        "new_code": 46,
+        "note": "StandStateChange moved into the ApplicationPlayer owner: the owner parses and validates the C++ stand-state values and builds the typed represented->live intent, while the session-owned represented->live bridge stays a bounded host seam (it mutates the canonical unit and records fixture evidence). This closes the entities/player family. The duplication gate still reports 0 violations, 0 allowlisted and 0 obsolete."
       }
     ],
     "areas": [

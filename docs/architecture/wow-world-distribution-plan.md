@@ -5937,6 +5937,28 @@ errores; composer contracts **8/8**; suite del tool **443/443**; `session-owners
 
 **No validado aún.** Sin campaña `final` nueva; quedan **186 registros literales**.
 
+#### F5: `StandStateChange` y cierre de la familia `entities/player` — 2026-10-05, `33770d007..HEAD`
+
+`StandStateChange` pasa al dueño `ApplicationPlayer`: el dueño parsea el paquete y aplica la
+validación C++ (solo `Stand`, `Sit`, `Sleep` y `Kneel`), construye el intent tipado
+`RepresentedLiveIntentLikeCpp::StandStateChanged` y el **puente representado→vivo** —que muta la
+unidad canónica y registra la evidencia de fixture— se queda como **seam acotado del host**
+(`apply_represented_live_intent_like_cpp`), porque sigue siendo una frontera propiedad de la sesión.
+
+**Hito: la familia `entities/player` queda cerrada** (`handlers/entities/player.rs` sin registros
+literales). Junto con `group`, son ya dos familias completas en las que el shell solo conserva los
+seams acotados.
+
+**Evidencia enfocada (nivel 1, no aceptación):** **25 tests de `dispatch`** (478 opcodes intactos) y
+**54 de `handlers::entities`** en verde; `cargo check` de `wow-world` (con `test-fixtures`) y
+`world-server` sin errores; composer contracts **8/8**; suite del tool **443/443**;
+`session-ownership-check check --syntax-only` **PASS** (191 owners / 3.139 items / 711 filas);
+`check_architecture.py check` **PASS**; hotspot `session/mod.rs` reconciliado (producción 61.188 →
+61.195, total 199.372 → 199.379). R1 v2: `S = 72.839`, `G_move = 112.151`, requisito `35.370,05` →
+**presupuesto 35.371**, 0 violaciones / 0 permitidos / 0 obsoletos.
+
+**No validado aún.** Sin campaña `final` nueva; quedan **185 registros literales**.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

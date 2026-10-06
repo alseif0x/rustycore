@@ -6919,20 +6919,6 @@
           "module": "crate::handlers::entities::player",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_stand_state_change",
-          "visibility": "pub",
-          "signature": "async fn handle_stand_state_change (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::entities::player",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_toggle_difficulty",
           "visibility": "pub",
           "signature": "async fn handle_toggle_difficulty (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -7046,6 +7032,22 @@
           "name": "handle_set_title",
           "visibility": "pub",
           "signature": "async fn handle_set_title (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::player::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_stand_state_change",
+          "visibility": "pub",
+          "signature": "async fn handle_stand_state_change (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
           ],
@@ -44598,6 +44600,19 @@
           "name": "item_text_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn item_text_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "PlayerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "apply_represented_live_intent_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_represented_live_intent_like_cpp (& mut self , intent : wow_world_core :: session :: RepresentedLiveIntentLikeCpp ,) -> wow_world_core :: session :: RepresentedLiveIntentApplyOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
