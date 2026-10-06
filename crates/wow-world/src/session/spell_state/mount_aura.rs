@@ -199,11 +199,6 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         self.apply_represented_mounted_aura_like_cpp(spell_id, caster_guid, effect)
     }
-    pub(crate) fn remove_represented_mount_auras_cancelable_like_cpp(&mut self) -> usize {
-        self.remove_represented_cancelable_auras_by_effect_like_cpp(
-            RepresentedAuraEffectLikeCpp::Mounted,
-        )
-    }
     pub(in crate::session) fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) -> bool {
         let Some(visible_auras) =
             crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()

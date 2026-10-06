@@ -13,32 +13,9 @@ mod state;
 pub(in crate::session) mod wire;
 
 impl WorldSession {
-    pub(crate) fn cancel_client_cast_request_like_cpp(&mut self, spell_id: Option<i32>) {
-        let Some((had_active, cast)) = self.mutate_cast_execution_like_cpp(|state| {
-            (
-                state.active.is_some(),
-                state.take_interrupted_cast(spell_id),
-            )
-        }) else {
-            return;
-        };
-        if let Some(cast) = cast {
-            self.publish_player_cast_interruption_like_cpp(cast);
-        }
-        if had_active {
-            self.cancel_pending_spell_cast_request_like_cpp();
-        }
-    }
-
     pub(crate) fn interrupt_player_cast_like_cpp(&mut self, spell_id: Option<i32>) -> bool {
-        let Some(cast) = self
-            .mutate_cast_execution_like_cpp(|state| state.take_interrupted_cast(spell_id))
-            .flatten()
-        else {
-            return false;
-        };
-        self.publish_player_cast_interruption_like_cpp(cast);
-        true
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        wow_world_application::interrupt_player_cast_like_cpp(&mut hub, state, spell_id)
     }
 
     pub(crate) fn take_ready_player_cast_like_cpp(&mut self) -> Option<SpellCastState> {

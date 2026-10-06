@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 0,
-    "measured_requirement": 0,
+    "budget": 166,
+    "measured_requirement": 166,
     "recorded_at_revision": "ab88907c24dc2ea2ab4206559de07d84ea8eae91",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 793851676, the #1266 integration): S = 188, G_move = 192, ratio and slack credits = 188 * 1.05 + 300 = 497.40, so the requirement is -305.40 and the reviewed budget above is 0. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 68c395c8e, the #1267 integration): S = 460, G_move = 949, ratio and slack credits = 460 * 1.05 + 300 = 783.00, so the requirement is 166.00 and the reviewed budget above is that figure rounded up. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -432,22 +432,36 @@
         "destination_growth": 115,
         "new_code": 0,
         "note": "QueryNpcText moves to the application character-query owner, AuctionHelloRequest to the wow-world-inventory auction owner (with the rest of its family) and GuildBankRemainingWithdrawMoneyQuery to the wow-world-social guild owner. Bodies, registration metadata and log text are unchanged; the World keeps a cfg(test) delegate for the guild-bank query scenario."
+      },
+      {
+        "phase": "Base reset at the #1267 integration (68c395c8e)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1267 integrated the previous checkpoint into 3.4.3; the merge-base moved to 68c395c8e and the budget restarts from the requirement measured against it."
+      },
+      {
+        "phase": "F5 aura-application seam and spell cancel family (68c395c8e..HEAD)",
+        "shrink": 460,
+        "destination_growth": 949,
+        "new_code": 166,
+        "note": "The aura-application context constructor moves from the World session to the application crate (mechanically derived body), and the nine spell cancel handlers (CancelCast, CancelAura, CancelAutoRepeatSpell, CancelChannelling, CancelGrowthAura, CancelMountAura, CancelQueuedSpell, PetCancelAura, TotemDestroyed) move to the new ApplicationSpell owner with their cast/aura cancellation transitions. The reviewed new code is the registrar structure that has no World counterpart: nine explicit generic thunks, the context with its constructor and the host trait, which are larger than the deleted World registration macro blocks. No body is duplicated (the copy gate finds none)."
       }
     ],
     "areas": [
       {
         "area": "crates/wow-world-core/src",
-        "lines": 2,
+        "lines": 0,
         "reason": "SessionCore/hub state, canonical access owners, map-manager runtime and host traits; new types and cfg-gated fixture refs, not copies of the wow-world remainder plus the #1263 F5 chat policy capacity re-export."
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 120,
+        "lines": 949,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
         "area": "crates/wow-world-inventory/src",
-        "lines": 39,
+        "lines": 0,
         "reason": "inventory owners, storage/adapter and publication surfaces extracted from the wow-world item handlers."
       },
       {
@@ -472,7 +486,7 @@
       },
       {
         "area": "crates/wow-world-social/src",
-        "lines": 31,
+        "lines": 0,
         "reason": "social group/duel state, the inspect, calendar, chat, social-contacts and arena-team handler families with their Cx, host bridge, thunks and group fanout."
       },
       {

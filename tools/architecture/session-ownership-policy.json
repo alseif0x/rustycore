@@ -1079,6 +1079,14 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
           "module": "crate::handlers::support::session_shims",
           "trait_path": null,
           "cfg": [
@@ -1355,6 +1363,12 @@
         {
           "module": "crate::session",
           "trait_path": "SocialInspectHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -12780,118 +12794,6 @@
           "module": "crate::handlers::spell::ops_2",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_cancel_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_auto_repeat_spell",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_auto_repeat_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_cast",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_cast (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_channelling",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_channelling (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_growth_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_growth_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_mount_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_mount_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_cancel_queued_spell",
-          "visibility": "pub",
-          "signature": "async fn handle_cancel_queued_spell (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_pet_cancel_aura",
-          "visibility": "pub",
-          "signature": "async fn handle_pet_cancel_aura (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_self_res",
           "visibility": "pub",
           "signature": "async fn handle_self_res (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -12941,20 +12843,6 @@
           "name": "handle_spell_click_with_generator_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_spell_click_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::spell::ops_2",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_totem_destroyed",
-          "visibility": "pub",
-          "signature": "async fn handle_totem_destroyed (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13097,6 +12985,198 @@
           "signature": "async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,) -> bool",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "cancel_client_cast_request_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn cancel_client_cast_request_like_cpp (& mut self , spell_id : Option < i32 >)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_aura (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_auto_repeat_spell",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_auto_repeat_spell (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_cast",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_cast (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_channelling",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_channelling (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_growth_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_growth_aura (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_mount_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_mount_aura (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_cancel_queued_spell",
+          "visibility": "pub",
+          "signature": "async fn handle_cancel_queued_spell (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_pet_cancel_aura",
+          "visibility": "pub",
+          "signature": "async fn handle_pet_cancel_aura (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_totem_destroyed",
+          "visibility": "pub",
+          "signature": "async fn handle_totem_destroyed (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "remove_represented_cancelable_owned_aura_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn remove_represented_cancelable_owned_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid ,) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::spell::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "remove_represented_mount_auras_cancelable_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn remove_represented_mount_auras_cancelable_like_cpp (& mut self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
@@ -18365,19 +18445,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "cancel_client_cast_request_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn cancel_client_cast_request_like_cpp (& mut self , spell_id : Option < i32 >)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "cancel_pending_spell_cast_request_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn cancel_pending_spell_cast_request_like_cpp (& mut self) -> bool",
@@ -22169,19 +22236,6 @@
           "name": "instance_port",
           "visibility": "pub",
           "signature": "fn instance_port (& self) -> u16",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "interrupt_current_channeled_spell_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn interrupt_current_channeled_spell_like_cpp (& mut self , spell_id : i32) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28380,19 +28434,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "remove_represented_cancelable_owned_aura_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_represented_cancelable_owned_aura_like_cpp (& mut self , spell_id : i32 , caster_guid : ObjectGuid ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "remove_represented_feign_death_if_needed_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn remove_represented_feign_death_if_needed_like_cpp (& mut self) -> bool",
@@ -28406,35 +28447,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "remove_represented_growth_auras_cancelable_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_represented_growth_auras_cancelable_like_cpp (& mut self) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "remove_represented_mod_speed_no_control_auras_cancelable_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn remove_represented_mod_speed_no_control_auras_cancelable_like_cpp (& mut self ,) -> usize",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_represented_mount_auras_cancelable_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn remove_represented_mount_auras_cancelable_like_cpp (& mut self) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -45053,6 +45068,19 @@
           "name": "inspect_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn inspect_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> InspectHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "spell_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn spell_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SpellHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [

@@ -687,35 +687,6 @@ impl WorldSession {
 
         session_cast_interrupted || canonical_spells_interrupted
     }
-    pub(crate) fn interrupt_current_channeled_spell_like_cpp(&mut self, spell_id: i32) -> bool {
-        let Ok(spell_id) = u32::try_from(spell_id) else {
-            return false;
-        };
-        if spell_id == 0 {
-            return false;
-        }
-
-        let interrupted = self
-            .core
-            .mutate_canonical_player_like_cpp(|player| {
-                let unit = player.unit_mut();
-                if unit
-                    .current_spell(wow_entities::CurrentSpellSlot::Channeled)
-                    .is_none_or(|current| current.spell_id != spell_id)
-                {
-                    return false;
-                }
-                unit.interrupt_spell(wow_entities::CurrentSpellSlot::Channeled, true, true)
-                    .is_some()
-            })
-            .unwrap_or(false);
-
-        if interrupted {
-            let _ = self.interrupt_player_cast_like_cpp(Some(spell_id as i32));
-        }
-
-        interrupted
-    }
 }
 
 #[cfg(test)]

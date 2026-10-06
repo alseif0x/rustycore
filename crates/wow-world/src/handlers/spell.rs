@@ -31,13 +31,9 @@ use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
 };
-use wow_packet::packets::pet::PetCancelAura;
 use wow_packet::packets::spell::{
-    CancelAura, CancelAutoRepeatSpell, CancelCast, CancelChannelling, CancelGrowthAura,
-    CancelModSpeedNoControlAuras, CancelMountAura, CancelQueuedSpell, CastSpellRequest, OpenItem,
-    SelfRes, SpellClick,
+    CancelModSpeedNoControlAuras, CastSpellRequest, OpenItem, SelfRes, SpellClick,
 };
-use wow_packet::packets::totem::TotemDestroyed;
 
 use crate::session::{
     AreaTriggerCatalogsLikeCpp, RepresentedPendingSpellCastRequestLikeCpp, WorldSession,
@@ -47,6 +43,8 @@ use wow_conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 mod ops_1;
 mod ops_2;
 mod state;
+#[cfg(test)]
+mod test_shims;
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]
@@ -81,86 +79,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelCast,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_cancel_cast",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_cancel_cast(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelAura,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_aura",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_cancel_aura(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelAutoRepeatSpell,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_auto_repeat_spell",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_cancel_auto_repeat_spell(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelChannelling,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_channelling",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_cancel_channelling(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelGrowthAura,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_growth_aura",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_cancel_growth_aura(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelMountAura,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_mount_aura",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_cancel_mount_aura(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CancelQueuedSpell,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_cancel_queued_spell",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_cancel_queued_spell(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::OpenItem,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,
@@ -186,26 +104,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                     .await
             })
         },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::PetCancelAura,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_pet_cancel_aura",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_pet_cancel_aura(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::TotemDestroyed,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_totem_destroyed",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_totem_destroyed(pkt).await }),
     }
 }
 

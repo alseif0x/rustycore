@@ -33,13 +33,8 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R> {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self.spell_state.mutate_cast_execution_fixture_like_cpp(f);
-        }
-        self.core.with_owned_player_mut_like_cpp(|player| {
-            f(&mut player.unit_mut().subsystems_mut().spells.execution)
-        })
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        wow_world_application::mutate_cast_execution_like_cpp(&mut hub, state, f)
     }
 
     pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
@@ -58,26 +53,8 @@ impl WorldSession {
     }
 
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
-        let Some(request) = self
-            .with_pending_spell_cast_owner_like_cpp(
-                wow_entities::Player::cancel_pending_spell_cast_like_cpp,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                Option::take,
-            )
-            .flatten()
-        else {
-            return false;
-        };
-
-        self.send_packet(&wow_packet::packets::spell::CastFailed {
-            cast_id: request.cast_id,
-            spell_id: request.spell_id,
-            visual: Default::default(),
-            reason: SPELL_FAILED_DONT_REPORT_LIKE_CPP,
-            fail_arg1: 0,
-            fail_arg2: 0,
-        });
-        true
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        wow_world_application::cancel_pending_spell_cast_request_like_cpp(&mut hub, state)
     }
 
     pub(in crate::session) fn pending_spell_cast_snapshot_like_cpp(

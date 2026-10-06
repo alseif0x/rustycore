@@ -435,11 +435,6 @@ impl WorldSession {
 
         represented_removed + canonical_removed
     }
-    pub(crate) fn remove_represented_growth_auras_cancelable_like_cpp(&mut self) -> usize {
-        self.remove_represented_cancelable_auras_by_effect_like_cpp(
-            RepresentedAuraEffectLikeCpp::ModScale,
-        )
-    }
     pub(crate) fn remove_represented_mod_speed_no_control_auras_cancelable_like_cpp(
         &mut self,
     ) -> usize {
@@ -451,97 +446,20 @@ impl WorldSession {
         &mut self,
         represented_effect: RepresentedAuraEffectLikeCpp,
     ) -> usize {
-        let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
-                // cancelable, positive, and non-passive; the same predicate is
-                // used for SPELL_AURA_MOD_SCALE in CancelGrowthAura. These
-                // represented effects model positive player-cancelable paths;
-                // SpellMisc attributes preserve the C++ no-player-cancel gate.
-                if self
-                    .catalogs
-                    .spell_catalogs
-                    .spell_store
-                    .as_ref()
-                    .is_some_and(|store| {
-                        store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
-                    })
-                {
-                    return None;
-                }
-                (aura.represented_effect == Some(represented_effect)).then_some(aura.slot)
-            })
-            .collect();
-
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
-    }
-    pub(crate) fn remove_represented_cancelable_owned_aura_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-    ) -> usize {
-        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
-            return 0;
-        };
-        if spell_store.get(spell_id).is_none()
-            || spell_store.has_attribute0_like_cpp(
-                spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
-            )
-            || spell_store.is_channeled_like_cpp(spell_id)
-            || spell_store.is_passive_like_cpp(spell_id)
-        {
-            return 0;
-        }
-
-        let Some(visible_auras) =
-            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-        else {
-            return 0;
-        };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                if aura.spell_id != spell_id {
-                    return None;
-                }
-                if !caster_guid.is_empty() && aura.caster_guid != caster_guid {
-                    return None;
-                }
-                // C++ checks SpellInfo before RemoveOwnedAura: no
-                // SPELL_ATTR0_NO_AURA_CANCEL, positive, and non-passive.
-                // Full SpellInfo::IsPositive is not represented yet; allow
-                // the locally materialized positive/cancelable aura shapes,
-                // including the single-effect generic represented aura.
-                (aura.represented_effect.is_none()
-                    || matches!(
-                        aura.represented_effect,
-                        Some(
-                            RepresentedAuraEffectLikeCpp::Mounted
-                                | RepresentedAuraEffectLikeCpp::ModScale
-                                | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
-                        )
-                    ))
-                .then_some(aura.slot)
-            })
-            .collect();
-
-        let removed = slots.len();
-        for slot in slots {
-            let _ = self.remove_aura(slot);
-        }
-        removed
+        let (spell_state, inventory, loot, quest_state, hub) =
+            crate::session::state::split_aura_application_mut(self);
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = quest_state;
+        wow_world_application::remove_represented_cancelable_auras_by_effect_like_cpp(
+            hub,
+            spell_state,
+            inventory,
+            loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            quest_state,
+            cfg!(test),
+            represented_effect,
+        )
     }
     pub(crate) fn remove_auras_with_interrupt_flags_like_cpp(
         &mut self,
