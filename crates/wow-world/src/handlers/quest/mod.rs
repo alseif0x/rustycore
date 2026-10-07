@@ -15,6 +15,7 @@ mod eligibility;
 mod handlers;
 mod objectives;
 mod persistence;
+mod quest_query_host;
 mod rewards;
 mod sharing;
 mod source_items;
