@@ -22,7 +22,9 @@ use wow_packet::packets::loot::LootRelease;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP};
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore};
+use wow_world_core::session::{
+    HubRef, OwnedLootAuthorityLookupOutcomeLikeCpp, SessionCatalogs, SessionCore,
+};
 
 /// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
@@ -377,8 +379,15 @@ impl LootReleaseCxLikeCpp<'_> {
             return false;
         }
 
-        let authoritative_release = if let Some(authority) =
-            self.prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid)
+        // The typed bridge plus the outcome's own collapse; the `Option`
+        // wrapper shape stays in `wow-world`, so this bridge has one body here
+        // and the collapse has one body in the outcome type.
+        let authoritative_release = if let Some(authority) = self
+            .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+                owner_guid,
+                player_guid,
+            )
+            .into_option_like_cpp()
         {
             if !self
                 .loot

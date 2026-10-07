@@ -156,6 +156,8 @@ use overworld_personal_loot::{
     assert_overworld_personal_loot_generation_like_cpp,
     overworld_personal_loot_test_fixture_like_cpp,
 };
+#[path = "loot_tests/r4a_lookup_exhaustion.rs"]
+mod r4a_lookup_exhaustion;
 
 fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);

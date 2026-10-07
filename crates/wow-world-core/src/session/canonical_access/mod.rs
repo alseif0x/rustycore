@@ -2,7 +2,7 @@ mod loot_release;
 mod operations;
 pub use loot_release::{
     LootReleaseAccessLikeCpp, LootReleaseOwnerAccessLikeCpp, LootReleaseStatsInputsLikeCpp,
-    looted_corpse_decay_secs_like_cpp,
+    OwnedLootAuthorityLookupOutcomeLikeCpp, looted_corpse_decay_secs_like_cpp,
 };
 mod aura_removal;
 pub use aura_removal::{AuraConditionAccessBuilderLikeCpp, AuraNpcAccessBuilderLikeCpp};

@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "875753c1fe8548194c79e08cc2eed08bc030e250",
+    "recorded_at_revision": "12cd23b0ace1543350d9c95f11589e53418acfca",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -838,6 +838,13 @@
         "destination_growth": 212,
         "new_code": 0,
         "note": "The LootMoney command receivers move to the application loot owner with two host capabilities; the packet consumer stays in the shell."
+      },
+      {
+        "phase": "F6-7 R4a reconciliation-exhaustion containment (6ab5f7024..HEAD)",
+        "shrink": -51,
+        "destination_growth": 95,
+        "new_code": 0,
+        "note": "Typed lookup outcome plus the mandated regression file; the growth is a new 368-line test file and additive typed counterparts."
       }
     ],
     "areas": [

@@ -6,6 +6,35 @@ use wow_core::ObjectGuid;
 use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityStamp};
 use wow_map::MapKey;
 
+/// Typed result of resolving one owner's object-owned loot authority.
+///
+/// The compatibility `Option` wrappers collapse [`Self::Absent`] and
+/// [`Self::Unavailable`], because both fail closed for them. They are
+/// different facts: `Absent` means no object authority was readable for this
+/// owner, while `Unavailable` means the dual-store reconciliation did not
+/// converge inside its bounded rounds (F6-7 R4), which is not absent loot and
+/// must not be answered like it.
+#[derive(Debug, Clone)]
+pub enum OwnedLootAuthorityLookupOutcomeLikeCpp {
+    Found(OwnedLootAuthority),
+    Absent,
+    Unavailable,
+}
+
+impl OwnedLootAuthorityLookupOutcomeLikeCpp {
+    /// The compatibility collapse for the untouched `Option` consumers:
+    /// `Absent` and `Unavailable` both fail closed. This is the one body that
+    /// answers the historical `Option<OwnedLootAuthority>` shape, so the
+    /// `_like_cpp` wrappers in this crate, in `wow-world-application` and in
+    /// `wow-world` are delegations rather than copies.
+    pub fn into_option_like_cpp(self) -> Option<OwnedLootAuthority> {
+        match self {
+            Self::Found(authority) => Some(authority),
+            Self::Absent | Self::Unavailable => None,
+        }
+    }
+}
+
 impl LootReleaseOwnerAccessLikeCpp<'_> {
     pub fn next_canonical_loot_object_guid_like_cpp(
         &mut self,
@@ -38,10 +67,13 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         })()
     }
 
-    pub fn represented_owned_loot_authority_like_cpp(
+    /// Typed counterpart of [`Self::represented_owned_loot_authority_like_cpp`].
+    /// Every non-converging exit of the creature reconciliation loop is
+    /// reported as `Unavailable`, not as absent loot.
+    pub fn represented_owned_loot_authority_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
         if owner_guid.is_creature_or_vehicle() {
             // The legacy and canonical maps deliberately use separate locks.
             // Reconcile optimistically with object-local compare/exchange;
@@ -78,12 +110,12 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
                     .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key);
                 let (legacy, canonical) = match (legacy, canonical) {
                     (Some(legacy), Some(canonical)) => (legacy, canonical),
-                    (None, None) => return None,
+                    (None, None) => return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent,
                     (Some(authority), None) | (None, Some(authority)) => {
                         if !map_key_still_valid(self) {
                             continue;
                         }
-                        return Some(authority);
+                        return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority);
                     }
                 };
                 if !map_key_still_valid(self) {
@@ -143,36 +175,62 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
                     .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
                     .is_some_and(|authority| authority.shares_storage_like_cpp(&selected));
                 if converged_legacy && converged_canonical {
-                    return Some(selected);
+                    return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(selected);
                 }
             }
 
             // Continuous concurrent replacement is safer as a failed request
-            // than as an overwrite of the newest mirror.
-            return None;
+            // than as an overwrite of the newest mirror. Exhaustion is the
+            // third fact (F6-7 R4), not absence: the caller must decide what
+            // to do with an unproven answer instead of reading it as no loot.
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
         }
 
         if owner_guid.is_game_object() {
             let canonical_player_map_key = self.core.current_canonical_player_map_key_like_cpp();
-            let map_key = canonical_player_map_key.or_else(|| {
+            let Some(map_key) = canonical_player_map_key.or_else(|| {
                 self.core
                     .canonical_object_lookup_map_key_like_cpp(u32::from(
                         self.core.player_map_id_like_cpp(),
                     ))
-            })?;
-            let authority = self
+            }) else {
+                return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
+            };
+            let Some(authority) = self
                 .transitions_like_cpp()
-                .read_canonical_gameobject_loot_authority_on_map_like_cpp(owner_guid, map_key)?;
+                .read_canonical_gameobject_loot_authority_on_map_like_cpp(owner_guid, map_key)
+            else {
+                return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
+            };
             let still_valid = self
                 .transitions_like_cpp()
                 .loot_reconciliation_map_key_still_valid_like_cpp(
                     map_key,
                     canonical_player_map_key.is_some(),
                 );
-            return still_valid.then_some(authority);
+            // The gameobject branch has no reconciliation loop and therefore
+            // no exhausted state: an invalid map key stays `Absent`, exactly
+            // as the fail-closed `None` it maps to today.
+            return if still_valid {
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
+            } else {
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+            };
         }
 
-        None
+        OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+    }
+
+    /// Compatibility wrapper: unchanged signature and behaviour for the
+    /// consumers that only ask "is there an authority for this owner".
+    /// `Unavailable` remains a fail-closed `None` here, so no untouched
+    /// consumer changes.
+    pub fn represented_owned_loot_authority_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+    ) -> Option<OwnedLootAuthority> {
+        self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+            .into_option_like_cpp()
     }
 }
 

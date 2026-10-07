@@ -9,6 +9,7 @@ use wow_core::ObjectGuid;
 use wow_loot::OwnedLootAuthority;
 
 mod authority;
+pub use authority::OwnedLootAuthorityLookupOutcomeLikeCpp;
 mod creature;
 pub use creature::looted_corpse_decay_secs_like_cpp;
 mod corpse;

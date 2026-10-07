@@ -43,6 +43,20 @@ impl LootReleaseCxLikeCpp<'_> {
         fallback_fully_looted
     }
 
+    /// Typed counterpart of
+    /// [`Self::represented_owned_loot_authority_like_cpp`]; it keeps
+    /// reconciliation exhaustion distinct from absent loot (F6-7 R4).
+    pub(super) fn represented_owned_loot_authority_outcome_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        self.owner
+            .represented_owned_loot_authority_outcome_like_cpp(guid)
+    }
+
+    /// Compatibility wrapper: `Absent` and `Unavailable` stay fail-closed
+    /// `None`, so every consumer of this shape is unchanged. It delegates to
+    /// the core compatibility body, which owns the only `Option` collapse.
     pub(super) fn represented_owned_loot_authority_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -78,12 +92,20 @@ impl LootReleaseCxLikeCpp<'_> {
         }
     }
 
-    pub(super) fn prepare_owned_loot_authority_for_active_request_like_cpp(
+    /// Typed counterpart of
+    /// [`Self::prepare_owned_loot_authority_for_active_request_like_cpp`]. The
+    /// first-generation bridge below is unchanged; only the caller can tell
+    /// "no authority" from "the reconciliation did not converge".
+    pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+            // Absent and Unavailable both leave no authority to install.
+            other => return other,
+        };
         let can_install_first_generation = self.consumer_test
             && authority.is_retired_like_cpp()
             && authority.generation_like_cpp() == 0
@@ -91,7 +113,7 @@ impl LootReleaseCxLikeCpp<'_> {
             && (self.loot.has_active_loot_view_owner_like_cpp(owner_guid)
                 || self.loot.is_active_loot_guid(owner_guid));
         if !can_install_first_generation {
-            return Some(authority);
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority);
         }
 
         if owner_guid.is_game_object() {
@@ -102,14 +124,17 @@ impl LootReleaseCxLikeCpp<'_> {
                 self.sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, scope_player);
         }
 
-        let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+            other => return other,
+        };
         if let Some(snapshot) = authority.snapshot_for_player_like_cpp(scope_player) {
             self.loot
                 .ensure_active_loot_view_generation_like_cpp(owner_guid, snapshot.generation);
             self.loot
                 .insert_active_loot_view_authority_if_absent_like_cpp(owner_guid, &authority);
         }
-        Some(authority)
+        OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
     }
 
     pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(

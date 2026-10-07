@@ -96,6 +96,7 @@ use wow_entities::{
     GAMEOBJECT_TYPE_AREADAMAGE, GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_CHAIR,
     GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_QUESTGIVER,
 };
+use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 #[cfg(test)]
 use wow_world_core::session::looted_corpse_decay_secs_like_cpp;
 
