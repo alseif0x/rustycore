@@ -655,22 +655,6 @@ impl WorldSession {
         );
         self.record_validated_movement_ack_like_cpp(opcode, &mut pkt.ack, None);
     }
-    /// Handle C++ `HandleMoveSetVehicleRecAck`.
-    pub async fn handle_move_set_vehicle_rec_id_ack(
-        &mut self,
-        opcode: ClientOpcodes,
-        mut pkt: wow_packet::packets::vehicle::MoveSetVehicleRecIdAck,
-    ) {
-        #[cfg(test)]
-        record_move_set_vehicle_rec_id_ack_handler_call_for_test();
-        trace!(
-            account = self.core.account_id,
-            ?opcode,
-            vehicle_rec_id = pkt.vehicle_rec_id,
-            "MoveSetVehicleRecIdAck"
-        );
-        self.apply_move_set_vehicle_rec_id_ack_like_cpp(&mut pkt.data);
-    }
     /// Handle C++ `HandleForceSpeedChangeAck` and movement-force magnitude ACKs.
     pub async fn handle_movement_speed_ack(
         &mut self,
@@ -729,24 +713,6 @@ impl WorldSession {
                 false,
             );
         }
-    }
-    /// Handle C++ `HandleSetCollisionHeightAck`.
-    pub async fn handle_move_set_collision_height_ack(
-        &mut self,
-        mut pkt: MoveSetCollisionHeightAck,
-    ) {
-        trace!(
-            account = self.core.account_id,
-            height = pkt.height,
-            mount_display_id = pkt.mount_display_id,
-            reason = pkt.reason,
-            "MoveSetCollisionHeightAck"
-        );
-        self.record_validated_movement_ack_like_cpp(
-            ClientOpcodes::MoveSetCollisionHeightAck,
-            &mut pkt.data,
-            None,
-        );
     }
     /// Handle C++ `HandleMoveApplyMovementForceAck`.
     pub async fn handle_move_apply_movement_force_ack(

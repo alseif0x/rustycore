@@ -10702,34 +10702,6 @@
           "module": "crate::handlers::movement::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_move_set_collision_height_ack",
-          "visibility": "pub",
-          "signature": "async fn handle_move_set_collision_height_ack (& mut self , mut pkt : MoveSetCollisionHeightAck ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_move_set_vehicle_rec_id_ack",
-          "visibility": "pub",
-          "signature": "async fn handle_move_set_vehicle_rec_id_ack (& mut self , opcode : ClientOpcodes , mut pkt : wow_packet :: packets :: vehicle :: MoveSetVehicleRecIdAck ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_move_spline_done",
           "visibility": "pub",
           "signature": "async fn handle_move_spline_done (& mut self , mut pkt : MoveSplineDone)",
@@ -10846,6 +10818,22 @@
           "module": "crate::handlers::movement::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_move_set_vehicle_rec_id_ack",
+          "visibility": "pub",
+          "signature": "async fn handle_move_set_vehicle_rec_id_ack (& mut self , opcode : ClientOpcodes , pkt : MoveSetVehicleRecIdAck ,)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_move_time_skipped",
           "visibility": "pub",
           "signature": "async fn handle_move_time_skipped (& mut self , pkt : MoveTimeSkipped)",
@@ -10862,9 +10850,37 @@
           "module": "crate::handlers::movement_host",
           "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "apply_move_set_vehicle_rec_id_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_move_set_vehicle_rec_id_ack_like_cpp (& mut self , ack : & mut MovementAck)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "movement_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn movement_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> MovementHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "record_validated_movement_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_validated_movement_ack_like_cpp (& mut self , opcode : ClientOpcodes , ack : & mut MovementAck , speed : Option < f32 > ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

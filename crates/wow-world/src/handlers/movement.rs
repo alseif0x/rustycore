@@ -33,10 +33,9 @@ use crate::session::{
 use wow_packet::ServerPacket;
 use wow_packet::packets::movement::{
     ClientPlayerMovement, MoveApplyMovementForceAck, MoveInitActiveMoverComplete, MoveKnockBackAck,
-    MoveRemoveMovementForceAck, MoveSetCollisionHeightAck, MoveSplineDone, MoveTeleportAck,
-    MoveUpdate, MoveUpdateApplyMovementForce, MoveUpdateKnockBack,
-    MoveUpdateModMovementForceMagnitude, MoveUpdateRemoveMovementForce, MovementAckMessage,
-    MovementInfo, MovementSpeedAck,
+    MoveRemoveMovementForceAck, MoveSplineDone, MoveTeleportAck, MoveUpdate,
+    MoveUpdateApplyMovementForce, MoveUpdateKnockBack, MoveUpdateModMovementForceMagnitude,
+    MoveUpdateRemoveMovementForce, MovementAckMessage, MovementInfo, MovementSpeedAck,
 };
 
 mod ops_1;
@@ -132,18 +131,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveSetVehicleRecIdAck,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_move_set_vehicle_rec_id_ack",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move { let opcode = pkt.client_opcode().unwrap_or(ClientOpcodes::MoveSetVehicleRecIdAck); match wow_packet::packets::vehicle::MoveSetVehicleRecIdAck::read(&mut pkt) { Ok(ack) => session.handle_move_set_vehicle_rec_id_ack(opcode, ack).await, Err(e) => tracing::warn!("Failed to read MoveSetVehicleRecIdAck: {e}"), } })
-        },
-    }
-}
-
 macro_rules! register_movement_ack_message {
     ($opcode:ident) => {
         crate::session::registry::register_packet_handler_like_cpp! {
@@ -215,23 +202,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 match wow_packet::packets::movement::MoveKnockBackAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_knock_back_ack(ack).await,
                     Err(e) => tracing::warn!("Failed to read MoveKnockBackAck: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveSetCollisionHeightAck,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_move_set_collision_height_ack",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::movement::MoveSetCollisionHeightAck::read(&mut pkt) {
-                    Ok(ack) => session.handle_move_set_collision_height_ack(ack).await,
-                    Err(e) => tracing::warn!("Failed to read MoveSetCollisionHeightAck: {e}"),
                 }
             })
         },
