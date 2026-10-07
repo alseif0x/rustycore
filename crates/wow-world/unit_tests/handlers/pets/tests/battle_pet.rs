@@ -633,17 +633,6 @@ async fn battle_pet_update_notify_ignores_inactive_or_unknown_pet_like_cpp() {
 }
 
 #[tokio::test]
-async fn battle_pet_update_display_notify_is_explicit_noop_like_cpp() {
-    let (mut session, send_rx) = make_session();
-    session
-        .handle_battle_pet_update_display_notify(battle_pet_update_display_notify_packet())
-        .await;
-
-    assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
-    assert!(send_rx.try_recv().is_err());
-}
-
-#[tokio::test]
 async fn dismiss_critter_clears_active_critter_silently_like_cpp() {
     let (mut session, send_rx) = make_session();
     let critter_guid =
@@ -738,17 +727,16 @@ fn dismiss_critter_handler_metadata_like_cpp() {
     assert_eq!(entry.handler_name, "handle_dismiss_critter");
 }
 
+/// 3.4.3 leaves `CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` `STATUS_UNHANDLED` /
+/// `Handle_NULL` (`Opcodes.cpp:243`), so the 2026-10-07 #1263 F6 decision (D5,
+/// `docs/migration/EXISTING-CODE-DEFECTS.md`) removes its registration rather
+/// than keeping an empty body the dispatch table reports as handled.
 #[test]
-fn battle_pet_update_display_notify_handler_metadata_like_cpp() {
-    let entry = crate::session::registry::registered_handler_entries_like_cpp()
-        .find(|entry| entry.opcode == ClientOpcodes::BattlePetUpdateDisplayNotify)
-        .expect("BattlePetUpdateDisplayNotify handler entry");
-
-    assert_eq!(entry.status, SessionStatus::LoggedIn);
-    assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);
-    assert_eq!(
-        entry.handler_name,
-        "handle_battle_pet_update_display_notify"
+fn battle_pet_update_display_notify_is_not_registered_like_cpp() {
+    assert!(
+        !crate::session::registry::contains_handler(ClientOpcodes::BattlePetUpdateDisplayNotify),
+        "BattlePetUpdateDisplayNotify is STATUS_UNHANDLED/Handle_NULL in 3.4.3 and must not \
+         be registered"
     );
 }
 

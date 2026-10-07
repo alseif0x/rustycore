@@ -141,20 +141,3 @@ crate::session::registry::register_packet_handler_like_cpp! {
         },
     }
 }
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ShowTradeSkill,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_show_trade_skill",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::misc::ShowTradeSkill::read(&mut pkt) {
-                    Ok(_) => session.handle_show_trade_skill().await,
-                    Err(e) => tracing::warn!("Failed to read ShowTradeSkill: {e}"),
-                }
-            })
-        },
-    }
-}

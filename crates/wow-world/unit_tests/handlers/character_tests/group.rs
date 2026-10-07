@@ -26,12 +26,14 @@ fn continue_login_no_longer_names_location_or_guild_statements() {
         );
     }
 }
-#[tokio::test]
-async fn show_trade_skill_is_noop_null_like_cpp() {
-    let (mut session, send_rx) = make_session_with_send_capacity(1);
-    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-
-    session.handle_show_trade_skill().await;
-
-    assert!(send_rx.try_recv().is_err());
+/// 3.4.3 leaves `CMSG_SHOW_TRADE_SKILL` `STATUS_UNHANDLED` / `Handle_NULL`
+/// (`Opcodes.cpp:925`), so the 2026-10-07 #1263 F6 decision (D4,
+/// `docs/migration/EXISTING-CODE-DEFECTS.md`) removes its registration instead of
+/// keeping a logging-only handler the dispatch table reports as handled.
+#[test]
+fn show_trade_skill_is_not_registered_like_cpp() {
+    assert!(
+        !crate::session::registry::contains_handler(wow_constants::ClientOpcodes::ShowTradeSkill),
+        "ShowTradeSkill is STATUS_UNHANDLED/Handle_NULL in 3.4.3 and must not be registered"
+    );
 }

@@ -607,12 +607,6 @@ pub(crate) fn battle_pet_update_notify_packet(pet_guid: ObjectGuid) -> WorldPack
     pkt
 }
 
-pub(crate) fn battle_pet_update_display_notify_packet() -> WorldPacket {
-    let mut pkt = WorldPacket::new_empty();
-    pkt.write_uint16(ClientOpcodes::BattlePetUpdateDisplayNotify as u16);
-    pkt
-}
-
 pub(crate) fn dismiss_critter_packet(critter_guid: ObjectGuid) -> WorldPacket {
     let mut pkt = WorldPacket::new_empty();
     pkt.write_guid(&critter_guid);

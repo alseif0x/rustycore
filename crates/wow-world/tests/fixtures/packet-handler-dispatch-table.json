@@ -371,13 +371,6 @@
   "handler": "handle_battle_pet_summon"
  },
  {
-  "opcode": "BattlePetUpdateDisplayNotify",
-  "value": 12768,
-  "status": "LoggedIn",
-  "processing": "ThreadUnsafe",
-  "handler": "handle_battle_pet_update_display_notify"
- },
- {
   "opcode": "BattlePetUpdateNotify",
   "value": 12767,
   "status": "LoggedIn",
@@ -3001,13 +2994,6 @@
   "status": "LoggedIn",
   "processing": "ThreadUnsafe",
   "handler": "handle_set_watched_faction"
- },
- {
-  "opcode": "ShowTradeSkill",
-  "value": 14026,
-  "status": "LoggedIn",
-  "processing": "ThreadUnsafe",
-  "handler": "handle_show_trade_skill"
  },
  {
   "opcode": "ShowingCloak",

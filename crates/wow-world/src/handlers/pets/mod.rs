@@ -5,9 +5,12 @@
 //!
 //! The eight C++ `BattlePetHandler.cpp` handlers moved to the
 //! `wow-world-application` `ApplicationBattlePet` owner under #1263 F5; their
-//! World-side host lives in [`battle_pet_host`]. The two excluded opcodes stay
-//! here: `BattlePetUpdateDisplayNotify` (C++ `STATUS_UNHANDLED`) and
-//! `DismissCritter` (C++ `PetHandler.cpp`).
+//! World-side host lives in [`battle_pet_host`]. `DismissCritter` (C++
+//! `PetHandler.cpp`) stays here. `BattlePetUpdateDisplayNotify` is deliberately
+//! **not** registered: 3.4.3 leaves it `STATUS_UNHANDLED` / `Handle_NULL`
+//! (`Opcodes.cpp:243`), and the 2026-10-07 #1263 F6 decision (D5,
+//! `docs/migration/EXISTING-CODE-DEFECTS.md`) removes the empty registered body
+//! that used to claim otherwise.
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -24,18 +27,6 @@ use wow_packet::packets::pet::DismissCritter;
 mod battle_pet_host;
 #[cfg(test)]
 mod test_shims;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlePetUpdateDisplayNotify,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battle_pet_update_display_notify",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_battle_pet_update_display_notify(pkt).await })
-        },
-    }
-}
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -93,14 +84,6 @@ impl crate::session::WorldSession {
         crate::session::cx_pets(self)
             .handle_battle_pet_modify_name_represented_like_cpp(pkt)
             .await
-    }
-
-    /// CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY — explicit no-op.
-    ///
-    /// C++ registers this opcode as `STATUS_UNHANDLED` and dispatches it to
-    /// `Handle_NULL`, so Rust intentionally performs no read or mutation.
-
-    pub async fn handle_battle_pet_update_display_notify(&mut self, _pkt: wow_packet::WorldPacket) {
     }
 
     /// CMSG_DISMISS_CRITTER — represented companion dismissal.
