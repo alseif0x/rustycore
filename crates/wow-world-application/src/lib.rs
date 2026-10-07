@@ -15,6 +15,7 @@ pub use battle_pet_handlers::{
 };
 pub mod character_creation;
 pub mod character_enumeration;
+mod character_handler_families;
 mod character_handlers;
 pub mod character_login_support;
 mod character_query_handlers;
@@ -90,11 +91,17 @@ pub use battleground_handlers::{
     BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp,
     register_battleground_handlers_like_cpp,
 };
+// The exact `ApplicationCharacter` owner facade the handler-contract checker
+// requires: the three canonical exports as one use item. The remaining
+// application-level re-exports of the same owner module follow separately so
+// the facade item stays exact.
 pub use character_handlers::{
-    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, CharacterHandlerCxLikeCpp,
-    CharacterHandlerHostLikeCpp, CreateCharacterStepLikeCpp, initial_character_rest_state_like_cpp,
-    parse_equipment_cache, register_character_handlers_like_cpp,
+    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, CreateCharacterStepLikeCpp,
+    initial_character_rest_state_like_cpp, parse_equipment_cache,
     send_represented_cinematic_start_like_cpp,
+};
+pub use character_handlers::{
+    CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,
 };
 pub use character_query_handlers::realm_query_response_like_cpp;
 pub use character_query_handlers::{

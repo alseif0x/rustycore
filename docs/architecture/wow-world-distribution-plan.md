@@ -7000,6 +7000,12 @@ vez** y `lib.rs` **no se tocó**, así que la causa no es un alias sino la **pol
 (`tools/architecture/handler-module-policy.json`: `crate::character_handlers` con `allow_descendants: false`): el
 layout fichero+directorio convierte los submódulos en descendientes del módulo registrador.
 
+> **Corrección (2026-10-07, ronda 10):** el diagnóstico de abajo es **incorrecto**. La política
+> `allow_descendants: false` **no** era el bloqueo: el layout hermano falló con los mismos 3 tests. La causa real es un
+> **drift preexistente de fachadas** — `CHARACTER_ROOT_EXPORTS` declara 3 nombres y el `pub use` de `lib.rs` había
+> crecido a 9 en `c34f17ccf` (mi propio corte #1281), de modo que **la base `2a1c8c474` ya estaba roja** para el tool
+> (443/3) y yo no lo detecté porque no ejecuté su suite al integrar. Ver la entrada siguiente.
+
 **Decisión.** El corte se **retiró** (la rama vuelve a `c34f17ccf`; el commit queda en el reflog y su SHA aquí) en vez
 de tocar una regla verificada del checker sin aprobación. **Solución identificada para el siguiente intento:** colocar
 los cuerpos en un módulo **hermano** (por ejemplo `character_handler_families/`) con los `impl
@@ -7007,6 +7013,43 @@ CharacterHandlerCxLikeCpp<'_>` y dejar `character_handlers.rs` sin descendientes
 cambiar ninguna regla; alternativa, pedir la ampliación de `allow_descendants` como cambio de contrato explícito.
 **Lección operativa registrada:** cuando un corte mueve fuentes que el tool monta por `include_str!`, su suite debe
 ejecutarse aunque el crate del tool no cambie, porque `final` no la enruta.
+
+#### División del dueño `character_handlers` en módulo hermano + corrección del drift de fachadas — 2026-10-07, `2a1c8c474..9e9320d4f`
+
+**Corrección de un diagnóstico propio.** La entrada anterior atribuyó el bloqueo a la política del módulo dueño
+(`allow_descendants: false`). **Era falso:** el reintento construyó el layout hermano exactamente como se prescribió y
+la suite del tool falló con **los mismos tres tests y el mismo mensaje**. La causa real es un **drift preexistente de
+fachadas**: `tools/architecture/handler-contract-check/src/registrations/direct_builder.rs` declara
+`CHARACTER_ROOT_EXPORTS` con **3** nombres, y el corte #1281 (`c34f17ccf`, mío) hizo crecer el `pub use` de
+`lib.rs` de 3 a **9** nombres en el mismo ítem, de modo que `exact_facade_tree` —que exige igualdad exacta de
+longitud— no podía casar nunca. **Consecuencia que asumo:** la base `2a1c8c474` **ya estaba roja** para el tool
+(443 pasan / 3 fallan, comprobado por el implementador sobre el árbol prístino) y yo la integré sin detectarlo porque
+en esa ronda ejecuté `final` pero **no** la suite del tool. Es exactamente el fallo que la propia lección registrada en
+la entrada anterior describe.
+
+**Corrección aplicada.** El ítem de re-export del crate se divide en **dos**: el de fachada con exactamente los **3**
+nombres del contrato y un segundo `pub use` con los 6 restantes. El conjunto de nombres y la superficie pública no
+cambian; solo la forma del ítem, que vuelve a la convención documentada (idéntica a la del dueño vecino
+`character_query_handlers`). **No se tocó `tools/architecture`**: la alternativa (ampliar `CHARACTER_ROOT_EXPORTS` a 9)
+debilitaría el contrato de fachada y queda pendiente de tu decisión si prefieres esa vía.
+
+**División.** `character_handlers.rs` se queda en su ruta exacta (la que el checker monta) con 546 líneas (eran 1.353):
+doc, struct del contexto, trait del host, los 10 thunks y el registrador, **sin módulos descendientes**. Los cuerpos
+pasan al módulo **hermano** privado `crates/wow-world-application/src/character_handler_families/` (`mod.rs` + 9
+ficheros, máximo 207 líneas). Se ensancharon a `pub(crate)` **siete** ítems (los tres campos del contexto, su helper de
+publicación y tres constantes), sin cambio alguno de superficie `pub`. Prueba de movimiento puro ejecutada por el
+implementador: diff normalizado contra la base que solo muestra esos siete ensanchamientos y nueve cabeceras `impl`;
+el trait del host y la cola de thunks+registrador son **byte-idénticos**.
+
+**Evidencia verificada por el coordinador en el árbol commiteado:** suite del tool **446/0** (era 443/3 en la base),
+ownership `--syntax-only` **sin cambios en la baseline** (corte solo de App), arquitectura **PASS**, `wow-world --lib`
+filtrado de dispatch **25/25** y `cargo check --all-targets` de App sin errores. R1 con presupuesto 0.
+
+**Aceptación `final`:** sobre **`2989c278d`**, **verde en 167 s** con 3 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261007T025324.044468Z-1351978-final.json`).
+
+**Lección reforzada:** mover fuentes que el tool monta por `include_str!` exige ejecutar **su** suite aunque su crate
+no cambie; `final` no la enruta. Este corte la ejecuta y la deja verde.
 
 ## 9. Herramientas
 
