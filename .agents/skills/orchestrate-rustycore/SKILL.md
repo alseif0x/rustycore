@@ -9,6 +9,33 @@ AGENTS.md owns scope, authority, validation cadence and completion. This skill o
 task routing, not another architecture plan. Keep one macrodeliverable and one parent
 integrator; no per-worker issues, PRs or mandatory continuation requests.
 
+## Decision authority
+
+Substantive technical decisions are **made inside the agent workflow, never parked on the
+human operator**. This is the rule that keeps a round from stalling.
+
+- **Who decides.** Parity and behaviour contracts, intentional departures from the
+  reference, the scope and cut points of a slice, ownership boundaries and design choices
+  are decided by the **reviewer tier at high effort**: in the DSH `go-mix` preset the
+  Codex route (GPT-6.1 Sol, `high`) with Claude Opus 5.5 at `high` as the second opinion;
+  in the native workflow the Opus parent itself. If the reviewer route is unavailable,
+  state that it failed, decide from the recorded evidence, and label the decision as
+  taken without that second opinion.
+- **Who executes.** The coordinator/parent owns review, validation, Git, integration and
+  the durable record of the decision. It executes what the reviewer decided and reports
+  the outcome; it does not return the decision to the human as a question.
+- **Reserved to the human.** Only two things: runtime/database/destructive operations
+  (a live server, a real client capture, schema or data mutation) and material changes to
+  the objective's scope or acceptance criteria. No other gate.
+- **When a decision needs a reserved gate.** Record it as a **bounded hold**: the decision
+  taken, the exact capture or operation that would close it, and what is forbidden in the
+  meantime (for example: behaviour retained, expansion forbidden, no parity claimed). Then
+  continue with the rest of the work. A reserved gate blocks that one item, not the round.
+- **Never do this.** Do not end a round with a question whose answer is a technical choice
+  the reviewer tier can make; do not repeat a request for approval across rounds; do not
+  treat "the human has not answered" as a blocker for work that does not touch a reserved
+  operation.
+
 ## Models
 
 Only two models take part. Do not call or substitute any other model or provider.
