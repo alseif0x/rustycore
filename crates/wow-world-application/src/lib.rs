@@ -92,7 +92,8 @@ pub use battleground_handlers::{
 };
 pub use character_handlers::{
     CharDeleteStepLikeCpp, CharRenameStepLikeCpp, CharacterHandlerCxLikeCpp,
-    CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,
+    CharacterHandlerHostLikeCpp, CreateCharacterStepLikeCpp, initial_character_rest_state_like_cpp,
+    parse_equipment_cache, register_character_handlers_like_cpp,
     send_represented_cinematic_start_like_cpp,
 };
 pub use character_query_handlers::realm_query_response_like_cpp;
@@ -259,7 +260,7 @@ pub use spell_handlers::{
 };
 pub use stats::{
     CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
-    primary_max_power_for_class_like_cpp,
+    primary_max_power_for_class_like_cpp, stats_application_cx_from_hub_like_cpp,
 };
 pub use trade_handlers::{
     TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp, register_trade_handlers_like_cpp,

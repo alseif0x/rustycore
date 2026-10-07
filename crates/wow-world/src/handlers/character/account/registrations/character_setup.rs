@@ -2,65 +2,6 @@ use super::*;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::EnumCharacters,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_enum_characters",
-        handler: |session, catalogs, _pkt| {
-            Box::pin(async move {
-                session
-                    .handle_enum_characters_with_policy_like_cpp(
-                        catalogs.support_feature_policy.as_ref(),
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CreateCharacter,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_create_character",
-        handler: |session, catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::character::CreateCharacter::read(&mut pkt) {
-                    Ok(create) => {
-                        session
-                            .handle_create_character_with_generator_like_cpp(
-                                catalogs.id_generators.player.as_ref(),
-                                create,
-                            )
-                            .await
-                    }
-                    Err(e) => tracing::warn!("Failed to read CreateCharacter: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CharCustomize,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_char_customize",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::character::CharCustomize::read(&mut pkt) {
-                    Ok(customize) => session.handle_char_customize(customize).await,
-                    Err(e) => tracing::warn!("Failed to read CharCustomize: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::PlayerLogin,
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,

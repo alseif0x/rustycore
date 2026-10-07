@@ -5,17 +5,22 @@
 //! World-side construction of the character handler context (#1263 F5).
 //!
 //! The application crate owns the bodies and their context; the session only
-//! lends its hub, inventory and world-entity state. The character-delete and
-//! rename bodies also need the character-administration port, the rename
-//! callback rail and the login-DB `realmcharacters` refresh, which live on the
-//! session's lifecycle state and stay behind this host.
+//! lends its hub, inventory and world-entity state. The character-delete,
+//! rename, enumeration and create bodies also need the character-administration
+//! and enumeration ports, the rename callback rail, the login-DB
+//! `realmcharacters` refresh, the support-feature policy and the player GUID
+//! generator, which live on the session's lifecycle state and handler catalogs
+//! and stay behind this host.
 
 use std::sync::Arc;
 
-use wow_core::ObjectGuid;
+use wow_core::{ObjectGuid, ObjectGuidGenerator};
 use wow_handler::HandlerFuture;
-use wow_persistence::CharacterAdministrationPersistencePortLikeCpp;
+use wow_persistence::{
+    CharacterAdministrationPersistencePortLikeCpp, CharacterEnumerationPersistencePortLikeCpp,
+};
 use wow_world_application::{CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp};
+use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
@@ -49,5 +54,24 @@ impl CharacterHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession
     ) -> bool {
         self.lifecycle
             .submit_character_rename_like_cpp(port, guid, name)
+    }
+
+    fn character_enumeration_persistence_port_like_cpp(
+        &mut self,
+    ) -> Option<Arc<dyn CharacterEnumerationPersistencePortLikeCpp>> {
+        self.lifecycle
+            .character_enumeration_persistence_port_like_cpp()
+    }
+
+    fn support_feature_policy_like_cpp(
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) -> &SupportFeaturePolicyLikeCpp {
+        catalogs.support_feature_policy.as_ref()
+    }
+
+    fn character_guid_generator_like_cpp(
+        catalogs: &SessionHandlerCatalogsLikeCpp,
+    ) -> &ObjectGuidGenerator {
+        catalogs.id_generators.player.as_ref()
     }
 }

@@ -54,7 +54,6 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/account/registrations/world_services.rs"),
         include_str!("../../../src/handlers/character/account/registrations/inventory_actions.rs"),
         include_str!("../../../src/handlers/character/account/collections.rs"),
-        include_str!("../../../src/handlers/character/account/enumeration.rs"),
         include_str!("../../../src/handlers/character/bank.rs"),
         include_str!("../../../src/handlers/character/condition_objects.rs"),
         include_str!("../../../src/handlers/character/entry_zone.rs"),

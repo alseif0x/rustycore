@@ -10,7 +10,6 @@ use wow_packet::ClientPacket;
 use super::*;
 
 mod collections;
-mod enumeration;
 mod registrations;
 
 impl WorldSession {
