@@ -11,7 +11,8 @@
 //! context does not reach.
 
 use wow_constants::ClientOpcodes;
-use wow_packet::packets::movement::MovementAck;
+use wow_core::ObjectGuid;
+use wow_packet::packets::movement::{MovementAck, MovementForce};
 use wow_world_application::{MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -40,5 +41,29 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         speed: Option<f32>,
     ) -> bool {
         WorldSession::record_validated_movement_ack_like_cpp(self, opcode, ack, speed)
+    }
+
+    fn apply_knock_back_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+    ) -> bool {
+        WorldSession::apply_knock_back_ack_like_cpp(self, opcode, ack)
+    }
+
+    fn record_apply_movement_force_ack_like_cpp(
+        &mut self,
+        ack: &mut MovementAck,
+        force: &MovementForce,
+    ) -> bool {
+        WorldSession::record_apply_movement_force_ack_like_cpp(self, ack, force)
+    }
+
+    fn record_remove_movement_force_ack_like_cpp(
+        &mut self,
+        ack: &mut MovementAck,
+        force_id: ObjectGuid,
+    ) -> bool {
+        WorldSession::record_remove_movement_force_ack_like_cpp(self, ack, force_id)
     }
 }
