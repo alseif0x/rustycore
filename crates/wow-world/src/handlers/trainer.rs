@@ -28,8 +28,6 @@
 
 use std::sync::Arc;
 
-use tracing::debug;
-
 use wow_data::{BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp};
 
 #[cfg(test)]
@@ -87,15 +85,6 @@ mod registrations;
 // ── Handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
-    /// C++ `HandleShowTradeSkillOpcode` currently only logs this request.
-    pub async fn handle_show_trade_skill(&mut self) {
-        if let Some(player_guid) = self.player_guid() {
-            debug!("ShowTradeSkill from {:?}", player_guid);
-        } else {
-            debug!("ShowTradeSkill from account {}", self.core.account_id);
-        }
-    }
-
     fn trainer_spell_condition_proof_like_cpp(
         &self,
         trainer_id: u32,

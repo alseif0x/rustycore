@@ -15,8 +15,10 @@
 //! live in the Core hub, so the World session only builds the borrowed context
 //! (#1263 F5).
 //!
-//! `DismissCritter` (C++ `PetHandler.cpp`, a different family) and the
-//! `STATUS_UNHANDLED` `BattlePetUpdateDisplayNotify` stay in the World shell.
+//! `DismissCritter` (C++ `PetHandler.cpp`, a different family) stays in the World
+//! shell. `BattlePetUpdateDisplayNotify` is not registered anywhere: 3.4.3 leaves
+//! it `STATUS_UNHANDLED` / `Handle_NULL` (`Opcodes.cpp:243`), and the 2026-10-07
+//! #1263 F6 decision (D5) removed the empty registered body.
 
 use std::sync::Arc;
 

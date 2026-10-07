@@ -6748,7 +6748,8 @@ sesión cae 82 líneas de producción (60.046 → 59.964). Registros literales e
 despacho del 3.4.3 (`/home/server/woltk-trinity-legacy` @ `a5f8da2e`) encontró **cinco opcodes registrados en Rust que
 3.4.3 deja `STATUS_UNHANDLED`/`Handle_NULL`**: `CMSG_BATTLEMASTER_JOIN_SKIRMISH` (`Opcodes.cpp:220`),
 `CMSG_ACCEPT_WARGAME_INVITE` (`:144`), `CMSG_SET_CURRENCY_FLAGS` (`:888`), `CMSG_SHOW_TRADE_SKILL` (`:925`) y
-`CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` (`:243`, ya documentado como salida intencionada con cuerpo vacío). Los dos
+`CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` (`:243`, documentado aquí como salida intencionada con cuerpo vacío;
+**superado 2026-10-07, ver la decisión más abajo**). Los dos
 primeros citan funciones C++ (`HandleBattlemasterJoinSkirmish`, `HandleAcceptWargameInvite`) que **no existen** en el
 árbol objetivo. Ninguno publica paquete al cliente; el registro queda en `docs/migration/EXISTING-CODE-DEFECTS.md`
 con anclajes exactos y la decisión pendiente (alinear con 3.4.3 o contrato de salida intencionada). El mismo pase
@@ -6756,6 +6757,19 @@ señaló `CMSG_CONNECT_TO_FAILED` (`STATUS_NEVER`/`Handle_EarlyProccess` en `:38
 **cerró como no-hallazgo** al comprobar que `SessionStatus::Authed => true` (`session/dispatch.rs:109`) no aplica
 puerta de estado, el mismo efecto de admisión que el despacho temprano del C++. Por esa decisión abierta, los dos
 opcodes de batalla afectados **no** se reubican y siguen donde estaban.
+
+**Decisión tomada (2026-10-07, rama `1263-opcodes`).** Los cinco quedan resueltos y registrados como **entradas 6–10
+(D1–D5)** del mismo hallazgo en `docs/migration/EXISTING-CODE-DEFECTS.md`
+(`a5f8da2e` para el C++, `328d9ad0` para el árbol Rust). D1–D3 (`CMSG_BATTLEMASTER_JOIN_SKIRMISH`,
+`CMSG_ACCEPT_WARGAME_INVITE`, `CMSG_SET_CURRENCY_FLAGS`) **conservan su comportamiento actual** bajo un contrato de
+preservación acotado — sin ampliación y sin paridad declarada, pendientes de captura 3.4.3; D4–D5
+(`CMSG_SHOW_TRADE_SKILL`, `CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY`) se **alinean con el 3.4.3** retirando registro y
+cuerpo en un commit de corrección de comportamiento **separado** del slice estructural. Esta decisión además corrige
+dos lecturas del párrafo anterior: **sí** existe un efecto visible en el cable, porque `CMSG_SET_CURRENCY_FLAGS`
+termina enviando `SMSG_SETUP_CURRENCIES` (`session/money/operations.rs:28-59` →
+`session/publication/operations.rs:48`); y la calificación de «salida intencionada» para
+`CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` queda **superada**, porque nunca se registró contrato alguno de salida
+intencionada.
 
 **Evidencia enfocada:** `cargo check` de `wow-world-core`, `wow-world-application` y `wow-world` (con y sin
 `test-fixtures`) sin errores ni avisos nuevos; `wow-world` `--lib` filtrado de pvp **50 ✓** (incluye los escenarios de
@@ -6823,8 +6837,10 @@ tocaba `world-server` y el tool a la vez).
 **Alcance por evidencia C++.** Los ocho handlers de `BattlePetHandler.cpp` (`a5f8da2e`): `HandleBattlePetRequestJournal`,
 `RequestJournalLock`, `SetBattleSlot`, `QueryBattlePetName`, `SetFlags`, `ClearFanfare`, `Summon` y `UpdateNotify`. Se
 **excluyen** deliberadamente `DismissCritter` (su handler C++ está en `PetHandler.cpp`, familia de mascotas de cazador) y
-`BattlePetUpdateDisplayNotify` (opcode que el 3.4.3 deja `STATUS_UNHANDLED`; sigue bajo la decisión de divergencias). Ambos
-quedan intactos. Dueño nuevo `ApplicationBattlePet` (`crate::battle_pet_handlers`) con contexto propio
+`BattlePetUpdateDisplayNotify` (opcode que el 3.4.3 deja `STATUS_UNHANDLED`; seguía bajo la decisión de divergencias
+en este corte, **resuelto el 2026-10-07: alineado con el 3.4.3**, que retira su registro y su cuerpo vacío en el commit
+de corrección de comportamiento de `1263-opcodes`). Ambos
+quedan intactos **en este corte F5**. Dueño nuevo `ApplicationBattlePet` (`crate::battle_pet_handlers`) con contexto propio
 (hub + lifecycle + flag de test del host), sus cinco funciones de cadena y los cuatro helpers compartidos implementados **una
 vez** en App; tres de ellos conservan envoltorio en World por sus llamadores reales (`spell_effects/checks.rs`,
 `handlers/character/world_entry.rs`) y el cuarto no lo tiene porque habría sido código muerto.

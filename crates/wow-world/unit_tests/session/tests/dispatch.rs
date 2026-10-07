@@ -193,7 +193,6 @@ fn dispatch_metadata_matches_cpp_for_registered_active_opcodes() {
         "BattlePetSetBattleSlot",
         "BattlePetSetFlags",
         "BattlePetSummon",
-        "BattlePetUpdateDisplayNotify",
         "BattlePetUpdateNotify",
         "QueryBattlePetName",
     ];
@@ -216,6 +215,26 @@ fn dispatch_metadata_matches_cpp_for_registered_active_opcodes() {
             .unwrap_or_else(|| panic!("missing C++ metadata row for {opcode_name}"));
         assert_eq!(entry.status, *status, "{opcode_name} status");
         assert_eq!(entry.processing, *processing, "{opcode_name} processing");
+    }
+}
+
+/// `CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` and `CMSG_SHOW_TRADE_SKILL` are
+/// `STATUS_UNHANDLED` / `Handle_NULL` in the 3.4.3 dispatch table
+/// (`src/server/game/Server/Protocol/Opcodes.cpp:243` and `:925`), so neither may
+/// be registered. This is the registration/admission guard for the two rows the
+/// 2026-10-07 #1263 F6 decisions D4/D5 aligned with the reference
+/// (`docs/migration/EXISTING-CODE-DEFECTS.md`); the empty and logging-only bodies
+/// they used to reach are gone, so a re-registration must fail here first.
+#[test]
+fn cpp_unhandled_opcodes_are_not_registered_like_cpp() {
+    for opcode in [
+        ClientOpcodes::BattlePetUpdateDisplayNotify,
+        ClientOpcodes::ShowTradeSkill,
+    ] {
+        assert!(
+            !crate::session::registry::contains_handler(opcode),
+            "{opcode:?} is STATUS_UNHANDLED / Handle_NULL in 3.4.3 and must not be registered"
+        );
     }
 }
 
@@ -254,7 +273,7 @@ struct DispatchTableRow {
 /// swap lost nothing: it is generated from the registry as it stood with the
 /// match arms in place, and it must keep matching once they are gone.
 ///
-/// It is an enumeration, not a sample: all 478 rows, compared as a set.
+/// It is an enumeration, not a sample: all 476 rows, compared as a set.
 #[test]
 fn every_registered_opcode_keeps_its_handler_status_and_processing_like_cpp() {
     let golden: Vec<DispatchTableRow> = serde_json::from_str(include_str!(
