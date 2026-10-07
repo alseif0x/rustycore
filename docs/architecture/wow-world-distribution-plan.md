@@ -7264,6 +7264,31 @@ método de `WorldSession`, +13 entradas de la superficie del trait nuevo), arqui
 implementador. Registros de trainer restantes en ese fichero: **2** (`TrainerList`, `TrainerBuySpell`). Pendiente:
 `final`.
 
+#### F4 remate: cuerpo de `QuestGiverCompleteQuest` al dueño de App — 2026-10-07, `ae9568e10..106ee5ffb`
+
+**Alcance.** El cuerpo de `CMSG_QUEST_GIVER_COMPLETE_QUEST` (`Opcodes.cpp:778`, `0x3499`,
+`LoggedIn`/`Inplace`, cuerpo en `QuestHandler.cpp:533-575`) pasa al dueño existente
+`wow-world-application::quest_query_handlers` (submódulo privado `complete_quest`), con 8 capacidades de shell como
+métodos del trait nuevo `QuestGiverCompleteQuestHostLikeCpp`. Metadatos y `handler_name` idénticos; fidelidad
+comprobada por el implementador (literales del cuerpo extraído idénticos, orden de parseo y de puertas conservado). El
+shim de test cubre los **8 llamadores reales** de `scenarios_quest_2.rs`.
+
+**Frontera declarada.** Como en el remate de trainer, **el registro se queda en World**: el registrador del dueño está
+**fijado por el contrato del tool** (`is_host_where_clause` exige exactamente `S: HostTrait + Send`), y añadir un
+segundo bound rompía 4 tests del checker. No inventé mecanismo: la entrada de World llama al punto de entrada de App.
+El contador literal sigue en 78. Es un **remate F4**, no un registro migrado de F5.
+
+**Crecimiento revisado, no deriva.** La arquitectura falló por **+35 líneas de producción** en el árbol de sesión: el
+cuerpo retirado (`reward_flow.rs`, −136) se compensa parcialmente con las 8 capacidades de shell, cuyo impl de World
+vive en `session/quest_query_handler_contexts.rs`. **No lo relajé en silencio:** lo registré en el ledger con su
+justificación y su **deuda** —el siguiente corte de la familia quest debe **trasladar ese host fuera de `session/`**
+(el precedente `handlers/*_host.rs`), lo que retira esas 35 líneas— y ajusté también el techo de `handlers/quest/mod.rs`
+(+2 de test por el shim). Ambos quedan escritos con su nota.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (126+/14−) y la
+**secuencia correcta** (reimprimir y ejecutar la suite directamente, sin `check` intercalado), arquitectura PASS tras
+los dos ajustes revisados, y dispatch **25/25** del implementador. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

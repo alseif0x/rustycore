@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "f110137bc1ac8e241c84b457495ffec6bead5f2c",
+    "recorded_at_revision": "106ee5ffbcfa7da0bb7968295c13312cb91d2d4d",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -740,6 +740,20 @@
         "destination_growth": 374,
         "new_code": 0,
         "note": "The 238-line TrainerBuySpell body moves to the application trainer owner; the registration stays in world with a thunk into the owner."
+      },
+      {
+        "phase": "Base reset at the #1292 trainer-buy remate (ae9568e10)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to ae9568e10."
+      },
+      {
+        "phase": "F4 remate: quest completion body (ae9568e10..HEAD)",
+        "shrink": 59,
+        "destination_growth": 275,
+        "new_code": 0,
+        "note": "The quest-completion body moves to the existing quest application owner; the registration stays in world (pinned registrar signature) and the host seam lives in the session tree."
       }
     ],
     "areas": [
