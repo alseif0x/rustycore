@@ -6928,7 +6928,17 @@ paso y el `account_id` izado (una copia `u32` bajo `&mut self`, inobservable).
 Registros literales en `wow-world`: **95 → 92**. Ownership PASS (209 dueños / 3.127 ítems; −5 producción, +3 métodos
 de host, +2 shims de test), arquitectura PASS con el techo de personaje apretado, R1 presupuesto 0. Sin tocar
 `world-server` ni la composición (diffs vacíos) y sin cambio en el tool, así que la campaña no recompila el checker.
-Pendiente: `final`.
+
+**Aceptación `final`:** sobre **`51f1b7ce0`**, **verde en 191 s** con `VALIDATION_V2_CARGO_JOBS=3` (`dirty: false`;
+verificada con `--require-profile final`; manifiesto
+`target/validation-v2/manifests/20261007T003542.736131Z-1312938-final.json`). Desglose: arquitectura 60 s, ownership
+50 s, `cargo check --tests` aguas abajo 52 s, suites `--lib` 9 s. **Es la campaña más barata de la sesión**, porque
+este corte no toca el tool y el runner no enruta su suite.
+
+**Estado del objetivo (1) con las dos clases de entrega medidas:** dueño existente **191 s**, dueño nuevo **390 s**
+(ambas con 3 jobs y por debajo de 600 s), frente a los 810 s y 824 s de las dos rondas habilitadoras (crear dueño
+tocando `world-server` y el tool) y a los 616 s de la primera entrega con dueño nuevo. Sigue pendiente, y así se
+registra, la medición aislada que separe el efecto del número de jobs del efecto de la autoridad única de composición.
 
 ## 9. Herramientas
 
