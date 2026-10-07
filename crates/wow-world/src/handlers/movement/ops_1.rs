@@ -625,36 +625,6 @@ impl WorldSession {
             crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp();
         }
     }
-    /// Handle CMSG_SET_ACTIVE_MOVER — client sets which unit is currently being moved.
-    ///
-    /// The client sends this after login to establish the active mover GUID.
-    /// The mover must match C++ `Player::GetUnitBeingMoved()`.
-    pub async fn handle_set_active_mover(&mut self, pkt: SetActiveMover) {
-        info!(
-            account = self.core.account_id,
-            mover = ?pkt.active_mover,
-            expected = ?crate::session::hub_ref(self).player_moved_unit_guid_like_cpp(),
-            "RUST_LOGIN_TRACE SetActiveMover"
-        );
-
-        let Some(expected_mover) = crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
-        else {
-            warn!(
-                account = self.core.account_id,
-                "SetActiveMover received without canonical active mover"
-            );
-            return;
-        };
-        if pkt.active_mover != expected_mover {
-            warn!(
-                account = self.core.account_id,
-                "SetActiveMover GUID mismatch: expected {:?}, got {:?}",
-                expected_mover,
-                pkt.active_mover
-            );
-            // C++ only logs this mismatch.
-        }
-    }
     /// Handle CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE — client acknowledges active mover ready.
     ///
     /// C++ updates transport timing, then calls `UpdateObjectVisibility(false)`.
@@ -824,31 +794,6 @@ impl WorldSession {
                 MoveUpdateRemoveMovementForce {
                     status: pkt.ack.status,
                     trigger_guid: pkt.id,
-                }
-                .to_bytes(),
-                crate::map_manager::VISIBILITY_RADIUS,
-            );
-        }
-    }
-    /// Handle C++ `HandleMoveTimeSkippedOpcode`.
-    pub async fn handle_move_time_skipped(&mut self, pkt: MoveTimeSkipped) {
-        trace!(
-            account = self.core.account_id,
-            mover = ?pkt.mover_guid,
-            time_skipped = pkt.time_skipped,
-            "MoveTimeSkipped"
-        );
-        if crate::session::hub_mut(self)
-            .apply_move_time_skipped_like_cpp(pkt.mover_guid, pkt.time_skipped)
-            && let Some(source_position) =
-                crate::session::hub_ref(self).mover_position_like_cpp(pkt.mover_guid)
-        {
-            crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
-                pkt.mover_guid,
-                source_position,
-                MoveSkipTime {
-                    mover_guid: pkt.mover_guid,
-                    time_skipped: pkt.time_skipped,
                 }
                 .to_bytes(),
                 crate::map_manager::VISIBILITY_RADIUS,

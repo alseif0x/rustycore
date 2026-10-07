@@ -30,11 +30,12 @@ pub(crate) use direct_builder::{
     COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
     DUNGEON_FINDING_REGISTRAR, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR,
-    INVENTORY_REGISTRAR, LOOT_REGISTRAR, NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
-    REPUTATION_REGISTRAR, RegistrarFacadeContract, RegistrarReport, SOCIAL_CONTACTS_REGISTRAR,
-    SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR,
-    TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, analyze_contract_source,
-    analyze_owner_source, analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+    INVENTORY_REGISTRAR, LOOT_REGISTRAR, MOVEMENT_REGISTRAR, NPC_REGISTRAR, PLAYER_REGISTRAR,
+    QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract, RegistrarReport,
+    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR,
+    SUPPORT_REGISTRAR, TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR,
+    analyze_contract_source, analyze_owner_source, analyze_owner_source_with_contracts,
+    unowned_entry_literal_violation,
 };
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,

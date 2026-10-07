@@ -799,6 +799,27 @@ const NPC_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
     exports: NPC_ROOT_EXPORTS,
 }];
 
+const MOVEMENT_ROOT_EXPORTS: &[&str] = &[
+    "MovementHandlerCxLikeCpp",
+    "MovementHandlerHostLikeCpp",
+    "register_movement_handlers_like_cpp",
+];
+const MOVEMENT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "movement_handlers",
+    exports: MOVEMENT_ROOT_EXPORTS,
+}];
+
+pub(crate) const MOVEMENT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationMovement",
+    package: "wow-world-application",
+    module: "crate::movement_handlers",
+    registrar: "register_movement_handlers_like_cpp",
+    host_trait: "MovementHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: MOVEMENT_FACADES,
+};
+
 pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationNpc",
     package: "wow-world-application",
@@ -846,6 +867,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     CHARACTER_REGISTRAR,
     BATTLE_PET_REGISTRAR,
     NPC_REGISTRAR,
+    MOVEMENT_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

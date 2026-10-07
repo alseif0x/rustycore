@@ -30,6 +30,10 @@ mod guild_bank_handlers;
 mod instances;
 mod loot_handlers;
 mod loot_release;
+mod movement_handlers;
+pub use movement_handlers::{
+    MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp, register_movement_handlers_like_cpp,
+};
 mod npc_handlers;
 pub use npc_handlers::{
     NpcHandlerCxLikeCpp, NpcHandlerHostLikeCpp, register_npc_handlers_like_cpp,

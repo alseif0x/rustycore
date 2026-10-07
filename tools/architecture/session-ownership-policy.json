@@ -929,6 +929,20 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::movement::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::npc_host",
           "trait_path": "NpcHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
@@ -10744,20 +10758,6 @@
           "module": "crate::handlers::movement::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_move_time_skipped",
-          "visibility": "pub",
-          "signature": "async fn handle_move_time_skipped (& mut self , pkt : MoveTimeSkipped)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_movement",
           "visibility": "pub",
           "signature": "async fn handle_movement (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -10843,17 +10843,33 @@
           ]
         },
         {
-          "module": "crate::handlers::movement::ops_1",
+          "module": "crate::handlers::movement::test_shims",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_set_active_mover",
+          "name": "handle_move_time_skipped",
           "visibility": "pub",
-          "signature": "async fn handle_set_active_mover (& mut self , pkt : SetActiveMover)",
+          "signature": "async fn handle_move_time_skipped (& mut self , pkt : MoveTimeSkipped)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "movement_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn movement_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> MovementHandlerCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
             "external_impl",
-            "visible"
+            "trait_impl"
           ]
         },
         {

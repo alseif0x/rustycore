@@ -33,10 +33,10 @@ use crate::session::{
 use wow_packet::ServerPacket;
 use wow_packet::packets::movement::{
     ClientPlayerMovement, MoveApplyMovementForceAck, MoveInitActiveMoverComplete, MoveKnockBackAck,
-    MoveRemoveMovementForceAck, MoveSetCollisionHeightAck, MoveSkipTime, MoveSplineDone,
-    MoveTeleportAck, MoveTimeSkipped, MoveUpdate, MoveUpdateApplyMovementForce,
-    MoveUpdateKnockBack, MoveUpdateModMovementForceMagnitude, MoveUpdateRemoveMovementForce,
-    MovementAckMessage, MovementInfo, MovementSpeedAck, SetActiveMover,
+    MoveRemoveMovementForceAck, MoveSetCollisionHeightAck, MoveSplineDone, MoveTeleportAck,
+    MoveUpdate, MoveUpdateApplyMovementForce, MoveUpdateKnockBack,
+    MoveUpdateModMovementForceMagnitude, MoveUpdateRemoveMovementForce, MovementAckMessage,
+    MovementInfo, MovementSpeedAck,
 };
 
 mod ops_1;
@@ -45,6 +45,9 @@ mod state;
 pub use ops_1::*;
 #[allow(unused_imports)]
 pub use state::*;
+
+#[cfg(test)]
+mod test_shims;
 
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/movement/tests/mod.rs"]
@@ -109,25 +112,6 @@ register_move!(MoveStopSwim);
 register_move!(MoveUpdateFallSpeed);
 
 // ── Handler implementation ─────────────────────────────────────────
-
-// ── Handler registration (SetActiveMover) ────────────────────────
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetActiveMover,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_active_mover",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::movement::SetActiveMover::read(&mut pkt) {
-                    Ok(mover) => session.handle_set_active_mover(mover).await,
-                    Err(e) => tracing::warn!("Failed to read SetActiveMover: {e}"),
-                }
-            })
-        },
-    }
-}
 
 // ── Handler registration (MoveInitActiveMoverComplete) ───────────
 
@@ -282,23 +266,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 match wow_packet::packets::movement::MoveRemoveMovementForceAck::read(&mut pkt) {
                     Ok(ack) => session.handle_move_remove_movement_force_ack(ack).await,
                     Err(e) => tracing::warn!("Failed to read MoveRemoveMovementForceAck: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveTimeSkipped,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_move_time_skipped",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::movement::MoveTimeSkipped::read(&mut pkt) {
-                    Ok(skipped) => session.handle_move_time_skipped(skipped).await,
-                    Err(e) => tracing::warn!("Failed to read MoveTimeSkipped: {e}"),
                 }
             })
         },
