@@ -33,6 +33,12 @@
 //! summary refresh, the durable-completion drain and the shared-owner
 //! `LootRemoved` publication, again as one-line delegations to the existing
 //! World operation at its original call point.
+//!
+//! The `LootMoney` **command receivers** (`Handlers/LootHandler.cpp` money
+//! path) join the application loot owner with the mutable release-owner access
+//! they refresh the loot summary through and the durable payout that mutates
+//! canonical money, the quest objectives and `SMSG_LOOT_MONEY_NOTIFY`. The
+//! `CMSG_LOOT_MONEY` consumer itself stays in the shell for a later slice.
 
 use std::future::Future;
 
@@ -40,6 +46,7 @@ use wow_core::ObjectGuid;
 use wow_loot::{LootClaimLease, LootEntry, OwnedLootAuthority};
 use wow_packet::packets::loot::{LootResponse, LootRoll};
 use wow_world_application::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
+use wow_world_core::session::mailbox::ApplyLootMoneyResultLikeCpp;
 use wow_world_core::session::{HubRef, ItemValuationCatalogsLikeCpp};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
@@ -298,5 +305,31 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
 
     fn loot_item_notify_item_removed_like_cpp(&mut self, owner_guid: ObjectGuid, loot_list_id: u8) {
         WorldSession::represented_notify_loot_item_removed_like_cpp(self, owner_guid, loot_list_id)
+    }
+
+    fn loot_money_release_owner_access_like_cpp(
+        &mut self,
+    ) -> wow_world_core::session::LootReleaseOwnerAccessLikeCpp<'_> {
+        self.core.loot_release_owner_access_like_cpp()
+    }
+
+    fn loot_money_apply_durable_payout_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        notified_amount: u64,
+        durable_applied_amount: u64,
+        sole_looter: bool,
+        apply_money: bool,
+        publish: bool,
+    ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a {
+        WorldSession::apply_durable_represented_loot_money_payout_like_cpp(
+            self,
+            item_guid_generator,
+            notified_amount,
+            durable_applied_amount,
+            sole_looter,
+            apply_money,
+            publish,
+        )
     }
 }

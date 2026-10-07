@@ -1,4 +1,7 @@
 use super::*;
+// The moved `LootMoney` command receiver is reached through the application loot
+// owner's host trait default method (#1263 F5); the call text is unchanged.
+use wow_world_application::LootHandlerHostLikeCpp;
 
 impl WorldSession {
     /// CMSG_LOOT_MONEY — player takes money from the current loot view.
@@ -458,51 +461,9 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_apply_loot_money_with_generator_like_cpp_command(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        command: ApplyLootMoneyLikeCppCommand,
-    ) {
-        if self.player_guid() != Some(command.recipient) {
-            return;
-        }
-        let apply_money = !command.applied.swap(true, Ordering::SeqCst);
-        let publish = !command.published.swap(true, Ordering::SeqCst);
-        if !apply_money && !publish {
-            return;
-        }
-
-        if publish
-            && command.send_coin_removed.load(Ordering::Acquire)
-            && command.authority_committed.load(Ordering::Acquire)
-            && self.represented_loot_money_command_targets_active_generation_like_cpp(
-                command.loot_owner,
-                &command.authority,
-                command.authority_generation,
-            )
-        {
-            self.send_packet(&CoinRemoved {
-                loot_obj: command.loot_obj,
-            });
-            self.refresh_owned_loot_summary_like_cpp(command.loot_owner);
-            if let Some(player_guid) = self.player_guid() {
-                let _ =
-                    self.reconcile_represented_loot_cache_like_cpp(command.loot_owner, player_guid);
-            }
-        }
-        let durable_applied_amount = command.durable_applied_amount.load(Ordering::Acquire);
-        let _ = self
-            .apply_durable_represented_loot_money_payout_like_cpp(
-                item_guid_generator,
-                command.amount,
-                durable_applied_amount,
-                command.sole_looter,
-                apply_money,
-                publish,
-            )
-            .await;
-    }
-
+    /// Test-only receiver entry point. The receiver itself now lives in the
+    /// application loot owner; this shim only supplies the session generator
+    /// bundle the pre-move entry point built, and has three test callers.
     #[cfg(test)]
     pub(crate) async fn handle_apply_loot_money_like_cpp_command(
         &mut self,
@@ -514,29 +475,5 @@ impl WorldSession {
             command,
         )
         .await;
-    }
-
-    pub(crate) fn handle_notify_loot_money_removed_like_cpp_command(
-        &mut self,
-        command: NotifyLootMoneyRemovedLikeCppCommand,
-    ) {
-        if self.player_guid() != Some(command.recipient)
-            || !command.authority_committed.load(Ordering::Acquire)
-            || !self.represented_loot_money_command_targets_active_generation_like_cpp(
-                command.loot_owner,
-                &command.authority,
-                command.authority_generation,
-            )
-        {
-            return;
-        }
-
-        self.send_packet(&CoinRemoved {
-            loot_obj: command.loot_obj,
-        });
-        self.refresh_owned_loot_summary_like_cpp(command.loot_owner);
-        if let Some(player_guid) = self.player_guid() {
-            let _ = self.reconcile_represented_loot_cache_like_cpp(command.loot_owner, player_guid);
-        }
     }
 }

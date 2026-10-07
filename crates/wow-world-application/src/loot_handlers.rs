@@ -13,13 +13,15 @@
 //! search, the represented loot request/open transitions and the release
 //! transition) stay behind the owner's host trait. `CMSG_LOOT_ITEM` joins them
 //! with the item, quest and creature orchestration it delegates to the existing
-//! World loot operations. The money body stays in the World shell until its own
-//! slice.
+//! World loot operations. The `LootMoney` **command receivers** (C++
+//! `LootHandler.cpp` money path) join them in `money`; they are session-command
+//! rails, not packet registrations, and the `CMSG_LOOT_MONEY` consumer stays in
+//! the World shell until its own slice.
 //!
 //! The packet bodies live in the private submodules of this owner
-//! (`specialization`, `unit`, `roll`, `master_loot`, `item`); this root keeps
-//! the facades, the host trait, the thunks and the registrar, and the bodies
-//! are moved unchanged.
+//! (`specialization`, `unit`, `roll`, `master_loot`, `item`, `money`); this root
+//! keeps the facades, the host trait, the thunks and the registrar, and the
+//! bodies are moved unchanged.
 
 use std::future::Future;
 
@@ -35,27 +37,39 @@ use wow_loot::{
     loot_item_is_looted_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
 };
 use wow_packet::packets::loot::{
-    AELootTargets, AELootTargetsAck, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
+    AELootTargets, AELootTargetsAck, CoinRemoved, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
     LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_NO_LOOT_LIKE_CPP,
     LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP, LootItemPkt, LootReleaseAll,
     LootRemoved, LootResponse, LootRoll, LootUnit, MasterLootItem, SLootRelease,
     SetLootSpecialization,
 };
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_world_core::session::mailbox::MasterLootGiveResult;
-use wow_world_core::session::{HubMut, HubRef, ItemValuationCatalogsLikeCpp};
+use wow_world_core::session::mailbox::{
+    ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp, MasterLootGiveResult,
+    NotifyLootMoneyRemovedLikeCppCommand,
+};
+use wow_world_core::session::{
+    HubMut, HubRef, ItemValuationCatalogsLikeCpp, LootReleaseOwnerAccessLikeCpp,
+};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
 mod item;
 mod master_loot;
+mod money;
 mod roll;
 mod specialization;
 mod unit;
 
 // The registrar's thunks keep their exact call text, so the moved bodies are
-// brought back into this scope under their original names.
+// brought back into this scope under their original names. The `LootMoney`
+// command receivers are reached through the host trait's default methods below
+// (the World command loop applies them), so they need no separate facade entry.
 use item::handle_loot_item_with_generator_like_cpp;
 use master_loot::handle_master_loot_item_with_generator_like_cpp;
+use money::{
+    handle_apply_loot_money_with_generator_like_cpp_command,
+    handle_notify_loot_money_removed_like_cpp_command,
+};
 use roll::handle_loot_roll_with_generator_like_cpp;
 use unit::handle_loot_unit_with_catalogs_like_cpp;
 
@@ -280,6 +294,54 @@ pub trait LootHandlerHostLikeCpp<C> {
     /// non-free-for-all path; it mutates the represented session objects
     /// together with the loot state.
     fn loot_item_notify_item_removed_like_cpp(&mut self, owner_guid: ObjectGuid, loot_list_id: u8);
+
+    /// The `LootMoney` command receivers (`Handlers/LootHandler.cpp` money path)
+    /// are session-command rails the World command loop applies, so they are
+    /// default methods of this host trait: the owner keeps the only body
+    /// (`loot_handlers::money`) and the shell cannot fork it. The bodies keep
+    /// their original gates, order, log strings and packets.
+    fn handle_apply_loot_money_with_generator_like_cpp_command<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        command: ApplyLootMoneyLikeCppCommand,
+    ) -> impl Future<Output = ()> + Send + 'a
+    where
+        Self: Send + Sized + 'a,
+        C: Sync + 'a,
+    {
+        handle_apply_loot_money_with_generator_like_cpp_command(self, item_guid_generator, command)
+    }
+
+    /// C++ `Loot::NotifyMoneyRemoved` delivery to a viewer that is not itself a
+    /// payout recipient; see the apply receiver for the rail contract.
+    fn handle_notify_loot_money_removed_like_cpp_command(
+        &mut self,
+        command: NotifyLootMoneyRemovedLikeCppCommand,
+    ) where
+        Self: Sized,
+        C: Sync,
+    {
+        handle_notify_loot_money_removed_like_cpp_command(self, command);
+    }
+
+    /// The mutable canonical access of the `LootMoney` command receivers: they
+    /// refresh the object-owned loot summary and re-read the active
+    /// object-owned authority through the exact World access the consumer used.
+    fn loot_money_release_owner_access_like_cpp(&mut self) -> LootReleaseOwnerAccessLikeCpp<'_>;
+
+    /// C++ `HandleLootMoneyOpcode`'s durable half: the canonical balance
+    /// mutation, the quest-objective enqueue/drain and the
+    /// `SMSG_LOOT_MONEY_NOTIFY` publication read the session's represented
+    /// money, quest state and inventory owner, which the hub view does not own.
+    fn loot_money_apply_durable_payout_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        notified_amount: u64,
+        durable_applied_amount: u64,
+        sole_looter: bool,
+        apply_money: bool,
+        publish: bool,
+    ) -> impl Future<Output = ApplyLootMoneyResultLikeCpp> + Send + 'a;
 }
 
 fn handle_set_loot_specialization_thunk<'a, S, C>(
