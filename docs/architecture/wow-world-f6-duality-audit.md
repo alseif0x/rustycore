@@ -462,18 +462,88 @@ difference candidate pending reproduction** (D-10), **2 are structural** (D-11, 
 structural with no action** (D-13). Behaviour-difference total including D-10 as a candidate:
 **10 of 13**.
 
+### 5.1 D-03 legacy map-key fallback — every caller (F6-4, analysis only)
+
+`current_legacy_runtime_map_key_like_cpp` (`crates/wow-world-core/src/session/instances/map_key.rs:53-62`)
+returns `(player_map_id_like_cpp(), 0)` — the represented map with `instance_id = 0` — whenever
+`current_canonical_player_map_key_like_cpp()` (`crates/wow-world-core/src/session/instances/map_resolution.rs:14-42`)
+yields `None`: no `player_guid` (:15), no canonical map manager (:16), a poisoned manager lock (:17), a
+`player_handle_like_cpp` whose residence is `Detached` or unknown (:18-24), or a player found in zero or in
+more than one canonical map (:26-41). C++ performs no such resolution: `Object::GetMap()` asserts
+(`src/server/game/Entities/Object/Object.h:604`) and every object read passes through it
+(`ObjectAccessor::GetCreature` `src/server/game/Globals/ObjectAccessor.cpp:217-220`; `GetGameObject`
+:176-179; `GetUnit` :206-215).
+
+**20 call sites — 19 production, 1 test** (`grep -rn current_legacy_runtime_map_key_like_cpp --include=*.rs`:
+21 lines = the definition at `map_key.rs:53` plus 20 calls).
+
+| # | Caller (file:line, enclosing fn) | Use of the key | C++ read at the equivalent point |
+|---|---|---|---|
+| 1 | `crates/wow-world-core/src/session/canonical_access/loot_release/authority.rs:62` (`represented_owned_loot_authority_like_cpp`) | last of three tiers (canonical player key, then `canonical_object_lookup_map_key_like_cpp`); selects the legacy creature whose authority is compared for up to 8 rounds | `Creature::GetLootForPlayer` `src/server/game/Entities/Creature/Creature.cpp:1377` (`Creature.h:247`, storage `Creature.h:236`) off the object pointer; no key, no reconciliation |
+| 2 | `.../loot_release/authority.rs:306` (`loot_reconciliation_map_key_still_valid_like_cpp`) | final tier of the per-round still-valid recheck | none — C++ has no reconciliation loop; object identity is the pointer |
+| 3 | `.../loot_release/creature.rs:130` (`mutate_world_creature_if_fully_looted_observation_like_cpp`) | `find_creature_mut` on the legacy store, then lifecycle mutation and canonical sync | mutates the one object (`Creature.h:236`); no lookup |
+| 4 | `.../loot_release/creature.rs:169` (`mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp`) | same, unviewed variant | same |
+| 5 | `.../loot_release/publication.rs:158` (`represented_creature_is_dead_for_loot_visibility_like_cpp`) | legacy creature `is_alive()` feeding the per-viewer lootable flag | `Player::isAllowedToLoot` `creature->isDead()` `src/server/game/Entities/Player/Player.cpp:17965` |
+| 6 | `crates/wow-world-core/src/session/loot/operations.rs:50` (`rebind_legacy_creature_loot_authority_like_cpp`) | `find_creature_mut` then rebind the legacy authority | none — one `m_loot` per creature (`Creature.h:236`), no rebind path |
+| 7 | `crates/wow-world-core/src/session/movement/state.rs:174` (`mover_spline_finalized_like_cpp`) | legacy mover spline `finalized` | mover via `ObjectAccessor::GetUnit` `MovementHandler.cpp:345-350` → `ObjectAccessor.cpp:206` → `Object.h:604` |
+| 8 | `.../movement/state.rs:207` (`mover_position_like_cpp`) | legacy mover position for the stale-transport guard | `MovementHandler.cpp:345-350` reads `mover` from `GetUnit` → `Object.h:604` |
+| 9 | `.../movement/state.rs:249` (`mover_movement_force_mod_magnitude_like_cpp`) | legacy mover force magnitude | `MovementHandler.cpp:638-650` `mover->GetMovementForces()->GetModMagnitude()`, same `GetUnit` |
+| 10 | `crates/wow-world-core/src/session/world_entities/creature.rs:26` (`world_creature_guids`) | all legacy creature guids on the key's map | iterates the map it is already inside (`Map::RemoveFromMap` sibling `src/server/game/Maps/Map.cpp:934`); no key |
+| 11 | `.../world_entities/creature_registry.rs:10` (`sync_canonical_creature_entity_like_cpp`) | key selects the canonical map the legacy clone is pushed into | none — one object, one map |
+| 12 | `.../world_entities/creature_registry.rs:34` (`mutate_world_creature`) | find/mutate the legacy creature, then sync | mutates the object directly |
+| 13 | `crates/wow-world-entities/src/creature_registry.rs:377` (`remove_world_creature`) | clear loot and remove from the legacy map | `Map::RemoveFromMap` `Map.cpp:934` on the object's own map |
+| 14 | `.../creature_registry.rs:399` (`remove_canonical_creature_map_object_like_cpp`) | remove from the canonical map at the key | `Map::RemoveFromMap` `Map.cpp:934` |
+| 15 | `crates/wow-world-loot/src/state/authority_access.rs:12` (`read_legacy_creature_loot_authority_like_cpp`) | read the legacy authority by key | `Creature::GetLootForPlayer` `Creature.cpp:1377` |
+| 16 | `.../authority_access.rs:162` (`mutate_world_creature_if_fully_looted_observation_like_cpp`) | `wow-world-loot` twin of row 3 | as row 3 |
+| 17 | `.../authority_access.rs:205` (`mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp`) | `wow-world-loot` twin of row 4 | as row 4 |
+| 18 | `crates/wow-world/src/session/world_entities/creature.rs:50` (`active_world_creature_guids_for_update_like_cpp`) | nearby creatures for the ~200 ms creature tick | `Player::Update` / `Map::Update` iteration over the player's map; no key |
+| 19 | `crates/wow-world/src/session/world_entities/creature_query.rs:38` (`visible_world_creatures_from_map_like_cpp`) | legacy in-phase candidates for the visibility diff | `Player::UpdateVisibilityOf` `Player.cpp:23187` over the map's cells |
+| 20 | `crates/wow-world/unit_tests/handlers/loot_tests/creature_1.rs:223` (test, `stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp`) | builds a `MapKey` from the fallback in a detached-player fixture; asserts the canonical key is `None` (:238) and that one accessor fails closed (:240-243) | n/a — test only |
+
+**Legacy lookup semantics.** Every key above indexes the Rust-only legacy `map_manager`, whose
+`get_map`/`find_creature` are exact `(map_id, instance_id)` lookups
+(`crates/wow-world-core/src/map_manager/runtime/manager.rs:139-141,220-228`). A wrong instance therefore
+fails closed — it never selects another instance's object.
+
+**Can the fallback fire in production?** The absent-key *state* is production-reachable: the login flow
+discards the result of `ensure_canonical_world_map_for_current_player_like_cpp`
+(`crates/wow-world/src/handlers/character/session_state.rs:444-446`) and still flips the session to
+`LoggedIn` (:729); the two far-transfer paths leave the session detached with `SessionState::Transfer`
+(`crates/wow-world/src/session/movement/transfer.rs:237,249`;
+`.../movement/far_transfer.rs:64,73`); `.../lifecycle/map_entry.rs:53-54` detaches and re-attaches in one
+call. Whether a *caller executes* in that state is **`unverified`**: the two entry gates traced here —
+opcode dispatch (`crates/wow-world/src/session/dispatch.rs:107-113`) and the session driver tick
+(`crates/wow-world/src/session/driver/mod.rs:152`) — admit these accessors only in `SessionState::LoggedIn`,
+which the `Transfer` window excludes; each caller's chain back to those gates was not traced individually,
+and the one caller reachable from the driver tick
+(`wow-world/src/session/world_entities/creature.rs:50` via `spell_effects/ticks.rs:26`) additionally
+requires `RuntimeTickOwner::Session` (`driver/mod.rs:162-165`), which is not the default
+(`crates/world-server/src/bootstrap/config.rs:152-156` defaults `GlobalLegacy`). Note that in a
+`LoggedIn` detached session `canonical_object_lookup_map_key_like_cpp` also returns `None`
+(`map_resolution.rs:70-71`), so row 1 reaches its third tier as well. Settling capture: a login or far
+teleport with a temporary log at `map_key.rs:54` recording `state`, handle presence and residence, or a test
+driving `run_creatures_tick` with state `LoggedIn` and a detached residence.
+
+**What would be observable if it fires.** With `instance_id = 0` and a real instance `!= 0`, the legacy
+lookups return `None`/empty: authority reads and guarded mutations fail closed (row 15; rows 3-4), creature
+lists and the creature-update candidate set come back empty (rows 18-19), and the lootable dynamic flag is
+dropped for a corpse the viewer may loot (row 5 → `Player::isAllowedToLoot` `Player.cpp:17963-17966`). For a
+non-instanced map the fallback key is coincidentally correct, so the same silent path succeeds and hides the
+divergence. C++ takes neither branch: the object's map pointer is authoritative and asserts (`Object.h:604`).
+No code was changed by this analysis.
+
 ## 6. Concrete work items for the F6 slices
 
 Ordered by risk, each sized to one bounded slice and stated with the evidence that bounds it.
 **Nothing here authorises a gameplay repair inside a structural slice.** Of these slices only
-F6-1 and F6-2 have been executed, and both only as documentation: §2.1 and §2.2 of this document.
+F6-1, F6-2 and F6-4 have been executed, and all three only as documentation: §2.1, §2.2 and §5.1.
 
 | # | Slice | Bounded by | Risk |
 |---|---|---|---|
 | F6-1 | **Inventory of the production-reachable `represented_*` surface.** Produce the exact list of `represented_*` definitions compiled into a production build of `world-server` (not the heuristic in §1), grouped by the stage-2 buckets. **Executed — §2.1.** | Purely mechanical: `cargo check` feature resolution or a build-script-free `cfg` scan. No behaviour touched. `crates/wow-world/Cargo.toml:9-11` and `crates/world-server/Cargo.toml:10-43` bound what can be included. | lowest |
 | F6-2 | **Re-derive each `resolved_*` seam's absent-owner contract.** For every `resolved_*` that returns `Option`, record what production does when the canonical owner is absent, and whether any caller turns `None` into a packet value. **Executed — §2.2.** | `crates/wow-world-core/src/session/player_vitals_adapter.rs:89-113` is the reference shape; the set of `resolved_*` names is enumerable by grep (216 definition lines, §2.2). Read-only; no code change. | low |
 | F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. **In progress — batch 1 done (§2.3: 22 of 180 names classified, no rename applied).** | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
-| F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. | medium |
+| F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. **Executed — §5.1 / analysis only, no code change.** | medium |
 | F6-5 | **D-12/D-04 loot fanout identity and order.** Verify from source whether `loot_delivery_recipient(_, map_id, instance_id)` can select a recipient on a different instance than the canonical one, and whether C++ order is observable at all (container is `GuidUnorderedSet`, `Loot.h:350`). | Two files plus one container type; the D-04 order claim is already flagged `unverified`. | medium |
 | F6-6 | **D-05/D-06/D-07 session-local GameObject state.** Decide, per field (`world-entities/src/state.rs:40-42,54`; `wow-world-loot/src/state.rs:77-84`), whether the canonical `GameObject` already carries the equivalent before any code moves. | Field-by-field; each decision is evidence-checkable against `GameObject.h:464,483,512` and `GameObject.cpp:3795`. | medium |
 | F6-7 | **D-01/D-02/D-10 loot-authority and creature-entity reconciliation contract.** Write the explicit contract for the mirror reconciliation (including the fail-closed `None` and the retired tombstone) or classify it as an intentional departure. | `authority.rs:41-176` and `creature_canonical_adapter.rs:29-70,178-210` are the whole surface; the C++ side is one `unique_ptr<Loot>` per object (`Creature.h:236`). | high |
@@ -494,3 +564,6 @@ F6-1 and F6-2 have been executed, and both only as documentation: §2.1 and §2.
 | Whether the substituted values in §2.2 table B (aura/stat arithmetic, skill `0`, `known_spells` empty set, durability count `0`) change a packet field | The substitution sites were read; the arithmetic-to-wire path was not traced in this slice. |
 | The C++ counterpart of `RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME` | Verified absent from `src/` and `sql/` in the C++ checkout; absence of a match is not proof that no equivalent mechanism exists elsewhere. |
 | Runtime reachability of D-10 | Requires a detached-player or far-teleport reproduction that this read-only audit could not run. |
+| Whether any D-03 fallback caller executes while the canonical key is absent (F6-4) | The absent-key state is code-reachable (§5.1: `session_state.rs:444-446` discards the canonical attach result before `:729`; `transfer.rs:237,249`), but every production caller sits under a `LoggedIn` gate the `Transfer` window excludes. Needs the runtime capture named in §5.1 — a temporary `map_key.rs:54` log of `state`/handle/residence during login or far teleport, or a tick test with a detached residence. |
+| Whether `ensure_canonical_world_map_for_current_player_like_cpp` can fail at login in a real run (F6-4) | Its result is discarded (`session_state.rs:444-446`); the failure branches (`map_entry.rs:65-75`, `instances/map_resolution.rs:41-49`) were read but not exercised. Same capture as the row above would settle it. |
+| Whether the legacy `map_manager` holds a `(map_id, 0)` map in the detached windows of §5.1 | Not traced: only the lookup semantics (`runtime/manager.rs:139-141`) were verified, not which maps production creates for an instance-0 key. |
