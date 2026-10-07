@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "d3c7980b42373523fab62276b51642f0b760df84",
+    "recorded_at_revision": "db10715e9333d62ea9ce9c0f133f4d2a06f5659f",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -768,6 +768,20 @@
         "destination_growth": 0,
         "new_code": 0,
         "note": "One host-impl file moves verbatim from session/ to handlers/quest/; the curated footprint is unchanged."
+      },
+      {
+        "phase": "Base reset at the #1294 quest host relocation (124591fb4)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 124591fb4."
+      },
+      {
+        "phase": "F5 loot unit consumer (124591fb4..HEAD)",
+        "shrink": 14,
+        "destination_growth": 238,
+        "new_code": 0,
+        "note": "LootUnit joins the existing application loot owner and its registration moves with it (108 -> 107 world literals)."
       }
     ],
     "areas": [
