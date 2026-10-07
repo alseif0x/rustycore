@@ -6,7 +6,7 @@ ones. **No Rust code was changed, and no repair is proposed inside a structural 
 
 - Rust tree: `/home/server/rustycore-1241`, branch `1263-f6-b`; §1–§7 as audited at `bd7c106fd`,
   §2.1 re-derived at `359bd3dda`, §2.2 re-derived at `1fe9d79c4` (branch `1263-f6-d`),
-  §2.3 derived at `2079fb993` on branch `1263-f6-e`.
+  §2.3 derived at `2079fb993` on branch `1263-f6-e`, §2.4 derived at `dc1737f1f` on branch `1263-f6-g`.
 - C++ reference: `/home/server/woltk-trinity-legacy` at `a5f8da2e` (3.4.3).
 - Method: source inspection — `grep`/`sed`/`git log`/file reads — plus, for §2.1 only, `cargo tree`
   feature resolution (metadata only: no compile, no test, no `validation-v2`, no capture, no
@@ -340,7 +340,83 @@ No proposed name exists in `crates/` today (grep).
 | `represented_spell_area_quest_status_like_cpp` | `canonical_spell_area_quest_status_like_cpp` | `pub(in crate::session)` | 2: `session/spell_state/cast.rs:136,150` |
 
 **Left open.** The 2 `unverified` rows need the decisive-source trace before a rename or mirror is
-claimed; the other 158 names are untouched and only the `fn` is renamed, not same-named fixture fields.
+claimed; the other 136 names are untouched (**the second batch is §2.4**, same predicate) and only
+the `fn` is renamed, not same-named fixture fields.
+
+### 2.4 F6-3 second batch — 22 more of 180, same predicate as §2.3
+
+**Selection rule (reproducible).** §2.1's printed list is alphabetical. Batch 1 (§2.3) consumed, in
+printed order, `represented_player_weapon_proficiency_like_cpp` through
+`represented_spell_area_quest_status_like_cpp` (21 names) plus its second anchor
+`represented_spent_talent_points_count_like_cpp`. Batch 2 therefore starts immediately after
+`represented_spell_area_quest_status_like_cpp` and takes **the next 22 names, one per printed
+position**, skipping only `represented_spent_talent_points_count_like_cpp` at its position (already
+classified in batch 1; re-classifying it is out of scope) and skipping nothing else. First name
+`represented_spell_base_damage_bonus_done_like_cpp`, last `represented_transform_spell_allows_mount_like_cpp`.
+
+**Predicate.** Unchanged from §2.3: `rename` = every production read resolves to the canonical owner
+(canonical `Player` / `wow_map` world, §1); `genuine mirror` = value or decisive state is a separate
+representation; `unverified` = both, with no single decisive source. 18 rename / 1 genuine mirror /
+3 unverified. Each name was located with `grep -rn 'fn <name>'` and its body, plus the helper
+carrying the decisive read, read in place. No Rust edited; no rename applied.
+
+| # | name | anchor (`path:line`) | decisive read (quoted) | class |
+|---|---|---|---|---|
+| 1 | `represented_spell_base_damage_bonus_done_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:637` | `self.core.canonical_player_effective_combat_stats_like_cpp()?` (`:638-640`) | rename |
+| 2 | `represented_spell_base_healing_bonus_done_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:535` | `self.core.canonical_player_effective_combat_stats_like_cpp()?` (`:536-538`) | rename |
+| 3 | `represented_spell_bonus_coefficient_from_ap_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:83` | `let Some(attack_power) = self.core.canonical_player_total_attack_power_like_cpp()` (`:90`) | rename |
+| 4 | `represented_spell_bonus_like_cpp` | `wow-world-inventory/src/stats.rs:35` | `access.resolved_aura_effects_by_spell_aura_type_like_cpp(…)` (`:42-45`) → canonical `resolved_player_visible_auras_like_cpp()` (`canonical_access/player_stats.rs:479`) | rename |
+| 5 | `represented_spell_click_creature_snapshot_like_cpp` | `wow-world-entities/src/spell_click.rs:7` and `wow-world/src/session/world_entities/spell_click.rs:9` (two definitions) | `access.with_spell_click_creature_like_cpp(guid, …)` (`:12`) → `let manager = self.core.canonical_map_manager.as_ref()?` (`canonical_access/quest_objectives.rs:52`); the `wow-world` definition delegates (`:13-17`) | rename |
+| 6 | `represented_spell_damage_pct_done_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:135` | `self.core.canonical_player_effective_combat_stats_like_cpp()?` (`:154-156`) | rename |
+| 7 | `represented_spell_healing_bonus_done_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:425` | `let Some(snapshot) = self.core.canonical_player_effective_combat_stats_like_cpp() else` (`:464`) | rename |
+| 8 | `represented_spell_healing_bonus_taken_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:588` | `hub_ref(self).resolved_aura_effects_by_spell_aura_type_like_cpp(SPELL_AURA_MOD_HEALING_PCT)` (`:596-599`) | rename |
+| 9 | `represented_start_group_loot_rolls_on_first_open_like_cpp` | `wow-world/src/handlers/loot/rolls.rs:584` | object-owned `self.represented_owned_loot_authority_like_cpp(owner_guid)` (`:590`) → `current_canonical_player_map_key_like_cpp()` (`canonical_access/loot_release/authority.rs:51-58`) **and** the session mirror it mutates, `self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid)` (`:638`) | unverified |
+| 10 | `represented_talent_reset_cost_like_cpp` | `wow-world-core/src/session/progression/talents.rs:208` | `with_owned_player_like_cpp(\|player\| player.talent_runtime_like_cpp().reset_talents_cost_like_cpp())` (`:209-213`); fallback `cfg(test-fixtures)` (`:214`) | rename |
+| 11 | `represented_talent_reset_state_plan_like_cpp` | `wow-world-lifecycle/src/state/money_plans.rs:223` | `hub.player_talent_runtime_snapshot_like_cpp()?` (`:227`) → `with_owned_player_like_cpp(… talent_runtime_like_cpp().clone())` (`progression/talents.rs:452-454`) | rename |
+| 12 | `represented_talent_reset_time_secs_like_cpp` | `wow-world-core/src/session/progression/talents.rs:225` | `with_owned_player_like_cpp(\|player\| player.talent_runtime_like_cpp().reset_talents_time_secs_like_cpp())` (`:226-230`) | rename |
+| 13 | `represented_talents_loaded_like_cpp` | `wow-world-lifecycle/src/state/load.rs:115` and `wow-world/src/session/persistence/load.rs:249` (two definitions) | `hub.player_talent_runtime_snapshot_like_cpp()` (`:116-117`) → canonical Player; the `wow-world` definition delegates (`load.rs:250-251`) | rename |
+| 14 | `represented_target_can_duel_like_cpp` | `wow-world-social/src/duel.rs:39` | `hub.core.canonical_map_manager.as_ref()?` (`:44`) then `managed.map().get_typed_player(target_guid)` (`:51`) | rename |
+| 15 | `represented_target_creature_type_mask_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:376` | decisive state is the legacy store `let Some(manager) = self.core.map_manager.as_ref()` (`:380-397`); the canonical read is only the instance key `current_canonical_player_map_key_like_cpp()` (`:385`) | genuine mirror |
+| 16 | `represented_target_health_pct_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:352` | self branch `hub_ref(self).resolved_player_vitals_like_cpp()?` (`:355`) vs creature branch `self.core.map_manager.as_ref()?` + `creature.current_hp()` (`:358-370`) | unverified |
+| 17 | `represented_target_mechanic_mask_like_cpp` | `wow-world/src/session/spell_effects/effect_combat.rs:284` | self branch `hub_ref(self).resolved_player_visible_auras_like_cpp()` (`:294-295`) vs creature branch legacy `self.core.map_manager` (`:305-330`) | unverified |
+| 18 | `represented_top_level_item_mod_targets_with_access_like_cpp` | `wow-world-inventory/src/items.rs:37` | `self.resolved_inventory_item_objects_with_access_like_cpp(access)?` (`:42`) → `access.inventory_runtime_snapshot_like_cpp()` (`storage.rs:579`); fallback `cfg(test-fixtures)` (`:582-584`) | rename |
+| 19 | `represented_total_aura_modifier_like_cpp` | `wow-world-core/src/session/player_stat_queries.rs:232` | `self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)` (`:233`) | rename |
+| 20 | `represented_total_aura_multiplier_like_cpp` | `wow-world-core/src/session/player_stat_queries.rs:91` | `self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)` (`:92`) | rename |
+| 21 | `represented_trait_config_aura_source_is_empty_like_cpp` | `wow-world/src/session/spell_state/aura/spell_hit_authority.rs:36` | `self.player_spell_runtime_snapshot_like_cpp()` (`:37`) → `owned_spell_acquisition_access_like_cpp().with_player_spell_runtime_like_cpp(…)` (`spell_state/spell.rs:528-531`); fallback `cfg(test)` (`:532`) | rename |
+| 22 | `represented_transform_spell_allows_mount_like_cpp` | `wow-world/src/session/spell_effects/effects.rs:256` | `hub_ref(self).player_aura_subsystem_snapshot_like_cpp()?.transform_spell_like_cpp()` (`:261-263`) → canonical Player auras (`wow-world-core/src/session/spell_state/aura/spell_hit_authority.rs:57-71`) | rename |
+
+**The 3 `unverified` rows.** #9 mixes an object-owned canonical authority with the session loot/roll
+mirror it writes; #16 and #17 resolve the session player from canonical reads but every other target
+from the legacy `map_manager` `WorldCreature` store (§4), so the source depends on the target.
+#15 is `genuine mirror` because only the lookup key is canonical there — the same shape §2.3 accepted
+for `represented_set_difficulty_reset_owner_like_cpp`.
+
+**Rename proposals — for review only, nothing applied.** Visibility is the definition's current
+visibility; "affected" counts references outside the definition line (`grep -rnP
+'(?<![A-Za-z0-9_])<name>'` minus `fn` lines).
+
+| current name | proposed name | public visibility | affected references (anchors) |
+|---|---|---|---|
+| `represented_spell_base_damage_bonus_done_like_cpp` | `canonical_spell_base_damage_bonus_done_like_cpp` | private | 1: `effect_combat.rs:53` |
+| `represented_spell_base_healing_bonus_done_like_cpp` | `canonical_spell_base_healing_bonus_done_like_cpp` | private | 1: `effect_combat.rs:444` |
+| `represented_spell_bonus_coefficient_from_ap_like_cpp` | `canonical_spell_bonus_coefficient_from_ap_like_cpp` | private | 2: `effect_combat.rs:66,468` |
+| `represented_spell_bonus_like_cpp` | `canonical_spell_bonus_like_cpp` | `pub` | 1: `wow-world-application/src/stats.rs:85` |
+| `represented_spell_click_creature_snapshot_like_cpp` | `canonical_spell_click_creature_snapshot_like_cpp` | `pub` and `pub(in crate::session)` (two definitions) | 5: `world_entities/spell_click.rs:14`; `spell_state/spell_click.rs:31,247,411`; `wow-world-application/src/quest/visibility.rs:222` |
+| `represented_spell_damage_pct_done_like_cpp` | `canonical_spell_damage_pct_done_like_cpp` | private | 1: `effect_combat.rs:57` |
+| `represented_spell_healing_bonus_done_like_cpp` | `canonical_spell_healing_bonus_done_like_cpp` | `pub(in crate::session)` | 1: `spell_effects/execution.rs:196` |
+| `represented_spell_healing_bonus_taken_like_cpp` | `canonical_spell_healing_bonus_taken_like_cpp` | private | 1: `effect_combat/healing_application.rs:25` |
+| `represented_talent_reset_cost_like_cpp` | `canonical_talent_reset_cost_like_cpp` | `pub` | 10 call sites: `f3_shims.rs:30`, `fixture_tests.rs:74`, `talent_owner.rs:27,45,70`, `scenarios_1.rs:34,121,217`, `scenarios_2.rs:241,346`; the other 5 references are the `cfg(test-fixtures)` fixture field of the same name (`state/progression.rs:29`, `state/fixtures.rs:149`, `progression/talents.rs:219,401,490`), outside this rename |
+| `represented_talent_reset_state_plan_like_cpp` | `canonical_talent_reset_state_plan_like_cpp` | private | 1: `money_plans.rs:260` |
+| `represented_talent_reset_time_secs_like_cpp` | `canonical_talent_reset_time_secs_like_cpp` | `pub` | 10 call sites: `f3_shims.rs:33`, `fixture_tests.rs:75`, `talent_owner.rs:31,46,71`, `scenarios_1.rs:38,126,219`, `scenarios_2.rs:243,348`; the other 5 references are the same-named fixture field (`state/progression.rs:32`, `state/fixtures.rs:151`, `progression/talents.rs:236,404,493`), outside this rename |
+| `represented_talents_loaded_like_cpp` | `canonical_talents_loaded_like_cpp` | `pub` and `pub(crate)` (two definitions) | 4 call sites: `session/progression/talents.rs:86`, `handlers/talent/state.rs:118`, `session/persistence/load.rs:251`, `unit_tests/handlers/talent/tests/scenarios_1.rs:600`; the other 4 references are the same-named fixture field (`state/progression.rs:75`), outside this rename |
+| `represented_target_can_duel_like_cpp` | `canonical_target_can_duel_like_cpp` | private | 1: `duel.rs:65` |
+| `represented_top_level_item_mod_targets_with_access_like_cpp` | `canonical_top_level_item_mod_targets_with_access_like_cpp` | `pub` | 2: `items.rs:34`, `wow-world-application/src/inventory_scaling.rs:109` |
+| `represented_total_aura_modifier_like_cpp` | `canonical_total_aura_modifier_like_cpp` | `pub` | 5: `wow-world-application/src/stats.rs:120,123,126,147,149` |
+| `represented_total_aura_multiplier_like_cpp` | `canonical_total_aura_multiplier_like_cpp` | `pub` | 3: `player_stat_queries.rs:156`; `wow-world-application/src/stats.rs:117,155` |
+| `represented_trait_config_aura_source_is_empty_like_cpp` | `canonical_trait_config_aura_source_is_empty_like_cpp` | private | 1: `spell_hit_authority.rs:115` |
+| `represented_transform_spell_allows_mount_like_cpp` | `canonical_transform_spell_allows_mount_like_cpp` | private | 1: `effects.rs:175` |
+
+No proposed name exists in `crates/` today (grep, 0 hits each).
 
 ## 3. `legacy_runtime`
 
@@ -542,7 +618,7 @@ F6-1, F6-2 and F6-4 have been executed, and all three only as documentation: §2
 |---|---|---|---|
 | F6-1 | **Inventory of the production-reachable `represented_*` surface.** Produce the exact list of `represented_*` definitions compiled into a production build of `world-server` (not the heuristic in §1), grouped by the stage-2 buckets. **Executed — §2.1.** | Purely mechanical: `cargo check` feature resolution or a build-script-free `cfg` scan. No behaviour touched. `crates/wow-world/Cargo.toml:9-11` and `crates/world-server/Cargo.toml:10-43` bound what can be included. | lowest |
 | F6-2 | **Re-derive each `resolved_*` seam's absent-owner contract.** For every `resolved_*` that returns `Option`, record what production does when the canonical owner is absent, and whether any caller turns `None` into a packet value. **Executed — §2.2.** | `crates/wow-world-core/src/session/player_vitals_adapter.rs:89-113` is the reference shape; the set of `resolved_*` names is enumerable by grep (216 definition lines, §2.2). Read-only; no code change. | low |
-| F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. **In progress — batch 1 done (§2.3: 22 of 180 names classified, no rename applied).** | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
+| F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. **In progress — batches 1–2 done (§2.3 and §2.4: 44 of 180 names classified, no rename applied).** | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
 | F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. **Executed — §5.1 / analysis only, no code change.** | medium |
 | F6-5 | **D-12/D-04 loot fanout identity and order.** Verify from source whether `loot_delivery_recipient(_, map_id, instance_id)` can select a recipient on a different instance than the canonical one, and whether C++ order is observable at all (container is `GuidUnorderedSet`, `Loot.h:350`). | Two files plus one container type; the D-04 order claim is already flagged `unverified`. | medium |
 | F6-6 | **D-05/D-06/D-07 session-local GameObject state.** Decide, per field (`world-entities/src/state.rs:40-42,54`; `wow-world-loot/src/state.rs:77-84`), whether the canonical `GameObject` already carries the equivalent before any code moves. | Field-by-field; each decision is evidence-checkable against `GameObject.h:464,483,512` and `GameObject.cpp:3795`. | medium |
