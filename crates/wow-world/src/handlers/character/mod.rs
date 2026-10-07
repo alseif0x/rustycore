@@ -25,7 +25,6 @@ mod items;
 mod lifecycle;
 mod login_support;
 mod login_transport_support;
-mod pets;
 mod query;
 mod session_state;
 mod spell_rules;

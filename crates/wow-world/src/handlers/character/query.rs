@@ -11,45 +11,6 @@ use super::*;
 mod test_shims;
 
 impl WorldSession {
-    /// CMSG_SPIRIT_HEALER_ACTIVATE — ghost uses spirit healer.
-    /// C++ ref: `WorldSession::HandleSpiritHealerActivate`.
-    pub async fn handle_spirit_healer_activate(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match SpiritHealerActivate::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SpiritHealerActivate parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let Some(_healer) = crate::session::hub_ref(self)
-            .represented_npc_can_interact_with_like_cpp(
-                request.healer,
-                NPCFlags1::SPIRIT_HEALER.bits(),
-                0,
-            )
-        else {
-            debug!(
-                account = self.core.account_id,
-                healer = ?request.healer,
-                "SpiritHealerActivate ignored without represented spirit healer"
-            );
-            return;
-        };
-
-        // C++ continues into SendSpiritResurrect here: resurrect 50%, durability
-        // loss, corpse-bones spawn, and possible graveyard teleport. That player
-        // corpse/death runtime is not represented in this handler yet.
-        debug!(
-            account = self.core.account_id,
-            healer = ?request.healer,
-            "SpiritHealerActivate validated; resurrection runtime pending"
-        );
-    }
-
     pub(super) fn collect_quest_giver_status_multiple_like_cpp(
         &self,
         quest_info: &wow_data::progression_rewards::QuestInfoStore,

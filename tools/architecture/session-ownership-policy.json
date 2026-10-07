@@ -315,12 +315,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::character::pets",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::character::query",
           "trait_path": null,
           "cfg": [],
@@ -941,6 +935,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::npc_host",
+          "trait_path": "NpcHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::pets",
           "trait_path": null,
           "cfg": [],
@@ -1139,6 +1139,14 @@
           "trait_path": null,
           "cfg": [],
           "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::test_shims",
+          "trait_path": null,
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
         },
         {
           "module": "crate::handlers::trainer",
@@ -4287,20 +4295,6 @@
           ]
         },
         {
-          "module": "crate::handlers::character::pets",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_request_stabled_pets",
-          "visibility": "pub",
-          "signature": "async fn handle_request_stabled_pets (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::character::query",
           "trait_path": null,
           "kind": "method",
@@ -4397,20 +4391,6 @@
           "name": "handle_quest_giver_status_tracked_query_with_catalog_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , mut pkt : WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::query",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_spirit_healer_activate",
-          "visibility": "pub",
-          "signature": "async fn handle_spirit_healer_activate (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -4941,20 +4921,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::vendor",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_tabard_vendor_activate",
-          "visibility": "pub",
-          "signature": "async fn handle_tabard_vendor_activate (& mut self , mut pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
@@ -10845,6 +10811,20 @@
           ]
         },
         {
+          "module": "crate::handlers::npc_host",
+          "trait_path": "NpcHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "npc_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn npc_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> NpcHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
           "module": "crate::handlers::pets",
           "trait_path": null,
           "kind": "method",
@@ -13567,6 +13547,38 @@
           "signature": "fn represented_can_confirm_respec_wipe_like_cpp (& mut self , respec_master : wow_core :: ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_request_stabled_pets",
+          "visibility": "pub",
+          "signature": "async fn handle_request_stabled_pets (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_spirit_healer_activate",
+          "visibility": "pub",
+          "signature": "async fn handle_spirit_healer_activate (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"

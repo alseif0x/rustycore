@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 60,
-    "measured_requirement": 60,
-    "recorded_at_revision": "f820bb56fdbebe5c822e0620ce11b5f04915407d",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 3c42b9f00, the #1277 integration): S = 460, G_move = 843, ratio and slack credits = 783.00, so the requirement is 60.00 and the reviewed budget above is 60. Growth outside the destination roots (tooling, documentation, test trees, other crates) is reported as accounted growth and is not charged.",
+    "budget": 0,
+    "measured_requirement": 0,
+    "recorded_at_revision": "4c7c2479dc01208e1f5251c7c521e2c94e091668",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 7f34518f5, the #1278 integration): S = 60, G_move = 211, ratio and slack credits = 363.00, so the requirement is -152.00 and the reviewed budget above is 0.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -586,6 +586,20 @@
         "destination_growth": 843,
         "new_code": 60,
         "note": "The eight C++ BattlePetHandler.cpp handlers move to a new application owner with their private chain and the four shared helpers; the session tree loses 240 production lines and world-server is untouched, which is the first delivery that exercises the single-composition authority."
+      },
+      {
+        "phase": "Base reset at the #1278 integration (7f34518f5)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1278 integrated the ApplicationBattlePet owner; the merge-base moved to 7f34518f5."
+      },
+      {
+        "phase": "F5 ApplicationNpc owner (7f34518f5..HEAD)",
+        "shrink": 60,
+        "destination_growth": 211,
+        "new_code": 0,
+        "note": "TabardVendorActivate, SpiritHealerActivate and RequestStabledPets (C++ NPCHandler.cpp) move to a new application owner."
       }
     ],
     "areas": [
@@ -596,7 +610,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 843,
+        "lines": 211,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {

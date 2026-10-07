@@ -6857,6 +6857,48 @@ autoridad de composición y la política de módulos en vez de declararla en su 
 de recompilar el tool (≈142 s) y de paso eliminaría la edición duplicada del contrato. Ninguna de las dos se ha ejecutado
 todavía.
 
+#### F5: dueño nuevo `ApplicationNpc` — 2026-10-06, `7f34518f5..4c7c2479d`
+
+**Integración previa:** #1278 integró `ApplicationBattlePet` (`7f34518f5`), la primera entrega con dueño nuevo tras la
+autoridad única de composición.
+
+**Alcance por evidencia C++ (`a5f8da2e`).** Tres handlers de `NPCHandler.cpp`: `HandleTabardVendorActivateOpcode`
+(`Opcodes.cpp:964`), `HandleSpiritHealerActivate` (`:937`) y `HandleRequestStabledPets` (`:845`), con metadatos
+idénticos (`LoggedIn` + `Inplace` el primero, `ThreadUnsafe` los otros dos). Nuevo dueño `ApplicationNpc`
+(`crate::npc_handlers`) con contexto propio y tres thunks explícitos. **Excluidos por semántica C++:**
+`BankerActivate`/`BuyBankSlot` (están en `BankHandler.cpp`, van a `ApplicationBank`) y `BinderActivate`/`RepairItem`
+(cadenas más pesadas de la misma familia, corte posterior).
+
+**Fidelidad revisada por el coordinador.** Diff por tokens del handler más largo: solo las adaptaciones
+`hub_ref(self)` → `self.hub.shared()` y `send_packet` → `hub.core.send_packet` (el helper de World era un delegado de
+una línea, así que bytes y orden no cambian). Los tres bloques de registro comparados campo a campo con los borrados:
+idénticos. La composición recibe el nuevo registrador **al final**, inmediatamente antes del registro legacy, y
+**`crates/world-server/` sigue sin tocarse** (diff vacío).
+
+**Revisión de una desviación con riesgo.** El fichero `handlers/character/pets.rs` contenía únicamente el handler
+movido, así que se borró; eso obligó a quitar su `include_str!` del escaneo de orden de publicación de dinero en
+`unit_tests/handlers/character_tests/loot.rs`. Lo audité en vez de aceptarlo: el fichero eliminado no contenía ninguno
+de los marcadores que ese escaneo afirma (solo sus dos cadenas de log, ajenas al escaneo) y ejecuté el test, que
+**pasa**. No se perdió cobertura.
+
+**Efecto medido.** Agregado de `handlers/character`: producción 16.882 → **16.757** (−125), test 15.378 → 15.377 (−1) y
+total 32.260 → 32.134; el árbol de sesión no cambia en esta entrega (los tres handlers no vivían ahí). Registros
+literales en `wow-world`: **98 → 95**. Ownership PASS (209 dueños / 3.127 ítems; −3 handlers de producción, +1 método
+del host, +2 shims de test), arquitectura PASS con el techo de personaje apretado a los valores vivos, R1 presupuesto 0.
+**Aceptación `final` y medición del objetivo (1):** sobre **`7f0d5b2ac`**, **verde en 390 s** con
+`VALIDATION_V2_CARGO_JOBS=3` (`dirty: false`; verificada con `--require-profile final`; manifiesto
+`target/validation-v2/manifests/20261006T235647.850819Z-1302659-final.json`). **Es la primera entrega con dueño nuevo
+que cumple el objetivo de ≤600 s** (390 s, 210 s de margen). Desglose: política de arquitectura 105 s, ownership 49 s,
+`cargo check --tests` aguas abajo 49 s, suites `--lib` 8 s y suite del tool 156 s. Memoria: pico de 11,1 GB usados y
+mínimo de 12,9 GB disponibles de 23 GB.
+
+**Caveat de rigor, no ocultado:** esta campaña **no es un A/B controlado** frente a los 616 s de `ApplicationBattlePet`
+(2 jobs). Aquel corte movía 375 líneas y tocaba el árbol de sesión; este mueve 59 y no lo toca, y el estado de caché
+difiere. La caída de `cargo check --tests` de 281 s a 49 s excede lo que explica el número de jobs, así que **no
+atribuyo la mejora completa a los 3 jobs**: lo que sí queda demostrado es que una entrega con dueño nuevo —incluido el
+tool recompilado, que es el coste que el corte de autoridad única no elimina— cabe en 390 s. Falta la medición aislada
+(mismo commit, 2 jobs, caché equivalente) para separar ambos factores.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

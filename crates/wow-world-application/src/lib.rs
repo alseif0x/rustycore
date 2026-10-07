@@ -29,6 +29,10 @@ mod guild_bank_handlers;
 mod instances;
 mod loot_handlers;
 mod loot_release;
+mod npc_handlers;
+pub use npc_handlers::{
+    NpcHandlerCxLikeCpp, NpcHandlerHostLikeCpp, register_npc_handlers_like_cpp,
+};
 mod player_conditions;
 mod player_handlers;
 mod player_save;

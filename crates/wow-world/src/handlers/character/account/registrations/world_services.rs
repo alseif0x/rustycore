@@ -232,36 +232,12 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::TabardVendorActivate,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_tabard_vendor_activate",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_tabard_vendor_activate(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::HearthAndResurrect,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_hearth_and_resurrect",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_hearth_and_resurrect(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SpiritHealerActivate,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_spirit_healer_activate",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_spirit_healer_activate(pkt).await })
         },
     }
 }
@@ -286,18 +262,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                     Err(e) => tracing::warn!("Failed to read RepairItem: {e}"),
                 }
             })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestStabledPets,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_request_stabled_pets",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_request_stabled_pets(pkt).await })
         },
     }
 }

@@ -21,6 +21,7 @@ pub mod guild;
 pub mod instances;
 pub mod loot;
 pub mod movement;
+mod npc_host;
 pub mod pets;
 pub mod progression;
 pub mod quest;
@@ -33,6 +34,8 @@ pub mod travel;
 pub mod vehicle;
 pub mod void_storage;
 
+#[cfg(test)]
+mod test_shims;
 #[cfg(test)]
 #[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;
