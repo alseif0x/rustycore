@@ -6978,6 +6978,36 @@ verificada con `--require-profile final`; manifiesto
 49 s, `cargo check --tests` 52 s, suites `--lib` 10 s. El corte no toca el tool, así que la campaña se mantiene en el
 rango barato de las entregas con dueño existente (191–192 s).
 
+#### Intento de división del dueño `character_handlers` — bloqueado por el checker (2026-10-07, commit local `2b2933d4b`, retirado)
+
+**Motivo.** `crates/wow-world-application/src/character_handlers.rs` alcanzó 1.353 líneas con 10 handlers, por encima
+del umbral de 1.000 del manual de módulos, y el plan registró que debía dividirse antes de seguir creciendo.
+
+**Intento.** Reparto mecánico en submódulos privados por familia (`character_handlers/barber.rs`, `char_delete.rs`,
+`cinematic.rs`, `creation.rs`, `customize.rs`, `declined_names.rs`, `enumeration.rs`, `rename.rs`, `undelete.rs`) con la
+raíz conservando fachadas, thunks y registrador. La división era correcta en sí misma: raíz 555 líneas, mayor fichero
+207, 10 handlers conservados, `final` **verde en 183 s**, baseline de ownership **sin cambios**, arquitectura PASS y R1
+con presupuesto 0; y el propio worker probó que el movimiento era byte a byte (hash del flujo normalizado idéntico
+antes y después).
+
+**Bloqueo.** La suite del tool (que `final` **no** enruta, porque el crate del tool no cambió) falló con 3 tests:
+`composition_guard_accepts_actual_production_fixture_and_both_exact_facades`,
+`composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate_calls` y
+`repository_handler_contract_passes`, este último con
+`invalid packet-handler composition: direct registrar references in crates/wow-world-application/src/lib.rs must use
+their exact qualified providers and no aliases`. Diagnóstico del coordinador: el registrador se menciona **una sola
+vez** y `lib.rs` **no se tocó**, así que la causa no es un alias sino la **política del módulo dueño**
+(`tools/architecture/handler-module-policy.json`: `crate::character_handlers` con `allow_descendants: false`): el
+layout fichero+directorio convierte los submódulos en descendientes del módulo registrador.
+
+**Decisión.** El corte se **retiró** (la rama vuelve a `c34f17ccf`; el commit queda en el reflog y su SHA aquí) en vez
+de tocar una regla verificada del checker sin aprobación. **Solución identificada para el siguiente intento:** colocar
+los cuerpos en un módulo **hermano** (por ejemplo `character_handler_families/`) con los `impl
+CharacterHandlerCxLikeCpp<'_>` y dejar `character_handlers.rs` sin descendientes, lo que satisface la política sin
+cambiar ninguna regla; alternativa, pedir la ampliación de `allow_descendants` como cambio de contrato explícito.
+**Lección operativa registrada:** cuando un corte mueve fuentes que el tool monta por `include_str!`, su suite debe
+ejecutarse aunque el crate del tool no cambie, porque `final` no la enruta.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
