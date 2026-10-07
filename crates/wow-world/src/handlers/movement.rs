@@ -32,8 +32,8 @@ use crate::session::{
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::movement::{
-    ClientPlayerMovement, MoveInitActiveMoverComplete, MoveSplineDone, MoveTeleportAck, MoveUpdate,
-    MoveUpdateModMovementForceMagnitude, MovementAckMessage, MovementInfo, MovementSpeedAck,
+    ClientPlayerMovement, MoveSplineDone, MoveUpdate, MoveUpdateModMovementForceMagnitude,
+    MovementAckMessage, MovementInfo, MovementSpeedAck,
 };
 
 mod ops_1;
@@ -110,25 +110,6 @@ register_move!(MoveUpdateFallSpeed);
 
 // ── Handler implementation ─────────────────────────────────────────
 
-// ── Handler registration (MoveInitActiveMoverComplete) ───────────
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveInitActiveMoverComplete,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_move_init_active_mover_complete",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::movement::MoveInitActiveMoverComplete::read(&mut pkt) {
-                    Ok(init) => session.handle_move_init_active_mover_complete(init).await,
-                    Err(e) => tracing::warn!("Failed to read MoveInitActiveMoverComplete: {e}"),
-                }
-            })
-        },
-    }
-}
-
 macro_rules! register_movement_ack_message {
     ($opcode:ident) => {
         crate::session::registry::register_packet_handler_like_cpp! {
@@ -200,23 +181,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                 match wow_packet::packets::movement::MoveSplineDone::read(&mut pkt) {
                     Ok(done) => session.handle_move_spline_done(done).await,
                     Err(e) => tracing::warn!("Failed to read MoveSplineDone: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveTeleportAck,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_move_teleport_ack",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::movement::MoveTeleportAck::read(&mut pkt) {
-                    Ok(ack) => session.handle_move_teleport_ack(ack).await,
-                    Err(e) => tracing::warn!("Failed to read MoveTeleportAck: {e}"),
                 }
             })
         },

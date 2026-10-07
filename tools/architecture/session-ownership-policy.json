@@ -10646,37 +10646,9 @@
           "module": "crate::handlers::movement::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_move_init_active_mover_complete",
-          "visibility": "pub",
-          "signature": "async fn handle_move_init_active_mover_complete (& mut self , pkt : MoveInitActiveMoverComplete ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_move_spline_done",
           "visibility": "pub",
           "signature": "async fn handle_move_spline_done (& mut self , mut pkt : MoveSplineDone)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_move_teleport_ack",
-          "visibility": "pub",
-          "signature": "async fn handle_move_teleport_ack (& mut self , pkt : MoveTeleportAck)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10870,9 +10842,37 @@
           "module": "crate::handlers::movement_host",
           "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "apply_move_init_active_mover_complete_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_move_init_active_mover_complete_like_cpp (& mut self , ticks : u32)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "apply_move_set_vehicle_rec_id_ack_like_cpp",
           "visibility": "private",
           "signature": "fn apply_move_set_vehicle_rec_id_ack_like_cpp (& mut self , ack : & mut MovementAck)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_move_teleport_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
