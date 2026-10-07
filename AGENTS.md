@@ -120,6 +120,15 @@ DeepSeek v4.1 flash on the native DeepSeek API as the worker that implements
 `.claude/agents/rustycore-worker.md` when the DeepSeek API fails. Agent definitions do
 not override runtime permissions.
 
+The orchestration skill also owns the **decision authority** rule: substantive technical
+decisions (parity and behaviour contracts, intentional departures from the reference, slice
+scope and cut points, ownership boundaries and design) are made by the reviewer tier at high
+effort and are **not parked on the human operator**. Only runtime/database/destructive
+operations and material changes to the objective's scope are reserved to the human; a
+decision that needs one of those is recorded as a bounded hold — decision taken, the exact
+capture that closes it, and what is forbidden meanwhile — while the rest of the work
+continues.
+
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
 they are not separate frozen architecture snapshots.
