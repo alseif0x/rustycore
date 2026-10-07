@@ -6,7 +6,8 @@ ones. **No Rust code was changed, and no repair is proposed inside a structural 
 
 - Rust tree: `/home/server/rustycore-1241`, branch `1263-f6-b`; §1–§7 as audited at `bd7c106fd`,
   §2.1 re-derived at `359bd3dda`, §2.2 re-derived at `1fe9d79c4` (branch `1263-f6-d`),
-  §2.3 derived at `2079fb993` on branch `1263-f6-e`, §2.4 derived at `dc1737f1f` on branch `1263-f6-g`.
+  §2.3 derived at `2079fb993` on branch `1263-f6-e`, §2.4 derived at `dc1737f1f` on branch `1263-f6-g`,
+  §5.3 derived at `d3c1637ba` on branch `1263-f6-i`.
 - C++ reference: `/home/server/woltk-trinity-legacy` at `a5f8da2e` (3.4.3).
 - Method: source inspection — `grep`/`sed`/`git log`/file reads — plus, for §2.1 only, `cargo tree`
   feature resolution (metadata only: no compile, no test, no `validation-v2`, no capture, no
@@ -536,7 +537,8 @@ needed`, `repair needed outside the refactor`. **No row is authorised for repair
 **Count: 13 divergences recorded. 9 are behaviour differences** (D-01…D-09), **1 is a behaviour
 difference candidate pending reproduction** (D-10), **2 are structural** (D-11, D-12), **1 is
 structural with no action** (D-13). Behaviour-difference total including D-10 as a candidate:
-**10 of 13**.
+**10 of 13**. D-01, D-02 and D-10 are carried into the §5.3 draft contract; their dispositions in
+this table are unchanged and no decision is taken there.
 
 ### 5.1 D-03 legacy map-key fallback — every caller (F6-4, analysis only)
 
@@ -652,11 +654,112 @@ is genuinely session-local** (row 5), **one has no canonical equivalent to move 
 was **not performed**; rows 5 and 8 require a canonical field to be modelled first. No code was changed by this
 analysis.
 
+### 5.3 D-01/D-02/D-10 loot-authority reconciliation contract (F6-7, draft)
+
+**This is a draft contract. Every verdict below is a proposal for the reviewer to sign or reject;
+this slice decides nothing, changes no `.rs`, and claims no parity.** Files used (the §6 F6-7
+anchors are relative): `crates/wow-world-core/src/session/canonical_access/loot_release/authority.rs`
+(`:41-176` in scope, read to `:309`) and `crates/wow-world-core/src/session/creature_canonical_adapter.rs`
+(`:29-70`, `:178-216` in scope, read to `:272`). Supporting reads: `crates/wow-loot/src/authority/{state.rs,ops_1.rs}`,
+`crates/wow-entities/src/{unit/ops_1.rs,creature/ops_3.rs,game_object/ops_1.rs}`, `wow-world-core/src/session/{world_entities/creature_registry.rs,loot/operations.rs}`,
+`crates/wow-world-entities/src/creature_registry.rs` and the consumers below. Method: source reads only — no
+compiler, test, capture or `validation-v2`.
+
+**(a) What the mirror is.** C++ has one `std::unique_ptr<Loot>` per object (`Creature.h:236`,
+`GameObject.h:322`). Rust holds **two independently allocatable `wow_loot::OwnedLootAuthority`
+handles** (`Arc<OwnedLootAuthorityInner>`, `crates/wow-loot/src/authority/ops_1.rs:25-30`) per
+loot-owning creature: the canonical `wow_map` creature and the legacy `map_manager::WorldCreature`.
+
+| Mirror | Field | Written at | Read at |
+|---|---|---|---|
+| canonical (`wow_map` creature / gameobject) | `Creature/GameObject::loot_authority_like_cpp()` | `loot_release/authority.rs:269-290` (CAS), `:180-205` for GO; adapter `:84-90` | `loot_release/authority.rs:242-253` (creature), `:255-267` (GO) |
+| legacy (`map_manager::WorldCreature`) | `WorldCreature.creature.loot_authority_like_cpp()` | `loot_release/authority.rs:120-132`; `crates/wow-world-core/src/session/loot/operations.rs:44-78` | `loot_release/authority.rs:228-240` |
+
+Both write paths are object-local CAS: `Creature::rebind_loot_authority_if_current_like_cpp`
+(`crates/wow-entities/src/creature/ops_3.rs:133-163`) and the GO twin
+(`crates/wow-entities/src/game_object/ops_1.rs:515-540`) compare `Arc` identity **and** the full
+`OwnedLootAuthorityStamp { lifecycle, object_generation }` (`crates/wow-loot/src/authority/state.rs:218-222`).
+
+**(b) Reconciliation rules.** Each rule is one verdict; the `#` is the id used below and in §7.
+Counts: `faithful` **1** (R8); `intentional departure (needs contract)` **3** (R1, R2, R9);
+`suspect divergence (needs decision)` **5** (R3, R4, R5, R6, R7).
+
+| # | Rule as implemented | Rust anchor | Verdict (proposal) |
+|---|---|---|---|
+| R1 | Two mirrors exist for one C++ object; both are read and both are rebound | `authority.rs:73-78`, `:104-132`; `creature_registry.rs:6-26` | intentional departure (needs contract) |
+| R2 | Exactly one mirror present ⇒ it is returned **without** reconciliation | `authority.rs:82-87` | intentional departure (needs contract) |
+| R3 | Both present ⇒ `reconcile_creature_loot_authority_mirrors_like_cpp`, then two CAS rebinds, inside an up-to-**8-round** loop that re-checks `loot_reconciliation_map_key_still_valid_like_cpp` after every phase | `authority.rs:50`, `:89-136`, `:292-308`; adapter `:78-90` | suspect divergence (needs decision) |
+| R4 | Rounds exhausted ⇒ **`None`** (fail closed; never overwrite the newest mirror) | `authority.rs:150-152` | suspect divergence (needs decision) |
+| R5 | `(Active,Active)`, `(Active,Retired)`, `(Retired,Active)`, `(Detached,Detached)` ⇒ terminal `Quarantined` tombstone | adapter `:199-201`, `:212`; `crates/wow-loot/src/authority/ops_1.rs:74-82` | suspect divergence (needs decision) |
+| R6 | Whole-entity replacement rejected unless the health-revision timeline is shared **and** (incoming revision > current, or equal revision with an equal health/max-health/death tuple) | adapter `:49-70` | suspect divergence (needs decision) |
+| R7 | A rejected entity snapshot still reconciles and returns the authority; the caller's expected-stamp CAS then leaves the mutation visible only in the legacy mirror | adapter `:91-96`; `ops_3.rs:133-163`; `creature_registry.rs:14-25` | suspect divergence (needs decision) |
+| R8 | Gameobject branch reads only the canonical GO authority, gated by `still_valid`; no reconciliation | `authority.rs:155-173` | faithful |
+| R9 | First-generation install bridge runs only under `consumer_test` / `represented_local_loot_fixture_allowed_like_cpp` | application `loot_release/authority.rs:87-95`; `claims.rs:58-62`; `sources/creature.rs:244`; `game_object/ops_1.rs:667` | intentional departure (needs contract) |
+
+**(c) What the fail-closed `None` means at each consumer.** Production consumers only; every one
+abandons the operation and fabricates nothing.
+
+| Consumer group | What `None` means | Anchor |
+|---|---|---|
+| loot open | no authority-view is taken; the stale-view closer runs instead | `requests.rs:70-76`, `:133-142` |
+| claim / lease / roll | request or roll abandoned, no award | `claims.rs:44-46`,`:55-56`,`:74-75`; `rolls.rs:191-196`,`:590-593`,`:771-772`; application `loot_release/authority.rs:86`,`:105`,`:163`,`:203` |
+| durable item fanout | `?` aborts before persistence | `persistence.rs:15-27` |
+| queued creature-loot VALUES delta | dropped | `handlers.rs:80-89` |
+| cache / summary sync; stale-viewer cleanup; deferred fanout | cached loot removed, or re-cache, summary rebind, cleanup and fanout skipped | `sources/creature.rs:194-199`; `sources.rs:60-68`; `sources/gameobject_authority.rs:9-17`; `canonical_access/loot_release.rs:148-178`; `money.rs:207-213`; application `loot_release/fanout.rs:135-139`, `loot_handlers/money.rs:142-151` |
+
+**(d) The retired tombstone.** Two distinct terminal states share the word "tombstone", and only
+one is a Rust addition: `Quarantined` exists only here, while `Retired` is the ordinary end of a
+loot lifetime. Both make every snapshot `None`.
+
+| | `Retired` | `Quarantined` (the conflict tombstone) |
+|---|---|---|
+| How set | `retire_like_cpp` (`ops_1.rs:449-466`), reached from `clear_loot_like_cpp` (`creature/ops_3.rs:250-255`) and object removal (`wow-world-entities/src/creature_registry.rs:384`) | `new_retired_tombstone_like_cpp` (`ops_1.rs:74-82`): `generation = 1`, `quarantined = true`, while `retired` keeps the `Default` `true` (`state.rs:368`) |
+| Written by | loot lifetime end | adapter `:199-201`, `:212` — the **only** writer |
+| Read by | `selected_scope_like_cpp` (`state.rs:604-606`) and `snapshot_for_scope` (`state.rs:685-687`) return `None`; `is_retired_like_cpp` (`ops_1.rs:479`) gates `sources.rs:269`, `sources/creature.rs:244`, `claims.rs:57`, `wow-world-loot/src/state/creature.rs:35`, `game_object/ops_1.rs:667`, application `loot_release/authority.rs:88` | same readers; additionally `initialize_pristine_like_cpp` (`ops_1.rs:243-248`) and `upsert_personal_like_cpp` (`ops_1.rs:381`) **refuse to install**, so it can never be reopened |
+| Read after the object is gone | the `Arc` outlives the object in session-side holders (roll state, claim leases, cached view authority). `shares_storage_like_cpp` (pure `Arc::ptr_eq`, `ops_1.rs:25-27`) still reports **true**, while every snapshot returns `None` — identity checks pass, value reads fail closed. `rolls.rs:191-213` requires both, so a stale roll cannot award from a later lifetime | same, plus terminality by construction: the only transition out is `detach_like_cpp` (`ops_1.rs:85-98`), which clears quarantine into `Detached` and can never own loot again |
+
+**(e) The C++ contrast — which behaviours are additions.** C++ reaches the `Loot` through the
+object (`Creature::GetLootForPlayer` `Creature.cpp:1377-1386`; `LootHandler.cpp:247`) and has **no
+second mirror, no compare/exchange, no revision guard and no tombstone**: `grep -n Revision
+src/server/game/Entities/Creature/Creature.{h,cpp} src/server/game/Entities/Unit/Unit.h` returns 0
+hits, so the health-state-revision authority (`crates/wow-entities/src/unit/ops_1.rs:426-446`,
+bumped at `unit/ops_2.rs:740,751`) has no counterpart. **R2–R7 and R9 are therefore Rust additions**;
+R1's per-object authority identity and R8's single-owner GO read are the parts C++ also has. C++ has
+no rejection path: the only failure shape there is `GetLootForPlayer` returning `nullptr` when
+personal loot exists and the player is not in it (`Creature.cpp:1382-1385`), dereferenced unguarded
+at `LootHandler.cpp:247`; whether that null is reachable at that call is `unverified`.
+
+**Client observability.** R4 and R5 both end in `snapshot_for_player_like_cpp() == None`, and the
+loot-open consumer turns that into an outbound packet: `requests.rs:133-142` →
+`close_stale_active_loot_view_like_cpp` (`crates/wow-world-loot/src/state/request_state.rs:114-127`)
+→ `hub.core.send_packet(&SLootRelease…)`. **Observable** — C++ has no path that answers a valid loot
+request with a release for this reason. **`unverified`** — whether R6/R7 (canonical entity left at
+its earlier state while the legacy clone advanced) reaches any packet; no packet path from the
+canonical creature state was traced here, and R3 alone changes only *which* authority is returned,
+not its contents.
+
+**The reviewer must sign each departure and each `suspect divergence` row individually**: signing one
+means keeping the behaviour under a written contract or opening a separate repair slice — it is never
+a parity claim. R1, R2 and R9 are sound only if the two-store design survives §3/§4 and F6-8; if it
+does not, they are transitional, not contract-worthy.
+
+**Open questions, and the capture that would settle each.**
+
+| # | Question | Who can settle it | Capture / evidence |
+|---|---|---|---|
+| Q1 | Is the two-mirror design (R1, R2, R9) the accepted transitional contract, or is the mirror itself the repair target? | reviewer only | none — a scope decision; must be read with §3/§4 and F6-8 |
+| Q2 | Can the 8-round fail-closed `None` (R3, R4) be reached in production, and does the client then see `SLootRelease`? | capture | temporary log at `authority.rs:152` (owner GUID, map key, both stamps per round) plus a paired client capture of the release during group loot on a contested corpse |
+| Q3 | Can two `Active` mirrors for one owner GUID be live at once (R5)? | capture | temporary log at `adapter:199` when the tombstone is produced (owner GUID, both stamps, wall clock) over a login + combat + loot session on an instanced map |
+| Q4 | Does the health-revision/ABA rejection (R6, R7) fire in production, and does the resulting legacy/canonical divergence reach a client? | capture | temporary log at `adapter:70` on rejection (incoming/current revision, `shares_health_timeline`, health tuple) correlated with that session's outgoing packets |
+| Q5 | Is `Quarantined` terminality correct — C++ would keep its `Loot` openable for the object's lifetime? | reviewer (+ capture for demand) | same capture as Q3; reviewer signs "accepted fail-closed" or specifies an explicit re-open rule |
+| Q6 | D-10's two map-key orders (`authority.rs:156-162` vs `crates/wow-world-loot/src/state/authority_access.rs:28-34`) with a detached player | capture | unchanged from §5; still `unknown` — a detached-player / far-teleport reproduction |
+
 ## 6. Concrete work items for the F6 slices
 
 Ordered by risk, each sized to one bounded slice and stated with the evidence that bounds it.
 **Nothing here authorises a gameplay repair inside a structural slice.** Of these slices only
-F6-1, F6-2, F6-4 and F6-6 have been executed, and all four only as documentation: §2.1, §2.2, §5.1 and §5.2.
+F6-1, F6-2, F6-4, F6-6 and F6-7 have been executed, and all five only as documentation: §2.1, §2.2,
+§5.1, §5.2 and §5.3.
 
 | # | Slice | Bounded by | Risk |
 |---|---|---|---|
@@ -666,7 +769,7 @@ F6-1, F6-2, F6-4 and F6-6 have been executed, and all four only as documentation
 | F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. **Executed — §5.1 / analysis only, no code change.** | medium |
 | F6-5 | **D-12/D-04 loot fanout identity and order.** Verify from source whether `loot_delivery_recipient(_, map_id, instance_id)` can select a recipient on a different instance than the canonical one, and whether C++ order is observable at all (container is `GuidUnorderedSet`, `Loot.h:350`). | Two files plus one container type; the D-04 order claim is already flagged `unverified`. | medium |
 | F6-6 | **D-05/D-06/D-07 session-local GameObject state.** Decide, per field (`world-entities/src/state.rs:40-42,54`; `wow-world-loot/src/state.rs:77-84`), whether the canonical `GameObject` already carries the equivalent before any code moves. | Field-by-field; each decision is evidence-checkable against `GameObject.h:464,483,512` and `GameObject.cpp:3795`. Read-only. **Executed — §5.2 / decisions only, no code change.** | medium |
-| F6-7 | **D-01/D-02/D-10 loot-authority and creature-entity reconciliation contract.** Write the explicit contract for the mirror reconciliation (including the fail-closed `None` and the retired tombstone) or classify it as an intentional departure. | `authority.rs:41-176` and `creature_canonical_adapter.rs:29-70,178-210` are the whole surface; the C++ side is one `unique_ptr<Loot>` per object (`Creature.h:236`). | high |
+| F6-7 | **D-01/D-02/D-10 loot-authority and creature-entity reconciliation contract.** Write the explicit contract for the mirror reconciliation (including the fail-closed `None` and the retired tombstone) or classify it as an intentional departure. **Draft contract produced — §5.3 / decisions pending reviewer** (9 rules: 1 `faithful`, 3 `intentional departure`, 5 `suspect divergence`; no decision taken, no code changed). | `authority.rs:41-176` and `creature_canonical_adapter.rs:29-70,178-210` are the whole surface; the C++ side is one `unique_ptr<Loot>` per object (`Creature.h:236`). | high |
 | F6-8 | **D-08/D-09 legacy runtime and map manager retirement plan.** Decide the single owner, state the C++ phase order it must reproduce (`World.cpp:2748` → `MapManager.cpp:287` → `Creature.cpp:696`), and list the two-producer and two-store call sites to retire. | Bounded by §3 and §4 caller tables. **Not a structural slice** — it changes which clock and which store produce observable state. | highest |
 
 ## 7. Explicitly unverified
@@ -691,3 +794,8 @@ F6-1, F6-2, F6-4 and F6-6 have been executed, and all four only as documentation
 | Whether dropping `represented_gameobject_phase_shifts` is behaviour-preserving (F6-6) | §5.2 row 6 records that the canonical `WorldObject.phase_shift` exists and that the DB-spawn path does not write it; the reader at `crates/wow-world/src/session/world_entities/gameobject_query.rs:115-120` has no canonical fallback, so the move must land with the write. Not executed. |
 | Whether `represented_gameobject_tap_lists` is ever non-empty in a production build (F6-6) | Its only writer is gated test-only (`crates/wow-world-loot/src/state.rs:22-23` gates `mod fixtures`; writer `fixtures.rs:64-70`), so the production reader (`crates/wow-world/src/handlers/loot/sources.rs:584`) appears to always take the `None` branch — asserted from the cfg gate, not from a built production binary. |
 | The §6 F6-6 anchors `state.rs:54` and `wow-world-loot/src/state.rs:77` | Stale: `state.rs:54` is a blank line (the field is `:50-52`) and the loot range starts four lines early (`:82`, `:84`). §5.2 records the corrected anchors; no other F6 anchor was re-checked. |
+| Whether the 8-round fail-closed `None` in loot reconciliation is production-reachable (F6-7 R3/R4) | §5.3(b) reads the loop (`loot_release/authority.rs:50,89-136,150-152`) and the consumers, but nothing measures whether 8 rounds are ever exhausted at runtime. Capture: §5.3 Q2. |
+| Whether two `Active` loot-authority mirrors for one owner GUID coexist in production (F6-7 R5) | The tombstone branch (`creature_canonical_adapter.rs:199-201,212`) is read, not exercised, and its production frequency is unknown. Capture: §5.3 Q3. |
+| Whether the health-revision/ABA entity-replacement rejection fires in production and reaches a client (F6-7 R6/R7) | The guard (`creature_canonical_adapter.rs:49-70`) and the legacy-only outcome (`:91-96`) are read; no packet path was traced from the canonical creature state. Capture: §5.3 Q4. |
+| Whether `Creature::GetLootForPlayer` can return `nullptr` at `LootHandler.cpp:247` | The null return exists (`Creature.cpp:1382-1385`) and is dereferenced unguarded at `:247`; reachability at that call was not established. Listed here so the C++ "no rejection path" claim is not read as "no failure mode". |
+| Whether the two D-10 loot map-key orders differ for a detached player | Unchanged from §5 and still `unknown`; the §5.3 contract can only classify it once §5.3 Q6's detached-player capture exists. |
