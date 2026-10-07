@@ -7330,6 +7330,38 @@ el presupuesto se considera excedido, el commit es el objetivo de reversión.
 PASS con **cero líneas de crecimiento** en los 8 dueños auditados, y la suite de loot del implementador **316/0** (cubre
 los 32 llamadores del shim). Registros literales: **78 → 77**. R1 con presupuesto 0. Pendiente: `final`.
 
+#### F5: `LootRoll` y `MasterLootItem` al dueño de loot, con sus registros — 2026-10-07, `b024b8a76..3657afa68`
+
+**Alcance.** `CMSG_LOOT_ROLL` (`Opcodes.cpp:589`, cuerpo `LootHandler.cpp:489`) y `CMSG_MASTER_LOOT_ITEM`
+(`:601`, `HandleLootMasterGiveOpcode`) pasan al dueño existente con cuerpos verbatim y **ambos registros se mueven** al
+registrador del dueño (que ya lleva 5 entradas, en el orden relativo original): **los registros literales de `wow-world`
+bajan 108 → 106** (contador propio: 77 → 75). Metadatos idénticos. El helper
+`represented_master_loot_target_eligible_like_cpp` se mueve con su único llamador y se **borra** el envoltorio
+`route_represented_remote_loot_roll_vote_to_owner_like_cpp`, que quedaba muerto.
+
+**Presupuesto por handler, declarado.** `LootRoll`: **1** capacidad de shell (+1 proyección de catálogos), dentro de la
+guía. `MasterLootItem`: **8** (+1 compartida), **por encima de la guía**, y lo digo. Justificación verificada: el motor
+de almacenamiento de objetos, la preparación de autoridad canónica, la reconciliación de caché, la sonda de inventario,
+la puerta de fixture `cfg!(test)` y la publicación de `LootRemoved` **siguen en el árbol de loot de World con 3+
+llamadores restantes cada uno** (p. ej. `prepare_owned_loot_authority` en `requests.rs:72`, `handlers/money.rs:73`,
+`handlers/item.rs:84`; `reconcile_represented_loot_cache` con ~30 llamadas), así que **ningún motor compartido se movió
+ni se duplicó** y cada delegación es una línea en su punto original.
+
+**Fidelidad.** Comprobación mecánica del implementador sobre el cuerpo de `MasterLootItem`: **59 anclas ordenadas**
+(llamadas a estado de loot y shell, constantes `LOOT_*`, rutas de enum, flujos de los dos paquetes) presentes en el mismo
+orden con 0 fallos, y los dos formatos de `debug!` byte-idénticos; el cuerpo de `LootRoll` igual. Sin cambio de
+comportamiento, puertas, orden, logs ni paquetes; ninguna reparación encubierta.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (237+/100−; el delta
+incluye además filas de **registro directo** —5 lecturas de `group_registry` que pasan a App y 2 filas obsoletas—, que la
+reimpresión cubre en la misma operación), arquitectura PASS, y suite de loot del implementador **316/0** con los 19
+llamadores de test de ambos handlers despachando ya por el thunk de producción. Registros literales: **77 → 75**. R1 con
+presupuesto 0.
+
+**Deuda registrada.** `crates/wow-world-application/src/loot_handlers.rs` llega a **913 líneas** (umbral de revisión:
+1.000). El siguiente corte de la familia debe dividirlo (`loot_handlers/rolls.rs` + `master_loot.rs`) antes de seguir
+creciendo. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
