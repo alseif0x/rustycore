@@ -7383,6 +7383,31 @@ pondría el fichero en ~720 líneas, por encima del presupuesto: la re-clave es 
 dispatch **25/25** y loot **316/0** del implementador. Sin cambio de superficie pública ni de metadatos. R1 con
 presupuesto 0. Pendiente: `final`.
 
+#### F5: consumidor `LootItem` al dueño de loot, con su registro — 2026-10-07, `127c0bbb6..4ff7c437f`
+
+**Alcance.** `CMSG_LOOT_ITEM` (`Opcodes.cpp:586`, `LoggedIn`/`ThreadUnsafe`, cuerpo `LootHandler.cpp:77`
+`HandleAutostoreLootItemOpcode`) pasa al dueño existente, en el submódulo nuevo `loot_handlers/item.rs` (348 líneas;
+raíz 458), y **su registro se mueve** al registrador del dueño, insertado **antes de `LootRoll`** para conservar el
+orden relativo original: **los registros literales de `wow-world` bajan 75 → 74**. Metadatos idénticos. Prueba de
+movimiento puro: cuerpo normalizado (espacios y comas finales) idéntico tras las 18 sustituciones de acceso.
+
+**Presupuesto declarado.** **5 capacidades de shell nuevas** (guía ~3): la puerta de autostore de gameobject, la
+posición representada de criatura, el drenaje de finalizaciones durables pendientes, el refresco del resumen canónico
+del dueño y la notificación de objeto retirado. Se reutilizan sin cambios las capacidades ya existentes de master loot
+y el generador de GUID de roll (documentado, no renombrado). **Ningún motor compartido se movió ni se duplicó** y cada
+método es una delegación de una línea en su punto original; el implementador nombra los llamadores restantes de cada
+uno (`reconcile` 40+, `prepare_owned_authority` en `requests.rs`/`money.rs`, etc.). Una capacidad
+(`loot_item_represented_creature_position_like_cpp`) queda con el host como único llamador: lo dejo anotado para que no
+se convierta en envoltorio muerto en el próximo corte.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (86+/36−), arquitectura
+PASS (el dueño lógico de loot baja de 10.459 a 10.217 líneas de producción), y dispatch **25/25** y loot **316/0** del
+implementador (los 24 llamadores de test del handler ya despachan por el thunk de producción). Registros literales:
+**75 → 74**. R1 con presupuesto 0. Pendiente: `final`.
+
+**Serie de registros literales, para que la contabilidad sea reproducible:** 78 → 77 (LootUnit) → 75 (LootRoll +
+MasterLootItem) → 74 (LootItem). Queda **`LootMoney`** (542 líneas) como último consumidor de loot.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
