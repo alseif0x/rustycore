@@ -9,13 +9,16 @@
 //! rename, enumeration and create bodies also need the character-administration
 //! and enumeration ports, the rename callback rail, the login-DB
 //! `realmcharacters` refresh, the support-feature policy and the player GUID
-//! generator, which live on the session's lifecycle state and handler catalogs
-//! and stay behind this host.
+//! generator; the login and ConnectTo-failed bodies need the represented
+//! `m_playerLoading`, the live-character login claim, the ConnectTo send and
+//! the pending `SessionManager` entry. All of those live on the session's
+//! lifecycle state, transport and handler catalogs and stay behind this host.
 
 use std::sync::Arc;
 
 use wow_core::{ObjectGuid, ObjectGuidGenerator};
 use wow_handler::HandlerFuture;
+use wow_packet::packets::auth::ConnectToSerial;
 use wow_persistence::{
     CharacterAdministrationPersistencePortLikeCpp, CharacterEnumerationPersistencePortLikeCpp,
 };
@@ -73,5 +76,31 @@ impl CharacterHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> &ObjectGuidGenerator {
         catalogs.id_generators.player.as_ref()
+    }
+
+    fn session_player_loading_like_cpp(&self) -> Option<ObjectGuid> {
+        self.player_loading()
+    }
+
+    fn set_player_loading_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        self.set_player_loading(guid);
+    }
+
+    fn claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
+        self.lifecycle.try_claim_character_login_like_cpp(guid)
+    }
+
+    fn release_character_login_claim_like_cpp(&mut self) {
+        self.lifecycle.release_character_login_claim_like_cpp();
+    }
+
+    fn send_connect_to_instance_like_cpp(&mut self, serial: ConnectToSerial) {
+        self.send_connect_to(serial);
+    }
+
+    fn drop_pending_session_manager_entry_like_cpp(&mut self) {
+        if let Some(mgr) = self.session_mgr() {
+            mgr.remove(self.core.account_id);
+        }
     }
 }

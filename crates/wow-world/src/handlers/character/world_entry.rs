@@ -38,52 +38,6 @@ impl WorldSession {
         );
     }
 
-    /// Handle CMSG_PLAYER_LOGIN — initiate ConnectTo flow.
-    ///
-    /// Instead of sending the login sequence directly, we send SMSG_CONNECT_TO
-    /// to redirect the client to the instance port. The login sequence is sent
-    /// after the client reconnects via `handle_continue_player_login`.
-    pub async fn handle_player_login(&mut self, pkt: PlayerLogin) {
-        if self.player_loading().is_some() || self.player_guid().is_some() {
-            warn!(
-                account = self.core.account_id,
-                "Player tried to login while another character is loading or active"
-            );
-            self.kick("WorldSession::HandlePlayerLoginOpcode Another client logging in");
-            return;
-        }
-
-        // Verify character ownership
-        if !self.is_legit_character(&pkt.guid) {
-            warn!(
-                "Account {} tried to login with non-owned character {:?}",
-                self.core.account_id, pkt.guid
-            );
-            return;
-        }
-
-        // C++ exposes one live `Player*` per character GUID through
-        // ObjectAccessor. Claim that ownership before ConnectTo/DB loading so
-        // two sessions cannot become independent save authorities.
-        if !self.lifecycle.try_claim_character_login_like_cpp(pkt.guid) {
-            warn!(
-                account = self.core.account_id,
-                guid = ?pkt.guid,
-                "Rejecting duplicate live-character login"
-            );
-            self.send_packet(&CharacterLoginFailed {
-                code: LoginFailureReasonLikeCpp::DuplicateCharacter,
-            });
-            return;
-        }
-
-        // Store the loading character GUID
-        self.set_player_loading(Some(pkt.guid));
-
-        // Build ConnectTo and register with SessionManager
-        self.send_connect_to(ConnectToSerial::WorldAttempt1);
-    }
-
     /// Handle CMSG_SERVER_TIME_OFFSET_REQUEST — respond with current realm time.
     /// Handle CMSG_TIME_SYNC_RESPONSE — client's response to our TimeSyncRequest.
     ///
