@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "0d8cac4a93e966ef218cf9504636075a32d6ba39",
+    "recorded_at_revision": "9e9320d4f77efb12d5e685422bc171492aa7bf7e",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -628,6 +628,20 @@
         "destination_growth": 729,
         "new_code": 0,
         "note": "Three CharacterHandler.cpp handlers join the existing ApplicationCharacter owner; shell capabilities stay behind the host trait."
+      },
+      {
+        "phase": "Base reset at the #1282 record (2a1c8c474)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 2a1c8c474."
+      },
+      {
+        "phase": "Owner split into a sibling module (2a1c8c474..HEAD)",
+        "shrink": 0,
+        "destination_growth": 177,
+        "new_code": 0,
+        "note": "character_handlers.rs split into a private sibling module; net +177 lines are per-file headers, import blocks and impl wrappers, no body change."
       }
     ],
     "areas": [
