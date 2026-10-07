@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "c30fa703fd14a86b3060c0255d54777d486d39a8",
+    "recorded_at_revision": "99291fada9d2bf56787811917df83e1a70e9b742",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -712,6 +712,20 @@
         "destination_growth": 151,
         "new_code": 0,
         "note": "MoveInitActiveMoverComplete and MoveTeleportAck join the existing movement owner."
+      },
+      {
+        "phase": "Base reset at the #1288 mover/teleport ACKs (9d85a3363)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 9d85a3363."
+      },
+      {
+        "phase": "F5 force-magnitude ACK (9d85a3363..HEAD)",
+        "shrink": -6,
+        "destination_growth": 129,
+        "new_code": 0,
+        "note": "One macro-registered movement opcode moves to the existing owner; MoveSplineDone deferred because its body is the shell-owned taxi state machine."
       }
     ],
     "areas": [

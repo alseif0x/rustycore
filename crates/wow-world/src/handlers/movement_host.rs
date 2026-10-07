@@ -67,6 +67,15 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         WorldSession::record_remove_movement_force_ack_like_cpp(self, ack, force_id)
     }
 
+    fn handle_movement_force_mod_magnitude_ack_like_cpp(
+        &mut self,
+        opcode: ClientOpcodes,
+        ack: &mut MovementAck,
+        speed: f32,
+    ) -> bool {
+        WorldSession::handle_movement_force_mod_magnitude_ack_like_cpp(self, opcode, ack, speed)
+    }
+
     fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
         WorldSession::apply_move_init_active_mover_complete_like_cpp(self, ticks)
     }
