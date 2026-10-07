@@ -7128,6 +7128,25 @@ respuesta. Registros literales en `wow-world`: **85 → 83**. R1 con presupuesto
 
 **Aceptación `final`:** sobre **`74736f954`**, verde con 3 jobs (`dirty: false`, verificada con `--require-profile final`).
 
+#### F5: trío de ACKs de fuerza y retroceso en `ApplicationMovement` — 2026-10-07, `f73768e05..be840968a`
+
+**Alcance por evidencia C++ (`a5f8da2e`).** `MoveKnockBackAck` (`Opcodes.cpp:644`, cuerpo `MovementHandler.cpp:548`),
+`MoveApplyMovementForceAck` (`:612`, cuerpo `:581`) y `MoveRemoveMovementForceAck` (`:647`, cuerpo `:603`), los tres
+`LoggedIn`/`ThreadSafe`, se suman al dueño existente con cuerpos, logs y metadatos sin cambios. Al ampliar un dueño
+existente, el tool y el composer siguen sin tocarse.
+
+**Dependencias.** Las tres alcanzables son de shell y pasan a métodos del trait del host; sus cuerpos de World
+sobreviven por llamadores de **test** reales. `validate_and_sanitize_active_mover_ack_like_cpp` **no se expone ni se
+duplica**: mantiene sus 4 llamadores en World. Como la puerta de shell queda **entre** el log y la difusión de la rama
+aceptada, cada handler se parte en `handle_*` (log literal + valor de paso) y `finish_*` (reanudación), con el thunk
+conservando el intercalado exacto: log → puerta del host → difusión.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa tras revisar el delta
+(−3 métodos de `WorldSession`, +3 del host, +3 shims de test), ownership PASS, arquitectura PASS, test dorado de
+dispatch **25/25**, `cargo check --all-targets` de App sin errores, y la regresión enfocada del implementador
+(`movement_force_acks_validate_and_route_from_controlled_mover_like_cpp`, 1/1, que cubre las difusiones positivas y el
+caso negativo de GUID ajeno). Registros literales en `wow-world`: **83 → 80**. R1 con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
