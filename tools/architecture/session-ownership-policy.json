@@ -1045,6 +1045,18 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::quest::rewards",
           "trait_path": null,
           "cfg": [],
@@ -1377,18 +1389,6 @@
         {
           "module": "crate::session",
           "trait_path": "PlayerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -12265,6 +12265,146 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_can_complete_repeatable_quest_represented_bounded_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_can_complete_repeatable_quest_represented_bounded_like_cpp (& self , quest : & QuestTemplate ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_can_reward_quest_represented_bounded_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_can_reward_quest_represented_bounded_like_cpp (& self , quest : & QuestTemplate ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_can_see_start_quest_represented_bounded_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_can_see_start_quest_represented_bounded_like_cpp (& self , quest : & QuestTemplate ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_hub_ref_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_hub_ref_like_cpp (& self) -> HubRef < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_player_quest_gameplay_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_player_quest_gameplay_snapshot_like_cpp (& self ,) -> Option < PlayerQuestGameplayState >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_quest_store_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_quest_store_like_cpp (& self) -> Option < Arc < QuestStore > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "complete_quest_represented_involved_source_allows_like_cpp",
+          "visibility": "private",
+          "signature": "fn complete_quest_represented_involved_source_allows_like_cpp (& self , source_guid : ObjectGuid , quest_id : u32 , quest_store : & QuestStore ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
+          "kind": "method",
+          "name": "send_represented_quest_giver_request_items_with_completion_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_represented_quest_giver_request_items_with_completion_like_cpp (& mut self , source_guid : ObjectGuid , quest : & QuestTemplate , can_complete : bool , auto_launched : bool ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "quest_query_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> QuestQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::quest_query_host",
+          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sync_player_registry_state_after_quest_change_like_cpp",
+          "visibility": "private",
+          "signature": "fn sync_player_registry_state_after_quest_change_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -45026,136 +45166,6 @@
           "name": "player_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn player_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> PlayerHandlerCxLikeCpp < 'a >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_can_complete_repeatable_quest_represented_bounded_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_can_complete_repeatable_quest_represented_bounded_like_cpp (& self , quest : & QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_can_reward_quest_represented_bounded_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_can_reward_quest_represented_bounded_like_cpp (& self , quest : & QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_can_see_start_quest_represented_bounded_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_can_see_start_quest_represented_bounded_like_cpp (& self , quest : & QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_hub_ref_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_hub_ref_like_cpp (& self) -> HubRef < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_player_quest_gameplay_snapshot_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_player_quest_gameplay_snapshot_like_cpp (& self ,) -> Option < PlayerQuestGameplayState >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_quest_store_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_quest_store_like_cpp (& self) -> Option < Arc < QuestStore > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "complete_quest_represented_involved_source_allows_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_quest_represented_involved_source_allows_like_cpp (& self , source_guid : ObjectGuid , quest_id : u32 , quest_store : & QuestStore ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestGiverCompleteQuestHostLikeCpp",
-          "kind": "method",
-          "name": "send_represented_quest_giver_request_items_with_completion_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_represented_quest_giver_request_items_with_completion_like_cpp (& mut self , source_guid : ObjectGuid , quest : & QuestTemplate , can_complete : bool , auto_launched : bool ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "quest_query_handler_cx_like_cpp",
-          "visibility": "private",
-          "signature": "fn quest_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> QuestQueryHandlerCxLikeCpp < 'a >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "QuestQueryHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "sync_player_registry_state_after_quest_change_like_cpp",
-          "visibility": "private",
-          "signature": "fn sync_player_registry_state_after_quest_change_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
           "guards": [

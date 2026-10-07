@@ -7280,7 +7280,7 @@ El contador literal sigue en 78. Es un **remate F4**, no un registro migrado de 
 
 **Crecimiento revisado, no deriva.** La arquitectura falló por **+35 líneas de producción** en el árbol de sesión: el
 cuerpo retirado (`reward_flow.rs`, −136) se compensa parcialmente con las 8 capacidades de shell, cuyo impl de World
-vive en `session/quest_query_handler_contexts.rs`. **No lo relajé en silencio:** lo registré en el ledger con su
+vive en `handlers/quest/quest_query_host.rs`. **No lo relajé en silencio:** lo registré en el ledger con su
 justificación y su **deuda** —el siguiente corte de la familia quest debe **trasladar ese host fuera de `session/`**
 (el precedente `handlers/*_host.rs`), lo que retira esas 35 líneas— y ajusté también el techo de `handlers/quest/mod.rs`
 (+2 de test por el shim). Ambos quedan escritos con su nota.
@@ -7288,6 +7288,26 @@ justificación y su **deuda** —el siguiente corte de la familia quest debe **t
 **Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (126+/14−) y la
 **secuencia correcta** (reimprimir y ejecutar la suite directamente, sin `check` intercalado), arquitectura PASS tras
 los dos ajustes revisados, y dispatch **25/25** del implementador. Pendiente: `final`.
+
+#### Deuda pagada: host de quest fuera del árbol de sesión — 2026-10-07, `951383789..d3c7980b4`
+
+**Qué se hizo.** `session/quest_query_handler_contexts.rs` se traslada **verbatim** (numstat 0 0) a
+`handlers/quest/quest_query_host.rs`, siguiendo el precedente `handlers/*_host.rs`. Solo cambian las dos declaraciones
+de módulo; las referencias internas eran rutas `crate::` absolutas sobre re-exports `pub(crate)` y resolvieron sin
+tocarse. Se actualizan también las referencias en prosa del plan.
+
+**Efecto medido, y por qué el techo receptor se ajusta.** El árbol de sesión queda **106 líneas por debajo** de su
+techo (producción 59.653, total 197.801) y el receptor `handlers/quest/mod.rs` crece exactamente esas 106 (6.362 →
+6.468). **Es una reubicación, no crecimiento neto:** la huella curada total no cambia, un camino paga menos y el otro lo
+mismo. Por eso el ledger **aprieta el techo de sesión a los valores vivos** (retirada validada) y registra el del
+receptor con su nota. Sin ese ajuste revisado la puerta de arquitectura no puede pasar, porque **todo destino de la
+capa de handlers está bajo un techo curado de no-crecimiento**: conviene saberlo antes de planear más reubicaciones.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (152+/142−; el delta son
+**renombrados de módulo** de las mismas entradas más el guard `external_impl`, que es el checker registrando que el impl
+salió de la raíz del dueño `WorldSession`), arquitectura **PASS** tras el ajuste revisado, dispatch **25/25** del
+implementador y `cargo check --all-targets` sin errores. R1 sin crecimiento neto (S=0, G=0), presupuesto 0. Pendiente:
+`final`.
 
 ## 9. Herramientas
 
