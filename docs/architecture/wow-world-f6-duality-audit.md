@@ -5,7 +5,8 @@ Read-only audit produced for issue #1263 criterion **F6**. It records what exist
 ones. **No Rust code was changed, and no repair is proposed inside a structural slice.**
 
 - Rust tree: `/home/server/rustycore-1241`, branch `1263-f6-b`; §1–§7 as audited at `bd7c106fd`,
-  §2.1 re-derived at `359bd3dda`, §2.2 re-derived at `1fe9d79c4` (branch `1263-f6-d`).
+  §2.1 re-derived at `359bd3dda`, §2.2 re-derived at `1fe9d79c4` (branch `1263-f6-d`),
+  §2.3 derived at `2079fb993` on branch `1263-f6-e`.
 - C++ reference: `/home/server/woltk-trinity-legacy` at `a5f8da2e` (3.4.3).
 - Method: source inspection — `grep`/`sed`/`git log`/file reads — plus, for §2.1 only, `cargo tree`
   feature resolution (metadata only: no compile, no test, no `validation-v2`, no capture, no
@@ -274,6 +275,73 @@ selects repair of readiness/continuation; invalid ownership supports retaining r
 **Implementation:** no code change. Structural slices may preserve these branches; any changed
 observable behaviour needs its own scoped slice with regression coverage.
 
+### 2.3 F6-3 first batch — 22 of 180, deliberately bounded
+
+**Scope and selection rule.** Anchors `canonical_access/operations.rs:182` and
+`canonical_access/quest_reward_owner.rs:561`, plus **the next 20 names**: in §2.1's printed list, start
+immediately after the first anchor (`…player_weapon_proficiency_like_cpp`) and take the next names
+**in printed order**, one per position, skipping nothing (the second anchor prints earlier, so it is not
+among them). Both anchors are real `represented_*` canonical readers; **19 rename / 1 genuine mirror / 2 unverified.**
+
+**Method.** Each definition was located with `grep -rn 'fn <name>'`; its body, and the helper body carrying the decisive
+read, were read in place. Rule: `rename` = every production read resolves to the canonical owner (canonical
+`Player` / map-entity world, §1); `genuine mirror` = value or decisive state is a separate session-side
+representation; `unverified` = both, with no single decisive source. No Rust edited; no compiler, test or `validation-v2` run.
+
+| # | name | anchor (`path:line`) | decisive read (quoted) | class |
+|---|---|---|---|---|
+| 1 | `represented_player_weapon_proficiency_like_cpp` | `wow-world-core/src/session/canonical_access/operations.rs:182` | `self.canonical_player_snapshot_like_cpp(Player::weapon_proficiency_like_cpp)` (`:183`) | rename |
+| 2 | `represented_spent_talent_points_count_like_cpp` | `wow-world-core/src/session/canonical_access/quest_reward_owner.rs:561` | `self.core.with_owned_player_like_cpp(… player.talent_runtime_like_cpp())` (`:568-569`); the other branch is `cfg(any(test, feature = "test-fixtures"))` (`:578`) | rename |
+| 3 | `represented_prevent_durability_loss_like_cpp` | `wow-world-inventory/src/durability.rs:124` | `hub.resolved_aura_effects_by_spell_aura_type_like_cpp(…)` (`:125`) → `resolved_player_visible_auras_like_cpp()` (`canonical_access/player_stats.rs:479`) | rename |
+| 4 | `represented_primary_specialization_id_like_cpp` | `wow-world/src/session/player_presentation.rs:37` | `with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp)` (`:38-40`); fallback is `#[cfg(test)]` (`:41`) | rename |
+| 5 | `represented_query_canonical_pet_name_like_cpp` | `wow-world-application/src/character_query_handlers.rs:264` | `Arc::clone(self.hub.shared().core.canonical_map_manager.as_ref()?)` (`:274`) | rename |
+| 6 | `represented_quest_available_conditions_meet_like_cpp` | `wow-world-application/src/quest/visibility.rs:47` | `self.player.build_condition_player_object_like_cpp()` (`:71`) and `current_quest_gameplay_snapshot_like_cpp(…)` (`:74`) → canonical Player (`objective_progress.rs:305`) | rename |
+| 7 | `represented_quest_giver_status_query_source_like_cpp` | `wow-world/src/handlers/quest/eligibility.rs:283` | `self.world_entities.canonical_creature_access_like_cpp(self.hub, guid)?` (`:292-294`) | rename |
+| 8 | `represented_quest_login_aura_sources_are_hit_inert_like_cpp` | `wow-world/src/session/quest/state.rs:199` | `self.player_quest_gameplay_snapshot_like_cpp()` (`:203`) → `owned_player_quest_gameplay_snapshot_like_cpp()` (`application/src/quest/session_state.rs:240`) | rename |
+| 9 | `represented_ranged_attack_power_flat_aura_like_cpp` | `wow-world-core/src/session/player_stat_queries.rs:137` | `self.resolved_aura_effects_by_spell_aura_type_like_cpp(…)` (`:141`) | rename |
+| 10 | `represented_resistance_aura_flat_like_cpp` | `wow-world-core/src/session/player_stat_queries.rs:164` | `self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)` (`:170`) | rename |
+| 11 | `represented_resistance_aura_multiplier_like_cpp` | `wow-world-core/src/session/player_stat_queries.rs:78` | `self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)` (`:83`) | rename |
+| 12 | `represented_resurrection_requested_by_like_cpp` | `wow-world/src/session/quest/state.rs:340` | `player_resurrection_state_snapshot_like_cpp()` (`:344`) → `with_owned_player_like_cpp(player.resurrection_state_like_cpp())` (`combat/death.rs:14`) | rename |
+| 13 | `represented_ride_vehicle_interact_like_cpp` | `wow-world/src/session/taxi/operations.rs:129` | mirror `registry.vehicle_interaction_snapshot(vehicle_guid)` (`:144`) beside canonical `hub_ref(self).player_position_like_cpp()` (`:138`) and `current_canonical_player_map_key_like_cpp()` (`:154`) | unverified |
+| 14 | `represented_run_speed_rate_like_cpp` | `wow-world-core/src/session/canonical_access/aura_removal/mount_control/speed.rs:425` | `presentation.resolved_player_mounted_like_cpp()?` (`:429`) and `max_represented_aura_amount_like_cpp(presentation, main_mod_effect)` (`:443`) → canonical `player.unit().subsystems().auras` (`spell_hit_authority.rs:33-34`) | rename |
+| 15 | `represented_save_cuf_profiles_like_cpp` | `wow-world-lifecycle/src/state/save.rs:150` | `hub.core.with_owned_player_mut_like_cpp(… player.save_cuf_profile_like_cpp(slot, Some(profile)))` (`:165-170`) | rename |
+| 16 | `represented_set_action_button_like_cpp` | `wow-world-core/src/session/action_bar_adapter.rs:41` | `with_owned_player_mut_like_cpp(… player.set_action_button_like_cpp(index, action, action_type))` (`:54-58`) | rename |
+| 17 | `represented_set_chosen_title_like_cpp` | `wow-world/src/session/character_customization.rs:64` and `wow-world-application/src/player_handlers.rs:376` (two definitions) | both `with_owned_player_mut_like_cpp(… set_chosen_title_like_cpp(title_id))` (`:65-67`, `:377-381`) | rename |
+| 18 | `represented_set_difficulty_reset_owner_like_cpp` | `wow-world-application/src/instances/difficulty.rs:166` | `cx.groups.group_snapshot_like_cpp(group_guid)` (`:178`) → `directory.group_registry` (`canonical_access/group_difficulty.rs:27-32`); the canonical read is only the group GUID (`:177`) | genuine mirror |
+| 19 | `represented_set_difficulty_id_like_cpp` | `wow-world-application/src/instances/difficulty.rs:214` | canonical `player_difficulty_preferences_with_access_like_cpp` (`:218-220`) **and** the mirror path `set_represented_group_difficulty_like_cpp` → `group_registry` (`:241`, `:309-313`) | unverified |
+| 20 | `represented_set_taxi_benchmark_mode_like_cpp` | `wow-world/src/session/taxi/operations.rs:217` | `mutate_canonical_player_like_cpp(… player.set_player_flag(…))` (`:224-230`) and `canonical_player_has_player_flag_like_cpp(…)` (`:238`) | rename |
+| 21 | `represented_shapeshift_form_with_fixture_like_cpp` | `wow-world-core/src/session/player_presentation.rs:91` | `self.with_owned_player_like_cpp(… shapeshift_form_id_like_cpp())` (`:95-102`); the fixture argument is `cfg(test-fixtures)` (`:103`) | rename |
+| 22 | `represented_spell_area_quest_status_like_cpp` | `wow-world/src/session/quest/giver.rs:36` | `self.player_quest_gameplay_snapshot_like_cpp()?` (`:40`) → canonical Player | rename |
+
+**Rename proposals — for review only, nothing applied.** "visibility" is the definition's current visibility;
+"affected" counts references outside the definition line (`grep -rnP '(?<![A-Za-z0-9_])<name>'`, minus `fn` lines).
+No proposed name exists in `crates/` today (grep).
+
+| current name | proposed name | public visibility | affected references (anchors) |
+|---|---|---|---|
+| `represented_player_weapon_proficiency_like_cpp` | `canonical_player_weapon_proficiency_like_cpp` | `pub` | 1: `wow-world/src/session/player_items/appearance.rs:268` |
+| `represented_spent_talent_points_count_like_cpp` | `canonical_spent_talent_points_count_like_cpp` | private | 2: `quest_reward_owner.rs:511`; `unit_tests/session/progression/talents/f3_shims.rs:14` |
+| `represented_prevent_durability_loss_like_cpp` | `canonical_prevent_durability_loss_like_cpp` | `pub` | 1 direct caller — the `wow-world` shim `session/player_items/durability.rs:248`, itself called at `:147` (shim keeps the old name unless renamed with it) |
+| `represented_primary_specialization_id_like_cpp` | `canonical_primary_specialization_id_like_cpp` | `pub(crate)` | 2 (both tests): `unit_tests/session/tests/scenarios_misc_4.rs:585,626`; the other 19 references are the `cfg(test-fixtures)` fixture field of the same name (`state/progression.rs:46`), outside this rename |
+| `represented_query_canonical_pet_name_like_cpp` | `query_canonical_pet_name_like_cpp` (drops the redundant prefix; `canonical` is already in the name) | private | 1: `character_query_handlers.rs:254` |
+| `represented_quest_available_conditions_meet_like_cpp` | `canonical_quest_available_conditions_meet_like_cpp` | `pub` | 2: `quest/visibility/quest_eligibility.rs:475`, `quest/visibility/dialog_status.rs:81` |
+| `represented_quest_giver_status_query_source_like_cpp` | `canonical_quest_giver_status_query_source_like_cpp` | `pub(crate)` | 1: `handlers/quest/handlers/queries.rs:32` |
+| `represented_quest_login_aura_sources_are_hit_inert_like_cpp` | `canonical_quest_login_aura_sources_are_hit_inert_like_cpp` | `pub(in crate::session)` | 1: `session/spell_state/aura/spell_hit_authority.rs:124` |
+| `represented_ranged_attack_power_flat_aura_like_cpp` | `canonical_ranged_attack_power_flat_aura_like_cpp` | `pub` | 1: `wow-world-application/src/stats.rs:160` |
+| `represented_resistance_aura_flat_like_cpp` | `canonical_resistance_aura_flat_like_cpp` | `pub` | 2: `player_stat_queries.rs:197`, `wow-world-application/src/stats.rs:110` |
+| `represented_resistance_aura_multiplier_like_cpp` | `canonical_resistance_aura_multiplier_like_cpp` | `pub` | 4: `player_stat_queries.rs:193,198`, `wow-world-application/src/stats.rs:104,113` |
+| `represented_resurrection_requested_by_like_cpp` | `canonical_resurrection_requested_by_like_cpp` | `pub(crate)` | 2: `session/quest/state.rs:362`; `unit_tests/session/tests/scenarios_misc_5.rs:74` |
+| `represented_run_speed_rate_like_cpp` | `canonical_run_speed_rate_like_cpp` | private | 1: `mount_control/speed.rs:363`; the 21 references to the different `recompute_represented_run_speed_rate_like_cpp` are not this item |
+| `represented_save_cuf_profiles_like_cpp` | `canonical_save_cuf_profiles_like_cpp` | `pub` | 6: `wow-world-lifecycle/src/handlers.rs:180`, shim body `session/persistence/save.rs:201`; tests `scenarios_misc_9.rs:470,532`, `account_data.rs:210,236` |
+| `represented_set_action_button_like_cpp` | `canonical_set_action_button_like_cpp` | `pub` | 2: `wow-world-lifecycle/src/state/load.rs:30`, `wow-world-application/src/player_handlers.rs:403` |
+| `represented_set_chosen_title_like_cpp` | `canonical_set_chosen_title_like_cpp` | `pub(crate)` and private (two definitions) | 5: `application/src/player_handlers.rs:342`; tests `scenarios_persistence_4.rs:291`, `scenarios_misc_5.rs:173,218`, `unit_tests/handlers/entities/tests/player.rs:566` |
+| `represented_set_taxi_benchmark_mode_like_cpp` | `canonical_set_taxi_benchmark_mode_like_cpp` | `pub(crate)` | 0 — definition only, no call site in `crates/` |
+| `represented_shapeshift_form_with_fixture_like_cpp` | `canonical_shapeshift_form_with_fixture_like_cpp` | `pub(crate)` | 2: `player_presentation.rs:72,115` |
+| `represented_spell_area_quest_status_like_cpp` | `canonical_spell_area_quest_status_like_cpp` | `pub(in crate::session)` | 2: `session/spell_state/cast.rs:136,150` |
+
+**Left open.** The 2 `unverified` rows need the decisive-source trace before a rename or mirror is
+claimed; the other 158 names are untouched and only the `fn` is renamed, not same-named fixture fields.
+
 ## 3. `legacy_runtime`
 
 **What it is.** A private module of `wow-world::session` holding the creature/player runtime tick
@@ -404,7 +472,7 @@ F6-1 and F6-2 have been executed, and both only as documentation: §2.1 and §2.
 |---|---|---|---|
 | F6-1 | **Inventory of the production-reachable `represented_*` surface.** Produce the exact list of `represented_*` definitions compiled into a production build of `world-server` (not the heuristic in §1), grouped by the stage-2 buckets. **Executed — §2.1.** | Purely mechanical: `cargo check` feature resolution or a build-script-free `cfg` scan. No behaviour touched. `crates/wow-world/Cargo.toml:9-11` and `crates/world-server/Cargo.toml:10-43` bound what can be included. | lowest |
 | F6-2 | **Re-derive each `resolved_*` seam's absent-owner contract.** For every `resolved_*` that returns `Option`, record what production does when the canonical owner is absent, and whether any caller turns `None` into a packet value. **Executed — §2.2.** | `crates/wow-world-core/src/session/player_vitals_adapter.rs:89-113` is the reference shape; the set of `resolved_*` names is enumerable by grep (216 definition lines, §2.2). Read-only; no code change. | low |
-| F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
+| F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. **In progress — batch 1 done (§2.3: 22 of 180 names classified, no rename applied).** | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
 | F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. | medium |
 | F6-5 | **D-12/D-04 loot fanout identity and order.** Verify from source whether `loot_delivery_recipient(_, map_id, instance_id)` can select a recipient on a different instance than the canonical one, and whether C++ order is observable at all (container is `GuidUnorderedSet`, `Loot.h:350`). | Two files plus one container type; the D-04 order claim is already flagged `unverified`. | medium |
 | F6-6 | **D-05/D-06/D-07 session-local GameObject state.** Decide, per field (`world-entities/src/state.rs:40-42,54`; `wow-world-loot/src/state.rs:77-84`), whether the canonical `GameObject` already carries the equivalent before any code moves. | Field-by-field; each decision is evidence-checkable against `GameObject.h:464,483,512` and `GameObject.cpp:3795`. | medium |
