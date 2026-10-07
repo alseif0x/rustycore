@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "ce061f78a08f30afe267d36cd421b901a3c8a905",
+    "recorded_at_revision": "0996e844e2f09bbf282ce062a858fbd505b1eb3b",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -656,6 +656,20 @@
         "destination_growth": 304,
         "new_code": 0,
         "note": "The last two character_setup handlers join ApplicationCharacter; shell-only capabilities stay behind the host trait."
+      },
+      {
+        "phase": "Base reset at the #1284 login slice (405c2df67)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 405c2df67."
+      },
+      {
+        "phase": "F5 ApplicationMovement owner (405c2df67..HEAD)",
+        "shrink": 15,
+        "destination_growth": 172,
+        "new_code": 0,
+        "note": "MoveTimeSkipped and SetActiveMover (C++ MovementHandler.cpp) open the new application movement owner."
       }
     ],
     "areas": [

@@ -7076,6 +7076,29 @@ reimpresa tras revisar el delta), ownership `--syntax-only` PASS, arquitectura P
 `tools/architecture`» y la verificación obligatoria de la suite del tool, y **no** reimprimió la baseline: la reimprimió
 el coordinador tras revisar el delta, como marca la disciplina de entrega.
 
+#### F5: dueño nuevo `ApplicationMovement` (dos handlers) — 2026-10-07, `405c2df67..0996e844e`
+
+**Integración previa:** #1284 cerró la familia de personaje (`405c2df67`, `final` verde en 198 s).
+
+**Alcance por evidencia C++ (`a5f8da2e`).** Arranca el dueño `ApplicationMovement`
+(`crate::movement_handlers`) con los dos handlers autocontenidos de `MovementHandler.cpp`: `CMSG_MOVE_TIME_SKIPPED`
+(`Opcodes.cpp:696`, `LoggedIn`/`Inplace`, cuerpo en `MovementHandler.cpp:719`) y `CMSG_SET_ACTIVE_MOVER`
+(`:880`, `LoggedIn`/`ThreadUnsafe`, cuerpo en `:541`). Los demás opcodes de movimiento (cadenas más pesadas) quedan para
+cortes siguientes. **Ninguna dependencia de shell:** los cuatro accesos usados
+(`player_moved_unit_guid_like_cpp`, `apply_move_time_skipped_like_cpp`, `mover_position_like_cpp`,
+`broadcast_from_movement_source_set_like_cpp`), `account_id` y `VISIBILITY_RADIUS` ya eran alcanzables desde el hub o
+desde App, así que el trait del host no necesitó ningún método extra. Registrador añadido **una vez**, al final de la
+composición única; `world-server` sin tocar.
+
+**Evidencia verificada por el coordinador en el árbol commiteado:** suite del tool **446/0** (con la baseline
+reimpresa tras revisar el delta: −2 métodos de `WorldSession`, +1 superficie del host, +1 shim de test), ownership
+PASS (210 dueños), arquitectura PASS, test dorado de dispatch **25/25** y `cargo check --all-targets` de App sin
+errores. R1 con presupuesto 0. Pendiente: `final`.
+
+**Nota operativa.** Este corte se delegó como **paquete pequeño** (un dueño, dos handlers) tras dos atascos de worker
+con paquetes grandes, y funcionó: el worker empezó a escribir en los primeros pasos. La regla que adopto para lo que
+queda es partir los bloques grandes (`movement` 11 restantes, `world_services` 15) en entregas de dos o tres opcodes.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
