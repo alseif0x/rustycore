@@ -7218,6 +7218,17 @@ literal, el shim de test se conserva (45 llamadas en 6 ficheros) y las suites en
    privado y el host de World necesita nombrar el trait y el punto de entrada). No rompe ningún contrato verificado,
    pero es una desviación de forma que quiero revisar con el ratchet ya caracterizado, no a la vez.
 
+> **Corrección (2026-10-07, ronda 19): el diagnóstico de arriba es INCORRECTO en su punto 1.** `print-baseline` **sí**
+> es fiel: sobre el árbol limpio reproduce el fichero vigente **byte a byte**, y tras hacerlo obsoleto a propósito
+> (quitando una entrada de `syntax_baseline.world_session.impl_items`) la reimpresión lo **restauró idéntico**. El
+> printer **no** omite las entradas de nivel de trait. Por tanto el fallo del corte de trainer **no** fue una carencia
+> del mecanismo de reimpresión, y el punto 1 de abajo queda sin sostén. Lo que sigue sin explicación es la observación
+> concreta de que, tras copiar la reimpresión, `git status` daba el fichero **sin cambios** mientras la suite seguía
+> listando las entradas nuevas como no revisadas: eso apunta a la **secuencia** (el `check --syntax-only` intercalado
+> entre la copia y la suite, o la reescritura del fichero durante la propia ejecución), no al printer. **Experimento
+> decisivo pendiente:** reintroducir el corte, comprobar con `diff`/`git status` que el fichero **cambió** tras la
+> copia, y ejecutar **solo** la suite, sin ningún `check` intercalado.
+
 **Decisión y siguiente paso.** El corte se **retira** (la rama vuelve a `5fae1149e`; el commit queda en el reflog y su
 SHA aquí). Antes de reintentarlo hay que **caracterizar la reimpresión del ratchet para superficies de trait nuevas**
 —qué comando la produce de forma fiel, o por qué `print-baseline` omite esas entradas— porque **cualquier dueño nuevo
