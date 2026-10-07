@@ -44,40 +44,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::CharDelete,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_char_delete",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::character::CharDelete::read(&mut pkt) {
-                    Ok(del) => session.handle_char_delete(del).await,
-                    Err(e) => tracing::warn!("Failed to read CharDelete: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CharacterRenameRequest,
-        status: SessionStatus::Authed,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_character_rename_request",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::character::CharacterRenameRequest::read(&mut pkt) {
-                    Ok(rename) => session.handle_character_rename_request(rename).await,
-                    Err(e) => tracing::warn!("Failed to read CharacterRenameRequest: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::CharCustomize,
         status: SessionStatus::Authed,
         processing: PacketProcessing::ThreadUnsafe,
@@ -106,18 +72,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
                     Err(e) => tracing::warn!("Failed to read PlayerLogin: {e}"),
                 }
             })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::OpeningCinematic,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_opening_cinematic",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_opening_cinematic(pkt).await })
         },
     }
 }

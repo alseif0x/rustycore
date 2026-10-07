@@ -91,7 +91,9 @@ pub use battleground_handlers::{
     register_battleground_handlers_like_cpp,
 };
 pub use character_handlers::{
-    CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,
+    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, CharacterHandlerCxLikeCpp,
+    CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,
+    send_represented_cinematic_start_like_cpp,
 };
 pub use character_query_handlers::realm_query_response_like_cpp;
 pub use character_query_handlers::{

@@ -238,7 +238,7 @@
           "module": "crate::handlers::character::character_handler_shims",
           "trait_path": null,
           "cfg": [
-            "cfg (test)"
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture"
         },
@@ -3255,9 +3255,51 @@
           "module": "crate::handlers::character::character_handler_host",
           "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "character_administration_persistence_port_like_cpp",
+          "visibility": "private",
+          "signature": "fn character_administration_persistence_port_like_cpp (& mut self ,) -> Option < Arc < dyn CharacterAdministrationPersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "character_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn character_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> CharacterHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "submit_character_rename_like_cpp",
+          "visibility": "private",
+          "signature": "fn submit_character_rename_like_cpp (& mut self , port : Arc < dyn CharacterAdministrationPersistencePortLikeCpp > , guid : ObjectGuid , name : String ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "update_realm_characters_like_cpp",
+          "visibility": "private",
+          "signature": "fn update_realm_characters_like_cpp (& mut self) -> HandlerFuture < '_ , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -3273,7 +3315,23 @@
           "visibility": "pub",
           "signature": "async fn handle_alter_appearance (& mut self , pkt : WorldPacket)",
           "cfg": [
-            "cfg (test)"
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_character_rename_request",
+          "visibility": "pub",
+          "signature": "async fn handle_character_rename_request (& mut self , pkt : CharacterRenameRequest)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture",
           "guards": [
@@ -3289,7 +3347,7 @@
           "visibility": "pub",
           "signature": "async fn handle_confirm_barbers_choice (& mut self , pkt : WorldPacket)",
           "cfg": [
-            "cfg (test)"
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture",
           "guards": [
@@ -3305,7 +3363,23 @@
           "visibility": "pub",
           "signature": "async fn handle_get_undelete_cooldown_status (& mut self)",
           "cfg": [
-            "cfg (test)"
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_opening_cinematic",
+          "visibility": "pub",
+          "signature": "async fn handle_opening_cinematic (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture",
           "guards": [
@@ -3321,7 +3395,7 @@
           "visibility": "pub",
           "signature": "async fn handle_set_player_declined_names (& mut self , pkt : WorldPacket)",
           "cfg": [
-            "cfg (test)"
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture",
           "guards": [
@@ -4131,34 +4205,6 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_char_delete",
-          "visibility": "pub",
-          "signature": "async fn handle_char_delete (& mut self , pkt : CharDelete)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_character_rename_request",
-          "visibility": "pub",
-          "signature": "async fn handle_character_rename_request (& mut self , pkt : CharacterRenameRequest)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_create_character",
           "visibility": "pub",
           "signature": "async fn handle_create_character (& mut self , pkt : CreateCharacter)",
@@ -4261,19 +4307,6 @@
           "name": "send_char_customize_success_like_cpp",
           "visibility": "private",
           "signature": "fn send_char_customize_success_like_cpp (& self , request : & CharCustomize)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_character_rename_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_character_rename_like_cpp (& self , result : u8 , guid : ObjectGuid , new_name : impl Into < String > ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -5223,20 +5256,6 @@
           "name": "handle_logout_request_with_generator_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_logout_request_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , req : LogoutRequest ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_opening_cinematic",
-          "visibility": "pub",
-          "signature": "async fn handle_opening_cinematic (& mut self , _pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -24995,19 +25014,6 @@
           "name": "on_item_added_to_collection_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn on_item_added_to_collection_like_cpp (& mut self , item : & wow_entities :: Item ,) -> Vec < wow_entities :: PlayerValuesUpdate >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "opening_cinematic_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn opening_cinematic_like_cpp (& mut self) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
           "guards": [

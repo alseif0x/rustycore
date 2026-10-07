@@ -143,27 +143,10 @@ impl WorldSession {
             )
     }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
-        if crate::session::hub_ref(self)
-            .player_cinematic_state_snapshot_like_cpp()
-            .is_none()
-        {
-            return;
-        }
-        self.send_packet(&wow_packet::packets::misc::TriggerCinematic {
+        wow_world_application::send_represented_cinematic_start_like_cpp(
+            &mut crate::session::hub_mut(self),
             cinematic_id,
-            conversation_guid: ObjectGuid::EMPTY,
-        });
-        if let Some(sequence) = self
-            .catalogs
-            .cinematic_sequences_store
-            .as_ref()
-            .and_then(|store| store.get(cinematic_id))
-        {
-            let camera_ids = sequence.camera;
-            let _ = crate::session::hub_mut(self).with_player_cinematic_state_like_cpp(|state| {
-                state.begin_cinematic_like_cpp(cinematic_id, camera_ids);
-            });
-        }
+        );
     }
     pub(crate) fn send_represented_resting_player_flag_update_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);

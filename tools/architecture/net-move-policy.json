@@ -17,8 +17,8 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "4c7c2479dc01208e1f5251c7c521e2c94e091668",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 7f34518f5, the #1278 integration): S = 60, G_move = 211, ratio and slack credits = 363.00, so the requirement is -152.00 and the reviewed budget above is 0.",
+    "recorded_at_revision": "f114d2dc1f240d15241d9de1c7e7955bcd24160e",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base fe99d8cf2, the #1279 integration): S = 145, G_move = 363, ratio and slack credits = 452.25, so the requirement is -89.25 and the reviewed budget above is 0.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -600,6 +600,20 @@
         "destination_growth": 211,
         "new_code": 0,
         "note": "TabardVendorActivate, SpiritHealerActivate and RequestStabledPets (C++ NPCHandler.cpp) move to a new application owner."
+      },
+      {
+        "phase": "Base reset at the #1279 integration (fe99d8cf2)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1279 integrated the ApplicationNpc owner; the merge-base moved to fe99d8cf2."
+      },
+      {
+        "phase": "F5 char delete, rename and cinematic (fe99d8cf2..HEAD)",
+        "shrink": 145,
+        "destination_growth": 363,
+        "new_code": 0,
+        "note": "Three CharacterHandler.cpp handlers join the existing ApplicationCharacter owner; shell-only capabilities stay behind the host trait."
       }
     ],
     "areas": [
@@ -610,7 +624,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 211,
+        "lines": 363,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {
