@@ -6885,7 +6885,19 @@ de los marcadores que ese escaneo afirma (solo sus dos cadenas de log, ajenas al
 total 32.260 → 32.134; el árbol de sesión no cambia en esta entrega (los tres handlers no vivían ahí). Registros
 literales en `wow-world`: **98 → 95**. Ownership PASS (209 dueños / 3.127 ítems; −3 handlers de producción, +1 método
 del host, +2 shims de test), arquitectura PASS con el techo de personaje apretado a los valores vivos, R1 presupuesto 0.
-Pendiente: la campaña `final`, que además mide la palanca de rendimiento con 3 jobs de Cargo.
+**Aceptación `final` y medición del objetivo (1):** sobre **`7f0d5b2ac`**, **verde en 390 s** con
+`VALIDATION_V2_CARGO_JOBS=3` (`dirty: false`; verificada con `--require-profile final`; manifiesto
+`target/validation-v2/manifests/20261006T235647.850819Z-1302659-final.json`). **Es la primera entrega con dueño nuevo
+que cumple el objetivo de ≤600 s** (390 s, 210 s de margen). Desglose: política de arquitectura 105 s, ownership 49 s,
+`cargo check --tests` aguas abajo 49 s, suites `--lib` 8 s y suite del tool 156 s. Memoria: pico de 11,1 GB usados y
+mínimo de 12,9 GB disponibles de 23 GB.
+
+**Caveat de rigor, no ocultado:** esta campaña **no es un A/B controlado** frente a los 616 s de `ApplicationBattlePet`
+(2 jobs). Aquel corte movía 375 líneas y tocaba el árbol de sesión; este mueve 59 y no lo toca, y el estado de caché
+difiere. La caída de `cargo check --tests` de 281 s a 49 s excede lo que explica el número de jobs, así que **no
+atribuyo la mejora completa a los 3 jobs**: lo que sí queda demostrado es que una entrega con dueño nuevo —incluido el
+tool recompilado, que es el coste que el corte de autoridad única no elimina— cabe en 390 s. Falta la medición aislada
+(mismo commit, 2 jobs, caché equivalente) para separar ambos factores.
 
 ## 9. Herramientas
 
