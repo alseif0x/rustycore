@@ -8331,6 +8331,20 @@
           "module": "crate::handlers::loot::claims",
           "trait_path": null,
           "kind": "method",
+          "name": "prepare_owned_loot_authority_for_active_request_outcome_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp (& mut self , owner_guid : ObjectGuid , scope_player : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::claims",
+          "trait_path": null,
+          "kind": "method",
           "name": "refresh_owned_loot_summary_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn refresh_owned_loot_summary_like_cpp (& mut self , owner_guid : ObjectGuid)",
@@ -8348,6 +8362,20 @@
           "name": "represented_owned_loot_authority_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn represented_owned_loot_authority_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> Option < OwnedLootAuthority >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::claims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "represented_owned_loot_authority_outcome_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn represented_owned_loot_authority_outcome_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
