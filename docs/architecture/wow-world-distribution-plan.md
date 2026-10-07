@@ -6972,7 +6972,11 @@ tocar `world-server`, la composición ni el tool.
 **Nota de cohesión (deuda registrada, no resuelta aquí):** `crates/wow-world-application/src/character_handlers.rs`
 pasa de 669 a **1.353 líneas** con 10 handlers, por encima del umbral de revisión de 1.000 líneas del manual de
 módulos. El siguiente corte de esta familia debería dividirlo en submódulos privados antes de seguir creciendo.
-Pendiente: `final`.
+**Aceptación `final`:** sobre **`44079c829`**, **verde en 192 s** con `VALIDATION_V2_CARGO_JOBS=3` (`dirty: false`;
+verificada con `--require-profile final`; manifiesto
+`target/validation-v2/manifests/20261007T012302.058022Z-1324708-final.json`). Desglose: arquitectura 60 s, ownership
+49 s, `cargo check --tests` 52 s, suites `--lib` 10 s. El corte no toca el tool, así que la campaña se mantiene en el
+rango barato de las entregas con dueño existente (191–192 s).
 
 ## 9. Herramientas
 
