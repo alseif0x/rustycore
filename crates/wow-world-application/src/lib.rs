@@ -234,6 +234,12 @@ pub use quest_query_handlers::{
     QuestQueryHandlerCxLikeCpp, QuestQueryHandlerHostLikeCpp,
     register_quest_query_handlers_like_cpp,
 };
+// The moved quest-completion body and the two quest helpers it owns are exported
+// as a separate item so the owner's exact three-name facade above stays unchanged.
+pub use quest_query_handlers::{
+    QuestGiverCompleteQuestHostLikeCpp, handle_quest_giver_complete_quest_like_cpp,
+    quest_giver_creature_id_from_source_like_cpp, quest_is_disabled_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use registry_sync::PlayerRegistrySyncContext;

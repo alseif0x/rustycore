@@ -36,7 +36,6 @@ use wow_constants::{
 };
 use wow_core::{GameTime, ObjectGuid};
 use wow_data::{
-    DISABLE_TYPE_QUEST,
     progression_rewards::{
         QUEST_PACKAGE_FILTER_CLASS_LIKE_CPP, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
         QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP, QuestPackageItemEntry,
@@ -93,11 +92,7 @@ use wow_conditions::{
 };
 
 fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
-    if source_guid.is_any_type_creature() {
-        i32::try_from(source_guid.entry()).unwrap_or(0)
-    } else {
-        0
-    }
+    wow_world_application::quest_giver_creature_id_from_source_like_cpp(source_guid)
 }
 
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;

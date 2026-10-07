@@ -71,4 +71,10 @@ impl WorldSession {
             .handle_query_quest_completion_npcs(query)
             .await;
     }
+
+    /// Delegates to the moved owner body with this session as its host; the
+    /// shell-only capabilities it needs stay on the host implementation.
+    pub async fn handle_quest_giver_complete_quest(&mut self, mut pkt: WorldPacket) {
+        wow_world_application::handle_quest_giver_complete_quest_like_cpp(self, pkt).await;
+    }
 }

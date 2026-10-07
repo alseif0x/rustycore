@@ -272,12 +272,7 @@ impl WorldSession {
     }
 
     pub(crate) fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
-        crate::session::hub_ref(self)
-            .catalogs
-            .disable_mgr()
-            .is_some_and(|disable_mgr| {
-                disable_mgr.is_disabled_for_like_cpp(DISABLE_TYPE_QUEST, quest_id, None, 0, None)
-            })
+        wow_world_application::quest_is_disabled_like_cpp(crate::session::hub_ref(self), quest_id)
     }
 }
 
