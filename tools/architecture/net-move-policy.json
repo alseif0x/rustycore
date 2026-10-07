@@ -17,8 +17,8 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "f114d2dc1f240d15241d9de1c7e7955bcd24160e",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base fe99d8cf2, the #1279 integration): S = 145, G_move = 363, ratio and slack credits = 452.25, so the requirement is -89.25 and the reviewed budget above is 0.",
+    "recorded_at_revision": "0d8cac4a93e966ef218cf9504636075a32d6ba39",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -614,6 +614,20 @@
         "destination_growth": 363,
         "new_code": 0,
         "note": "Three CharacterHandler.cpp handlers join the existing ApplicationCharacter owner; shell-only capabilities stay behind the host trait."
+      },
+      {
+        "phase": "Base reset at the #1280 integration (6ff11b635)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "#1280 integrated char delete/rename/cinematic; the merge-base moved to 6ff11b635."
+      },
+      {
+        "phase": "F5 character enum, create and customize (6ff11b635..HEAD)",
+        "shrink": 505,
+        "destination_growth": 729,
+        "new_code": 0,
+        "note": "Three CharacterHandler.cpp handlers join the existing ApplicationCharacter owner; shell capabilities stay behind the host trait."
       }
     ],
     "areas": [
@@ -624,7 +638,7 @@
       },
       {
         "area": "crates/wow-world-application/src",
-        "lines": 363,
+        "lines": 729,
         "reason": "admitted application owners with their Cx/controller/projection types (quest, loot release, trainer purchase, inventory valuation, aura removal) plus the F5 handler families hosted there (bank, equipment-set use, instances, reputation, client-state) plus the client-state inert-handler registrar."
       },
       {

@@ -6940,6 +6940,40 @@ este corte no toca el tool y el runner no enruta su suite.
 tocando `world-server` y el tool) y a los 616 s de la primera entrega con dueño nuevo. Sigue pendiente, y así se
 registra, la medición aislada que separe el efecto del número de jobs del efecto de la autoridad única de composición.
 
+#### F5: enumeración, creación y personalización de personaje en `ApplicationCharacter` — 2026-10-06, `6ff11b635..0d8cac4a9`
+
+**Integración previa:** #1280 integró borrado, renombrado y cinemática (`6ff11b635`, `final` verde en 191 s).
+
+**Alcance por evidencia C++ (`a5f8da2e`).** Tres handlers de `CharacterHandler.cpp` al dueño **existente**
+`ApplicationCharacter`: `HandleCharEnumOpcode` (`EnumCharacters`), `HandleCharCreateOpcode` (`CreateCharacter`) y
+`HandleCharCustomizeOpcode` (`CharCustomize`), los tres `Authed`/`ThreadUnsafe`, con metadatos verificados campo a campo
+por el coordinador. Se trasladan las **implementaciones reales** (las variantes `_with_policy`/`_with_generator`), no
+solo los envoltorios. `PlayerLogin` y `ConnectToFailed` quedan para el corte del coordinador de login.
+
+**Dependencias.** Misma regla que el corte anterior: los puertos y capacidades del shell (enumeración, generador de
+GUID de personaje, política de features, puerto de administración, refresco de `realmcharacters`) pasan a **métodos o
+funciones asociadas del trait del host**; los helpers alcanzables desde el hub se mueven a App; la construcción del
+contexto de stats se extrae **una vez** a `stats_application_cx_from_hub_like_cpp` para no duplicarla, con envoltorios
+finos en World para sus llamadores restantes. `account/enumeration.rs` se borró (solo contenía los dos handlers
+movidos) y su `include_str!` salió del escaneo de orden de publicación, que **se volvió a ejecutar y pasa** (mismo
+tratamiento que el `character/pets.rs` del corte NPC).
+
+**Auditoría del punto sin cobertura.** `CreateCharacter` **no tiene llamadores de test**: leí el código nuevo y
+comprobé que el thunk refresca `realmcharacters` en el host y **después** publica `CHAR_CREATE_SUCCESS`, que es el orden
+del C++ (commit → log → refresco → éxito); las ramas de fallo y los paquetes se conservan. Los literales de los tres
+cuerpos son idénticos (13/13) y el test dorado de dispatch sigue verde.
+
+**Efecto medido.** Agregado de `handlers/character`: producción 16.655 → **16.126** (−529), test 15.377 → 15.400 (+23,
+revisado: son imports y re-exports cuyos lectores de producción se movieron y que ahora están correctamente en
+`cfg(test)`, antes contados como producción) y total 32.032 → 31.526. Registros literales en `wow-world`:
+**92 → 89**. Ownership PASS (208 dueños / 3.125 ítems), arquitectura PASS con el techo apretado, R1 presupuesto 0. Sin
+tocar `world-server`, la composición ni el tool.
+
+**Nota de cohesión (deuda registrada, no resuelta aquí):** `crates/wow-world-application/src/character_handlers.rs`
+pasa de 669 a **1.353 líneas** con 10 handlers, por encima del umbral de revisión de 1.000 líneas del manual de
+módulos. El siguiente corte de esta familia debería dividirlo en submódulos privados antes de seguir creciendo.
+Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

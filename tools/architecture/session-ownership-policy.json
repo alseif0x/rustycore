@@ -217,12 +217,6 @@
           "source_class": "production"
         },
         {
-          "module": "crate::handlers::character::account::enumeration",
-          "trait_path": null,
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "module": "crate::handlers::character::bank",
           "trait_path": null,
           "cfg": [],
@@ -3090,36 +3084,6 @@
           ]
         },
         {
-          "module": "crate::handlers::character::account::enumeration",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_enum_characters",
-          "visibility": "pub",
-          "signature": "async fn handle_enum_characters (& mut self)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::account::enumeration",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_enum_characters_with_policy_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_enum_characters_with_policy_like_cpp (& mut self , policy : & crate :: session :: SupportFeaturePolicyLikeCpp ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::character::bank",
           "trait_path": null,
           "kind": "method",
@@ -3269,6 +3233,34 @@
           "module": "crate::handlers::character::character_handler_host",
           "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "character_enumeration_persistence_port_like_cpp",
+          "visibility": "private",
+          "signature": "fn character_enumeration_persistence_port_like_cpp (& mut self ,) -> Option < Arc < dyn CharacterEnumerationPersistencePortLikeCpp > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "character_guid_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn character_guid_generator_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & ObjectGuidGenerator",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "character_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn character_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> CharacterHandlerCxLikeCpp < 'a >",
@@ -3286,6 +3278,20 @@
           "name": "submit_character_rename_like_cpp",
           "visibility": "private",
           "signature": "fn submit_character_rename_like_cpp (& mut self , port : Arc < dyn CharacterAdministrationPersistencePortLikeCpp > , guid : ObjectGuid , name : String ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "support_feature_policy_like_cpp",
+          "visibility": "private",
+          "signature": "fn support_feature_policy_like_cpp (catalogs : & SessionHandlerCatalogsLikeCpp ,) -> & SupportFeaturePolicyLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -3327,6 +3333,22 @@
           "module": "crate::handlers::character::character_handler_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_char_customize",
+          "visibility": "pub",
+          "signature": "async fn handle_char_customize (& mut self , request : CharCustomize)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_character_rename_request",
           "visibility": "pub",
           "signature": "async fn handle_character_rename_request (& mut self , pkt : CharacterRenameRequest)",
@@ -3346,6 +3368,22 @@
           "name": "handle_confirm_barbers_choice",
           "visibility": "pub",
           "signature": "async fn handle_confirm_barbers_choice (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_enum_characters",
+          "visibility": "pub",
+          "signature": "async fn handle_enum_characters (& mut self)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
           ],
@@ -4191,50 +4229,6 @@
           "module": "crate::handlers::character::lifecycle",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_char_customize",
-          "visibility": "pub",
-          "signature": "async fn handle_char_customize (& mut self , request : CharCustomize)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_create_character",
-          "visibility": "pub",
-          "signature": "async fn handle_create_character (& mut self , pkt : CreateCharacter)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_create_character_with_generator_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_create_character_with_generator_like_cpp (& mut self , generator : & wow_core :: ObjectGuidGenerator , pkt : CreateCharacter ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_hearth_and_resurrect",
           "visibility": "pub",
           "signature": "async fn handle_hearth_and_resurrect (& mut self , mut pkt : wow_packet :: WorldPacket)",
@@ -4285,32 +4279,6 @@
           "guards": [
             "external_impl",
             "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_char_customize_failure_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_char_customize_failure_like_cpp (& self , result : u8 , guid : ObjectGuid)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::lifecycle",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_char_customize_success_like_cpp",
-          "visibility": "private",
-          "signature": "fn send_char_customize_success_like_cpp (& self , request : & CharCustomize)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
           ]
         },
         {
@@ -4750,8 +4718,10 @@
           "name": "player_stat_system_projection_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn player_stat_system_projection_like_cpp (& mut self , race : u8 , class : u8 , level : u8 , gear : & RepresentedPlayerGearStatsLikeCpp ,) -> Option < PlayerStatSystemProjectionLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "external_impl",
             "visible"
