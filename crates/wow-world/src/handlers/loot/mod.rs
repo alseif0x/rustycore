@@ -115,17 +115,17 @@ use wow_loot::{
 use wow_packet::ServerPacket;
 use wow_packet::packets::item::ItemInstance;
 use wow_packet::packets::loot::{
-    CoinRemoved, CreatureLoot, LOOT_ERROR_DIDNT_KILL_LIKE_CPP, LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP,
+    CoinRemoved, CreatureLoot, LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP,
     LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP,
-    LOOT_ERROR_NO_LOOT_LIKE_CPP, LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP,
+    LOOT_ERROR_NO_LOOT_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP,
     LOOT_RESPONSE_DEFAULT_FAILURE_REASON_LIKE_CPP, LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
     LOOT_TYPE_CHEST_LIKE_CPP, LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_DISENCHANTING_LIKE_CPP,
     LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP, LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
     LOOT_TYPE_INSIGNIA_LIKE_CPP, LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP,
     LOOT_TYPE_SKINNING_LIKE_CPP, LootAllPassed, LootEntry, LootEntryFlags, LootItemData,
     LootItemPkt, LootList, LootMoney, LootMoneyNotify, LootReleaseAll, LootRemoved, LootResponse,
-    LootRoll, LootRollBroadcast, LootRollWon, MasterLootCandidateList, MasterLootItem,
-    SLootRelease, SetLootSpecialization, StartLootRoll,
+    LootRoll, LootRollBroadcast, LootRollWon, MasterLootCandidateList, SLootRelease,
+    SetLootSpecialization, StartLootRoll,
 };
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_persistence::{

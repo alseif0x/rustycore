@@ -8,15 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(super) fn route_represented_remote_loot_roll_vote_to_owner_like_cpp(
-        &self,
-        roll: &LootRoll,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.route_represented_remote_loot_roll_vote_to_owner_like_cpp(hub, roll, player_guid)
-    }
-
     #[cfg(test)]
     pub(super) async fn represented_player_vote_on_loot_roll_like_cpp(
         &mut self,

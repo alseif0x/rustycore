@@ -24,10 +24,16 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_loot::{
+    LOOT_METHOD_MASTER_LIKE_CPP, LootClaimLease, LootClaimPayload, LootEntry, OwnedLootAuthority,
+};
 use wow_packet::packets::loot::{
-    AELootTargets, AELootTargetsAck, LootResponse, LootUnit, SetLootSpecialization,
+    AELootTargets, AELootTargetsAck, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
+    LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LootResponse, LootRoll,
+    LootUnit, MasterLootItem, SetLootSpecialization,
 };
 use wow_packet::{ClientPacket, WorldPacket};
+use wow_world_core::session::mailbox::MasterLootGiveResult;
 use wow_world_core::session::{HubMut, HubRef, ItemValuationCatalogsLikeCpp};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
@@ -155,6 +161,91 @@ pub trait LootHandlerHostLikeCpp<C> {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
         response: LootResponse,
+    );
+
+    /// The item GUID generator of the dispatch catalogs bundle (C++
+    /// `sObjectMgr->GenerateItemLowGuid`); the moved `HandleLootRoll` and
+    /// `HandleLootMasterGiveOpcode` bodies hand it to the item-storage
+    /// transitions they delegate.
+    fn loot_roll_item_guid_generator_like_cpp<'c>(
+        &self,
+        catalogs: &'c C,
+    ) -> &'c wow_core::ObjectGuidGenerator;
+
+    /// C++ `HandleLootRoll`'s represented vote half: the canonical roll state,
+    /// the winner/disenchant transitions, the item storage and the social reads
+    /// stay in the World loot tree.
+    fn loot_roll_player_vote_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        item_valuation: &'a ItemValuationCatalogsLikeCpp,
+        roll: &'a LootRoll,
+        player_guid: ObjectGuid,
+    ) -> impl Future<Output = bool> + Send + 'a;
+
+    /// C++ `Player::m_group`, resolved through the generation-checked canonical
+    /// Player handle of the shell-owned session social state.
+    fn master_loot_resolved_group_guid_like_cpp(&self) -> Option<u64>;
+
+    /// The World-test fixture gate of the loot tree; `cfg!(test)` is evaluated
+    /// in the shell crate, which owns the represented fixtures.
+    fn master_loot_local_fixture_allowed_like_cpp(&self) -> bool;
+
+    /// C++ `Loot::GetLootForPlayer`'s fixture bridge, which installs the
+    /// represented cache as the object-owned authority before a reservation can
+    /// await.
+    fn master_loot_prepare_owned_authority_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        scope_player: ObjectGuid,
+    ) -> Option<OwnedLootAuthority>;
+
+    /// C++ `Loot::NotifyLootList` refresh: the packet-building session window
+    /// and the canonical object authority stay in the World loot tree.
+    fn master_loot_reconcile_loot_cache_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> bool;
+
+    /// C++ `Player::CanStoreNewItem` probe of a master-loot assignment; the
+    /// inventory storage plan is shell-owned.
+    fn master_loot_can_store_error_like_cpp(
+        &self,
+        target: ObjectGuid,
+        item_id: u32,
+        count: u32,
+    ) -> Option<u8>;
+
+    /// C++ `Player::StoreLootItem` for the master looter's own award, including
+    /// the canonical claim commit and the item storage engine.
+    fn master_loot_store_claimed_direct_item_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        loot_entry: &'a LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        claim: &'a LootClaimLease,
+    ) -> impl Future<Output = bool> + Send + 'a;
+
+    /// C++ `Player::StoreLootItem` for an authoritative master-loot award.
+    fn master_loot_store_direct_item_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        loot_entry: &'a LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+    ) -> impl Future<Output = bool> + Send + 'a;
+
+    /// The `LOOT_MASTER` list refresh and `LootRemoved` publication after an
+    /// authoritative assignment; the publication path is shell-owned.
+    fn master_loot_mark_item_removed_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        target: ObjectGuid,
     );
 }
 
@@ -289,6 +380,385 @@ async fn handle_loot_unit_with_catalogs_like_cpp<H, C>(
     }
 }
 
+/// CMSG_LOOT_ROLL — vote on a pending group loot roll.
+///
+/// C++ `HandleLootRoll` silently returns when `GetLootRoll` finds no
+/// canonical roll state. Rust does not yet port that state machine, so this
+/// represented handler preserves the current wire behavior without emitting
+/// synthetic errors.
+async fn handle_loot_roll_with_generator_like_cpp<H, C>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    item_valuation: &ItemValuationCatalogsLikeCpp,
+    roll: LootRoll,
+) where
+    H: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    let Some(player_guid) = host.loot_unit_hub_ref_like_cpp().core.player_guid() else {
+        return;
+    };
+
+    if host
+        .loot_roll_player_vote_like_cpp(item_guid_generator, item_valuation, &roll, player_guid)
+        .await
+    {
+        return;
+    }
+
+    if host
+        .loot_unit_loot_ref_like_cpp()
+        .route_represented_remote_loot_roll_vote_to_owner_like_cpp(
+            host.loot_unit_hub_ref_like_cpp(),
+            &roll,
+            player_guid,
+        )
+    {
+        return;
+    }
+
+    debug!(
+        account = host.loot_unit_hub_ref_like_cpp().core.account_id,
+        loot_obj = ?roll.loot_obj,
+        loot_list_id = roll.loot_list_id,
+        roll_type = roll.roll_type,
+        "CMSG_LOOT_ROLL ignored: canonical LootRoll state is not ported yet"
+    );
+}
+
+/// CMSG_MASTER_LOOT_ITEM — master looter assigns loot to a target.
+///
+/// C++ first rejects players that are not in a group or are not the group's
+/// master looter with `LOOT_ERROR_DIDNT_KILL`. Current Rust group state has
+/// loot method `MASTER_LOOT` and the stored master-looter GUID matching the
+/// current player.
+async fn handle_master_loot_item_with_generator_like_cpp<H, C>(
+    host: &mut H,
+    item_guid_generator: &wow_core::ObjectGuidGenerator,
+    master_loot_item: MasterLootItem,
+) where
+    H: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    let Some(player_guid) = host.loot_unit_hub_ref_like_cpp().core.player_guid() else {
+        return;
+    };
+
+    let is_represented_master_looter = if let (Some(group_guid), Some(registry)) = (
+        host.master_loot_resolved_group_guid_like_cpp(),
+        host.loot_unit_hub_ref_like_cpp().core.group_registry(),
+    ) {
+        registry.get(&group_guid).is_some_and(|group| {
+            group.loot_method == LOOT_METHOD_MASTER_LIKE_CPP
+                && group.master_looter_guid == player_guid
+        })
+    } else {
+        false
+    };
+
+    if !is_represented_master_looter {
+        host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+            host.loot_unit_hub_ref_like_cpp(),
+            ObjectGuid::EMPTY,
+            ObjectGuid::EMPTY,
+            LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
+        );
+        return;
+    }
+
+    if !host
+        .loot_unit_loot_ref_like_cpp()
+        .represented_master_loot_target_exists_like_cpp(
+            host.loot_unit_hub_ref_like_cpp(),
+            master_loot_item.target,
+        )
+    {
+        host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+            host.loot_unit_hub_ref_like_cpp(),
+            ObjectGuid::EMPTY,
+            ObjectGuid::EMPTY,
+            LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP,
+        );
+        return;
+    }
+
+    let mut current_session_assignments = 0_u32;
+
+    for req in &master_loot_item.loot {
+        let Some(owner_guid) = host
+            .loot_unit_loot_ref_like_cpp()
+            .active_loot_owner_for_loot_object_like_cpp(req.object)
+        else {
+            return;
+        };
+
+        if !represented_master_loot_target_eligible_like_cpp(host, master_loot_item.target) {
+            host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                host.loot_unit_hub_ref_like_cpp(),
+                req.object,
+                owner_guid,
+                LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+            );
+            return;
+        }
+
+        let owned_authority =
+            host.master_loot_prepare_owned_authority_like_cpp(owner_guid, player_guid);
+        let authority = owned_authority
+            .as_ref()
+            .filter(|authority| {
+                authority
+                    .snapshot_for_player_like_cpp(master_loot_item.target)
+                    .is_some()
+            })
+            .cloned();
+        if authority.is_none()
+            && (owner_guid.is_creature_or_vehicle() || owner_guid.is_game_object())
+            && (owned_authority.is_some() || !host.master_loot_local_fixture_allowed_like_cpp())
+        {
+            host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                host.loot_unit_hub_ref_like_cpp(),
+                req.object,
+                owner_guid,
+                LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+            );
+            return;
+        }
+        if let Some(authority) = authority.as_ref() {
+            if !host
+                .loot_unit_loot_ref_like_cpp()
+                .represented_active_loot_generation_matches_like_cpp(
+                    host.loot_unit_hub_ref_like_cpp(),
+                    owner_guid,
+                    authority,
+                )
+            {
+                host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                    host.loot_unit_hub_ref_like_cpp(),
+                    req.object,
+                    owner_guid,
+                    LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+                );
+                return;
+            }
+            let _ =
+                host.master_loot_reconcile_loot_cache_like_cpp(owner_guid, master_loot_item.target);
+        }
+
+        let Some(loot) = host
+            .loot_unit_loot_ref_like_cpp()
+            .cached_loot_for_owner_like_cpp(owner_guid)
+        else {
+            return;
+        };
+        let dungeon_encounter_id = loot.dungeon_encounter_id;
+
+        if loot.loot_method != LOOT_METHOD_MASTER_LIKE_CPP {
+            return;
+        }
+
+        if !loot.allowed_looters.contains(&master_loot_item.target) {
+            host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                host.loot_unit_hub_ref_like_cpp(),
+                req.object,
+                owner_guid,
+                LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+            );
+            return;
+        }
+
+        if req.loot_list_id as usize >= loot.items.len() {
+            return;
+        }
+
+        let item = &loot.items[req.loot_list_id as usize];
+        if !item.allowed_looters.is_empty()
+            && !item.allowed_looters.contains(&master_loot_item.target)
+        {
+            host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                host.loot_unit_hub_ref_like_cpp(),
+                req.object,
+                owner_guid,
+                LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+            );
+            return;
+        }
+
+        if let Some(error) = host.master_loot_can_store_error_like_cpp(
+            master_loot_item.target,
+            item.item_id,
+            item.quantity,
+        ) {
+            host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                host.loot_unit_hub_ref_like_cpp(),
+                req.object,
+                owner_guid,
+                error,
+            );
+            return;
+        }
+
+        let mut entry = item.clone();
+        let claim = if let Some(authority) = authority {
+            let Some(expected_generation) = host
+                .loot_unit_loot_ref_like_cpp()
+                .active_loot_view_generation_like_cpp(owner_guid)
+                .copied()
+            else {
+                host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                    host.loot_unit_hub_ref_like_cpp(),
+                    req.object,
+                    owner_guid,
+                    LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+                );
+                return;
+            };
+            let claim = match authority
+                .reserve_item_for_award_generation_like_cpp(
+                    master_loot_item.target,
+                    req.loot_list_id,
+                    expected_generation,
+                )
+                .await
+            {
+                Ok(claim) => claim,
+                Err(_) => {
+                    host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                        host.loot_unit_hub_ref_like_cpp(),
+                        req.object,
+                        owner_guid,
+                        LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+                    );
+                    return;
+                }
+            };
+            if !host
+                .loot_unit_loot_ref_like_cpp()
+                .represented_active_loot_claim_generation_matches_like_cpp(owner_guid, &claim)
+            {
+                claim.rollback_like_cpp();
+                host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                    host.loot_unit_hub_ref_like_cpp(),
+                    req.object,
+                    owner_guid,
+                    LOOT_ERROR_MASTER_OTHER_LIKE_CPP,
+                );
+                return;
+            }
+            if let LootClaimPayload::Item(reserved_entry) = claim.payload_like_cpp() {
+                entry = reserved_entry.clone();
+            }
+            Some(claim)
+        } else {
+            None
+        };
+        if master_loot_item.target == player_guid {
+            let stored = if let Some(claim) = claim.as_ref() {
+                host.master_loot_store_claimed_direct_item_like_cpp(
+                    item_guid_generator,
+                    &entry,
+                    dungeon_encounter_id,
+                    owner_guid,
+                    req.object,
+                    claim,
+                )
+                .await
+            } else {
+                host.master_loot_store_direct_item_like_cpp(
+                    item_guid_generator,
+                    &entry,
+                    dungeon_encounter_id,
+                    owner_guid,
+                )
+                .await
+            };
+            if !stored {
+                return;
+            }
+            if claim.is_none() {
+                host.master_loot_mark_item_removed_like_cpp(
+                    owner_guid,
+                    req.object,
+                    req.loot_list_id,
+                    master_loot_item.target,
+                );
+            }
+            current_session_assignments = current_session_assignments.saturating_add(1);
+        } else {
+            let authoritative_claim = claim.is_some();
+            match host
+                .loot_unit_loot_ref_like_cpp()
+                .request_represented_remote_master_loot_give_like_cpp(
+                    host.loot_unit_hub_ref_like_cpp(),
+                    master_loot_item.target,
+                    owner_guid,
+                    req.object,
+                    req.loot_list_id,
+                    dungeon_encounter_id,
+                    entry,
+                    claim,
+                )
+                .await
+            {
+                MasterLootGiveResult::Stored if !authoritative_claim => {
+                    host.master_loot_mark_item_removed_like_cpp(
+                        owner_guid,
+                        req.object,
+                        req.loot_list_id,
+                        master_loot_item.target,
+                    );
+                }
+                MasterLootGiveResult::Stored => {}
+                MasterLootGiveResult::StoreFailed(error) => {
+                    host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                        host.loot_unit_hub_ref_like_cpp(),
+                        req.object,
+                        owner_guid,
+                        error,
+                    );
+                    return;
+                }
+                MasterLootGiveResult::TargetMismatch => {
+                    host.loot_unit_loot_ref_like_cpp().send_loot_error_like_cpp(
+                        host.loot_unit_hub_ref_like_cpp(),
+                        ObjectGuid::EMPTY,
+                        ObjectGuid::EMPTY,
+                        LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP,
+                    );
+                    return;
+                }
+            }
+        }
+    }
+
+    debug!(
+        account = host.loot_unit_hub_ref_like_cpp().core.account_id,
+        target = ?master_loot_item.target,
+        request_count = master_loot_item.loot.len(),
+        current_session_assignments,
+        "CMSG_MASTER_LOOT_ITEM accepted; represented self and connected remote target assignments route through target session state"
+    );
+}
+
+/// C++ `Group::IsMember`-style target gate of `HandleLootMasterGiveOpcode`;
+/// moved with the handler from the World loot tree, whose only caller it was.
+fn represented_master_loot_target_eligible_like_cpp<H, C>(host: &H, target: ObjectGuid) -> bool
+where
+    H: LootHandlerHostLikeCpp<C>,
+{
+    let Some(group_guid) = host.master_loot_resolved_group_guid_like_cpp() else {
+        return false;
+    };
+
+    let Some(group_registry) = host.loot_unit_hub_ref_like_cpp().core.group_registry() else {
+        return false;
+    };
+
+    group_registry
+        .get(&group_guid)
+        .is_some_and(|group| group.members.contains(&target))
+}
+
 fn handle_set_loot_specialization_thunk<'a, S, C>(
     session: &'a mut S,
     catalogs: &'a C,
@@ -344,6 +814,58 @@ where
     })
 }
 
+fn handle_loot_roll_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match LootRoll::read(&mut pkt) {
+            Ok(roll) => {
+                let item_guid_generator = session.loot_roll_item_guid_generator_like_cpp(catalogs);
+                let item_valuation = session.loot_unit_item_valuation_like_cpp(catalogs);
+                handle_loot_roll_with_generator_like_cpp::<S, C>(
+                    session,
+                    item_guid_generator,
+                    item_valuation,
+                    roll,
+                )
+                .await
+            }
+            Err(e) => warn!("Failed to read LootRoll: {e}"),
+        }
+    })
+}
+
+fn handle_master_loot_item_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match MasterLootItem::read(&mut pkt) {
+            Ok(master_loot_item) => {
+                let item_guid_generator = session.loot_roll_item_guid_generator_like_cpp(catalogs);
+                handle_master_loot_item_with_generator_like_cpp::<S, C>(
+                    session,
+                    item_guid_generator,
+                    master_loot_item,
+                )
+                .await
+            }
+            Err(e) => warn!("Failed to read MasterLootItem: {e}"),
+        }
+    })
+}
+
 /// Registers the loot handlers on the packet registry.
 pub fn register_loot_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -372,6 +894,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_unit",
         handler: handle_loot_unit_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::LootRoll,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_loot_roll",
+        handler: handle_loot_roll_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MasterLootItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_master_loot_item",
+        handler: handle_master_loot_item_thunk::<S, C>,
     })?;
     Ok(())
 }
