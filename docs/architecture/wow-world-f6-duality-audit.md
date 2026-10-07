@@ -245,6 +245,35 @@ adjacent `.unwrap_or` on another expression.
 the login sequence with it (`resolved_dungeon_difficulty_id_like_cpp`). The other production seams
 either propagate `None` unchanged (rows A–C) or fabricate a default inside the seam (row D).
 
+### 2.2.1 Decision on the absent-owner conversions (reviewer, high effort)
+
+Decision taken by the high-effort reviewer; recorded here so it does not live only in a session log.
+
+**All five conversions are bounded holds (C): behaviour retained pending evidence, expansion
+forbidden, no parity claimed.** Rationale for the login case, which is the one that looked
+worst: at the equivalent point the reference (`CharacterHandler.cpp:1063`) has **already loaded
+a Player**, sends that Player's difficulty and then `LoginVerifyWorld`; a failed `LoadFromDB`
+disconnects earlier, so **there is no "unknown owner, continue successfully" path**. Returning
+`None` when canonical ownership is unavailable is therefore **correct by design**, and the open
+question is narrower and different from what the audit first suggested: whether *this caller*
+turns a **temporary** unavailability into a **permanent** login failure. Neither unconditional
+continuation (A) nor permanent acceptance (B) is justified yet.
+
+Per case: buyback — an empty slot legitimately uses `EMPTY`, and unknown ownership does not
+prove emptiness; inventory lock — genuinely locked items legitimately produce `ItemLocked`;
+item text — an invalid response for a genuinely missing item already matches
+`HandleItemTextQuery`; taxi — unknown flight state is not flight, and `true` can *satisfy* a
+positive Taxi condition, so it is not a universally conservative rejection.
+
+**Closing evidence (needs runtime authority, not granted here):** paired real 3.4.3
+reference/Rust captures of a successful login with known difficulty and of a failed load,
+including both connections, packet bytes and order, termination, and correlated Rust
+owner-generation/readiness traces. Temporary unresolved ownership suppressing a valid login
+selects repair of readiness/continuation; invalid ownership supports retaining rejection.
+
+**Implementation:** no code change. Structural slices may preserve these branches; any changed
+observable behaviour needs its own scoped slice with regression coverage.
+
 ## 3. `legacy_runtime`
 
 **What it is.** A private module of `wow-world::session` holding the creature/player runtime tick
