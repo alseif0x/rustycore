@@ -6899,6 +6899,37 @@ atribuyo la mejora completa a los 3 jobs**: lo que sí queda demostrado es que u
 tool recompilado, que es el coste que el corte de autoridad única no elimina— cabe en 390 s. Falta la medición aislada
 (mismo commit, 2 jobs, caché equivalente) para separar ambos factores.
 
+#### F5: borrado, renombrado y cinemática en `ApplicationCharacter` — 2026-10-06, `fe99d8cf2..f114d2dc1`
+
+**Integración previa:** #1279 integró `ApplicationNpc` (`fe99d8cf2`), la primera campaña con dueño nuevo por debajo de
+600 s.
+
+**Alcance por evidencia C++ (`a5f8da2e`).** Tres handlers de `CharacterHandler.cpp` se suman al dueño **existente**
+`ApplicationCharacter`: `HandleCharDeleteOpcode` (`CharDelete`, `Authed`/`ThreadUnsafe`), `HandleCharRenameOpcode`
+(`CharacterRenameRequest`, `Authed`/`ThreadUnsafe`) y `HandleOpeningCinematic` (`OpeningCinematic`,
+`LoggedIn`/`ThreadUnsafe`). Metadatos idénticos, verificados campo a campo por el coordinador. Se dejan fuera
+`EnumCharacters` y `CreateCharacter` (más atados al shell) para un corte posterior.
+
+**Diseño de las capacidades de shell.** Los tres cuerpos necesitaban helpers que no son alcanzables desde el hub
+(puerto de administración de personaje, refresco de `realmcharacters` y envío del renombrado). La regla aplicada fue:
+si el helper solo necesita el hub, se mueve a App; si necesita capacidades del shell, pasa a ser **método del trait del
+host** y el thunk lo invoca en el punto exacto. Resultado: tres métodos nuevos en `CharacterHandlerHostLikeCpp`, dos
+helpers movidos a App (`send_character_rename_like_cpp`, `opening_cinematic_like_cpp`) y
+`send_represented_cinematic_start_like_cpp` movido como función libre con envoltorio fino en World (sus dos llamadores
+siguen ahí). Ningún cuerpo duplicado y ningún envoltorio muerto.
+
+**Orden observable auditado por el coordinador.** El caso de riesgo era `CharDelete`, que **no tiene cobertura de test
+ni antes ni después**: leí el código nuevo y comprobé que la secuencia se conserva exactamente (quitar el personaje
+legítimo → refrescar `realmcharacters` en el host → publicar `CHAR_DELETE_SUCCESS`), con las mismas ramas de fallo y
+los mismos paquetes. El diff por tokens de los tres cuerpos muestra solo la parametrización del puerto, los retornos de
+paso y el `account_id` izado (una copia `u32` bajo `&mut self`, inobservable).
+
+**Efecto medido.** Agregado de `handlers/character`: producción 16.757 → **16.655** (−102), total 32.134 → 32.032.
+Registros literales en `wow-world`: **95 → 92**. Ownership PASS (209 dueños / 3.127 ítems; −5 producción, +3 métodos
+de host, +2 shims de test), arquitectura PASS con el techo de personaje apretado, R1 presupuesto 0. Sin tocar
+`world-server` ni la composición (diffs vacíos) y sin cambio en el tool, así que la campaña no recompila el checker.
+Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
