@@ -21,6 +21,7 @@ pub mod guild;
 pub mod instances;
 pub mod loot;
 pub mod movement;
+mod movement_host;
 mod npc_host;
 pub mod pets;
 pub mod progression;
