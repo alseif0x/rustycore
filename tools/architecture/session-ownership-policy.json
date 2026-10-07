@@ -10646,51 +10646,9 @@
           "module": "crate::handlers::movement::ops_1",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_move_apply_movement_force_ack",
-          "visibility": "pub",
-          "signature": "async fn handle_move_apply_movement_force_ack (& mut self , mut pkt : MoveApplyMovementForceAck ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_move_init_active_mover_complete",
           "visibility": "pub",
           "signature": "async fn handle_move_init_active_mover_complete (& mut self , pkt : MoveInitActiveMoverComplete ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_move_knock_back_ack",
-          "visibility": "pub",
-          "signature": "async fn handle_move_knock_back_ack (& mut self , mut pkt : MoveKnockBackAck)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::movement::ops_1",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_move_remove_movement_force_ack",
-          "visibility": "pub",
-          "signature": "async fn handle_move_remove_movement_force_ack (& mut self , mut pkt : MoveRemoveMovementForceAck ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -10818,6 +10776,54 @@
           "module": "crate::handlers::movement::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_move_apply_movement_force_ack",
+          "visibility": "pub",
+          "signature": "async fn handle_move_apply_movement_force_ack (& mut self , pkt : MoveApplyMovementForceAck)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_move_knock_back_ack",
+          "visibility": "pub",
+          "signature": "async fn handle_move_knock_back_ack (& mut self , pkt : MoveKnockBackAck)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement::test_shims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "handle_move_remove_movement_force_ack",
+          "visibility": "pub",
+          "signature": "async fn handle_move_remove_movement_force_ack (& mut self , pkt : MoveRemoveMovementForceAck)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_move_set_vehicle_rec_id_ack",
           "visibility": "pub",
           "signature": "async fn handle_move_set_vehicle_rec_id_ack (& mut self , opcode : ClientOpcodes , pkt : MoveSetVehicleRecIdAck ,)",
@@ -10850,6 +10856,20 @@
           "module": "crate::handlers::movement_host",
           "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "apply_knock_back_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn apply_knock_back_ack_like_cpp (& mut self , opcode : ClientOpcodes , ack : & mut MovementAck ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "apply_move_set_vehicle_rec_id_ack_like_cpp",
           "visibility": "private",
           "signature": "fn apply_move_set_vehicle_rec_id_ack_like_cpp (& mut self , ack : & mut MovementAck)",
@@ -10867,6 +10887,34 @@
           "name": "movement_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn movement_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> MovementHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "record_apply_movement_force_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_apply_movement_force_ack_like_cpp (& mut self , ack : & mut MovementAck , force : & MovementForce ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "record_remove_movement_force_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn record_remove_movement_force_ack_like_cpp (& mut self , ack : & mut MovementAck , force_id : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
