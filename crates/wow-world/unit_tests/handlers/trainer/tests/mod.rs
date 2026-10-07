@@ -24,9 +24,12 @@ use wow_data::{
     TRAINER_SPELL_STATE_AVAILABLE_LIKE_CPP, TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP, TrainerStoreLikeCpp,
 };
-use wow_packet::packets::trainer::{TrainerListPacket, TrainerListSpell};
+use wow_packet::packets::trainer::{TrainerBuyFailed, TrainerListPacket, TrainerListSpell};
 use wow_packet::{ServerPacket, WorldPacket};
-use wow_world_application::{TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP, TRAINER_LIST_NPC_FLAGS_LIKE_CPP};
+use wow_world_application::{
+    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TRAINER_GOSSIP_NPC_FLAGS_LIKE_CPP,
+    TRAINER_LIST_NPC_FLAGS_LIKE_CPP,
+};
 
 const CREATURE_ENTRY: u32 = 123;
 const DEFAULT_TRAINER_ID: u32 = 7;

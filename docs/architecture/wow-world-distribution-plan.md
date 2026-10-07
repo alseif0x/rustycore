@@ -7229,10 +7229,40 @@ literal, el shim de test se conserva (45 llamadas en 6 ficheros) y las suites en
 > decisivo pendiente:** reintroducir el corte, comprobar con `diff`/`git status` que el fichero **cambió** tras la
 > copia, y ejecutar **solo** la suite, sin ningún `check` intercalado.
 
-**Decisión y siguiente paso.** El corte se **retira** (la rama vuelve a `5fae1149e`; el commit queda en el reflog y su
+> **Resuelto (2026-10-07, ronda 20): el corte NO estaba bloqueado.** Recuperado del reflog (`294d158cd`, aplicado como
+> `f110137bc`) y validado con la secuencia correcta —reimprimir la baseline y ejecutar **solo** la suite, sin ningún
+> `check` intercalado— la suite del tool da **446/0** y el fichero de política queda modificado (174+/14−) como debía.
+> La causa del fallo anterior fue **mi secuencia**: el `check --syntax-only` que intercalé entre la copia y la suite
+> **revertía** el fichero de política, de modo que la suite comparaba contra la baseline vieja. **Regla operativa:** tras
+> reimprimir la baseline se ejecuta la suite directamente, y si se intercala cualquier `check` hay que volver a
+> verificar con `git status` que el fichero sigue modificado.
+
+**Decisión original (superada).** El corte se **retiraba** (la rama vuelve a `5fae1149e`; el commit queda en el reflog y su
 SHA aquí). Antes de reintentarlo hay que **caracterizar la reimpresión del ratchet para superficies de trait nuevas**
 —qué comando la produce de forma fiel, o por qué `print-baseline` omite esas entradas— porque **cualquier dueño nuevo
 con trait de host choca con lo mismo**: es una pieza de infraestructura de validación, no un detalle de este corte.
+
+#### F4 remate: cuerpo de `TrainerBuySpell` al dueño de App — 2026-10-07, `29eac6dc3..f110137bc`
+
+**Alcance.** El cuerpo real de 238 líneas de `TrainerBuySpell` (`Opcodes.cpp:978` →
+`WorldSession::HandleTrainerBuySpellOpcode`, `NPCHandler.cpp:132`, que delega en `Trainer::TeachSpell`,
+`Trainer.cpp:79-145`) pasa a `crates/wow-world-application/src/trainer_purchase/buy_spell.rs`, con 13 capacidades de
+shell como métodos del trait nuevo `TrainerBuySpellHostLikeCpp` implementado en
+`crates/wow-world/src/handlers/trainer/host.rs`. Metadatos idénticos (`LoggedIn`/`Inplace`, `handler_name`
+`handle_trainer_buy_spell`); el shim de test se conserva (45 llamadas en 6 ficheros) y las suites enfocadas pasan
+(`handlers::trainer` 43/0, app `trainer` 11/0, dispatch 25/25).
+
+**Frontera declarada, sin adornos.** Este corte es un **remate F4**, no un registro migrado de F5: la entrada de
+registro **sigue en** `crates/wow-world/src/handlers/trainer/registrations.rs` con su cierre apuntando al dueño de App,
+porque el tipo de registro del inventario es `pub(crate)` en wow-world y no se puede construir desde App sin cambiar la
+composición. El contador literal **no baja** (78) y así se registra. Además se añadieron dos nombres al `pub use` de
+`trainer_purchase` en `lib.rs` (el módulo es privado y el host necesita nombrar el trait y el punto de entrada); no
+rompe ningún contrato verificado.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (delta revisado: −1
+método de `WorldSession`, +13 entradas de la superficie del trait nuevo), arquitectura PASS, y las suites enfocadas del
+implementador. Registros de trainer restantes en ese fichero: **2** (`TrainerList`, `TrainerBuySpell`). Pendiente:
+`final`.
 
 ## 9. Herramientas
 
