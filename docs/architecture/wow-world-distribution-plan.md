@@ -7124,7 +7124,9 @@ los thunks con el idioma de valor de paso ya establecido. `sanitize_movement_inf
 dispatch **25/25**, `cargo check --all-targets` de App sin errores, y ejecuciones enfocadas del implementador
 (`move_set_vehicle` 3, `move_time_skipped` 2) más una sonda temporal —revertida, fuera del commit— que despachó un ACK
 real de altura de colisión por el registro y comprobó que se registra exactamente un evento aceptado sin paquete de
-respuesta. Registros literales en `wow-world`: **85 → 83**. R1 con presupuesto 0. Pendiente: `final`.
+respuesta. Registros literales en `wow-world`: **85 → 83**. R1 con presupuesto 0.
+
+**Aceptación `final`:** sobre **`74736f954`**, verde con 3 jobs (`dirty: false`, verificada con `--require-profile final`).
 
 ## 9. Herramientas
 
