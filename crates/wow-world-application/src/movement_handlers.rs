@@ -7,11 +7,13 @@
 //! C++ source of truth: `src/server/game/Handlers/MovementHandler.cpp`
 //! (`HandleMoveTimeSkippedOpcode`, `HandleSetActiveMoverOpcode`,
 //! `HandleSetCollisionHeightAck`, `HandleMoveKnockBackAck`,
-//! `HandleMoveApplyMovementForceAck` and `HandleMoveRemoveMovementForceAck`,
+//! `HandleMoveApplyMovementForceAck`, `HandleMoveRemoveMovementForceAck`,
+//! `HandleMoveInitActiveMoverComplete` and `HandleMoveTeleportAck`,
 //! the handlers behind `CMSG_MOVE_TIME_SKIPPED`, `CMSG_SET_ACTIVE_MOVER`,
 //! `CMSG_MOVE_SET_COLLISION_HEIGHT_ACK`, `CMSG_MOVE_KNOCK_BACK_ACK`,
-//! `CMSG_MOVE_APPLY_MOVEMENT_FORCE_ACK` and
-//! `CMSG_MOVE_REMOVE_MOVEMENT_FORCE_ACK`), plus
+//! `CMSG_MOVE_APPLY_MOVEMENT_FORCE_ACK`,
+//! `CMSG_MOVE_REMOVE_MOVEMENT_FORCE_ACK`,
+//! `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` and `CMSG_MOVE_TELEPORT_ACK`), plus
 //! `src/server/game/Handlers/VehicleHandler.cpp` `HandleMoveSetVehicleRecAck`
 //! for `CMSG_MOVE_SET_VEHICLE_REC_ID_ACK`.
 //! Both bodies keep their original parse, gates, order, log strings and
@@ -27,9 +29,10 @@ use wow_handler::{
     RegistryBuilder, SessionStatus,
 };
 use wow_packet::packets::movement::{
-    MoveApplyMovementForceAck, MoveKnockBackAck, MoveRemoveMovementForceAck,
-    MoveSetCollisionHeightAck, MoveSkipTime, MoveTimeSkipped, MoveUpdateApplyMovementForce,
-    MoveUpdateKnockBack, MoveUpdateRemoveMovementForce, MovementAck, MovementForce, SetActiveMover,
+    MoveApplyMovementForceAck, MoveInitActiveMoverComplete, MoveKnockBackAck,
+    MoveRemoveMovementForceAck, MoveSetCollisionHeightAck, MoveSkipTime, MoveTeleportAck,
+    MoveTimeSkipped, MoveUpdateApplyMovementForce, MoveUpdateKnockBack,
+    MoveUpdateRemoveMovementForce, MovementAck, MovementForce, SetActiveMover,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::HubMut;
@@ -274,6 +277,53 @@ impl<'a> MovementHandlerCxLikeCpp<'a> {
                 );
         }
     }
+
+    /// Handle CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE — client acknowledges active mover ready.
+    ///
+    /// C++ updates transport timing, then calls `UpdateObjectVisibility(false)`.
+    /// That marks `NOTIFY_VISIBILITY_CHANGED`; the visible object batch is sent
+    /// later by the normal map/object visibility pass, not directly from this
+    /// packet handler. The transport-time write and the visibility mark run in
+    /// `WorldSession::apply_move_init_active_mover_complete_like_cpp`, which
+    /// lives on the World player shell that the handler context does not reach;
+    /// the thunk applies that host step at this point.
+    pub async fn handle_move_init_active_mover_complete(
+        &mut self,
+        pkt: MoveInitActiveMoverComplete,
+    ) -> MoveInitActiveMoverCompleteStepLikeCpp {
+        info!(
+            account = self.hub.shared().core.account_id,
+            ticks = pkt.ticks,
+            "RUST_LOGIN_TRACE MoveInitActiveMoverComplete"
+        );
+        MoveInitActiveMoverCompleteStepLikeCpp { ticks: pkt.ticks }
+    }
+
+    /// Handle C++ `HandleMoveTeleportAck` (`MovementHandler.cpp:261`).
+    ///
+    /// C++ order: the body logs the ACK, then the near-teleport state machine
+    /// (`IsBeingTeleportedNear`, the mover-GUID gate, the semaphore reset and the
+    /// destination update) runs in
+    /// `WorldSession::handle_move_teleport_ack_like_cpp`, which lives on the
+    /// World session shell that the handler context does not reach; the thunk
+    /// applies that host step at this point.
+    pub async fn handle_move_teleport_ack(
+        &mut self,
+        pkt: MoveTeleportAck,
+    ) -> MoveTeleportAckStepLikeCpp {
+        trace!(
+            account = self.hub.shared().core.account_id,
+            mover = ?pkt.mover_guid,
+            ack_index = pkt.ack_index,
+            move_time = pkt.move_time,
+            "MoveTeleportAck"
+        );
+        MoveTeleportAckStepLikeCpp {
+            mover_guid: pkt.mover_guid,
+            ack_index: pkt.ack_index,
+            move_time: pkt.move_time,
+        }
+    }
 }
 
 /// Host step that finishes one C++ `HandleMoveSetVehicleRecAck` call.
@@ -325,6 +375,25 @@ pub struct MoveRemoveMovementForceAckStepLikeCpp {
     pub ack: MovementAck,
     /// Trigger GUID the C++ body echoes back to the movement set.
     pub id: ObjectGuid,
+}
+
+/// Host step that carries one logged C++ `HandleMoveInitActiveMoverComplete`
+/// tick count across the World player-shell gate and into the transport-time
+/// write plus visibility mark.
+pub struct MoveInitActiveMoverCompleteStepLikeCpp {
+    /// Client tick count the C++ body subtracts from the server game time.
+    pub ticks: u32,
+}
+
+/// Host step that carries one logged C++ `HandleMoveTeleportAck` ACK across the
+/// World session-shell gate and into the near-teleport state machine.
+pub struct MoveTeleportAckStepLikeCpp {
+    /// GUID of the mover the ACK names.
+    pub mover_guid: ObjectGuid,
+    /// ACK sequence index the C++ body records.
+    pub ack_index: i32,
+    /// Client move time the C++ body records.
+    pub move_time: i32,
 }
 
 /// Builds a movement handler context from a host's hub.
@@ -380,6 +449,24 @@ pub trait MovementHandlerHostLikeCpp<C> {
         ack: &mut MovementAck,
         force_id: ObjectGuid,
     ) -> bool;
+
+    /// C++ `HandleMoveInitActiveMoverComplete` (`MovementHandler.cpp:808`) runs
+    /// `SetPlayerLocalFlag(PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME)`,
+    /// `SetTransportServerTime` and `UpdateObjectVisibility(false)` through
+    /// `WorldSession::apply_move_init_active_mover_complete_like_cpp`, which
+    /// lives on the World player shell that the handler context does not reach.
+    fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32);
+
+    /// C++ `HandleMoveTeleportAck` (`MovementHandler.cpp:261`) runs the
+    /// near-teleport state machine through
+    /// `WorldSession::handle_move_teleport_ack_like_cpp`, which lives on the
+    /// World session shell that the handler context does not reach.
+    fn handle_move_teleport_ack_like_cpp(
+        &mut self,
+        mover_guid: ObjectGuid,
+        ack_index: i32,
+        move_time: i32,
+    );
 }
 
 fn handle_set_active_mover_thunk<'a, S, C>(
@@ -566,6 +653,56 @@ where
     })
 }
 
+fn handle_move_init_active_mover_complete_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveInitActiveMoverComplete::read(&mut pkt) {
+            Ok(init) => {
+                let step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_init_active_mover_complete(init)
+                    .await;
+                session.apply_move_init_active_mover_complete_like_cpp(step.ticks);
+            }
+            Err(e) => tracing::warn!("Failed to read MoveInitActiveMoverComplete: {e}"),
+        }
+    })
+}
+
+fn handle_move_teleport_ack_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: MovementHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match wow_packet::packets::movement::MoveTeleportAck::read(&mut pkt) {
+            Ok(ack) => {
+                let step = session
+                    .movement_handler_cx_like_cpp(catalogs)
+                    .handle_move_teleport_ack(ack)
+                    .await;
+                session.handle_move_teleport_ack_like_cpp(
+                    step.mover_guid,
+                    step.ack_index,
+                    step.move_time,
+                );
+            }
+            Err(e) => tracing::warn!("Failed to read MoveTeleportAck: {e}"),
+        }
+    })
+}
+
 pub fn register_movement_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -621,6 +758,20 @@ where
         processing: PacketProcessing::ThreadSafe,
         handler_name: "handle_move_remove_movement_force_ack",
         handler: handle_move_remove_movement_force_ack_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveInitActiveMoverComplete,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_init_active_mover_complete",
+        handler: handle_move_init_active_mover_complete_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveTeleportAck,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_teleport_ack",
+        handler: handle_move_teleport_ack_thunk::<S, C>,
     })?;
     Ok(())
 }

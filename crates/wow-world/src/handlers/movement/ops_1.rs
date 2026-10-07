@@ -625,23 +625,6 @@ impl WorldSession {
             crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp();
         }
     }
-    /// Handle CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE — client acknowledges active mover ready.
-    ///
-    /// C++ updates transport timing, then calls `UpdateObjectVisibility(false)`.
-    /// That marks `NOTIFY_VISIBILITY_CHANGED`; the visible object batch is sent
-    /// later by the normal map/object visibility pass, not directly from this
-    /// packet handler.
-    pub async fn handle_move_init_active_mover_complete(
-        &mut self,
-        pkt: MoveInitActiveMoverComplete,
-    ) {
-        info!(
-            account = self.core.account_id,
-            ticks = pkt.ticks,
-            "RUST_LOGIN_TRACE MoveInitActiveMoverComplete"
-        );
-        self.apply_move_init_active_mover_complete_like_cpp(pkt.ticks);
-    }
     /// Handle C++ `HandleMovementAckMessage` opcodes.
     pub async fn handle_movement_ack_message(
         &mut self,
@@ -701,16 +684,5 @@ impl WorldSession {
             "MoveSplineDone"
         );
         self.handle_move_spline_done_taxi_like_cpp(&mut pkt.status, pkt.spline_id);
-    }
-    /// Handle C++ `HandleMoveTeleportAck` bookkeeping until near-teleport runtime is complete.
-    pub async fn handle_move_teleport_ack(&mut self, pkt: MoveTeleportAck) {
-        trace!(
-            account = self.core.account_id,
-            mover = ?pkt.mover_guid,
-            ack_index = pkt.ack_index,
-            move_time = pkt.move_time,
-            "MoveTeleportAck"
-        );
-        self.handle_move_teleport_ack_like_cpp(pkt.mover_guid, pkt.ack_index, pkt.move_time);
     }
 }
