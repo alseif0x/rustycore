@@ -7408,6 +7408,37 @@ implementador (los 24 llamadores de test del handler ya despachan por el thunk d
 **Serie de registros literales, para que la contabilidad sea reproducible:** 78 → 77 (LootUnit) → 75 (LootRoll +
 MasterLootItem) → 74 (LootItem). Queda **`LootMoney`** (542 líneas) como último consumidor de loot.
 
+#### F5: receptores de comando de `LootMoney` + dos negativas con evidencia — 2026-10-07, `e8e6cc2ed..875753c1f`
+
+**Alcance.** Los receptores de comando de la ruta de dinero de loot
+(`handle_apply_loot_money_with_generator_like_cpp_command`, `handle_notify_loot_money_removed_like_cpp_command` y el
+helper de generación) pasan al dueño de loot en el submódulo nuevo `loot_handlers/money.rs` (150 líneas), con cuerpos
+verbatim. **No hay metadatos de opcode**: son receptores de comando de sesión, no registros de paquete, así que los
+registros literales **siguen en 74** y el consumidor de paquete no se toca. **2 capacidades de shell** (dentro de la
+guía), ambas con el host como único llamador y **marcadas** para que no se conviertan en envoltorios muertos.
+
+**Desviación forzada por evidencia, revisada.** Exportar los receptores desde `lib.rs` es **imposible**: la fachada de
+loot es un **contrato de conjunto exacto** (`LOOT_ROOT_EXPORTS` con tres nombres y `exact_facade_tree` exigiendo
+igualdad), y hacerlo rompía `repository_handler_contract_passes` y los dos `composition_guard_*`. El implementador
+mantuvo el texto de llamada y expuso los receptores como **métodos por defecto del trait ya exportado**, dejando
+`lib.rs` intacto. Es la decisión correcta y la acepto; el coste son dos puntos de entrada finos en el trait.
+
+**Dos negativas con evidencia, que valen más que un corte a medias.** Antes de esto se midió y **se rechazó**:
+(a) mover `LootMoney` completo, porque necesita **14 capacidades** —1,75× el tripwire que yo mismo fijé— y arrastra
+motores compartidos con 96/34/26 llamadas; (b) el corte prerrequisito de "exponer el motor de dinero", porque **5 de
+las 9 operaciones ya son alcanzables** y **4 no pueden ser proyecciones**: sus cuerpos necesitan campos de
+`WorldSession` que no están en `SessionCore`, y **el crate de aplicación no puede nombrar `wow_world`** (la dependencia
+va en sentido contrario, comprobado con una sonda de compilación y su control negativo `E0433`). Ambas negativas se
+verificaron con sondas temporales borradas después; el árbol quedó limpio.
+
+**Estado de la deuda.** El consumidor diferido necesita **9 capacidades nuevas** (enumeradas por dependencia). La
+recomendación registrada: llevar la mitad transaccional (persistencia y dinero) en el propio corte del consumidor, o
+mover 4 cuerpos de orquestación, en vez de acumular delegaciones.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (28+/42−), arquitectura
+PASS (el dueño lógico de loot baja a 10.158 líneas de producción), dispatch **25/25** y loot **316/0** del
+implementador. R1 con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

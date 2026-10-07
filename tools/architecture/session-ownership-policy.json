@@ -8705,20 +8705,6 @@
           "module": "crate::handlers::loot::handlers::money",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_apply_loot_money_with_generator_like_cpp_command",
-          "visibility": "pub (crate)",
-          "signature": "async fn handle_apply_loot_money_with_generator_like_cpp_command (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , command : ApplyLootMoneyLikeCppCommand ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::money",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_loot_money",
           "visibility": "pub",
           "signature": "async fn handle_loot_money (& mut self , pkt : wow_packet :: WorldPacket)",
@@ -8738,20 +8724,6 @@
           "name": "handle_loot_money_with_generator_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_loot_money_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers::money",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_notify_loot_money_removed_like_cpp_command",
-          "visibility": "pub (crate)",
-          "signature": "fn handle_notify_loot_money_removed_like_cpp_command (& mut self , command : NotifyLootMoneyRemovedLikeCppCommand ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -8947,6 +8919,34 @@
           "name": "loot_item_represented_creature_position_like_cpp",
           "visibility": "private",
           "signature": "fn loot_item_represented_creature_position_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> Option < wow_core :: Position >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_money_apply_durable_payout_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_money_apply_durable_payout_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a wow_core :: ObjectGuidGenerator , notified_amount : u64 , durable_applied_amount : u64 , sole_looter : bool , apply_money : bool , publish : bool ,) -> impl Future < Output = ApplyLootMoneyResultLikeCpp > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_money_release_owner_access_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_money_release_owner_access_like_cpp (& mut self ,) -> wow_world_core :: session :: LootReleaseOwnerAccessLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9283,20 +9283,6 @@
           "name": "persist_and_consume_stored_item_money_like_cpp",
           "visibility": "pub (super)",
           "signature": "async fn persist_and_consume_stored_item_money_like_cpp (& self , item_guid : ObjectGuid , cached_notified_amount : u64 ,) -> Option < (Arc < AtomicBool > , Arc < AtomicBool > , u64 , u64) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::money",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_loot_money_command_targets_active_generation_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_loot_money_command_targets_active_generation_like_cpp (& mut self , owner_guid : ObjectGuid , expected_authority : & OwnedLootAuthority , authority_generation : u64 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [

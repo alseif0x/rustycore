@@ -98,35 +98,6 @@ impl WorldSession {
         recipients
     }
 
-    pub(super) fn represented_loot_money_command_targets_active_generation_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        expected_authority: &OwnedLootAuthority,
-        authority_generation: u64,
-    ) -> bool {
-        if !self
-            .loot
-            .active_loot_view_authority_like_cpp(owner_guid)
-            .is_some_and(|active| active.shares_storage_like_cpp(expected_authority))
-            || !self
-                .loot
-                .active_loot_view_generation_like_cpp(owner_guid)
-                .is_some_and(|active| *active == authority_generation)
-        {
-            return false;
-        }
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        self.represented_owned_loot_authority_like_cpp(owner_guid)
-            .is_some_and(|authority| {
-                authority.shares_storage_like_cpp(expected_authority)
-                    && authority
-                        .snapshot_for_player_like_cpp(player_guid)
-                        .is_some_and(|snapshot| snapshot.generation == authority_generation)
-            })
-    }
-
     pub(super) async fn apply_durable_represented_loot_money_payout_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
