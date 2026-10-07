@@ -1163,6 +1163,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::travel::travel",
           "trait_path": null,
           "cfg": [],
@@ -13758,20 +13764,6 @@
           "module": "crate::handlers::trainer",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_trainer_buy_spell_with_generator_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_trainer_buy_spell_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , battle_pet_selection_store : & wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp , pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_trainer_list",
           "visibility": "pub",
           "signature": "async fn handle_trainer_list (& mut self , hello : wow_packet :: packets :: gossip :: Hello)",
@@ -13833,6 +13825,174 @@
           "source_class": "production",
           "guards": [
             "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "begin_exclusive_player_money_persistence_like_cpp",
+          "visibility": "private",
+          "signature": "fn begin_exclusive_player_money_persistence_like_cpp (& mut self ,) -> impl Future < Output = Option < ExclusivePlayerMoneyPersistenceLikeCpp > > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "drain_represented_quest_objective_progress_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn drain_represented_quest_objective_progress_with_generator_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "execute_battle_pet_trainer_purchase_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn execute_battle_pet_trainer_purchase_with_generator_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , battle_pet_selection_store : & 'a BattlePetSelectionStoreLikeCpp , money_persistence : ExclusivePlayerMoneyPersistenceLikeCpp , trainer_guid : ObjectGuid , trainer_id : u32 , offer : PreparedBattlePetTrainerOfferLikeCpp ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "resolved_player_money_like_cpp",
+          "visibility": "private",
+          "signature": "fn resolved_player_money_like_cpp (& self) -> Option < u64 >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "save_current_player_to_db_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn save_current_player_to_db_with_generator_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator ,) -> impl Future < Output = () > + Send",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "spell_acquisition_snapshot_like_cpp",
+          "visibility": "private",
+          "signature": "fn spell_acquisition_snapshot_like_cpp (& self , lifecycle : PlayerAcquisitionLifecycleLikeCpp , future_player_condition_resolutions : Vec < PlayerFuturePlayerConditionResolutionLikeCpp > , cast_resolutions : BTreeMap < u32 , PlayerCastAcquisitionResolutionLikeCpp > ,) -> Result < PlayerSpellAcquisitionSnapshotLikeCpp , SpellAcquisitionSnapshotAdapterErrorLikeCpp >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "trainer_buy_admission_context_like_cpp",
+          "visibility": "private",
+          "signature": "fn trainer_buy_admission_context_like_cpp (& mut self) -> AppTrainerBuyAdmissionCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "trainer_buy_battle_pet_capacity_capped_like_cpp",
+          "visibility": "private",
+          "signature": "fn trainer_buy_battle_pet_capacity_capped_like_cpp (& self , species_id : u32) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "trainer_buy_context_like_cpp",
+          "visibility": "private",
+          "signature": "fn trainer_buy_context_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , battle_pet_selection : & 'a BattlePetSelectionStoreLikeCpp ,) -> AppTrainerBuyCx < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "trainer_buy_spell_hub_mut_like_cpp",
+          "visibility": "private",
+          "signature": "fn trainer_buy_spell_hub_mut_like_cpp (& mut self) -> HubMut < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "trainer_buy_spell_hub_ref_like_cpp",
+          "visibility": "private",
+          "signature": "fn trainer_buy_spell_hub_ref_like_cpp (& self) -> HubRef < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerBuySpellHostLikeCpp",
+          "kind": "method",
+          "name": "trainer_offer_decision_like_cpp",
+          "visibility": "private",
+          "signature": "fn trainer_offer_decision_like_cpp (& mut self , trainer_id : u32 , trainer_spell : & TrainerSpellLikeCpp , faction_template_id : u32 ,) -> TrainerOfferDecisionLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
