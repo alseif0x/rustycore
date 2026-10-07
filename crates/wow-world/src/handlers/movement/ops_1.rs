@@ -639,42 +639,40 @@ impl WorldSession {
         self.record_validated_movement_ack_like_cpp(opcode, &mut pkt.ack, None);
     }
     /// Handle C++ `HandleForceSpeedChangeAck` and movement-force magnitude ACKs.
+    ///
+    /// `CMSG_MOVE_SET_MOD_MOVEMENT_FORCE_MAGNITUDE_ACK`
+    /// (`MovementHandler.cpp:638`) now routes through the ApplicationMovement
+    /// owner like its C++ handler; its registered thunk is the production path,
+    /// and this branch keeps the direct WorldSession entry point on that same
+    /// path for its unit caller instead of duplicating the moved body.
     pub async fn handle_movement_speed_ack(
         &mut self,
         opcode: ClientOpcodes,
         mut pkt: MovementSpeedAck,
     ) {
+        if matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck) {
+            let mut step =
+                wow_world_application::MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+                    .handle_move_set_mod_movement_force_magnitude_ack(opcode, pkt.ack, pkt.speed)
+                    .await;
+            let accepted = self.handle_movement_force_mod_magnitude_ack_like_cpp(
+                step.opcode,
+                &mut step.ack,
+                step.speed,
+            );
+            wow_world_application::MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+                .finish_move_set_mod_movement_force_magnitude_ack(step, accepted)
+                .await;
+            return;
+        }
+
         trace!(
             account = self.core.account_id,
             ?opcode,
             speed = pkt.speed,
             "MovementSpeedAck"
         );
-        let accepted = if matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck) {
-            self.handle_movement_force_mod_magnitude_ack_like_cpp(opcode, &mut pkt.ack, pkt.speed)
-        } else {
-            self.handle_force_speed_change_ack_like_cpp(opcode, &mut pkt.ack, pkt.speed)
-        };
-
-        if accepted
-            && matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck)
-            && let Some(source_position) =
-                crate::session::hub_ref(self).mover_position_like_cpp(pkt.ack.status.guid)
-        {
-            let mut status = pkt.ack.status.clone();
-            status.time =
-                crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(status.time);
-            crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
-                status.guid,
-                source_position,
-                MoveUpdateModMovementForceMagnitude {
-                    status,
-                    speed: pkt.speed,
-                }
-                .to_bytes(),
-                crate::map_manager::VISIBILITY_RADIUS,
-            );
-        }
+        self.handle_force_speed_change_ack_like_cpp(opcode, &mut pkt.ack, pkt.speed);
     }
     /// Handle C++ `HandleMoveSplineDoneOpcode` bookkeeping until taxi runtime is complete.
     pub async fn handle_move_spline_done(&mut self, mut pkt: MoveSplineDone) {

@@ -32,8 +32,8 @@ use crate::session::{
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::movement::{
-    ClientPlayerMovement, MoveSplineDone, MoveUpdate, MoveUpdateModMovementForceMagnitude,
-    MovementAckMessage, MovementInfo, MovementSpeedAck,
+    ClientPlayerMovement, MoveSplineDone, MoveUpdate, MovementAckMessage, MovementInfo,
+    MovementSpeedAck,
 };
 
 mod ops_1;
@@ -168,7 +168,6 @@ register_movement_speed_ack!(MoveForceTurnRateChangeAck);
 register_movement_speed_ack!(MoveForceFlightSpeedChangeAck);
 register_movement_speed_ack!(MoveForceFlightBackSpeedChangeAck);
 register_movement_speed_ack!(MoveForcePitchRateChangeAck);
-register_movement_speed_ack!(MoveSetModMovementForceMagnitudeAck);
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
