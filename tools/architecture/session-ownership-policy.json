@@ -11282,20 +11282,6 @@
           "module": "crate::handlers::pets",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_battle_pet_update_display_notify",
-          "visibility": "pub",
-          "signature": "async fn handle_battle_pet_update_display_notify (& mut self , _pkt : wow_packet :: WorldPacket)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::pets",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_cage_battle_pet_represented_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_cage_battle_pet_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
@@ -14147,20 +14133,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::trainer",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_show_trade_skill",
-          "visibility": "pub",
-          "signature": "async fn handle_show_trade_skill (& mut self)",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "external_impl",
             "visible"
