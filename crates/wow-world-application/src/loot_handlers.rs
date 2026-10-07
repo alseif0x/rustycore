@@ -11,19 +11,20 @@
 //! lives here as the C++ `WorldSession::HandleLootOpcode` body; the shell-only
 //! capabilities it needs (spell/aura interruption, the represented AE-loot
 //! search, the represented loot request/open transitions and the release
-//! transition) stay behind the owner's host trait. The loot-item and money
-//! bodies stay in the World shell while they need the item, quest and creature
-//! orchestration.
+//! transition) stay behind the owner's host trait. `CMSG_LOOT_ITEM` joins them
+//! with the item, quest and creature orchestration it delegates to the existing
+//! World loot operations. The money body stays in the World shell until its own
+//! slice.
 //!
 //! The packet bodies live in the private submodules of this owner
-//! (`specialization`, `unit`, `roll`, `master_loot`); this root keeps the
-//! facades, the host trait, the thunks and the registrar, and the bodies are
-//! moved unchanged.
+//! (`specialization`, `unit`, `roll`, `master_loot`, `item`); this root keeps
+//! the facades, the host trait, the thunks and the registrar, and the bodies
+//! are moved unchanged.
 
 use std::future::Future;
 
 use tracing::{debug, warn};
-use wow_constants::ClientOpcodes;
+use wow_constants::{ClientOpcodes, InventoryResult};
 use wow_core::ObjectGuid;
 use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
@@ -31,17 +32,21 @@ use wow_handler::{
 };
 use wow_loot::{
     LOOT_METHOD_MASTER_LIKE_CPP, LootClaimLease, LootClaimPayload, LootEntry, OwnedLootAuthority,
+    loot_item_is_looted_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
 };
 use wow_packet::packets::loot::{
     AELootTargets, AELootTargetsAck, LOOT_ERROR_DIDNT_KILL_LIKE_CPP,
-    LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LootResponse, LootRoll,
-    LootUnit, MasterLootItem, SetLootSpecialization,
+    LOOT_ERROR_MASTER_OTHER_LIKE_CPP, LOOT_ERROR_NO_LOOT_LIKE_CPP,
+    LOOT_ERROR_PLAYER_NOT_FOUND_LIKE_CPP, LOOT_ERROR_TOO_FAR_LIKE_CPP, LootItemPkt, LootReleaseAll,
+    LootRemoved, LootResponse, LootRoll, LootUnit, MasterLootItem, SLootRelease,
+    SetLootSpecialization,
 };
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::mailbox::MasterLootGiveResult;
 use wow_world_core::session::{HubMut, HubRef, ItemValuationCatalogsLikeCpp};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
+mod item;
 mod master_loot;
 mod roll;
 mod specialization;
@@ -49,6 +54,7 @@ mod unit;
 
 // The registrar's thunks keep their exact call text, so the moved bodies are
 // brought back into this scope under their original names.
+use item::handle_loot_item_with_generator_like_cpp;
 use master_loot::handle_master_loot_item_with_generator_like_cpp;
 use roll::handle_loot_roll_with_generator_like_cpp;
 use unit::handle_loot_unit_with_catalogs_like_cpp;
@@ -151,9 +157,9 @@ pub trait LootHandlerHostLikeCpp<C> {
     );
 
     /// The item GUID generator of the dispatch catalogs bundle (C++
-    /// `sObjectMgr->GenerateItemLowGuid`); the moved `HandleLootRoll` and
-    /// `HandleLootMasterGiveOpcode` bodies hand it to the item-storage
-    /// transitions they delegate.
+    /// `sObjectMgr->GenerateItemLowGuid`); the moved `HandleLootRoll`,
+    /// `HandleLootMasterGiveOpcode` and `HandleAutostoreLootItemOpcode` bodies
+    /// hand it to the item-storage transitions they delegate.
     fn loot_roll_item_guid_generator_like_cpp<'c>(
         &self,
         catalogs: &'c C,
@@ -234,6 +240,46 @@ pub trait LootHandlerHostLikeCpp<C> {
         loot_list_id: u8,
         target: ObjectGuid,
     );
+
+    /// C++ `HandleAutostoreLootItemOpcode`'s `GameObject::IsWithinDistInMap`,
+    /// display-box and spell-lock gates. They read the represented GameObject
+    /// state and the session known-spell list, which the hub view does not
+    /// carry; the World facade already calls the shared application gate.
+    fn loot_item_gameobject_can_autostore_like_cpp(
+        &self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> bool;
+
+    /// C++ `ObjectAccessor::GetCreature` position of the corpse an item request
+    /// targets, for the 30-yard `GetDistance` gate; the represented/canonical
+    /// lookup mutates the session core through the loot owner's split borrow.
+    fn loot_item_represented_creature_position_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+    ) -> Option<wow_core::Position>;
+
+    /// C++ `Player::StoreLootItem`'s durable-completion drain for an item-owned
+    /// loot owner; the detached persistence worker and the session tracker are
+    /// shell-owned.
+    fn loot_item_apply_pending_durable_completions_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send + 'a;
+
+    /// C++ `Loot::Loot(Map*)` refresh of the owners whose cache changed in this
+    /// packet; the canonical gameobject/creature sync stays in the World loot
+    /// tree.
+    fn loot_item_refresh_owner_canonical_summary_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    );
+
+    /// C++ `Player::SendLoot`'s shared-owner `LootRemoved` publication of the
+    /// non-free-for-all path; it mutates the represented session objects
+    /// together with the loot state.
+    fn loot_item_notify_item_removed_like_cpp(&mut self, owner_guid: ObjectGuid, loot_list_id: u8);
 }
 
 fn handle_set_loot_specialization_thunk<'a, S, C>(
@@ -343,6 +389,21 @@ where
     })
 }
 
+fn handle_loot_item_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        let item_guid_generator = session.loot_roll_item_guid_generator_like_cpp(catalogs);
+        handle_loot_item_with_generator_like_cpp::<S, C>(session, item_guid_generator, pkt).await
+    })
+}
+
 /// Registers the loot handlers on the packet registry.
 pub fn register_loot_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -371,6 +432,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_loot_unit",
         handler: handle_loot_unit_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::LootItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_loot_item",
+        handler: handle_loot_item_thunk::<S, C>,
     })?;
     builder.register(PacketHandlerEntry {
         opcode: ClientOpcodes::LootRoll,

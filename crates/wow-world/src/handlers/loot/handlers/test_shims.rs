@@ -48,6 +48,20 @@ impl WorldSession {
         (entry.handler)(self, &catalogs, pkt).await;
     }
     /// Dispatches through the registered production thunk so the loot owner's
+    /// host trait is exercised by every caller. The packet is encoded by the
+    /// caller exactly as the client sends it (`LootItemPkt::read` decodes it
+    /// again in the moved body) and the item generator comes from the session's
+    /// test stores, exactly as the pre-move test entry point built it.
+    pub async fn handle_loot_item(&mut self, pkt: WorldPacket) {
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        catalogs.id_generators = std::sync::Arc::new(self.id_generators_for_test_like_cpp());
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
+            .find(|entry| entry.opcode == ClientOpcodes::LootItem)
+            .expect("registered loot item handler");
+        (entry.handler)(self, &catalogs, pkt).await;
+    }
+
+    /// Dispatches through the registered production thunk so the loot owner's
     /// host trait is exercised by every caller. The typed request is encoded as
     /// the client sends it (`ClientPacket::read` decodes it again in the moved
     /// body); the generators and item valuation come from the session's test

@@ -8,25 +8,7 @@
 use super::*;
 use wow_packet::ClientPacket;
 
-mod item;
 mod money;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::LootItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_loot_item",
-        handler: |session, catalogs, pkt| Box::pin(async move {
-            session
-                .handle_loot_item_with_generator_like_cpp(
-                    catalogs.id_generators.item.as_ref(),
-                    pkt,
-                )
-                .await
-        }),
-    }
-}
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
