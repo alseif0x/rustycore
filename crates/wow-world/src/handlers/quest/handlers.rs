@@ -130,7 +130,10 @@ crate::session::registry::register_packet_handler_like_cpp! {
         processing: PacketProcessing::Inplace,
         handler_name: "handle_quest_giver_complete_quest",
         handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_complete_quest(pkt).await })
+            Box::pin(async move {
+                wow_world_application::handle_quest_giver_complete_quest_like_cpp(session, pkt)
+                    .await
+            })
         },
     }
 }

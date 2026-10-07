@@ -294,9 +294,11 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
             ".handle_quest_giver_request_reward_with_generator_like_cpp(",
         ),
         (
+            // #1263 F5: the body moved to the application quest owner; the
+            // registration stays in this shell and calls the moved body.
             ClientOpcodes::QuestGiverCompleteQuest,
             "handle_quest_giver_complete_quest",
-            "session.handle_quest_giver_complete_quest(pkt).await",
+            "handle_quest_giver_complete_quest_like_cpp(session, pkt)",
         ),
         (
             ClientOpcodes::QuestGiverChooseReward,

@@ -3,13 +3,26 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Quest query and world-quest update packet bodies.
+//! Quest query, quest-giver dialog and world-quest update packet bodies.
 //!
 //! C++ source of truth: `WorldSession::HandleQueryQuestInfo`,
-//! `HandleQueryQuestCompletionNPCs` and `HandleRequestWorldQuestUpdate`
-//! (`QuestHandler.cpp`). The family owns the catalog reads and the response
-//! assembly; the World session only builds the borrowed hub plus quest-store
-//! context (#1263 F5).
+//! `HandleQueryQuestCompletionNPCs`, `HandleRequestWorldQuestUpdate`,
+//! `HandleQuestgiverCloseQuest` and `HandleQuestgiverCompleteQuest`
+//! (`QuestHandler.cpp`). The family owns the catalog reads, the quest-state
+//! transitions and the response assembly; the World session only builds the
+//! borrowed hub plus quest-store context (#1263 F5).
+//!
+//! `HandleQuestgiverCompleteQuest` lives in the [`complete_quest`] submodule
+//! against its own host trait: this owner's registrar where-clause is pinned by
+//! the handler-contract composition guard, so its registration stays in the
+//! World shell closure that calls the moved body.
+
+mod complete_quest;
+
+pub use complete_quest::{
+    QuestGiverCompleteQuestHostLikeCpp, handle_quest_giver_complete_quest_like_cpp,
+    quest_giver_creature_id_from_source_like_cpp, quest_is_disabled_like_cpp,
+};
 
 use std::sync::Arc;
 
