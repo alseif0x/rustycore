@@ -7103,6 +7103,29 @@ clase «dueño nuevo» (incluye recompilar el tool por el contrato nuevo) y qued
 con paquetes grandes, y funcionó: el worker empezó a escribir en los primeros pasos. La regla que adopto para lo que
 queda es partir los bloques grandes (`movement` 11 restantes, `world_services` 15) en entregas de dos o tres opcodes.
 
+#### F5: pareja de ACKs de movimiento en `ApplicationMovement` — 2026-10-07, `231db1d96..e27ca8c38`
+
+**Integración previa:** #1285 abrió el dueño `ApplicationMovement` con dos handlers (`231db1d96`).
+
+**Alcance por evidencia C++ (`a5f8da2e`).** `CMSG_MOVE_SET_VEHICLE_REC_ID_ACK` (`Opcodes.cpp:675`,
+`LoggedIn`/`ThreadSafe`, cuerpo en `VehicleHandler.cpp:193`) y `CMSG_MOVE_SET_COLLISION_HEIGHT_ACK` (`:666`,
+`LoggedIn`/`ThreadSafe`, cuerpo en `MovementHandler.cpp:576`) se suman al dueño **existente**, con cuerpos, logs y
+metadatos sin cambios. Al ampliar un dueño existente, el corte **no toca el tool ni el composer**: la campaña se queda
+en la clase barata.
+
+**Dependencias.** Las dos alcanzables son de shell, así que pasan a métodos del trait del host
+(`apply_move_set_vehicle_rec_id_ack_like_cpp`, cuyo llamador restante es su test unitario, y
+`record_validated_movement_ack_like_cpp`, con dos llamadores de producción en `speed.rs` y `ops_1.rs`), invocados desde
+los thunks con el idioma de valor de paso ya establecido. `sanitize_movement_info_represented_like_cpp` (5 llamadores)
+**no se toca**. Contador de test movido al host en el mismo punto de dependencia, tras el log.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa tras revisar el delta
+(−2 métodos de `WorldSession`, +2 del host, +1 shim de test), ownership PASS, arquitectura PASS, test dorado de
+dispatch **25/25**, `cargo check --all-targets` de App sin errores, y ejecuciones enfocadas del implementador
+(`move_set_vehicle` 3, `move_time_skipped` 2) más una sonda temporal —revertida, fuera del commit— que despachó un ACK
+real de altura de colisión por el registro y comprobó que se registra exactamente un evento aceptado sin paquete de
+respuesta. Registros literales en `wow-world`: **85 → 83**. R1 con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
