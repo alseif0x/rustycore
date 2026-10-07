@@ -7164,6 +7164,34 @@ dos handlers movidos tiene llamador de test. Sin helpers duplicados ni envoltori
 (fuera de su lista), pero la campaña `final` compila sus tests aguas abajo, así que queda cubierto por la aceptación.
 Registros literales en `wow-world`: **80 → 78**. R1 con presupuesto 0. Pendiente: `final`.
 
+#### F5: ACK de magnitud de fuerza + **corrección del alcance de `movement`** — 2026-10-07, `9d85a3363..99291fada`
+
+**Alcance movido.** `CMSG_MOVE_SET_MOD_MOVEMENT_FORCE_MAGNITUDE_ACK` (`Opcodes.cpp:671`, cuerpo
+`MovementHandler.cpp:627`) pasa al dueño existente `ApplicationMovement` con metadatos idénticos (`LoggedIn`/`ThreadSafe`,
+`handler_name` `"handle_movement_speed_ack"` conservado byte a byte). La puerta de shell
+(`handle_movement_force_mod_magnitude_ack_like_cpp`, cuyo cuerpo de World sobrevive por 2 llamadores de test reales)
+pasa a método del trait del host; el log y la cola de la rama aceptada se mueven literalmente al dueño.
+
+**`MoveSplineDone` se aplaza con motivo, no por comodidad.** Su cuerpo posterior al log es la **máquina de estado de
+taxi** propiedad de World (`spline_progression.rs`): necesita validación de shell, el catálogo `self.view` (que **no** es
+alcanzable desde el hub) y registro de fixtures `cfg(test)` con 2 llamadores. Moverlo con fidelidad dejaría al dueño
+conteniendo solo un log dentro de un host que tendría todo el cuerpo, es decir un envoltorio que no mueve nada —justo
+lo que la regla 2 prohíbe—, así que queda para un corte propio que mueva también la máquina de taxi.
+
+**Corrección de alcance (importante para el objetivo 2).** Mi contador de «registros literales» cuenta bloques
+`register_packet_handler_like_cpp!`, y por eso marcaba 78. Pero la familia `movement` registra **53 opcodes más** a
+través de tres macros locales (`register_move!`, `register_movement_ack_message!`, `register_movement_speed_ack!`), más
+`MoveSplineDone`: **la familia de movimiento no tenía 4 opcodes pendientes sino ~54**, y el contador literal
+**subestima el trabajo real de F5**. Lo registro como corrección de medida, no como progreso: el siguiente corte de
+movimiento debe abordar los ACKs por macro en paquetes pequeños (son mecánicos: mismo patrón, cadenas cortas) o
+mover la máquina de taxi para cerrar `MoveSplineDone`.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa tras revisar el delta
+(+1 método de host, 0 retirados: el opcode movido salía de un despachador por macro que conserva sus otros 9 opcodes),
+ownership PASS, arquitectura PASS, test dorado de dispatch **25/25**, y las dos regresiones enfocadas del implementador
+(`movement_force_acks_validate_and_route_from_controlled_mover_like_cpp` y
+`movement_force_magnitude_ack_matches_cpp_counter_validation`) en verde. R1 con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

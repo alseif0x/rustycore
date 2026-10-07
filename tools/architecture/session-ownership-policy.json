@@ -10884,6 +10884,20 @@
           "module": "crate::handlers::movement_host",
           "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "handle_movement_force_mod_magnitude_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_movement_force_mod_magnitude_ack_like_cpp (& mut self , opcode : ClientOpcodes , ack : & mut MovementAck , speed : f32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "movement_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn movement_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> MovementHandlerCxLikeCpp < 'a >",
