@@ -754,6 +754,26 @@ does not, they are transitional, not contract-worthy.
 | Q5 | Is `Quarantined` terminality correct — C++ would keep its `Loot` openable for the object's lifetime? | reviewer (+ capture for demand) | same capture as Q3; reviewer signs "accepted fail-closed" or specifies an explicit re-open rule |
 | Q6 | D-10's two map-key orders (`authority.rs:156-162` vs `crates/wow-world-loot/src/state/authority_access.rs:28-34`) with a detached player | capture | unchanged from §5; still `unknown` — a detached-player / far-teleport reproduction |
 
+### 5.3.1 Reviewer signature on the nine rules (decision, not a proposal)
+
+Signed by the high-effort reviewer. This is the decision; the verdicts in §5.3 above were the proposals.
+
+| Rule | Signed verdict | Contract, correction or hold boundary |
+|---|---|---|
+| R1 | **repair required** | One loot authority per object incarnation; both stores may hold aliases but must not allocate competing claimable pools. Observable conflict outcomes may change; runtime occurrence unverified. |
+| R2 | **repair required** | Resolve through that designated authority with incarnation/lifetime validation; survival of either mirror must not confer authority. Observable effects unverified. |
+| R3 | **repair required** | Replace dual-store reconciliation and the arbitrary eight-round limit with an operation ordered by the single authority's execution owner, preserving incarnation checks. Contention outcomes may change; runtime occurrence unverified. |
+| R4 | **repair required** | Stop treating reconciliation exhaustion as absent loot; obtain an authoritative result before publishing. **Changes observable behaviour if reached:** removes the exhaustion-induced `SLootRelease`. The possibly reachable C++ null dereference does not justify this response. |
+| R5 | **repair required** | Prevent competing pools and resolve conflicts from proven incarnation/ownership evidence instead of permanently quarantining the object or merging awards. **Changes observable behaviour if reached:** removes conflict-induced loot denial / `SLootRelease`. |
+| R6 | **bounded hold** | Capture an instrumented legitimate mutation and a stale/ABA replay through rejection: GUID, incarnation, shared timeline, revisions, health/death tuples, the complete mutation, both resulting states and correlated outgoing packets, paired with equivalent 3.4.3 evidence. Meanwhile: do not remove the guard, do not broaden rejection, do not claim parity. |
+| R7 | **repair required** | Apply accepted mutations through the canonical execution owner, or reject before legacy success/publication; never silently leave a successful mutation legacy-only. Changes state semantics; client observability unverified. |
+| R8 | **faithful** | Signed for the stated canonical-only gameobject read and validity gate; does not certify unrelated detached-player lookup ordering. |
+| R9 | **intentional departure — contract accepted** | Permits fixture-only first-generation installation into the object authority; forbids production reconstruction from session caches and any bypass of incarnation/lifetime checks. |
+
+**Root cause and scope, in the reviewer's words:** the independently allocatable two-mirror design is **unacceptable as the enduring port contract** and creates the reconciliation problem behind R3–R7; temporary aliases to one authority are acceptable and stale-snapshot protection stays necessary. The six repairs need **their own scoped slices with regression coverage and applicable capture evidence**; issue #1263's structural slices may relocate these paths **only while preserving their behaviour** and recording these verdicts.
+
+**Consequence for this audit's work items:** F6-7 is closed as a decision. The six repairs become separate, explicitly scoped work — they are behaviour changes and therefore must not be folded into a structural refactor.
+
 ## 6. Concrete work items for the F6 slices
 
 Ordered by risk, each sized to one bounded slice and stated with the evidence that bounds it.
