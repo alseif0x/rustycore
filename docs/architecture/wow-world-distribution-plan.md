@@ -7093,7 +7093,11 @@ composición única; `world-server` sin tocar.
 **Evidencia verificada por el coordinador en el árbol commiteado:** suite del tool **446/0** (con la baseline
 reimpresa tras revisar el delta: −2 métodos de `WorldSession`, +1 superficie del host, +1 shim de test), ownership
 PASS (210 dueños), arquitectura PASS, test dorado de dispatch **25/25** y `cargo check --all-targets` de App sin
-errores. R1 con presupuesto 0. Pendiente: `final`.
+errores. R1 con presupuesto 0.
+
+**Aceptación `final`:** sobre **`c9bb8bf80`**, **verde en 345 s** con 3 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261007T040014.538164Z-1368991-final.json`). Es la
+clase «dueño nuevo» (incluye recompilar el tool por el contrato nuevo) y queda 255 s por debajo del objetivo.
 
 **Nota operativa.** Este corte se delegó como **paquete pequeño** (un dueño, dos handlers) tras dos atascos de worker
 con paquetes grandes, y funcionó: el worker empezó a escribir en los primeros pasos. La regla que adopto para lo que
