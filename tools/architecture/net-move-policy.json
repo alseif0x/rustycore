@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "106ee5ffbcfa7da0bb7968295c13312cb91d2d4d",
+    "recorded_at_revision": "d3c7980b42373523fab62276b51642f0b760df84",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -754,6 +754,20 @@
         "destination_growth": 275,
         "new_code": 0,
         "note": "The quest-completion body moves to the existing quest application owner; the registration stays in world (pinned registrar signature) and the host seam lives in the session tree."
+      },
+      {
+        "phase": "Base reset at the #1293 quest-completion remate (951383789)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 951383789."
+      },
+      {
+        "phase": "Quest host relocation out of session/ (951383789..HEAD)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "One host-impl file moves verbatim from session/ to handlers/quest/; the curated footprint is unchanged."
       }
     ],
     "areas": [
