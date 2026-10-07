@@ -5,8 +5,16 @@
 //! World-side construction of the character handler context (#1263 F5).
 //!
 //! The application crate owns the bodies and their context; the session only
-//! lends its hub, inventory and world-entity state.
+//! lends its hub, inventory and world-entity state. The character-delete and
+//! rename bodies also need the character-administration port, the rename
+//! callback rail and the login-DB `realmcharacters` refresh, which live on the
+//! session's lifecycle state and stay behind this host.
 
+use std::sync::Arc;
+
+use wow_core::ObjectGuid;
+use wow_handler::HandlerFuture;
+use wow_persistence::CharacterAdministrationPersistencePortLikeCpp;
 use wow_world_application::{CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -18,5 +26,28 @@ impl CharacterHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession
     ) -> CharacterHandlerCxLikeCpp<'a> {
         let (inventory, world_entities, hub) = crate::session::split_character_handler_mut(self);
         CharacterHandlerCxLikeCpp::new(hub, inventory, world_entities)
+    }
+
+    fn character_administration_persistence_port_like_cpp(
+        &mut self,
+    ) -> Option<Arc<dyn CharacterAdministrationPersistencePortLikeCpp>> {
+        self.lifecycle
+            .character_administration_persistence_port_like_cpp()
+    }
+
+    fn update_realm_characters_like_cpp(&mut self) -> HandlerFuture<'_, ()> {
+        Box::pin(async move {
+            self.update_realm_characters().await;
+        })
+    }
+
+    fn submit_character_rename_like_cpp(
+        &mut self,
+        port: Arc<dyn CharacterAdministrationPersistencePortLikeCpp>,
+        guid: ObjectGuid,
+        name: String,
+    ) -> bool {
+        self.lifecycle
+            .submit_character_rename_like_cpp(port, guid, name)
     }
 }

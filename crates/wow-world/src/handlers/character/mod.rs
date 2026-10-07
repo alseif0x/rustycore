@@ -13,7 +13,9 @@
 mod account;
 mod bank;
 mod character_handler_host;
-#[cfg(test)]
+// The production-linked rename contract in `tests/` compiles without cfg(test),
+// so these entry points are also visible under the test-fixtures feature.
+#[cfg(any(test, feature = "test-fixtures"))]
 mod character_handler_shims;
 mod condition_objects;
 mod creation_support;

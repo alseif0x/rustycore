@@ -84,10 +84,6 @@ impl WorldSession {
         self.send_connect_to(ConnectToSerial::WorldAttempt1);
     }
 
-    pub async fn handle_opening_cinematic(&mut self, _pkt: WorldPacket) {
-        let _ = self.opening_cinematic_like_cpp();
-    }
-
     /// Handle CMSG_SERVER_TIME_OFFSET_REQUEST — respond with current realm time.
     /// Handle CMSG_TIME_SYNC_RESPONSE — client's response to our TimeSyncRequest.
     ///
