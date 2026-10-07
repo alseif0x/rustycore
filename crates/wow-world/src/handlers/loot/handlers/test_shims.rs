@@ -33,4 +33,18 @@ impl WorldSession {
         let catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
         (entry.handler)(self, &catalogs, pkt).await;
     }
+
+    /// Dispatches through the registered production thunk so the loot owner's
+    /// host trait is exercised by every caller. The item-valuation catalogs come
+    /// from the session's test stores, exactly as the pre-move test entry point
+    /// built them.
+    pub async fn handle_loot_unit(&mut self, pkt: WorldPacket) {
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        catalogs.item_valuation =
+            std::sync::Arc::new(self.item_valuation_catalogs_for_test_like_cpp());
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
+            .find(|entry| entry.opcode == ClientOpcodes::LootUnit)
+            .expect("registered loot unit handler");
+        (entry.handler)(self, &catalogs, pkt).await;
+    }
 }

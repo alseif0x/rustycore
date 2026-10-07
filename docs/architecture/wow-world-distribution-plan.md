@@ -7309,6 +7309,27 @@ salió de la raíz del dueño `WorldSession`), arquitectura **PASS** tras el aju
 implementador y `cargo check --all-targets` sin errores. R1 sin crecimiento neto (S=0, G=0), presupuesto 0. Pendiente:
 `final`.
 
+#### F5: consumidor `LootUnit` al dueño de loot, con el registro incluido — 2026-10-07, `124591fb4..db10715e9`
+
+**Alcance.** `CMSG_LOOT_UNIT` (`Opcodes.cpp:590`, `LoggedIn`/`ThreadUnsafe`, cuerpo `LootHandler.cpp:216`) pasa al dueño
+**existente** `ApplicationLoot` con el cuerpo verbatim (verificado mecánicamente: squash insensible a espacios del
+cuerpo viejo tras las 15 adaptaciones de acceso == cuerpo nuevo). **Y esta vez el registro se mueve con él** al
+registrador del dueño, sin cambiar la firma del trait del host, de modo que **los registros literales de `wow-world`
+bajan 108 → 107** — es un corte de F5 de verdad, no solo un remate de cuerpo.
+
+**Alcance de dependencias, declarado sin adornos.** El movimiento fiel necesitaba **11 delegaciones de una línea**
+(6 capacidades de shell: interrupción de casteo, retirada de auras, búsqueda AE, respuesta de loot, publicación de
+apertura y release-all; 2 accesores de estado de loot; proyecciones de hub y catálogos). **Supera la guía de ~3
+capacidades que yo mismo fijé**, así que lo digo en vez de esconderlo: el implementador lo justificó como dentro del
+precedente de trainer (`f110137bc`) porque **ninguna es un motor compartido** —`reconcile_represented_loot_cache_like_cpp`
+(42 refs), `close_stale_active_loot_view` (11), `prepare_owned_loot_authority` (7) y `notify_loot_list` **siguen en el
+shell**— y todas son delegaciones de una línea invocadas en su punto original. Lo acepto con esa frontera escrita; si
+el presupuesto se considera excedido, el commit es el objetivo de reversión.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa (170+/30−), arquitectura
+PASS con **cero líneas de crecimiento** en los 8 dueños auditados, y la suite de loot del implementador **316/0** (cubre
+los 32 llamadores del shim). Registros literales: **78 → 77**. R1 con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

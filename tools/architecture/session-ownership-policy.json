@@ -8669,36 +8669,6 @@
           "module": "crate::handlers::loot::handlers",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_loot_unit",
-          "visibility": "pub",
-          "signature": "async fn handle_loot_unit (& mut self , pkt : wow_packet :: WorldPacket)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_loot_unit_with_catalogs_like_cpp",
-          "visibility": "pub",
-          "signature": "async fn handle_loot_unit_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::handlers",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_master_loot_item",
           "visibility": "pub",
           "signature": "async fn handle_master_loot_item (& mut self , master_loot_item : MasterLootItem)",
@@ -8905,6 +8875,22 @@
           "module": "crate::handlers::loot::handlers::test_shims",
           "trait_path": null,
           "kind": "method",
+          "name": "handle_loot_unit",
+          "visibility": "pub",
+          "signature": "async fn handle_loot_unit (& mut self , pkt : WorldPacket)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::handlers::test_shims",
+          "trait_path": null,
+          "kind": "method",
           "name": "handle_set_loot_specialization",
           "visibility": "pub",
           "signature": "async fn handle_set_loot_specialization (& mut self , packet : SetLootSpecialization)",
@@ -8953,6 +8939,160 @@
           "name": "loot_release_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn loot_release_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> LootReleaseCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_ae_loot_creature_targets_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_ae_loot_creature_targets_like_cpp < 'a > (& 'a mut self , main_loot_target : ObjectGuid , player_guid : ObjectGuid ,) -> impl Future < Output = Vec < ObjectGuid > > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_hub_ref_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_hub_ref_like_cpp (& self) -> HubRef < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_interrupt_non_melee_spell_cast_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_interrupt_non_melee_spell_cast_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_item_valuation_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_item_valuation_like_cpp < 'c > (& self , catalogs : & 'c SessionHandlerCatalogsLikeCpp ,) -> & 'c ItemValuationCatalogsLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_loot_mut_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_loot_mut_like_cpp (& mut self) -> & mut LootState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_loot_ref_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_loot_ref_like_cpp (& self) -> & LootState",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_loot_response_for_owner_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_loot_response_for_owner_like_cpp < 'a > (& 'a mut self , owner_guid : ObjectGuid , player_guid : ObjectGuid , ae_looting : bool ,) -> impl Future < Output = Option < LootResponse > > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_on_loot_opened_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_on_loot_opened_with_catalogs_like_cpp (& mut self , item_valuation : & ItemValuationCatalogsLikeCpp , owner_guid : ObjectGuid , player_guid : ObjectGuid , response : LootResponse ,)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_release_all_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_release_all_like_cpp < 'a > (& 'a mut self , player_guid : ObjectGuid ,) -> impl Future < Output = () > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_remove_auras_with_looting_interrupt_flags_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_remove_auras_with_looting_interrupt_flags_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::loot_host",
+          "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "loot_unit_represented_creature_loot_state_like_cpp",
+          "visibility": "private",
+          "signature": "fn loot_unit_represented_creature_loot_state_like_cpp (& mut self , guid : ObjectGuid ,) -> Option < RepresentedCreatureLootStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [

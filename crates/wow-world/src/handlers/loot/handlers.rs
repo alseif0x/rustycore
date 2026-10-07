@@ -13,20 +13,6 @@ mod money;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::LootUnit,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_loot_unit",
-        handler: |session, catalogs, pkt| Box::pin(async move {
-            session
-                .handle_loot_unit_with_catalogs_like_cpp(catalogs.item_valuation.as_ref(), pkt)
-                .await
-        }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::LootItem,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::ThreadUnsafe,
@@ -141,116 +127,6 @@ impl WorldSession {
             master_loot_item,
         )
         .await;
-    }
-
-    /// CMSG_LOOT_UNIT — player right-clicks a dead creature to loot it.
-    #[cfg(test)]
-    pub async fn handle_loot_unit(&mut self, pkt: wow_packet::WorldPacket) {
-        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
-        self.handle_loot_unit_with_catalogs_like_cpp(&item_valuation, pkt)
-            .await;
-    }
-
-    pub async fn handle_loot_unit_with_catalogs_like_cpp(
-        &mut self,
-        item_valuation: &ItemValuationCatalogsLikeCpp,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
-        let req = match LootUnit::read(&mut pkt) {
-            Ok(r) => r,
-            Err(e) => {
-                warn!("Bad LootUnit: {e}");
-                return;
-            }
-        };
-
-        let player_guid = match self.player_guid() {
-            Some(g) => g,
-            None => return,
-        };
-
-        debug!(account = self.core.account_id, target = ?req.unit, "CMSG_LOOT_UNIT");
-
-        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
-            return;
-        }
-
-        if !req.unit.is_creature_or_vehicle() {
-            return;
-        }
-
-        // Check creature exists and is dead.
-        let creature_state = match self.represented_creature_loot_state_like_cpp(req.unit) {
-            Some(state) => state,
-            None => {
-                warn!("LootUnit: creature {:?} not found", req.unit);
-                return;
-            }
-        };
-
-        if creature_state.is_alive {
-            return;
-        }
-
-        if crate::session::hub_ref(self)
-            .player_position_like_cpp()
-            .is_some_and(|player| !player.is_within_dist(&creature_state.position, 30.0))
-        {
-            return;
-        }
-
-        self.interrupt_non_melee_spell_cast_for_loot_like_cpp();
-        self.remove_auras_with_looting_interrupt_flags_like_cpp();
-
-        let ae_owner_guids = if self.enable_ae_loot_like_cpp() {
-            self.represented_ae_loot_creature_targets_like_cpp(req.unit, player_guid)
-                .await
-        } else {
-            Vec::new()
-        };
-
-        if !ae_owner_guids.is_empty() {
-            self.send_packet(&AELootTargets {
-                count: ae_owner_guids.len() as u32 + 1,
-            });
-        }
-
-        let Some(response) = self
-            .represented_loot_response_for_owner_like_cpp(req.unit, player_guid, false)
-            .await
-        else {
-            return;
-        };
-        if self.has_active_non_item_loot_views_like_cpp() {
-            self.do_loot_release_all_like_cpp(player_guid).await;
-        }
-        self.loot.set_active_loot_guid(req.unit);
-        self.represented_on_loot_opened_with_catalogs_like_cpp(
-            item_valuation,
-            req.unit,
-            player_guid,
-            response,
-        );
-
-        if !ae_owner_guids.is_empty() {
-            self.send_packet(&AELootTargetsAck);
-
-            for owner_guid in ae_owner_guids {
-                if let Some(response) = self
-                    .represented_loot_response_for_owner_like_cpp(owner_guid, player_guid, true)
-                    .await
-                {
-                    self.loot.add_active_loot_view_owner_like_cpp(owner_guid);
-                    self.represented_on_loot_opened_with_catalogs_like_cpp(
-                        item_valuation,
-                        owner_guid,
-                        player_guid,
-                        response,
-                    );
-                    self.send_packet(&AELootTargetsAck);
-                }
-            }
-        }
     }
 
     /// Receiver-owned half of the loot-release VALUES fanout. Applying
