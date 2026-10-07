@@ -71,14 +71,78 @@ bulk-closed, retested or reclassified as parity-proven by this planning review.
   5. `CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` (`Opcodes.h:124`, `0x31E0`) is
      `STATUS_UNHANDLED` / `Handle_NULL` at `Opcodes.cpp:243`; the Rust handler is an empty
      body whose comment already records the C++ status, so this row is an intentional,
-     documented departure and needs no repair.
+     documented departure and needs no repair. **SUPERSEDED 2026-10-07 (entry 10, D5): no
+     contract was ever recorded for that departure, so an empty registered body was a
+     divergence, not an intentional departure. Original text kept as history.**
 
-  None of the five publishes a packet to the client, so no wire-visible difference was
-  found in this pass; the open questions are the session state recorded by rows 1–3 and the
-  unsupported C++ anchors in rows 1–2. Decision needed — a behaviour decision, not a
-  refactor: align each row with 3.4.3, or record an explicit intentional-departure
-  contract. Until that decision, the two battleground rows stay in place and are not
-  relocated by the F5 structural moves.
+  None of the five publishes a packet to the client — **corrected 2026-10-07 by reading the
+  handlers: row 3 does publish**, because `represented_set_currency_flags_like_cpp` ends in
+  `send_packet(setup_currencies_packet_like_cpp())` (`session/money/operations.rs:28-59`,
+  `session/publication/operations.rs:48`); rows 1–2 and 4–5 publish nothing. The decision
+  that was pending here was taken on 2026-10-07 (entries 6–10 below, D1–D5): rows 1–3 keep
+  their current behaviour under a bounded preservation contract, rows 4–5 align with 3.4.3
+  in a separately scoped behaviour-correction commit, and the two battleground rows
+  therefore stay in place and are not relocated by the F5 structural moves.
+
+  **Decisions, 2026-10-07; D1–D5 answer rows 1–5 in order.** Reference
+  `/home/server/woltk-trinity-legacy` @ `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`; Rust read
+  at `328d9ad0988b27dba20ba250be3ac6cf03215556`, branch `1263-opcodes`.
+  6. **D1 · row 1 · `CMSG_BATTLEMASTER_JOIN_SKIRMISH` · C · 2026-10-07.** C++ `a5f8da2e`
+     `:220`; Rust `handlers/battlegrounds/pvp.rs:14-30` → `:49-78` @ `328d9ad0`. Effects: `read`, `warn!`+return
+     on failure, else `battlemaster_join_skirmish_like_cpp`
+     (`session/battleground_adapter.rs:36-118`) — read-only gates only; its single write,
+     the intent push at `:106`, is `#[cfg(test)]`, so **production mutates, persists and
+     publishes nothing**. Why C: the gates reconstruct 3.4.3 queue code the reference
+     leaves unreachable, so deleting them decides nothing. Unverified: client use of the
+     CMSG; upstream existence of `HandleBattlemasterJoinSkirmish`; the intent's consumers.
+     Closes with: a 3.4.3 capture + upstream-history search. Exit: keep the registration —
+     **retained pending that evidence, expansion forbidden, no parity claimed.**
+  7. **D2 · row 2 · `CMSG_ACCEPT_WARGAME_INVITE` · C · 2026-10-07.** C++ `a5f8da2e` `:144`;
+     Rust `handlers/battlegrounds/pvp.rs:32-42` → `:95-108` @ `328d9ad0`. Effects: `read`, `warn!`+return on
+     failure, else `accept_represented_wargame_invite_like_cpp`
+     (`session/battleground_adapter.rs:124-181`) — read-only gates only; its single write,
+     the acceptance push at `:171`, is `#[cfg(test)]`, so **production mutates, persists
+     and publishes nothing**. Why C: reconstruction of 3.4.3 handshake code with no
+     reachable C++ entry point. Unverified: client use; upstream existence of the cited
+     `HandleAcceptWargameInvite`; the intent's consumers. Closes with: a 3.4.3 capture +
+     upstream-history search. Exit: keep the registration — **retained pending that
+     evidence, expansion forbidden, no parity claimed.**
+  8. **D3 · row 3 · `CMSG_SET_CURRENCY_FLAGS` · C · 2026-10-07.** C++ `a5f8da2e` `:888`;
+     Rust `handlers/account_data/client_state.rs:22-31` → `:35-48` @ `328d9ad0`. Effects: `read`,
+     `warn!`+return on failure, else `represented_set_currency_flags_like_cpp`
+     (`session/money/operations.rs:28-59`): requires the currency-types store and a record
+     for `currency_id`, mutates `flags` (and `state = Changed` when not `New`) only if the
+     key exists, persists via `set_player_currencies_like_cpp`, then **sends the full
+     `SMSG_SETUP_CURRENCIES`** (`session/publication/operations.rs:48`) — the one
+     wire-visible divergence here, which the original pass missed. Why C: a real represented
+     currency chain whose replacement semantics this audit does not settle. Unverified:
+     client use; whether that SMSG is session-observable; the `flags`/`state` write's
+     consumers. Closes with: a 3.4.3 capture of the CMSG plus a traced
+     `player_currencies_like_cpp` consumer list. Exit: keep the registration — **retained
+     pending that evidence, expansion forbidden, no parity claimed.**
+  9. **D4 · row 4 · `CMSG_SHOW_TRADE_SKILL` · A (align with 3.4.3) · 2026-10-07.** C++
+     `a5f8da2e` `:925`; Rust
+     `handlers/character/account/registrations/inventory_actions.rs:145-160` →
+     `handlers/trainer.rs:89-97` @ `328d9ad0`. Effects: the null parser
+     (`packets/misc/social/state_1.rs:841-847`) drains the body and cannot fail on an empty
+     packet; the handler logs one `debug!` naming the player guid or account id — **no
+     state, no persistence, no packet**. Alignment: the registration and handler are removed
+     by the second commit on `1263-opcodes`, a behaviour correction scoped separately from
+     any structural slice; the only test driving the body
+     (`unit_tests/handlers/character_tests/group.rs:30`) is replaced by an
+     unregistered-opcode assertion. Exit: closed when that commit lands; re-open only if
+     the reference row changes or a capture shows the CMSG carrying a body Rust must not
+     drop.
+ 10. **D5 · row 5 · `CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY` · A (align with 3.4.3) ·
+     2026-10-07.** C++ `a5f8da2e` `:243`; Rust `handlers/pets/mod.rs:28-38` → `:100-104` @
+     `328d9ad0`. Effects: an
+     empty body ignoring the packet — **no read, no state, no persistence, no packet**; the
+     comment recorded the C++ status but no contract. Why A: the Rust status model has no
+     unhandled variant (`session/dispatch.rs:109`), so a registered empty body is the only
+     way this opcode can look handled in the dispatch table and handler contract, which the
+     reference does not. Uncertainty: none material (registration metadata, no body).
+     Closes with: the second commit on `1263-opcodes` removing both and asserting the
+     opcode is unregistered. Exit: closed when that commit lands.
 
   The same pass flagged `CMSG_CONNECT_TO_FAILED` (`Opcodes.h:231`, `0x35D4`, registered
   `Authed`/`Inplace`) against `STATUS_NEVER` / `Handle_EarlyProccess` (`Opcodes.cpp:387`),
