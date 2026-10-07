@@ -7068,7 +7068,9 @@ intactos).
 **Evidencia verificada por el coordinador en el árbol commiteado:** suite del tool **446/0** (con la baseline
 reimpresa tras revisar el delta), ownership `--syntax-only` PASS, arquitectura PASS, test dorado de dispatch **25/25** y
 `cargo check --all-targets` de App sin errores. Registros literales en `wow-world`: **89 → 87**. R1 con presupuesto 0.
-Pendiente: `final`.
+
+**Aceptación `final`:** sobre **`dc72f82fd`**, **verde en 198 s** con 3 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261007T031817.942607Z-1358296-final.json`).
 
 **Nota de proceso.** El implementador reportó correctamente el conflicto entre la regla «no toques
 `tools/architecture`» y la verificación obligatoria de la suite del tool, y **no** reimprimió la baseline: la reimprimió
