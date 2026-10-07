@@ -39,9 +39,23 @@ impl WorldSession {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
+        match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
+        }
+    }
+
+    /// Typed counterpart of [`Self::represented_owned_loot_authority_like_cpp`].
+    /// It is the only place that distinguishes a genuinely missing authority
+    /// from an exhausted mirror reconciliation (F6-7 R4).
+    pub(super) fn represented_owned_loot_authority_outcome_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
         self.core
             .loot_release_owner_access_like_cpp()
-            .represented_owned_loot_authority_like_cpp(owner_guid)
+            .represented_owned_loot_authority_outcome_like_cpp(owner_guid)
     }
 
     /// Bridge pre-authority represented fixtures (and the equivalent first
@@ -52,7 +66,29 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
+        match self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+            owner_guid,
+            scope_player,
+        ) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
+        }
+    }
+
+    /// Typed counterpart of
+    /// [`Self::prepare_owned_loot_authority_for_active_request_like_cpp`]: same
+    /// bridge, same order, but the caller still knows whether the authority
+    /// was absent or the reconciliation did not converge.
+    pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        scope_player: ObjectGuid,
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+            other => return other,
+        };
         let can_install_first_generation = represented_local_loot_fixture_allowed_like_cpp()
             && authority.is_retired_like_cpp()
             && authority.generation_like_cpp() == 0
@@ -60,7 +96,7 @@ impl WorldSession {
             && (self.loot.has_active_loot_view_owner_like_cpp(owner_guid)
                 || self.loot.is_active_loot_guid(owner_guid));
         if !can_install_first_generation {
-            return Some(authority);
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority);
         }
 
         if owner_guid.is_game_object() {
@@ -71,14 +107,17 @@ impl WorldSession {
                 self.sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, scope_player);
         }
 
-        let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+            other => return other,
+        };
         if let Some(snapshot) = authority.snapshot_for_player_like_cpp(scope_player) {
             self.loot
                 .ensure_active_loot_view_generation_like_cpp(owner_guid, snapshot.generation);
             self.loot
                 .insert_active_loot_view_authority_if_absent_like_cpp(owner_guid, &authority);
         }
-        Some(authority)
+        OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
     }
 
     pub(super) fn refresh_owned_loot_summary_like_cpp(&mut self, owner_guid: ObjectGuid) {

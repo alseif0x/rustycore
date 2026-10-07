@@ -68,8 +68,19 @@ impl WorldSession {
         player_guid: ObjectGuid,
         mut response: LootResponse,
     ) {
-        let authority = self
-            .prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid)
+        // F6-7 R4: an exhausted mirror reconciliation is not absent loot. This
+        // attempt is rejected before any fallback, cache disposal or release,
+        // so it publishes no packet and leaves the session loot view exactly
+        // as it was; a genuinely absent authority keeps the path below.
+        let authority =
+            match self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+                owner_guid,
+                player_guid,
+            ) {
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => None,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
+            }
             .filter(|authority| {
                 authority
                     .snapshot_for_player_like_cpp(player_guid)

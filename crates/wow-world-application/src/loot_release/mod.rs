@@ -22,7 +22,9 @@ use wow_packet::packets::loot::LootRelease;
 use wow_packet::packets::loot::SLootRelease;
 use wow_packet::packets::loot::{LOOT_TYPE_MILLING_LIKE_CPP, LOOT_TYPE_PROSPECTING_LIKE_CPP};
 use wow_packet::{ClientPacket, WorldPacket};
-use wow_world_core::session::{HubRef, SessionCatalogs, SessionCore};
+use wow_world_core::session::{
+    HubRef, OwnedLootAuthorityLookupOutcomeLikeCpp, SessionCatalogs, SessionCore,
+};
 
 /// C++ `LockKeyType`: `LOCK_KEY_SKILL` / `LOCK_KEY_SPELL`.
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
