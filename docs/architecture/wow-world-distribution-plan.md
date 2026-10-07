@@ -7192,6 +7192,37 @@ ownership PASS, arquitectura PASS, test dorado de dispatch **25/25**, y las dos 
 (`movement_force_acks_validate_and_route_from_controlled_mover_like_cpp` y
 `movement_force_magnitude_ack_matches_cpp_counter_validation`) en verde. R1 con presupuesto 0. Pendiente: `final`.
 
+#### Intento de remate F4 «trainer buy» — retirado por el ratchet de ownership (2026-10-07, commit local `294d158cd`)
+
+**Qué se hizo.** `TrainerBuySpell` (`Opcodes.cpp:978` → `WorldSession::HandleTrainerBuySpellOpcode`, `NPCHandler.cpp:132`,
+que delega en `Trainer::TeachSpell`, `Trainer.cpp:79-145`) movió su cuerpo real de 238 líneas a
+`crates/wow-world-application/src/trainer_purchase/buy_spell.rs`, con 13 capacidades de shell como métodos de un trait
+nuevo `TrainerBuySpellHostLikeCpp` implementado en `crates/wow-world/src/handlers/trainer/host.rs`. El cuerpo es
+literal, el shim de test se conserva (45 llamadas en 6 ficheros) y las suites enfocadas del implementador pasaron
+(`handlers::trainer` 43/0, app `trainer` 11/0, dispatch 25/25).
+
+**Por qué se retira.** Tres motivos, ninguno cosmético:
+
+1. **La suite del tool queda roja y no sé reimprimir el ratchet con fidelidad.** El fallo lista el delta completo:
+   1 entrada obsoleta (`handle_trainer_buy_spell_with_generator_like_cpp`) y **13 no revisadas**, entre ellas la
+   entrada **de nivel de trait** (`{"module":"crate::handlers::trainer::host","trait_path":"TrainerBuySpellHostLikeCpp"}`
+   sin `kind`/`name`). **`session-ownership-check print-baseline` no emite esas entradas de trait**, así que copiar su
+   salida **no** deja la baseline consistente; el implementador observó que el propio tool la reescribe al comprobar y
+   entonces pasa (446/0), pero esa vía de reimpresión **no la tengo caracterizada ni autorizada**. Integrar con el tool
+   rojo es el error que ya cometí en la ronda 7: no se repite.
+2. **El registro no se movió**, en contra de la regla 4 del corte: la entrada sigue en
+   `crates/wow-world/src/handlers/trainer/registrations.rs` con su cierre apuntando al dueño de App (el contador de
+   registros literales no bajó: sigue en 78). Es decir, para el objetivo 2 este corte **no migró un registro**, solo el
+   cuerpo — un avance real de F4, pero no lo que F5 cuenta.
+3. **Se añadieron 2 nombres al `pub use` de `trainer_purchase`** en `lib.rs` (el implementador lo declaró: el módulo es
+   privado y el host de World necesita nombrar el trait y el punto de entrada). No rompe ningún contrato verificado,
+   pero es una desviación de forma que quiero revisar con el ratchet ya caracterizado, no a la vez.
+
+**Decisión y siguiente paso.** El corte se **retira** (la rama vuelve a `5fae1149e`; el commit queda en el reflog y su
+SHA aquí). Antes de reintentarlo hay que **caracterizar la reimpresión del ratchet para superficies de trait nuevas**
+—qué comando la produce de forma fiel, o por qué `print-baseline` omite esas entradas— porque **cualquier dueño nuevo
+con trait de host choca con lo mismo**: es una pieza de infraestructura de validación, no un detalle de este corte.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
