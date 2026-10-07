@@ -608,11 +608,55 @@ non-instanced map the fallback key is coincidentally correct, so the same silent
 divergence. C++ takes neither branch: the object's map pointer is authoritative and asserts (`Object.h:604`).
 No code was changed by this analysis.
 
+### 5.2 D-05/D-06/D-07 session-local GameObject fields (F6-6, decisions only)
+
+Four fields are in scope: `world-entities/src/state.rs:40-42,54` and `wow-world-loot/src/state.rs:77-84`. The
+exact current anchors are used below; the item's `:54` is a blank line (the phase-shift field is declared at
+`:52`) and its loot range starts four lines above the two named fields (`:82`, `:84`). Decisions are
+`already canonical` (the session copy is redundant: the canonical `GameObject`,
+`crates/wow-entities/src/game_object/state_2.rs:522`, carries the equivalent), `genuinely session-local` (C++
+also keeps it per-player, anchored) and `unverified`.
+
+| # | field (`path:line`) | what it stores | canonical `GameObject` equivalent (Rust) | C++ anchor | decision |
+|---|---|---|---|---|---|
+| 1 | `represented_gameobject_use_states` (`crates/wow-world-entities/src/state.rs:40-41`) | container: one session-local entry per visible GO, ~45 members (`crates/wow-world-entities/src/gameobject_contracts.rs:462-530`) | not one C++ field — resolved per member in rows 2-5 | `GameObject` object-owned state generally (`GameObject.h:453-486`) | rows 2-5 decided; the ~40 members not read (`gameobject_contracts.rs:465-512`) are `unverified` |
+| 2 | `.go_state` / `.prev_go_state` (`gameobject_contracts.rs:469-470`) | the state this session should see, and the reset state | `GameObject.data.state` (`state_2.rs:478`), `set_go_state` (`crates/wow-entities/src/game_object/ops_1.rs:834`), `prev_go_state()` (`ops_1.rs:759`) | `GetGoState()` `GameObject.h:276` (`m_gameObjectData->State`); `m_prevGoState` `GameObject.h:459` | `already canonical` |
+| 3 | `.loot_state` / `.loot_state_unit_guid` (`gameobject_contracts.rs:463-464`) | GO loot state and the unit GUID passed with it | `GameObject.loot_state` (`state_2.rs:533`), `.loot_state_unit_guid` (`state_2.rs:534`) | `m_lootState` `GameObject.h:453`; `m_lootStateUnitGUID` `GameObject.h:454` | `already canonical` |
+| 4 | `.unique_users` / `.use_count` (`gameobject_contracts.rs:487,485`) | players that used this GO; its use count | `GameObject.unique_users` (`state_2.rs:541`), `.use_times` (`state_2.rs:543`), `add_unique_use_like_cpp` (`ops_1.rs:455`), `unique_user_count_like_cpp` (`ops_1.rs:460`) | `m_unique_users` `GameObject.h:464`, `m_usetimes` `GameObject.h:465`; populated `GameObject.cpp:1708-1712`, read `:2617`, `:3005-3006` | `already canonical` |
+| 5 | `.per_player_state_player_guid` / `.per_player_go_state` / `.per_player_go_state_until` (`gameobject_contracts.rs:481-483`) | one viewer's GO state override and its expiry | **none** — `grep -rn per_player_state crates/wow-entities/src` has no hit | `m_perPlayerState` `GameObject.h:512` (object-owned map keyed by viewer GUID); `GetGoStateFor` `GameObject.cpp:3795-3803`, lazily created `GameObject.cpp:4355-4361` | `genuinely session-local` |
+| 6 | `represented_gameobject_phase_shifts` (`crates/wow-world-entities/src/state.rs:50-52`) | DB-spawn `PhaseShift` for a visible GO | `WorldObject.phase_shift` (`crates/wow-entities/src/world_object/state.rs:858`), `phase_shift()` (`crates/wow-entities/src/world_object/ops_1.rs:96`) | `_phaseShift` `Object.h:809`; `GetPhaseShift()` `Object.h:505-506` | `already canonical` |
+| 7 | `represented_unique_gameobject_uses` (`crates/wow-world-loot/src/state.rs:82`) | GO GUIDs used at least once | `GameObject.unique_users` (as row 4); both are written in the same branch (`crates/wow-world/src/handlers/loot/sources/gameobject.rs:222-228` and `:570-578`) | `m_unique_users` `GameObject.h:464` | `already canonical` |
+| 8 | `represented_gameobject_tap_lists` (`crates/wow-world-loot/src/state.rs:84`) | GO GUID → tapper GUID list | **none** — the canonical `GameObject` has no tap list; only `Creature` does (`crates/wow-entities/src/creature/state_2.rs:59`, accessor `crates/wow-entities/src/creature/ops_3.rs:104`) | `m_tapList` `GameObject.h:483`; accessors `GameObject.h:325-328`; read `GameObject.cpp:3893-3894` | canonical equivalent **absent** |
+
+**What would have to move before any code change.** Rows 2-4: every writer of
+`represented_gameobject_use_states` (`crates/wow-world-entities/src/gameobject_use.rs`,
+`gameobject_state.rs:21-37`, `gameobject_overrides.rs`, `gameobject_interaction.rs`, `gameobject_use_types.rs`)
+plus the reader fallback `state.go_state.unwrap_or(GoState::Ready)`
+(`crates/wow-world-application/src/quest/visibility/gameobject_flags.rs:42`) would have to read the canonical
+object — and C++ falls back to `GetGoState()` (`GameObject.cpp:3802`), not `GO_STATE_READY`, so that fallback is
+a value change, not a pure move. Row 6: the DB-spawn path
+(`crates/wow-world/src/handlers/character/visibility/gameobjects.rs:191`, `creatures.rs:850`) must write
+`phase_shift_mut()` inside `upsert_canonical_gameobject_map_object_like_cpp`
+(`crates/wow-world-entities/src/gameobject.rs:107`) before the session map can be dropped: its production reader
+(`crates/wow-world/src/session/world_entities/gameobject_query.rs:115-120`) filters on the session map with
+**no** canonical fallback, unlike `crates/wow-world-entities/src/gameobject_state.rs:139-140`. Row 7: only its
+two session reads (`crates/wow-world/src/handlers/loot/sources/gameobject.rs:222`, `:572`) need switching,
+because the canonical write already happens in the same branch (`:227`, `:576`). Rows 5 and 8 are not a move:
+row 5 has no canonical home (C++ keys it on the object by viewer, which the Rust canonical `GameObject` does not
+model) and row 8's canonical field does not exist.
+
+**Summary.** Of the eight rows, **five are redundant copies** (`already canonical`: rows 2, 3, 4, 6, 7), **one
+is genuinely session-local** (row 5), **one has no canonical equivalent to move to** (row 8), and **one is
+`unverified`** (row 1, the ~40 unread container members). Movement is therefore possible for rows 2, 3, 4, 6 and
+7 — the destination field already exists in each case — but it is blocked on the reader/writer work above and
+was **not performed**; rows 5 and 8 require a canonical field to be modelled first. No code was changed by this
+analysis.
+
 ## 6. Concrete work items for the F6 slices
 
 Ordered by risk, each sized to one bounded slice and stated with the evidence that bounds it.
 **Nothing here authorises a gameplay repair inside a structural slice.** Of these slices only
-F6-1, F6-2 and F6-4 have been executed, and all three only as documentation: §2.1, §2.2 and §5.1.
+F6-1, F6-2, F6-4 and F6-6 have been executed, and all four only as documentation: §2.1, §2.2, §5.1 and §5.2.
 
 | # | Slice | Bounded by | Risk |
 |---|---|---|---|
@@ -621,7 +665,7 @@ F6-1, F6-2 and F6-4 have been executed, and all three only as documentation: §2
 | F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. **In progress — batches 1–2 done (§2.3 and §2.4: 44 of 180 names classified, no rename applied).** | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
 | F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. **Executed — §5.1 / analysis only, no code change.** | medium |
 | F6-5 | **D-12/D-04 loot fanout identity and order.** Verify from source whether `loot_delivery_recipient(_, map_id, instance_id)` can select a recipient on a different instance than the canonical one, and whether C++ order is observable at all (container is `GuidUnorderedSet`, `Loot.h:350`). | Two files plus one container type; the D-04 order claim is already flagged `unverified`. | medium |
-| F6-6 | **D-05/D-06/D-07 session-local GameObject state.** Decide, per field (`world-entities/src/state.rs:40-42,54`; `wow-world-loot/src/state.rs:77-84`), whether the canonical `GameObject` already carries the equivalent before any code moves. | Field-by-field; each decision is evidence-checkable against `GameObject.h:464,483,512` and `GameObject.cpp:3795`. | medium |
+| F6-6 | **D-05/D-06/D-07 session-local GameObject state.** Decide, per field (`world-entities/src/state.rs:40-42,54`; `wow-world-loot/src/state.rs:77-84`), whether the canonical `GameObject` already carries the equivalent before any code moves. | Field-by-field; each decision is evidence-checkable against `GameObject.h:464,483,512` and `GameObject.cpp:3795`. Read-only. **Executed — §5.2 / decisions only, no code change.** | medium |
 | F6-7 | **D-01/D-02/D-10 loot-authority and creature-entity reconciliation contract.** Write the explicit contract for the mirror reconciliation (including the fail-closed `None` and the retired tombstone) or classify it as an intentional departure. | `authority.rs:41-176` and `creature_canonical_adapter.rs:29-70,178-210` are the whole surface; the C++ side is one `unique_ptr<Loot>` per object (`Creature.h:236`). | high |
 | F6-8 | **D-08/D-09 legacy runtime and map manager retirement plan.** Decide the single owner, state the C++ phase order it must reproduce (`World.cpp:2748` → `MapManager.cpp:287` → `Creature.cpp:696`), and list the two-producer and two-store call sites to retire. | Bounded by §3 and §4 caller tables. **Not a structural slice** — it changes which clock and which store produce observable state. | highest |
 
@@ -643,3 +687,7 @@ F6-1, F6-2 and F6-4 have been executed, and all three only as documentation: §2
 | Whether any D-03 fallback caller executes while the canonical key is absent (F6-4) | The absent-key state is code-reachable (§5.1: `session_state.rs:444-446` discards the canonical attach result before `:729`; `transfer.rs:237,249`), but every production caller sits under a `LoggedIn` gate the `Transfer` window excludes. Needs the runtime capture named in §5.1 — a temporary `map_key.rs:54` log of `state`/handle/residence during login or far teleport, or a tick test with a detached residence. |
 | Whether `ensure_canonical_world_map_for_current_player_like_cpp` can fail at login in a real run (F6-4) | Its result is discarded (`session_state.rs:444-446`); the failure branches (`map_entry.rs:65-75`, `instances/map_resolution.rs:41-49`) were read but not exercised. Same capture as the row above would settle it. |
 | Whether the legacy `map_manager` holds a `(map_id, 0)` map in the detached windows of §5.1 | Not traced: only the lookup semantics (`runtime/manager.rs:139-141`) were verified, not which maps production creates for an instance-0 key. |
+| Whether the ~40 unread members of `RepresentedGameObjectUseState` also have canonical equivalents (F6-6) | §5.2 rows 2-5 read only 8 of the container's members (`crates/wow-world-entities/src/gameobject_contracts.rs:465-512`); the rest were not classified, so §5.2 row 1 stays `unverified`. |
+| Whether dropping `represented_gameobject_phase_shifts` is behaviour-preserving (F6-6) | §5.2 row 6 records that the canonical `WorldObject.phase_shift` exists and that the DB-spawn path does not write it; the reader at `crates/wow-world/src/session/world_entities/gameobject_query.rs:115-120` has no canonical fallback, so the move must land with the write. Not executed. |
+| Whether `represented_gameobject_tap_lists` is ever non-empty in a production build (F6-6) | Its only writer is gated test-only (`crates/wow-world-loot/src/state.rs:22-23` gates `mod fixtures`; writer `fixtures.rs:64-70`), so the production reader (`crates/wow-world/src/handlers/loot/sources.rs:584`) appears to always take the `None` branch — asserted from the cfg gate, not from a built production binary. |
+| The §6 F6-6 anchors `state.rs:54` and `wow-world-loot/src/state.rs:77` | Stale: `state.rs:54` is a blank line (the field is `:50-52`) and the loot range starts four lines early (`:82`, `:84`). §5.2 records the corrected anchors; no other F6 anchor was re-checked. |
