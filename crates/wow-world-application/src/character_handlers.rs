@@ -8,21 +8,23 @@
 //! `HandleAlterAppearance`, `HandleConfirmBarbersChoice`,
 //! `HandleGetUndeleteCooldownStatus`, `HandleCharDeleteOpcode`,
 //! `HandleCharRenameOpcode`, `HandleOpeningCinematic`, `HandleCharEnumOpcode`,
-//! `HandleCharCreateOpcode`, `HandleCharCustomizeOpcode`). The family owns the
-//! packet bodies, the barber-chair gate, the represented barber request records,
-//! the opening-cinematic selection, the character-list projection and the
-//! create/customize persistence flow; the World session lends the hub, inventory
-//! and world-entity state and keeps the shell-only capabilities the host trait
-//! exposes (#1263 F5). Bodies are moved unchanged from the World shell. Login
-//! stays in the World shell while it needs its realm and connection
-//! orchestration.
+//! `HandleCharCreateOpcode`, `HandleCharCustomizeOpcode`,
+//! `HandlePlayerLoginOpcode`) and `WorldSocket.cpp` (`HandleConnectToFailed`,
+//! the instance-socket attempt that answers `SMSG_CONNECT_TO`). The family owns
+//! the packet bodies, the barber-chair gate, the represented barber request
+//! records, the opening-cinematic selection, the character-list projection, the
+//! create/customize persistence flow and the login/ConnectTo admission; the
+//! World session lends the hub, inventory and world-entity state and keeps the
+//! shell-only capabilities the host trait exposes (#1263 F5). Bodies are moved
+//! unchanged from the World shell.
 //!
 //! The packet bodies live in the private sibling module
 //! `character_handler_families` (`undelete`, `barber`, `declined_names`,
 //! `char_delete`, `rename`, `cinematic`, `enumeration`, `creation`,
-//! `customize`); `barber` and `creation` also own their private helpers. The
-//! bodies are moved unchanged, so this owner module keeps the facades, the host
-//! trait, the thunks and the registrar and declares no descendant module.
+//! `customize`, `login`, `connect_to_failed`); `barber` and `creation` also own
+//! their private helpers. The bodies are moved unchanged, so this owner module
+//! keeps the facades, the host trait, the thunks and the registrar and declares
+//! no descendant module.
 
 use std::sync::Arc;
 
@@ -33,8 +35,9 @@ use wow_handler::{
     DuplicateHandlerRegistrationLikeCpp, HandlerFuture, PacketHandlerEntry, PacketProcessing,
     RegistryBuilder, SessionStatus,
 };
+use wow_packet::packets::auth::{ConnectToFailed, ConnectToSerial};
 use wow_packet::packets::character::{
-    CharCustomize, CharDelete, CharacterRenameRequest, CreateCharacter, VisualItemInfo,
+    CharCustomize, CharDelete, CharacterRenameRequest, CreateCharacter, PlayerLogin, VisualItemInfo,
 };
 use wow_packet::packets::misc::TriggerCinematic;
 use wow_packet::{ClientPacket, WorldPacket};
@@ -142,6 +145,42 @@ pub enum CreateCharacterStepLikeCpp {
     RefreshRealmCharacters { guid: ObjectGuid },
 }
 
+/// Host step that finishes one C++ `HandlePlayerLoginOpcode` call.
+///
+/// C++ reads `PlayerLoading()` and stores `m_playerLoading` on the session's
+/// player-lifecycle state, and the C++ `ObjectAccessor` live-character claim
+/// plus `SendConnectToInstance` run on that same shell, which the handler
+/// context does not reach. The thunk therefore lends the loading GUID, claims
+/// the character and sends the redirect where this step says the C++ body does.
+pub enum PlayerLoginStepLikeCpp {
+    /// Every step of the C++ body is already done.
+    Complete,
+    /// C++ order: the host claims the character's live runtime; on refusal the
+    /// owner publishes the duplicate-live-character login failure, on success
+    /// the host records `m_playerLoading` and sends ConnectTo.
+    ClaimCharacterLogin { guid: ObjectGuid },
+}
+
+/// Host step that finishes one C++ `WorldSocket::HandleConnectToFailed` call.
+///
+/// The pending ConnectTo redirect entry lives on the session's `SessionManager`
+/// registration, the retry send on the session's instance link, and the abort
+/// on the session's player-lifecycle login state; the handler context reaches
+/// none of them, so the thunk drives each step where this enum says the C++
+/// attempt order runs it.
+pub enum ConnectToFailedStepLikeCpp {
+    /// C++ order: the host drops the pending `SessionManager` redirect entry,
+    /// then the owner clears the represented instance link and decides the
+    /// retry.
+    DropPendingSessionManagerEntry { serial: ConnectToSerial },
+    /// C++ order: the host retries `SendConnectToInstance` with the next serial.
+    SendConnectTo { serial: ConnectToSerial },
+    /// C++ `WorldSession::AbortLogin`: the host clears `m_playerLoading` and the
+    /// character login claim, then the owner publishes
+    /// `LoginFailureReason::NoWorld`.
+    AbortLogin,
+}
+
 /// Borrowed inputs of one character handler invocation.
 pub struct CharacterHandlerCxLikeCpp<'a> {
     pub(crate) hub: HubMut<'a>,
@@ -239,6 +278,33 @@ pub trait CharacterHandlerHostLikeCpp<C> {
     /// C++ `sObjectMgr->GenerateCharacterGuid()`: the player GUID generator
     /// lives on the shell catalogs, which the generic thunk cannot name.
     fn character_guid_generator_like_cpp(catalogs: &C) -> &ObjectGuidGenerator;
+
+    /// C++ `HandlePlayerLoginOpcode` reads `PlayerLoading()`; the represented
+    /// `m_playerLoading` lives on the session's player-lifecycle state, which
+    /// the handler context does not reach.
+    fn session_player_loading_like_cpp(&self) -> Option<ObjectGuid>;
+
+    /// C++ `HandlePlayerLoginOpcode` stores `m_playerLoading` and
+    /// `AbortLogin` clears it; the represented state and the visibility
+    /// re-detection it triggers live on the session's player-lifecycle state.
+    fn set_player_loading_like_cpp(&mut self, guid: Option<ObjectGuid>);
+
+    /// C++ exposes one live `Player*` per character GUID through
+    /// ObjectAccessor; the session's login claim owns that reservation.
+    fn claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool;
+
+    /// C++ `WorldSession::AbortLogin` drops the live-character reservation
+    /// together with `m_playerLoading`.
+    fn release_character_login_claim_like_cpp(&mut self);
+
+    /// C++ `WorldSession::SendConnectToInstance`: builds the ConnectTo key,
+    /// registers the attempt with the session manager and sends
+    /// `SMSG_CONNECT_TO` on the realm socket.
+    fn send_connect_to_instance_like_cpp(&mut self, serial: ConnectToSerial);
+
+    /// C++ `WorldSocket::HandleConnectToFailed` abandons the pending attempt;
+    /// the session manager registration that owns the entry is shell state.
+    fn drop_pending_session_manager_entry_like_cpp(&mut self);
 }
 
 fn handle_get_undelete_cooldown_status_thunk<'a, S, C>(
@@ -464,6 +530,80 @@ where
     })
 }
 
+fn handle_player_login_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CharacterHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match PlayerLogin::read(&mut pkt) {
+            Ok(login) => {
+                let player_loading = session.session_player_loading_like_cpp();
+                let step = session
+                    .character_handler_cx_like_cpp(catalogs)
+                    .handle_player_login(player_loading, login)
+                    .await;
+                if let PlayerLoginStepLikeCpp::ClaimCharacterLogin { guid } = step {
+                    if session.claim_character_login_like_cpp(guid) {
+                        // Store the loading character GUID.
+                        session.set_player_loading_like_cpp(Some(guid));
+                        // Build ConnectTo and register with SessionManager.
+                        session.send_connect_to_instance_like_cpp(ConnectToSerial::WorldAttempt1);
+                    } else {
+                        session
+                            .character_handler_cx_like_cpp(catalogs)
+                            .publish_player_login_duplicate_character_like_cpp(guid);
+                    }
+                }
+            }
+            Err(e) => tracing::warn!("Failed to read PlayerLogin: {e}"),
+        }
+    })
+}
+
+fn handle_connect_to_failed_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    mut pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CharacterHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        match ConnectToFailed::read(&mut pkt) {
+            Ok(failed) => {
+                let step = session
+                    .character_handler_cx_like_cpp(catalogs)
+                    .handle_connect_to_failed(failed)
+                    .await;
+                if let ConnectToFailedStepLikeCpp::DropPendingSessionManagerEntry { serial } = step
+                {
+                    session.drop_pending_session_manager_entry_like_cpp();
+                    let step = session
+                        .character_handler_cx_like_cpp(catalogs)
+                        .handle_connect_to_failed_after_pending_entry_like_cpp(serial)
+                        .await;
+                    if let ConnectToFailedStepLikeCpp::SendConnectTo { serial } = step {
+                        session.send_connect_to_instance_like_cpp(serial);
+                    } else if matches!(step, ConnectToFailedStepLikeCpp::AbortLogin) {
+                        session.set_player_loading_like_cpp(None);
+                        session.release_character_login_claim_like_cpp();
+                        session
+                            .character_handler_cx_like_cpp(catalogs)
+                            .publish_connect_to_failed_abort_like_cpp();
+                    }
+                }
+            }
+            Err(e) => tracing::warn!("Failed to read ConnectToFailed: {e}"),
+        }
+    })
+}
+
 /// Registers the character handlers on the packet registry.
 pub fn register_character_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -541,6 +681,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_char_customize",
         handler: handle_char_customize_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::PlayerLogin,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_player_login",
+        handler: handle_player_login_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::ConnectToFailed,
+        status: SessionStatus::Authed,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_connect_to_failed",
+        handler: handle_connect_to_failed_thunk::<S, C>,
     })?;
     Ok(())
 }

@@ -100,7 +100,7 @@ pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRA
 use crate::session::hub_support::player_team_for_race_cpp;
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::auth::{
-    ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,
+    ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial, ResumeComms,
 };
 use wow_packet::packets::character::*;
 use wow_packet::packets::chat::ChatServerMessage;

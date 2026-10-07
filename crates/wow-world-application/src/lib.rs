@@ -96,9 +96,9 @@ pub use battleground_handlers::{
 // application-level re-exports of the same owner module follow separately so
 // the facade item stays exact.
 pub use character_handlers::{
-    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, CreateCharacterStepLikeCpp,
-    initial_character_rest_state_like_cpp, parse_equipment_cache,
-    send_represented_cinematic_start_like_cpp,
+    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, ConnectToFailedStepLikeCpp,
+    CreateCharacterStepLikeCpp, PlayerLoginStepLikeCpp, initial_character_rest_state_like_cpp,
+    parse_equipment_cache, send_represented_cinematic_start_like_cpp,
 };
 pub use character_handlers::{
     CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,

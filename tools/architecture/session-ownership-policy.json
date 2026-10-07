@@ -2959,20 +2959,6 @@
           "module": "crate::handlers::character::account",
           "trait_path": null,
           "kind": "method",
-          "name": "handle_connect_to_failed",
-          "visibility": "pub",
-          "signature": "async fn handle_connect_to_failed (& mut self , pkt : ConnectToFailed)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::account",
-          "trait_path": null,
-          "kind": "method",
           "name": "handle_hotfix_request",
           "visibility": "pub",
           "signature": "async fn handle_hotfix_request (& mut self , cache : & wow_data :: HotfixBlobCache , req : wow_packet :: packets :: misc :: HotfixRequest ,)",
@@ -3268,6 +3254,91 @@
           "source_class": "production",
           "guards": [
             "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "claim_character_login_like_cpp",
+          "visibility": "private",
+          "signature": "fn claim_character_login_like_cpp (& mut self , guid : ObjectGuid) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "drop_pending_session_manager_entry_like_cpp",
+          "visibility": "private",
+          "signature": "fn drop_pending_session_manager_entry_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "release_character_login_claim_like_cpp",
+          "visibility": "private",
+          "signature": "fn release_character_login_claim_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "send_connect_to_instance_like_cpp",
+          "visibility": "private",
+          "signature": "fn send_connect_to_instance_like_cpp (& mut self , serial : ConnectToSerial)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "session_player_loading_like_cpp",
+          "visibility": "private",
+          "signature": "fn session_player_loading_like_cpp (& self) -> Option < ObjectGuid >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::character_handler_host",
+          "trait_path": "CharacterHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "set_player_loading_like_cpp",
+          "visibility": "private",
+          "signature": "fn set_player_loading_like_cpp (& mut self , guid : Option < ObjectGuid >)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "setter",
             "trait_impl"
           ]
         },
@@ -5226,20 +5297,6 @@
           "name": "handle_logout_request_with_generator_like_cpp",
           "visibility": "pub",
           "signature": "async fn handle_logout_request_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , req : LogoutRequest ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::world_entry",
-          "trait_path": null,
-          "kind": "method",
-          "name": "handle_player_login",
-          "visibility": "pub",
-          "signature": "async fn handle_player_login (& mut self , pkt : PlayerLogin)",
           "cfg": [],
           "source_class": "production",
           "guards": [

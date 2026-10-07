@@ -104,39 +104,4 @@ impl WorldSession {
         .handle_hotfix_request(req)
         .await;
     }
-
-    /// Handle ConnectToFailed — client couldn't connect to instance port.
-    ///
-    /// Retry with the next serial, or fall back to direct login if all retries
-    /// are exhausted.
-    pub async fn handle_connect_to_failed(&mut self, pkt: ConnectToFailed) {
-        warn!(
-            "ConnectToFailed (serial={:?}) from account {}",
-            pkt.serial, self.core.account_id
-        );
-
-        // Clean up the pending entry from SessionManager
-        if let Some(mgr) = self.session_mgr() {
-            mgr.remove(self.core.account_id);
-        }
-        self.set_instance_link_rx(None);
-
-        // Try next serial
-        if let Some(next_serial) = pkt.serial.next() {
-            info!("Retrying ConnectTo with serial {:?}", next_serial);
-            self.send_connect_to(next_serial);
-        } else {
-            warn!(
-                "All ConnectTo retries exhausted for account {}, aborting login like C++",
-                self.core.account_id
-            );
-            self.set_player_loading(None);
-            self.lifecycle.release_character_login_claim_like_cpp();
-            self.set_connect_to_key(None);
-            self.set_connect_to_serial(None);
-            self.send_packet(&CharacterLoginFailed {
-                code: LoginFailureReasonLikeCpp::NoWorld,
-            });
-        }
-    }
 }
