@@ -7362,6 +7362,27 @@ presupuesto 0.
 1.000). El siguiente corte de la familia debe dividirlo (`loot_handlers/rolls.rs` + `master_loot.rs`) antes de seguir
 creciendo. Pendiente: `final`.
 
+#### Deuda pagada: división del dueño de loot en submódulos — 2026-10-07, `e55f3abb2..aba57d57a`
+
+**Qué se hizo.** `loot_handlers.rs` pasa de **913 a 390 líneas**: los cuerpos van a submódulos privados por familia
+(`master_loot.rs` 341, `unit.rs` 138, `roll.rs` 53, `specialization.rs` 39) y la raíz conserva doc, contexto, trait del
+host, los 5 thunks y el registrador. Prueba de movimiento puro del implementador: **hash de tokens normalizado idéntico
+pre/post para los cinco ítems movidos**, multiset de líneas con **0 deltas sin explicar**, cuerpos 4→4 (0 en la raíz),
+thunks 5→5 y conjunto y orden del registrador idénticos. Único ensanchamiento: `pub(super)` en las tres funciones libres
+movidas (visibilidad efectiva sin cambio).
+
+**Hallazgo que explica el fallo que el implementador reportó.** La suite del tool falló **solo** por las filas de
+**registro directo**, que la baseline **clava por ruta y módulo del sitio de definición**: el split las re-clava
+(`loot_handlers.rs` + `crate::loot_handlers` → `loot_handlers/master_loot.rs` + `crate::loot_handlers::master_loot`).
+El implementador lo verificó por pares (mismas 5 filas, solo cambia la clave), **paró y no tocó `tools/architecture`**,
+como se le pidió. **Ningún layout evita esto** —el layout hermano falla igual— y dejar esas dos funciones en la raíz
+pondría el fichero en ~720 líneas, por encima del presupuesto: la re-clave es inevitable y la cubre la reimpresión
+(12+/12−). Suite **446/0** tras ella.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa, arquitectura PASS, y
+dispatch **25/25** y loot **316/0** del implementador. Sin cambio de superficie pública ni de metadatos. R1 con
+presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
