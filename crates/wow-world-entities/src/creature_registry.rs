@@ -5,7 +5,6 @@ use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle};
 use wow_world_core::map_manager::{WorldCreature, world_to_grid_coords};
 use wow_world_core::session::{
     HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp,
-    reconcile_creature_loot_authority_mirrors_like_cpp,
     remove_canonical_creature_map_object_on_map_like_cpp,
 };
 
@@ -13,41 +12,92 @@ use crate::WorldEntitiesState;
 
 const CURRENT_EXPANSION_LIKE_CPP: u8 = wow_data::CREATURE_CURRENT_EXPANSION_LIKE_CPP as u8;
 
+/// One canonical admission decision, taken under the canonical map manager lock.
+///
+/// R1: the canonical map's creature owns the one allocatable loot authority for
+/// its object incarnation; the legacy store and the session loot-view state may
+/// hold aliases to that allocation, but must never allocate a competing
+/// claimable pool. The authority, the canonical owner's health timeline snapshot
+/// and the aura provenance therefore travel together, so the registration caller
+/// adopts authority and health timeline from the same decision instead of a
+/// second manager lookup.
 #[derive(Debug, Clone)]
 pub struct CanonicalCreatureInsertOutcomeLikeCpp {
     pub loot_authority: OwnedLootAuthority,
     pub aura_provenance: Vec<(u8, u32, wow_entities::AuraCastProvenanceLikeCpp)>,
+    /// Canonical owner snapshot read under the same lock that selected
+    /// `loot_authority`.
+    pub health_owner: wow_entities::Unit,
+}
+
+/// One canonical admission attempt.
+///
+/// R1's invariant is that one object incarnation has one allocatable loot
+/// authority. `Refused` is the only *decision* about an incarnation: the
+/// canonical owner already exists and the candidate would be a second
+/// independently claimable pool, so the caller must not publish a legacy alias
+/// that would carry it. `NotAdmitted` means no canonical incarnation was
+/// available to decide against — no canonical manager, no canonical map
+/// instance for this key, or the candidate could not be installed — which is
+/// the pre-existing path where the legacy store remains the only store.
+enum CanonicalCreatureAdmissionLikeCpp {
+    NotAdmitted,
+    Refused,
+    Admitted(CanonicalCreatureInsertOutcomeLikeCpp),
 }
 
 pub fn insert_canonical_creature_map_object_on_map_like_cpp(
     manager: &SharedCanonicalMapManager,
     map_id: u32,
     instance_id: u32,
-    mut creature: wow_entities::Creature,
+    creature: wow_entities::Creature,
 ) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
+    match admit_canonical_creature_map_object_on_map_like_cpp(
+        manager,
+        map_id,
+        instance_id,
+        creature,
+    ) {
+        CanonicalCreatureAdmissionLikeCpp::Admitted(outcome) => Some(outcome),
+        CanonicalCreatureAdmissionLikeCpp::NotAdmitted
+        | CanonicalCreatureAdmissionLikeCpp::Refused => None,
+    }
+}
+
+fn admit_canonical_creature_map_object_on_map_like_cpp(
+    manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    mut creature: wow_entities::Creature,
+) -> CanonicalCreatureAdmissionLikeCpp {
+    use CanonicalCreatureAdmissionLikeCpp::{Admitted, NotAdmitted, Refused};
+
     let guid = creature.unit().world().object().guid();
     let Ok(mut manager) = manager.lock() else {
-        return None;
+        return NotAdmitted;
     };
-    let map = manager.find_map_mut(map_id, instance_id)?;
+    let Some(map) = manager.find_map_mut(map_id, instance_id) else {
+        return NotAdmitted;
+    };
     if map.map().get_creature(guid).is_some() {
-        let current = map.map_mut().get_typed_creature_mut(guid)?;
+        let Some(current) = map.map_mut().get_typed_creature_mut(guid) else {
+            return NotAdmitted;
+        };
         let current_authority = current.loot_authority_like_cpp().clone();
-        let incoming_authority = creature.loot_authority_like_cpp().clone();
-        let current_stamp = current_authority.stamp_like_cpp();
-        let incoming_stamp = incoming_authority.stamp_like_cpp();
-        let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
-            &current_authority,
-            current_stamp,
-            &incoming_authority,
-            incoming_stamp,
-        );
-        current.rebind_loot_authority_if_current_like_cpp(
-            &current_authority,
-            current_stamp,
-            authority.clone(),
-        )?;
-        creature.adopt_loot_authority_for_snapshot_like_cpp(authority.clone());
+        let incoming_authority = creature.loot_authority_like_cpp();
+        // R1: the existing canonical creature already owns this incarnation's
+        // authority. A duplicate admission is accepted only when it carries that
+        // same allocation (the legacy store's alias) or an unused pristine
+        // candidate. Any other candidate would be a second independently
+        // claimable pool, so it is refused here instead of being reconciled with
+        // the canonical pool; the canonical authority is returned unchanged and
+        // nothing on the canonical object is mutated.
+        if !incoming_authority.shares_storage_like_cpp(&current_authority)
+            && !incoming_authority.is_pristine_like_cpp()
+        {
+            return Refused;
+        }
+        let health_owner = current.unit().clone();
         let aura_provenance = current
             .unit()
             .subsystems()
@@ -63,20 +113,25 @@ pub fn insert_canonical_creature_map_object_on_map_like_cpp(
                 (!provenance.cast_id.is_empty()).then_some((*slot, aura.spell_id, provenance))
             })
             .collect();
-        return Some(CanonicalCreatureInsertOutcomeLikeCpp {
-            loot_authority: authority,
+        return Admitted(CanonicalCreatureInsertOutcomeLikeCpp {
+            loot_authority: current_authority,
             aura_provenance,
+            health_owner,
         });
     }
     if creature.loot_authority_like_cpp().lifecycle_like_cpp()
         == OwnedLootAuthorityLifecycle::Detached
     {
-        return None;
+        return NotAdmitted;
     }
 
-    map.map_mut()
+    if map
+        .map_mut()
         .settle_creature_addon_aura_provenance_like_cpp(&mut creature)
-        .ok()?;
+        .is_err()
+    {
+        return NotAdmitted;
+    }
     let aura_provenance = creature
         .unit()
         .subsystems()
@@ -98,12 +153,27 @@ pub fn insert_canonical_creature_map_object_on_map_like_cpp(
         .map_mut()
         .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
     creature.unit_mut().world_mut().object_mut().add_to_world();
-    let authority = creature.loot_authority_like_cpp().clone();
-    let record = wow_entities::MapObjectRecord::new_creature(creature).ok()?;
-    map.map_mut().insert_map_object_record(record).ok()?;
-    Some(CanonicalCreatureInsertOutcomeLikeCpp {
-        loot_authority: authority,
+    let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
+        return NotAdmitted;
+    };
+    if map.map_mut().insert_map_object_record(record).is_err() {
+        return NotAdmitted;
+    }
+    // Fresh admission installs this candidate as the incarnation's single
+    // authority; read the installed object back so the caller receives exactly
+    // that allocation and the health timeline the map now owns.
+    let Some((loot_authority, health_owner)) = map.map().with_creature_like_cpp(guid, |current| {
+        (
+            current.loot_authority_like_cpp().clone(),
+            current.unit().clone(),
+        )
+    }) else {
+        return NotAdmitted;
+    };
+    Admitted(CanonicalCreatureInsertOutcomeLikeCpp {
+        loot_authority,
         aura_provenance,
+        health_owner,
     })
 }
 
@@ -292,39 +362,49 @@ impl WorldEntitiesState {
             creature
         };
         canonical_creature.clear_data_changes();
-        if let Some(outcome) = self.insert_canonical_creature_map_object_like_cpp(
+        // R1: admission selects the incarnation's canonical authority *before*
+        // any legacy alias is published. A refused admission means the canonical
+        // owner already exists and this candidate would be a second claimable
+        // pool, so the legacy store must not publish an alias carrying it. When
+        // no canonical incarnation exists to decide against (legacy-only
+        // configuration, or a canonical map instance this session has not
+        // created yet) the previous path is preserved.
+        let admission = self.admit_canonical_creature_map_object_like_cpp(
             hub,
             map_id,
             canonical_creature.clone(),
-        ) {
-            canonical_creature.rebind_loot_authority_like_cpp(outcome.loot_authority);
-            let _ = canonical_creature.take_pending_addon_aura_provenance_like_cpp();
-            for (slot, spell_id, provenance) in outcome.aura_provenance {
-                let auras = &mut canonical_creature.unit_mut().subsystems_mut().auras;
-                if auras
-                    .visible_auras
-                    .get(&slot)
-                    .is_some_and(|aura| aura.spell_id == spell_id)
-                {
-                    auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+        );
+        match admission {
+            CanonicalCreatureAdmissionLikeCpp::Refused => return,
+            CanonicalCreatureAdmissionLikeCpp::NotAdmitted => {}
+            CanonicalCreatureAdmissionLikeCpp::Admitted(
+                CanonicalCreatureInsertOutcomeLikeCpp {
+                    loot_authority,
+                    aura_provenance,
+                    health_owner,
+                },
+            ) => {
+                canonical_creature.rebind_loot_authority_like_cpp(loot_authority);
+                let _ = canonical_creature.take_pending_addon_aura_provenance_like_cpp();
+                for (slot, spell_id, provenance) in aura_provenance {
+                    let auras = &mut canonical_creature.unit_mut().subsystems_mut().auras;
+                    if auras
+                        .visible_auras
+                        .get(&slot)
+                        .is_some_and(|aura| aura.spell_id == spell_id)
+                    {
+                        auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                    }
                 }
+                // When a canonical object pre-exists (for example grid loading
+                // racing legacy registration), seed the compatibility mirror from
+                // that exact health timeline rather than a separately constructed
+                // Unit with incomparable revisions. The snapshot comes from the
+                // same admission decision that selected the authority.
+                canonical_creature
+                    .unit_mut()
+                    .preserve_authoritative_health_state_for_snapshot_like_cpp(&health_owner);
             }
-        }
-        let canonical_health_owner = hub.core.canonical_map_manager.as_ref().and_then(|manager| {
-            let manager = manager.lock().ok()?;
-            manager
-                .find_map(u32::from(map_id), 0)?
-                .map()
-                .with_creature_like_cpp(guid, |current| current.unit().clone())
-        });
-        if let Some(current_unit) = canonical_health_owner {
-            // When a canonical object pre-exists (for example grid loading
-            // racing legacy registration), seed the compatibility mirror from
-            // that exact health timeline rather than a separately constructed
-            // Unit with incomparable revisions.
-            canonical_creature
-                .unit_mut()
-                .preserve_authoritative_health_state_for_snapshot_like_cpp(&current_unit);
         }
 
         if let Some(manager) = &hub.core.map_manager {
@@ -352,21 +432,16 @@ impl WorldEntitiesState {
         }
     }
 
-    fn insert_canonical_creature_map_object_like_cpp(
+    fn admit_canonical_creature_map_object_like_cpp(
         &mut self,
         hub: &mut HubMut<'_>,
         map_id: u16,
         creature: wow_entities::Creature,
-    ) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
+    ) -> CanonicalCreatureAdmissionLikeCpp {
         let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return None;
+            return CanonicalCreatureAdmissionLikeCpp::NotAdmitted;
         };
-        insert_canonical_creature_map_object_on_map_like_cpp(
-            manager,
-            u32::from(map_id),
-            0,
-            creature,
-        )
+        admit_canonical_creature_map_object_on_map_like_cpp(manager, u32::from(map_id), 0, creature)
     }
 
     pub fn remove_world_creature(

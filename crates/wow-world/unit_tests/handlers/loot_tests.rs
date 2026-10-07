@@ -156,6 +156,8 @@ use overworld_personal_loot::{
     assert_overworld_personal_loot_generation_like_cpp,
     overworld_personal_loot_test_fixture_like_cpp,
 };
+#[path = "loot_tests/r1a_admission_authority.rs"]
+mod r1a_admission_authority;
 #[path = "loot_tests/r4a_lookup_exhaustion.rs"]
 mod r4a_lookup_exhaustion;
 
