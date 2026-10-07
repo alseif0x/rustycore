@@ -4,14 +4,18 @@
 
 // C++ `HandleMoveSetVehicleRecAck` has no session-visible side effect, so
 // the #142 wire-dispatch test proves reachability with a test-only call
-// counter instead of inventing production state.
+// counter instead of inventing production state. The body moved to
+// `wow-world-application` under #1263 F5, which cannot name a `wow-world`
+// `cfg(test)` symbol, so the counter now marks the host step that the C++
+// body runs at that same dependency point
+// (`crate::handlers::movement_host`).
 #[cfg(test)]
 pub(super) static MOVE_SET_VEHICLE_REC_ID_ACK_HANDLER_CALLS_FOR_TEST: std::sync::Mutex<
     Vec<(std::thread::ThreadId, usize)>,
 > = std::sync::Mutex::new(Vec::new());
 
 #[cfg(test)]
-pub(super) fn record_move_set_vehicle_rec_id_ack_handler_call_for_test() {
+pub(crate) fn record_move_set_vehicle_rec_id_ack_handler_call_for_test() {
     let thread_id = std::thread::current().id();
     let mut calls_by_thread = MOVE_SET_VEHICLE_REC_ID_ACK_HANDLER_CALLS_FOR_TEST
         .lock()
