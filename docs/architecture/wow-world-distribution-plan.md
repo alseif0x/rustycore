@@ -7147,6 +7147,23 @@ dispatch **25/25**, `cargo check --all-targets` de App sin errores, y la regresi
 (`movement_force_acks_validate_and_route_from_controlled_mover_like_cpp`, 1/1, que cubre las difusiones positivas y el
 caso negativo de GUID ajeno). Registros literales en `wow-world`: **83 → 80**. R1 con presupuesto 0. Pendiente: `final`.
 
+#### F5: ACKs de mover inicial y teleport en `ApplicationMovement` — 2026-10-07, `864421c84..c30fa703f`
+
+**Alcance por evidencia C++ (`a5f8da2e`).** `CMSG_MOVE_INIT_ACTIVE_MOVER_COMPLETE` (`Opcodes.cpp:642`, cuerpo
+`MovementHandler.cpp:808`) y `CMSG_MOVE_TELEPORT_ACK` (`:695`, cuerpo `:261`), ambos `LoggedIn`/`ThreadSafe`, se suman
+al dueño existente con cuerpos, logs y metadatos sin cambios; el dueño pasa de 7 a 9 handlers.
+
+**Dependencias.** Las dos alcanzables son de shell (`apply_move_init_active_mover_complete_like_cpp`, con 10 llamadores
+de test, y `handle_move_teleport_ack_like_cpp`, con 5) y pasan a métodos del trait del host invocados desde el thunk en
+el punto C++ (tras el log); sus cuerpos de World sobreviven por esos llamadores. **Cero shims nuevos**: ninguno de los
+dos handlers movidos tiene llamador de test. Sin helpers duplicados ni envoltorios muertos.
+
+**Evidencia verificada por el coordinador:** suite del tool **446/0** con la baseline reimpresa tras revisar el delta
+(−2 métodos de `WorldSession`, +2 del host, 0 shims), ownership PASS, arquitectura PASS, test dorado de dispatch
+**25/25** y `cargo check --all-targets` de App sin errores. El implementador no ejecutó `cargo check -p world-server`
+(fuera de su lista), pero la campaña `final` compila sus tests aguas abajo, así que queda cubierto por la aceptación.
+Registros literales en `wow-world`: **80 → 78**. R1 con presupuesto 0. Pendiente: `final`.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
