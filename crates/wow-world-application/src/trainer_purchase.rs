@@ -23,9 +23,11 @@ use crate::spell_acquisition::{
 use wow_spell_acquisition::{PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionPlanLikeCpp};
 
 mod buy_admission;
+mod buy_spell;
 mod context;
 mod controller;
 pub use buy_admission::AppTrainerBuyAdmissionCxLikeCpp;
+pub use buy_spell::{TrainerBuySpellHostLikeCpp, handle_trainer_buy_spell_with_generator_like_cpp};
 mod offer;
 mod projection;
 pub use projection::TrainerProjectionCatalogsLikeCpp;

@@ -28,24 +28,22 @@
 
 use std::sync::Arc;
 
-use tracing::{debug, info, warn};
+use tracing::debug;
 
 use wow_data::{BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp};
 
 #[cfg(test)]
 use wow_packet::packets::spell::PlaySpellVisualKit;
-use wow_packet::packets::trainer::TrainerBuyFailed;
 
 use crate::session::WorldSession;
 use wow_conditions as conditions;
 use wow_world_application::{
-    TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp,
-    TrainerBuyAdmissionLikeCpp, TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp,
-    TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerProductLikeCpp,
-    TrainerUnavailableReasonLikeCpp, finish_trainer_offer_after_projection_like_cpp,
-    prepare_trainer_offer_like_cpp, resolve_creature_trainer_like_cpp,
-    trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
-    trainer_price_like_cpp,
+    TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp,
+    TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp,
+    TrainerProductLikeCpp, TrainerUnavailableReasonLikeCpp,
+    finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
+    resolve_creature_trainer_like_cpp, trainer_condition_admission_proof_like_cpp,
+    trainer_list_required_npc_flags_like_cpp, trainer_price_like_cpp,
     trainer_spell_class_race_fit_like_cpp as fit_trainer_spell_class_race_rows_like_cpp,
     trainer_spell_product_like_cpp as classify_trainer_spell_product_like_cpp,
 };
@@ -83,6 +81,7 @@ fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> Trai
 
 // ── Handler registrations ─────────────────────────────────────────────────────
 
+mod host;
 mod registrations;
 
 // ── Handler implementations ───────────────────────────────────────────────────
@@ -188,245 +187,6 @@ impl WorldSession {
             .send_trainer_list_like_cpp(hello, gossip_option);
     }
 
-    /// Handle `CMSG_TRAINER_BUY_SPELL` (0x34ae).
-    ///
-    /// Revalidates the immutable offer under the exclusive character-money
-    /// boundary, commits its fee and prepared acquisition once, then publishes
-    /// the C++ money/visual/learning order from the committed result.
-    pub async fn handle_trainer_buy_spell_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        battle_pet_selection_store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
-        pkt: wow_packet::WorldPacket,
-    ) {
-        let Some(req) = self
-            .trainer_buy_admission_context_like_cpp()
-            .admit_packet_like_cpp(pkt)
-        else {
-            return;
-        };
-
-        let trainer_guid = req.trainer_guid;
-        let trainer_id = req.trainer_id;
-        let spell_id = req.spell_id;
-
-        // Ordinary in-world LearnSpell/skill mutations remain dirty until
-        // Player::SaveToDB. Persist that current authority before preparing
-        // the trainer's absolute replacement; rejecting normal dirty state
-        // would make trainers unusable between autosaves. The duplicate-login
-        // claim keeps this save and the following purchase under the same sole
-        // live Player authority, while the purchase revalidates everything
-        // after both awaits.
-        if let Ok(snapshot) = self.spell_acquisition_snapshot_like_cpp(
-            crate::spell_acquisition::PlayerAcquisitionLifecycleLikeCpp::InWorld,
-            Vec::new(),
-            std::collections::BTreeMap::new(),
-        ) && crate::spell_acquisition::snapshot_has_pending_durable_save_like_cpp(&snapshot)
-        {
-            self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
-                .await;
-        }
-        // Close detached money admission and reconcile every previously
-        // admitted payout before deriving the price, balance or acquisition
-        // snapshot that will be persisted.
-        let Some(money_persistence) = self
-            .begin_exclusive_player_money_persistence_like_cpp()
-            .await
-        else {
-            return;
-        };
-
-        // The await above is an intentional race boundary. Re-resolve every
-        // mutable/current authority rather than trusting the preliminary
-        // membership proof retained only to match the early C++ failure path.
-        let Some(fresh_access) = crate::session::hub_ref(self)
-            .represented_npc_can_interact_with_like_cpp(
-                trainer_guid,
-                TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
-                0,
-            )
-        else {
-            return;
-        };
-        let fresh_resolution = {
-            let context =
-                self.trainer_buy_context_like_cpp(item_guid_generator, battle_pet_selection_store);
-            context.resolve_buy_spell_after_boundary_like_cpp(
-                trainer_guid,
-                trainer_id,
-                spell_id as u32,
-            )
-        };
-        let fresh_trainer_spell = match fresh_resolution {
-            Err(TrainerBuyAdmissionLikeCpp::InteractionMismatch) => return,
-            Err(
-                TrainerBuyAdmissionLikeCpp::TrainerStoreUnavailable
-                | TrainerBuyAdmissionLikeCpp::TrainerUnavailable
-                | TrainerBuyAdmissionLikeCpp::SpellUnavailable,
-            ) => {
-                self.send_packet_realm(&TrainerBuyFailed {
-                    trainer_guid,
-                    spell_id,
-                    reason: 0,
-                });
-                return;
-            }
-            Ok(trainer_spell) => trainer_spell,
-        };
-        let decision = self.trainer_offer_decision_like_cpp(
-            trainer_id as u32,
-            &fresh_trainer_spell,
-            fresh_access.faction_template_id,
-        );
-        let offer = match decision {
-            TrainerOfferDecisionLikeCpp::Available(offer) => offer,
-            TrainerOfferDecisionLikeCpp::AvailableBattlePet(offer) => {
-                // Issue #161: the recoverable saga owns the battle-pet
-                // branch end to end (admission, charge, durable command,
-                // one pet, completion, compensation and publication).
-                self.execute_battle_pet_trainer_purchase_with_generator_like_cpp(
-                    item_guid_generator,
-                    battle_pet_selection_store,
-                    money_persistence,
-                    trainer_guid,
-                    trainer_id as u32,
-                    offer,
-                )
-                .await;
-                return;
-            }
-            _ => {
-                self.send_packet_realm(&TrainerBuyFailed {
-                    trainer_guid,
-                    spell_id,
-                    reason: 0,
-                });
-                return;
-            }
-        };
-        // C++ `Trainer.cpp:99-109`: every spell with a confirmed battle-pet
-        // species — castable or not — applies the silent per-species
-        // capacity gate (no packet, no charge) before the money check.
-        if let Some(species_id) = offer.battle_pet_species_id {
-            let capped = crate::session::cx_pets_ref(self)
-                .battle_pet_account_owner_lease_like_cpp()
-                .map(|(owner, _)| owner.has_max_pet_count_like_cpp(species_id, self.player_guid()))
-                .unwrap_or(true);
-            if capped {
-                return;
-            }
-        }
-        let Some(old_money) = self.resolved_player_money_like_cpp() else {
-            return;
-        };
-        let price = u64::from(offer.effective_price);
-        if old_money < price {
-            self.send_packet_realm(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 1,
-            });
-            return;
-        }
-        let new_money = old_money - price;
-
-        let Ok(current_snapshot) = self.spell_acquisition_snapshot_like_cpp(
-            crate::spell_acquisition::PlayerAcquisitionLifecycleLikeCpp::InWorld,
-            offer
-                .acquisition_plan
-                .source_snapshot
-                .future_player_condition_resolutions
-                .clone(),
-            offer
-                .acquisition_plan
-                .source_snapshot
-                .cast_resolutions
-                .clone(),
-        ) else {
-            self.send_packet_realm(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 0,
-            });
-            return;
-        };
-        let Some(player_guid) = current_snapshot.character_guid else {
-            self.send_packet_realm(&TrainerBuyFailed {
-                trainer_guid,
-                spell_id,
-                reason: 0,
-            });
-            return;
-        };
-        let completion = {
-            let mut runtime =
-                self.trainer_buy_context_like_cpp(item_guid_generator, battle_pet_selection_store);
-            runtime
-                .execute_admitted_acquisition_like_cpp(
-                    money_persistence,
-                    &offer,
-                    &current_snapshot,
-                    old_money,
-                    new_money,
-                    &crate::spell_acquisition::TrainerAcquisitionPublicationLikeCpp {
-                        trainer_guid,
-                        player_guid,
-                        trainer_position: fresh_access.position,
-                        suppress_visuals: offer.battle_pet_species_id.is_some(),
-                    },
-                )
-                .await
-        };
-        use crate::spell_acquisition::TrainerAcquisitionResultLikeCpp as Result;
-        match completion.result {
-            Result::Applied => {}
-            Result::InvalidPreparation => {
-                self.send_packet_realm(&TrainerBuyFailed {
-                    trainer_guid,
-                    spell_id,
-                    reason: 0,
-                });
-                return;
-            }
-            Result::PersistenceUnavailable => return,
-            Result::RuntimeInstallationFailed => {
-                self.kick(
-                    "committed trainer acquisition could not install runtime state; relog required",
-                );
-                return;
-            }
-            Result::MoneyOwnerUnavailable => {
-                self.kick("canonical Player money owner became unavailable after trainer COMMIT");
-                return;
-            }
-            Result::WriterFenceFailed => {
-                self.kick("trainer socket ordering fence failed after durable acquisition");
-                return;
-            }
-            Result::PublicationFailed => {
-                self.kick(
-                    "committed trainer acquisition could not publish runtime state; relog required",
-                );
-                return;
-            }
-        }
-        // Preserve the exclusion until failure handling above has completed.
-        drop(completion);
-        self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-            item_guid_generator,
-        )
-        .await;
-
-        info!(
-            account = self.core.account_id,
-            trainer_id,
-            spell_id,
-            effective_price = offer.effective_price,
-            remaining_money = new_money,
-            "Trainer purchase committed and published"
-        );
-    }
-
     #[cfg(test)]
     pub async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
@@ -436,7 +196,8 @@ impl WorldSession {
             .unwrap_or_else(|| {
                 Arc::new(wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp::default())
             });
-        self.handle_trainer_buy_spell_with_generator_like_cpp(
+        wow_world_application::handle_trainer_buy_spell_with_generator_like_cpp(
+            self,
             generators.item.as_ref(),
             selection.as_ref(),
             pkt,

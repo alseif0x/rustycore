@@ -91,7 +91,10 @@ async fn insufficient_money_uses_prepared_effective_price_without_mutation() {
 
 #[test]
 fn buy_registration_carries_the_call_while_legacy_shortcuts_stay_disabled() {
-    let trainer = include_str!("../../../../src/handlers/trainer.rs");
+    // The body moved to the application trainer owner (#1263 F4 remate); the
+    // scan follows it so the legacy-shortcut guard keeps its teeth.
+    let buy_spell =
+        include_str!("../../../../../wow-world-application/src/trainer_purchase/buy_spell.rs");
     let registrations: Vec<_> = crate::session::registry::registered_handler_entries_like_cpp()
         .filter(|entry| entry.opcode == ClientOpcodes::TrainerBuySpell)
         .collect();
@@ -103,13 +106,10 @@ fn buy_registration_carries_the_call_while_legacy_shortcuts_stay_disabled() {
     // The adjacent wire-dispatch test exercises this registered call. Avoid
     // finding a stale call string inside the test's own source as before.
 
-    let buy = trainer
-        .split("pub async fn handle_trainer_buy_spell")
+    let buy = buy_spell
+        .split("pub async fn handle_trainer_buy_spell_with_generator_like_cpp")
         .nth(1)
-        .expect("buy handler")
-        .split("\n}\n\n#[cfg(test)]")
-        .next()
-        .expect("buy handler body");
+        .expect("buy handler");
     for forbidden in [
         "INS_CHARACTER_SPELL",
         "UPD_CHAR_MONEY",

@@ -34,13 +34,13 @@ crate::session::registry::register_packet_handler_like_cpp! {
         handler_name: "handle_trainer_buy_spell",
         handler: |session, catalogs, pkt| {
             Box::pin(async move {
-                session
-                    .handle_trainer_buy_spell_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        catalogs.battle_pet_trainer_selection.as_ref(),
-                        pkt,
-                    )
-                    .await
+                wow_world_application::handle_trainer_buy_spell_with_generator_like_cpp(
+                    session,
+                    catalogs.id_generators.item.as_ref(),
+                    catalogs.battle_pet_trainer_selection.as_ref(),
+                    pkt,
+                )
+                .await
             })
         },
     }
