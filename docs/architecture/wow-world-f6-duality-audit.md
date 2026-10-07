@@ -5,7 +5,7 @@ Read-only audit produced for issue #1263 criterion **F6**. It records what exist
 ones. **No Rust code was changed, and no repair is proposed inside a structural slice.**
 
 - Rust tree: `/home/server/rustycore-1241`, branch `1263-f6-b`; §1–§7 as audited at `bd7c106fd`,
-  §2.1 re-derived at `359bd3dda`.
+  §2.1 re-derived at `359bd3dda`, §2.2 re-derived at `1fe9d79c4` (branch `1263-f6-d`).
 - C++ reference: `/home/server/woltk-trinity-legacy` at `a5f8da2e` (3.4.3).
 - Method: source inspection — `grep`/`sed`/`git log`/file reads — plus, for §2.1 only, `cargo tree`
   feature resolution (metadata only: no compile, no test, no `validation-v2`, no capture, no
@@ -178,6 +178,73 @@ represented_visibility_source_position_like_cpp represented_weapon_crit_aura_mod
 expansion or a `mod`/`#[path]` form outside the four the walker follows would be missed. §2.1
 supersedes the heuristic figures in §1 items 1–2, §2's count column, D-11 and §7 rows 1–2.
 
+### 2.2 `resolved_*` absent-owner contract (F6-2)
+
+**Method.** Enumeration: `grep -rn 'fn resolved_' crates/ --include=*.rs` → 216 definition lines; every
+signature was read to its `{`/`;` and its return type recorded, then each body was read with
+`awk`/`sed`. Caller scan: `grep -rn 'resolved_[a-z_]*(' crates/ --include=*.rs | grep -E
+'unwrap_or|unwrap_or_default|unwrap_or_else|\.unwrap\(\)|expect\('`, and every hit was re-read in place.
+A site counts as production only when `unit_tests/` and `f3_shims.rs` are absent from its path and its
+enclosing item carries neither `cfg(test)` nor `test-fixtures`. "Absent owner" means the session has no
+live generation-checked canonical `Player`/entity, i.e. `with_owned_player_like_cpp` /
+`player_handle_like_cpp` yield `None`. No Rust was edited and no compiler was run: the `cfg` verdicts
+are source reads, not an expansion.
+
+| Figure (scope `crates/`, F6-2 re-derivation) | count |
+|---|---:|
+| `fn resolved_*` definitions | 216 |
+| return `Option<...>` | 210 |
+| do not return `Option` — 4 `wow-data` lookup structs (`spell_acquisition/state_2_ops_1.rs:662,761,773,785`), `-> u32` (`login_recovery.rs:16`), `-> Result<_,_>` (`world-server/src/gameobject_loaded_grid.rs:269`) | 6 |
+| trait declarations with no body (body lives in an impl elsewhere) | 12 |
+| test-only bodies (12 `unit_tests/**/f3_shims.rs` definitions) | 12 |
+| **production-reachable `Option`-returning bodies** | **186** |
+
+**Table A — absent-owner behaviour, grouped by body shape.** Every fixture/substitute branch found in
+these bodies sits behind `#[cfg(any(test, feature = "test-fixtures"))]` or `#[cfg(test)]`, so in
+production the canonical `Option` is returned unchanged — except row D, the only bodies with a
+production-compiled substitute (`grep`-checked for `unwrap_or`/`or_else`/`then_some`/`.or(`/`map_or`
+outside a `#[cfg(...)]` block).
+
+| # | Shape | n | representative seam | production behaviour when the canonical owner is absent | caller turns `None` into a packet value |
+|---|---|---:|---|---|---|
+| A | canonical-owner read in the body (`with_owned_player_like_cpp`, `with_owned_player_for_rest_like_cpp`, `player_handle_like_cpp`, `canonical_*`) | 51 | `crates/wow-world-core/src/session/player_vitals_adapter.rs:89` (the F6-2 reference shape) | `None` (the fixture branch is compiled out); `Some` only while the Player handle is live | yes: `resolved_is_in_taxi_flight_like_cpp` (`canonical_access/player_condition.rs:456`), `resolved_known_spells_like_cpp` — table B |
+| B | forwards to a session/value accessor (`*_snapshot_like_cpp`, `*_access_like_cpp`) and projects it with `.map` | 63 | `crates/wow-world-core/src/session/player_vitals_adapter.rs:122` → `crates/wow-world-core/src/session/player_presentation.rs:49-66` (canonical read + `test-fixtures` fallback) | same `None` as the accessor; no substitute in the seam | yes: `resolved_player_mounted_like_cpp`, `resolved_player_visible_auras_like_cpp`, `resolved_inventory_item_object_like_cpp`, `resolved_player_inventory_item_object_with_access_like_cpp`, `resolved_inventory_item_objects_like_cpp`, `resolved_player_inventory_slot_count_like_cpp`, `resolved_dungeon_difficulty_id_like_cpp` — table B |
+| C | thin forwarder: `split_*_ref` + `state.resolved_*`, a free-function `resolved_*`, or a `_with_access_like_cpp` variant | 62 | `crates/wow-world-core/src/session/player_vitals_adapter.rs:76` → `:89`; `crates/wow-world/src/session/player_items/storage.rs:335` → `crates/wow-world-inventory/src/storage.rs:647` | inherits the callee's row; the body adds no fallback | yes: `resolved_buyback_items_like_cpp` (via `crates/wow-world/src/session/player_items/items.rs:165`), `resolved_player_vitals_like_cpp`, the aura-effect seams — table B |
+| D | substitutes a default for an absent **entry**, not an absent owner | 7 | `crates/wow-world-core/src/session/progression/skills.rs:435`, `:559`; `.../canonical_access/quest_reward_owner.rs:130`, `item_sets.rs:126`, `item_enchantment.rs:35`, `quest_eligibility.rs:102`; `crates/wow-world-social/src/guild.rs:110` | `Some(0)` when the skill id is missing from resolved records (`Some(x?.get(&id).unwrap_or(0))`); `None` only if the records accessor itself is `None`; `guild.rs:110` is `authority_complete.then_some(guild_id.unwrap_or(0))` | the fabricated `0` is a value, not a `None`; packet attribution `unverified` |
+| E | ownerless catalog lookup | 3 | `crates/wow-data/src/spell_db2/state_1.rs:604`, `state_2.rs:816`; `crates/world-server/src/spell/acquisition_loader.rs:1328` | `None` = no row for that difficulty chain; unrelated to canonical ownership | no packet in the seam; callers not traced |
+| F | test-only bodies | 12 | `crates/wow-world/unit_tests/session/**/f3_shims.rs` | not compiled into a production build (§2.1) | n/a |
+
+**Table B — production call sites that turn a `None` into something else (re-read at the site).** The
+scan found 67 production sites in 23 distinct seams carrying a conversion idiom inside a six-line call
+window; two of them are window artefacts and are *not* substitutions:
+`crates/wow-world/src/session/player_cast/checks.rs:22-26` and
+`crates/wow-world/src/session/player_items/valuation.rs:19-21` both propagate (`?`) and only carry an
+adjacent `.unwrap_or` on another expression.
+
+| seam (definition anchor) | caller | what `None` becomes | packet verdict |
+|---|---|---|---|
+| `resolved_buyback_items_like_cpp` `crates/wow-world/src/session/player_items/items.rs:165` | `crates/wow-world/src/handlers/character/vendor/sell.rs:375-380` | `ObjectGuid::EMPTY`, pushed into `inv_slot_changes` | **yes** — published by `send_player_values_update_from_entity_bridge` (`sell.rs:381-384`; builder `crates/wow-world/src/session/publication/operations.rs:122-141`). Exact wire field `unverified` |
+| `resolved_inventory_item_object_like_cpp` `crates/wow-world/src/session/player_items/storage.rs:339` | `crates/wow-world/src/handlers/spell/ops_1.rs:187-193` | `map_or(true, is_locked)` → treated as locked | **yes** — `send_equip_error(InventoryResult::ItemLocked, …)` → `InventoryChangeFailure` (`crates/wow-world-core/src/session/player_items/equipment.rs:5,16`) |
+| same seam | `crates/wow-world/src/handlers/void_storage/transfer.rs:179-185` | `map_or(0, count)` → deposit count 0 | **yes, indirect** — the count feeds the non-bank removal accounting used by `handle_void_storage_transfer_with_generators_like_cpp` |
+| same seam | `crates/wow-world/src/handlers/character/items/inventory_moves.rs:101-104` | `ok_or(InventoryResult::ItemNotFound)?` | redirects to the inventory-error result; its send site was not traced |
+| `resolved_player_inventory_item_object_with_access_like_cpp` `crates/wow-world-inventory/src/quest_reward.rs:140` | `crates/wow-world-inventory/src/handlers/item_text.rs:34-39` | `QueryItemTextResponse::invalid_like_cpp(query.id)` | **yes** — `send_packet(&response)` in the same function |
+| `resolved_is_in_taxi_flight_like_cpp` `crates/wow-world-core/src/session/canonical_access/player_condition.rs:456` | `crates/wow-world-core/src/session/canonical_access/player_condition.rs:441-453` | `true` into `ConditionPlayerSnapshot.is_in_flight` | **yes, indirect** — `wow_conditions` evaluates that field (`crates/wow-conditions/src/evaluate.rs:430`); whether this tree's DB conditions select it is `unverified` |
+| `resolved_dungeon_difficulty_id_like_cpp` `crates/wow-world-instances/src/difficulty.rs:239` | `.../difficulty.rs:269-277` (`?`), then `crates/wow-world/src/handlers/character/world_entry.rs:145-147` | the packet builder returns `None` | **yes, as suppression** — `DungeonDifficultySet` and the following `LoginVerifyWorld` (`world_entry.rs:148,156`) are not sent and world entry returns `false` |
+| `resolved_player_visible_auras_like_cpp` `crates/wow-world-core/src/session/spell_state/aura_publication.rs:6` (the `HubRef` impl the caller uses; the `PlayerStatsAccessLikeCpp` twin is `canonical_access/player_stats.rs:456`) | `crates/wow-world/src/session/player_presentation.rs:142-144` | `MountCapabilityRejectLikeCpp::Aura` | reject reason, not a packet field; the mount-capability answer's send path is `unverified` |
+| `resolved_player_vitals_like_cpp` `crates/wow-world-core/src/session/player_vitals_adapter.rs:76` | `.../spell_effects/effect_combat/healing_application.rs:272-274` | `&'static str` error | **no** — the heal is abandoned, nothing fabricated |
+| `resolved_player_mounted_like_cpp` `crates/wow-world-core/src/session/player_vitals_adapter.rs:122` | `crates/wow-world-application/src/aura_removal/initial.rs:20-22` | `&'static str` error | **no** — aura removal aborts |
+| `resolved_known_spells_like_cpp` `crates/wow-world/src/session/spell_state/spellbook.rs:562` | `.../spellbook.rs:565-567` (`unwrap_or_default`) | empty `Vec<i32>` | consumed by 20+ `known_spells_like_cpp()` callers; the two read (`spellbook.rs:198-200`, `:321-325`) use it for learn counting and aura-authority invalidation, not a packet field. Packet attribution `unverified` |
+| aura seams `resolved_aura_effects_by_spell_aura_type_like_cpp` / `..._with_misc_values_...` / `..._with_spell_and_misc_...` / `..._aura_effect_amounts_...` (`crates/wow-world-core/src/session/spell_state/aura/effect_queries.rs:118,140,159,176`; access-struct twins `crates/wow-world-core/src/session/canonical_access/player_stats.rs:475,490,505,520`) | 45 production sites, e.g. `crates/wow-world-spell/src/session/spell_state/aura.rs:231-233`, `crates/wow-world/src/session/combat/melee.rs:155-159`, `crates/wow-world-inventory/src/stats.rs:43`, `equipment_slots.rs:214-232`, `crates/wow-world-core/src/session/player_stat_queries.rs:23-33` | empty list / `0` / `1.0` | the substitute enters stat, crit, haste and damage arithmetic; packet attribution `unverified` |
+| `resolved_inventory_item_objects_like_cpp` `crates/wow-world-inventory/src/storage.rs:618`; `resolved_player_inventory_slot_count_like_cpp` `crates/wow-world-inventory/src/storage_slots.rs:171` | `crates/wow-world-inventory/src/durability.rs:21-22`, `:26-27` | empty target list; slot count `0` | durability targets/filter; packet attribution `unverified` |
+
+**Answer to the F6-2 question.** Of the 186 production-reachable `Option`-returning `resolved_*` seams,
+**3 are verified to turn `None` into a packet value** (`resolved_buyback_items_like_cpp`,
+`resolved_inventory_item_object_like_cpp`, `resolved_player_inventory_item_object_with_access_like_cpp`),
+**1 turns it into a condition-input value** whose packet link is verified only at condition evaluation
+(`resolved_is_in_taxi_flight_like_cpp`), and **1 turns it into packet suppression**, taking the rest of
+the login sequence with it (`resolved_dungeon_difficulty_id_like_cpp`). The other production seams
+either propagate `None` unchanged (rows A–C) or fabricate a default inside the seam (row D).
+
 ## 3. `legacy_runtime`
 
 **What it is.** A private module of `wow-world::session` holding the creature/player runtime tick
@@ -302,12 +369,12 @@ structural with no action** (D-13). Behaviour-difference total including D-10 as
 
 Ordered by risk, each sized to one bounded slice and stated with the evidence that bounds it.
 **Nothing here authorises a gameplay repair inside a structural slice.** Of these slices only
-F6-1 has been executed, and only as §2.1 of this document (documentation and metadata only).
+F6-1 and F6-2 have been executed, and both only as documentation: §2.1 and §2.2 of this document.
 
 | # | Slice | Bounded by | Risk |
 |---|---|---|---|
 | F6-1 | **Inventory of the production-reachable `represented_*` surface.** Produce the exact list of `represented_*` definitions compiled into a production build of `world-server` (not the heuristic in §1), grouped by the stage-2 buckets. **Executed — §2.1.** | Purely mechanical: `cargo check` feature resolution or a build-script-free `cfg` scan. No behaviour touched. `crates/wow-world/Cargo.toml:9-11` and `crates/world-server/Cargo.toml:10-43` bound what can be included. | lowest |
-| F6-2 | **Re-derive each `resolved_*` seam's absent-owner contract.** For every `resolved_*` that returns `Option`, record what production does when the canonical owner is absent, and whether any caller turns `None` into a packet value. | `crates/wow-world-core/src/session/player_vitals_adapter.rs:89-113` is the reference shape; the set of `resolved_*` names is enumerable by grep (40+ sites, see §2 anchors). Read-only; no code change. | low |
+| F6-2 | **Re-derive each `resolved_*` seam's absent-owner contract.** For every `resolved_*` that returns `Option`, record what production does when the canonical owner is absent, and whether any caller turns `None` into a packet value. **Executed — §2.2.** | `crates/wow-world-core/src/session/player_vitals_adapter.rs:89-113` is the reference shape; the set of `resolved_*` names is enumerable by grep (216 definition lines, §2.2). Read-only; no code change. | low |
 | F6-3 | **Name/source reconciliation for `represented_*` that read canonical.** Split the 187 production-reachable definitions whose body reads a canonical token (180 distinct names, §2.1) into "rename" and "genuine mirror", starting with `canonical_access/operations.rs:182` and `canonical_access/quest_reward_owner.rs:561`. | Bounded by a fixed candidate list; pure rename if the F6-1 inventory confirms no owner change. | low |
 | F6-4 | **D-03 map-key fallback removal analysis.** Enumerate every `current_legacy_runtime_map_key_like_cpp` caller (grep: 20 sites incl. `wow-world-loot`, `wow-world-core`, `wow-world-entities`, `wow-world` tests) and state, per caller, what C++ reads there. | `crates/wow-world-core/src/session/instances/map_key.rs:53-62`; caller list is closed and grep-verifiable. Read-only. | medium |
 | F6-5 | **D-12/D-04 loot fanout identity and order.** Verify from source whether `loot_delivery_recipient(_, map_id, instance_id)` can select a recipient on a different instance than the canonical one, and whether C++ order is observable at all (container is `GuidUnorderedSet`, `Loot.h:350`). | Two files plus one container type; the D-04 order claim is already flagged `unverified`. | medium |
@@ -324,6 +391,9 @@ F6-1 has been executed, and only as §2.1 of this document (documentation and me
 | C++ `_allowedLooters` send order (D-12) | Container is `GuidUnorderedSet` (`Loot.h:350`), so no C++ order is defined; Rust's owner-first split cannot be shown divergent from source alone. |
 | Inventory/items, progression, instances, battleground, collections, lifecycle duality | Not traced in this audit ("Not established" in §2). |
 | Whether the owner's loot-list delivery path reproduces the C++ packet for the owner in every case | The owner branch was located (`loot_release/mod.rs:318-320`) but its packet content was not compared byte-for-byte with `Loot::NotifyLootList`. |
-| Whether any `resolved_*` `None` currently reaches a client-visible packet field | Callers not enumerated. |
+| Whether any `resolved_*` `None` currently reaches a client-visible packet field | Resolved by F6-2 (§2.2): 3 seams turn `None` into a packet value, 1 into a condition input, 1 into packet suppression; the table-B rows marked `unverified` remain open. |
+| The canonical shape of every accessor behind §2.2 group B | Only three were read (`player_presentation.rs:49-66`, `rest_progression.rs:165-170`, `spell_hit_authority.rs:57-70`); the other 60 group-B bodies are assigned by body shape, not per-accessor reads. |
+| Site-level classification of the 67 production caller hits | The caller scan used a six-line window, which can capture an adjacent expression (2 known artefacts, §2.2); only the table-B rows were re-read at the site. |
+| Whether the substituted values in §2.2 table B (aura/stat arithmetic, skill `0`, `known_spells` empty set, durability count `0`) change a packet field | The substitution sites were read; the arithmetic-to-wire path was not traced in this slice. |
 | The C++ counterpart of `RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME` | Verified absent from `src/` and `sql/` in the C++ checkout; absence of a match is not proof that no equivalent mechanism exists elsewhere. |
 | Runtime reachability of D-10 | Requires a detached-player or far-teleport reproduction that this read-only audit could not run. |
