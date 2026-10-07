@@ -599,6 +599,50 @@ pub fn max_health_u32_like_cpp(max_health: i64) -> u32 {
     max_health.max(1).min(i64::from(u32::MAX)) as u32
 }
 
+/// Builds the character-stat application context from the session hub and the
+/// session inventory.
+///
+/// The World shell and the moved character-creation body share this
+/// construction so the catalog, config and stat-fixture access is assembled
+/// once (#1263 F5).
+pub fn stats_application_cx_from_hub_like_cpp<'a>(
+    hub: wow_world_core::session::HubMut<'a>,
+    inventory: &'a mut InventoryState,
+) -> CharacterStatsApplicationCxLikeCpp<'a> {
+    let core = &*hub.core;
+    let publication = core.packet_publication_access_like_cpp();
+    #[cfg(any(test, feature = "test-fixtures"))]
+    let player = core.player_stats_access_with_fixture_refs_like_cpp(
+        hub.catalogs,
+        hub.config,
+        &hub.fixtures.identity.player_race,
+        &hub.fixtures.identity.player_class,
+        &hub.fixtures.identity.player_level,
+        wow_world_core::session::StatsFixtureRefs::new_like_cpp(
+            wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
+                &mut hub.fixtures.combat.player_health_like_cpp,
+                &mut hub.fixtures.combat.player_max_health_like_cpp,
+                &mut hub.fixtures.combat.player_alive_like_cpp,
+                &mut hub.fixtures.combat.represented_player_powers_like_cpp[0],
+                &mut hub.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                &mut hub.fixtures.combat.represented_player_base_mana_like_cpp,
+            ),
+            wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
+                &hub.fixtures.auras.represented_shapeshift_form_like_cpp,
+                &hub.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &hub.fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &hub.fixtures.auras.visible_auras,
+                &hub.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+            ),
+        ),
+    );
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let player = core.player_stats_access_like_cpp(hub.catalogs, hub.config);
+    CharacterStatsApplicationCxLikeCpp::new(player, &*inventory, publication)
+}
+
 pub fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
     match class_id {
         1 | 6 => 1_000,

@@ -22,42 +22,7 @@ impl WorldSession {
         &mut self,
     ) -> wow_world_application::CharacterStatsApplicationCxLikeCpp<'_> {
         let (inventory, hub) = crate::session::split_inventory_mut(self);
-        let core = &*hub.core;
-        let publication = core.packet_publication_access_like_cpp();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let player = core.player_stats_access_with_fixture_refs_like_cpp(
-            hub.catalogs,
-            hub.config,
-            &hub.fixtures.identity.player_race,
-            &hub.fixtures.identity.player_class,
-            &hub.fixtures.identity.player_level,
-            wow_world_core::session::StatsFixtureRefs::new_like_cpp(
-                wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
-                    &mut hub.fixtures.combat.player_health_like_cpp,
-                    &mut hub.fixtures.combat.player_max_health_like_cpp,
-                    &mut hub.fixtures.combat.player_alive_like_cpp,
-                    &mut hub.fixtures.combat.represented_player_powers_like_cpp[0],
-                    &mut hub.fixtures.combat.represented_player_max_powers_like_cpp[0],
-                    &mut hub.fixtures.combat.represented_player_base_mana_like_cpp,
-                ),
-                wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
-                    &hub.fixtures.auras.represented_shapeshift_form_like_cpp,
-                    &hub.fixtures.auras.player_aura_authority_complete_like_cpp,
-                    &hub.fixtures
-                        .auras
-                        .player_spell_hit_aura_authority_tombstoned_like_cpp,
-                    &hub.fixtures.auras.visible_auras,
-                    &hub.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
-                ),
-            ),
-        );
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let player = core.player_stats_access_like_cpp(hub.catalogs, hub.config);
-        wow_world_application::CharacterStatsApplicationCxLikeCpp::new(
-            player,
-            inventory,
-            publication,
-        )
+        wow_world_application::stats_application_cx_from_hub_like_cpp(hub, inventory)
     }
 
     pub(super) fn represented_player_gear_stats_like_cpp(
@@ -68,6 +33,10 @@ impl WorldSession {
             .represented_player_gear_stats_like_cpp()
     }
 
+    /// C++ `Player::Create` -> `InitStatsForLevel`/`UpdateMaxHealth`: the
+    /// creation body moved to the `wow-world-application` character owner
+    /// (#1263 F5); the character scenarios still call this entry point.
+    #[cfg(test)]
     pub(super) fn player_stat_system_projection_like_cpp(
         &mut self,
         race: u8,
