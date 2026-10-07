@@ -34,16 +34,16 @@ impl WorldSession {
     }
 
     /// Clone the object-owned authority while the map/entity lock is held,
-    /// then release that lock before any reservation can await.
+    /// then release that lock before any reservation can await. The typed
+    /// outcome and its `Option` collapse live in the core access owner, so this
+    /// compatibility wrapper delegates there instead of copying the match.
     pub(super) fn represented_owned_loot_authority_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
-            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
-        }
+        self.core
+            .loot_release_owner_access_like_cpp()
+            .represented_owned_loot_authority_like_cpp(owner_guid)
     }
 
     /// Typed counterpart of [`Self::represented_owned_loot_authority_like_cpp`].
@@ -61,19 +61,19 @@ impl WorldSession {
     /// Bridge pre-authority represented fixtures (and the equivalent first
     /// live generation) into the object-owned source of truth exactly once.
     /// A retired non-zero generation is never reinstalled from session cache.
+    /// Delegates to the typed bridge below, so the `Absent`/`Unavailable`
+    /// collapse has one body (the outcome's `into_option_like_cpp`) instead of
+    /// a second copy.
     pub(super) fn prepare_owned_loot_authority_for_active_request_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        match self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+        self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
             owner_guid,
             scope_player,
-        ) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
-            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
-        }
+        )
+        .into_option_like_cpp()
     }
 
     /// Typed counterpart of

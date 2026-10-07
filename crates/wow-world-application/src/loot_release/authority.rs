@@ -55,16 +55,13 @@ impl LootReleaseCxLikeCpp<'_> {
     }
 
     /// Compatibility wrapper: `Absent` and `Unavailable` stay fail-closed
-    /// `None`, so every consumer of this shape is unchanged.
+    /// `None`, so every consumer of this shape is unchanged. It delegates to
+    /// the core compatibility body, which owns the only `Option` collapse.
     pub(super) fn represented_owned_loot_authority_like_cpp(
         &mut self,
         guid: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        match self.represented_owned_loot_authority_outcome_like_cpp(guid) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
-            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
-        }
+        self.owner.represented_owned_loot_authority_like_cpp(guid)
     }
 
     fn refresh_owned_loot_summary_like_cpp(&mut self, guid: ObjectGuid) {
@@ -138,22 +135,6 @@ impl LootReleaseCxLikeCpp<'_> {
                 .insert_active_loot_view_authority_if_absent_like_cpp(owner_guid, &authority);
         }
         OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
-    }
-
-    /// Compatibility wrapper around the typed counterpart above.
-    pub(super) fn prepare_owned_loot_authority_for_active_request_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        scope_player: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        match self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
-            owner_guid,
-            scope_player,
-        ) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
-            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
-        }
     }
 
     pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(

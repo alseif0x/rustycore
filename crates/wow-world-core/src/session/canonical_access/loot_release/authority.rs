@@ -21,6 +21,20 @@ pub enum OwnedLootAuthorityLookupOutcomeLikeCpp {
     Unavailable,
 }
 
+impl OwnedLootAuthorityLookupOutcomeLikeCpp {
+    /// The compatibility collapse for the untouched `Option` consumers:
+    /// `Absent` and `Unavailable` both fail closed. This is the one body that
+    /// answers the historical `Option<OwnedLootAuthority>` shape, so the
+    /// `_like_cpp` wrappers in this crate, in `wow-world-application` and in
+    /// `wow-world` are delegations rather than copies.
+    pub fn into_option_like_cpp(self) -> Option<OwnedLootAuthority> {
+        match self {
+            Self::Found(authority) => Some(authority),
+            Self::Absent | Self::Unavailable => None,
+        }
+    }
+}
+
 impl LootReleaseOwnerAccessLikeCpp<'_> {
     pub fn next_canonical_loot_object_guid_like_cpp(
         &mut self,
@@ -215,11 +229,8 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         &mut self,
         owner_guid: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
-            | OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => None,
-        }
+        self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+            .into_option_like_cpp()
     }
 }
 

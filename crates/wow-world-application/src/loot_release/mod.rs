@@ -379,8 +379,15 @@ impl LootReleaseCxLikeCpp<'_> {
             return false;
         }
 
-        let authoritative_release = if let Some(authority) =
-            self.prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid)
+        // The typed bridge plus the outcome's own collapse; the `Option`
+        // wrapper shape stays in `wow-world`, so this bridge has one body here
+        // and the collapse has one body in the outcome type.
+        let authoritative_release = if let Some(authority) = self
+            .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+                owner_guid,
+                player_guid,
+            )
+            .into_option_like_cpp()
         {
             if !self
                 .loot
