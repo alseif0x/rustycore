@@ -7043,8 +7043,10 @@ el trait del host y la cola de thunks+registrador son **byte-idénticos**.
 
 **Evidencia verificada por el coordinador en el árbol commiteado:** suite del tool **446/0** (era 443/3 en la base),
 ownership `--syntax-only` **sin cambios en la baseline** (corte solo de App), arquitectura **PASS**, `wow-world --lib`
-filtrado de dispatch **25/25** y `cargo check --all-targets` de App sin errores. R1 con presupuesto 0. Pendiente:
-`final`.
+filtrado de dispatch **25/25** y `cargo check --all-targets` de App sin errores. R1 con presupuesto 0.
+
+**Aceptación `final`:** sobre **`2989c278d`**, **verde en 167 s** con 3 jobs (`dirty: false`; verificada con
+`--require-profile final`; manifiesto `target/validation-v2/manifests/20261007T025324.044468Z-1351978-final.json`).
 
 **Lección reforzada:** mover fuentes que el tool monta por `include_str!` exige ejecutar **su** suite aunque su crate
 no cambie; `final` no la enruta. Este corte la ejecuta y la deja verde.
