@@ -24,6 +24,15 @@
 //! authority preparation/reconciliation, the item storage transitions and the
 //! `LootRemoved` publication. Each one still delegates to the existing World
 //! operation at its original call point.
+//!
+//! `CMSG_LOOT_ITEM` (`WorldSession::HandleAutostoreLootItemOpcode`,
+//! `Handlers/LootHandler.cpp:77`) reuses those same projections (the hub, the
+//! loot state and its mut accessor, the authority preparation/reconciliation,
+//! the fixture gate, the item storage transitions and the item generator) and
+//! adds only the GameObject autostore gate, the corpse position, the canonical
+//! summary refresh, the durable-completion drain and the shared-owner
+//! `LootRemoved` publication, again as one-line delegations to the existing
+//! World operation at its original call point.
 
 use std::future::Future;
 
@@ -244,5 +253,50 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
             loot_list_id,
             target,
         )
+    }
+
+    fn loot_item_gameobject_can_autostore_like_cpp(
+        &self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> bool {
+        WorldSession::represented_gameobject_can_autostore_loot_item_like_cpp(
+            self,
+            owner_guid,
+            player_guid,
+        )
+    }
+
+    fn loot_item_represented_creature_position_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+    ) -> Option<wow_core::Position> {
+        WorldSession::represented_creature_position_for_loot_like_cpp(self, owner_guid)
+    }
+
+    fn loot_item_apply_pending_durable_completions_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+    ) -> impl Future<Output = ()> + Send + 'a {
+        WorldSession::apply_pending_durable_item_loot_completions_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+        )
+    }
+
+    fn loot_item_refresh_owner_canonical_summary_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        WorldSession::refresh_represented_loot_owner_canonical_summary_like_cpp(
+            self,
+            owner_guid,
+            player_guid,
+        )
+    }
+
+    fn loot_item_notify_item_removed_like_cpp(&mut self, owner_guid: ObjectGuid, loot_list_id: u8) {
+        WorldSession::represented_notify_loot_item_removed_like_cpp(self, owner_guid, loot_list_id)
     }
 }

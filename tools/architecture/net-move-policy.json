@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "aba57d57a7a055994fc4e700a0d4d45a9106655b",
+    "recorded_at_revision": "4ff7c437fda39ba7c530dd05fbcdf83d8b46af6e",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -810,6 +810,20 @@
         "destination_growth": 48,
         "new_code": 0,
         "note": "Pure layout move: loot_handlers.rs 913 -> 390 with four private family submodules; no surface change."
+      },
+      {
+        "phase": "Base reset at the #1297 loot owner split (127c0bbb6)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 127c0bbb6."
+      },
+      {
+        "phase": "F5 loot item consumer (127c0bbb6..HEAD)",
+        "shrink": 242,
+        "destination_growth": 416,
+        "new_code": 0,
+        "note": "LootItem joins the existing application loot owner (new item.rs submodule) and its registration moves (75 -> 74 world literals)."
       }
     ],
     "areas": [
