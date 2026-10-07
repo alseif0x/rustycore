@@ -774,6 +774,39 @@ Signed by the high-effort reviewer. This is the decision; the verdicts in §5.3 
 
 **Consequence for this audit's work items:** F6-7 is closed as a decision. The six repairs become separate, explicitly scoped work — they are behaviour changes and therefore must not be folded into a structural refactor.
 
+### 5.3.2 Reviewer-specified repair order (signed plan; first slice R4a)
+
+Signed execution plan for the six `repair required` verdicts of §5.3.1. It changes no verdict above; it records
+the order the reviewer selected, why that order is the cheap one, and the evidence boundary of each slice.
+The order is **R4 → R1 → R7 → R2 → R3 → R5**, and the first slice is **R4a (lookup-exhaustion containment)**.
+
+1. **R4 — reconciliation failure must not be read as absent loot.** R4 separates reconciliation failure from
+   absent loot before ownership changes: today an unconverged eight-round reconciliation returns the same
+   `None` as a genuinely missing authority, so the loot-open consumer answers a still-owned object with a
+   release. R4a, the first slice, is exactly that separation.
+2. **R1 — one allocatable authority per creature lifetime.** R1 establishes one allocatable authority per
+   creature lifetime and is the repair that makes the others smaller: with a single owner, R2/R3/R5 stop being
+   reconciliation problems and shrink to lookup, boundary and conflict-policy simplifications.
+3. **R7 — mutations must reach that authority.** R7 then makes mutations reach that authority, so a rejected
+   entity snapshot can no longer leave a successful mutation visible only in the legacy mirror.
+4. **R2 — resolve single-store presence through the established owner.** R2 resolves single-store presence
+   through the established owner, so the survival of either mirror does not by itself confer authority.
+5. **R3 — retire dual-store reconciliation.** R3 retires dual-store reconciliation and its eight-round loop,
+   which the single authority above makes unnecessary.
+6. **R5 — retire terminal conflict quarantine.** R5 removes terminal conflict quarantine once competing
+   authorities cannot arise, instead of letting a conflict deny loot for the object's remaining lifetime.
+
+All six repairs are **source/test-provable without runtime**: each is decided from the Rust source, the C++
+contrast in §5.3(e) and deterministic regression tests. A newly selected client-visible failure response would
+need target-build evidence and is excluded; R4a therefore changes only whether the exhaustion path publishes,
+never what a client is sent on any other path.
+
+**R4a boundary.** One behaviour change only: the loot-open consumer rejects an exhausted reconciliation before
+any fallback, cache disposal or release. The typed outcome and its compatibility wrapper are a pure
+move/rename for every other consumer, and genuine absence, successful opens, packet ordering, enqueue
+rollback, generation checks, quarantine policy, snapshot rejection, the retry count and
+`request_state.rs::close_stale_active_loot_view_like_cpp` are unchanged.
+
 ## 6. Concrete work items for the F6 slices
 
 Ordered by risk, each sized to one bounded slice and stated with the evidence that bounds it.
