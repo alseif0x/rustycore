@@ -7051,6 +7051,29 @@ filtrado de dispatch **25/25** y `cargo check --all-targets` de App sin errores.
 **Lección reforzada:** mover fuentes que el tool monta por `include_str!` exige ejecutar **su** suite aunque su crate
 no cambie; `final` no la enruta. Este corte la ejecuta y la deja verde.
 
+#### F5: login y ConnectToFailed en `ApplicationCharacter` — 2026-10-07, `3c8d9ea5e..ce061f78a`
+
+**Integración previa:** #1283 dividió el dueño en módulo hermano y corrigió el drift de fachadas (`3c8d9ea5e`).
+
+**Alcance.** Los dos últimos handlers de `character_setup.rs` pasan al dueño existente `ApplicationCharacter`:
+`PlayerLogin` (`Authed`/`ThreadUnsafe`) y `ConnectToFailed` (`Authed`/`Inplace`), con cuerpos, logs y metadatos sin
+cambios. Con ellos se cierra el fichero de registro de la familia de personaje.
+
+**Dependencias.** Seis capacidades de shell pasan a **métodos del trait del host**: lectura y fijación del estado de
+carga del jugador, reclamación y liberación del claim de login, envío de `ConnectTo`, y retirada de la entrada
+pendiente del gestor de sesiones. Delta de ownership revisado por el coordinador: **−2** métodos de `WorldSession`
+(las dos cáscaras) y **+6** del host, sin ningún otro cambio en la baseline (módulos, campos, recursos y comandos
+intactos).
+
+**Evidencia verificada por el coordinador en el árbol commiteado:** suite del tool **446/0** (con la baseline
+reimpresa tras revisar el delta), ownership `--syntax-only` PASS, arquitectura PASS, test dorado de dispatch **25/25** y
+`cargo check --all-targets` de App sin errores. Registros literales en `wow-world`: **89 → 87**. R1 con presupuesto 0.
+Pendiente: `final`.
+
+**Nota de proceso.** El implementador reportó correctamente el conflicto entre la regla «no toques
+`tools/architecture`» y la verificación obligatoria de la suite del tool, y **no** reimprimió la baseline: la reimprimió
+el coordinador tras revisar el delta, como marca la disciplina de entrega.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos

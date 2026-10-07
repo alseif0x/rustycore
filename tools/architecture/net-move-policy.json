@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "9e9320d4f77efb12d5e685422bc171492aa7bf7e",
+    "recorded_at_revision": "ce061f78a08f30afe267d36cd421b901a3c8a905",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -642,6 +642,20 @@
         "destination_growth": 177,
         "new_code": 0,
         "note": "character_handlers.rs split into a private sibling module; net +177 lines are per-file headers, import blocks and impl wrappers, no body change."
+      },
+      {
+        "phase": "Base reset at the #1283 split (3c8d9ea5e)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to 3c8d9ea5e."
+      },
+      {
+        "phase": "F5 player login and connect-to-failed (3c8d9ea5e..HEAD)",
+        "shrink": 88,
+        "destination_growth": 304,
+        "new_code": 0,
+        "note": "The last two character_setup handlers join ApplicationCharacter; shell-only capabilities stay behind the host trait."
       }
     ],
     "areas": [
