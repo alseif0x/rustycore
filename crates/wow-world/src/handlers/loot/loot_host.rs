@@ -15,11 +15,21 @@
 //! catalogs of the handler bundle. Every method delegates to the existing World
 //! operation at the exact point the World body invoked it, so no World body is
 //! duplicated and no step value is needed.
+//!
+//! `CMSG_LOOT_ROLL` (`Handlers/LootHandler.cpp:489`) and
+//! `CMSG_MASTER_LOOT_ITEM` (`WorldSession::HandleLootMasterGiveOpcode`) reuse
+//! the same session hub, loot state and item valuation projections and add the
+//! shell-only capabilities their bodies need: the represented roll vote, the
+//! group resolution, the master-loot inventory probe, the fixture gate, the
+//! authority preparation/reconciliation, the item storage transitions and the
+//! `LootRemoved` publication. Each one still delegates to the existing World
+//! operation at its original call point.
 
 use std::future::Future;
 
 use wow_core::ObjectGuid;
-use wow_packet::packets::loot::LootResponse;
+use wow_loot::{LootClaimLease, LootEntry, OwnedLootAuthority};
+use wow_packet::packets::loot::{LootResponse, LootRoll};
 use wow_world_application::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
 use wow_world_core::session::{HubRef, ItemValuationCatalogsLikeCpp};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
@@ -122,6 +132,117 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
             owner_guid,
             player_guid,
             response,
+        )
+    }
+    fn loot_roll_item_guid_generator_like_cpp<'c>(
+        &self,
+        catalogs: &'c SessionHandlerCatalogsLikeCpp,
+    ) -> &'c wow_core::ObjectGuidGenerator {
+        catalogs.id_generators.item.as_ref()
+    }
+
+    fn loot_roll_player_vote_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        item_valuation: &'a ItemValuationCatalogsLikeCpp,
+        roll: &'a LootRoll,
+        player_guid: ObjectGuid,
+    ) -> impl Future<Output = bool> + Send + 'a {
+        WorldSession::represented_player_vote_on_loot_roll_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            item_valuation,
+            roll,
+            player_guid,
+        )
+    }
+
+    fn master_loot_resolved_group_guid_like_cpp(&self) -> Option<u64> {
+        WorldSession::resolved_group_guid_like_cpp(self)
+    }
+
+    fn master_loot_local_fixture_allowed_like_cpp(&self) -> bool {
+        super::represented_local_loot_fixture_allowed_like_cpp()
+    }
+
+    fn master_loot_prepare_owned_authority_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        scope_player: ObjectGuid,
+    ) -> Option<OwnedLootAuthority> {
+        WorldSession::prepare_owned_loot_authority_for_active_request_like_cpp(
+            self,
+            owner_guid,
+            scope_player,
+        )
+    }
+
+    fn master_loot_reconcile_loot_cache_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> bool {
+        WorldSession::reconcile_represented_loot_cache_like_cpp(self, owner_guid, player_guid)
+    }
+
+    fn master_loot_can_store_error_like_cpp(
+        &self,
+        target: ObjectGuid,
+        item_id: u32,
+        count: u32,
+    ) -> Option<u8> {
+        WorldSession::represented_master_loot_can_store_error_like_cpp(self, target, item_id, count)
+    }
+
+    fn master_loot_store_claimed_direct_item_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        loot_entry: &'a LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        claim: &'a LootClaimLease,
+    ) -> impl Future<Output = bool> + Send + 'a {
+        WorldSession::store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            loot_entry,
+            dungeon_encounter_id,
+            owner_guid,
+            loot_obj,
+            claim,
+        )
+    }
+
+    fn master_loot_store_direct_item_like_cpp<'a>(
+        &'a mut self,
+        item_guid_generator: &'a wow_core::ObjectGuidGenerator,
+        loot_entry: &'a LootEntry,
+        dungeon_encounter_id: u32,
+        owner_guid: ObjectGuid,
+    ) -> impl Future<Output = bool> + Send + 'a {
+        WorldSession::store_direct_loot_item_from_owner_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+            loot_entry,
+            dungeon_encounter_id,
+            owner_guid,
+        )
+    }
+
+    fn master_loot_mark_item_removed_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        target: ObjectGuid,
+    ) {
+        WorldSession::mark_represented_master_loot_item_removed_like_cpp(
+            self,
+            owner_guid,
+            loot_obj,
+            loot_list_id,
+            target,
         )
     }
 }

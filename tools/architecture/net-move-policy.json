@@ -17,7 +17,7 @@
   "reviewed_new_code": {
     "budget": 0,
     "measured_requirement": 0,
-    "recorded_at_revision": "db10715e9333d62ea9ce9c0f133f4d2a06f5659f",
+    "recorded_at_revision": "3657afa68959a46d82c184d8ef16c0ccb26ec1b1",
     "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
     "phases": [
       {
@@ -782,6 +782,20 @@
         "destination_growth": 238,
         "new_code": 0,
         "note": "LootUnit joins the existing application loot owner and its registration moves with it (108 -> 107 world literals)."
+      },
+      {
+        "phase": "Base reset at the #1295 LootUnit slice (b024b8a76)",
+        "shrink": 0,
+        "destination_growth": 0,
+        "new_code": 0,
+        "note": "merge-base moved to b024b8a76."
+      },
+      {
+        "phase": "F5 loot roll and master loot (b024b8a76..HEAD)",
+        "shrink": 232,
+        "destination_growth": 536,
+        "new_code": 0,
+        "note": "LootRoll and MasterLootItem join the existing application loot owner; both registrations move (108 -> 106 world literals)."
       }
     ],
     "areas": [
