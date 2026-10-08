@@ -1,6 +1,7 @@
 use crate::session::creature_canonical_adapter::{
     CanonicalCreatureEntityApplicationLikeCpp, apply_canonical_creature_entity_on_map_like_cpp,
     creature_representation_is_admitted_like_cpp,
+    sync_admitted_creature_representation_on_map_like_cpp,
 };
 use crate::session::state::SessionCore;
 use wow_core::ObjectGuid;
@@ -10,13 +11,17 @@ impl SessionCore {
     /// Synchronize one transported creature representation into the current
     /// canonical incarnation, or refuse it.
     ///
-    /// F6-7 R7b-2a (reviewer signature §5.3.1 R7). This root used to be the
-    /// thin locking wrapper around the in-guard application helper and exposed
-    /// success — the expected-stamp rebind of the legacy loot authority — for a
-    /// snapshot the canonical incarnation had **not** applied, so a rejected
-    /// transported representation still displaced the existing legacy
-    /// representation's loot authority. The gate is now the same one the
-    /// mutation root [`Self::mutate_world_creature`] uses:
+    /// F6-7 R7b-2a/R7b-2b (reviewer signature §5.3.1 R7). This root used to be
+    /// the thin locking wrapper around the in-guard application helper and
+    /// exposed success — the expected-stamp rebind of the legacy loot authority
+    /// — for a snapshot the canonical incarnation had **not** applied, so a
+    /// rejected transported representation still displaced the existing legacy
+    /// representation's loot authority. R7b-2a added the gate; R7b-2b moved the
+    /// whole sequence into the one shared map-level root
+    /// [`sync_admitted_creature_representation_on_map_like_cpp`], so this method
+    /// is now only the session-side wrapper that resolves the current legacy
+    /// runtime map key and the expected legacy alias, then delegates. The gate
+    /// is the same one the mutation root [`Self::mutate_world_creature`] uses:
     ///
     /// * ownership is resolved as the current canonical incarnation and the
     ///   representation is admitted against it *before* the application is
@@ -27,63 +32,38 @@ impl SessionCore {
     /// * the admitted representation is applied to the incarnation inside the
     ///   canonical execution lock, in canonical→legacy order and with no I/O,
     ///   delivery, await or manager re-entry inside the guards;
-    /// * the existing legacy representation is synchronized only afterwards, by
-    ///   the same expected-authority/expected-stamp compare-and-exchange, so a
-    ///   refusal cannot publish a success the canonical incarnation never
-    ///   applied.
+    /// * the existing legacy representation is synchronized afterwards, by the
+    ///   same expected-authority/expected-stamp compare-and-exchange.
     ///
-    /// The return value is the outcome: `true` only once the canonical
-    /// incarnation has applied the representation *and* the legacy alias has
-    /// been synchronized. `false` means the operation wrote neither store. A
+    /// The return value is the **canonical application** outcome, not a joint
+    /// outcome: `true` once the canonical incarnation has applied the
+    /// representation. A missing legacy representation, or a legacy
+    /// compare-and-exchange that failed because the alias carried a newer
+    /// authority, does **not** make this `false` — the canonical application
+    /// already happened and the caller must observe it as applied. `false` means
+    /// nothing was applied: no canonical manager, no map instance, no
+    /// incarnation for the GUID, a refused admission or a refused application. A
     /// session with no canonical map manager has no incarnation to synchronize
     /// into, so this root refuses there instead of silently doing nothing.
     pub fn sync_canonical_creature_entity_like_cpp(
         &mut self,
         creature: wow_entities::Creature,
     ) -> bool {
-        let guid = creature.guid();
         let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
-        // The canonical execution lock is released before the legacy
-        // representation is synchronized, so this root never nests the legacy
-        // guard inside the canonical guard and never runs the rebind under it.
-        let authority = {
-            let Ok(mut manager) = manager.lock() else {
-                return false;
-            };
-            let Some(map) = manager.find_map_mut(u32::from(map_id), instance_id) else {
-                return false;
-            };
-            let admitted = map
-                .map()
-                .with_creature_like_cpp(guid, |current| {
-                    creature_representation_is_admitted_like_cpp(current, &creature)
-                })
-                .unwrap_or(false);
-            if !admitted {
-                return false;
-            }
-            match apply_canonical_creature_entity_on_map_like_cpp(map.map_mut(), creature) {
-                CanonicalCreatureEntityApplicationLikeCpp::Applied(authority) => authority,
-                // The gate above refuses every representation the application
-                // could reject, so `Rejected` and `Refused` are unreachable here
-                // unless the incarnation changed under the guard; neither may
-                // publish success.
-                CanonicalCreatureEntityApplicationLikeCpp::Rejected(_)
-                | CanonicalCreatureEntityApplicationLikeCpp::Refused => return false,
-            }
-        };
-        let _ = self.rebind_legacy_creature_loot_authority_like_cpp(
-            guid,
+        sync_admitted_creature_representation_on_map_like_cpp(
+            &manager,
+            self.map_manager.as_ref(),
+            map_id,
+            instance_id,
+            creature,
             &expected_legacy_authority,
             expected_legacy_stamp,
-            authority,
-        );
-        true
+        )
     }
 
     /// Read one value from the session's represented creature *without*

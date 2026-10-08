@@ -686,32 +686,30 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
         outcome.commands.push(command);
     }
 
-    // Step 4 — mirror. Both guards are released; this takes canonical inside
-    // `sync_canonical_creature_entity_on_map_like_cpp` and re-takes legacy for
-    // the authority rebind, exactly as the lifecycle phase already does.
-    for (map_id, instance_id, guid, creature, expected_authority, expected_stamp) in canonical_syncs
+    // Step 4 — mirror. Both guards are released; the shared map-level gate
+    // takes canonical and then legacy itself, admits the transported
+    // representation against the current incarnation, applies it and only then
+    // rebinds the legacy alias. F6-7 R7b-2b: this site used to bypass the
+    // R7a/R7b-2a admission predicate and could offer a foreign incarnation's
+    // representation to the canonical object.
+    for (map_id, instance_id, _guid, creature, expected_authority, expected_stamp) in
+        canonical_syncs
     {
-        let authority = sync_canonical_creature_entity_on_map_like_cpp(
+        let applied = sync_admitted_creature_representation_on_map_like_cpp(
             canonical_map_manager,
-            u32::from(map_id),
+            Some(legacy_map_manager),
+            map_id,
             instance_id,
             creature,
+            &expected_authority,
+            expected_stamp,
         );
-        let Some(authority) = authority else {
+        // Attempt count, refusal count: one increment per attempted mirror that
+        // the canonical incarnation did not apply, including an admission
+        // refusal. An applied snapshot whose legacy compare-and-exchange failed
+        // is not a rejection.
+        if !applied {
             outcome.canonical_mirror_rejections += 1;
-            continue;
-        };
-        let mut legacy = legacy_map_manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if let Some(world_creature) = legacy.find_creature_mut(map_id, instance_id, guid) {
-            let _ = world_creature
-                .creature
-                .rebind_loot_authority_if_current_like_cpp(
-                    &expected_authority,
-                    expected_stamp,
-                    authority,
-                );
         }
     }
 

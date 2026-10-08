@@ -206,6 +206,7 @@ pub(crate) use creature_canonical_adapter::reconcile_creature_loot_authority_mir
 pub(crate) use creature_canonical_adapter::relocate_canonical_creature_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::remove_canonical_creature_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::remove_canonical_respawn_time_on_map_like_cpp;
+pub(crate) use creature_canonical_adapter::sync_admitted_creature_representation_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::sync_canonical_creature_entity_on_map_like_cpp;
 mod creature_kill_contracts;
 use creature_kill_contracts::PendingCreatureKillRewardLikeCpp;

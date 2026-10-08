@@ -29,5 +29,7 @@ mod r7a_lethal_lifecycle;
 mod r7b2a_canonical_mutation;
 #[path = "scenarios_world_entities_19/r7b2a_guarded_loot_release.rs"]
 mod r7b2a_guarded_loot_release;
+#[path = "scenarios_world_entities_19/r7b2b_mirror_admission.rs"]
+mod r7b2b_mirror_admission;
 #[path = "scenarios_world_entities_19/shared_creature_authority.rs"]
 mod shared_creature_authority;

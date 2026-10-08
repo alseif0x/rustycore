@@ -6,6 +6,7 @@
 
 use std::collections::HashSet;
 
+use crate::map_manager::SharedMapManager;
 use crate::session::SharedCanonicalMapManager;
 use wow_core::{ObjectGuid, Position};
 use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle, OwnedLootAuthorityStamp};
@@ -279,6 +280,98 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
         | CanonicalCreatureEntityApplicationLikeCpp::Rejected(authority) => Some(authority),
         CanonicalCreatureEntityApplicationLikeCpp::Refused => None,
     }
+}
+
+/// Synchronize one transported creature representation into the canonical
+/// incarnation that owns its GUID **through the R7a/R7b-2a admission gate**,
+/// and then — only on an applied snapshot — rebind the coexisting legacy
+/// representation's loot alias.
+///
+/// F6-7 R7b-2b. This is the one shared map-level gate the mirroring roots use.
+/// The two production mirror sites (the player melee tick and the creature
+/// movement tick) used to call [`sync_canonical_creature_entity_on_map_like_cpp`]
+/// directly and then run the legacy expected-authority/expected-stamp
+/// compare-and-exchange themselves, so a representation that belonged to
+/// another incarnation — or carried a competing used allocation — was still
+/// offered to the canonical object and still attempted a legacy rebind. This
+/// root evaluates the existing admission predicate
+/// ([`creature_representation_is_admitted_like_cpp`]) against the **current**
+/// canonical incarnation *before* the application is invoked, so a missing
+/// canonical manager, a missing map instance, a missing incarnation, a
+/// representation from another health timeline, a stale or ABA-replayed
+/// revision and a competing used loot allocation are all refused with nothing
+/// written in either store.
+///
+/// Lock order and scope: the canonical execution lock is held first and the
+/// legacy manager second — the established canonical→legacy order. The
+/// admission read, the application and the legacy compare-and-exchange all run
+/// inside those guards, and none of them performs allocation beyond the
+/// application's own record construction, I/O, await, delivery or manager
+/// re-entry.
+///
+/// Return contract: `true` if and only if the canonical incarnation **applied**
+/// the representation. A missing legacy representation, or a legacy
+/// compare-and-exchange that did not match the expected authority/stamp,
+/// changes nothing about that: the canonical application already happened and
+/// the caller must observe it as applied. `false` means no canonical
+/// application took place (admission refused, or the incarnation refused the
+/// snapshot), and therefore neither store was written.
+pub fn sync_admitted_creature_representation_on_map_like_cpp(
+    canonical: &SharedCanonicalMapManager,
+    legacy: Option<&SharedMapManager>,
+    map_id: u16,
+    instance_id: u32,
+    creature: wow_entities::Creature,
+    expected_authority: &OwnedLootAuthority,
+    expected_stamp: OwnedLootAuthorityStamp,
+) -> bool {
+    let guid = creature.unit().world().object().guid();
+    let Ok(mut manager) = canonical.lock() else {
+        return false;
+    };
+    let Some(map) = manager.find_map_mut(u32::from(map_id), instance_id) else {
+        return false;
+    };
+    // Admission resolves ownership before the application is invoked, exactly
+    // as `SessionCore::mutate_world_creature` does: a refusal here cannot be
+    // reconciled, quarantined or published by the application below.
+    let admitted = map
+        .map()
+        .with_creature_like_cpp(guid, |current| {
+            creature_representation_is_admitted_like_cpp(current, &creature)
+        })
+        .unwrap_or(false);
+    if !admitted {
+        return false;
+    }
+    let authority = match apply_canonical_creature_entity_on_map_like_cpp(map.map_mut(), creature) {
+        CanonicalCreatureEntityApplicationLikeCpp::Applied(authority) => authority,
+        // The gate above refuses every representation the application could
+        // reject, so `Rejected` and `Refused` are unreachable here unless the
+        // incarnation changed under the guard; neither applied anything, so
+        // neither may be reported as applied and neither may rebind the alias.
+        CanonicalCreatureEntityApplicationLikeCpp::Rejected(_)
+        | CanonicalCreatureEntityApplicationLikeCpp::Refused => return false,
+    };
+    // Applied. The legacy alias is synchronized afterwards, still under the
+    // canonical guard and only if that representation exists. Its
+    // compare-and-exchange is a best-effort rebind of the alias: it does not
+    // decide whether the canonical incarnation applied the representation.
+    if let Some(legacy) = legacy {
+        let mut legacy = legacy
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        if let Some(world_creature) = legacy.find_creature_mut(map_id, instance_id, guid) {
+            let _ = world_creature
+                .creature
+                .rebind_loot_authority_if_current_like_cpp(
+                    expected_authority,
+                    expected_stamp,
+                    authority,
+                );
+        }
+    }
+    true
 }
 
 /// Selects one backing authority for two mirrors without ever merging two
