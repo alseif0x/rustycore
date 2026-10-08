@@ -7455,6 +7455,46 @@ mover 4 cuerpos de orquestación, en vez de acumular delegaciones.
 PASS (el dueño lógico de loot baja a 10.158 líneas de producción), dispatch **25/25** y loot **316/0** del
 implementador. R1 con presupuesto 0. Pendiente: `final`.
 
+## 8.1 Acceptance reformulation for #1263 (2026-10-07)
+
+The original acceptance named a literal registration count for F5 and left F6 as
+"duality, legacy runtime, legacy map manager and recorded divergences". After 36
+delivery rounds the measured work makes that framing misleading in two ways, so it
+is restated here in verifiable terms. Everything already delivered counts the same.
+
+**Two numbers, always.** The literal counter (`register_packet_handler_like_cpp!`
+blocks in `wow-world`) **undercounts**: the movement family alone registers 53
+further opcodes through three local macros (`register_move!`,
+`register_movement_ack_message!`, `register_movement_speed_ack!`), and other
+families may do the same. Every progress statement must therefore give **both**
+numbers, and no reader should treat the literal figure as the remaining work.
+
+**F5 — restated.** No longer "the ~108 literal registrations migrated", which
+cannot be reached in the remaining rounds, but: **the mechanical tail migrated as
+far as the round budget allows, with its boundary declared** — literal count, macro
+count, the families already migrated, and the exact families and files still
+holding registrations.
+
+**F4 — unchanged.** It is reachable as written.
+
+**F6 — widened to what the work turned out to be.** The criterion is met by:
+(i) the duality and divergence audit with explicit C++ contrast
+(`docs/architecture/wow-world-f6-duality-audit.md`); (ii) the exact inventory
+replacing its heuristic figures (F6-1); (iii) the absent-owner contract for the
+`resolved_*` seams (F6-2); (iv) the classified `represented_*` batches (F6-3);
+(v) the map-key fallback caller analysis (F6-4); (vi) the session-local
+`GameObject` field decisions (F6-6); (vii) the loot-authority reconciliation
+contract and its reviewer signature (F6-7); and (viii) **the six signed behaviour
+repairs executed as their own scoped slices** — R4a, R1a and R1b are integrated,
+R7/R2/R3/R5 remain — with **no repair hidden inside a structural refactor**, which
+is what the original wording demanded. Retiring the legacy runtime and the legacy
+map manager (F6-8) stays as the highest-value remaining F6 item and is **not**
+structural.
+
+**Runtime captures remain outstanding.** The captures that would close R6 and the
+`unverified` rows are authorised and specified with their exact instrumentation
+points; they are scheduled as their own work, not mixed into repair slices.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
