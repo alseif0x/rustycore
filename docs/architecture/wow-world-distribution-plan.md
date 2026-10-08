@@ -7661,6 +7661,8 @@ Para **cada** rechazo: ni la asignación del dueño ni la rechazada cambian — 
 
 **Holds restantes.** Ningún rechazo observado naturalmente en producción; ninguna mutación de revisión de salud observada naturalmente; ventana detached/far-transfer sin ejercer (por tanto D-10, el llamador del fallback D-03 y el mapa `(map_id, 0)` en ventanas detached siguen abiertos); no se identificó quién sostiene la guarda del gestor legado durante el attach de login; el reparto de niveles forma parte del instrumento y la decisión rutinaria del espejo solo es visible a `DEBUG`.
 
+**Campaña `final` (integrador).** `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre el candidato commiteado **`923650fa2`** (campaña de capturas): **passed**, `dirty: false`, **134,34 s** (≤600 s), manifiesto `20261008T203957.417862Z-2108103-final.json`. La revisión previa del mismo corte (`648f3d78e`, una sola línea de diferencia en el registro) también quedó verde en **449 s**; el integrador la descartó al detectar que el HEAD había cambiado y volvió a medir sobre el candidato definitivo.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
