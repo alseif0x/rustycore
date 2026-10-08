@@ -189,7 +189,8 @@ impl WorldSession {
         &mut self,
         state: &RepresentedLootRollState,
     ) -> Option<OwnedLootAuthority> {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(state.owner_guid)
+        let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+            self.represented_owned_loot_authority_outcome_like_cpp(state.owner_guid)
         else {
             return None;
         };
@@ -587,7 +588,9 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) else {
+        let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+            self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+        else {
             return;
         };
         let Some(authority_snapshot) = authority.snapshot_for_player_like_cpp(player_guid) else {
@@ -769,7 +772,8 @@ impl WorldSession {
         }
 
         if !unblocked_without_roll.is_empty()
-            && let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid)
+            && let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+                self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
         {
             for loot_list_id in unblocked_without_roll {
                 let _ = authority.finish_item_roll_like_cpp(

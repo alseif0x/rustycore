@@ -636,10 +636,11 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
         .session
         .ensure_represented_creature_kill_loot_like_cpp(fixture.owner_guid)
         .await;
-    let authority = fixture
-        .session
-        .represented_owned_loot_authority_like_cpp(fixture.owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        fixture
+            .session
+            .represented_owned_loot_authority_outcome_like_cpp(fixture.owner_guid),
+    );
     let before_release = authority
         .snapshot_for_player_like_cpp(fixture.first_tapper)
         .unwrap();

@@ -1,4 +1,5 @@
-//! Shared canonical loot-authority fixtures for packet and lifecycle scenarios.
+//! Shared canonical loot-authority fixtures for packet and lifecycle scenarios,
+//! and the F6-7 R2/R3 loot-authority regressions that drive them.
 
 use std::sync::{Arc, RwLock};
 use wow_core::{ObjectGuid, Position};
@@ -9,13 +10,34 @@ use wow_packet::packets::loot::{
 };
 
 use super::{
-    install_limited_test_item_template, loot_type_for_client_like_cpp,
-    make_session_with_send_capacity, register_test_creature_like_cpp,
-    represented_loot_object_guid_like_cpp, represented_loot_response_items_like_cpp, test_creature,
-    test_creature_guid,
+    attach_canonical_creature, install_limited_test_item_template, loot_type_for_client_like_cpp,
+    make_canonical_creature_for_session, make_session_with_send_capacity,
+    register_test_creature_like_cpp, represented_loot_object_guid_like_cpp,
+    represented_loot_response_items_like_cpp, test_creature, test_creature_guid,
 };
 use crate::handlers::loot::rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp;
 use crate::session::WorldSession;
+use wow_loot::OwnedLootAuthority;
+use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
+
+/// Test-only collapse of the explicit loot-authority lookup outcome.
+///
+/// F6-7 R2 deleted the production `Option` collapse, so the loot fixtures
+/// answer it here, in one place and only in the loot test support module. It
+/// panics on **both** `Absent` and `Unavailable` and names the actual outcome:
+/// a fixture that reads either fact has a broken precondition, and
+/// substituting a default authority would hide exactly the fact the slice
+/// exists to keep explicit. There is no production re-export and no
+/// `test-fixtures` availability.
+#[cfg(test)]
+pub(super) fn expect_found_like_cpp(
+    o: OwnedLootAuthorityLookupOutcomeLikeCpp,
+) -> OwnedLootAuthority {
+    match o {
+        OwnedLootAuthorityLookupOutcomeLikeCpp::Found(a) => a,
+        other => panic!("expected Found, got {other:?}"),
+    }
+}
 
 pub(super) fn insert_allowed_coin_loot_like_cpp(
     session: &mut WorldSession,
@@ -41,10 +63,10 @@ pub(super) fn insert_allowed_coin_loot_like_cpp(
             looted_by_player: false,
         },
     );
-    if session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .is_some()
-    {
+    if matches!(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+        OwnedLootAuthorityLookupOutcomeLikeCpp::Found(_)
+    ) {
         install_cached_test_creature_loot_authority_like_cpp(session, owner_guid, player_guid);
     }
 }
@@ -217,3 +239,6 @@ pub(super) fn represented_disenchant_test_outputs_like_cpp(
         })
         .collect()
 }
+
+#[path = "r2_designated_owner.rs"]
+mod r2_designated_owner;

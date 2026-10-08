@@ -34,9 +34,8 @@ async fn failed_quest_bound_loot_persistence_rolls_back_credit_and_claim_like_cp
         status.status,
         crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
     );
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
     assert!(!snapshot.loot.items[0].taken);
     assert_eq!(snapshot.loot.unlooted_count, 1);

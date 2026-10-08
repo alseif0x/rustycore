@@ -13,10 +13,17 @@ impl WorldSession {
         creature_guid: ObjectGuid,
         _player_guid: ObjectGuid,
     ) -> Option<()> {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(creature_guid) else {
-            return (represented_local_loot_fixture_allowed_like_cpp()
-                && self.loot.cached_loot_contains_owner_like_cpp(creature_guid))
-            .then_some(());
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(creature_guid)
+        {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+            // F6-7 R2: an unreadable designated owner abandons the attempt; it
+            // neither reconstructs from the session cache nor disposes it.
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return None,
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => {
+                return (represented_local_loot_fixture_allowed_like_cpp()
+                    && self.loot.cached_loot_contains_owner_like_cpp(creature_guid))
+                .then_some(());
+            }
         };
         let loot = self
             .loot
@@ -191,7 +198,15 @@ impl WorldSession {
         allowed_looters: &[ObjectGuid],
         expected_loot_lifecycle_revision: u64,
     ) {
-        let authority = self.represented_owned_loot_authority_like_cpp(creature_guid);
+        // An unreadable designated owner abandons the attempt without
+        // disposing the cache; genuine absence keeps the historical fixture
+        // rule below.
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(creature_guid)
+        {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return,
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => None,
+        };
         if authority.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
             self.loot
                 .remove_cached_loot_for_owner_like_cpp(creature_guid);

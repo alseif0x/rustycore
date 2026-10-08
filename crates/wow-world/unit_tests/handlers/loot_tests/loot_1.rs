@@ -430,9 +430,9 @@ async fn full_loot_response_queue_rolls_back_open_without_blocking_authority_lik
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
@@ -497,9 +497,9 @@ async fn successful_loot_open_queues_response_before_claim_removal_like_cpp() {
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
@@ -567,9 +567,8 @@ async fn two_sessions_claim_one_authoritative_money_pool_exactly_once_like_cpp()
         first.player_gold_like_cpp() + second.player_gold_like_cpp(),
         9
     );
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     assert_eq!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -588,9 +587,8 @@ async fn failed_authoritative_money_persistence_rolls_back_for_retry_like_cpp() 
     first.set_loot_money_persistence_test_result_like_cpp(false);
 
     first.handle_loot_money(loot_money_packet()).await;
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     assert_eq!(first.player_gold_like_cpp(), 0);
     assert_eq!(
         authority
@@ -619,9 +617,8 @@ async fn stale_active_money_view_cannot_claim_replacement_generation_like_cpp() 
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             7, false,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let opened_generation = *first
         .loot
         .active_loot_view_generation_like_cpp(owner)
@@ -693,9 +690,8 @@ async fn durable_old_generation_payout_does_not_touch_replacement_loot_like_cpp(
             7, false,
         ));
     let _ = drain_server_opcodes_like_cpp(&first_rx);
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let old_generation = *first
         .loot
         .active_loot_view_generation_like_cpp(owner)
@@ -757,9 +753,8 @@ async fn remote_group_money_is_one_atomic_durable_fanout_like_cpp() {
     second_info.command_tx = second.session_command_tx();
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
 

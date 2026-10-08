@@ -13,9 +13,16 @@ impl WorldSession {
         claim: &LootClaimLease,
         context: LootItemClaimCommitContextLikeCpp,
     ) -> Option<DurableLootItemFanoutLikeCpp> {
-        let authority = self
-            .represented_owned_loot_authority_like_cpp(context.owner_guid)
-            .filter(|authority| claim.shares_authority_like_cpp(authority))?;
+        // Both non-found facts refuse the durable fanout: an unreadable
+        // designated owner must not publish a claim it could not verify.
+        let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+            self.represented_owned_loot_authority_outcome_like_cpp(context.owner_guid)
+        else {
+            return None;
+        };
+        if !claim.shares_authority_like_cpp(&authority) {
+            return None;
+        }
         let precommit_snapshot = authority
             .snapshot_for_player_like_cpp(context.player_guid)
             .filter(|snapshot| {

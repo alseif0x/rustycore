@@ -11,9 +11,8 @@ fn retired_object_authority_releases_every_session_window_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             9, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
 
@@ -132,9 +131,8 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     // current round-robin holder from the opened first session.
     let opened_first = first.player_guid().unwrap();
     let opened_second = second.player_guid().unwrap();
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner_guid));
     let generation = authority
         .snapshot_for_player_like_cpp(opened_first)
         .unwrap()

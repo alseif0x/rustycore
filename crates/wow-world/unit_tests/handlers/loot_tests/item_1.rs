@@ -365,9 +365,8 @@ async fn two_sessions_claim_one_authoritative_item_exactly_once_like_cpp() {
     let mut first = first_task.await.unwrap();
     let _second = second_task.await.unwrap();
     assert_eq!(grants.load(Ordering::SeqCst), 1);
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
     assert!(snapshot.loot.items[0].taken);
     assert_eq!(snapshot.loot.unlooted_count, 0);
@@ -444,9 +443,8 @@ async fn quest_bound_loot_credits_objective_without_physical_item_like_cpp() {
         ItemTemplateAddonLootMetadataLikeCpp::default(),
     ));
 
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
     assert!(snapshot.loot.items[0].taken);
     assert_eq!(snapshot.loot.unlooted_count, 0);
@@ -513,9 +511,8 @@ async fn quest_bound_loot_still_requires_can_store_new_item_like_cpp() {
         status.status,
         crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
     );
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
     assert!(!snapshot.loot.items[0].taken);
     assert_eq!(snapshot.loot.unlooted_count, 1);
@@ -526,9 +523,8 @@ async fn item_grant_commit_unknown_quarantines_claim_and_kicks_even_when_queue_f
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let claim = authority
         .reserve_item_for_award_like_cpp(first_guid, 0)
         .await
@@ -588,9 +584,8 @@ async fn failed_authoritative_item_store_rolls_back_for_retry_like_cpp() {
     let loot_obj = represented_loot_object_guid_like_cpp(owner);
 
     first.handle_loot_item(loot_item_packet(loot_obj, 0)).await;
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     assert!(
         !authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -618,9 +613,8 @@ async fn stale_active_item_view_cannot_claim_replacement_generation_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let mut replacement = authoritative_test_loot_like_cpp(0, true);
     replacement.loot_guid = represented_loot_object_guid_like_cpp(owner);
     replacement.allowed_looters = vec![first_guid, second_guid];
@@ -647,9 +641,8 @@ async fn item_waiter_waking_on_replacement_rolls_back_new_generation_claim_like_
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let blocker = authority
         .reserve_item_like_cpp(first_guid, 0)
         .await
@@ -684,9 +677,8 @@ async fn cancelled_item_waiter_cannot_reopen_a_durable_claim_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let claim = authority
         .reserve_item_for_award_like_cpp(first_guid, 0)
         .await

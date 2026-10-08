@@ -205,7 +205,8 @@ impl WorldSession {
                 .retain(|looter| !stale_looters.contains(looter));
         }
         if !stale_looters.is_empty()
-            && let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid)
+            && let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+                self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
         {
             for looter in stale_looters {
                 authority.remove_viewer_like_cpp(looter);

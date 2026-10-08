@@ -133,10 +133,14 @@ impl LootReleaseCxLikeCpp<'_> {
         if same_view_still_open {
             return;
         }
-        if !self
-            .represented_owned_loot_authority_like_cpp(route.owner_guid)
-            .is_some_and(|authority| authority.shares_storage_like_cpp(&route.authority))
-        {
+        // The designated owner must still hold exactly the routed allocation.
+        // `Absent` and `Unavailable` both refuse the fanout, and neither
+        // reconstructs an authority.
+        if !matches!(
+            self.represented_owned_loot_authority_outcome_like_cpp(route.owner_guid),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
+                if authority.shares_storage_like_cpp(&route.authority)
+        ) {
             return;
         }
         let Some(observation) = route

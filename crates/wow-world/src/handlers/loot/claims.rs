@@ -33,22 +33,10 @@ impl WorldSession {
         )
     }
 
-    /// Clone the object-owned authority while the map/entity lock is held,
-    /// then release that lock before any reservation can await. The typed
-    /// outcome and its `Option` collapse live in the core access owner, so this
-    /// compatibility wrapper delegates there instead of copying the match.
-    pub(super) fn represented_owned_loot_authority_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        self.core
-            .loot_release_owner_access_like_cpp()
-            .represented_owned_loot_authority_like_cpp(owner_guid)
-    }
-
-    /// Typed counterpart of [`Self::represented_owned_loot_authority_like_cpp`].
-    /// It is the only place that distinguishes a genuinely missing authority
-    /// from an exhausted mirror reconciliation (F6-7 R4).
+    /// The session's loot-authority lookup. It resolves the owner through its
+    /// one designated owner and keeps a genuinely missing authority distinct
+    /// from an unreadable one (F6-7 R2/R4). This is the only shape production
+    /// uses; the historical `Option` wrapper no longer exists.
     pub(super) fn represented_owned_loot_authority_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
@@ -61,25 +49,8 @@ impl WorldSession {
     /// Bridge pre-authority represented fixtures (and the equivalent first
     /// live generation) into the object-owned source of truth exactly once.
     /// A retired non-zero generation is never reinstalled from session cache.
-    /// Delegates to the typed bridge below, so the `Absent`/`Unavailable`
-    /// collapse has one body (the outcome's `into_option_like_cpp`) instead of
-    /// a second copy.
-    pub(super) fn prepare_owned_loot_authority_for_active_request_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        scope_player: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        self.prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
-            owner_guid,
-            scope_player,
-        )
-        .into_option_like_cpp()
-    }
-
-    /// Typed counterpart of
-    /// [`Self::prepare_owned_loot_authority_for_active_request_like_cpp`]: same
-    /// bridge, same order, but the caller still knows whether the authority
-    /// was absent or the reconciliation did not converge.
+    /// Same bridge and same order as before, but every caller now sees whether
+    /// the authority was absent or the designated owner was unreadable.
     pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,

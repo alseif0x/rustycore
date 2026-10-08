@@ -146,36 +146,41 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         self.core.client_visible_guids_like_cpp.remove(&guid)
     }
 
+    /// Re-derive the represented loot summaries from the designated owner's
+    /// authority. F6-7 R2: the owner is resolved through the explicit outcome,
+    /// so an unreadable owner abandons the attempt and never manufactures or
+    /// rebinds an authority from the other store.
     pub fn refresh_owned_loot_summary_like_cpp(&mut self, owner_guid: ObjectGuid) {
+        let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+            self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+        else {
+            return;
+        };
         if owner_guid.is_creature_or_vehicle() {
-            if let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) {
-                let _ = self.core.rebind_legacy_creature_loot_authority_like_cpp(
+            let _ = self.core.rebind_legacy_creature_loot_authority_like_cpp(
+                owner_guid,
+                &authority,
+                authority.stamp_like_cpp(),
+                authority.clone(),
+            );
+            let authority_stamp = authority.stamp_like_cpp();
+            let _ = self
+                .transitions_like_cpp()
+                .rebind_canonical_creature_loot_authority_like_cpp(
+                    owner_guid,
+                    &authority,
+                    authority_stamp,
+                    authority.clone(),
+                );
+        } else if owner_guid.is_game_object() {
+            let _ = self
+                .transitions_like_cpp()
+                .rebind_canonical_gameobject_loot_authority_like_cpp(
                     owner_guid,
                     &authority,
                     authority.stamp_like_cpp(),
                     authority.clone(),
                 );
-                let authority_stamp = authority.stamp_like_cpp();
-                let _ = self
-                    .transitions_like_cpp()
-                    .rebind_canonical_creature_loot_authority_like_cpp(
-                        owner_guid,
-                        &authority,
-                        authority_stamp,
-                        authority.clone(),
-                    );
-            }
-        } else if owner_guid.is_game_object() {
-            if let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) {
-                let _ = self
-                    .transitions_like_cpp()
-                    .rebind_canonical_gameobject_loot_authority_like_cpp(
-                        owner_guid,
-                        &authority,
-                        authority.stamp_like_cpp(),
-                        authority.clone(),
-                    );
-            }
         }
     }
 

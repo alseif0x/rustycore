@@ -132,7 +132,8 @@ use canonical_world::{
 mod loot_authority;
 use loot_authority::{
     authoritative_test_loot_like_cpp, authoritative_test_loot_response_like_cpp,
-    insert_allowed_coin_loot_like_cpp, install_cached_test_creature_loot_authority_like_cpp,
+    expect_found_like_cpp, insert_allowed_coin_loot_like_cpp,
+    install_cached_test_creature_loot_authority_like_cpp,
     represented_disenchant_test_outputs_like_cpp,
     two_sessions_with_authoritative_creature_loot_like_cpp,
 };
@@ -831,9 +832,8 @@ async fn open_test_ae_pair_like_cpp(
             .loot
             .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(secondary_guid)
-        .expect("the secondary AE owner must expose its object-owned authority");
+    let outcome = session.represented_owned_loot_authority_outcome_like_cpp(secondary_guid);
+    let authority = expect_found_like_cpp(outcome);
     assert!(
         authority
             .snapshot_for_player_like_cpp(player_guid)

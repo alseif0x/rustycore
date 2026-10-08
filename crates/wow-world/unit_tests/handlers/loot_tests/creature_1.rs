@@ -5,6 +5,7 @@
 
 use super::*;
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
+use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 
 #[tokio::test]
 async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_like_cpp() {
@@ -232,10 +233,11 @@ fn stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp() {
     assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
 
     assert!(
-        session
-            .represented_owned_loot_authority_like_cpp(owner_guid)
-            .is_none(),
-        "a logged-in player between maps must fail closed"
+        matches!(
+            session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable
+        ),
+        "a logged-in player between maps must fail closed as unreadable, not absent"
     );
 
     let legacy_after = session
@@ -498,10 +500,11 @@ async fn overworld_creature_builds_independent_personal_loot_per_connected_tappe
         .ensure_represented_creature_kill_loot_like_cpp(fixture.owner_guid)
         .await;
 
-    let authority = fixture
-        .session
-        .represented_owned_loot_authority_like_cpp(fixture.owner_guid)
-        .expect("the dead creature keeps its object-owned loot authority");
+    let authority = expect_found_like_cpp(
+        fixture
+            .session
+            .represented_owned_loot_authority_outcome_like_cpp(fixture.owner_guid),
+    );
     let (first_normal_slot, second_normal_slot) =
         assert_overworld_personal_loot_generation_like_cpp(&authority, &fixture);
     assert_overworld_personal_loot_claims_are_independent_like_cpp(
@@ -520,10 +523,11 @@ async fn cmsg_loot_unit_never_regenerates_after_creature_clear_loot_like_cpp() {
         .session
         .ensure_represented_creature_kill_loot_like_cpp(fixture.owner_guid)
         .await;
-    let authority = fixture
-        .session
-        .represented_owned_loot_authority_like_cpp(fixture.owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        fixture
+            .session
+            .represented_owned_loot_authority_outcome_like_cpp(fixture.owner_guid),
+    );
     fixture
         .session
         .mutate_world_creature(fixture.owner_guid, |creature| {
@@ -553,10 +557,11 @@ async fn cmsg_loot_unit_never_regenerates_after_creature_clear_loot_like_cpp() {
 #[test]
 fn stale_kill_generator_cannot_install_after_creature_lifecycle_aba_like_cpp() {
     let mut fixture = overworld_personal_loot_test_fixture_like_cpp();
-    let authority = fixture
-        .session
-        .represented_owned_loot_authority_like_cpp(fixture.owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        fixture
+            .session
+            .represented_owned_loot_authority_outcome_like_cpp(fixture.owner_guid),
+    );
     let expected_generation = authority.generation_like_cpp();
     let expected_revision = fixture
         .session

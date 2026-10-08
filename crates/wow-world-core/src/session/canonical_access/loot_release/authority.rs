@@ -3,17 +3,24 @@
 
 use super::{LootReleaseAccessLikeCpp, LootReleaseOwnerAccessLikeCpp};
 use wow_core::ObjectGuid;
-use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityStamp};
+use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle, OwnedLootAuthorityStamp};
 use wow_map::MapKey;
 
 /// Typed result of resolving one owner's object-owned loot authority.
 ///
-/// The compatibility `Option` wrappers collapse [`Self::Absent`] and
-/// [`Self::Unavailable`], because both fail closed for them. They are
-/// different facts: `Absent` means no object authority was readable for this
-/// owner, while `Unavailable` means the dual-store reconciliation did not
-/// converge inside its bounded rounds (F6-7 R4), which is not absent loot and
-/// must not be answered like it.
+/// F6-7 R2: the lookup resolves through the **one designated owner** of the
+/// GUID and reports three distinct facts. None of them is inferred from an
+/// unreadable store, and no `Option` collapse exists any more:
+///
+/// * `Found` — the designated, validated incarnation supplied this allocation.
+///   A surviving mirror in the other store never confers authority.
+/// * `Absent` — the designated owner was addressed and **proved** the object
+///   absent, and no surviving representation of it exists in the other store.
+/// * `Unavailable` — the designated owner could not be read or validated: no
+///   manager, a failed lock, an unresolved residence, a missing map instance,
+///   an unadmitted representation, an allocation belonging to another
+///   incarnation, or a quarantined/detached allocation. This is not absent loot
+///   and must not be answered like it (F6-7 R4).
 #[derive(Debug, Clone)]
 pub enum OwnedLootAuthorityLookupOutcomeLikeCpp {
     Found(OwnedLootAuthority),
@@ -21,18 +28,26 @@ pub enum OwnedLootAuthorityLookupOutcomeLikeCpp {
     Unavailable,
 }
 
-impl OwnedLootAuthorityLookupOutcomeLikeCpp {
-    /// The compatibility collapse for the untouched `Option` consumers:
-    /// `Absent` and `Unavailable` both fail closed. This is the one body that
-    /// answers the historical `Option<OwnedLootAuthority>` shape, so the
-    /// `_like_cpp` wrappers in this crate, in `wow-world-application` and in
-    /// `wow-world` are delegations rather than copies.
-    pub fn into_option_like_cpp(self) -> Option<OwnedLootAuthority> {
-        match self {
-            Self::Found(authority) => Some(authority),
-            Self::Absent | Self::Unavailable => None,
-        }
-    }
+/// Outcome of addressing one designated loot store for one owner GUID.
+///
+/// `Absent` means the object is **not in that store**, which is only ever
+/// reported after the store's own addressing was resolved: an existing manager
+/// was locked and, when the store is the canonical one, its map instance was
+/// found. `Unreadable` is the fact that must never be read as absence: a failed
+/// lock, an unresolved residence, or a configured canonical store that has no
+/// map instance for the resolved key.
+///
+/// A store that is **not configured at all** is neither: there is no other
+/// owner source that could hold an allocation, so the object-owned authority
+/// model has no authority for the GUID and the R4a-signed "genuine absence"
+/// fact applies. That is the represented-fixture/bootstrap configuration.
+enum DesignatedLootStoreReadLikeCpp {
+    /// The store was addressed and holds the object with its allocation.
+    Present(OwnedLootAuthority),
+    /// The store holds no allocation for the object (or is not configured).
+    Absent,
+    /// A configured store could not be read.
+    Unreadable,
 }
 
 impl LootReleaseOwnerAccessLikeCpp<'_> {
@@ -67,174 +82,266 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         })()
     }
 
-    /// Typed counterpart of [`Self::represented_owned_loot_authority_like_cpp`].
-    /// Every non-converging exit of the creature reconciliation loop is
-    /// reported as `Unavailable`, not as absent loot.
+    /// Resolve one owner's object-owned loot authority through its **one
+    /// designated owner** with an explicit outcome (F6-7 R2).
+    ///
+    /// Designated owner: the canonical store whenever a canonical map manager
+    /// is configured, and the legacy store in the legitimate legacy-only
+    /// configuration. The other store may keep a temporary alias, but its
+    /// survival never confers authority and is never read as absence.
     pub fn represented_owned_loot_authority_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
         if owner_guid.is_creature_or_vehicle() {
-            // The legacy and canonical maps deliberately use separate locks.
-            // Reconcile optimistically with object-local compare/exchange;
-            // blind rebinding can otherwise clobber a newer respawn between
-            // the read and write phases.
-            for _ in 0..8 {
-                let canonical_player_map_key =
-                    self.core.current_canonical_player_map_key_like_cpp();
-                let map_key = canonical_player_map_key
-                    .or_else(|| {
-                        self.core
-                            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                                self.core.player_map_id_like_cpp(),
-                            ))
-                    })
-                    .unwrap_or_else(|| {
-                        let (map_id, instance_id) =
-                            self.core.current_legacy_runtime_map_key_like_cpp();
-                        wow_map::MapKey::new(u32::from(map_id), instance_id)
-                    });
-                let map_key_still_valid = |session: &Self| {
-                    session
-                        .transitions_like_cpp()
-                        .loot_reconciliation_map_key_still_valid_like_cpp(
-                            map_key,
-                            canonical_player_map_key.is_some(),
-                        )
-                };
-                let legacy = self
-                    .transitions_like_cpp()
-                    .read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key);
-                let canonical = self
-                    .transitions_like_cpp()
-                    .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key);
-                let (legacy, canonical) = match (legacy, canonical) {
-                    (Some(legacy), Some(canonical)) => (legacy, canonical),
-                    (None, None) => return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent,
-                    (Some(authority), None) | (None, Some(authority)) => {
-                        if !map_key_still_valid(self) {
-                            continue;
-                        }
-                        return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority);
-                    }
-                };
-                if !map_key_still_valid(self) {
-                    continue;
-                }
-
-                let legacy_stamp = legacy.stamp_like_cpp();
-                let canonical_stamp = canonical.stamp_like_cpp();
-                let selected = crate::session::reconcile_creature_loot_authority_mirrors_like_cpp(
-                    &canonical,
-                    canonical_stamp,
-                    &legacy,
-                    legacy_stamp,
-                );
-                if !map_key_still_valid(self) {
-                    continue;
-                }
-                if self
-                    .transitions_like_cpp()
-                    .rebind_canonical_creature_loot_authority_on_map_like_cpp(
-                        owner_guid,
-                        map_key,
-                        &canonical,
-                        canonical_stamp,
-                        selected.clone(),
-                    )
-                    .is_none()
-                {
-                    continue;
-                }
-                if !map_key_still_valid(self) {
-                    continue;
-                }
-                if self
-                    .core
-                    .rebind_legacy_creature_loot_authority_on_map_like_cpp(
-                        owner_guid,
-                        map_key,
-                        &legacy,
-                        legacy_stamp,
-                        selected.clone(),
-                    )
-                    .is_none()
-                {
-                    continue;
-                }
-
-                if !map_key_still_valid(self) {
-                    continue;
-                }
-                let converged_legacy = self
-                    .transitions_like_cpp()
-                    .read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
-                    .is_some_and(|authority| authority.shares_storage_like_cpp(&selected));
-                let converged_canonical = self
-                    .transitions_like_cpp()
-                    .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
-                    .is_some_and(|authority| authority.shares_storage_like_cpp(&selected));
-                if converged_legacy && converged_canonical {
-                    return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(selected);
-                }
-            }
-
-            // Continuous concurrent replacement is safer as a failed request
-            // than as an overwrite of the newest mirror. Exhaustion is the
-            // third fact (F6-7 R4), not absence: the caller must decide what
-            // to do with an unproven answer instead of reading it as no loot.
-            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+            return self.designated_creature_loot_authority_like_cpp(owner_guid);
         }
-
         if owner_guid.is_game_object() {
-            let canonical_player_map_key = self.core.current_canonical_player_map_key_like_cpp();
-            let Some(map_key) = canonical_player_map_key.or_else(|| {
-                self.core
-                    .canonical_object_lookup_map_key_like_cpp(u32::from(
-                        self.core.player_map_id_like_cpp(),
-                    ))
-            }) else {
-                return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
-            };
-            let Some(authority) = self
-                .transitions_like_cpp()
-                .read_canonical_gameobject_loot_authority_on_map_like_cpp(owner_guid, map_key)
-            else {
-                return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
-            };
-            let still_valid = self
-                .transitions_like_cpp()
-                .loot_reconciliation_map_key_still_valid_like_cpp(
-                    map_key,
-                    canonical_player_map_key.is_some(),
-                );
-            // The gameobject branch has no reconciliation loop and therefore
-            // no exhausted state: an invalid map key stays `Absent`, exactly
-            // as the fail-closed `None` it maps to today.
-            return if still_valid {
-                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
-            } else {
-                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
-            };
+            return self.designated_game_object_loot_authority_like_cpp(owner_guid);
         }
-
+        // No object-owned loot kind is designated for this GUID, so no owner
+        // exists at all. That is not an unreadable store.
         OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
     }
 
-    /// Compatibility wrapper: unchanged signature and behaviour for the
-    /// consumers that only ask "is there an authority for this owner".
-    /// `Unavailable` remains a fail-closed `None` here, so no untouched
-    /// consumer changes.
-    pub fn represented_owned_loot_authority_like_cpp(
-        &mut self,
+    /// Creature lookup under the R2 designated-owner contract.
+    fn designated_creature_loot_authority_like_cpp(
+        &self,
         owner_guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
-            .into_option_like_cpp()
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        if self.core.canonical_map_manager.is_none() {
+            // Legitimate legacy-only configuration: no canonical incarnation
+            // exists for this session, so the legacy store is the designated
+            // owner and its authority is the object's authority. The creature
+            // path keeps working exactly as before.
+            let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
+            return match self
+                .transitions_like_cpp()
+                .read_designated_legacy_creature_authority_like_cpp(owner_guid, map_id, instance_id)
+            {
+                DesignatedLootStoreReadLikeCpp::Present(authority) => {
+                    designated_creature_authority_outcome_like_cpp(authority)
+                }
+                DesignatedLootStoreReadLikeCpp::Absent => {
+                    OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+                }
+                DesignatedLootStoreReadLikeCpp::Unreadable => {
+                    OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable
+                }
+            };
+        }
+
+        // Canonical ownership controls whenever a canonical manager exists.
+        let canonical_player_map_key = self.core.current_canonical_player_map_key_like_cpp();
+        let Some(map_key) = canonical_player_map_key.or_else(|| {
+            self.core
+                .canonical_object_lookup_map_key_like_cpp(u32::from(
+                    self.core.player_map_id_like_cpp(),
+                ))
+        }) else {
+            // Unresolved residence: the designated store cannot be addressed,
+            // so neither absence nor a found authority can be reported.
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+        };
+        let authority = match self
+            .transitions_like_cpp()
+            .read_designated_canonical_creature_authority_like_cpp(owner_guid, map_key)
+        {
+            DesignatedLootStoreReadLikeCpp::Present(authority) => authority,
+            DesignatedLootStoreReadLikeCpp::Unreadable => {
+                return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+            }
+            DesignatedLootStoreReadLikeCpp::Absent => {
+                // The canonical incarnation does not exist. A representation
+                // that was never admitted into an incarnation must not
+                // confer authority (its survival is not a found authority)
+                // and must not be read as proof that the object is gone
+                // either.
+                let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
+                return match self
+                    .transitions_like_cpp()
+                    .read_designated_legacy_creature_authority_like_cpp(
+                        owner_guid,
+                        map_id,
+                        instance_id,
+                    ) {
+                    DesignatedLootStoreReadLikeCpp::Absent => {
+                        OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+                    }
+                    DesignatedLootStoreReadLikeCpp::Present(_)
+                    | DesignatedLootStoreReadLikeCpp::Unreadable => {
+                        OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable
+                    }
+                };
+            }
+        };
+        designated_creature_authority_outcome_like_cpp(authority)
+    }
+
+    /// GameObject lookup under the R2 designated-owner contract: canonical
+    /// ownership only, with the signed validity gate R8 accepted.
+    fn designated_game_object_loot_authority_like_cpp(
+        &self,
+        owner_guid: ObjectGuid,
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        if self.core.canonical_map_manager.is_none() {
+            // Canonical-only ownership with no canonical store configured:
+            // there is no owner source at all, which is the absence fact the
+            // signed R8 canonical-only read always produced. It is not a store
+            // that failed to be read.
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
+        }
+        let canonical_player_map_key = self.core.current_canonical_player_map_key_like_cpp();
+        let Some(map_key) = canonical_player_map_key.or_else(|| {
+            self.core
+                .canonical_object_lookup_map_key_like_cpp(u32::from(
+                    self.core.player_map_id_like_cpp(),
+                ))
+        }) else {
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+        };
+        let authority = match self
+            .transitions_like_cpp()
+            .read_designated_canonical_game_object_authority_like_cpp(owner_guid, map_key)
+        {
+            DesignatedLootStoreReadLikeCpp::Present(authority) => authority,
+            DesignatedLootStoreReadLikeCpp::Absent => {
+                return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
+            }
+            DesignatedLootStoreReadLikeCpp::Unreadable => {
+                return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+            }
+        };
+        // The signed validity gate stays: a map key that stopped being the key
+        // this session resolves may not answer with an authority. It is no
+        // longer a reconciliation recheck, and an invalid key is not proven
+        // absence.
+        if !self
+            .transitions_like_cpp()
+            .canonical_object_map_key_is_current_like_cpp(
+                map_key,
+                canonical_player_map_key.is_some(),
+            )
+        {
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+        }
+        designated_creature_authority_outcome_like_cpp(authority)
+    }
+}
+
+/// Validate one designated owner's allocation before it may confer authority.
+///
+/// A quarantined allocation is a terminal fail-closed tombstone and a detached
+/// allocation has lost its owning entity, so neither belongs to the incarnation
+/// that owns the GUID. Both are unreadable ownership, not absence. A retired
+/// but attached allocation is a real readable lifetime tombstone (respawn,
+/// restock, consumed corpse) and is reported as `Found` unchanged.
+fn designated_creature_authority_outcome_like_cpp(
+    authority: OwnedLootAuthority,
+) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+    match authority.lifecycle_like_cpp() {
+        OwnedLootAuthorityLifecycle::Detached | OwnedLootAuthorityLifecycle::Quarantined => {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable
+        }
+        _ => OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority),
     }
 }
 
 impl LootReleaseAccessLikeCpp<'_> {
+    fn read_designated_canonical_creature_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: MapKey,
+    ) -> DesignatedLootStoreReadLikeCpp {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        let Ok(manager) = manager.lock() else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        let Some(managed) = manager.find_map(map_key.map_id, map_key.instance_id) else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        match managed
+            .map()
+            .with_creature_like_cpp(guid, |creature| creature.loot_authority_like_cpp().clone())
+        {
+            Some(authority) => DesignatedLootStoreReadLikeCpp::Present(authority),
+            None => DesignatedLootStoreReadLikeCpp::Absent,
+        }
+    }
+
+    fn read_designated_canonical_game_object_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: MapKey,
+    ) -> DesignatedLootStoreReadLikeCpp {
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        let Ok(manager) = manager.lock() else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        let Some(managed) = manager.find_map(map_key.map_id, map_key.instance_id) else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        match managed
+            .map()
+            .get_typed_game_object(guid)
+            .map(|gameobject| gameobject.loot_authority_like_cpp().clone())
+        {
+            Some(authority) => DesignatedLootStoreReadLikeCpp::Present(authority),
+            None => DesignatedLootStoreReadLikeCpp::Absent,
+        }
+    }
+
+    fn read_designated_legacy_creature_authority_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_id: u16,
+        instance_id: u32,
+    ) -> DesignatedLootStoreReadLikeCpp {
+        let Some(manager) = self.core.map_manager.as_ref() else {
+            // The legacy store is not configured: no owner source holds this
+            // object, so its authority is genuinely absent rather than an
+            // unreadable fact. This is the represented-fixture configuration
+            // R4a signed as "genuine absence".
+            return DesignatedLootStoreReadLikeCpp::Absent;
+        };
+        let Ok(manager) = manager.read() else {
+            return DesignatedLootStoreReadLikeCpp::Unreadable;
+        };
+        match manager.find_creature(map_id, instance_id, guid) {
+            Some(world_creature) => DesignatedLootStoreReadLikeCpp::Present(
+                world_creature.creature.loot_authority_like_cpp().clone(),
+            ),
+            // No map instance for the key, or no creature in it: the legacy
+            // store holds no allocation either way.
+            None => DesignatedLootStoreReadLikeCpp::Absent,
+        }
+    }
+
+    /// Whether the map key a lookup resolved under is still the key this
+    /// session resolves for the object. Single-shot validity gate retained for
+    /// the canonical-only GameObject read that R8 signed.
+    fn canonical_object_map_key_is_current_like_cpp(
+        &self,
+        map_key: MapKey,
+        canonical_player_was_present: bool,
+    ) -> bool {
+        if canonical_player_was_present {
+            return self.core.current_canonical_player_map_key_like_cpp() == Some(map_key);
+        }
+        if self.core.canonical_map_manager.is_some() {
+            return self
+                .core
+                .canonical_object_lookup_map_key_like_cpp(map_key.map_id)
+                == Some(map_key);
+        }
+        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
+        u32::from(map_id) == map_key.map_id && instance_id == map_key.instance_id
+    }
+
     pub fn rebind_canonical_gameobject_loot_authority_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -283,18 +390,27 @@ impl LootReleaseAccessLikeCpp<'_> {
         )
     }
 
+    /// Read one store's allocation without deciding ownership. The designated
+    /// owner decides in
+    /// [`Self::represented_owned_loot_authority_outcome_like_cpp`]; this and its
+    /// two siblings are the untyped single-store probes that fixtures and
+    /// callers use to observe one store at a time.
     pub fn read_legacy_creature_loot_authority_on_map_like_cpp(
         &self,
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
         let map_id = u16::try_from(map_key.map_id).ok()?;
-        let manager = self.core.map_manager.as_ref()?;
-        manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .find_creature(map_id, map_key.instance_id, guid)
-            .map(|world_creature| world_creature.creature.loot_authority_like_cpp().clone())
+        match self.read_designated_legacy_creature_authority_like_cpp(
+            guid,
+            map_id,
+            map_key.instance_id,
+        ) {
+            DesignatedLootStoreReadLikeCpp::Present(authority) => Some(authority),
+            DesignatedLootStoreReadLikeCpp::Absent | DesignatedLootStoreReadLikeCpp::Unreadable => {
+                None
+            }
+        }
     }
 
     pub fn read_canonical_creature_loot_authority_on_map_like_cpp(
@@ -302,12 +418,12 @@ impl LootReleaseAccessLikeCpp<'_> {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let manager = self.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)?
-            .map()
-            .with_creature_like_cpp(guid, |creature| creature.loot_authority_like_cpp().clone())
+        match self.read_designated_canonical_creature_authority_like_cpp(guid, map_key) {
+            DesignatedLootStoreReadLikeCpp::Present(authority) => Some(authority),
+            DesignatedLootStoreReadLikeCpp::Absent | DesignatedLootStoreReadLikeCpp::Unreadable => {
+                None
+            }
+        }
     }
 
     pub fn read_canonical_gameobject_loot_authority_on_map_like_cpp(
@@ -315,13 +431,12 @@ impl LootReleaseAccessLikeCpp<'_> {
         guid: ObjectGuid,
         map_key: wow_map::MapKey,
     ) -> Option<OwnedLootAuthority> {
-        let manager = self.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)?
-            .map()
-            .get_typed_game_object(guid)
-            .map(|gameobject| gameobject.loot_authority_like_cpp().clone())
+        match self.read_designated_canonical_game_object_authority_like_cpp(guid, map_key) {
+            DesignatedLootStoreReadLikeCpp::Present(authority) => Some(authority),
+            DesignatedLootStoreReadLikeCpp::Absent | DesignatedLootStoreReadLikeCpp::Unreadable => {
+                None
+            }
+        }
     }
 
     pub fn rebind_canonical_creature_loot_authority_on_map_like_cpp(

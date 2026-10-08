@@ -139,12 +139,13 @@ where
     let Some(player_guid) = host.loot_unit_hub_ref_like_cpp().core.player_guid() else {
         return false;
     };
-    host.loot_money_release_owner_access_like_cpp()
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .is_some_and(|authority| {
-            authority.shares_storage_like_cpp(expected_authority)
+    matches!(
+        host.loot_money_release_owner_access_like_cpp()
+            .represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+        OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
+            if authority.shares_storage_like_cpp(expected_authority)
                 && authority
                     .snapshot_for_player_like_cpp(player_guid)
                     .is_some_and(|snapshot| snapshot.generation == authority_generation)
-        })
+    )
 }

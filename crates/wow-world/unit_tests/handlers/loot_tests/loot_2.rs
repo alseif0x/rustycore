@@ -104,9 +104,8 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
     first.set_loot_money_persistence_test_result_like_cpp(false);
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
 
     first.handle_loot_money(loot_money_packet()).await;
     second.process_represented_session_commands_like_cpp().await;
@@ -155,9 +154,8 @@ async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_li
     registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(registry);
     first.clear_loot_money_persistence_test_result_like_cpp();
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
 
     first.handle_loot_money(loot_money_packet()).await;
     second.process_represented_session_commands_like_cpp().await;
@@ -204,9 +202,8 @@ async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
             9, false,
         ));
     first.set_loot_money_persistence_test_result_like_cpp(true);
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let claim = authority.reserve_money_like_cpp(first_guid).await.unwrap();
     let authority_generation = claim.generation_like_cpp();
     let authority_committed = Arc::new(AtomicBool::new(false));
@@ -299,9 +296,8 @@ async fn money_viewer_opened_during_persistence_receives_coin_removed_like_cpp()
             9, false,
         ));
     first.set_loot_money_persistence_test_result_like_cpp(true);
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     assert!(authority.remove_viewer_like_cpp(second_guid));
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
@@ -379,9 +375,8 @@ async fn remote_master_loot_command_transports_and_commits_claim_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let claim = authority
         .reserve_item_for_award_like_cpp(second_guid, 0)
         .await
@@ -432,9 +427,8 @@ async fn remote_roll_winner_command_transports_and_commits_claim_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -506,9 +500,8 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
         })
         .unwrap();
 
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -757,10 +750,11 @@ async fn dungeon_trash_builds_one_personal_pool_for_selected_group_looter_like_c
         .ensure_represented_creature_kill_loot_like_cpp(fixture.owner_guid)
         .await;
 
-    let authority = fixture
-        .session
-        .represented_owned_loot_authority_like_cpp(fixture.owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        fixture
+            .session
+            .represented_owned_loot_authority_outcome_like_cpp(fixture.owner_guid),
+    );
     let personal = authority.personal_snapshots_like_cpp();
     assert_eq!(personal.len(), 1);
     assert!(!personal.contains_key(&fixture.first_tapper));

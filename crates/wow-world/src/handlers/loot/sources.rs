@@ -57,10 +57,12 @@ impl WorldSession {
             return;
         }
 
+        // A surviving mirror may not confer authority, and an unreadable
+        // designated owner must not fall back to the session cache.
         if !replace_existing
-            && let Some(snapshot) = self
-                .represented_owned_loot_authority_like_cpp(gameobject_guid)
-                .and_then(|authority| authority.snapshot_for_player_like_cpp(player_guid))
+            && let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+                self.represented_owned_loot_authority_outcome_like_cpp(gameobject_guid)
+            && let Some(snapshot) = authority.snapshot_for_player_like_cpp(player_guid)
         {
             self.loot
                 .insert_cached_loot_for_owner_like_cpp(gameobject_guid, snapshot.loot);

@@ -1,28 +1,29 @@
-//! F6-7 R4a regressions: reconciliation exhaustion is not absent loot.
+//! F6-7 R4a regressions: an unreadable designated owner is not absent loot.
 //!
 //! Reviewer signature §5.3.1 R4 and repair order §5.3.2: the object-owned
-//! authority lookup must separate "no authority" from "the dual-store
-//! reconciliation did not converge", and the loot-open consumer must reject an
-//! exhausted attempt without publishing packets or changing session loot-view
-//! state. These tests drive the *production* consumer
+//! authority lookup must separate "no authority" from "the lookup could not
+//! obtain an authoritative answer", and the loot-open consumer must reject such
+//! an attempt without publishing packets or changing session loot-view state.
+//! These tests drive the *production* consumer
 //! (`requests.rs::represented_on_loot_opened_with_catalogs_like_cpp`), not a
 //! test double.
 //!
-//! Exhaustion is forced deterministically, without sleeps, threads or fixture
-//! overrides: the reconciliation loop re-checks
-//! `loot_reconciliation_map_key_still_valid_like_cpp` after every phase and
-//! `continue`s while the key it reconciles under is no longer the key the
-//! session resolves (`wow-world-loot/src/state/authority_access.rs`). A
-//! logged-in session whose canonical player is not in the canonical map fails
-//! that lookup closed (`instances/map_resolution.rs:70-72`), so all eight
-//! attempts lose their key while both mirrors stay readable at the legacy
-//! fallback key — the loop then reports `Unavailable` instead of the old
-//! `None`. Whether that key loss occurs in production is unverified (§5.3 Q2);
-//! this slice bounds the behaviour when it does.
+//! F6-7 R2/R3 kept the R4a contract and replaced the mechanism that produced
+//! `Unavailable`: the dual-store reconciliation and its eight bounded rounds
+//! are retired, and the same fact now comes from the designated-owner lookup.
+//! It is forced deterministically, without sleeps, threads or fixture
+//! overrides: a logged-in session whose canonical player is not in the
+//! canonical map has no resolved residence
+//! (`instances/map_resolution.rs:70-72`), so the designated owner cannot be
+//! addressed at all and the lookup reports `Unavailable` — never the old
+//! `None` that the absent path used to consume. Whether that unresolved
+//! residence occurs in production is unverified (§5.3 Q2); this slice bounds
+//! the behaviour when it does, and R2 additionally proves that the two
+//! distinct allocations stay untouched by the lookup.
 
 use super::{
     attach_canonical_creature, authoritative_test_loot_like_cpp,
-    authoritative_test_loot_response_like_cpp,
+    authoritative_test_loot_response_like_cpp, expect_found_like_cpp,
     install_cached_test_creature_loot_authority_like_cpp, make_canonical_creature_for_session,
     make_session_with_send_capacity, register_test_creature_like_cpp,
     represented_loot_object_guid_like_cpp, test_creature, test_creature_guid,
@@ -134,11 +135,12 @@ fn loot_view_state_like_cpp(
 }
 
 /// Seed an openable creature loot view (cache, mirrors at the legacy key,
-/// active represented guid) and then break the map key the reconciliation
-/// uses, so every attempt of the eight-round loop is refused by the still-valid
-/// gate. The authoritative loot is installed while the canonical map is still
-/// absent, exactly as the existing packet fixtures do it.
-fn exhausted_reconciliation_session_like_cpp() -> (
+/// active represented guid) and then leave the session without a resolved
+/// canonical residence, so the designated owner cannot be addressed and the
+/// lookup reports `Unavailable`. The authoritative loot is installed while the
+/// canonical map is still absent, exactly as the existing packet fixtures do
+/// it.
+fn unavailable_designated_owner_session_like_cpp() -> (
     WorldSession,
     flume::Receiver<Vec<u8>>,
     ObjectGuid,
@@ -159,17 +161,17 @@ fn exhausted_reconciliation_session_like_cpp() -> (
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let legacy_mirror = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .expect("the legacy mirror must hold the installed authority");
+    let legacy_mirror = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     session.loot.set_active_loot_guid(owner_guid);
     session
         .loot
         .insert_active_loot_view_authority_for_test_like_cpp(owner_guid, legacy_mirror);
 
-    // A second, independently allocated mirror appears at the same key, and the
-    // session is logged in with no canonical player, so the key it reconciles
-    // under stops resolving: every attempt is refused before any rebind.
+    // A second, independently allocated mirror appears at the same key, and
+    // the session is logged in with no canonical player, so the key the
+    // designated owner resolves under does not resolve at all.
     let canonical_mirror = make_canonical_creature_for_session(&session, owner_guid);
     attach_canonical_creature(&mut session, canonical_mirror);
     session.set_state(SessionState::LoggedIn);
@@ -177,9 +179,9 @@ fn exhausted_reconciliation_session_like_cpp() -> (
 }
 
 #[test]
-fn exhausted_reconciliation_rejects_loot_open_without_side_effects_like_cpp() {
+fn unavailable_designated_owner_rejects_loot_open_without_side_effects_like_cpp() {
     let (mut session, send_rx, owner_guid, player_guid) =
-        exhausted_reconciliation_session_like_cpp();
+        unavailable_designated_owner_session_like_cpp();
     let before = loot_view_state_like_cpp(&session, owner_guid, player_guid);
     assert!(
         before.cached_present && before.legacy_mirror_generation.is_some(),
@@ -196,13 +198,7 @@ fn exhausted_reconciliation_rejects_loot_open_without_side_effects_like_cpp() {
             session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
             OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable
         ),
-        "all eight reconciliation attempts must be refused by the still-valid gate"
-    );
-    assert!(
-        session
-            .represented_owned_loot_authority_like_cpp(owner_guid)
-            .is_none(),
-        "the compatibility wrapper stays fail-closed for untouched consumers"
+        "an unresolved residence must report Unavailable, not absent loot"
     );
 
     let response = authoritative_test_loot_response_like_cpp(
@@ -217,7 +213,7 @@ fn exhausted_reconciliation_rejects_loot_open_without_side_effects_like_cpp() {
 
     assert!(
         send_rx.try_recv().is_err(),
-        "an exhausted reconciliation must publish no packet"
+        "an unavailable designated owner must publish no packet"
     );
     assert_eq!(
         loot_view_state_like_cpp(&session, owner_guid, player_guid),
@@ -235,8 +231,9 @@ fn absent_loot_authority_keeps_the_existing_open_and_release_paths_like_cpp() {
     session.set_player_position_like_cpp(Position::ZERO);
     session.set_state(SessionState::LoggedIn);
 
-    // No creature, map or mirror at all: this is genuine absence, not a failed
-    // reconciliation.
+    // No creature and no loot store at all: an owner source that was never
+    // configured holds no allocation, which is the genuine absence this signed
+    // regression pins — not the unreadable-owner fact R2 added.
     assert!(matches!(
         session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
         OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
@@ -342,9 +339,9 @@ fn rejected_response_enqueue_still_rolls_back_the_open_like_cpp() {
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .expect("the fixture installs a readable authority");
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     session.loot.set_active_loot_guid(owner_guid);
 
     let response = authoritative_test_loot_response_like_cpp(

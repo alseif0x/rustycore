@@ -382,9 +382,9 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
             .is_empty()
     );
 
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     let replacement = authority.shared_snapshot_like_cpp().unwrap();
     assert_eq!(replacement.generation, replacement_generation);
     let entry = &replacement.loot.items[0];
@@ -434,9 +434,9 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
             .is_empty()
     );
 
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     let replacement = authority.shared_snapshot_like_cpp().unwrap();
     assert_eq!(replacement.generation, replacement_generation);
     let entry = &replacement.loot.items[0];
@@ -833,10 +833,11 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
     owner_session
         .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
         .expect("the fixture loot must be installed into the object-owned authority");
-    let installed = owner_session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .and_then(|authority| authority.shared_snapshot_like_cpp())
-        .expect("the canonical creature must expose the installed shared loot");
+    let installed = expect_found_like_cpp(
+        owner_session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    )
+    .shared_snapshot_like_cpp()
+    .expect("the canonical creature must expose the installed shared loot");
     assert_eq!(installed.loot.loot_guid, loot_object);
 
     owner_session
