@@ -184,7 +184,7 @@ impl WorldSession {
         // Check the creature exists and is alive.
         let creature_alive = self
             .core
-            .mutate_world_creature(swing.victim, |c| c.is_alive())
+            .read_world_creature_like_cpp(swing.victim, |c| c.is_alive())
             .unwrap_or(false);
 
         if !creature_alive {

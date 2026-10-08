@@ -21,5 +21,9 @@ mod player_melee_outcomes;
 mod r1b_incarnation_boundaries;
 #[path = "scenarios_world_entities_19/r1b_incarnation_lifecycle.rs"]
 mod r1b_incarnation_lifecycle;
+#[path = "scenarios_world_entities_19/r7a_canonical_mutation.rs"]
+mod r7a_canonical_mutation;
+#[path = "scenarios_world_entities_19/r7a_lethal_lifecycle.rs"]
+mod r7a_lethal_lifecycle;
 #[path = "scenarios_world_entities_19/shared_creature_authority.rs"]
 mod shared_creature_authority;

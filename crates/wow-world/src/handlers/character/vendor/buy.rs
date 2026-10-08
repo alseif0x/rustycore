@@ -57,7 +57,7 @@ impl WorldSession {
         // ── Get vendor NPC entry from creature GUID ──
         let vendor_entry = match self
             .core
-            .mutate_world_creature(buy.vendor_guid, |c| c.entry())
+            .read_world_creature_like_cpp(buy.vendor_guid, |c| c.entry())
         {
             Some(entry) => entry,
             None => {

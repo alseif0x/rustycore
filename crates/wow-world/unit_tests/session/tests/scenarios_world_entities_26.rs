@@ -301,8 +301,12 @@ fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
         "no cooldown may start on the replacement"
     );
     assert!(
+        // A pure observation of the surviving legacy representation: the
+        // canonical map now owns the replacement incarnation, so this must not
+        // run the mutation root (F6-7 R7a).
         session
-            .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+            .core
+            .read_world_creature_like_cpp(creature_guid, |creature| creature.can_swing())
             .unwrap(),
         "the stale legacy creature keeps its swing because no cast happened"
     );

@@ -106,8 +106,12 @@ impl LootState {
         hub: &mut HubMut<'_>,
         guid: ObjectGuid,
     ) -> Option<RepresentedCreatureLootStateLikeCpp> {
-        hub.core
-            .mutate_world_creature(guid, |creature| RepresentedCreatureLootStateLikeCpp {
+        // Read-only observation: this returns field values and must not run the
+        // mutation root, which would refuse the observation whenever the legacy
+        // representation is not admitted and would synchronize a snapshot as a
+        // side effect of the read (F6-7 R7a).
+        hub.core.read_world_creature_like_cpp(guid, |creature| {
+            RepresentedCreatureLootStateLikeCpp {
                 is_alive: creature.is_alive(),
                 position: creature.position(),
                 level: creature.level(),
@@ -118,7 +122,8 @@ impl LootState {
                 dungeon_encounter_id: creature.dungeon_encounter_id(),
                 tappers: creature.creature.tap_list().to_vec(),
                 loot_lifecycle_revision: creature.creature.loot_lifecycle_revision_like_cpp(),
-            })
+            }
+        })
     }
 
     pub fn represented_creature_position_for_loot_like_cpp(

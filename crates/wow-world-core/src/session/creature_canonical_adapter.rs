@@ -26,28 +26,75 @@ pub fn relocate_canonical_creature_map_object_on_map_like_cpp(
     let _ = map.map_mut().relocate_map_object_like_cpp(guid, position);
 }
 
-pub fn sync_canonical_creature_entity_on_map_like_cpp(
-    manager: &SharedCanonicalMapManager,
-    map_id: u32,
-    instance_id: u32,
+/// What applying one coexisting creature representation did to the canonical
+/// incarnation that currently owns its GUID.
+#[derive(Debug)]
+pub enum CanonicalCreatureEntityApplicationLikeCpp {
+    /// The snapshot replaced the canonical entity state; the returned authority
+    /// is the incarnation's authority.
+    Applied(OwnedLootAuthority),
+    /// The incarnation admitted the representation but refused this exact
+    /// snapshot under the health-revision/tuple guard. The canonical entity
+    /// state is unchanged, so the caller must not publish the mutation.
+    Rejected(OwnedLootAuthority),
+    /// The incarnation, its authority or the canonical object refused the
+    /// representation outright. Nothing was selected and nothing was written.
+    Refused,
+}
+
+/// Is `incoming` a representation of the incarnation `current` belongs to?
+///
+/// This is the read-only admission predicate evaluated *before* an owner mutates
+/// an existing legacy representation: the same-incarnation health timeline, a
+/// snapshot at or ahead of the canonical revision, and either the incarnation's
+/// own loot allocation or an unused pristine candidate. It is the same guard
+/// [`apply_canonical_creature_entity_on_map_like_cpp`] applies, so an admitted
+/// representation cannot be refused because of its incarnation.
+pub fn creature_representation_is_admitted_like_cpp(
+    current: &wow_entities::Creature,
+    incoming: &wow_entities::Creature,
+) -> bool {
+    let current_unit = current.unit();
+    let incoming_unit = incoming.unit();
+    if !incoming_unit.shares_health_state_revision_authority_like_cpp(
+        &current_unit.health_state_revision_authority_like_cpp(),
+    ) {
+        return false;
+    }
+    let incoming_revision = incoming_unit.health_state_revision_like_cpp();
+    let current_revision = current_unit.health_state_revision_like_cpp();
+    let health_tuple_matches = incoming_unit.data().health == current_unit.data().health
+        && incoming_unit.data().max_health == current_unit.data().max_health
+        && incoming_unit.death_state() == current_unit.death_state();
+    if !(incoming_revision > current_revision
+        || (incoming_revision == current_revision && health_tuple_matches))
+    {
+        return false;
+    }
+    let incoming_authority = incoming.loot_authority_like_cpp();
+    incoming_authority.shares_storage_like_cpp(current.loot_authority_like_cpp())
+        || incoming_authority.is_pristine_like_cpp()
+}
+
+/// Apply one transported creature snapshot to the canonical incarnation that
+/// currently owns its GUID, with the canonical map already locked.
+///
+/// This is the in-guard half of [`sync_canonical_creature_entity_on_map_like_cpp`]:
+/// the caller owns the canonical execution lock, so this performs no manager
+/// lookup, no manager re-entry, no I/O, no await and no delivery.
+pub fn apply_canonical_creature_entity_on_map_like_cpp(
+    map: &mut wow_map::ManagedMapInnerLikeCpp,
     mut creature: wow_entities::Creature,
-) -> Option<OwnedLootAuthority> {
+) -> CanonicalCreatureEntityApplicationLikeCpp {
     let guid = creature.unit().world().object().guid();
-    let Ok(mut manager) = manager.lock() else {
-        return None;
-    };
-    let Some(map) = manager.find_map_mut(map_id, instance_id) else {
-        return None;
-    };
     if map
-        .map()
         .creature_transform_vitals_snapshot_like_cpp(guid)
         .is_none()
     {
-        return None;
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
     }
-    let (shares_health_timeline, accept_incoming_entity_state, current_authority) =
-        map.map().with_creature_like_cpp(guid, |current| {
+    let Some((shares_health_timeline, accept_incoming_entity_state, current_authority)) = map
+        .with_creature_like_cpp(guid, |current| {
             let incoming_unit = creature.unit();
             let current_unit = current.unit();
             let shares_health_timeline = incoming_unit
@@ -73,7 +120,10 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
                         || (incoming_revision == current_revision && health_tuple_matches)),
                 current.loot_authority_like_cpp().clone(),
             )
-        })?;
+        })
+    else {
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
+    };
 
     let incoming_authority = creature.loot_authority_like_cpp().clone();
     // R1b guard, before any authority is selected: a coexisting representation
@@ -90,7 +140,7 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
         || (!incoming_authority.shares_storage_like_cpp(&current_authority)
             && !incoming_authority.is_pristine_like_cpp())
     {
-        return None;
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
     }
     let current_stamp = current_authority.stamp_like_cpp();
     let incoming_stamp = incoming_authority.stamp_like_cpp();
@@ -100,25 +150,33 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
         &incoming_authority,
         incoming_stamp,
     );
-    map.map_mut().with_creature_mut_like_cpp(guid, |current| {
-        current.rebind_loot_authority_if_current_like_cpp(
-            &current_authority,
-            current_stamp,
-            authority.clone(),
-        )
-    })??;
+    // The original `??` contract: a missing canonical object or a failed
+    // expected-stamp compare/exchange refuses the snapshot. `Some(false)` is the
+    // successful "already this authority" case, not a refusal.
+    if map
+        .with_creature_mut_like_cpp(guid, |current| {
+            current.rebind_loot_authority_if_current_like_cpp(
+                &current_authority,
+                current_stamp,
+                authority.clone(),
+            )
+        })
+        .flatten()
+        .is_none()
+    {
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
+    }
     if !accept_incoming_entity_state {
         // The actual legacy owner performs its own expected-stamp CAS with the
         // returned authority. Its rejected transport clone must not replace any
         // canonical lifecycle fields.
-        return Some(authority);
+        return CanonicalCreatureEntityApplicationLikeCpp::Rejected(authority);
     }
     // `creature` is a cloned transport snapshot whose old authority is still
     // owned by the live legacy entity. Do not detach it here; the caller
     // performs the expected-stamp CAS on that actual entity.
     creature.adopt_loot_authority_for_snapshot_like_cpp(authority);
     let old_threat_guids = map
-        .map()
         .with_creature_like_cpp(guid, |current| {
             current.unit().subsystems().combat.sorted_threat_guids()
         })
@@ -138,15 +196,19 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
 
     creature.unit_mut().world_mut().object_mut().add_to_world();
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
-        return None;
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
     };
-    let authority = record
+    let Some(authority) = record
         .creature()
-        .map(|creature| creature.loot_authority_like_cpp().clone())?;
-    map.map_mut().insert_map_object_record(record).ok()?;
+        .map(|creature| creature.loot_authority_like_cpp().clone())
+    else {
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
+    };
+    if map.insert_map_object_record(record).is_err() {
+        return CanonicalCreatureEntityApplicationLikeCpp::Refused;
+    }
     for added_guid in mirrored_threat_guids {
         let threat_ref = map
-            .map()
             .with_creature_like_cpp(guid, |creature| {
                 creature
                     .unit()
@@ -159,13 +221,13 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
         let Some(threat_ref) = threat_ref else {
             continue;
         };
-        if let Some(player) = map.map_mut().get_typed_player_mut(added_guid) {
+        if let Some(player) = map.get_typed_player_mut(added_guid) {
             player
                 .unit_mut()
                 .subsystems_mut()
                 .combat
                 .put_threatened_by_me_ref(guid, threat_ref);
-        } else if let Some(creature) = map.map_mut().get_typed_creature_mut(added_guid) {
+        } else if let Some(creature) = map.get_typed_creature_mut(added_guid) {
             creature
                 .unit_mut()
                 .subsystems_mut()
@@ -174,13 +236,13 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
         }
     }
     for removed_guid in removed_threat_guids {
-        if let Some(player) = map.map_mut().get_typed_player_mut(removed_guid) {
+        if let Some(player) = map.get_typed_player_mut(removed_guid) {
             player
                 .unit_mut()
                 .subsystems_mut()
                 .combat
                 .purge_threatened_by_me_ref(guid);
-        } else if let Some(creature) = map.map_mut().get_typed_creature_mut(removed_guid) {
+        } else if let Some(creature) = map.get_typed_creature_mut(removed_guid) {
             creature
                 .unit_mut()
                 .subsystems_mut()
@@ -188,7 +250,35 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
                 .purge_threatened_by_me_ref(guid);
         }
     }
-    Some(authority)
+    CanonicalCreatureEntityApplicationLikeCpp::Applied(authority)
+}
+
+/// Synchronize one transported creature snapshot through the shared canonical
+/// map manager.
+///
+/// This is the locking compatibility wrapper around
+/// [`apply_canonical_creature_entity_on_map_like_cpp`]: it keeps the historical
+/// signature and the historical return contract (the selected authority for an
+/// applied *or* rejected snapshot, `None` only for a refused one). Owners that
+/// mutate an existing representation go through
+/// [`crate::session::SessionCore::mutate_world_creature`], which holds the
+/// canonical execution lock across the mutation and refuses to expose a result
+/// the canonical incarnation did not apply.
+pub fn sync_canonical_creature_entity_on_map_like_cpp(
+    manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    creature: wow_entities::Creature,
+) -> Option<OwnedLootAuthority> {
+    let Ok(mut manager) = manager.lock() else {
+        return None;
+    };
+    let map = manager.find_map_mut(map_id, instance_id)?;
+    match apply_canonical_creature_entity_on_map_like_cpp(map.map_mut(), creature) {
+        CanonicalCreatureEntityApplicationLikeCpp::Applied(authority)
+        | CanonicalCreatureEntityApplicationLikeCpp::Rejected(authority) => Some(authority),
+        CanonicalCreatureEntityApplicationLikeCpp::Refused => None,
+    }
 }
 
 /// Selects one backing authority for two mirrors without ever merging two
