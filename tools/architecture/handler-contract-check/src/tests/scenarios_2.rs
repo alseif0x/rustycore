@@ -918,7 +918,7 @@ fn metadata_scope_fails_closed_on_unknown_dependency_kinds() {
 
 #[test]
 fn source_guard_discovers_direct_and_macro_generated_registrations() {
-    let report = analyze_inline_source(
+    let direct = analyze_inline_source(
         r#"
             inventory::submit! {
                 PacketHandlerEntry {
@@ -928,8 +928,25 @@ fn source_guard_discovers_direct_and_macro_generated_registrations() {
                     handler_name: "alpha",
                 }
             }
+        "#,
+    )
+    .expect("unconditional synthetic registrations must pass");
 
-            macro_rules! register_handler {
+    assert_eq!(
+        direct,
+        RegistrationSourceReport {
+            direct_submissions: 1,
+            builder_entries: 0,
+            builder_registrars: 0,
+            registration_macro_invocations: 0,
+            registration_macro_names: BTreeSet::new(),
+        }
+    );
+
+    // A legacy inventory expansion is no longer a registration macro (#1263 F5 tail).
+    let legacy = analyze_inline_source(
+        r#"
+            macro_rules! register_move {
                 ($opcode:ident) => {
                     inventory::submit! {
                         PacketHandlerEntry {
@@ -941,20 +958,52 @@ fn source_guard_discovers_direct_and_macro_generated_registrations() {
                     }
                 };
             }
-
-            register_handler!(Beta);
+            register_move!(Beta);
         "#,
     )
-    .expect("unconditional synthetic registrations must pass");
+    .expect_err("the legacy inventory expansion is no longer the registration grammar");
+    assert!(
+        legacy.contains("still expands through the legacy inventory submission grammar"),
+        "{legacy}"
+    );
+
+    // The structural builder registration macro is discovered and counted once.
+    let structural = crate::registrations::analyze_inline_source_at_module(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "macro",
+                        handler: hidden,
+                    })?
+                };
+            }
+            pub fn register_movement_tail_handlers_like_cpp<S, C>(
+                builder: &mut RegistryBuilder<S, C>,
+            ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+            where
+                S: MovementHandlerHostLikeCpp<C> + Send,
+                C: Sync,
+            {
+                register_move!(builder, Beta);
+                Ok(())
+            }
+        "#,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+    )
+    .expect("the structural builder registration macro is the audited grammar");
 
     assert_eq!(
-        report,
+        structural,
         RegistrationSourceReport {
-            direct_submissions: 1,
+            direct_submissions: 0,
             builder_entries: 0,
             builder_registrars: 0,
             registration_macro_invocations: 1,
-            registration_macro_names: ["register_handler".to_owned()].into_iter().collect(),
+            registration_macro_names: ["register_move".to_owned()].into_iter().collect(),
         }
     );
 }

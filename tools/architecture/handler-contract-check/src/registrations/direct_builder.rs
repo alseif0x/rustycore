@@ -15,7 +15,10 @@ use syn::{
     Visibility, WherePredicate,
 };
 
-use super::ident_is;
+use super::{
+    BuilderRegistrationMacro, builder_registration_macro_invocation_opcode,
+    builder_registration_macro_shape, ident_is,
+};
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(crate) struct RegistrarFacadeContract {
@@ -820,6 +823,64 @@ pub(crate) const MOVEMENT_REGISTRAR: DirectRegistrarContract = DirectRegistrarCo
     facades: MOVEMENT_FACADES,
 };
 
+/// The exact owner module of the mechanical movement registration tail (#1263 F5).
+pub(crate) const MOVEMENT_TAIL_OWNER_MODULE: &str = "crate::movement_handlers::tail_registrations";
+
+/// The exact registrar of the mechanical movement registration tail.
+pub(crate) const MOVEMENT_TAIL_REGISTRAR_NAME: &str = "register_movement_tail_handlers_like_cpp";
+
+/// The three statement macros the movement tail is allowed to declare.
+///
+/// They are discovered structurally (one unconditional arm whose expansion is
+/// exactly one `$builder.register(PacketHandlerEntry { .. })?`) and this closed
+/// set is the only accepted declaration set; no other builder registration
+/// macro may exist anywhere in the scanned sources.
+pub(crate) const MOVEMENT_TAIL_REGISTRATION_MACROS: &[&str] = super::EXPECTED_REGISTRATION_MACROS;
+
+const MOVEMENT_TAIL_ROOT_EXPORTS: &[&str] = &[MOVEMENT_TAIL_REGISTRAR_NAME];
+const MOVEMENT_TAIL_FACADES: &[RegistrarFacadeContract] = &[
+    RegistrarFacadeContract {
+        module: "crate",
+        child: "movement_handlers",
+        exports: MOVEMENT_TAIL_ROOT_EXPORTS,
+    },
+    RegistrarFacadeContract {
+        module: "crate::movement_handlers",
+        child: "tail_registrations",
+        exports: MOVEMENT_TAIL_ROOT_EXPORTS,
+    },
+];
+
+pub(crate) const MOVEMENT_TAIL_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationMovementTail",
+    package: "wow-world-application",
+    module: MOVEMENT_TAIL_OWNER_MODULE,
+    registrar: MOVEMENT_TAIL_REGISTRAR_NAME,
+    host_trait: "MovementHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: MOVEMENT_TAIL_FACADES,
+};
+
+const TRAINER_ROOT_EXPORTS: &[&str] = &[
+    "TrainerHandlerHostLikeCpp",
+    "register_trainer_handlers_like_cpp",
+];
+const TRAINER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "trainer_handlers",
+    exports: TRAINER_ROOT_EXPORTS,
+}];
+
+pub(crate) const TRAINER_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationTrainer",
+    package: "wow-world-application",
+    module: "crate::trainer_handlers",
+    registrar: "register_trainer_handlers_like_cpp",
+    host_trait: "TrainerHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: TRAINER_FACADES,
+};
+
 pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationNpc",
     package: "wow-world-application",
@@ -868,6 +929,8 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     BATTLE_PET_REGISTRAR,
     NPC_REGISTRAR,
     MOVEMENT_REGISTRAR,
+    MOVEMENT_TAIL_REGISTRAR,
+    TRAINER_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
@@ -1445,10 +1508,20 @@ fn opcode_key(entry: &syn::ExprStruct) -> Option<String> {
     })
 }
 
+/// The finite registrar statements of one direct owner.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+struct RegistrarStatements {
+    /// Statements written as a direct `builder.register(PacketHandlerEntry { .. })?`.
+    direct_entries: usize,
+    /// Statements written as one of the registrar's declared registration macros.
+    macro_invocations: usize,
+}
+
 fn analyze_registrar(
     function: &ItemFn,
     contract: DirectRegistrarContract,
-) -> Result<usize, String> {
+    allowed_statement_macros: &BTreeSet<String>,
+) -> Result<RegistrarStatements, String> {
     if !is_registrar_signature(function, contract) {
         return Err(format!(
             "{} handler registrar has an unexpected signature or attributes",
@@ -1464,26 +1537,48 @@ fn analyze_registrar(
             contract.owner
         ));
     }
+    let mut statements = RegistrarStatements::default();
     let mut opcodes = BTreeSet::new();
     for statement in registrations {
-        let Some(entry) = registration_entry(statement) else {
-            return Err(format!(
-                "{} handler registrar permits only direct builder.register(PacketHandlerEntry {{ ... }})? statements before Ok(())",
-                contract.owner
-            ));
-        };
-        let opcode = opcode_key(entry).ok_or_else(|| {
-            format!(
-                "{} PacketHandlerEntry opcode must be a ClientOpcodes path",
-                contract.owner
-            )
-        })?;
-        if !opcodes.insert(opcode.clone()) {
-            return Err(format!(
-                "duplicate {} handler opcode entry {opcode}",
-                contract.owner
-            ));
+        if let Some(entry) = registration_entry(statement) {
+            let opcode = opcode_key(entry).ok_or_else(|| {
+                format!(
+                    "{} PacketHandlerEntry opcode must be a ClientOpcodes path",
+                    contract.owner
+                )
+            })?;
+            if !opcodes.insert(opcode.clone()) {
+                return Err(format!(
+                    "duplicate {} handler opcode entry {opcode}",
+                    contract.owner
+                ));
+            }
+            statements.direct_entries += 1;
+            continue;
         }
+        if let Stmt::Macro(item_macro) = statement
+            && item_macro.mac.path.segments.len() == 1
+            && item_macro.mac.path.segments.first().is_some_and(|segment| {
+                allowed_statement_macros.contains(&super::normalized_ident(&segment.ident))
+            })
+        {
+            let opcode = builder_registration_macro_invocation_opcode(&item_macro.mac.tokens)
+                .map_err(|error| {
+                    format!("{} registration macro statement {error}", contract.owner)
+                })?;
+            if !opcodes.insert(opcode.clone()) {
+                return Err(format!(
+                    "duplicate {} handler opcode entry {opcode}",
+                    contract.owner
+                ));
+            }
+            statements.macro_invocations += 1;
+            continue;
+        }
+        return Err(format!(
+            "{} handler registrar permits only direct builder.register(PacketHandlerEntry {{ ... }})? statements and its declared registration macros before Ok(())",
+            contract.owner
+        ));
     }
     if opcodes.is_empty() {
         return Err(format!(
@@ -1491,7 +1586,7 @@ fn analyze_registrar(
             contract.owner
         ));
     }
-    Ok(opcodes.len())
+    Ok(statements)
 }
 
 /// Analyze a registrar only under its exact finite owner contract.
@@ -1553,11 +1648,15 @@ pub(crate) fn analyze_contract_source(
         ));
     }
     inspect_imports(&syntax.items)?;
+    let allowed_statement_macros = declared_builder_registration_macros(&syntax.items, contract)?;
     for item in &syntax.items {
         if matches!(item, Item::Use(_))
             || matches!(item, Item::Fn(function) if ident_is(&function.sig.ident, contract.registrar))
             || !attributes_are_production(item_attributes(item), &[])
         {
+            continue;
+        }
+        if is_allowed_statement_macro_definition(item, &allowed_statement_macros) {
             continue;
         }
         let tokens = item.to_token_stream();
@@ -1570,7 +1669,8 @@ pub(crate) fn analyze_contract_source(
             ));
         }
     }
-    let entries = analyze_registrar(registrar_items[0], contract)?;
+    let statements = analyze_registrar(registrar_items[0], contract, &allowed_statement_macros)?;
+    let entries = statements.direct_entries;
     if occurrences.entry_literals != entries
         || occurrences.register_calls != entries
         || occurrences.all_register_calls != entries
@@ -1588,6 +1688,54 @@ pub(crate) fn analyze_contract_source(
         registrar_count: 1,
         contract: Some(contract),
     })
+}
+
+/// The builder registration macros one contract source may declare and invoke.
+///
+/// Only the movement registration tail may declare them; every other direct
+/// owner must stay free of statement registration macros.
+fn declared_builder_registration_macros(
+    items: &[Item],
+    contract: DirectRegistrarContract,
+) -> Result<BTreeSet<String>, String> {
+    if contract.registrar != MOVEMENT_TAIL_REGISTRAR_NAME {
+        return Ok(BTreeSet::new());
+    }
+    let mut macros = BTreeSet::new();
+    for item in items {
+        let Item::Macro(item_macro) = item else {
+            continue;
+        };
+        if !item_macro.mac.path.is_ident("macro_rules") {
+            continue;
+        }
+        let Some(name) = item_macro.ident.as_ref().map(super::normalized_ident) else {
+            continue;
+        };
+        if !MOVEMENT_TAIL_REGISTRATION_MACROS.contains(&name.as_str()) {
+            continue;
+        }
+        builder_registration_macro_shape(&name, &item_macro.mac.tokens)?;
+        macros.insert(name);
+    }
+    if macros.len() != MOVEMENT_TAIL_REGISTRATION_MACROS.len() {
+        return Err(format!(
+            "the movement tail registrar must declare its exact registration macros {:?}; found {:?}",
+            MOVEMENT_TAIL_REGISTRATION_MACROS, macros
+        ));
+    }
+    Ok(macros)
+}
+
+fn is_allowed_statement_macro_definition(item: &Item, allowed: &BTreeSet<String>) -> bool {
+    let Item::Macro(item_macro) = item else {
+        return false;
+    };
+    item_macro.mac.path.is_ident("macro_rules")
+        && item_macro
+            .ident
+            .as_ref()
+            .is_some_and(|name| allowed.contains(&super::normalized_ident(name)))
 }
 
 /// Compatibility entry point for existing Inventory callers/tests.
