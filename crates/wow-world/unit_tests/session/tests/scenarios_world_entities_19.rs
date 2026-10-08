@@ -5,6 +5,9 @@
 
 use super::*;
 
+// #1263 C1: the injected stale/ABA replay capture harness.
+#[path = "scenarios_world_entities_19/c1_runtime_capture_replay.rs"]
+mod c1_runtime_capture_replay;
 #[path = "scenarios_world_entities_19/creature_movement_tick.rs"]
 mod creature_movement_tick;
 #[path = "scenarios_world_entities_19/creature_tick_owner.rs"]

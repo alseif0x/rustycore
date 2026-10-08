@@ -449,6 +449,19 @@ impl HealthStateRevisionAuthorityLikeCpp {
     pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.allocator, &other.allocator)
     }
+
+    /// Stable process-local identity of this incarnation's health timeline.
+    ///
+    /// #1263 C1 runtime capture only. The admission contract already compares
+    /// incarnations by [`Self::shares_storage_like_cpp`]; that predicate is a
+    /// boolean and cannot be correlated across events. This returns the address
+    /// of the retained allocation as a token, which is exactly the identity the
+    /// predicate compares and which cannot be reused while a token exists. It is
+    /// a pure read with no behaviour of its own: no admission decision and no
+    /// production path consults it.
+    pub fn timeline_identity_like_cpp(&self) -> u64 {
+        Arc::as_ptr(&self.allocator) as usize as u64
+    }
 }
 
 #[derive(Debug, Clone)]

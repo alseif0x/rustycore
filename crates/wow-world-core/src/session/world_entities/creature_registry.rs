@@ -1,6 +1,9 @@
 use crate::session::creature_canonical_adapter::{
-    CanonicalCreatureEntityApplicationLikeCpp, apply_canonical_creature_entity_on_map_like_cpp,
-    creature_representation_is_admitted_like_cpp,
+    CanonicalCreatureEntityApplicationLikeCpp, CreatureRepresentationAdmissionClauseLikeCpp,
+    CreatureRepresentationAdmissionDecisionLikeCpp, CreatureRepresentationCaptureLikeCpp,
+    apply_canonical_creature_entity_on_map_like_cpp,
+    creature_representation_admission_decision_like_cpp,
+    emit_creature_representation_capture_like_cpp,
     sync_admitted_creature_representation_on_map_like_cpp,
 };
 use crate::session::state::SessionCore;
@@ -268,33 +271,107 @@ impl SessionCore {
             &mut crate::map_manager::WorldCreature,
         ) -> Option<(R, wow_entities::Creature)>,
     ) -> Option<R> {
+        // #1263 C1: the guarded body copies one decision record and returns it;
+        // the event is emitted here, after both guards have been released.
+        let (result, capture) = self.with_admitted_world_creature_captured_like_cpp(guid, mutation);
+        if let Some(capture) = capture {
+            emit_creature_representation_capture_like_cpp(&capture);
+        }
+        result
+    }
+
+    /// The guarded body of [`Self::with_admitted_world_creature_like_cpp`],
+    /// with the #1263 C1 capture record returned instead of emitted so the
+    /// caller can emit it after the canonical and legacy guards are released.
+    fn with_admitted_world_creature_captured_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        mutation: impl FnOnce(
+            &mut crate::map_manager::WorldCreature,
+        ) -> Option<(R, wow_entities::Creature)>,
+    ) -> (Option<R>, Option<CreatureRepresentationCaptureLikeCpp>) {
+        const ROOT: &str = "SessionCore::with_admitted_world_creature_like_cpp";
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let legacy_manager = self.map_manager.as_ref().cloned()?;
+        let Some(legacy_manager) = self.map_manager.as_ref().cloned() else {
+            return (None, None);
+        };
         let Some(canonical_manager) = self.canonical_map_manager.as_ref().cloned() else {
             let mut legacy_manager = legacy_manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = legacy_manager.find_creature_mut(map_id, instance_id, guid)?;
-            return mutation(creature).map(|(result, _)| result);
+            let Some(creature) = legacy_manager.find_creature_mut(map_id, instance_id, guid) else {
+                return (None, None);
+            };
+            return (mutation(creature).map(|(result, _)| result), None);
         };
 
-        let mut canonical_manager = canonical_manager.lock().ok()?;
-        let managed = canonical_manager.find_map_mut(u32::from(map_id), instance_id)?;
+        let unfavourable = |decision: CreatureRepresentationAdmissionDecisionLikeCpp,
+                            mutation_invoked: bool,
+                            application: &'static str|
+         -> (Option<R>, Option<CreatureRepresentationCaptureLikeCpp>) {
+            (
+                None,
+                Some(CreatureRepresentationCaptureLikeCpp {
+                    root: ROOT,
+                    map_id,
+                    instance_id,
+                    decision,
+                    mutation_invoked,
+                    application,
+                    applied: false,
+                }),
+            )
+        };
+
+        let mut canonical_manager = match canonical_manager.lock() {
+            Ok(guard) => guard,
+            Err(_) => {
+                return unfavourable(
+                    CreatureRepresentationAdmissionDecisionLikeCpp::unevaluated_like_cpp(
+                        guid,
+                        CreatureRepresentationAdmissionClauseLikeCpp::OwnerUnavailable,
+                    ),
+                    false,
+                    "owner_unavailable",
+                );
+            }
+        };
+        let Some(managed) = canonical_manager.find_map_mut(u32::from(map_id), instance_id) else {
+            return unfavourable(
+                CreatureRepresentationAdmissionDecisionLikeCpp::unevaluated_like_cpp(
+                    guid,
+                    CreatureRepresentationAdmissionClauseLikeCpp::OwnerUnavailable,
+                ),
+                false,
+                "owner_unavailable",
+            );
+        };
         let mut legacy_manager = legacy_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let creature = legacy_manager.find_creature_mut(map_id, instance_id, guid)?;
-        let admitted = managed
-            .map()
-            .with_creature_like_cpp(guid, |current| {
-                creature_representation_is_admitted_like_cpp(current, &creature.creature)
-            })
-            .unwrap_or(false);
-        if !admitted {
-            return None;
+        let Some(creature) = legacy_manager.find_creature_mut(map_id, instance_id, guid) else {
+            return (None, None);
+        };
+        let decision = managed.map().with_creature_like_cpp(guid, |current| {
+            creature_representation_admission_decision_like_cpp(current, &creature.creature)
+        });
+        let Some(decision) = decision else {
+            return unfavourable(
+                CreatureRepresentationAdmissionDecisionLikeCpp::unevaluated_like_cpp(
+                    guid,
+                    CreatureRepresentationAdmissionClauseLikeCpp::IncarnationAbsent,
+                ),
+                false,
+                "incarnation_absent",
+            );
+        };
+        if !decision.admitted {
+            return unfavourable(decision, false, "admission_refused");
         }
 
-        let (result, mutated) = mutation(creature)?;
+        let Some((result, mutated)) = mutation(creature) else {
+            return unfavourable(decision, true, "mutation_root_refused");
+        };
         let expected_legacy_authority = mutated.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
         let authority =
@@ -304,14 +381,29 @@ impl SessionCore {
                 // not apply. Admission above is the same predicate the application
                 // re-evaluates, so an admitted representation cannot reach these
                 // branches unless the incarnation changed under the guards.
-                CanonicalCreatureEntityApplicationLikeCpp::Rejected(_)
-                | CanonicalCreatureEntityApplicationLikeCpp::Refused => return None,
+                CanonicalCreatureEntityApplicationLikeCpp::Rejected(_) => {
+                    return unfavourable(decision, true, "canonical_application_rejected");
+                }
+                CanonicalCreatureEntityApplicationLikeCpp::Refused => {
+                    return unfavourable(decision, true, "canonical_application_refused");
+                }
             };
         let _ = creature.creature.rebind_loot_authority_if_current_like_cpp(
             &expected_legacy_authority,
             expected_legacy_stamp,
             authority,
         );
-        Some(result)
+        (
+            Some(result),
+            Some(CreatureRepresentationCaptureLikeCpp {
+                root: ROOT,
+                map_id,
+                instance_id,
+                decision,
+                mutation_invoked: true,
+                application: "applied",
+                applied: true,
+            }),
+        )
     }
 }

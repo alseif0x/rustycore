@@ -223,6 +223,36 @@ pub struct MapManager {
 /// Shared reference type for the MapManager.
 pub type SharedMapManager = Arc<RwLock<MapManager>>;
 
+/// #1263 C2 capture surface: presence and shape of the legacy runtime map table
+/// observed for one exact `(map_id, instance_id)` key.
+///
+/// `observed == false` means the caller could not take the legacy manager guard
+/// without blocking, so no statement about presence is made. It is never a
+/// silent `false` presence.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct LegacyMapPresenceCaptureLikeCpp {
+    pub observed: bool,
+    pub present: bool,
+    pub instance_id_is_zero: bool,
+    pub map_instance_count: usize,
+    /// `observed` | `legacy_map_manager_absent` | `legacy_map_manager_guard_busy`
+    /// | `unobserved`.
+    pub reason: &'static str,
+}
+
+impl LegacyMapPresenceCaptureLikeCpp {
+    /// The "not observed" value used when the guard is busy or absent.
+    pub const fn unobserved_like_cpp() -> Self {
+        Self {
+            observed: false,
+            present: false,
+            instance_id_is_zero: false,
+            map_instance_count: 0,
+            reason: "unobserved",
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "../../unit_tests/map_manager_tests/corpse_load.rs"]
 mod corpse_load_tests;

@@ -30,6 +30,12 @@ pub use connection_identity::{
     SessionState,
 };
 
+// #1263 C2 capture surface: the login/detach/fallback location observation record
+// and its name helper. The production decision points are `instances/map_key.rs`
+// plus the two `wow-world` session roots that report a login attach or a
+// far-transfer detach.
+pub use instances::map_key::{LegacyRuntimeLocationCaptureLikeCpp, session_state_name_like_cpp};
+
 mod canonical_access;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::NpcInteractionFixtureRefsLikeCpp;
