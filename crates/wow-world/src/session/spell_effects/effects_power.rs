@@ -280,20 +280,27 @@ impl WorldSession {
 
     /// C++ `Spell::EffectPowerDrain` / `Spell::EffectPowerBurn`.
     ///
-    /// A creature target drains its canonical pool and restores
-    /// `drained * CalcValueMultiplier` to the caster through the represented
-    /// `EnergizeBySpell` (`SpellEffects.cpp:1094-1100`); the canonical player
-    /// target keeps C++'s self-drain rule, where no gain is restored.
-    /// `EffectPowerBurn` applies the drained amount scaled by
+    /// A creature target drains the pool of the representation it was admitted
+    /// through and restores `drained * CalcValueMultiplier` to the caster
+    /// through the represented `EnergizeBySpell` (`SpellEffects.cpp:1094-1100`);
+    /// the canonical player target keeps C++'s self-drain rule, where no gain is
+    /// restored. `EffectPowerBurn` applies the drained amount scaled by
     /// `SpellEffectInfo::CalcValueMultiplier` (`SpellEffects.cpp:1157-1164`),
     /// and both effects publish `ExecuteLogEffectTakeTargetPower`
     /// (`SpellEffects.cpp:1101`, `1160`).
     ///
-    /// Represented boundaries: `EffectPowerBurn` on a creature target is a
-    /// no-op because C++ accumulates that damage into the spell's damage
-    /// pipeline, which the represented chain applies to player victims only;
-    /// and a creature power change is not published to observers yet (no
-    /// represented creature power update field writer).
+    /// The creature branch drains through the gated owner root
+    /// (`mutate_world_creature`), and the burn damage that follows is applied by
+    /// the same gated root, so both write the one admitted representation: C++
+    /// accumulates the scaled damage into the spell's damage pipeline
+    /// (`SpellEffects.cpp:1157-1164`) and the represented chain applies it to the
+    /// creature target, which would otherwise replace the canonical entity with
+    /// the legacy snapshot and discard the drained pool. A refused drain still
+    /// publishes nothing, and the drained pool is published as a unit data field.
+    ///
+    /// Represented boundary: a creature power change reaches observers only as
+    /// the values update sent here, since the represented creature update-object
+    /// path owns that publication.
     pub(in crate::session) async fn apply_power_drain_effect_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -327,14 +334,15 @@ impl WorldSession {
         let power = party_member_power_kind_from_u8_like_cpp(power_id);
 
         // C++ accepts any living target whose `GetPowerType()` matches the
-        // effect (`SpellEffects.cpp:1078`, `1151`). Only the drain branch is
-        // represented for a creature target: C++ `EffectPowerBurn` accumulates
-        // its damage into the spell's damage pipeline, which the represented
-        // chain applies only to player victims.
+        // effect (`SpellEffects.cpp:1078`, `1151`). A creature target drains and
+        // burns through the gated owner root, so the drained pool and the damage
+        // that follows are applied to the same admitted representation instead of
+        // the canonical snapshot replacement discarding the drain.
         if target_guid.is_creature() {
             let drained = self
                 .core
-                .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
+                .mutate_world_creature(target_guid, |world_creature| {
+                    let creature = &mut world_creature.creature;
                     if !creature.is_alive()
                         || party_member_power_kind_from_u8_like_cpp(
                             creature.unit().data().display_power,

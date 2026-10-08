@@ -36,6 +36,13 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
         7,
         80,
     );
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (0, 0),
+        (0, 7),
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -45,7 +52,8 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
         })
         .unwrap();
     session
-        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+        .mutate_world_creature(creature_guid, |world_creature| {
+            let creature = &mut world_creature.creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 100);
@@ -153,6 +161,13 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
         7,
         80,
     );
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (0, 0),
+        (0, 7),
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -169,7 +184,8 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
         })
         .unwrap();
     session
-        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+        .mutate_world_creature(creature_guid, |world_creature| {
+            let creature = &mut world_creature.creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);

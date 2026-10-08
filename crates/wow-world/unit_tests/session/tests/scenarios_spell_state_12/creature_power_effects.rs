@@ -37,6 +37,13 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
         7,
         80,
     );
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (0, 0),
+        (0, 7),
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -46,7 +53,8 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
         })
         .unwrap();
     session
-        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+        .mutate_world_creature(creature_guid, |world_creature| {
+            let creature = &mut world_creature.creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 100);
@@ -131,6 +139,13 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
         7,
         80,
     );
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (0, 0),
+        (0, 7),
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -140,7 +155,8 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
         })
         .unwrap();
     session
-        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+        .mutate_world_creature(creature_guid, |world_creature| {
+            let creature = &mut world_creature.creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 100);
@@ -269,16 +285,16 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
         7,
         80,
     );
-    {
-        let mut legacy = manager.write().unwrap();
-        let creature = legacy
-            .remove_creature_any(0, 0, creature_guid)
-            .expect("move the represented creature into the test instance");
-        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-        legacy.add_creature(0, 7, grid_x, grid_y, creature);
-    }
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (0, 0),
+        (0, 7),
+    );
     session
-        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+        .mutate_world_creature(creature_guid, |world_creature| {
+            let creature = &mut world_creature.creature;
             let unit = creature.unit_mut();
             unit.set_health(100);
             unit.set_power_index(PowerType::Mana, Some(0));
@@ -410,7 +426,8 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         })
         .unwrap();
     session
-        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+        .mutate_world_creature(creature_guid, |world_creature| {
+            let creature = &mut world_creature.creature;
             let unit = creature.unit_mut();
             unit.set_health(100);
             unit.set_power_index(PowerType::Mana, Some(0));
@@ -443,14 +460,19 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         })
         .unwrap();
     assert_eq!(mana, 25, "C++ drains the burned power from the target pool");
-    let health = manager
-        .read()
-        .unwrap()
+    let creature = manager.read().unwrap();
+    let legacy = creature
         .find_creature(0, 7, creature_guid)
-        .expect("creature in the test instance")
-        .current_hp();
+        .expect("creature in the test instance");
     assert_eq!(
-        health, 85,
+        legacy.creature.unit().get_power(PowerType::Mana),
+        25,
+        "the gated drain and the burn damage share one admitted representation, so the \
+         canonical snapshot replacement cannot discard the drained pool"
+    );
+    assert_eq!(
+        legacy.current_hp(),
+        85,
         "C++ adds int32(15 * 1.0) to the spell damage, applied by the represented creature damage path"
     );
     let opcodes = drain_server_opcodes(&send_rx);
