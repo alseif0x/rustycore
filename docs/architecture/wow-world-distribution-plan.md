@@ -7683,6 +7683,8 @@ Para **cada** rechazo: ni la asignación del dueño ni la rechazada cambian — 
 
 **No ejecutado, y por tanto no afirmado.** Ninguna campaña `./tools/validation-v2` (excluida por el encargo), ninguna captura de cliente y ninguna QA de runtime o live. Este corte es **registro puro**: no cambia comportamiento de handler, no toca cuerpos, no mueve persistencia y no modifica ninguna fila del contrato. La frontera declarada (410/476, con 66 literales en 20 ficheros y 10 diferidos) queda **vigente**; este remate cierra solo su propia cola y no establece extracción de gameplay ni paridad.
 
+**Campaña `final` (integrador), con una medición fuera de presupuesto divulgada.** `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre el candidato commiteado **`720aa82cb`**: la primera medición dio **944,88 s**, es decir **por encima del objetivo de 600 s**, y **no se oculta**: fue una corrida de **caché incremental frío**, porque el host llegó al 100 % de disco durante la implementación y el worker borró únicamente el `target/debug/incremental` regenerable de este worktree (51 GB) para poder continuar. Es un coste de arranque en frío, no la corrida cálida ordinaria. Re-medida inmediatamente con la caché ya reconstruida: **passed**, `dirty: false`, **305,41 s** (≤600 s), manifiesto `20261008T223103.896246Z-2162936-final.json`. Ambas corridas con árbol limpio y sobre el mismo SHA.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
