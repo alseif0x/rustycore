@@ -7495,6 +7495,18 @@ structural.
 `unverified` rows are authorised and specified with their exact instrumentation
 points; they are scheduled as their own work, not mixed into repair slices.
 
+#### F6-7 R7a: contrato de mutación con puerta — 2026-10-07, 4 commits desde `40042c0cd`
+
+**Qué es.** La primera mitad de R7, ejecutada como **cambio de comportamiento en corte propio** (nunca dentro de un refactor estructural): `SessionCore::mutate_world_creature` es ahora la **raíz con puerta** — resuelve la representación legada y la encarnación canónica, toma **canónico primero y legado después**, evalúa la admisión (misma línea temporal de salud, revisión al día o por delante con tupla igual, y asignación de loot propia o candidata prístina) **antes** de invocar el callback, ejecuta la mutación **una vez** y aplica la representación mutada a la encarnación canónica **dentro de la guarda**; el éxito se expone solo tras la aplicación canónica.
+
+**Camino de lectura, declarado observable.** `read_world_creature_like_cpp<F, R>(&self, guid, f: F) where F: FnOnce(&WorldCreature) -> R` con **guarda de lectura**, sin lock canónico, que **no sincroniza ni publica éxito** y desde el que la mutación no es expresable. **Quitar la sincronización incidental que hacía la raíz de mutación es observable**, así que este commit **no** se etiqueta como movimiento puro — lo exige el revisor y queda escrito.
+
+**Arreglo de coherencia autorizado.** En la rama de criatura de `apply_power_drain_effect_like_cpp` el drenaje pasó de mutar el canónico directamente a la puerta, para que **drenaje y daño golpeen la misma representación admitida**: antes, el reemplazo de instantánea pisaba el pool drenado con el valor obsoleto del espejo. Se corrigieron además dos comentarios obsoletos sobre `EffectPowerBurn` en criaturas.
+
+**Hueco de admisión trazado y NO reparado aquí (es R7b).** Registro y respawn **publican una criatura legada cuando el gestor canónico existe pero no tiene instancia para esa clave**, y la puerta la rechaza **toda su vida**. El implementador probó crear la instancia al vuelo, **midió** que rompe dos regresiones fijadas de R1b, revirtió y **fijó el hueco en un test** en vez de renegociar R1b. El revisor manda repararlo en R7b con contrato explícito, sin bypass de la puerta y sin creación incondicional.
+
+**Evidencia.** Suite completa **3663/0**; 9 tests de la puerta (incluido el centinela letal `lethal_kill_operation_fires_each_lifecycle_fact_exactly_once_like_cpp` y el test del hueco de admisión); **control negativo ejecutado** (con los ficheros de producción revertidos, el test de mutación obsoleta falla); R1 **0 cuerpos duplicados**; tool **446/0** con baseline reimpresa verificada; arquitectura PASS con dos techos revisados; `final` verde con árbol limpio. **Frontera:** R7a establece el **contrato de mutación con puerta**, no la cobertura completa del ciclo de vida — la cobertura y el límite de admisión son R7b.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
