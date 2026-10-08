@@ -394,14 +394,13 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         7,
         80,
     );
-    {
-        let mut legacy = manager.write().unwrap();
-        let creature = legacy
-            .remove_creature_any(0, 0, creature_guid)
-            .expect("move the represented creature into the test instance");
-        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-        legacy.add_creature(0, 7, grid_x, grid_y, creature);
-    }
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (0, 0),
+        (0, 7),
+    );
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));

@@ -9,7 +9,8 @@ use wow_loot::{
 };
 
 use super::{
-    LOOT_MODE_DEFAULT_LIKE_CPP, attach_loot_guid_allocator_for_owner, broadcast_info, make_session,
+    LOOT_MODE_DEFAULT_LIKE_CPP, adopt_registered_creature_as_canonical_incarnation_like_cpp,
+    attach_loot_guid_allocator_for_owner, broadcast_info, make_session,
     register_test_creature_like_cpp, test_creature, test_creature_guid,
 };
 use crate::session::WorldSession;
@@ -142,12 +143,36 @@ pub(super) fn overworld_personal_loot_test_fixture_like_cpp()
     creature.gold_min = 7;
     creature.gold_max = 7;
     register_test_creature_like_cpp(&mut session, creature);
-    session.mutate_world_creature(owner_guid, |world_creature| {
-        world_creature
-            .creature
-            .set_tapped_by_player(disconnected_tapper, &[first_tapper, second_tapper]);
-    });
     attach_loot_guid_allocator_for_owner(&mut session, owner_guid);
+    // F6-7 R7a: the canonical map instance is attached *after* registration, and
+    // it holds a separately constructed placeholder object. Re-seat the canonical
+    // record on the registered incarnation before the first owner mutation, so
+    // the fixture owns one admitted incarnation instead of two.
+    let canonical_manager = session
+        .core
+        .canonical_map_manager
+        .as_ref()
+        .cloned()
+        .expect("the fixture attached the canonical map manager");
+    adopt_registered_creature_as_canonical_incarnation_like_cpp(
+        &session
+            .core
+            .map_manager
+            .as_ref()
+            .cloned()
+            .expect("the fixture registered a legacy map manager"),
+        &canonical_manager,
+        owner_guid,
+        u32::from(owner_guid.map_id()),
+        0,
+    );
+    session
+        .mutate_world_creature(owner_guid, |world_creature| {
+            world_creature
+                .creature
+                .set_tapped_by_player(disconnected_tapper, &[first_tapper, second_tapper]);
+        })
+        .expect("the adopted incarnation admits the fixture's tap mutation");
 
     OverworldPersonalLootTestFixtureLikeCpp {
         session,

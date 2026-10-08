@@ -82,6 +82,25 @@ pub(in crate::session::tests) fn test_creature_create_data(
     }
 }
 
+/// F6-7 R7a: a session that owns a canonical map manager also owns the canonical
+/// map instance its legacy facade follows, so a creature registration and an
+/// owner mutation can be admitted against the canonical incarnation. Fixtures
+/// that inject a canonical manager must not leave that map instance absent.
+pub(in crate::session::tests) fn ensure_canonical_test_map_for_session_like_cpp(
+    session: &mut WorldSession,
+) {
+    let Some(canonical) = session.core.canonical_map_manager.clone() else {
+        return;
+    };
+    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let mut guard = canonical
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    if guard.find_map(u32::from(map_id), instance_id).is_none() {
+        guard.create_world_map(u32::from(map_id), instance_id);
+    }
+}
+
 pub(in crate::session::tests) fn register_test_creature(
     session: &mut WorldSession,
     manager: crate::map_manager::SharedMapManager,
@@ -93,6 +112,7 @@ pub(in crate::session::tests) fn register_test_creature(
     if session.player_position_like_cpp().is_none() {
         session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
     }
+    ensure_canonical_test_map_for_session_like_cpp(session);
     session.register_world_creature(
         0,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -152,6 +172,123 @@ pub(in crate::session::tests) fn register_test_creature_mirrored_like_cpp(
 ) {
     session.set_canonical_map_manager(Arc::clone(canonical));
     register_test_creature(session, manager, guid, hp);
+}
+
+/// Re-seat the session's legacy representation for `guid` on the canonical
+/// incarnation, at the key the fixture actually uses.
+///
+/// F6-7 R7a. A fixture that registers a creature and then attaches a
+/// *separately constructed* canonical creature for the same GUID leaves two
+/// incarnations for one GUID, so the R7 gate correctly refuses every owner
+/// mutation: the legacy representation belongs to an incarnation the canonical
+/// map no longer owns. This helper derives the legacy mirror from the canonical
+/// incarnation the fixture attached — same health-state revision authority, same
+/// loot allocation, same entity state — and moves it from `from_key` to
+/// `to_key`, so the fixture exercises the gate on ONE admitted incarnation
+/// instead of tripping it. The `WorldCreature`'s own fixture state (create data
+/// and runtime bridges) is preserved; only the incarnation is re-seated.
+///
+/// It asserts the ownership it establishes, and it panics when either side is
+/// missing: a fixture that cannot satisfy the invariant must say so instead of
+/// silently exercising a creature the gate will refuse. Independently
+/// constructed creatures remain the subject of the rejection tests, which must
+/// not call this helper.
+pub(in crate::session::tests) fn adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    manager: &crate::map_manager::SharedMapManager,
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    from_key: (u16, u32),
+    to_key: (u32, u32),
+) {
+    let (to_map_id, to_instance_id) = to_key;
+    let canonical_incarnation = canonical
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .find_map(to_map_id, to_instance_id)
+        .expect("the fixture attached the canonical map instance")
+        .map()
+        .with_creature_like_cpp(guid, Clone::clone)
+        .expect("the fixture attached the canonical incarnation");
+    let mut world_creature = manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .remove_creature_any(from_key.0, from_key.1, guid)
+        .expect("the fixture registered the legacy representation");
+    world_creature.creature = canonical_incarnation;
+    world_creature.creature.clear_data_changes();
+    let position = world_creature.creature.position();
+    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+    manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .add_creature(
+            u16::try_from(to_map_id).expect("test map id fits the legacy key"),
+            to_instance_id,
+            grid_x,
+            grid_y,
+            world_creature,
+        );
+    // The adopted representation must be admitted to the canonical incarnation:
+    // one health-state revision authority and one loot allocation.
+    let to_map_id_u16 = u16::try_from(to_map_id).expect("test map id fits the legacy key");
+    let adopted = manager
+        .read()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .find_creature(to_map_id_u16, to_instance_id, guid)
+        .expect("the adopted representation is registered")
+        .creature
+        .clone();
+    let canonical_owner = canonical
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner())
+        .find_map(to_map_id, to_instance_id)
+        .expect("the fixture attached the canonical map instance")
+        .map()
+        .with_creature_like_cpp(guid, Clone::clone)
+        .expect("the fixture attached the canonical incarnation");
+    assert!(
+        adopted
+            .unit()
+            .shares_health_state_revision_authority_like_cpp(
+                &canonical_owner
+                    .unit()
+                    .health_state_revision_authority_like_cpp()
+            ),
+        "the adopted representation must share the canonical health timeline"
+    );
+    assert!(
+        adopted
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(canonical_owner.loot_authority_like_cpp()),
+        "the adopted representation must share the canonical loot allocation"
+    );
+}
+
+/// Shape the fixture's own canonical incarnation before it is adopted as the
+/// legacy mirror.
+///
+/// F6-7 R7a. A fixture that both registers a creature and attaches a canonical
+/// creature has to name *one* incarnation's state, because the gate applies the
+/// legacy representation to the canonical one. This accessor lets the fixture
+/// state that single state on the canonical side (for example the health the
+/// scenario registered) instead of leaving two different values in the two
+/// stores.
+pub(in crate::session::tests) fn shape_canonical_test_incarnation_like_cpp(
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    map_id: u32,
+    instance_id: u32,
+    shape: impl FnOnce(&mut wow_entities::Creature),
+) {
+    let mut manager = canonical
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+    let map = manager
+        .find_map_mut(map_id, instance_id)
+        .expect("the fixture attached the canonical map instance");
+    map.map_mut()
+        .with_creature_mut_like_cpp(guid, shape)
+        .expect("the fixture attached the canonical incarnation");
 }
 
 /// Make the represented attack table inert for a fixture that asserts an exact
