@@ -7635,6 +7635,8 @@ Para **cada** rechazo: ni la asignación del dueño ni la rechazada cambian — 
 
 **Frontera declarada.** Unknown-COMMIT quarantine reopening or removal remains on bounded hold pending an explicit durability/recovery contract and evidence; preserve terminal fail-closed behavior and waiter drainage. No se reabre R8, no se retira `Quarantined`, no se toca la política de COMMIT desconocido y no se modifica ningún camino de producción; el cierre es test + contratos.
 
+**Campaña `final` (integrador).** `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre el candidato commiteado **`f9bb1e655`** (R2 + R3 + corrección del revisor + cierre de R5 en una sola rama): **passed**, `dirty: false`, **213,79 s** (≤600 s), manifiesto `20261008T183332.897150Z-2035658-final.json`; el integrador re-ejecutó además la suite de librería al revisar el corte.
+
 ## 9. Herramientas
 
 - `tools/architecture/wow_world_coupling.py`: mapa de acoplamiento (campos por dominio, campos
