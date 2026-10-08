@@ -5,6 +5,57 @@
 
 use super::*;
 
+/// One ready respawn that passed the duplicate check and is built but not yet
+/// published in the legacy store.
+///
+/// R1b: the legacy store publication is deferred until the canonical admission
+/// has decided the incarnation, so a refused candidate can never be left
+/// holding its own allocatable authority.
+struct ReadyRespawnCandidateLikeCpp {
+    map_id: u32,
+    instance_id: u32,
+    guid: ObjectGuid,
+    position: Position,
+    world_creature: crate::map_manager::WorldCreature,
+    persistent_spawn: bool,
+    spawn_id: u64,
+}
+
+/// The canonical admission decision for one ready respawn.
+enum ReadyRespawnAdmissionLikeCpp {
+    /// The canonical map admitted the candidate; the legacy store may publish it
+    /// with the authority, the canonical health timeline and the aura
+    /// provenance that admission returned.
+    Admitted(wow_world_entities::CanonicalCreatureInsertOutcomeLikeCpp),
+    /// No canonical incarnation was available to decide against (no canonical
+    /// manager, no canonical map instance for this key, or the candidate could
+    /// not be installed). The previous legacy-only publication path is kept.
+    NotAdmitted,
+    /// The canonical owner already exists and this candidate would be a second
+    /// claimable pool, so the legacy store must not publish it at all.
+    Refused,
+}
+
+/// Whether a canonical creature incarnation already exists for this map key.
+///
+/// R1a's admission returns `None` both for a refusal and for "not admitted".
+/// A candidate that is not admitted is never installed, so a canonical
+/// incarnation that exists after that call is the refusal; this read therefore
+/// classifies R1a's decision without re-deriving it.
+fn canonical_creature_incarnation_exists_like_cpp(
+    manager: &SharedCanonicalMapManager,
+    map_id: u32,
+    instance_id: u32,
+    guid: ObjectGuid,
+) -> bool {
+    let Ok(manager) = manager.lock() else {
+        return false;
+    };
+    manager
+        .find_map(map_id, instance_id)
+        .is_some_and(|map| map.map().with_creature_like_cpp(guid, |_| ()).is_some())
+}
+
 /// Runs one global legacy creature lifecycle tick without spawning a loop.
 ///
 /// This is Slice 4A.3c.3 dormant infrastructure. It covers only the parts of
@@ -37,7 +88,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
     let mut canonical_plain_despawns: Vec<(u32, u32, ObjectGuid)> = Vec::new();
     let mut canonical_respawn_removes: Vec<(u32, u32, wow_map::SpawnObjectType, wow_map::SpawnId)> =
         Vec::new();
-    let mut canonical_inserts: Vec<(u32, u32, wow_entities::Creature)> = Vec::new();
+    let mut respawn_candidates: Vec<(ReadyRespawnCandidateLikeCpp, wow_entities::Creature)> =
+        Vec::new();
     // `now` is the scheduler's tick deadline and may predate a blocking-worker
     // stall. Keep it for due checks, but pair conversions to Unix game time
     // with a fresh monotonic snapshot from the same execution point.
@@ -245,28 +297,22 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     );
                 }
                 let canonical_creature = world_creature.creature.clone();
-                let (grid_x, grid_y) = world_to_grid_coords(position.x, position.y);
-                if manager.add_creature(map_id, instance_id, grid_x, grid_y, world_creature) {
-                    if respawn.persistent_spawn {
-                        if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
-                            map_id,
-                            instance_id,
-                            wow_map::SpawnObjectType::Creature,
-                            respawn.spawn_id,
-                        ) {
-                            outcome.respawn_db_mutations.push(stmt);
-                        }
-                        canonical_respawn_removes.push((
-                            u32::from(map_id),
-                            instance_id,
-                            wow_map::SpawnObjectType::Creature,
-                            respawn.spawn_id,
-                        ));
-                    }
-                    canonical_inserts.push((u32::from(map_id), instance_id, canonical_creature));
-                    affected_maps.insert((map_id, instance_id));
-                    outcome.respawns_processed += 1;
-                }
+                // R1b: build the candidate, but let the canonical admission
+                // decide the incarnation before the legacy store publishes it.
+                // The position/grid work and the duplicate check above are
+                // unchanged; only the store insertion moved after admission.
+                respawn_candidates.push((
+                    ReadyRespawnCandidateLikeCpp {
+                        map_id: u32::from(map_id),
+                        instance_id,
+                        guid,
+                        position,
+                        world_creature,
+                        persistent_spawn: respawn.persistent_spawn,
+                        spawn_id: respawn.spawn_id,
+                    },
+                    canonical_creature,
+                ));
             }
         }
     }
@@ -308,45 +354,185 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 outcome.canonical_respawn_removes += 1;
             }
         }
-        for (map_id, instance_id, creature) in canonical_inserts {
-            let guid = creature.guid();
-            let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
-            let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
-            let insert_outcome = insert_canonical_creature_map_object_on_map_like_cpp(
-                canonical_map_manager,
-                map_id,
-                instance_id,
-                creature,
-            );
-            if let Some(insert_outcome) = insert_outcome {
-                let mut legacy = legacy_map_manager
-                    .write()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                if let Some(world_creature) =
-                    legacy.find_creature_mut(map_id as u16, instance_id, guid)
-                {
-                    let _ = world_creature
-                        .creature
-                        .take_pending_addon_aura_provenance_like_cpp();
-                    for (slot, spell_id, provenance) in insert_outcome.aura_provenance {
-                        let auras = &mut world_creature.creature.unit_mut().subsystems_mut().auras;
-                        if auras
-                            .visible_auras
-                            .get(&slot)
-                            .is_some_and(|aura| aura.spell_id == spell_id)
+    }
+
+    // R1b: admission decides each ready respawn's incarnation, and the legacy
+    // store publication below consumes the authority, the canonical health
+    // timeline and the aura provenance of that one decision together. A refused
+    // candidate is never published, so it cannot leave a competing claimable
+    // allocation behind.
+    let mut respawn_admissions: Vec<(ReadyRespawnCandidateLikeCpp, ReadyRespawnAdmissionLikeCpp)> =
+        Vec::with_capacity(respawn_candidates.len());
+    for (candidate, canonical_creature) in respawn_candidates {
+        let admission = match canonical_map_manager {
+            Some(canonical_map_manager) => {
+                let admitted = insert_canonical_creature_map_object_on_map_like_cpp(
+                    canonical_map_manager,
+                    candidate.map_id,
+                    candidate.instance_id,
+                    canonical_creature,
+                );
+                match admitted {
+                    Some(admitted) => ReadyRespawnAdmissionLikeCpp::Admitted(admitted),
+                    None if canonical_creature_incarnation_exists_like_cpp(
+                        canonical_map_manager,
+                        candidate.map_id,
+                        candidate.instance_id,
+                        candidate.guid,
+                    ) =>
+                    {
+                        ReadyRespawnAdmissionLikeCpp::Refused
+                    }
+                    None => ReadyRespawnAdmissionLikeCpp::NotAdmitted,
+                }
+            }
+            None => ReadyRespawnAdmissionLikeCpp::NotAdmitted,
+        };
+        respawn_admissions.push((candidate, admission));
+    }
+
+    {
+        let mut manager = legacy_map_manager
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        for (mut candidate, admission) in respawn_admissions {
+            let admitted = match admission {
+                ReadyRespawnAdmissionLikeCpp::Admitted(admitted) => Some(admitted),
+                ReadyRespawnAdmissionLikeCpp::Refused => {
+                    // The canonical incarnation already owns this GUID, exactly
+                    // like the "already present" branch above: drop the stale
+                    // persisted respawn row and publish nothing in the legacy
+                    // store.
+                    if candidate.persistent_spawn {
+                        if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
+                            candidate.map_id as u16,
+                            candidate.instance_id,
+                            wow_map::SpawnObjectType::Creature,
+                            candidate.spawn_id,
+                        ) {
+                            outcome.respawn_db_mutations.push(stmt);
+                        }
+                        if let Some(canonical_map_manager) = canonical_map_manager
+                            && remove_canonical_respawn_time_on_map_like_cpp(
+                                canonical_map_manager,
+                                candidate.map_id,
+                                candidate.instance_id,
+                                wow_map::SpawnObjectType::Creature,
+                                candidate.spawn_id,
+                            )
                         {
-                            auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                            outcome.canonical_respawn_removes += 1;
                         }
                     }
-                    let _ = world_creature
+                    affected_maps.insert((candidate.map_id as u16, candidate.instance_id));
+                    continue;
+                }
+                ReadyRespawnAdmissionLikeCpp::NotAdmitted => None,
+            };
+            let expected_legacy_authority = candidate
+                .world_creature
+                .creature
+                .loot_authority_like_cpp()
+                .clone();
+            let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
+            // A fresh admission installs exactly this candidate, so its own
+            // allocation is the incarnation's authority; a pristine duplicate
+            // instead returns the pre-existing canonical allocation.
+            let fresh_canonical_insert = admitted.as_ref().is_some_and(|admitted| {
+                admitted
+                    .loot_authority
+                    .shares_storage_like_cpp(&expected_legacy_authority)
+            });
+            let (grid_x, grid_y) = world_to_grid_coords(candidate.position.x, candidate.position.y);
+            if !manager.add_creature(
+                candidate.map_id as u16,
+                candidate.instance_id,
+                grid_x,
+                grid_y,
+                candidate.world_creature,
+            ) {
+                // A concurrent publication won the GUID. The previous path
+                // installed no canonical object for such a candidate either, so
+                // undo a fresh canonical incarnation this tick just installed.
+                if fresh_canonical_insert && let Some(canonical_map_manager) = canonical_map_manager
+                {
+                    remove_canonical_creature_map_object_on_map_like_cpp(
+                        canonical_map_manager,
+                        candidate.map_id,
+                        candidate.instance_id,
+                        candidate.guid,
+                    );
+                }
+                continue;
+            }
+            if let Some(admitted) = &admitted
+                && let Some(world_creature) = manager.find_creature_mut(
+                    candidate.map_id as u16,
+                    candidate.instance_id,
+                    candidate.guid,
+                )
+            {
+                // R1b: the published representation consumes the authority, the
+                // canonical health timeline and the aura provenance of the one
+                // admission decision together. The expected-stamp CAS still
+                // decides whether this is that incarnation's representation, so
+                // a delayed publication cannot alter a replacement.
+                world_creature
+                    .creature
+                    .take_pending_addon_aura_provenance_like_cpp();
+                for (slot, spell_id, provenance) in admitted.aura_provenance.iter() {
+                    let auras = &mut world_creature.creature.unit_mut().subsystems_mut().auras;
+                    if auras
+                        .visible_auras
+                        .get(slot)
+                        .is_some_and(|aura| aura.spell_id == *spell_id)
+                    {
+                        auras.set_aura_cast_provenance_like_cpp(*slot, provenance.clone());
+                    }
+                }
+                let rebound = world_creature
+                    .creature
+                    .rebind_loot_authority_if_current_like_cpp(
+                        &expected_legacy_authority,
+                        expected_legacy_stamp,
+                        admitted.loot_authority.clone(),
+                    );
+                if rebound.is_some() {
+                    world_creature
                         .creature
-                        .rebind_loot_authority_if_current_like_cpp(
-                            &expected_legacy_authority,
-                            expected_legacy_stamp,
-                            insert_outcome.loot_authority,
+                        .unit_mut()
+                        .preserve_authoritative_health_state_for_snapshot_like_cpp(
+                            &admitted.health_owner,
                         );
                 }
             }
+            if candidate.persistent_spawn {
+                if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
+                    candidate.map_id as u16,
+                    candidate.instance_id,
+                    wow_map::SpawnObjectType::Creature,
+                    candidate.spawn_id,
+                ) {
+                    outcome.respawn_db_mutations.push(stmt);
+                }
+                // Applied here rather than in the deferred canonical phase
+                // because admission already ran; the mutation, its condition
+                // (a successful legacy publication) and the counter are
+                // unchanged.
+                if let Some(canonical_map_manager) = canonical_map_manager
+                    && remove_canonical_respawn_time_on_map_like_cpp(
+                        canonical_map_manager,
+                        candidate.map_id,
+                        candidate.instance_id,
+                        wow_map::SpawnObjectType::Creature,
+                        candidate.spawn_id,
+                    )
+                {
+                    outcome.canonical_respawn_removes += 1;
+                }
+            }
+            affected_maps.insert((candidate.map_id as u16, candidate.instance_id));
+            outcome.respawns_processed += 1;
             outcome.canonical_inserts += 1;
         }
     }

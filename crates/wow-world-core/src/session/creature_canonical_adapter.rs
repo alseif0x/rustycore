@@ -46,33 +46,52 @@ pub fn sync_canonical_creature_entity_on_map_like_cpp(
     {
         return None;
     }
-    let accept_incoming_entity_state = map.map().with_creature_like_cpp(guid, |current| {
-        let incoming_unit = creature.unit();
-        let current_unit = current.unit();
-        let shares_health_timeline = incoming_unit.shares_health_state_revision_authority_like_cpp(
-            &current_unit.health_state_revision_authority_like_cpp(),
-        );
-        let incoming_revision = incoming_unit.health_state_revision_like_cpp();
-        let current_revision = current_unit.health_state_revision_like_cpp();
-        let health_tuple_matches = incoming_unit.data().health == current_unit.data().health
-            && incoming_unit.data().max_health == current_unit.data().max_health
-            && incoming_unit.death_state() == current_unit.death_state();
+    let (shares_health_timeline, accept_incoming_entity_state, current_authority) =
+        map.map().with_creature_like_cpp(guid, |current| {
+            let incoming_unit = creature.unit();
+            let current_unit = current.unit();
+            let shares_health_timeline = incoming_unit
+                .shares_health_state_revision_authority_like_cpp(
+                    &current_unit.health_state_revision_authority_like_cpp(),
+                );
+            let incoming_revision = incoming_unit.health_state_revision_like_cpp();
+            let current_revision = current_unit.health_state_revision_like_cpp();
+            let health_tuple_matches = incoming_unit.data().health == current_unit.data().health
+                && incoming_unit.data().max_health == current_unit.data().max_health
+                && incoming_unit.death_state() == current_unit.death_state();
 
-        // Whole-entity replacement is safe only inside the same incarnation
-        // timeline. A lower revision is a stale snapshot even when health has
-        // completed an ABA cycle; an equal revision is valid only when its full
-        // represented health tuple agrees. Reject the entire snapshot instead
-        // of copying only health, because death/respawn hooks also mutate AI,
-        // combat, loot, aura, timer, flag, and runtime-plan state.
-        shares_health_timeline
-            && (incoming_revision > current_revision
-                || (incoming_revision == current_revision && health_tuple_matches))
-    })?;
+            // Whole-entity replacement is safe only inside the same incarnation
+            // timeline. A lower revision is a stale snapshot even when health has
+            // completed an ABA cycle; an equal revision is valid only when its full
+            // represented health tuple agrees. Reject the entire snapshot instead
+            // of copying only health, because death/respawn hooks also mutate AI,
+            // combat, loot, aura, timer, flag, and runtime-plan state.
+            (
+                shares_health_timeline,
+                shares_health_timeline
+                    && (incoming_revision > current_revision
+                        || (incoming_revision == current_revision && health_tuple_matches)),
+                current.loot_authority_like_cpp().clone(),
+            )
+        })?;
 
-    let current_authority = map
-        .map()
-        .with_creature_like_cpp(guid, |current| current.loot_authority_like_cpp().clone())?;
     let incoming_authority = creature.loot_authority_like_cpp().clone();
+    // R1b guard, before any authority is selected: a coexisting representation
+    // may only synchronize an incarnation it belongs to and may only carry the
+    // incarnation's own allocation or an unused pristine candidate. A snapshot
+    // from another health timeline is a different incarnation, and a second
+    // independently used allocation is a competing claimable pool, so neither
+    // may be reconciled into this object or republished from it. Refusing here
+    // leaves the canonical object and its authority untouched; the legacy owner
+    // keeps whatever it had instead of adopting a competing pool. The
+    // reconciliation below stays the compatibility repair for the remaining
+    // same-incarnation cases.
+    if !shares_health_timeline
+        || (!incoming_authority.shares_storage_like_cpp(&current_authority)
+            && !incoming_authority.is_pristine_like_cpp())
+    {
+        return None;
+    }
     let current_stamp = current_authority.stamp_like_cpp();
     let incoming_stamp = incoming_authority.stamp_like_cpp();
     let authority = reconcile_creature_loot_authority_mirrors_like_cpp(

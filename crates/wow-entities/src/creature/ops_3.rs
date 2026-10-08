@@ -110,6 +110,21 @@ impl Creature {
     pub const fn loot_authority_like_cpp(&self) -> &OwnedLootAuthority {
         &self.loot_authority
     }
+    /// Whether both handles describe one object incarnation.
+    ///
+    /// R1b: an incarnation is one allocatable loot authority **and** one
+    /// health-state revision timeline. An authority alias that arrives with
+    /// another timeline is a different incarnation inheriting the previous
+    /// lifetime's claimable pool and leases, so it must be displaced rather than
+    /// preserved.
+    #[must_use]
+    pub fn is_same_incarnation_like_cpp(&self, other: &Self) -> bool {
+        self.loot_authority
+            .shares_storage_like_cpp(&other.loot_authority)
+            && self.unit().shares_health_state_revision_authority_like_cpp(
+                &other.unit().health_state_revision_authority_like_cpp(),
+            )
+    }
     /// Bind this runtime mirror to the same C++ `Creature::loot` authority as
     /// another coexisting map model.
     pub fn rebind_loot_authority_like_cpp(&mut self, authority: OwnedLootAuthority) -> bool {
