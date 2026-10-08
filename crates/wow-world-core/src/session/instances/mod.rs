@@ -4,5 +4,7 @@
 
 mod difficulty;
 mod lfg;
-mod map_key;
+// `pub` only so `session/mod.rs` can re-export the #1263 C2 capture record; the
+// enclosing `instances` module stays private, so nothing new becomes reachable.
+pub mod map_key;
 mod map_resolution;

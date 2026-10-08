@@ -144,6 +144,29 @@ impl MapManager {
         self.maps.get_mut(&(map_id, instance_id))
     }
 
+    /// #1263 C2 capture surface: the legacy runtime map presence for one exact
+    /// key, as observed by the same `(map_id, instance_id)` lookup semantics
+    /// [`Self::get_map`] uses.
+    ///
+    /// Pure read: no lock, no I/O, no allocation beyond the returned copy. It is
+    /// deliberately *not* wired into [`Self::get_map`], which every production
+    /// lookup calls under the caller's guard, so it never performs I/O inside a
+    /// guard. C2 callers copy this **under** their guard and emit the event
+    /// **after** releasing it.
+    pub fn legacy_map_presence_capture_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+    ) -> LegacyMapPresenceCaptureLikeCpp {
+        LegacyMapPresenceCaptureLikeCpp {
+            observed: true,
+            present: self.maps.contains_key(&(map_id, instance_id)),
+            instance_id_is_zero: instance_id == 0,
+            map_instance_count: self.maps.len(),
+            reason: "observed",
+        }
+    }
+
     // Convenience methods that delegate to MapInstance
 
     pub fn get_grid(&self, map_id: u16, instance_id: u32, x: i16, y: i16) -> Option<&Grid> {

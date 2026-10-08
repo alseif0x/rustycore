@@ -50539,6 +50539,36 @@
           "self_type": "crate :: session :: state :: SessionCore",
           "trait_path": null,
           "kind": "method",
+          "name": "emit_legacy_runtime_location_capture_like_cpp",
+          "visibility": "pub",
+          "signature": "fn emit_legacy_runtime_location_capture_like_cpp (& self , capture : LegacyRuntimeLocationCaptureLikeCpp ,)",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::instances::map_key",
+          "self_type": "crate :: session :: state :: SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "legacy_map_presence_capture_like_cpp",
+          "visibility": "pub",
+          "signature": "fn legacy_map_presence_capture_like_cpp (& self , map_id : u16 , instance_id : u32 ,) -> LegacyMapPresenceCaptureLikeCpp",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::instances::map_key",
+          "self_type": "crate :: session :: state :: SessionCore",
+          "trait_path": null,
+          "kind": "method",
           "name": "player_map_id_like_cpp",
           "visibility": "pub",
           "signature": "fn player_map_id_like_cpp (& self) -> u16",
@@ -51840,6 +51870,21 @@
           "name": "sync_canonical_creature_entity_like_cpp",
           "visibility": "pub",
           "signature": "fn sync_canonical_creature_entity_like_cpp (& mut self , creature : wow_entities :: Creature ,) -> bool",
+          "cfg": [],
+          "availability": {
+            "production": true,
+            "test": true
+          }
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::world_entities::creature_registry",
+          "self_type": "SessionCore",
+          "trait_path": null,
+          "kind": "method",
+          "name": "with_admitted_world_creature_captured_like_cpp",
+          "visibility": "private",
+          "signature": "fn with_admitted_world_creature_captured_like_cpp < R > (& mut self , guid : ObjectGuid , mutation : impl FnOnce (& mut crate :: map_manager :: WorldCreature ,) -> Option < (R , wow_entities :: Creature) > ,) -> (Option < R > , Option < CreatureRepresentationCaptureLikeCpp >)",
           "cfg": [],
           "availability": {
             "production": true,
@@ -77646,7 +77691,7 @@
           "package": "wow-world-core",
           "module": "crate::session::creature_canonical_adapter",
           "path": "crates/wow-world-core/src/session/creature_canonical_adapter.rs",
-          "enclosing": "fn::sync_admitted_creature_representation_on_map_like_cpp",
+          "enclosing": "fn::sync_admitted_creature_representation_captured_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -77668,13 +77713,6 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "admitted",
-              "fingerprint": "fnv1a64x2:0971867f0f05f9abca9d8c0587af548a:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
               "symbol": "canonical",
               "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
               "multiplicity": 1
@@ -77689,9 +77727,16 @@
             {
               "side": "canonical",
               "kind": "value_reference",
+              "symbol": "decision",
+              "fingerprint": "fnv1a64x2:f57c97b6daeb363606f30a28c2909bd1:len=293",
+              "multiplicity": 6
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
               "symbol": "guid",
-              "fingerprint": "fnv1a64x2:628695836466acfe4d493e13094a4b39:len=97",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:06d6e34d9fe00b0576a222b270be8c44:len=244",
+              "multiplicity": 5
             },
             {
               "side": "canonical",
@@ -77706,6 +77751,13 @@
               "symbol": "map",
               "fingerprint": "fnv1a64x2:05b94fb8d5e7d1ae4dd40e7460682669:len=97",
               "multiplicity": 2
+            },
+            {
+              "side": "canonical",
+              "kind": "field_access",
+              "symbol": "admitted",
+              "fingerprint": "fnv1a64x2:48eee198fd42f98c1375d19604102edf:len=49",
+              "multiplicity": 1
             },
             {
               "side": "canonical",
@@ -77759,15 +77811,8 @@
             {
               "side": "canonical",
               "kind": "method_call",
-              "symbol": "unwrap_or",
-              "fingerprint": "fnv1a64x2:6e4e1db91fe4417fbd22719c694cf73a:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
               "symbol": "with_creature_like_cpp",
-              "fingerprint": "fnv1a64x2:7188fa8af8665c97a2275c2e38cabd36:len=50",
+              "fingerprint": "fnv1a64x2:6a2283578b919957f608801dde0f69da:len=50",
               "multiplicity": 1
             },
             {
@@ -77813,7 +77858,63 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn sync_admitted_creature_representation_on_map_like_cpp (canonical : & SharedCanonicalMapManager , legacy : Option < & SharedMapManager > , map_id : u16 , instance_id : u32 , creature : wow_entities :: Creature , expected_authority : & OwnedLootAuthority , expected_stamp : OwnedLootAuthorityStamp ,) -> bool|body=fnv1a64x2:2ef0cd6b5169deb38dd9496a3d08cbdc:len=1115|evidence=fnv1a64x2:775688ab47553b838d5d2778759e77a4:len=2357",
+          "fingerprint": "signature=fn sync_admitted_creature_representation_captured_like_cpp (canonical : & SharedCanonicalMapManager , legacy : Option < & SharedMapManager > , map_id : u16 , instance_id : u32 , creature : wow_entities :: Creature , expected_authority : & OwnedLootAuthority , expected_stamp : OwnedLootAuthorityStamp ,) -> (bool , Option < CreatureRepresentationCaptureLikeCpp >)|body=fnv1a64x2:96e2b9a002437007d5f417476aa7212e:len=2476|evidence=fnv1a64x2:854c81f8494e59a10cff55597480d970:len=3008",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::creature_canonical_adapter",
+          "path": "crates/wow-world-core/src/session/creature_canonical_adapter.rs",
+          "enclosing": "fn::sync_admitted_creature_representation_on_map_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "Creature",
+              "fingerprint": "fnv1a64x2:4bd99eb9477a6c1fe592a13daab18bb8:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical",
+              "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "creature",
+              "fingerprint": "fnv1a64x2:8c9ca98c4908b2ec33721a7b80c2c26f:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:7d2c912bd3b9f676e6912fae6fbff8e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy",
+              "fingerprint": "fnv1a64x2:944ad21ec9f505aa0b60f53fcf04ded1:len=48",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn sync_admitted_creature_representation_on_map_like_cpp (canonical : & SharedCanonicalMapManager , legacy : Option < & SharedMapManager > , map_id : u16 , instance_id : u32 , creature : wow_entities :: Creature , expected_authority : & OwnedLootAuthority , expected_stamp : OwnedLootAuthorityStamp ,) -> bool|body=fnv1a64x2:445b41a9dc819d328d86a9b27254d809:len=286|evidence=fnv1a64x2:5bf8f50041a85d2d8eb26f087caca76e:len=515",
           "cfg": [],
           "multiplicity": 1
         },
@@ -78206,7 +78307,7 @@
           "package": "wow-world-core",
           "module": "crate::session::world_entities::creature_registry",
           "path": "crates/wow-world-core/src/session/world_entities/creature_registry.rs",
-          "enclosing": "SessionCore::with_admitted_world_creature_like_cpp",
+          "enclosing": "SessionCore::with_admitted_world_creature_captured_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -78221,23 +78322,9 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "admitted",
-              "fingerprint": "fnv1a64x2:0971867f0f05f9abca9d8c0587af548a:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
               "symbol": "canonical_manager",
-              "fingerprint": "fnv1a64x2:f7ced5d3fac55888a4e4eb0d4d1343b3:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "managed",
-              "fingerprint": "fnv1a64x2:a5f52669dd63ab32f5f5136ebc01487d:len=97",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:8813116f372eeec1483a2f7ba7b32932:len=49",
+              "multiplicity": 1
             },
             {
               "side": "canonical",
@@ -78270,50 +78357,8 @@
             {
               "side": "canonical",
               "kind": "method_call",
-              "symbol": "find_map_mut",
-              "fingerprint": "fnv1a64x2:9bc051f10621605c69a0202ebc8b0f77:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
               "symbol": "lock",
               "fingerprint": "fnv1a64x2:1a7629432ac68ec7cc309f122b1bc970:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:a54ee2747d1064be5ee77b049b58b701:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map_mut",
-              "fingerprint": "fnv1a64x2:070fdba1215f75a8c17fc1543c9716fb:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "ok",
-              "fingerprint": "fnv1a64x2:d4dd0f640e0efc6b8f64e17b8b346f9c:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "unwrap_or",
-              "fingerprint": "fnv1a64x2:f6d96c8ea6fcf1c76285ec5bcd591d62:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "with_creature_like_cpp",
-              "fingerprint": "fnv1a64x2:2693397ec2ad0faa1f539e818485894d:len=50",
               "multiplicity": 1
             },
             {
@@ -78401,7 +78446,49 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=impl:SessionCore::fn with_admitted_world_creature_like_cpp < R > (& mut self , guid : ObjectGuid , mutation : impl FnOnce (& mut crate :: map_manager :: WorldCreature ,) -> Option < (R , wow_entities :: Creature) > ,) -> Option < R >|body=fnv1a64x2:5143904aebaad1ef52a67cbfc750338c:len=1749|evidence=fnv1a64x2:5aa81a2fbefa148b44b2805b3fab35b8:len=3393",
+          "fingerprint": "signature=impl:SessionCore::fn with_admitted_world_creature_captured_like_cpp < R > (& mut self , guid : ObjectGuid , mutation : impl FnOnce (& mut crate :: map_manager :: WorldCreature ,) -> Option < (R , wow_entities :: Creature) > ,) -> (Option < R > , Option < CreatureRepresentationCaptureLikeCpp >)|body=fnv1a64x2:bab8474b4f093f297f4c4d4a91339a90:len=3460|evidence=fnv1a64x2:1d09bc2f53a9c11c36447b3a2ab7086f:len=2564",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world-core",
+          "module": "crate::session::world_entities::creature_registry",
+          "path": "crates/wow-world-core/src/session/world_entities/creature_registry.rs",
+          "enclosing": "SessionCore::with_admitted_world_creature_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "Creature",
+              "fingerprint": "fnv1a64x2:4bd99eb9477a6c1fe592a13daab18bb8:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "mutation",
+              "fingerprint": "fnv1a64x2:061561efb0382e2c1fc07bfb288d401f:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "WorldCreature",
+              "fingerprint": "fnv1a64x2:916fee1c64d043799bb67a79c140bba6:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "mutation",
+              "fingerprint": "fnv1a64x2:061561efb0382e2c1fc07bfb288d401f:len=48",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:SessionCore::fn with_admitted_world_creature_like_cpp < R > (& mut self , guid : ObjectGuid , mutation : impl FnOnce (& mut crate :: map_manager :: WorldCreature ,) -> Option < (R , wow_entities :: Creature) > ,) -> Option < R >|body=fnv1a64x2:21c327449b1a85bbf0a207387deb2730:len=205|evidence=fnv1a64x2:7e287dca304be88e4d62af416cc50c6d:len=330",
           "cfg": [],
           "multiplicity": 1
         },

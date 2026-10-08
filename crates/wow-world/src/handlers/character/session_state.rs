@@ -444,6 +444,45 @@ impl WorldSession {
         if attached_controller {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         }
+        // #1263 C2: the login attach result, reported at the C++
+        // `Map::AddPlayerToMap` equivalent point. Every guard taken by the two
+        // helpers above (and by the legacy presence read below) is released
+        // before the event is emitted, so no I/O runs under a guard.
+        {
+            let canonical_key = self.core.current_canonical_player_map_key_like_cpp();
+            let (resolved_map_id, resolved_instance_id) =
+                self.core.current_legacy_runtime_map_key_like_cpp();
+            let resolved_presence = self
+                .core
+                .legacy_map_presence_capture_like_cpp(resolved_map_id, resolved_instance_id);
+            let requested_map_id = u16::try_from(map_id).unwrap_or(u16::MAX);
+            let requested_presence = self
+                .core
+                .legacy_map_presence_capture_like_cpp(requested_map_id, grid_instance_id);
+            self.core.emit_legacy_runtime_location_capture_like_cpp(
+                wow_world_core::session::LegacyRuntimeLocationCaptureLikeCpp {
+                    capture_id: "C2",
+                    root: "WorldSession::send_login_sequence::login_attach",
+                    phase: "login_attach",
+                    player_guid_counter: Some(guid.counter() as u32),
+                    session_state: wow_world_core::session::session_state_name_like_cpp(
+                        self.core.state,
+                    ),
+                    requested_map_id,
+                    requested_instance_id: Some(grid_instance_id),
+                    canonical_key_present: canonical_key.is_some(),
+                    resolved_map_id,
+                    resolved_instance_id,
+                    legacy_presence: resolved_presence,
+                    requested_legacy_presence: requested_presence,
+                    detail: if attached_controller {
+                        "login_player_controller_attached"
+                    } else {
+                        "login_player_controller_preexisting"
+                    },
+                },
+            );
+        }
         crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(
             combat.health.max(0).min(u32::MAX as i64) as u32,
             combat.max_health.max(1).min(u32::MAX as i64) as u32,

@@ -90,6 +90,9 @@ wow-world = { workspace = true, features = ["test-fixtures"] }
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# #1263 C1 capture harness: the injected stale/ABA replay records the production
+# `rustycore::capture::c1` tracing events through a test-local subscriber.
+tracing-subscriber = { workspace = true }
 
 [lints]
 workspace = true
