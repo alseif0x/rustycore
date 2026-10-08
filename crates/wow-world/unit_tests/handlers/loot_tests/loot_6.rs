@@ -12,6 +12,8 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     let primary_guid = test_creature_guid(19_029);
     let secondary_guid = test_creature_guid(19_030);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(primary_guid);
     session
         .loot
@@ -182,6 +184,8 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(fishing_hole))
         .await;

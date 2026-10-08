@@ -405,6 +405,8 @@ async fn loot_money_zero_money_still_notifies_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_021);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(loot_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
@@ -466,6 +468,8 @@ async fn loot_money_coin_removed_uses_loot_object_like_cpp() {
     let owner_guid = test_creature_guid(19_024);
     let loot_object_guid = represented_loot_object_guid_like_cpp(owner_guid);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(owner_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
@@ -507,6 +511,8 @@ async fn loot_money_consumes_all_active_loot_views_like_cpp() {
     let loot_object_one = represented_loot_object_guid_like_cpp(owner_one);
     let loot_object_two = represented_loot_object_guid_like_cpp(owner_two);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(owner_one);
     session.loot.add_active_loot_view_owner_like_cpp(owner_two);
     session.loot.insert_cached_loot_for_owner_like_cpp(
@@ -622,6 +628,8 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(loot_guid);
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
@@ -715,6 +723,8 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
 
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session
         .social
         .set_group_guid_for_test_like_cpp(Some(group_guid));

@@ -43,8 +43,9 @@ enum DesignatedOwnerCaseLikeCpp {
     UnauthorizedSurvivingMirror,
     /// Both stores are readable, the object is in neither: proven absence.
     MissingOwner,
-    /// No store is configured at all: no owner source holds an allocation.
-    NoStoreConfigured,
+    /// No store is configured at all: no owner source can be addressed, so the
+    /// object is neither found nor proved absent.
+    NoOwnerStoreConfigured,
     /// The canonical store is configured but the session's residence cannot be
     /// resolved, while a surviving legacy representation still holds an
     /// allocation. Neither fact may be answered as absence.
@@ -111,7 +112,7 @@ fn designated_owner_fixture_like_cpp(
             let canonical = make_canonical_creature_for_session(&session, other_guid);
             attach_canonical_creature(&mut session, canonical);
         }
-        DesignatedOwnerCaseLikeCpp::NoStoreConfigured => {}
+        DesignatedOwnerCaseLikeCpp::NoOwnerStoreConfigured => {}
         DesignatedOwnerCaseLikeCpp::UnreadableOwner => {
             // A surviving mirror and a configured canonical store whose
             // player residence cannot be resolved (logged in, not in any
@@ -173,9 +174,9 @@ fn lookup_uses_designated_incarnation_authority() {
             "absence is proven only by the designated owner that was addressed",
         ),
         (
-            DesignatedOwnerCaseLikeCpp::NoStoreConfigured,
-            ExpectedDesignatedOwnerLikeCpp::Absent,
-            "an owner source that was never configured holds no allocation",
+            DesignatedOwnerCaseLikeCpp::NoOwnerStoreConfigured,
+            ExpectedDesignatedOwnerLikeCpp::Unavailable,
+            "no owner store configured means nothing was addressed: absence is not proven",
         ),
         (
             DesignatedOwnerCaseLikeCpp::UnreadableOwner,
@@ -200,9 +201,10 @@ fn lookup_uses_designated_incarnation_authority() {
             .legacy
             .as_ref()
             .map(OwnedLootAuthority::stamp_like_cpp);
-        // The `Absent` case is the one where no allocation exists for this
-        // GUID in either store; the outcome itself proves both stores were
-        // readable, because an unreadable one would report `Unavailable`.
+        // `Absent` is only reported for the case where both stores were
+        // addressed and are readable for this GUID but hold no allocation: the
+        // unconfigured-store case is `Unavailable`, because an unaddressed
+        // store proves nothing.
         if matches!(
             expected,
             ExpectedDesignatedOwnerLikeCpp::CanonicalAllocation
@@ -276,6 +278,17 @@ fn lookup_uses_designated_incarnation_authority() {
                     assert!(
                         fixture.legacy.is_some(),
                         "the unresolved-residence case must have a surviving mirror to refuse"
+                    );
+                }
+                if case == DesignatedOwnerCaseLikeCpp::NoOwnerStoreConfigured {
+                    assert!(
+                        fixture.canonical.is_none() && fixture.legacy.is_none(),
+                        "the no-owner-store case must have no store that could hold an allocation"
+                    );
+                    assert!(
+                        fixture.session.core.canonical_map_manager.is_none()
+                            && fixture.session.core.map_manager.is_none(),
+                        "the no-owner-store case must configure neither designated store"
                     );
                 }
             }

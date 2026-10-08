@@ -77311,6 +77311,48 @@
         },
         {
           "package": "wow-world-core",
+          "module": "crate::session::canonical_access::loot_release::authority",
+          "path": "crates/wow-world-core/src/session/canonical_access/loot_release/authority.rs",
+          "enclosing": "LootReleaseOwnerAccessLikeCpp < '_ >::designated_creature_loot_authority_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "field_access",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:878d68796e1f0ab8959cd54a7c451c93:len=99",
+              "multiplicity": 2
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "is_none",
+              "fingerprint": "fnv1a64x2:5fcad1483191ed10357146f00b7a17eb:len=99",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "field_access",
+              "symbol": "map_manager",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "is_none",
+              "fingerprint": "fnv1a64x2:74793cec4db29781f4a3e253695f5d6e:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:LootReleaseOwnerAccessLikeCpp < '_ >::fn designated_creature_loot_authority_like_cpp (& self , owner_guid : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp|body=fnv1a64x2:86ebfe25286efe8211355b8b6f70d59d:len=2024|evidence=fnv1a64x2:763374f5e10ba49d31fbd56bb7685054:len=502",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world-core",
           "module": "crate::session::canonical_access::loot_release::publication",
           "path": "crates/wow-world-core/src/session/canonical_access/loot_release/publication.rs",
           "enclosing": "LootReleaseAccessLikeCpp < '_ >::represented_creature_is_dead_for_loot_visibility_like_cpp",

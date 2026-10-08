@@ -14,13 +14,14 @@ use wow_map::MapKey;
 ///
 /// * `Found` — the designated, validated incarnation supplied this allocation.
 ///   A surviving mirror in the other store never confers authority.
-/// * `Absent` — the designated owner was addressed and **proved** the object
-///   absent, and no surviving representation of it exists in the other store.
+/// * `Absent` — an addressed, readable designated owner genuinely does not
+///   contain the object, and no surviving representation of it exists in the
+///   other store.
 /// * `Unavailable` — the designated owner could not be read or validated: no
-///   manager, a failed lock, an unresolved residence, a missing map instance,
-///   an unadmitted representation, an allocation belonging to another
-///   incarnation, or a quarantined/detached allocation. This is not absent loot
-///   and must not be answered like it (F6-7 R4).
+///   owner store configured at all, a failed lock, an unresolved residence, a
+///   missing map instance, an unadmitted representation, an allocation
+///   belonging to another incarnation, or a quarantined/detached allocation.
+///   This is not absent loot and must not be answered like it (F6-7 R4).
 #[derive(Debug, Clone)]
 pub enum OwnedLootAuthorityLookupOutcomeLikeCpp {
     Found(OwnedLootAuthority),
@@ -37,14 +38,16 @@ pub enum OwnedLootAuthorityLookupOutcomeLikeCpp {
 /// lock, an unresolved residence, or a configured canonical store that has no
 /// map instance for the resolved key.
 ///
-/// A store that is **not configured at all** is neither: there is no other
-/// owner source that could hold an allocation, so the object-owned authority
-/// model has no authority for the GUID and the R4a-signed "genuine absence"
-/// fact applies. That is the represented-fixture/bootstrap configuration.
+/// A store that is **not configured at all** is neither: no owner source could
+/// have been addressed, so the object-owned authority model has no authority
+/// for the GUID *and* no proof of absence. The designated-owner lookup answers
+/// `Unavailable` for that configuration; this untyped single-store probe only
+/// reports "this store holds no allocation to observe".
 enum DesignatedLootStoreReadLikeCpp {
     /// The store was addressed and holds the object with its allocation.
     Present(OwnedLootAuthority),
-    /// The store holds no allocation for the object (or is not configured).
+    /// The addressed store holds no allocation for the object (a store that is
+    /// not configured has nothing to hold either).
     Absent,
     /// A configured store could not be read.
     Unreadable,
@@ -109,6 +112,12 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         &self,
         owner_guid: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        if self.core.canonical_map_manager.is_none() && self.core.map_manager.is_none() {
+            // No owner store is configured at all: nothing was addressed, so
+            // neither the object's allocation nor its genuine absence can be
+            // reported. Missing lookup infrastructure is not proof of absence.
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
+        }
         if self.core.canonical_map_manager.is_none() {
             // Legitimate legacy-only configuration: no canonical incarnation
             // exists for this session, so the legacy store is the designated
@@ -185,11 +194,11 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         owner_guid: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
         if self.core.canonical_map_manager.is_none() {
-            // Canonical-only ownership with no canonical store configured:
-            // there is no owner source at all, which is the absence fact the
-            // signed R8 canonical-only read always produced. It is not a store
-            // that failed to be read.
-            return OwnedLootAuthorityLookupOutcomeLikeCpp::Absent;
+            // Canonical-only ownership with no canonical store configured: the
+            // designated owner cannot be addressed, so the object is neither
+            // found nor proved absent. An unvalidatable GameObject key is an
+            // unreadable designated owner, not absent loot.
+            return OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable;
         }
         let canonical_player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let Some(map_key) = canonical_player_map_key.or_else(|| {
@@ -302,10 +311,10 @@ impl LootReleaseAccessLikeCpp<'_> {
         instance_id: u32,
     ) -> DesignatedLootStoreReadLikeCpp {
         let Some(manager) = self.core.map_manager.as_ref() else {
-            // The legacy store is not configured: no owner source holds this
-            // object, so its authority is genuinely absent rather than an
-            // unreadable fact. This is the represented-fixture configuration
-            // R4a signed as "genuine absence".
+            // The legacy store is not configured, so this untyped single-store
+            // probe has no allocation to observe. The designated-owner lookup
+            // does not read this as absence: it answers `Unavailable` when no
+            // store is configured at all.
             return DesignatedLootStoreReadLikeCpp::Absent;
         };
         let Ok(manager) = manager.read() else {

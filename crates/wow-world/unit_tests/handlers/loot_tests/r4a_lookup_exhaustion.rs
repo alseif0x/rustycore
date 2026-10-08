@@ -231,9 +231,17 @@ fn absent_loot_authority_keeps_the_existing_open_and_release_paths_like_cpp() {
     session.set_player_position_like_cpp(Position::ZERO);
     session.set_state(SessionState::LoggedIn);
 
-    // No creature and no loot store at all: an owner source that was never
-    // configured holds no allocation, which is the genuine absence this signed
-    // regression pins — not the unreadable-owner fact R2 added.
+    // The legacy store is configured, readable and addressed, but it holds a
+    // *different* creature: the designated owner was genuinely consulted and
+    // does not contain this GUID, which is the proven absence this regression
+    // pins — not the unaddressed "no store configured" fact that is
+    // `Unavailable`, and not the unreadable-owner fact R2 added.
+    register_test_creature_like_cpp(
+        &mut session,
+        test_creature(test_creature_guid(61_962), false),
+    );
+    assert!(session.core.canonical_map_manager.is_none());
+    assert!(session.core.map_manager.is_some());
     assert!(matches!(
         session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
         OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
