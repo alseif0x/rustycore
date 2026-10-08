@@ -20,7 +20,10 @@ impl OwnedLootAuthority {
     ///
     /// State equality is insufficient here: two independently allocated
     /// authorities can contain identical loot while still allowing separate
-    /// claims. Runtime mirror reconciliation must compare the backing `Arc`.
+    /// claims. The authority-identity contract is therefore the backing `Arc`
+    /// itself, and every owner-side decision compares it: designated-owner
+    /// resolution, alias admission and the expected-authority
+    /// compare-and-exchange.
     #[must_use]
     pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.inner, &other.inner)
@@ -66,19 +69,6 @@ impl OwnedLootAuthority {
             lifecycle,
             object_generation: state.generation,
         }
-    }
-    /// Creates an attached fail-closed tombstone for mirror conflicts. Unlike
-    /// a pristine authority, this cannot be initialized through the legacy
-    /// first-generation bridge.
-    #[must_use]
-    pub fn new_retired_tombstone_like_cpp() -> Self {
-        let authority = Self::new();
-        {
-            let mut state = authority.lock_state();
-            state.generation = 1;
-            state.quarantined = true;
-        }
-        authority
     }
     /// Permanently invalidates a displaced backing allocation. Retiring alone
     /// is intentionally reversible for respawn/restock; detaching is not.

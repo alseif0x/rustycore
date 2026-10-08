@@ -457,6 +457,8 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
         );
     }
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(fishing_node))
         .await;
@@ -611,6 +613,8 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
         );
     }
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(restocked_chest))
         .await;
@@ -703,6 +707,8 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(chest_guid))
         .await;
@@ -799,6 +805,8 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(partial_chest))
         .await;

@@ -36,9 +36,8 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
             creature.corpse_despawn_at()
         })
         .unwrap();
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let claim = authority
         .reserve_item_for_award_like_cpp(first_guid, 0)
         .await
@@ -119,9 +118,8 @@ async fn cancelled_disenchant_waiter_cannot_reopen_durable_batch_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(session.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(player_guid)
         .unwrap()

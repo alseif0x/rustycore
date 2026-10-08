@@ -6,14 +6,20 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Option<()> {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
-        else {
-            return (represented_local_loot_fixture_allowed_like_cpp()
-                && self
-                    .loot
-                    .cached_loot_contains_owner_like_cpp(gameobject_guid))
-            .then_some(());
-        };
+        let authority =
+            match self.represented_owned_loot_authority_outcome_like_cpp(gameobject_guid) {
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+                // F6-7 R2: an unreadable designated owner abandons the attempt; it
+                // neither reconstructs from the session cache nor disposes it.
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return None,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => {
+                    return (represented_local_loot_fixture_allowed_like_cpp()
+                        && self
+                            .loot
+                            .cached_loot_contains_owner_like_cpp(gameobject_guid))
+                    .then_some(());
+                }
+            };
         let loot = self
             .loot
             .cached_loot_for_owner_like_cpp(gameobject_guid)?

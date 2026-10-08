@@ -11,9 +11,9 @@ async fn cancelled_world_owner_claim_after_commit_reconciles_cache_and_forces_re
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     let claim = authority
         .reserve_item_for_award_like_cpp(player_guid, 0)
         .await
@@ -80,9 +80,8 @@ async fn local_disenchant_batch_commits_all_materials_and_original_claim_like_cp
     let _ = drain_server_opcodes_like_cpp(&rx);
     let shared_send = session.send_tx().clone();
     session.install_realm_send_channel_for_test(shared_send);
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(session.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(player_guid)
         .unwrap()
@@ -142,9 +141,8 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()

@@ -203,6 +203,8 @@ async fn disconnect_cleanup_releases_active_loot_views_like_cpp_logout_player() 
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_040);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(loot_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,

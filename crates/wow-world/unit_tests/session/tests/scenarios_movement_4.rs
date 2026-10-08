@@ -4,6 +4,7 @@
 //! are unchanged and the shared fixtures stay in the parent module.
 
 use super::*;
+use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 
 #[test]
 fn canonical_player_movement_control_follows_active_detached_and_stale_ownership_like_cpp() {
@@ -489,10 +490,15 @@ fn canonical_player_existing_raid_in_progress_sends_transfer_abort_like_cpp() {
     );
 }
 #[test]
-fn loot_reconciliation_rejects_map_key_after_player_transfer_like_cpp() {
+fn loot_lookup_does_not_answer_from_a_previous_instance_like_cpp() {
+    // F6-7 R3: the per-phase map-key recheck of the retired reconciliation is
+    // gone, so the property it protected is pinned through the production
+    // lookup instead. A lookup legitimately started in instance 7 must not
+    // finish against instance 8 and answer with the allocation it left behind.
     let (mut session, _, _) = make_session();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 61_706);
+    let creature_guid = test_creature_guid(61_705);
     let position = Position::new(10.0, 20.0, 30.0, 1.0);
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -507,10 +513,21 @@ fn loot_reconciliation_rejects_map_key_after_player_transfer_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
-    let captured = session
-        .current_canonical_player_map_key_like_cpp()
-        .expect("the first instance owns the player at capture time");
-    assert!(session.loot_reconciliation_map_key_still_valid_like_cpp(captured, true));
+    add_canonical_test_creature_on_map(&canonical, creature_guid, 9_105, position, 0, 571, 7);
+    assert_eq!(
+        session.current_canonical_player_map_key_like_cpp(),
+        Some(wow_map::MapKey::new(571, 7))
+    );
+    assert!(
+        matches!(
+            session
+                .core
+                .loot_release_owner_access_like_cpp()
+                .represented_owned_loot_authority_outcome_like_cpp(creature_guid),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(_)
+        ),
+        "the designated owner of the player's own instance answers"
+    );
 
     canonical
         .lock()
@@ -527,8 +544,14 @@ fn loot_reconciliation_rejects_map_key_after_player_transfer_like_cpp() {
         Some(wow_map::MapKey::new(571, 8))
     );
     assert!(
-        !session.loot_reconciliation_map_key_still_valid_like_cpp(captured, true),
-        "a reconciliation started in instance 7 cannot finish against instance 8"
+        matches!(
+            session
+                .core
+                .loot_release_owner_access_like_cpp()
+                .represented_owned_loot_authority_outcome_like_cpp(creature_guid),
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+        ),
+        "the instance the player left may not answer after the transfer"
     );
 }
 #[test]

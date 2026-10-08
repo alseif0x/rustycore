@@ -43,25 +43,16 @@ impl LootReleaseCxLikeCpp<'_> {
         fallback_fully_looted
     }
 
-    /// Typed counterpart of
-    /// [`Self::represented_owned_loot_authority_like_cpp`]; it keeps
-    /// reconciliation exhaustion distinct from absent loot (F6-7 R4).
+    /// The application-side reach of the session's loot-authority lookup. It
+    /// keeps an unreadable designated owner distinct from absent loot
+    /// (F6-7 R2/R4); the historical `Option` collapse no longer exists anywhere
+    /// in production.
     pub(super) fn represented_owned_loot_authority_outcome_like_cpp(
         &mut self,
         guid: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
         self.owner
             .represented_owned_loot_authority_outcome_like_cpp(guid)
-    }
-
-    /// Compatibility wrapper: `Absent` and `Unavailable` stay fail-closed
-    /// `None`, so every consumer of this shape is unchanged. It delegates to
-    /// the core compatibility body, which owns the only `Option` collapse.
-    pub(super) fn represented_owned_loot_authority_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        self.owner.represented_owned_loot_authority_like_cpp(guid)
     }
 
     fn refresh_owned_loot_summary_like_cpp(&mut self, guid: ObjectGuid) {
@@ -92,10 +83,10 @@ impl LootReleaseCxLikeCpp<'_> {
         }
     }
 
-    /// Typed counterpart of
-    /// [`Self::prepare_owned_loot_authority_for_active_request_like_cpp`]. The
-    /// first-generation bridge below is unchanged; only the caller can tell
-    /// "no authority" from "the reconciliation did not converge".
+    /// The first-generation bridge: it installs the represented cache as the
+    /// object-owned authority exactly once, and reports the explicit lookup
+    /// outcome so the caller can tell "no authority" from "the designated owner
+    /// could not be read" (F6-7 R2).
     pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
@@ -142,14 +133,21 @@ impl LootReleaseCxLikeCpp<'_> {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Option<()> {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
-        else {
-            return (self.consumer_test
-                && self
-                    .loot
-                    .cached_loot_contains_owner_like_cpp(gameobject_guid))
-            .then_some(());
-        };
+        let authority =
+            match self.represented_owned_loot_authority_outcome_like_cpp(gameobject_guid) {
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+                // F6-7 R2: an unreadable designated owner abandons the attempt. It
+                // does not reconstruct from the session cache and does not dispose
+                // it either.
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return None,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => {
+                    return (self.consumer_test
+                        && self
+                            .loot
+                            .cached_loot_contains_owner_like_cpp(gameobject_guid))
+                    .then_some(());
+                }
+            };
         let loot = self
             .loot
             .cached_loot_for_owner_like_cpp(gameobject_guid)?
@@ -185,10 +183,15 @@ impl LootReleaseCxLikeCpp<'_> {
         creature_guid: ObjectGuid,
         _player_guid: ObjectGuid,
     ) -> Option<()> {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(creature_guid) else {
-            return (self.consumer_test
-                && self.loot.cached_loot_contains_owner_like_cpp(creature_guid))
-            .then_some(());
+        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(creature_guid)
+        {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return None,
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => {
+                return (self.consumer_test
+                    && self.loot.cached_loot_contains_owner_like_cpp(creature_guid))
+                .then_some(());
+            }
         };
         let loot = self
             .loot
@@ -225,7 +228,11 @@ impl LootReleaseCxLikeCpp<'_> {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) else {
+        // Both non-found facts refuse the cache reconciliation; an unreadable
+        // designated owner must not dispose a cache it could not read.
+        let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) =
+            self.represented_owned_loot_authority_outcome_like_cpp(owner_guid)
+        else {
             return false;
         };
         let Some(snapshot) = authority.snapshot_for_player_like_cpp(player_guid) else {

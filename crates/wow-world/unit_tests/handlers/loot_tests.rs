@@ -132,7 +132,8 @@ use canonical_world::{
 mod loot_authority;
 use loot_authority::{
     authoritative_test_loot_like_cpp, authoritative_test_loot_response_like_cpp,
-    insert_allowed_coin_loot_like_cpp, install_cached_test_creature_loot_authority_like_cpp,
+    expect_found_like_cpp, insert_allowed_coin_loot_like_cpp,
+    install_cached_test_creature_loot_authority_like_cpp,
     represented_disenchant_test_outputs_like_cpp,
     two_sessions_with_authoritative_creature_loot_like_cpp,
 };
@@ -546,6 +547,35 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
     }
 }
 
+/// F6-7 R2 correction: the designated-owner lookup answers `Unavailable` when
+/// no owner store is configured, because missing lookup infrastructure is not
+/// proof of absence. A represented fixture that needs the proven-absence path
+/// therefore configures an addressed, readable legacy store that holds no such
+/// object: the map instance exists for the resolved legacy key, so the store was
+/// genuinely consulted, and it contains no creature for the owner GUID.
+fn attach_addressed_empty_legacy_loot_store_like_cpp(session: &mut WorldSession) {
+    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
+    manager
+        .write()
+        .expect("the fixture store is uncontended")
+        .get_or_create_map(map_id, instance_id);
+    session.set_map_manager(manager);
+}
+
+/// The canonical counterpart of the helper above. The GameObject resolver is
+/// canonical-only, so a GameObject fixture proves absence by addressing a
+/// canonical map instance that holds no GameObject for the owner GUID.
+fn attach_addressed_empty_canonical_loot_store_like_cpp(session: &mut WorldSession) {
+    let map_id = u32::from(session.core.player_map_id_like_cpp());
+    let manager = Arc::new(Mutex::new(wow_map::MapManager::default()));
+    manager
+        .lock()
+        .expect("the fixture store is uncontended")
+        .create_world_map(map_id, 0);
+    session.set_canonical_map_manager(manager);
+}
+
 fn install_quest_bound_loot_objective_like_cpp(
     session: &mut WorldSession,
     quest_id: u32,
@@ -831,9 +861,8 @@ async fn open_test_ae_pair_like_cpp(
             .loot
             .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(secondary_guid)
-        .expect("the secondary AE owner must expose its object-owned authority");
+    let outcome = session.represented_owned_loot_authority_outcome_like_cpp(secondary_guid);
+    let authority = expect_found_like_cpp(outcome);
     assert!(
         authority
             .snapshot_for_player_like_cpp(player_guid)

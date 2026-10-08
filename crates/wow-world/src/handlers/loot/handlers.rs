@@ -77,8 +77,10 @@ impl WorldSession {
         let Some(expected_authority) = command.authority.as_ref() else {
             return;
         };
-        let Some(current_authority) =
-            self.represented_owned_loot_authority_like_cpp(command.creature_guid)
+        // Both non-found facts refuse the queued VALUES update, and neither
+        // reconstructs an authority from the other store.
+        let OwnedLootAuthorityLookupOutcomeLikeCpp::Found(current_authority) =
+            self.represented_owned_loot_authority_outcome_like_cpp(command.creature_guid)
         else {
             return;
         };

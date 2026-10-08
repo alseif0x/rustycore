@@ -190,6 +190,8 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_item(loot_item_packet(loot_guid, 0))
         .await;
@@ -333,6 +335,8 @@ async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(loot_guid))
         .await;
@@ -396,6 +400,8 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(loot_guid))
         .await;
@@ -455,6 +461,8 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(loot_guid))
         .await;
@@ -509,6 +517,8 @@ async fn loot_release_fully_looted_gameobject_just_deactivates_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(loot_guid))
         .await;
@@ -672,6 +682,8 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
         },
     );
 
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .handle_loot_release(loot_release_packet(loot_guid))
         .await;

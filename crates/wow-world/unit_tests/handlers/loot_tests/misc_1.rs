@@ -11,9 +11,8 @@ async fn stale_release_keeps_replacement_viewer_and_pool_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             7, true,
         ));
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let mut replacement = authoritative_test_loot_like_cpp(13, true);
     replacement.loot_guid = represented_loot_object_guid_like_cpp(owner);
     replacement.allowed_looters = vec![first_guid, second_guid];
@@ -53,9 +52,8 @@ async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_
         })
         .unwrap();
 
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let claim = authority
         .reserve_item_for_award_like_cpp(second_guid, 0)
         .await
@@ -147,9 +145,8 @@ async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_li
         })
         .unwrap();
 
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -235,9 +232,8 @@ async fn failed_disenchant_batch_grants_zero_and_original_slot_retries_like_cpp(
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(session.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(player_guid)
         .unwrap()
@@ -301,9 +297,8 @@ async fn remote_disenchant_timeout_then_release_fans_out_once_and_finalizes_corp
         })
         .unwrap();
 
-    let authority = first
-        .represented_owned_loot_authority_like_cpp(owner)
-        .unwrap();
+    let authority =
+        expect_found_like_cpp(first.represented_owned_loot_authority_outcome_like_cpp(owner));
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -420,10 +415,11 @@ async fn dungeon_encounter_builds_independent_unlocked_personal_pools_like_cpp()
         .ensure_represented_creature_kill_loot_like_cpp(fixture.owner_guid)
         .await;
 
-    let authority = fixture
-        .session
-        .represented_owned_loot_authority_like_cpp(fixture.owner_guid)
-        .unwrap();
+    let authority = expect_found_like_cpp(
+        fixture
+            .session
+            .represented_owned_loot_authority_outcome_like_cpp(fixture.owner_guid),
+    );
     let personal = authority.personal_snapshots_like_cpp();
     assert_eq!(personal.len(), 1);
     assert!(personal.contains_key(&fixture.first_tapper));

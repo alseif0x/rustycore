@@ -73,7 +73,18 @@ impl WorldSession {
 
         for (loot_guid, loot_obj, money) in &money_by_loot {
             let owned_authority = self
-                .prepare_owned_loot_authority_for_active_request_like_cpp(*loot_guid, player_guid);
+                .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+                    *loot_guid,
+                    player_guid,
+                );
+            // An unreadable designated owner abandons this loot-money attempt
+            // before any session-local fallback; genuine absence keeps the
+            // historical fixture rule below.
+            let owned_authority = match owned_authority {
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => continue,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => None,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => Some(authority),
+            };
             let authority = owned_authority
                 .as_ref()
                 .filter(|authority| {

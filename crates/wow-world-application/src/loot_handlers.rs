@@ -50,6 +50,7 @@ use wow_world_core::session::mailbox::{
 };
 use wow_world_core::session::{
     HubMut, HubRef, ItemValuationCatalogsLikeCpp, LootReleaseOwnerAccessLikeCpp,
+    OwnedLootAuthorityLookupOutcomeLikeCpp,
 };
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
@@ -200,12 +201,13 @@ pub trait LootHandlerHostLikeCpp<C> {
 
     /// C++ `Loot::GetLootForPlayer`'s fixture bridge, which installs the
     /// represented cache as the object-owned authority before a reservation can
-    /// await.
-    fn master_loot_prepare_owned_authority_like_cpp(
+    /// await. It reports the explicit lookup outcome so the caller can tell a
+    /// genuinely absent owner from an unreadable one (F6-7 R2).
+    fn master_loot_prepare_owned_authority_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
-    ) -> Option<OwnedLootAuthority>;
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp;
 
     /// C++ `Loot::NotifyLootList` refresh: the packet-building session window
     /// and the canonical object authority stay in the World loot tree.

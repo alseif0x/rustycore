@@ -1,5 +1,6 @@
 //! Shared group-loot and generation-lifecycle fixtures for loot tests.
 
+use super::expect_found_like_cpp;
 use std::collections::HashMap;
 use std::sync::Arc;
 use wow_core::ObjectGuid;
@@ -153,9 +154,9 @@ pub(super) fn replace_generation_guarded_group_loot_like_cpp(
     player_guid: ObjectGuid,
     candidate_guid: ObjectGuid,
 ) -> u64 {
-    let authority = session
-        .represented_owned_loot_authority_like_cpp(owner_guid)
-        .expect("test creature should expose its object-owned loot authority");
+    let authority = expect_found_like_cpp(
+        session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
+    );
     let previous_generation = authority.generation_like_cpp();
     let retired_generation = authority.retire_like_cpp();
     let replacement =

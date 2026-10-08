@@ -379,50 +379,51 @@ impl LootReleaseCxLikeCpp<'_> {
             return false;
         }
 
-        // The typed bridge plus the outcome's own collapse; the `Option`
-        // wrapper shape stays in `wow-world`, so this bridge has one body here
-        // and the collapse has one body in the outcome type.
-        let authoritative_release = if let Some(authority) = self
+        // The typed bridge keeps the three facts distinct: an unreadable
+        // designated owner abandons this attempt (no reconstruction, no
+        // absence-induced release, no cache disposal), while a genuinely
+        // absent one keeps the historical fallback below.
+        let authoritative_release = match self
             .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
                 owner_guid,
                 player_guid,
-            )
-            .into_option_like_cpp()
-        {
-            if !self
-                .loot
-                .active_loot_view_authority_like_cpp(owner_guid)
-                .is_some_and(|opened| opened.shares_storage_like_cpp(&authority))
-            {
-                self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-                return true;
+            ) {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return false,
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => None,
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => {
+                if !self
+                    .loot
+                    .active_loot_view_authority_like_cpp(owner_guid)
+                    .is_some_and(|opened| opened.shares_storage_like_cpp(&authority))
+                {
+                    self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
+                    return true;
+                }
+                let Some(active_generation) = self
+                    .loot
+                    .active_loot_view_generation_like_cpp(owner_guid)
+                    .copied()
+                else {
+                    self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
+                    return true;
+                };
+                let Some(close) =
+                    authority.close_viewer_if_generation_like_cpp(active_generation, player_guid)
+                else {
+                    self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
+                    return true;
+                };
+                Some(AuthoritativeLootReleaseLikeCpp {
+                    authority,
+                    selected_generation: active_generation,
+                    loot: close.snapshot.loot,
+                    whole_object_fully_looted: close.whole_object_fully_looted,
+                    whole_object_fully_skinned: close.whole_object_fully_skinned,
+                    object_generation: close.object_generation,
+                    lifecycle_revision: close.lifecycle_revision,
+                    require_no_viewers: false,
+                })
             }
-            let Some(active_generation) = self
-                .loot
-                .active_loot_view_generation_like_cpp(owner_guid)
-                .copied()
-            else {
-                self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-                return true;
-            };
-            let Some(close) =
-                authority.close_viewer_if_generation_like_cpp(active_generation, player_guid)
-            else {
-                self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-                return true;
-            };
-            Some(AuthoritativeLootReleaseLikeCpp {
-                authority,
-                selected_generation: active_generation,
-                loot: close.snapshot.loot,
-                whole_object_fully_looted: close.whole_object_fully_looted,
-                whole_object_fully_skinned: close.whole_object_fully_skinned,
-                object_generation: close.object_generation,
-                lifecycle_revision: close.lifecycle_revision,
-                require_no_viewers: false,
-            })
-        } else {
-            None
         };
 
         if authoritative_release.is_none()

@@ -92,18 +92,25 @@ pub(super) async fn handle_loot_item_with_generator_like_cpp<H, C>(
         }
 
         let owned_authority =
-            host.master_loot_prepare_owned_authority_like_cpp(owner_guid, player_guid);
-        let authority = owned_authority
-            .as_ref()
-            .filter(|authority| {
-                authority
+            host.master_loot_prepare_owned_authority_outcome_like_cpp(owner_guid, player_guid);
+        let authority = match &owned_authority {
+            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
+                if authority
                     .snapshot_for_player_like_cpp(player_guid)
-                    .is_some()
-            })
-            .cloned();
+                    .is_some() =>
+            {
+                Some(authority.clone())
+            }
+            _ => None,
+        };
+        // Only a readable "absent" answer may still fall back to the local
+        // fixture; an unreadable designated owner always refuses.
         if authority.is_none()
             && (owner_guid.is_creature_or_vehicle() || owner_guid.is_game_object())
-            && (owned_authority.is_some() || !host.master_loot_local_fixture_allowed_like_cpp())
+            && (!matches!(
+                owned_authority,
+                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent
+            ) || !host.master_loot_local_fixture_allowed_like_cpp())
         {
             host.loot_unit_hub_ref_like_cpp().core.send_equip_error(
                 InventoryResult::LootGone,

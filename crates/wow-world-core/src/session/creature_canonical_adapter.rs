@@ -132,25 +132,32 @@ pub fn apply_canonical_creature_entity_on_map_like_cpp(
     // incarnation's own allocation or an unused pristine candidate. A snapshot
     // from another health timeline is a different incarnation, and a second
     // independently used allocation is a competing claimable pool, so neither
-    // may be reconciled into this object or republished from it. Refusing here
-    // leaves the canonical object and its authority untouched; the legacy owner
-    // keeps whatever it had instead of adopting a competing pool. The
-    // reconciliation below stays the compatibility repair for the remaining
-    // same-incarnation cases.
+    // may be applied to this object or republished from it. Refusing here leaves
+    // the canonical object and its authority untouched; the legacy owner keeps
+    // whatever it had instead of adopting a competing pool.
     if !shares_health_timeline
         || (!incoming_authority.shares_storage_like_cpp(&current_authority)
             && !incoming_authority.is_pristine_like_cpp())
     {
         return CanonicalCreatureEntityApplicationLikeCpp::Refused;
     }
+    // F6-7 R3: one execution owner, no dual-store reconciliation. The guard
+    // above already refused every representation whose allocation is neither
+    // this incarnation's own nor an unused pristine candidate, so there is no
+    // second claimable pool left to arbitrate: the canonical incarnation keeps
+    // its own allocation, and a quarantined one stays terminal and fail-closed.
+    // The single remaining case is an allocation that can never own loot again
+    // (a displaced `Detached` one) taking the admitted pristine candidate, which
+    // is how an incarnation acquires a fresh allocation after replacement.
+    let authority = if current_authority.lifecycle_like_cpp()
+        == OwnedLootAuthorityLifecycle::Detached
+        && incoming_authority.is_pristine_like_cpp()
+    {
+        incoming_authority
+    } else {
+        current_authority.clone()
+    };
     let current_stamp = current_authority.stamp_like_cpp();
-    let incoming_stamp = incoming_authority.stamp_like_cpp();
-    let authority = reconcile_creature_loot_authority_mirrors_like_cpp(
-        &current_authority,
-        current_stamp,
-        &incoming_authority,
-        incoming_stamp,
-    );
     // The original `??` contract: a missing canonical object or a failed
     // expected-stamp compare/exchange refuses the snapshot. `Some(false)` is the
     // successful "already this authority" case, not a refusal.
@@ -372,49 +379,6 @@ pub fn sync_admitted_creature_representation_on_map_like_cpp(
         }
     }
     true
-}
-
-/// Selects one backing authority for two mirrors without ever merging two
-/// independently claimable active states. Distinct non-pristine authorities
-/// are quarantined as one retired canonical tombstone.
-pub fn reconcile_creature_loot_authority_mirrors_like_cpp(
-    canonical: &OwnedLootAuthority,
-    canonical_stamp: OwnedLootAuthorityStamp,
-    incoming: &OwnedLootAuthority,
-    incoming_stamp: OwnedLootAuthorityStamp,
-) -> OwnedLootAuthority {
-    if canonical.shares_storage_like_cpp(incoming) {
-        return canonical.clone();
-    }
-
-    use OwnedLootAuthorityLifecycle::{Active, Detached, Pristine, Quarantined, Retired};
-
-    match (canonical_stamp.lifecycle, incoming_stamp.lifecycle) {
-        // Once divergent live pools were observed, keep the attached terminal
-        // tombstone until object destruction. It must not be reopened merely
-        // because another stale mirror still looks active.
-        (Quarantined, _) => canonical.clone(),
-        (_, Quarantined) => incoming.clone(),
-        // Two independently claimable live pools, or a live pool conflicting
-        // with an attached destruction tombstone, are ambiguous without a
-        // shared incarnation id. Converge on a terminal fail-closed authority.
-        (Active, Active) | (Active, Retired) | (Retired, Active) => {
-            return OwnedLootAuthority::new_retired_tombstone_like_cpp();
-        }
-        // A live authority can safely fill a never-used placeholder. A
-        // detached allocation has already lost entity ownership.
-        (Active, Pristine | Detached) => canonical.clone(),
-        (Pristine | Detached, Active) => incoming.clone(),
-        // A still-attached retired authority is the lifetime tombstone shared
-        // across respawn/restock. A displaced authority is classified as
-        // `Detached`, so it cannot win this branch or be resurrected.
-        (Retired, Pristine) => canonical.clone(),
-        (Pristine, Retired) => incoming.clone(),
-        (Pristine, Pristine) | (Retired, Retired) => canonical.clone(),
-        (Detached, Detached) => OwnedLootAuthority::new_retired_tombstone_like_cpp(),
-        (Detached, _) => incoming.clone(),
-        (_, Detached) => canonical.clone(),
-    }
 }
 
 pub fn remove_canonical_creature_map_object_on_map_like_cpp(

@@ -637,6 +637,8 @@ async fn represented_gameobject_personal_encounter_open_does_not_auto_allow_non_
     let other_tapper = ObjectGuid::create_player(1, 77);
     let gameobject_guid = test_gameobject_guid(91_011);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .core
         .client_visible_guids_like_cpp
@@ -680,6 +682,8 @@ async fn represented_gameobject_personal_encounter_open_reads_player_money_like_
     let gameobject_guid = test_gameobject_guid(91_012);
     let loot_object = represented_loot_object_guid_like_cpp(gameobject_guid);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .core
         .client_visible_guids_like_cpp
@@ -744,6 +748,8 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
     let gameobject_guid = test_gameobject_guid(91_013);
     let loot_object = represented_loot_object_guid_like_cpp(gameobject_guid);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(gameobject_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         gameobject_guid,
@@ -873,6 +879,8 @@ async fn represented_gameobject_chest_first_generation_records_use_effects_like_
     let player_guid = ObjectGuid::create_player(1, 42);
     let gameobject_guid = test_gameobject_guid(91_002);
     session.set_player_guid(Some(player_guid));
+    // F6-7 R2 correction: absence must be proven by an addressed store.
+    attach_addressed_empty_canonical_loot_store_like_cpp(&mut session);
     session
         .core
         .client_visible_guids_like_cpp

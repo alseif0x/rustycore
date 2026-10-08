@@ -47,7 +47,9 @@ use wow_loot::{LootClaimLease, LootEntry, OwnedLootAuthority};
 use wow_packet::packets::loot::{LootResponse, LootRoll};
 use wow_world_application::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
 use wow_world_core::session::mailbox::ApplyLootMoneyResultLikeCpp;
-use wow_world_core::session::{HubRef, ItemValuationCatalogsLikeCpp};
+use wow_world_core::session::{
+    HubRef, ItemValuationCatalogsLikeCpp, OwnedLootAuthorityLookupOutcomeLikeCpp,
+};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -181,12 +183,12 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         super::represented_local_loot_fixture_allowed_like_cpp()
     }
 
-    fn master_loot_prepare_owned_authority_like_cpp(
+    fn master_loot_prepare_owned_authority_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        WorldSession::prepare_owned_loot_authority_for_active_request_like_cpp(
+    ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
+        WorldSession::prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
             self,
             owner_guid,
             scope_player,
