@@ -7485,15 +7485,55 @@ replacing its heuristic figures (F6-1); (iii) the absent-owner contract for the
 (v) the map-key fallback caller analysis (F6-4); (vi) the session-local
 `GameObject` field decisions (F6-6); (vii) the loot-authority reconciliation
 contract and its reviewer signature (F6-7); and (viii) **the six signed behaviour
-repairs executed as their own scoped slices** — R4a, R1a and R1b are integrated,
-R7/R2/R3/R5 remain — with **no repair hidden inside a structural refactor**, which
-is what the original wording demanded. Retiring the legacy runtime and the legacy
-map manager (F6-8) stays as the highest-value remaining F6 item and is **not**
-structural.
+repairs executed as their own scoped slices** — R4a, R1a, R1b, R7, R2, R3 and R5
+are **all integrated** (see the closing status below) — with **no repair hidden
+inside a structural refactor**, which is what the original wording demanded.
+Retiring the legacy runtime and the legacy map manager (F6-8) stays as the
+highest-value remaining F6 item and is **not** structural; it is a **declared
+bounded hold** below.
 
-**Runtime captures remain outstanding.** The captures that would close R6 and the
-`unverified` rows are authorised and specified with their exact instrumentation
-points; they are scheduled as their own work, not mixed into repair slices.
+**Runtime captures were executed as their own work (2026-10-08).** The captures
+that would close R6 and the `unverified` rows were run against a freshly built
+candidate with the specified instrumentation and are recorded, with schema v1, in
+`docs/architecture/captures/1263-post-r3-2026-10-08.md`. They are partial and say
+so: C1's live half observed an admitted-and-applied legitimate mutation but **no
+naturally observed rejection**, so the refusal half is **injected harness
+evidence, labelled as such**; C2 produced the login attach only, because the
+detached/far-transfer window was not producible. **R6 itself therefore remains a
+bounded hold** (verbatim sentence in the capture entry).
+
+#### Closing status — 2026-10-08 (verifiable, with declared holds)
+
+**Delivered in this campaign.** The six signed repairs are integrated into
+`3.4.3`, each as its own squash-merged PR with a green `final` on the committed
+candidate and a clean tree: R4a, R1a, R1b (earlier), R7 (R7a `#1316`, R7b-1
+`#1317`, R7b-2a `#1318`, R7b-2b `#1319`), R2+R3+R5 (`#1320`) and the instrumented
+runtime captures (`#1321`). F5's mechanical tail is integrated (`#1322`) with the
+measured frontier declared in its own entry below.
+
+**Declared bounded holds, approved by the operator.** These are **not** delivered
+and must not be read as delivered:
+
+- **F4 remates** — LootMoney's complete operation (its nine dependencies),
+  StorageMove, Save and refresh, and the LootMoney payout-parity repairs
+  (aura bonuses, MoneyLooted criteria, notification phase, restart claim
+  recovery), which the reviewer ruled must be their own behaviour slice.
+- **F6-8** — retiring the legacy runtime and the legacy `map_manager`.
+- **R6** — the paired instrumented Rust/3.4.3 legitimate-mutation and
+  stale/ABA-rejection evidence.
+- **Unknown-COMMIT quarantine reopening or removal** — pending an explicit
+  durability/recovery contract and evidence; terminal fail-closed behaviour and
+  waiter drainage are preserved.
+
+**Performance record.** Every warm `final --architecture --timings` campaign on
+this campaign's slices measured **≤600 s** (138–367 s for the repair slices,
+305–323 s for the F5 tail), each with `dirty: false` and a clean tree. One
+**cold-cache** campaign measured **944,88 s** after a host disk-full incident
+forced deletion of this worktree's regenerable incremental cache; it is recorded
+as a cold-start cost, not as the ordinary warm run, and it is **not** hidden.
+
+**What this does not claim.** No new gameplay parity, no legacy-runtime
+retirement, no F4 delivery, no R6 parity, and no closure of #1263 or #584.
 
 #### F6-7 R7a: contrato de mutación con puerta — 2026-10-07, 4 commits desde `40042c0cd`
 
