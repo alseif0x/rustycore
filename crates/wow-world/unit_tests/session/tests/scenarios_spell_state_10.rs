@@ -290,6 +290,20 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
         Position::new(12.0, 0.0, 0.0, 0.0),
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
+    // The fixture's registered creature carries 40 health, so the one
+    // incarnation carries it too instead of the canonical placeholder's 100
+    // (F6-7 R7a: the gate applies the legacy representation to the canonical one).
+    shape_canonical_test_incarnation_like_cpp(&canonical, creature_guid, 571, 0, |creature| {
+        creature.unit_mut().set_max_health(40);
+        creature.unit_mut().set_health(40);
+    });
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (571, 0),
+        (571, 0),
+    );
     session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
     session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
         [wow_data::NpcSpellClickRowLikeCpp {
@@ -470,6 +484,20 @@ async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
         9002,
         Position::new(12.0, 0.0, 0.0, 0.0),
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
+    );
+    // The fixture's registered creature carries 40 health, so the one
+    // incarnation carries it too instead of the canonical placeholder's 100
+    // (F6-7 R7a: the gate applies the legacy representation to the canonical one).
+    shape_canonical_test_incarnation_like_cpp(&canonical, creature_guid, 571, 0, |creature| {
+        creature.unit_mut().set_max_health(40);
+        creature.unit_mut().set_health(40);
+    });
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (571, 0),
+        (571, 0),
     );
     session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
     session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
@@ -729,6 +757,20 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         0,
         true,
         Some(player_guid),
+    );
+    // The fixture's registered creature carries 40 health, so the one
+    // incarnation carries it too instead of the canonical placeholder's 100
+    // (F6-7 R7a: the gate applies the legacy representation to the canonical one).
+    shape_canonical_test_incarnation_like_cpp(&canonical, creature_guid, 571, 0, |creature| {
+        creature.unit_mut().set_max_health(40);
+        creature.unit_mut().set_health(40);
+    });
+    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+        &manager,
+        &canonical,
+        creature_guid,
+        (571, 0),
+        (571, 0),
     );
     session.set_condition_store(Arc::new(ConditionEntriesByTypeStore::default()));
     session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(

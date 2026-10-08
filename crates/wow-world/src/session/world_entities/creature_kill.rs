@@ -44,7 +44,7 @@ impl WorldSession {
 
         let (reward_map_id, reward_position) = self
             .core
-            .mutate_world_creature(creature_guid, |creature| {
+            .read_world_creature_like_cpp(creature_guid, |creature| {
                 (creature.map_id() as u16, creature.position())
             })
             .unwrap_or((player_map_id, player_position));
@@ -209,7 +209,7 @@ impl WorldSession {
     ) {
         if self
             .core
-            .mutate_world_creature(creature_guid, |creature| {
+            .read_world_creature_like_cpp(creature_guid, |creature| {
                 creature.creature.is_reputation_gain_disabled()
             })
             .unwrap_or(false)
@@ -309,7 +309,7 @@ impl WorldSession {
         for reward in rewards {
             let can_give_experience = self
                 .core
-                .mutate_world_creature(reward.creature_guid, |creature| {
+                .read_world_creature_like_cpp(reward.creature_guid, |creature| {
                     creature.creature.can_give_experience_like_cpp()
                 })
                 .unwrap_or(false);
@@ -373,7 +373,7 @@ impl WorldSession {
     ) {
         let reward_source = self
             .core
-            .mutate_world_creature(creature_guid, |creature| {
+            .read_world_creature_like_cpp(creature_guid, |creature| {
                 (creature.map_id() as u16, creature.position())
             })
             .or_else(|| {
@@ -386,7 +386,7 @@ impl WorldSession {
         };
         let mut tappers = self
             .core
-            .mutate_world_creature(creature_guid, |creature| {
+            .read_world_creature_like_cpp(creature_guid, |creature| {
                 creature.creature.tap_list().to_vec()
             })
             .unwrap_or_default();

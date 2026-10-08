@@ -555,7 +555,7 @@ impl crate::session::WorldSession {
             .is_some()
             || self
                 .core
-                .mutate_world_creature(activate.vendor, |creature| {
+                .read_world_creature_like_cpp(activate.vendor, |creature| {
                     creature.npc_flags() & NPC_FLAG_FLIGHT_MASTER != 0
                 })
                 .unwrap_or(false);

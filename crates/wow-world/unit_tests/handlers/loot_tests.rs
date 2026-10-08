@@ -122,11 +122,11 @@ use wow_world_application::direct_item_count_after_loot_release_like_cpp;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{
-    attach_canonical_corpse, attach_canonical_creature, attach_canonical_gameobject,
-    attach_canonical_map_object, attach_loot_guid_allocator_for_owner, canonical_corpse_snapshot,
-    canonical_creature_snapshot, canonical_gameobject_snapshot, canonical_world_object,
-    make_canonical_corpse_for_session, make_canonical_creature_for_session,
-    make_canonical_gameobject_for_session,
+    adopt_registered_creature_as_canonical_incarnation_like_cpp, attach_canonical_corpse,
+    attach_canonical_creature, attach_canonical_gameobject, attach_canonical_map_object,
+    attach_loot_guid_allocator_for_owner, canonical_corpse_snapshot, canonical_creature_snapshot,
+    canonical_gameobject_snapshot, canonical_world_object, make_canonical_corpse_for_session,
+    make_canonical_creature_for_session, make_canonical_gameobject_for_session,
 };
 #[path = "loot_tests/loot_authority.rs"]
 mod loot_authority;

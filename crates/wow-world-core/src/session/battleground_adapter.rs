@@ -230,10 +230,9 @@ impl crate::session::HubMut<'_> {
 
     #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub fn battlemaster_hello_like_cpp(&mut self, unit: ObjectGuid) -> bool {
-        let Some((npc_flags, entry)) = self
-            .core
-            .mutate_world_creature(unit, |creature| (creature.npc_flags(), creature.entry()))
-        else {
+        let Some((npc_flags, entry)) = self.core.read_world_creature_like_cpp(unit, |creature| {
+            (creature.npc_flags(), creature.entry())
+        }) else {
             return false;
         };
 

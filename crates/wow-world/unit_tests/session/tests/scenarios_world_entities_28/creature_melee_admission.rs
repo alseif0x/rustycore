@@ -117,15 +117,23 @@ fn legacy_creature_melee_tick_once_rejects_same_guid_attacker_replacement_like_c
     );
     let mut expected_rng = StdRng::seed_from_u64(seed);
     let expected_first_roll = expected_rng.gen_range(0..=9_999_u32);
-    let (timer, exact_rng, actual_first_roll) = session
-        .mutate_world_creature(creature_guid, |creature| {
-            (
-                creature.creature.ai_ownership().swing_timer_ms,
-                creature.runtime_rng_authority_complete_like_cpp(),
-                creature.random_creature_spell_hit_roll_like_cpp(),
-            )
-        })
-        .unwrap();
+    // F6-7 R7a: the canonical map now owns the *replacement* incarnation, so the
+    // session's mutation root correctly refuses to run on the stale legacy
+    // representation. This test's subject is exactly that stale representation
+    // (it must keep its untaken roll), so it observes the legacy store directly
+    // instead of asking the gate to publish a mutation the canonical
+    // incarnation never applied.
+    let (timer, exact_rng, actual_first_roll) = {
+        let mut guard = manager.write().unwrap();
+        let creature = guard
+            .find_creature_mut(0, 0, creature_guid)
+            .expect("the stale legacy representation survives");
+        (
+            creature.creature.ai_ownership().swing_timer_ms,
+            creature.runtime_rng_authority_complete_like_cpp(),
+            creature.random_creature_spell_hit_roll_like_cpp(),
+        )
+    };
     assert_eq!(timer, 0);
     assert!(exact_rng);
     assert_eq!(actual_first_roll, Some(expected_first_roll));
