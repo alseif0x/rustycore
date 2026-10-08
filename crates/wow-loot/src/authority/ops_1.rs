@@ -20,7 +20,10 @@ impl OwnedLootAuthority {
     ///
     /// State equality is insufficient here: two independently allocated
     /// authorities can contain identical loot while still allowing separate
-    /// claims. Runtime mirror reconciliation must compare the backing `Arc`.
+    /// claims. The authority-identity contract is therefore the backing `Arc`
+    /// itself, and every owner-side decision compares it: designated-owner
+    /// resolution, alias admission and the expected-authority
+    /// compare-and-exchange.
     #[must_use]
     pub fn shares_storage_like_cpp(&self, other: &Self) -> bool {
         Arc::ptr_eq(&self.inner, &other.inner)

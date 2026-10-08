@@ -70509,6 +70509,136 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::handlers::loot::tests::loot_authority",
+          "path": "crates/wow-world/src/handlers/loot/mod.rs",
+          "enclosing": "fn::single_incarnation_loot_fixture_like_cpp",
+          "direction_markers": [
+            "dual_authority_compatibility"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical",
+              "fingerprint": "fnv1a64x2:c064ea952aee3cf85ff2706124b103d3:len=195",
+              "multiplicity": 4
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "default",
+              "fingerprint": "fnv1a64x2:0335ee0938459ea4b7c6d546b5942717:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "function_call",
+              "symbol": "default",
+              "fingerprint": "fnv1a64x2:245fa4e0b63073833f66cc440f3f38f4:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "create_world_map",
+              "fingerprint": "fnv1a64x2:e17d19977b91a29b8f5b0c7b1c0946b6:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "expect",
+              "fingerprint": "fnv1a64x2:3171a7b1a41d2623ec2fc8646c5288a0:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "method_call",
+              "symbol": "lock",
+              "fingerprint": "fnv1a64x2:85377d8bd897541bbd79963d0ae800d4:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy",
+              "fingerprint": "fnv1a64x2:eb3424f6439c3b0004f20b515cbbca2b:len=97",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "field_access",
+              "symbol": "map_manager",
+              "fingerprint": "fnv1a64x2:5abc3a3f2031f89b09bf9eac88d8bd64:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "clone",
+              "fingerprint": "fnv1a64x2:26c76a4fad6ab5089eacf1c0a88afac3:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "expect",
+              "fingerprint": "fnv1a64x2:9786ef888d5e6289a58b7431d1b0990e:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "macro_argument",
+              "symbol": "assert",
+              "fingerprint": "fnv1a64x2:84742513e0ae75cb1fc3469ec561e08a:len=50",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn single_incarnation_loot_fixture_like_cpp (counter : i64 , owner_coins : u32 ,) -> SingleIncarnationLootFixtureLikeCpp|body=fnv1a64x2:50d18b6029f91fb24a8a8dc86a124a79:len=1907|evidence=fnv1a64x2:7149294a6b9c58ce8e814724ce0da5f9:len=1307",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::handlers::loot::tests::loot_authority",
+          "path": "crates/wow-world/src/handlers/loot/mod.rs",
+          "enclosing": "struct::SingleIncarnationLootFixtureLikeCpp",
+          "direction_markers": [
+            "dual_authority_compatibility"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=struct::SingleIncarnationLootFixtureLikeCpp|surface=fnv1a64x2:06e361595f4871bab7acb08348a42ce9:len=1163|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::handlers::loot::tests::overworld_personal_loot",
           "path": "crates/wow-world/src/handlers/loot/mod.rs",
           "enclosing": "fn::overworld_personal_loot_test_fixture_like_cpp",
