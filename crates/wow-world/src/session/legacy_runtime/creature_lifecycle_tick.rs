@@ -15,10 +15,14 @@ struct ReadyRespawnCandidateLikeCpp {
     map_id: u32,
     instance_id: u32,
     guid: ObjectGuid,
-    position: Position,
     world_creature: crate::map_manager::WorldCreature,
-    persistent_spawn: bool,
-    spawn_id: u64,
+    /// The queue entry this candidate was drained from.
+    ///
+    /// R7b-1: when no canonical incarnation can admit the candidate yet, this is
+    /// pushed back into the map's spawn queue unchanged, so the deferred spawn
+    /// keeps its identity, its due time and its persisted-respawn bookkeeping
+    /// and is retried by the next tick.
+    pending: crate::map_manager::PendingRespawn,
 }
 
 /// The canonical admission decision for one ready respawn.
@@ -27,10 +31,16 @@ enum ReadyRespawnAdmissionLikeCpp {
     /// with the authority, the canonical health timeline and the aura
     /// provenance that admission returned.
     Admitted(wow_world_entities::CanonicalCreatureInsertOutcomeLikeCpp),
-    /// No canonical incarnation was available to decide against (no canonical
-    /// manager, no canonical map instance for this key, or the candidate could
-    /// not be installed). The previous legacy-only publication path is kept.
-    NotAdmitted,
+    /// No canonical map manager is configured, so the legacy store is the only
+    /// store: the previous legacy-only publication path is kept.
+    LegacyOnly,
+    /// A canonical map manager is configured but no canonical incarnation could
+    /// admit the candidate (no canonical map instance for this key, or the
+    /// candidate could not be installed), so the candidate has no admitted
+    /// owner. R7b-1: its publication is deferred — it goes back to the map's
+    /// spawn queue — instead of publishing a representation the mutation root
+    /// must refuse for its whole life.
+    Deferred,
     /// The canonical owner already exists and this candidate would be a second
     /// claimable pool, so the legacy store must not publish it at all.
     Refused,
@@ -283,8 +293,6 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     affected_maps.insert((map_id, instance_id));
                     continue;
                 }
-                let position =
-                    crate::map_manager::pending_respawn_create_position_like_cpp(&respawn);
                 let mut world_creature =
                     world_creature_from_pending_respawn_like_cpp(&respawn, instance_id);
                 // C++ Creature::Respawn ground-snaps via UpdateAllowedPositionZ
@@ -299,17 +307,15 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 let canonical_creature = world_creature.creature.clone();
                 // R1b: build the candidate, but let the canonical admission
                 // decide the incarnation before the legacy store publishes it.
-                // The position/grid work and the duplicate check above are
-                // unchanged; only the store insertion moved after admission.
+                // The duplicate check above is unchanged; only the store
+                // insertion moved after admission.
                 respawn_candidates.push((
                     ReadyRespawnCandidateLikeCpp {
                         map_id: u32::from(map_id),
                         instance_id,
                         guid,
-                        position,
                         world_creature,
-                        persistent_spawn: respawn.persistent_spawn,
-                        spawn_id: respawn.spawn_id,
+                        pending: respawn,
                     },
                     canonical_creature,
                 ));
@@ -383,10 +389,14 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     {
                         ReadyRespawnAdmissionLikeCpp::Refused
                     }
-                    None => ReadyRespawnAdmissionLikeCpp::NotAdmitted,
+                    // R7b-1: a configured canonical manager that admitted
+                    // nothing leaves this candidate without an admitted owner
+                    // (no canonical map instance for this key, or an
+                    // installation failure), so its publication is deferred.
+                    None => ReadyRespawnAdmissionLikeCpp::Deferred,
                 }
             }
-            None => ReadyRespawnAdmissionLikeCpp::NotAdmitted,
+            None => ReadyRespawnAdmissionLikeCpp::LegacyOnly,
         };
         respawn_admissions.push((candidate, admission));
     }
@@ -395,7 +405,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
         let mut manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        for (mut candidate, admission) in respawn_admissions {
+        for (candidate, admission) in respawn_admissions {
             let admitted = match admission {
                 ReadyRespawnAdmissionLikeCpp::Admitted(admitted) => Some(admitted),
                 ReadyRespawnAdmissionLikeCpp::Refused => {
@@ -403,12 +413,12 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     // like the "already present" branch above: drop the stale
                     // persisted respawn row and publish nothing in the legacy
                     // store.
-                    if candidate.persistent_spawn {
+                    if candidate.pending.persistent_spawn {
                         if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
                             candidate.map_id as u16,
                             candidate.instance_id,
                             wow_map::SpawnObjectType::Creature,
-                            candidate.spawn_id,
+                            candidate.pending.spawn_id,
                         ) {
                             outcome.respawn_db_mutations.push(stmt);
                         }
@@ -418,7 +428,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                                 candidate.map_id,
                                 candidate.instance_id,
                                 wow_map::SpawnObjectType::Creature,
-                                candidate.spawn_id,
+                                candidate.pending.spawn_id,
                             )
                         {
                             outcome.canonical_respawn_removes += 1;
@@ -427,7 +437,22 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     affected_maps.insert((candidate.map_id as u16, candidate.instance_id));
                     continue;
                 }
-                ReadyRespawnAdmissionLikeCpp::NotAdmitted => None,
+                ReadyRespawnAdmissionLikeCpp::Deferred => {
+                    // R7b-1: publish nothing. The spawn goes back to the map's
+                    // own queue unchanged, so its identity, due time and
+                    // persisted-respawn row are preserved and the next tick
+                    // retries the same admission. The creature was never
+                    // published, so no visibility refresh is requested here; the
+                    // corpse despawn that queued this respawn already signalled
+                    // the map key in this tick.
+                    manager.push_respawn(
+                        candidate.map_id as u16,
+                        candidate.instance_id,
+                        candidate.pending,
+                    );
+                    continue;
+                }
+                ReadyRespawnAdmissionLikeCpp::LegacyOnly => None,
             };
             let expected_legacy_authority = candidate
                 .world_creature
@@ -443,7 +468,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     .loot_authority
                     .shares_storage_like_cpp(&expected_legacy_authority)
             });
-            let (grid_x, grid_y) = world_to_grid_coords(candidate.position.x, candidate.position.y);
+            let (grid_x, grid_y) =
+                world_to_grid_coords(candidate.pending.home_pos.x, candidate.pending.home_pos.y);
             if !manager.add_creature(
                 candidate.map_id as u16,
                 candidate.instance_id,
@@ -506,12 +532,12 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         );
                 }
             }
-            if candidate.persistent_spawn {
+            if candidate.pending.persistent_spawn {
                 if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
                     candidate.map_id as u16,
                     candidate.instance_id,
                     wow_map::SpawnObjectType::Creature,
-                    candidate.spawn_id,
+                    candidate.pending.spawn_id,
                 ) {
                     outcome.respawn_db_mutations.push(stmt);
                 }
@@ -525,7 +551,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         candidate.map_id,
                         candidate.instance_id,
                         wow_map::SpawnObjectType::Creature,
-                        candidate.spawn_id,
+                        candidate.pending.spawn_id,
                     )
                 {
                     outcome.canonical_respawn_removes += 1;

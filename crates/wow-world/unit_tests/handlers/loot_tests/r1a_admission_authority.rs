@@ -22,10 +22,13 @@
 //! Boundary of the admission decision: `Refused` (the canonical owner exists and
 //! the candidate would be a second claimable pool) stops legacy publication. A
 //! session that has a canonical manager but no canonical map instance for the
-//! registration key has no canonical incarnation to decide against, so its
-//! previous legacy publication path is preserved; the registration caller always
-//! builds an unused pristine candidate, so the refusal is exercised at the
-//! admission entry point (test 3) and the caller's abort is unreachable today.
+//! registration key has **no admitted owner** either, so R7b-1 defers its
+//! publication until a canonical incarnation admits it instead of publishing a
+//! representation the mutation gate must refuse for its whole life; only the
+//! legacy-only configuration (no canonical manager at all) keeps the previous
+//! publication path. The registration caller always builds an unused pristine
+//! candidate, so the refusal is exercised at the admission entry point (test 3)
+//! and the caller's abort is unreachable today.
 
 use std::sync::{Arc, Mutex};
 
@@ -447,22 +450,33 @@ async fn alias_admission_keeps_a_live_canonical_claim_lease_like_cpp() {
 }
 
 #[test]
-fn canonical_map_absence_keeps_the_previous_legacy_publication_like_cpp() {
-    // Canonical manager configured, but no canonical map instance exists for the
-    // registration key yet. That is the deliberate shape of the session fixtures
-    // and of grid loading racing legacy registration: there is no canonical
-    // incarnation to decide against, so no competing pool can be created and the
-    // previous legacy publication path is preserved.
+fn canonical_map_absence_defers_publication_until_admission_like_cpp() {
+    // F6-7 R7b-1 contract. A configured canonical manager without a canonical
+    // map instance for the registration key provides no admitted owner, so
+    // registration must not publish a legacy representation whose every owner
+    // mutation the R7 gate would refuse for its whole life. That is the shape of
+    // the session fixtures and of grid loading racing legacy registration; the
+    // built candidate is held until a canonical incarnation legitimately exists.
     let (mut session, canonical) = canonical_admission_session_like_cpp(false);
     let guid = test_creature_guid(62_108);
     register_test_creature_like_cpp(&mut session, test_creature(guid, false));
+    let manager = session
+        .core
+        .map_manager
+        .clone()
+        .expect("the fixture supplies the legacy map manager");
     assert!(
-        legacy_authority_like_cpp(&session, guid).is_some(),
-        "a session whose canonical map instance does not exist yet keeps the legacy path"
+        legacy_authority_like_cpp(&session, guid).is_none(),
+        "a representation with no admitted canonical owner must not be published"
     );
     assert!(
         canonical_authority_like_cpp(&canonical, guid).is_none(),
         "no canonical incarnation was admitted"
+    );
+    assert_eq!(
+        manager.read().unwrap().respawn_queue_len(TEST_MAP_ID, 0),
+        1,
+        "the built candidate waits for legitimate admission in the map spawn queue"
     );
 
     // The legacy-only configuration keeps its previous behaviour too: with no

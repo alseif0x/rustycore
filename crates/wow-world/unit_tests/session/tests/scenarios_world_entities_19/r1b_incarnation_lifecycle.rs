@@ -9,7 +9,11 @@
 //!   respawn rail consumes R1a's authority/health/provenance result together;
 //! * synchronization and rebinding across incarnations, or from a competing used
 //!   allocation, is rejected before any authority is selected;
-//! * a refusal publishes nothing, so no competing alias can become claimable.
+//! * a refusal publishes nothing, so no competing alias can become claimable;
+//! * R7b-1: a canonical manager without a map instance for the key provides no
+//!   admitted owner, so a ready respawn is **deferred** rather than published
+//!   into a life of refused mutations, and is published with the same admission
+//!   decision once the instance legitimately exists.
 //!
 //! These tests drive the production consumers — the global lifecycle tick
 //! (`run_legacy_creature_lifecycle_tick_once_like_cpp`), the global creature
@@ -274,10 +278,11 @@ fn lifecycle_respawn_fresh_incarnation_allocates_one_incarnation_like_cpp() {
 }
 
 #[test]
-fn lifecycle_respawn_without_canonical_incarnation_keeps_legacy_publication_like_cpp() {
-    // A canonical manager without a canonical map instance for this key has no
-    // incarnation to decide against, so the previous legacy-only publication is
-    // preserved and the respawn keeps its own allocation.
+fn lifecycle_respawn_without_canonical_incarnation_defers_publication_like_cpp() {
+    // F6-7 R7b-1 contract. A canonical manager without a canonical map instance
+    // for this key provides no admitted owner, so the ready respawn must not
+    // publish a legacy representation the R7 gate would refuse for its whole
+    // life; the built candidate is held until legitimate admission.
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
     let now = Instant::now();
@@ -290,19 +295,70 @@ fn lifecycle_respawn_without_canonical_incarnation_keeps_legacy_publication_like
         105,
         now - Duration::from_secs(1),
     );
-    assert_eq!(outcome.respawns_processed, 1);
-    assert_eq!(outcome.canonical_inserts, 1);
-    let legacy_creature = legacy_creature_like_cpp(&manager, guid).expect("legacy publication");
+    assert_eq!(
+        outcome.respawns_processed, 0,
+        "a respawn with no admitted canonical owner is not published"
+    );
+    assert_eq!(outcome.canonical_inserts, 0);
+    assert!(
+        legacy_creature_like_cpp(&manager, guid).is_none(),
+        "the deferred respawn publishes no legacy representation"
+    );
     assert!(
         canonical_creature_like_cpp(&canonical, guid).is_none(),
         "no canonical incarnation was admitted"
     );
     assert_eq!(
+        manager.read().unwrap().respawn_queue_len(0, 0),
+        1,
+        "the built respawn candidate waits for legitimate admission in the map spawn queue"
+    );
+
+    // Eventual admission: once the canonical instance legitimately exists, the
+    // next global lifecycle tick publishes the deferred respawn with the same
+    // admission decision a ready respawn consumes — one allocation and one health
+    // timeline across both representations.
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let second = run_legacy_creature_lifecycle_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
+        now + Duration::from_secs(2),
+    );
+    assert_eq!(
+        manager.read().unwrap().respawn_queue_len(0, 0),
+        0,
+        "the deferred respawn is no longer waiting"
+    );
+    assert_eq!(
+        second.respawns_processed, 1,
+        "the deferred respawn is published by the rail once it can be admitted"
+    );
+    let canonical_creature =
+        canonical_creature_like_cpp(&canonical, guid).expect("the incarnation is admitted");
+    let legacy_creature = legacy_creature_like_cpp(&manager, guid)
+        .expect("the deferred respawn is published once it can be admitted");
+    assert!(
         legacy_creature
             .loot_authority_like_cpp()
-            .lifecycle_like_cpp(),
-        wow_loot::OwnedLootAuthorityLifecycle::Pristine,
-        "the legacy-only respawn keeps its own never-used allocation"
+            .shares_storage_like_cpp(canonical_creature.loot_authority_like_cpp()),
+        "the published respawn aliases the admitted incarnation's one allocation"
+    );
+    assert!(
+        legacy_creature
+            .unit()
+            .shares_health_state_revision_authority_like_cpp(
+                &canonical_creature
+                    .unit()
+                    .health_state_revision_authority_like_cpp(),
+            ),
+        "the published respawn adopts the admitted incarnation's health timeline"
+    );
+    assert_eq!(legacy_creature.unit().data().health, 105);
+    assert_eq!(
+        second.refresh_map_keys,
+        vec![(0, 0)],
+        "the map key is signalled so sessions recompute visibility"
     );
 }
 
