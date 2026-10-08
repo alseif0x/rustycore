@@ -489,31 +489,27 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     }
 
     if let Some(canonical_map_manager) = canonical_map_manager {
-        for (map_id, instance_id, guid, creature) in canonical_syncs {
+        for (map_id, instance_id, _guid, creature) in canonical_syncs {
             let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
             let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
-            let authority = sync_canonical_creature_entity_on_map_like_cpp(
+            // F6-7 R7b-2b: the shared map-level gate admits the transported
+            // representation against the current canonical incarnation before
+            // applying it, and rebinds the legacy alias only for an applied
+            // snapshot. This site used to call
+            // `sync_canonical_creature_entity_on_map_like_cpp` directly, so a
+            // foreign incarnation's representation was still offered to the
+            // canonical object and still attempted a legacy rebind.
+            let _ = sync_admitted_creature_representation_on_map_like_cpp(
                 canonical_map_manager,
-                map_id,
+                Some(legacy_map_manager),
+                map_id as u16,
                 instance_id,
                 creature,
+                &expected_legacy_authority,
+                expected_legacy_stamp,
             );
-            if let Some(authority) = authority {
-                let mut legacy = legacy_map_manager
-                    .write()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                if let Some(world_creature) =
-                    legacy.find_creature_mut(map_id as u16, instance_id, guid)
-                {
-                    let _ = world_creature
-                        .creature
-                        .rebind_loot_authority_if_current_like_cpp(
-                            &expected_legacy_authority,
-                            expected_legacy_stamp,
-                            authority,
-                        );
-                }
-            }
+            // Attempt count: one increment for every queued snapshot processed
+            // while a canonical manager exists, including refusals.
             outcome.canonical_syncs += 1;
         }
     }
