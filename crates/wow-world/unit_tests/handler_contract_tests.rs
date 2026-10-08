@@ -295,3 +295,540 @@ fn print_world_handler_contract_snapshot() {
         render_contract(&registered_contract())
     );
 }
+
+/// The rows the legacy inventory drain still contributes (#1263 F5 tail).
+///
+/// These are the registrations `register_remaining_handlers_like_cpp` links from
+/// `inventory::submit!`; every migrated family must be absent from this set, so
+/// a family that silently kept its legacy submission fails here.
+fn legacy_inventory_contract_rows() -> Vec<HandlerContractRow> {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    crate::session::registry::register_remaining_handlers_like_cpp(&mut builder)
+        .expect("legacy inventory drain registers");
+    builder
+        .build()
+        .iter()
+        .map(HandlerContractRow::from_entry)
+        .collect()
+}
+
+/// Assert one migrated family: exact tuples, one registration each, and no
+/// legacy submission left behind.
+fn assert_migrated_family_like_cpp(
+    family: &str,
+    registrar: impl FnOnce(&mut crate::session::registry::WorldPacketHandlerRegistryBuilder),
+    expected: &[HandlerContractRow],
+    expected_legacy_rows: usize,
+) {
+    let composed = registered_contract();
+    for row in expected {
+        let matches: Vec<_> = composed
+            .iter()
+            .filter(|candidate| candidate.opcode_value == row.opcode_value)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "{family}: {} must be registered exactly once in the composed registry",
+            row.display()
+        );
+        assert_eq!(
+            *matches[0],
+            *row,
+            "{family}: {} changed its registered tuple",
+            row.display()
+        );
+    }
+
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    registrar(&mut builder);
+    let registrar_rows: Vec<_> = builder
+        .build()
+        .iter()
+        .map(HandlerContractRow::from_entry)
+        .collect();
+    for row in expected {
+        assert!(
+            registrar_rows.contains(row),
+            "{family}: {} must originate from its explicit area registrar",
+            row.display()
+        );
+    }
+
+    let legacy = legacy_inventory_contract_rows();
+    for row in expected {
+        assert!(
+            !legacy
+                .iter()
+                .any(|candidate| candidate.opcode_value == row.opcode_value),
+            "{family}: {} is still submitted through the legacy inventory",
+            row.display()
+        );
+    }
+    assert_eq!(
+        legacy.len(),
+        expected_legacy_rows,
+        "{family}: the legacy inventory drain must hold exactly the measured residual rows"
+    );
+}
+
+/// Negative control (#1263 F5 tail): re-registering the migrated tail on the
+/// same builder is rejected and never replaces the first entry.
+#[test]
+fn duplicated_migrated_tail_registration_is_rejected_without_replacement() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_movement_tail_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect("the first tail registration succeeds");
+    let error = wow_world_application::register_movement_tail_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect_err("a second tail registration must be rejected");
+    assert_eq!(error.opcode, wow_constants::ClientOpcodes::MoveStartForward);
+    assert_eq!(
+        error.previous_handler_name,
+        "handle_movement_MoveStartForward"
+    );
+    assert_eq!(error.new_handler_name, "handle_movement_MoveStartForward");
+    let registry = builder.build();
+    assert_eq!(
+        registry
+            .iter()
+            .filter(|entry| entry.opcode == wow_constants::ClientOpcodes::MoveStartForward)
+            .count(),
+        1,
+        "the rejected duplicate must not replace the original entry"
+    );
+}
+
+/// The trainer family (#1263 F5 tail, commit 1) left the legacy inventory.
+#[test]
+fn trainer_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "trainer",
+        |builder| {
+            wow_world_application::register_trainer_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("trainer registrar registers");
+        },
+        &[
+            contract_row(
+                0x34AD,
+                "TrainerList",
+                "handle_trainer_list",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x34AE,
+                "TrainerBuySpell",
+                "handle_trainer_buy_spell",
+                "LoggedIn",
+                "Inplace",
+            ),
+        ],
+        66,
+    );
+}
+/// The movement registration tail (#1263 F5 tail, commit 2) left the legacy
+/// inventory: 53 macro-origin entries plus the one direct `MoveSplineDone`
+/// entry, all from its own area registrar.
+#[test]
+fn movement_tail_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "movement tail",
+        |builder| {
+            wow_world_application::register_movement_tail_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("movement tail registrar registers");
+        },
+        &[
+            contract_row(
+                0x39E4,
+                "MoveStartForward",
+                "handle_movement_MoveStartForward",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39E5,
+                "MoveStartBackward",
+                "handle_movement_MoveStartBackward",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39E6,
+                "MoveStop",
+                "handle_movement_MoveStop",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39E7,
+                "MoveStartStrafeLeft",
+                "handle_movement_MoveStartStrafeLeft",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39E8,
+                "MoveStartStrafeRight",
+                "handle_movement_MoveStartStrafeRight",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39E9,
+                "MoveStopStrafe",
+                "handle_movement_MoveStopStrafe",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39EA,
+                "MoveJump",
+                "handle_movement_MoveJump",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39EC,
+                "MoveStartTurnLeft",
+                "handle_movement_MoveStartTurnLeft",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39ED,
+                "MoveStartTurnRight",
+                "handle_movement_MoveStartTurnRight",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39EE,
+                "MoveStopTurn",
+                "handle_movement_MoveStopTurn",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39EF,
+                "MoveStartPitchUp",
+                "handle_movement_MoveStartPitchUp",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39F0,
+                "MoveStartPitchDown",
+                "handle_movement_MoveStartPitchDown",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39F1,
+                "MoveStopPitch",
+                "handle_movement_MoveStopPitch",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39F2,
+                "MoveSetRunMode",
+                "handle_movement_MoveSetRunMode",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39F3,
+                "MoveSetWalkMode",
+                "handle_movement_MoveSetWalkMode",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39FB,
+                "MoveFallLand",
+                "handle_movement_MoveFallLand",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39FC,
+                "MoveStartSwim",
+                "handle_movement_MoveStartSwim",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x39FD,
+                "MoveStopSwim",
+                "handle_movement_MoveStopSwim",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A09,
+                "MoveSetFacing",
+                "handle_movement_MoveSetFacing",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A0A,
+                "MoveSetPitch",
+                "handle_movement_MoveSetPitch",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A0B,
+                "MoveForceRunSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A0C,
+                "MoveForceRunBackSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A0D,
+                "MoveForceSwimSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A0E,
+                "MoveForceRootAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A0F,
+                "MoveForceUnrootAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A10,
+                "MoveHeartbeat",
+                "handle_movement_MoveHeartbeat",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A13,
+                "MoveHoverAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A18,
+                "MoveSplineDone",
+                "handle_move_spline_done",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A19,
+                "MoveFallReset",
+                "handle_movement_MoveFallReset",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A1A,
+                "MoveUpdateFallSpeed",
+                "handle_movement_MoveUpdateFallSpeed",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A1C,
+                "MoveFeatherFallAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A1D,
+                "MoveWaterWalkAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A1E,
+                "MoveEnableDoubleJumpAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A21,
+                "MoveForceWalkSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A22,
+                "MoveForceSwimBackSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A23,
+                "MoveForceTurnRateChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A24,
+                "MoveEnableSwimToFlyTransAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A25,
+                "MoveSetCanTurnWhileFallingAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A26,
+                "MoveSetIgnoreMovementForcesAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A27,
+                "MoveSetCanFlyAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A28,
+                "MoveSetFly",
+                "handle_movement_MoveSetFly",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A29,
+                "MoveStartAscend",
+                "handle_movement_MoveStartAscend",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A2A,
+                "MoveStopAscend",
+                "handle_movement_MoveStopAscend",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A2D,
+                "MoveForceFlightSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A2E,
+                "MoveForceFlightBackSpeedChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A30,
+                "MoveStartDescend",
+                "handle_movement_MoveStartDescend",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A32,
+                "MoveForcePitchRateChangeAck",
+                "handle_movement_speed_ack",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A35,
+                "MoveGravityDisableAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A36,
+                "MoveGravityEnableAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A37,
+                "MoveInertiaDisableAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A38,
+                "MoveInertiaEnableAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A39,
+                "MoveCollisionDisableAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A3A,
+                "MoveCollisionEnableAck",
+                "handle_movement_ack_message",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A5F,
+                "MoveSetFacingHeartbeat",
+                "handle_movement_MoveSetFacingHeartbeat",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+        ],
+        66,
+    );
+}

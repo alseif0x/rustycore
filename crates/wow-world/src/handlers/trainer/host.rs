@@ -19,6 +19,7 @@ use std::future::Future;
 use wow_core::{ObjectGuid, ObjectGuidGenerator};
 use wow_data::TrainerSpellLikeCpp;
 use wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp;
+use wow_handler::HandlerFuture;
 use wow_spell_acquisition::{
     PlayerAcquisitionLifecycleLikeCpp, PlayerCastAcquisitionResolutionLikeCpp,
     PlayerFuturePlayerConditionResolutionLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
@@ -26,12 +27,12 @@ use wow_spell_acquisition::{
 };
 use wow_world_application::{
     AppTrainerBuyAdmissionCxLikeCpp, AppTrainerBuyCx, PreparedBattlePetTrainerOfferLikeCpp,
-    TrainerBuySpellHostLikeCpp, TrainerOfferDecisionLikeCpp,
+    TrainerBuySpellHostLikeCpp, TrainerHandlerHostLikeCpp, TrainerOfferDecisionLikeCpp,
 };
 use wow_world_core::session::{HubMut, HubRef};
 use wow_world_lifecycle::ExclusivePlayerMoneyPersistenceLikeCpp;
 
-use crate::session::WorldSession;
+use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
 impl TrainerBuySpellHostLikeCpp for WorldSession {
     fn trainer_buy_spell_hub_ref_like_cpp(&self) -> HubRef<'_> {
@@ -147,5 +148,30 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
             )
             .await;
         }
+    }
+}
+
+impl TrainerHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
+    fn handle_trainer_list_like_cpp<'a>(
+        &'a mut self,
+        hello: wow_packet::packets::gossip::Hello,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_trainer_list(self, hello).await })
+    }
+
+    fn handle_trainer_buy_spell_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: wow_packet::WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            wow_world_application::handle_trainer_buy_spell_with_generator_like_cpp(
+                self,
+                catalogs.id_generators.item.as_ref(),
+                catalogs.battle_pet_trainer_selection.as_ref(),
+                pkt,
+            )
+            .await
+        })
     }
 }

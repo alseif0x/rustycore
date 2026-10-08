@@ -80,7 +80,6 @@ fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> Trai
 // ── Handler registrations ─────────────────────────────────────────────────────
 
 mod host;
-mod registrations;
 
 // ── Handler implementations ───────────────────────────────────────────────────
 

@@ -90,40 +90,37 @@ fn source_guard_rejects_cfg_on_direct_macro_definition_invocation_and_ancestor()
         (
             r#"
                 #[cfg(feature = "conditional-handler")]
-                macro_rules! register_handler {
-                    ($opcode:ident) => {
-                        inventory::submit! {
-                            PacketHandlerEntry {
-                                opcode: ClientOpcodes::$opcode,
-                                status: SessionStatus::LoggedIn,
-                                processing: PacketProcessing::Inplace,
-                                handler_name: "macro",
-                            }
-                        }
+                macro_rules! register_move {
+                    ($builder:ident, $opcode:ident) => {
+                        $builder.register(PacketHandlerEntry {
+                            opcode: ClientOpcodes::$opcode,
+                            status: SessionStatus::LoggedIn,
+                            processing: PacketProcessing::Inplace,
+                            handler_name: "macro",
+                            handler: hidden,
+                        })?
                     };
                 }
-                register_handler!(Alpha);
             "#,
-            "registration macro register_handler is conditionally compiled",
+            "registration macro register_move is conditionally compiled",
         ),
         (
             r#"
-                macro_rules! register_handler {
-                    ($opcode:ident) => {
-                        inventory::submit! {
-                            PacketHandlerEntry {
-                                opcode: ClientOpcodes::$opcode,
-                                status: SessionStatus::LoggedIn,
-                                processing: PacketProcessing::Inplace,
-                                handler_name: "macro",
-                            }
-                        }
+                macro_rules! register_move {
+                    ($builder:ident, $opcode:ident) => {
+                        $builder.register(PacketHandlerEntry {
+                            opcode: ClientOpcodes::$opcode,
+                            status: SessionStatus::LoggedIn,
+                            processing: PacketProcessing::Inplace,
+                            handler_name: "macro",
+                            handler: hidden,
+                        })?
                     };
                 }
                 #[cfg(target_os = "linux")]
-                register_handler!(Alpha);
+                register_move!(builder, Alpha);
             "#,
-            "handler registration register_handler! is conditionally compiled",
+            "must be invoked inside the movement tail registrar",
         ),
         (
             r#"
@@ -157,26 +154,24 @@ fn source_guard_rejects_cfg_on_direct_macro_definition_invocation_and_ancestor()
 fn source_guard_rejects_cfg_hidden_inside_a_registration_macro() {
     let error = analyze_inline_source(
         r#"
-            macro_rules! register_handler {
-                ($opcode:ident) => {
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
                     #[cfg_attr(debug_assertions, allow(dead_code))]
-                    inventory::submit! {
-                        PacketHandlerEntry {
-                            opcode: ClientOpcodes::$opcode,
-                            status: SessionStatus::LoggedIn,
-                            processing: PacketProcessing::Inplace,
-                            handler_name: "macro",
-                        }
-                    }
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "macro",
+                        handler: hidden,
+                    })?
                 };
             }
-            register_handler!(Alpha);
         "#,
     )
     .expect_err("conditional tokens inside a registration macro must be rejected");
 
     assert!(
-        error.contains("registration macro register_handler contains cfg/cfg_attr tokens"),
+        error.contains("registration macro register_move contains cfg/cfg_attr tokens"),
         "{error}"
     );
 }
@@ -254,26 +249,6 @@ fn source_guard_rejects_handler_grammar_inside_blocks() {
         ),
         (
             r#"
-                macro_rules! register_handler {
-                    ($opcode:ident) => {
-                        inventory::submit! {
-                            PacketHandlerEntry {
-                                opcode: ClientOpcodes::$opcode,
-                                status: SessionStatus::LoggedIn,
-                                processing: PacketProcessing::Inplace,
-                                handler_name: "hidden",
-                            }
-                        }
-                    };
-                }
-                fn hidden() {
-                    register_handler!(Alpha);
-                }
-            "#,
-            "register_handler!",
-        ),
-        (
-            r#"
                 fn hidden() {
                     include!("generated_handlers.rs");
                 }
@@ -337,6 +312,32 @@ fn source_guard_rejects_handler_grammar_inside_blocks() {
         );
         assert!(error.contains(macro_name), "{error}");
     }
+
+    // A tail registration macro inside a block is rejected because the statement
+    // macros are permitted only inside the movement tail registrar.
+    let registration_macro = analyze_inline_source(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "hidden",
+                        handler: hidden,
+                    })?
+                };
+            }
+            fn hidden() {
+                register_move!(builder, Alpha);
+            }
+        "#,
+    )
+    .expect_err("a registration macro inside a block must fail closed");
+    assert!(
+        registration_macro.contains("may be invoked only inside the movement tail registrar"),
+        "{registration_macro}"
+    );
 }
 
 #[test]
@@ -363,19 +364,35 @@ fn qualified_legacy_wrapper_counts_as_one_direct_submission_without_a_template_n
     assert_eq!(report.registration_macro_invocations, 0);
     assert!(report.registration_macro_names.is_empty());
 
-    let template = analyze_inline_source(
+    // The relocated statement macro is recognized only inside the movement tail
+    // registrar, and its invocation counts once.
+    let template = crate::registrations::analyze_inline_source_at_module(
         r#"
             macro_rules! register_move {
-                ($opcode:ident) => {
-                    inventory::submit! {
-                        PacketHandlerEntry { opcode: ClientOpcodes::$opcode }
-                    }
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::ThreadSafe,
+                        handler_name: concat!("handle_movement_", stringify!($opcode)),
+                        handler: handle_movement_tail_move_thunk::<S, C>,
+                    })?
                 };
             }
-            register_move!(MoveStartForward);
+            pub fn register_movement_tail_handlers_like_cpp<S, C>(
+                builder: &mut RegistryBuilder<S, C>,
+            ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+            where
+                S: MovementHandlerHostLikeCpp<C> + Send,
+                C: Sync,
+            {
+                register_move!(builder, MoveStartForward);
+                Ok(())
+            }
         "#,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
     )
-    .expect("the existing register_move template remains recognized");
+    .expect("the relocated tail macro template is recognized inside its registrar");
     assert_eq!(template.direct_submissions, 0);
     assert_eq!(template.registration_macro_invocations, 1);
     assert_eq!(
@@ -383,6 +400,7 @@ fn qualified_legacy_wrapper_counts_as_one_direct_submission_without_a_template_n
         BTreeSet::from(["register_move".to_owned()])
     );
 
+    // The legacy inventory expansion is no longer the registration grammar.
     let wrapper_template = analyze_inline_source(
         r#"
             macro_rules! register_move {
@@ -393,19 +411,7 @@ fn qualified_legacy_wrapper_counts_as_one_direct_submission_without_a_template_n
                             status: SessionStatus::LoggedIn,
                             processing: PacketProcessing::ThreadSafe,
                             handler_name: concat!("handle_movement_", stringify!($opcode)),
-                            handler: |session, catalogs, pkt| {
-                                Box::pin(async move {
-                                    session
-                                        .handle_movement_with_catalogs_like_cpp(
-                                            catalogs.area_triggers.as_ref(),
-                                            catalogs.creature_spawns.as_ref(),
-                                            catalogs.progression.as_ref(),
-                                            &catalogs.player_grid_loader,
-                                            pkt,
-                                        )
-                                        .await
-                                })
-                            },
+                            handler: hidden,
                         }
                     }
                 };
@@ -413,12 +419,10 @@ fn qualified_legacy_wrapper_counts_as_one_direct_submission_without_a_template_n
             register_move!(MoveStartForward);
         "#,
     )
-    .expect("the real register_move wrapper template accepts its opcode metavariable");
-    assert_eq!(wrapper_template.direct_submissions, 0);
-    assert_eq!(wrapper_template.registration_macro_invocations, 1);
-    assert_eq!(
-        wrapper_template.registration_macro_names,
-        BTreeSet::from(["register_move".to_owned()])
+    .expect_err("the legacy wrapper expansion is no longer a registration macro");
+    assert!(
+        wrapper_template.contains("still expands through the legacy inventory submission grammar"),
+        "{wrapper_template}"
     );
 }
 
@@ -558,7 +562,7 @@ fn source_guard_rejects_nested_handler_macro_definition() {
 fn source_guard_rejects_repeating_or_multi_arm_registration_macros() {
     let repeating = analyze_inline_source(
         r#"
-            macro_rules! register_handler {
+            macro_rules! register_move {
                 ($($opcode:ident),+) => {
                     $(inventory::submit! {
                         PacketHandlerEntry {
@@ -570,7 +574,7 @@ fn source_guard_rejects_repeating_or_multi_arm_registration_macros() {
                     })+
                 };
             }
-            register_handler!(Alpha, Beta);
+            register_move!(Alpha, Beta);
         "#,
     )
     .expect_err("repeating registration expansion must be rejected");
@@ -581,22 +585,235 @@ fn source_guard_rejects_repeating_or_multi_arm_registration_macros() {
 
     let multi_arm = analyze_inline_source(
         r#"
-            macro_rules! register_handler {
-                ($opcode:ident) => {
-                    inventory::submit! {
-                        PacketHandlerEntry {
-                            opcode: ClientOpcodes::$opcode,
-                            status: SessionStatus::LoggedIn,
-                            processing: PacketProcessing::Inplace,
-                            handler_name: "macro",
-                        }
-                    }
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "macro",
+                        handler: hidden,
+                    })?
                 };
                 () => {};
             }
-            register_handler!(Alpha);
+            register_move!(builder, Alpha);
         "#,
     )
     .expect_err("multi-arm registration expansion must be rejected");
     assert!(multi_arm.contains("has 2 rule arms"), "{multi_arm}");
+}
+
+const REAL_MOVEMENT_TAIL_SOURCE: &str = include_str!(
+    "../../../../../crates/wow-world-application/src/movement_handlers/tail_registrations.rs"
+);
+
+#[test]
+fn movement_tail_macros_are_owned_by_the_tail_and_counted_once() {
+    let report = crate::registrations::analyze_inline_source_at_module(
+        REAL_MOVEMENT_TAIL_SOURCE,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+    )
+    .expect("the real movement tail source is inside the closed registration grammar");
+    assert_eq!(report.direct_submissions, 0);
+    assert_eq!(
+        report.registration_macro_invocations, 53,
+        "the tail invokes 28 + 16 + 9 statement macros"
+    );
+    assert_eq!(
+        report.registration_macro_names,
+        BTreeSet::from([
+            "register_move".to_owned(),
+            "register_movement_ack_message".to_owned(),
+            "register_movement_speed_ack".to_owned(),
+        ])
+    );
+}
+
+#[test]
+fn movement_tail_contract_accounts_for_one_direct_entry_and_the_trainer_tail_for_two() {
+    let tail = crate::registrations::analyze_contract_source(
+        crate::registrations::MOVEMENT_TAIL_REGISTRAR,
+        "wow-world-application",
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+        Path::new("crates/wow-world-application/src/movement_handlers/tail_registrations.rs"),
+        REAL_MOVEMENT_TAIL_SOURCE,
+    )
+    .expect("the real movement tail registrar matches its finite contract");
+    assert_eq!(
+        tail.entries, 1,
+        "only MoveSplineDone is a direct entry; the other 53 are macro-origin"
+    );
+
+    let trainer = crate::registrations::analyze_contract_source(
+        crate::registrations::TRAINER_REGISTRAR,
+        "wow-world-application",
+        "crate::trainer_handlers",
+        Path::new("crates/wow-world-application/src/trainer_handlers.rs"),
+        include_str!("../../../../../crates/wow-world-application/src/trainer_handlers.rs"),
+    )
+    .expect("the real trainer registrar matches its finite contract");
+    assert_eq!(trainer.entries, 2);
+}
+
+#[test]
+fn movement_tail_registrar_rejects_a_direct_and_macro_opcode_collision() {
+    let mutated = REAL_MOVEMENT_TAIL_SOURCE.replace(
+        "    builder.register(PacketHandlerEntry {\n        opcode: ClientOpcodes::MoveSplineDone,",
+        "    register_move!(builder, MoveSplineDone);\n    builder.register(PacketHandlerEntry {\n        opcode: ClientOpcodes::MoveSplineDone,",
+    );
+    assert_ne!(
+        mutated, REAL_MOVEMENT_TAIL_SOURCE,
+        "fixture mutation matched"
+    );
+    let error = crate::registrations::analyze_contract_source(
+        crate::registrations::MOVEMENT_TAIL_REGISTRAR,
+        "wow-world-application",
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+        Path::new("crates/wow-world-application/src/movement_handlers/tail_registrations.rs"),
+        &mutated,
+    )
+    .expect_err("a direct/macro opcode collision must be rejected");
+    assert!(
+        error.contains("duplicate ApplicationMovementTail handler opcode entry"),
+        "{error}"
+    );
+}
+
+#[test]
+fn builder_registration_macro_declaration_set_is_closed() {
+    crate::registrations::validate_registration_macro_declaration_set(&BTreeSet::from([
+        "register_move".to_owned(),
+        "register_movement_ack_message".to_owned(),
+        "register_movement_speed_ack".to_owned(),
+    ]))
+    .expect("the three tail macros are the closed declaration set");
+
+    let error =
+        crate::registrations::validate_registration_macro_declaration_set(&BTreeSet::from([
+            "register_move".to_owned(),
+            "register_movement_ack_message".to_owned(),
+            "register_movement_speed_ack".to_owned(),
+            "register_move_extra".to_owned(),
+        ]))
+        .expect_err("a fourth registration macro must be rejected");
+    assert!(error.contains("grammar changed"), "{error}");
+}
+
+#[test]
+fn relocated_or_unowned_builder_registration_macro_is_rejected() {
+    let error = crate::registrations::analyze_inline_source_at_module(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "hidden",
+                        handler: hidden,
+                    })?
+                };
+            }
+            pub fn register_movement_tail_handlers_like_cpp<S, C>(
+                builder: &mut RegistryBuilder<S, C>,
+            ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+            where
+                S: MovementHandlerHostLikeCpp<C> + Send,
+                C: Sync,
+            {
+                register_move!(builder, Alpha);
+                Ok(())
+            }
+        "#,
+        "crate::handlers::other",
+    )
+    .expect_err("a relocated statement registration macro must be rejected");
+    assert!(
+        error.contains("instead of the movement tail owner"),
+        "{error}"
+    );
+}
+
+#[test]
+fn tail_registration_macro_invocations_outside_the_tail_registrar_are_rejected() {
+    let item_level = crate::registrations::analyze_inline_source_at_module(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "hidden",
+                        handler: hidden,
+                    })?
+                };
+            }
+            register_move!(builder, Alpha);
+        "#,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+    )
+    .expect_err("an item-level tail registration macro invocation must be rejected");
+    assert!(
+        item_level.contains("not at module item level"),
+        "{item_level}"
+    );
+
+    let other_function = crate::registrations::analyze_inline_source_at_module(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "hidden",
+                        handler: hidden,
+                    })?
+                };
+            }
+            fn other(builder: &mut RegistryBuilder<(), ()>) {
+                register_move!(builder, Alpha);
+            }
+        "#,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+    )
+    .expect_err("a tail registration macro invoked outside its registrar must be rejected");
+    assert!(
+        other_function.contains("may be invoked only inside the movement tail registrar"),
+        "{other_function}"
+    );
+
+    let bad_arguments = crate::registrations::analyze_inline_source_at_module(
+        r#"
+            macro_rules! register_move {
+                ($builder:ident, $opcode:ident) => {
+                    $builder.register(PacketHandlerEntry {
+                        opcode: ClientOpcodes::$opcode,
+                        status: SessionStatus::LoggedIn,
+                        processing: PacketProcessing::Inplace,
+                        handler_name: "hidden",
+                        handler: hidden,
+                    })?
+                };
+            }
+            pub fn register_movement_tail_handlers_like_cpp<S, C>(
+                builder: &mut RegistryBuilder<S, C>,
+            ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+            where
+                S: MovementHandlerHostLikeCpp<C> + Send,
+                C: Sync,
+            {
+                register_move!(other_builder, Alpha);
+                Ok(())
+            }
+        "#,
+        crate::registrations::MOVEMENT_TAIL_OWNER_MODULE,
+    )
+    .expect_err("a tail registration macro must pass `builder` explicitly");
+    assert!(
+        bad_arguments.contains("must be invoked as `macro!(builder, OpcodeVariant)`"),
+        "{bad_arguments}"
+    );
 }

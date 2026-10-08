@@ -40,6 +40,9 @@ use wow_packet::packets::movement::{
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
 use wow_world_core::session::HubMut;
 
+mod tail_registrations;
+pub use tail_registrations::register_movement_tail_handlers_like_cpp;
+
 /// Borrowed inputs of one movement handler invocation.
 pub struct MovementHandlerCxLikeCpp<'a> {
     hub: HubMut<'a>,
@@ -555,6 +558,37 @@ pub trait MovementHandlerHostLikeCpp<C> {
         ack_index: i32,
         move_time: i32,
     );
+
+    /// C++ `HandleMovementOpcode` (`MovementHandler.cpp:310`) for the
+    /// mechanical `CMSG_MOVE_*` tail: the body reads the session catalogs the
+    /// generic tail thunk cannot reach.
+    fn handle_movement_opcode_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleMovementAckMessage` (`MovementHandler.cpp:563`) for the
+    /// acknowledgement tail.
+    fn handle_movement_ack_message_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: wow_packet::packets::movement::MovementAckMessage,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleForceSpeedChangeAck` (`MovementHandler.cpp:468`) for the
+    /// speed-change acknowledgement tail.
+    fn handle_movement_speed_ack_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: wow_packet::packets::movement::MovementSpeedAck,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `HandleMoveSplineDoneOpcode` (`MovementHandler.cpp:667`).
+    fn handle_move_spline_done_like_cpp<'a>(
+        &'a mut self,
+        done: wow_packet::packets::movement::MoveSplineDone,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_set_active_mover_thunk<'a, S, C>(

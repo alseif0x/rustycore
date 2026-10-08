@@ -13,11 +13,12 @@ use crate::registrations::{
     COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
     DUNGEON_FINDING_REGISTRAR, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
     GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR,
-    INVENTORY_REGISTRAR, LOOT_REGISTRAR, MOVEMENT_REGISTRAR, NPC_REGISTRAR, PLAYER_REGISTRAR,
-    QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract,
-    SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR,
-    SUPPORT_REGISTRAR, TRADE_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR,
-    validate_composition_mounts, validate_composition_mounts_with_contracts,
+    INVENTORY_REGISTRAR, LOOT_REGISTRAR, MOVEMENT_REGISTRAR, MOVEMENT_TAIL_REGISTRAR,
+    NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR,
+    RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR,
+    SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR, TRADE_REGISTRAR,
+    TRAINER_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, validate_composition_mounts,
+    validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -209,6 +210,20 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             MOVEMENT_REGISTRAR.module,
             "crates/wow-world-application/src/movement_handlers.rs",
             include_str!("../../../../../crates/wow-world-application/src/movement_handlers.rs"),
+        ),
+        mount(
+            MOVEMENT_TAIL_REGISTRAR.package,
+            MOVEMENT_TAIL_REGISTRAR.module,
+            "crates/wow-world-application/src/movement_handlers/tail_registrations.rs",
+            include_str!(
+                "../../../../../crates/wow-world-application/src/movement_handlers/tail_registrations.rs"
+            ),
+        ),
+        mount(
+            TRAINER_REGISTRAR.package,
+            TRAINER_REGISTRAR.module,
+            "crates/wow-world-application/src/trainer_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/trainer_handlers.rs"),
         ),
         mount(
             NPC_REGISTRAR.package,
@@ -574,6 +589,48 @@ fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
         "    wow_world_application::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
     );
     assert_rejected(&duplicate, "duplicate Bank registrar call");
+}
+
+#[test]
+fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() {
+    for registrar in [
+        "wow_world_application::register_trainer_handlers_like_cpp",
+        "wow_world_application::register_movement_tail_handlers_like_cpp",
+    ] {
+        let mut missing = actual_mounts();
+        let authority = authority_index(&missing);
+        missing[authority].source = mutate_fixture(
+            &missing[authority].source,
+            registrar,
+            "wow_world_application::unowned_migrated_tail_registration",
+        );
+        assert_rejected(&missing, "omitted migrated trainer/tail composition call");
+    }
+
+    // Index 5 is the Application crate root holding both exact facades.
+    let mut aliased_tail_facade = actual_mounts();
+    aliased_tail_facade[5].source = mutate_fixture(
+        &aliased_tail_facade[5].source,
+        "pub use movement_handlers::register_movement_tail_handlers_like_cpp;",
+        "pub use movement_handlers::register_movement_tail_handlers_like_cpp as register_tail;",
+    );
+    assert_rejected(&aliased_tail_facade, "aliased movement tail root facade");
+
+    let mut inexact_trainer_facade = actual_mounts();
+    inexact_trainer_facade[5].source = mutate_fixture(
+        &inexact_trainer_facade[5].source,
+        "pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};",
+        "pub use trainer_handlers::{TrainerHandlerHostLikeCpp};",
+    );
+    assert_rejected(&inexact_trainer_facade, "inexact trainer root facade");
+
+    let mut missing_tail_facade = actual_mounts();
+    missing_tail_facade[5].source = mutate_fixture(
+        &missing_tail_facade[5].source,
+        "pub use movement_handlers::register_movement_tail_handlers_like_cpp;\n",
+        "",
+    );
+    assert_rejected(&missing_tail_facade, "missing movement tail root facade");
 }
 
 #[test]

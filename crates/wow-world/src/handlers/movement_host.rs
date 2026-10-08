@@ -12,7 +12,11 @@
 
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_packet::packets::movement::{MovementAck, MovementForce};
+use wow_handler::HandlerFuture;
+use wow_packet::WorldPacket;
+use wow_packet::packets::movement::{
+    MoveSplineDone, MovementAck, MovementAckMessage, MovementForce, MovementSpeedAck,
+};
 use wow_world_application::{MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -87,5 +91,46 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         move_time: i32,
     ) {
         WorldSession::handle_move_teleport_ack_like_cpp(self, mover_guid, ack_index, move_time);
+    }
+
+    fn handle_movement_opcode_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            WorldSession::handle_movement_with_catalogs_like_cpp(
+                self,
+                catalogs.area_triggers.as_ref(),
+                catalogs.creature_spawns.as_ref(),
+                catalogs.progression.as_ref(),
+                &catalogs.player_grid_loader,
+                pkt,
+            )
+            .await
+        })
+    }
+
+    fn handle_movement_ack_message_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: MovementAckMessage,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_movement_ack_message(self, opcode, ack).await })
+    }
+
+    fn handle_movement_speed_ack_like_cpp<'a>(
+        &'a mut self,
+        opcode: ClientOpcodes,
+        ack: MovementSpeedAck,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_movement_speed_ack(self, opcode, ack).await })
+    }
+
+    fn handle_move_spline_done_like_cpp<'a>(
+        &'a mut self,
+        done: MoveSplineDone,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_move_spline_done(self, done).await })
     }
 }

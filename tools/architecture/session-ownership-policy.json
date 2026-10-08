@@ -1175,6 +1175,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::travel::travel",
           "trait_path": null,
           "cfg": [],
@@ -11156,6 +11162,20 @@
           "module": "crate::handlers::movement_host",
           "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "handle_move_spline_done_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_move_spline_done_like_cpp < 'a > (& 'a mut self , done : MoveSplineDone ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "handle_move_teleport_ack_like_cpp",
           "visibility": "private",
           "signature": "fn handle_move_teleport_ack_like_cpp (& mut self , mover_guid : ObjectGuid , ack_index : i32 , move_time : i32 ,)",
@@ -11170,9 +11190,51 @@
           "module": "crate::handlers::movement_host",
           "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "handle_movement_ack_message_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_movement_ack_message_like_cpp < 'a > (& 'a mut self , opcode : ClientOpcodes , ack : MovementAckMessage ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "handle_movement_force_mod_magnitude_ack_like_cpp",
           "visibility": "private",
           "signature": "fn handle_movement_force_mod_magnitude_ack_like_cpp (& mut self , opcode : ClientOpcodes , ack : & mut MovementAck , speed : f32 ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_movement_opcode_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_movement_opcode_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::movement_host",
+          "trait_path": "MovementHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_movement_speed_ack_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_movement_speed_ack_like_cpp < 'a > (& 'a mut self , opcode : ClientOpcodes , ack : MovementSpeedAck ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -14382,6 +14444,34 @@
           "name": "trainer_offer_decision_like_cpp",
           "visibility": "private",
           "signature": "fn trainer_offer_decision_like_cpp (& mut self , trainer_id : u32 , trainer_spell : & TrainerSpellLikeCpp , faction_template_id : u32 ,) -> TrainerOfferDecisionLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_trainer_buy_spell_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_trainer_buy_spell_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : wow_packet :: WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::trainer::host",
+          "trait_path": "TrainerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_trainer_list_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_trainer_list_like_cpp < 'a > (& 'a mut self , hello : wow_packet :: packets :: gossip :: Hello ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [

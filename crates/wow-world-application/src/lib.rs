@@ -31,6 +31,7 @@ mod instances;
 mod loot_handlers;
 mod loot_release;
 mod movement_handlers;
+pub use movement_handlers::register_movement_tail_handlers_like_cpp;
 pub use movement_handlers::{
     MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp, register_movement_handlers_like_cpp,
 };
@@ -67,6 +68,7 @@ mod equipment_set_use;
 mod inventory_scaling;
 mod inventory_valuation;
 mod stats;
+mod trainer_handlers;
 mod trainer_purchase;
 pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
 mod inventory_move_planning;
@@ -286,6 +288,7 @@ pub use trade_handlers::{
     player_trade_state_snapshot_like_cpp, resolved_represented_duel_arbiter_guid_like_cpp,
     set_represented_duel_arbiter_guid_like_cpp, set_represented_duel_state_like_cpp,
 };
+pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_purchase::TrainerAcquisitionFixturesLikeCpp;
 pub use trainer_purchase::{
