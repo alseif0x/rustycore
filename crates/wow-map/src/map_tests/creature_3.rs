@@ -446,6 +446,74 @@ fn insert_map_object_record_detaches_displaced_creature_authority_for_same_guid(
     ));
 }
 #[test]
+fn insert_map_object_record_displaces_a_same_authority_other_incarnation_like_cpp() {
+    // R1b: a same-GUID replacement keeps the object lifetime only when it is the
+    // same incarnation — the same authority allocation *and* the same health
+    // timeline. An authority alias arriving with another timeline is a different
+    // incarnation, so it must not inherit the previous lifetime's claimable pool
+    // and leases.
+    let mut map = test_map();
+    let player = ObjectGuid::create_player(1, 484_106);
+    let mut displaced_creature = test_creature_for_spawn(484_106, 4_841_035, true);
+    let guid = displaced_creature.guid();
+    assert!(
+        displaced_creature
+            .initialize_shared_loot_authority_like_cpp(money_loot_for_player_like_cpp(
+                guid, 31, player,
+            ))
+            .installed()
+    );
+    let displaced_authority = displaced_creature.loot_authority_like_cpp().clone();
+    map.insert_map_object_record(MapObjectRecord::new_creature(displaced_creature).unwrap())
+        .unwrap();
+    let lease = poll_immediately_ready(displaced_authority.reserve_money_like_cpp(player))
+        .expect("the displaced Creature authority must grant the uncontended lease");
+
+    let mut replacement = test_creature_for_spawn(484_106, 4_841_035, true);
+    replacement.share_loot_authority_like_cpp(displaced_authority.clone());
+    assert!(
+        replacement
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&displaced_authority),
+        "the replacement carries the same authority allocation"
+    );
+    let displaced_timeline = map
+        .map_object_record(guid)
+        .and_then(MapObjectRecord::creature)
+        .expect("the displaced creature record")
+        .unit()
+        .health_state_revision_authority_like_cpp();
+    assert!(
+        !replacement
+            .unit()
+            .shares_health_state_revision_authority_like_cpp(&displaced_timeline),
+        "the replacement belongs to another health timeline"
+    );
+
+    map.insert_map_object_record(MapObjectRecord::new_creature(replacement).unwrap())
+        .unwrap();
+
+    assert_eq!(
+        displaced_authority.lifecycle_like_cpp(),
+        OwnedLootAuthorityLifecycle::Detached,
+        "a cross-incarnation replacement terminally invalidates the shared allocation"
+    );
+    assert!(matches!(
+        lease.commit_like_cpp(),
+        Err(LootClaimCommitError::StaleGeneration | LootClaimCommitError::RolledBack)
+    ));
+    assert_eq!(
+        map.map_object_record(guid)
+            .and_then(MapObjectRecord::creature)
+            .unwrap()
+            .loot_authority_like_cpp()
+            .lifecycle_like_cpp(),
+        OwnedLootAuthorityLifecycle::Detached,
+        "the new incarnation cannot inherit the previous lifetime's pool"
+    );
+}
+
+#[test]
 fn remove_list_enqueue_creature_marks_destroyed_cleans_and_keeps_record_like_cpp() {
     let mut map = test_map();
     let spawn_id = 41901;

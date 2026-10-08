@@ -883,7 +883,7 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
     );
 }
 #[test]
-fn canonical_creature_sync_quarantines_distinct_active_loot_authorities_like_cpp() {
+fn canonical_creature_sync_refuses_a_competing_used_loot_authority_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let guid = test_creature_guid(61_399);
     let player_guid = ObjectGuid::create_player(1, 61_398);
@@ -925,7 +925,12 @@ fn canonical_creature_sync_quarantines_distinct_active_loot_authorities_like_cpp
         creature.initialize_shared_loot_authority_like_cpp(loot(10));
         creature.loot_authority_like_cpp().clone()
     };
+    let canonical_stamp_before = canonical_authority.stamp_like_cpp();
 
+    // A second representation of the same GUID carrying its own live pool and
+    // its own health timeline: a competing used allocation from another
+    // incarnation, so synchronization must be refused before any authority is
+    // selected.
     let mut incoming = wow_entities::Creature::new(false);
     incoming.unit_mut().world_mut().object_mut().create(guid);
     incoming
@@ -938,31 +943,61 @@ fn canonical_creature_sync_quarantines_distinct_active_loot_authorities_like_cpp
     incoming.initialize_shared_loot_authority_like_cpp(loot(20));
     let incoming_authority = incoming.loot_authority_like_cpp().clone();
     assert!(!canonical_authority.shares_storage_like_cpp(&incoming_authority));
-
-    let selected = sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, incoming)
-        .expect("conflicting mirrors collapse onto a canonical tombstone");
-    assert_eq!(
-        canonical_authority.lifecycle_like_cpp(),
-        OwnedLootAuthorityLifecycle::Detached,
-        "the displaced canonical allocation is terminally invalidated"
-    );
     assert_eq!(
         incoming_authority.lifecycle_like_cpp(),
-        OwnedLootAuthorityLifecycle::Active,
-        "the incoming value is only a transport snapshot; its live legacy owner performs its own CAS"
+        OwnedLootAuthorityLifecycle::Active
     );
-    assert_eq!(
-        selected.lifecycle_like_cpp(),
-        OwnedLootAuthorityLifecycle::Quarantined
+
+    let selected = sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, incoming);
+    assert!(
+        selected.is_none(),
+        "a competing used allocation must be refused, never reconciled or quarantined"
     );
-    assert!(!canonical_authority.shares_storage_like_cpp(&selected));
-    assert!(!incoming_authority.shares_storage_like_cpp(&selected));
-    let manager = canonical.lock().unwrap();
-    let stored = manager
+
+    let stored = canonical
+        .lock()
+        .unwrap()
         .find_map(609, 7)
         .unwrap()
         .map()
         .with_creature_like_cpp(guid, Clone::clone)
         .unwrap();
-    assert!(selected.shares_storage_like_cpp(stored.loot_authority_like_cpp()));
+    assert!(
+        stored
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&canonical_authority),
+        "the canonical object keeps its own allocation"
+    );
+    assert_eq!(
+        stored.loot_authority_like_cpp().stamp_like_cpp(),
+        canonical_stamp_before,
+        "a refused synchronization must not mutate the canonical lifetime"
+    );
+    assert_eq!(
+        stored.loot_authority_like_cpp().lifecycle_like_cpp(),
+        OwnedLootAuthorityLifecycle::Active,
+        "no terminal quarantine tombstone is installed on the refusal path"
+    );
+    assert_eq!(
+        stored
+            .loot_authority_like_cpp()
+            .shared_snapshot_like_cpp()
+            .expect("the canonical pool stays openable")
+            .loot
+            .coins,
+        10
+    );
+    assert_eq!(
+        canonical_authority.lifecycle_like_cpp(),
+        OwnedLootAuthorityLifecycle::Active,
+        "the canonical allocation is not detached by a refused synchronization"
+    );
+    assert_eq!(
+        incoming_authority
+            .shared_snapshot_like_cpp()
+            .expect("the refused candidate keeps its own untouched pool")
+            .loot
+            .coins,
+        20
+    );
 }

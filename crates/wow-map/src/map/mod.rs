@@ -4919,11 +4919,7 @@ fn typed_loot_authorities_share_storage_like_cpp(
         (AccessorObjectKind::Creature, AccessorObjectKind::Creature) => previous
             .creature()
             .zip(replacement.creature())
-            .is_some_and(|(previous, replacement)| {
-                previous
-                    .loot_authority_like_cpp()
-                    .shares_storage_like_cpp(replacement.loot_authority_like_cpp())
-            }),
+            .is_some_and(|(left, right)| left.is_same_incarnation_like_cpp(right)),
         (AccessorObjectKind::GameObject, AccessorObjectKind::GameObject) => previous
             .game_object()
             .zip(replacement.game_object())
