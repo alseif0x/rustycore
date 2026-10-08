@@ -147,6 +147,14 @@ impl LootState {
             })
     }
 
+    /// F6-7 R7b-2a: the guarded creature loot-lifecycle mutation now routes
+    /// through the session's one gated mutation root
+    /// (`SessionCore::mutate_world_creature_if_fully_looted_observation_like_cpp`),
+    /// which admits the representation against the current canonical
+    /// incarnation, takes the canonical lock before the legacy one, runs the
+    /// mutation once, applies it to the incarnation and only then synchronizes
+    /// the legacy representation. The two-store body that used to live here is
+    /// gone rather than duplicated.
     pub fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
         &mut self,
         hub: &mut HubMut<'_>,
@@ -159,37 +167,20 @@ impl LootState {
     where
         F: FnOnce(&mut wow_world_core::map_manager::WorldCreature) -> R,
     {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        let manager = hub.core.map_manager.as_ref().cloned()?;
-        let guarded_result = {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
-            if !creature
-                .creature
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(authority)
-            {
-                return None;
-            }
-            authority.with_fully_looted_lifecycle_observation_like_cpp(
+        hub.core
+            .mutate_world_creature_if_fully_looted_observation_like_cpp(
+                guid,
+                authority,
                 object_generation,
                 lifecycle_revision,
-                || {
-                    let result = f(creature);
-                    (result, creature.creature.clone())
-                },
+                f,
             )
-        }?;
-        let (result, creature) = guarded_result;
-        hub.core.sync_canonical_creature_entity_like_cpp(creature);
-        Some(result)
     }
 
     /// Detached durable-claim completion variant of the guarded creature
     /// mutation. It additionally requires every authoritative loot viewer set
-    /// to remain empty through the map mutation.
+    /// to remain empty through the map mutation. F6-7 R7b-2a: same single gated
+    /// root as the viewed variant.
     pub fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
         &mut self,
         hub: &mut HubMut<'_>,
@@ -202,31 +193,13 @@ impl LootState {
     where
         F: FnOnce(&mut wow_world_core::map_manager::WorldCreature) -> R,
     {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        let manager = hub.core.map_manager.as_ref().cloned()?;
-        let guarded_result = {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
-            if !creature
-                .creature
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(authority)
-            {
-                return None;
-            }
-            authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
+        hub.core
+            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
+                guid,
+                authority,
                 object_generation,
                 lifecycle_revision,
-                || {
-                    let result = f(creature);
-                    (result, creature.creature.clone())
-                },
+                f,
             )
-        }?;
-        let (result, creature) = guarded_result;
-        hub.core.sync_canonical_creature_entity_like_cpp(creature);
-        Some(result)
     }
 }

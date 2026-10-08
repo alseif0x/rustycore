@@ -1,33 +1,89 @@
 use crate::session::creature_canonical_adapter::{
     CanonicalCreatureEntityApplicationLikeCpp, apply_canonical_creature_entity_on_map_like_cpp,
-    creature_representation_is_admitted_like_cpp, sync_canonical_creature_entity_on_map_like_cpp,
+    creature_representation_is_admitted_like_cpp,
 };
 use crate::session::state::SessionCore;
 use wow_core::ObjectGuid;
+use wow_loot::OwnedLootAuthority;
 
 impl SessionCore {
-    pub fn sync_canonical_creature_entity_like_cpp(&mut self, creature: wow_entities::Creature) {
+    /// Synchronize one transported creature representation into the current
+    /// canonical incarnation, or refuse it.
+    ///
+    /// F6-7 R7b-2a (reviewer signature §5.3.1 R7). This root used to be the
+    /// thin locking wrapper around the in-guard application helper and exposed
+    /// success — the expected-stamp rebind of the legacy loot authority — for a
+    /// snapshot the canonical incarnation had **not** applied, so a rejected
+    /// transported representation still displaced the existing legacy
+    /// representation's loot authority. The gate is now the same one the
+    /// mutation root [`Self::mutate_world_creature`] uses:
+    ///
+    /// * ownership is resolved as the current canonical incarnation and the
+    ///   representation is admitted against it *before* the application is
+    ///   invoked, so a missing canonical manager, a missing map instance, a
+    ///   missing incarnation, a representation from another health timeline, a
+    ///   stale or ABA-replayed revision and a competing used loot allocation are
+    ///   refused with nothing written;
+    /// * the admitted representation is applied to the incarnation inside the
+    ///   canonical execution lock, in canonical→legacy order and with no I/O,
+    ///   delivery, await or manager re-entry inside the guards;
+    /// * the existing legacy representation is synchronized only afterwards, by
+    ///   the same expected-authority/expected-stamp compare-and-exchange, so a
+    ///   refusal cannot publish a success the canonical incarnation never
+    ///   applied.
+    ///
+    /// The return value is the outcome: `true` only once the canonical
+    /// incarnation has applied the representation *and* the legacy alias has
+    /// been synchronized. `false` means the operation wrote neither store. A
+    /// session with no canonical map manager has no incarnation to synchronize
+    /// into, so this root refuses there instead of silently doing nothing.
+    pub fn sync_canonical_creature_entity_like_cpp(
+        &mut self,
+        creature: wow_entities::Creature,
+    ) -> bool {
         let guid = creature.guid();
         let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.canonical_map_manager.as_ref() else {
-            return;
+        let Some(manager) = self.canonical_map_manager.as_ref().cloned() else {
+            return false;
         };
-        let authority = sync_canonical_creature_entity_on_map_like_cpp(
-            manager,
-            u32::from(map_id),
-            instance_id,
-            creature,
+        // The canonical execution lock is released before the legacy
+        // representation is synchronized, so this root never nests the legacy
+        // guard inside the canonical guard and never runs the rebind under it.
+        let authority = {
+            let Ok(mut manager) = manager.lock() else {
+                return false;
+            };
+            let Some(map) = manager.find_map_mut(u32::from(map_id), instance_id) else {
+                return false;
+            };
+            let admitted = map
+                .map()
+                .with_creature_like_cpp(guid, |current| {
+                    creature_representation_is_admitted_like_cpp(current, &creature)
+                })
+                .unwrap_or(false);
+            if !admitted {
+                return false;
+            }
+            match apply_canonical_creature_entity_on_map_like_cpp(map.map_mut(), creature) {
+                CanonicalCreatureEntityApplicationLikeCpp::Applied(authority) => authority,
+                // The gate above refuses every representation the application
+                // could reject, so `Rejected` and `Refused` are unreachable here
+                // unless the incarnation changed under the guard; neither may
+                // publish success.
+                CanonicalCreatureEntityApplicationLikeCpp::Rejected(_)
+                | CanonicalCreatureEntityApplicationLikeCpp::Refused => return false,
+            }
+        };
+        let _ = self.rebind_legacy_creature_loot_authority_like_cpp(
+            guid,
+            &expected_legacy_authority,
+            expected_legacy_stamp,
+            authority,
         );
-        if let Some(authority) = authority {
-            let _ = self.rebind_legacy_creature_loot_authority_like_cpp(
-                guid,
-                &expected_legacy_authority,
-                expected_legacy_stamp,
-                authority,
-            );
-        }
+        true
     }
 
     /// Read one value from the session's represented creature *without*
@@ -69,6 +125,8 @@ impl SessionCore {
     /// of moving a consumer from the mutation root to this path: the incidental
     /// canonical snapshot synchronization that used to accompany such a read no
     /// longer happens.
+    ///
+    /// [`WorldCreature`]: crate::map_manager::WorldCreature
     pub fn read_world_creature_like_cpp<F, R>(&self, guid: ObjectGuid, f: F) -> Option<R>
     where
         F: FnOnce(&crate::map_manager::WorldCreature) -> R,
@@ -100,8 +158,8 @@ impl SessionCore {
     ///
     /// A session with no canonical map manager at all owns no canonical
     /// incarnation store to diverge from, so it keeps the legacy-only path —
-    /// the same compatibility contract
-    /// [`Self::sync_canonical_creature_entity_like_cpp`] already has.
+    /// the same compatibility split the loot-authority lookup keeps for that
+    /// configuration.
     ///
     /// This root is the *mutation* contract, so callers that only observe a
     /// creature belong on [`Self::read_world_creature_like_cpp`] instead.
@@ -114,6 +172,122 @@ impl SessionCore {
     where
         F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
     {
+        self.with_admitted_world_creature_like_cpp(guid, |creature| {
+            Some((f(creature), creature.creature.clone()))
+        })
+    }
+
+    /// Execute one admitted mutation guarded by a fully-looted lifecycle
+    /// observation of the owner's loot authority.
+    ///
+    /// F6-7 R7b-2a. This is the viewed-release sibling of the gated mutation
+    /// root: `SessionCore::with_admitted_world_creature_like_cpp` supplies the
+    /// incarnation admission, the canonical→legacy lock order and the canonical
+    /// application, and the authority's own observation supplies the loot
+    /// admission — `authority` must still be the representation's allocation,
+    /// and the whole-owner generation, lifecycle revision and fully-looted pool
+    /// topology must still be the observed ones. The observation and the
+    /// mutation are one critical section, so a pool that reopened between the
+    /// release and the mutation refuses the mutation instead of letting it land.
+    ///
+    /// `f` is invoked only once both admissions passed; a refusal returns `None`
+    /// with the callback unexecuted and nothing written to either store.
+    pub fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        f: F,
+    ) -> Option<R>
+    where
+        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+    {
+        self.with_admitted_world_creature_like_cpp(guid, |creature| {
+            if !creature
+                .creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(authority)
+            {
+                return None;
+            }
+            authority.with_fully_looted_lifecycle_observation_like_cpp(
+                object_generation,
+                lifecycle_revision,
+                || {
+                    let result = f(creature);
+                    (result, creature.creature.clone())
+                },
+            )
+        })
+    }
+
+    /// Detached durable-claim completion variant of
+    /// [`Self::mutate_world_creature_if_fully_looted_observation_like_cpp`].
+    /// It additionally requires every authoritative loot pool to remain
+    /// unviewed through the map mutation.
+    pub fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        f: F,
+    ) -> Option<R>
+    where
+        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+    {
+        self.with_admitted_world_creature_like_cpp(guid, |creature| {
+            if !creature
+                .creature
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(authority)
+            {
+                return None;
+            }
+            authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
+                object_generation,
+                lifecycle_revision,
+                || {
+                    let result = f(creature);
+                    (result, creature.creature.clone())
+                },
+            )
+        })
+    }
+
+    /// The one gated creature-mutation sequence all creature mutation roots
+    /// share (F6-7 R7 / R7b-2a).
+    ///
+    /// * resolves the session's current legacy runtime map key and requires the
+    ///   legacy representation, so an unavailable representation is refused
+    ///   before anything runs;
+    /// * with no canonical map manager it runs `mutation` on the legacy
+    ///   representation alone, the declared legacy-only compatibility path;
+    /// * otherwise it locks the canonical owner **first** and the legacy
+    ///   representation **second** and evaluates the R7a admission predicate
+    ///   against the current canonical incarnation, so a representation from
+    ///   another incarnation, a stale or ABA revision, a competing used loot
+    ///   allocation, a missing map instance and a missing canonical object are
+    ///   all refused with `mutation` unexecuted;
+    /// * invokes `mutation` exactly once and requires it to produce the
+    ///   representation to apply, so a root with a second admission step (the
+    ///   loot-lifecycle observation, for example) refuses by returning `None`
+    ///   instead of publishing a result;
+    /// * applies that representation to the canonical incarnation inside the
+    ///   same critical section and only then synchronizes the existing legacy
+    ///   representation, refusing to expose a result the incarnation did not
+    ///   apply.
+    ///
+    /// No I/O, delivery, await or manager re-entry happens inside these guards,
+    /// and the authority lock a caller's `mutation` may take stays innermost.
+    fn with_admitted_world_creature_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        mutation: impl FnOnce(
+            &mut crate::map_manager::WorldCreature,
+        ) -> Option<(R, wow_entities::Creature)>,
+    ) -> Option<R> {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let legacy_manager = self.map_manager.as_ref().cloned()?;
         let Some(canonical_manager) = self.canonical_map_manager.as_ref().cloned() else {
@@ -121,7 +295,7 @@ impl SessionCore {
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             let creature = legacy_manager.find_creature_mut(map_id, instance_id, guid)?;
-            return Some(f(creature));
+            return mutation(creature).map(|(result, _)| result);
         };
 
         let mut canonical_manager = canonical_manager.lock().ok()?;
@@ -140,21 +314,19 @@ impl SessionCore {
             return None;
         }
 
-        let result = f(creature);
-        let expected_legacy_authority = creature.creature.loot_authority_like_cpp().clone();
+        let (result, mutated) = mutation(creature)?;
+        let expected_legacy_authority = mutated.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
-        let authority = match apply_canonical_creature_entity_on_map_like_cpp(
-            managed.map_mut(),
-            creature.creature.clone(),
-        ) {
-            CanonicalCreatureEntityApplicationLikeCpp::Applied(authority) => authority,
-            // The canonical incarnation may not publish a representation it did
-            // not apply. Admission above is the same predicate the application
-            // re-evaluates, so an admitted representation cannot reach these
-            // branches unless the incarnation changed under the guards.
-            CanonicalCreatureEntityApplicationLikeCpp::Rejected(_)
-            | CanonicalCreatureEntityApplicationLikeCpp::Refused => return None,
-        };
+        let authority =
+            match apply_canonical_creature_entity_on_map_like_cpp(managed.map_mut(), mutated) {
+                CanonicalCreatureEntityApplicationLikeCpp::Applied(authority) => authority,
+                // The canonical incarnation may not publish a representation it did
+                // not apply. Admission above is the same predicate the application
+                // re-evaluates, so an admitted representation cannot reach these
+                // branches unless the incarnation changed under the guards.
+                CanonicalCreatureEntityApplicationLikeCpp::Rejected(_)
+                | CanonicalCreatureEntityApplicationLikeCpp::Refused => return None,
+            };
         let _ = creature.creature.rebind_loot_authority_if_current_like_cpp(
             &expected_legacy_authority,
             expected_legacy_stamp,
