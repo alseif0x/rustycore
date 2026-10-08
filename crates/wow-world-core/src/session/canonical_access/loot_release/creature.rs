@@ -80,13 +80,14 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
             corpse_decay_looted_rate,
         );
         if let Some((authority, object_generation, lifecycle_revision)) = observation {
-            self.mutate_world_creature_if_fully_looted_observation_like_cpp(
-                guid,
-                authority,
-                object_generation,
-                lifecycle_revision,
-                apply_lifecycle,
-            )
+            self.core
+                .mutate_world_creature_if_fully_looted_observation_like_cpp(
+                    guid,
+                    authority,
+                    object_generation,
+                    lifecycle_revision,
+                    apply_lifecycle,
+                )
         } else {
             self.core.mutate_world_creature(guid, apply_lifecycle)
         }
@@ -104,93 +105,16 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         object_generation: u64,
         lifecycle_revision: u64,
     ) -> Option<(Option<(u32, u32)>, wow_entities::UnitValuesUpdate)> {
-        self.mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
-            guid,
-            authority,
-            object_generation,
-            lifecycle_revision,
-            looted_creature_lifecycle_like_cpp(
-                whole_object_fully_skinned,
-                corpse_decay_looted_rate,
-            ),
-        )
-    }
-
-    fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        f: F,
-    ) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.core.map_manager.as_ref().cloned()?;
-        let guarded_result = {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
-            if !creature
-                .creature
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(authority)
-            {
-                return None;
-            }
-            authority.with_fully_looted_lifecycle_observation_like_cpp(
+        self.core
+            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
+                guid,
+                authority,
                 object_generation,
                 lifecycle_revision,
-                || {
-                    let result = f(creature);
-                    (result, creature.creature.clone())
-                },
+                looted_creature_lifecycle_like_cpp(
+                    whole_object_fully_skinned,
+                    corpse_decay_looted_rate,
+                ),
             )
-        }?;
-        let (result, creature) = guarded_result;
-        self.core.sync_canonical_creature_entity_like_cpp(creature);
-        Some(result)
-    }
-
-    fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        f: F,
-    ) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.core.map_manager.as_ref().cloned()?;
-        let guarded_result = {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
-            if !creature
-                .creature
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(authority)
-            {
-                return None;
-            }
-            authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
-                object_generation,
-                lifecycle_revision,
-                || {
-                    let result = f(creature);
-                    (result, creature.creature.clone())
-                },
-            )
-        }?;
-        let (result, creature) = guarded_result;
-        self.core.sync_canonical_creature_entity_like_cpp(creature);
-        Some(result)
     }
 }

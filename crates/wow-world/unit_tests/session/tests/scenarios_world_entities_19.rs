@@ -25,5 +25,9 @@ mod r1b_incarnation_lifecycle;
 mod r7a_canonical_mutation;
 #[path = "scenarios_world_entities_19/r7a_lethal_lifecycle.rs"]
 mod r7a_lethal_lifecycle;
+#[path = "scenarios_world_entities_19/r7b2a_canonical_mutation.rs"]
+mod r7b2a_canonical_mutation;
+#[path = "scenarios_world_entities_19/r7b2a_guarded_loot_release.rs"]
+mod r7b2a_guarded_loot_release;
 #[path = "scenarios_world_entities_19/shared_creature_authority.rs"]
 mod shared_creature_authority;
