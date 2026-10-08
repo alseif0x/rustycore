@@ -70687,7 +70687,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "push",
-              "fingerprint": "fnv1a64x2:d061ab790b01ca4cd79316233dc3a3df:len=50",
+              "fingerprint": "fnv1a64x2:48c1a6b0c166f8515e631e501331f040:len=50",
               "multiplicity": 1
             },
             {
@@ -70736,8 +70736,8 @@
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:ffc0255fe975a940840e2571426938e3:len=1028",
-              "multiplicity": 21
+              "fingerprint": "fnv1a64x2:1bb919af46c8cec82d74f7c17aac7193:len=1077",
+              "multiplicity": 22
             },
             {
               "side": "legacy",
@@ -70911,8 +70911,8 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "push_respawn",
-              "fingerprint": "fnv1a64x2:1b695cdae4ddf2a7e40f5ce885f569f4:len=49",
-              "multiplicity": 1
+              "fingerprint": "fnv1a64x2:b727901aded00e461298c2f335d25891:len=100",
+              "multiplicity": 2
             },
             {
               "side": "legacy",
@@ -70932,7 +70932,7 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "remove_persisted_respawn_time_like_cpp",
-              "fingerprint": "fnv1a64x2:c1e0d642deb9e13875cb6b61c8081a5b:len=203",
+              "fingerprint": "fnv1a64x2:4a160c2edd4b98d426cc0574c67f67bf:len=203",
               "multiplicity": 4
             },
             {
@@ -70985,7 +70985,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : Instant ,) -> LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:4fc8497e1be3c9245b9536d2b6c8108f:len=11902|evidence=fnv1a64x2:bec0e0a2efa319e957721d470500b75a:len=9679",
+          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : Instant ,) -> LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:601fa93084d088a6b026e826c4740a11:len=11970|evidence=fnv1a64x2:7204c3533f79a298fc3d6743b048a1c3:len=9840",
           "cfg": [],
           "multiplicity": 1
         },
@@ -77943,8 +77943,8 @@
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "world_creature",
-              "fingerprint": "fnv1a64x2:9947177edce9f2475c4fab72093c9bf8:len=149",
-              "multiplicity": 3
+              "fingerprint": "fnv1a64x2:e65aa98a318303c04dc310576a52f4fb:len=199",
+              "multiplicity": 4
             },
             {
               "side": "legacy",
@@ -77982,7 +77982,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldEntitiesState::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , hub : & mut HubMut < '_ > , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:688df3485f0a19847c54106af4895f7f:len=7641|evidence=fnv1a64x2:c5c54e0cc344db4a73076388261b4cc5:len=16135",
+          "fingerprint": "signature=impl:WorldEntitiesState::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , hub : & mut HubMut < '_ > , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:193d708047f64d42c33e9692ffa5414d:len=7915|evidence=fnv1a64x2:deafc640c0accc5872104a7eadbf6733:len=16222",
           "cfg": [],
           "multiplicity": 1
         },

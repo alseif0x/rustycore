@@ -2,7 +2,9 @@ use wow_constants::{SheathState, UnitPvpFlags, UnitStandStateType, WeaponAttackT
 use wow_core::ObjectGuid;
 use wow_entities::{AccessorObjectKind, CreatureAddonLifecycleRecordLikeCpp};
 use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle};
-use wow_world_core::map_manager::{WorldCreature, world_to_grid_coords};
+use wow_world_core::map_manager::{
+    WorldCreature, pending_respawn_from_world_creature_like_cpp, world_to_grid_coords,
+};
 use wow_world_core::session::{
     HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp,
     remove_canonical_creature_map_object_on_map_like_cpp,
@@ -36,12 +38,20 @@ pub struct CanonicalCreatureInsertOutcomeLikeCpp {
 /// authority. `Refused` is the only *decision* about an incarnation: the
 /// canonical owner already exists and the candidate would be a second
 /// independently claimable pool, so the caller must not publish a legacy alias
-/// that would carry it. `NotAdmitted` means no canonical incarnation was
-/// available to decide against — no canonical manager, no canonical map
-/// instance for this key, or the candidate could not be installed — which is
-/// the pre-existing path where the legacy store remains the only store.
+/// that would carry it. `NoCanonicalManager` is the legacy-only configuration:
+/// the session has no canonical incarnation store, so the pre-existing path
+/// where the legacy store remains the only store is preserved.
+///
+/// `Deferred` is the R7b-1 boundary. A canonical map manager *is* configured,
+/// but no canonical incarnation could admit the candidate — most importantly
+/// because the manager has no map instance for the key yet ("grid loading
+/// racing legacy registration"). Such a candidate has no admitted owner, so the
+/// mutation root would refuse every owner mutation on it for its whole life;
+/// publication is therefore deferred until a canonical instance admits it
+/// rather than publishing a creature whose mutations must always fail.
 enum CanonicalCreatureAdmissionLikeCpp {
-    NotAdmitted,
+    NoCanonicalManager,
+    Deferred,
     Refused,
     Admitted(CanonicalCreatureInsertOutcomeLikeCpp),
 }
@@ -59,7 +69,8 @@ pub fn insert_canonical_creature_map_object_on_map_like_cpp(
         creature,
     ) {
         CanonicalCreatureAdmissionLikeCpp::Admitted(outcome) => Some(outcome),
-        CanonicalCreatureAdmissionLikeCpp::NotAdmitted
+        CanonicalCreatureAdmissionLikeCpp::NoCanonicalManager
+        | CanonicalCreatureAdmissionLikeCpp::Deferred
         | CanonicalCreatureAdmissionLikeCpp::Refused => None,
     }
 }
@@ -70,18 +81,18 @@ fn admit_canonical_creature_map_object_on_map_like_cpp(
     instance_id: u32,
     mut creature: wow_entities::Creature,
 ) -> CanonicalCreatureAdmissionLikeCpp {
-    use CanonicalCreatureAdmissionLikeCpp::{Admitted, NotAdmitted, Refused};
+    use CanonicalCreatureAdmissionLikeCpp::{Admitted, Deferred, Refused};
 
     let guid = creature.unit().world().object().guid();
     let Ok(mut manager) = manager.lock() else {
-        return NotAdmitted;
+        return Deferred;
     };
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
-        return NotAdmitted;
+        return Deferred;
     };
     if map.map().get_creature(guid).is_some() {
         let Some(current) = map.map_mut().get_typed_creature_mut(guid) else {
-            return NotAdmitted;
+            return Deferred;
         };
         let current_authority = current.loot_authority_like_cpp().clone();
         let incoming_authority = creature.loot_authority_like_cpp();
@@ -122,7 +133,7 @@ fn admit_canonical_creature_map_object_on_map_like_cpp(
     if creature.loot_authority_like_cpp().lifecycle_like_cpp()
         == OwnedLootAuthorityLifecycle::Detached
     {
-        return NotAdmitted;
+        return Deferred;
     }
 
     if map
@@ -130,7 +141,7 @@ fn admit_canonical_creature_map_object_on_map_like_cpp(
         .settle_creature_addon_aura_provenance_like_cpp(&mut creature)
         .is_err()
     {
-        return NotAdmitted;
+        return Deferred;
     }
     let aura_provenance = creature
         .unit()
@@ -154,10 +165,10 @@ fn admit_canonical_creature_map_object_on_map_like_cpp(
         .add_to_map_like_cpp(AccessorObjectKind::Creature, object);
     creature.unit_mut().world_mut().object_mut().add_to_world();
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
-        return NotAdmitted;
+        return Deferred;
     };
     if map.map_mut().insert_map_object_record(record).is_err() {
-        return NotAdmitted;
+        return Deferred;
     }
     // Fresh admission installs this candidate as the incarnation's single
     // authority; read the installed object back so the caller receives exactly
@@ -168,7 +179,7 @@ fn admit_canonical_creature_map_object_on_map_like_cpp(
             current.unit().clone(),
         )
     }) else {
-        return NotAdmitted;
+        return Deferred;
     };
     Admitted(CanonicalCreatureInsertOutcomeLikeCpp {
         loot_authority,
@@ -365,18 +376,26 @@ impl WorldEntitiesState {
         // R1: admission selects the incarnation's canonical authority *before*
         // any legacy alias is published. A refused admission means the canonical
         // owner already exists and this candidate would be a second claimable
-        // pool, so the legacy store must not publish an alias carrying it. When
-        // no canonical incarnation exists to decide against (legacy-only
-        // configuration, or a canonical map instance this session has not
-        // created yet) the previous path is preserved.
+        // pool, so the legacy store must not publish an alias carrying it.
+        //
+        // R7b-1: a configured canonical manager whose admission could not install
+        // an incarnation (no map instance for this key, or an installation
+        // failure) leaves the candidate with no admitted owner, so the legacy
+        // publication is deferred instead of publishing a representation the
+        // mutation root must refuse for its whole life. Only the legacy-only
+        // configuration — no canonical manager at all — keeps the previous
+        // publication path, exactly as `sync_canonical_creature_entity_like_cpp`
+        // and `mutate_world_creature` keep it.
         let admission = self.admit_canonical_creature_map_object_like_cpp(
             hub,
             map_id,
             canonical_creature.clone(),
         );
+        let mut deferred = false;
         match admission {
             CanonicalCreatureAdmissionLikeCpp::Refused => return,
-            CanonicalCreatureAdmissionLikeCpp::NotAdmitted => {}
+            CanonicalCreatureAdmissionLikeCpp::Deferred => deferred = true,
+            CanonicalCreatureAdmissionLikeCpp::NoCanonicalManager => {}
             CanonicalCreatureAdmissionLikeCpp::Admitted(
                 CanonicalCreatureInsertOutcomeLikeCpp {
                     loot_authority,
@@ -426,7 +445,26 @@ impl WorldEntitiesState {
             let mut manager = manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if manager.find_creature(map_id, 0, guid).is_none() {
+            if deferred {
+                // R7b-1: no canonical incarnation can admit this candidate yet, so
+                // hold the spawn in the map's own spawn queue instead of
+                // publishing it. That queue is the established deferral rail
+                // (C++ `Map::_respawnTimes`, drained by `Map::ProcessRespawns`),
+                // and both publication rails retry it — the global legacy
+                // lifecycle tick and the session-owned creature tick — so the
+                // creature is published as soon as a canonical instance admits
+                // it. A fresh registration carries no DB spawn identity, so the
+                // entry is a queue-only non-persistent spawn.
+                manager.push_respawn(
+                    map_id,
+                    0,
+                    pending_respawn_from_world_creature_like_cpp(
+                        &world_creature,
+                        std::time::Instant::now(),
+                        map_id,
+                    ),
+                );
+            } else if manager.find_creature(map_id, 0, guid).is_none() {
                 manager.add_creature(map_id, 0, grid_x, grid_y, world_creature);
             }
         }
@@ -439,7 +477,7 @@ impl WorldEntitiesState {
         creature: wow_entities::Creature,
     ) -> CanonicalCreatureAdmissionLikeCpp {
         let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return CanonicalCreatureAdmissionLikeCpp::NotAdmitted;
+            return CanonicalCreatureAdmissionLikeCpp::NoCanonicalManager;
         };
         admit_canonical_creature_map_object_on_map_like_cpp(manager, u32::from(map_id), 0, creature)
     }
