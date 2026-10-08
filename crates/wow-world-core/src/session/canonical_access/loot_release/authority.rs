@@ -461,22 +461,4 @@ impl LootReleaseAccessLikeCpp<'_> {
                 )
             })
     }
-
-    pub fn loot_reconciliation_map_key_still_valid_like_cpp(
-        &self,
-        map_key: MapKey,
-        canonical_player_was_present: bool,
-    ) -> bool {
-        if canonical_player_was_present {
-            return self.core.current_canonical_player_map_key_like_cpp() == Some(map_key);
-        }
-        if self.core.canonical_map_manager.is_some() {
-            return self
-                .core
-                .canonical_object_lookup_map_key_like_cpp(map_key.map_id)
-                == Some(map_key);
-        }
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        u32::from(map_id) == map_key.map_id && instance_id == map_key.instance_id
-    }
 }

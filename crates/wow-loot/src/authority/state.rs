@@ -208,6 +208,11 @@ pub enum OwnedLootAuthorityLifecycle {
     Retired,
     /// Conflicting live mirrors were observed for one C++ object. This
     /// attached tombstone is terminal until the object is destroyed.
+    ///
+    /// F6-7 R3 retired the dual-store reconciliation that produced it from a
+    /// mirror conflict; an indeterminate durable COMMIT still sets it
+    /// independently, and it stays terminal and fail-closed (R5 owns the
+    /// remaining conflict policy).
     Quarantined,
     /// This allocation was displaced from its owning entity mirror. It may
     /// still be held by an async task, but can never own loot again.

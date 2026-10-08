@@ -47,24 +47,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.read_canonical_creature_loot_authority_on_map_like_cpp(hub, guid, map_key)
     }
-    pub(crate) fn rebind_canonical_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.rebind_canonical_creature_loot_authority_on_map_like_cpp(
-            hub,
-            guid,
-            map_key,
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
     pub(crate) fn read_canonical_gameobject_loot_authority_on_map_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -154,18 +136,6 @@ impl WorldSession {
     pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) -> bool {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.set_loot_specialization_id_like_cpp(&mut hub, spec_id)
-    }
-    pub(crate) fn loot_reconciliation_map_key_still_valid_like_cpp(
-        &self,
-        map_key: wow_map::MapKey,
-        canonical_player_was_present: bool,
-    ) -> bool {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.loot_reconciliation_map_key_still_valid_like_cpp(
-            hub,
-            map_key,
-            canonical_player_was_present,
-        )
     }
 }
 

@@ -52,49 +52,6 @@ impl LootState {
             .read_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key)
     }
 
-    pub fn rebind_canonical_creature_loot_authority_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        self.rebind_canonical_creature_loot_authority_on_map_like_cpp(
-            hub,
-            guid,
-            map_key,
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
-
-    pub fn rebind_canonical_creature_loot_authority_on_map_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        hub.core
-            .loot_release_access_like_cpp()
-            .rebind_canonical_creature_loot_authority_on_map_like_cpp(
-                guid,
-                map_key,
-                expected,
-                expected_stamp,
-                authority,
-            )
-    }
-
     pub fn read_canonical_gameobject_loot_authority_like_cpp(
         &self,
         hub: HubRef<'_>,
@@ -117,34 +74,6 @@ impl LootState {
         hub.core
             .loot_release_access_like_cpp()
             .read_canonical_gameobject_loot_authority_on_map_like_cpp(guid, map_key)
-    }
-
-    pub fn rebind_canonical_gameobject_loot_authority_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let mut manager = manager.lock().ok()?;
-        manager
-            .find_map_mut(map_key.map_id, map_key.instance_id)?
-            .map_mut()
-            .get_typed_game_object_mut(guid)
-            .and_then(|gameobject| {
-                gameobject.rebind_loot_authority_if_current_like_cpp(
-                    expected,
-                    expected_stamp,
-                    authority,
-                )
-            })
     }
 
     /// F6-7 R7b-2a: the guarded creature loot-lifecycle mutation now routes

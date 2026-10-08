@@ -242,3 +242,5 @@ pub(super) fn represented_disenchant_test_outputs_like_cpp(
 
 #[path = "r2_designated_owner.rs"]
 mod r2_designated_owner;
+#[path = "r3_reconciliation_retirement.rs"]
+mod r3_reconciliation_retirement;

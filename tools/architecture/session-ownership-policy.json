@@ -8317,20 +8317,6 @@
           "module": "crate::handlers::loot::claims",
           "trait_path": null,
           "kind": "method",
-          "name": "prepare_owned_loot_authority_for_active_request_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn prepare_owned_loot_authority_for_active_request_like_cpp (& mut self , owner_guid : ObjectGuid , scope_player : ObjectGuid ,) -> Option < OwnedLootAuthority >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::claims",
-          "trait_path": null,
-          "kind": "method",
           "name": "prepare_owned_loot_authority_for_active_request_outcome_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp (& mut self , owner_guid : ObjectGuid , scope_player : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp",
@@ -8348,20 +8334,6 @@
           "name": "refresh_owned_loot_summary_like_cpp",
           "visibility": "pub (super)",
           "signature": "fn refresh_owned_loot_summary_like_cpp (& mut self , owner_guid : ObjectGuid)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::claims",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_owned_loot_authority_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn represented_owned_loot_authority_like_cpp (& mut self , owner_guid : ObjectGuid ,) -> Option < OwnedLootAuthority >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -9224,9 +9196,9 @@
           "module": "crate::handlers::loot::loot_host",
           "trait_path": "LootHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
-          "name": "master_loot_prepare_owned_authority_like_cpp",
+          "name": "master_loot_prepare_owned_authority_outcome_like_cpp",
           "visibility": "private",
-          "signature": "fn master_loot_prepare_owned_authority_like_cpp (& mut self , owner_guid : ObjectGuid , scope_player : ObjectGuid ,) -> Option < OwnedLootAuthority >",
+          "signature": "fn master_loot_prepare_owned_authority_outcome_like_cpp (& mut self , owner_guid : ObjectGuid , scope_player : ObjectGuid ,) -> OwnedLootAuthorityLookupOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -24669,19 +24641,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "loot_reconciliation_map_key_still_valid_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn loot_reconciliation_map_key_still_valid_like_cpp (& self , map_key : wow_map :: MapKey , canonical_player_was_present : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "loot_specialization_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn loot_specialization_id_like_cpp (& self) -> Option < u32 >",
@@ -27952,19 +27911,6 @@
           "name": "rebase_represented_spells_onto_saved_rows_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn rebase_represented_spells_onto_saved_rows_like_cpp (& mut self ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "rebind_canonical_creature_loot_authority_on_map_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn rebind_canonical_creature_loot_authority_on_map_like_cpp (& self , guid : ObjectGuid , map_key : wow_map :: MapKey , expected : & OwnedLootAuthority , expected_stamp : OwnedLootAuthorityStamp , authority : OwnedLootAuthority ,) -> Option < bool >",
           "cfg": [],
           "source_class": "production",
           "guards": [

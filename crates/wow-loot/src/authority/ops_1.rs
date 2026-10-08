@@ -67,19 +67,6 @@ impl OwnedLootAuthority {
             object_generation: state.generation,
         }
     }
-    /// Creates an attached fail-closed tombstone for mirror conflicts. Unlike
-    /// a pristine authority, this cannot be initialized through the legacy
-    /// first-generation bridge.
-    #[must_use]
-    pub fn new_retired_tombstone_like_cpp() -> Self {
-        let authority = Self::new();
-        {
-            let mut state = authority.lock_state();
-            state.generation = 1;
-            state.quarantined = true;
-        }
-        authority
-    }
     /// Permanently invalidates a displaced backing allocation. Retiring alone
     /// is intentionally reversible for respawn/restock; detaching is not.
     pub fn detach_like_cpp(&self) -> u64 {
