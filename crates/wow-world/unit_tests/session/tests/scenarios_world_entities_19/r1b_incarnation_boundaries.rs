@@ -205,3 +205,100 @@ fn canonical_admission_refuses_a_competing_retired_candidate_like_cpp() {
         "the refused candidate keeps its own untouched allocation"
     );
 }
+
+/// F6-7 R7a (reviewer ruling, point 3): the *reachable* admission gap, traced
+/// and exercised rather than assumed to be a fixture defect.
+///
+/// Registration and the ready-respawn path publish a legacy representation
+/// eagerly while a canonical map instance is created lazily. R1b pins that shape
+/// deliberately — see
+/// `loot_tests::r1a_admission_authority::canonical_map_absence_keeps_the_previous_legacy_publication_like_cpp`
+/// and `r1b_incarnation_lifecycle::lifecycle_respawn_without_canonical_incarnation_keeps_legacy_publication_like_cpp`,
+/// whose comments name "grid loading racing legacy registration" as the
+/// production shape: with a canonical manager configured but no instance for the
+/// key there is no canonical incarnation to decide against, so the legacy store
+/// remains the only store. The R7 gate then refuses *every* owner mutation on
+/// such a creature for its whole life, because it needs the canonical instance
+/// the creature was never admitted to.
+///
+/// This test exercises that gap through the production registration entry point
+/// and through the shared admission decision the ready-respawn path calls, so the
+/// decision to repair it (create the missing canonical instance on demand) or to
+/// keep it (and give the gate a documented compatibility path) rests on evidence.
+/// Creating the instance on demand currently fails both R1b regressions above, so
+/// it is a renegotiation of R1b, not a local admission repair.
+#[test]
+fn missing_canonical_instance_publishes_a_representation_the_gate_must_refuse_like_cpp() {
+    let guid = test_creature_guid(91_608);
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let (mut session, _, _) = make_session();
+    session.set_map_manager(manager.clone());
+    session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    assert!(
+        canonical.lock().unwrap().find_map(0, 0).is_none(),
+        "the fixture starts without a canonical map instance"
+    );
+
+    // Production registration, at exactly the key the legacy store publishes to.
+    session.register_world_creature(
+        0,
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        test_creature_create_data(guid, 9_001, 100),
+        3,
+        5,
+        20.0,
+        0,
+        0,
+        0,
+        0,
+        None,
+        0,
+        0,
+        0,
+        0,
+        -1,
+    );
+    assert!(
+        manager.read().unwrap().find_creature(0, 0, guid).is_some(),
+        "registration still publishes the legacy representation (R1b contract)"
+    );
+    assert!(
+        canonical_creature_like_cpp(&canonical, guid).is_none(),
+        "the missing instance means no canonical incarnation was admitted"
+    );
+
+    // The gap: the published creature is refused by the one production root, with
+    // the callback unexecuted, for as long as it has no canonical incarnation.
+    let mut callback_runs = 0_usize;
+    assert!(
+        session
+            .mutate_world_creature(guid, |creature| {
+                callback_runs += 1;
+                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00B1;
+            })
+            .is_none(),
+        "a legacy-only creature has no admitted incarnation to mutate"
+    );
+    assert_eq!(callback_runs, 0);
+
+    // The ready-respawn admission makes the same decision for a key the canonical
+    // manager has never created, from the one shared admission function.
+    let respawn_guid = test_creature_guid(91_609);
+    let mut respawn_candidate = admission_candidate_like_cpp(respawn_guid);
+    let _ = respawn_candidate.unit_mut().world_mut().set_map(0, 3);
+    assert!(
+        canonical.lock().unwrap().find_map(0, 3).is_none(),
+        "the respawn key has no canonical instance yet"
+    );
+    assert!(
+        insert_canonical_creature_map_object_on_map_like_cpp(&canonical, 0, 3, respawn_candidate)
+            .is_none(),
+        "the ready-respawn admission declines the same way (R1b contract)"
+    );
+    assert!(
+        canonical.lock().unwrap().find_map(0, 3).is_none(),
+        "declining publishes no canonical incarnation"
+    );
+}
