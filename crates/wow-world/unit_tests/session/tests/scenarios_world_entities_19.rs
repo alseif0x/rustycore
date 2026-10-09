@@ -18,6 +18,9 @@ mod f6_8c_canonical_ownership;
 // #1263 F6-8D1: the ported phase operations run on canonical ownership.
 #[path = "scenarios_world_entities_19/f6_8d1_canonical_execution.rs"]
 mod f6_8d1_canonical_execution;
+// #1263 F6-8D2: the admitted tick drives the canonical engine exactly once.
+#[path = "scenarios_world_entities_19/f6_8d2_admitted_execution.rs"]
+mod f6_8d2_admitted_execution;
 #[path = "scenarios_world_entities_19/gameobject_use.rs"]
 mod gameobject_use;
 #[path = "scenarios_world_entities_19/legacy_creature_tick_noop.rs"]

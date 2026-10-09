@@ -2107,6 +2107,17 @@ use session_factory::*;
 
 mod runtime;
 use runtime::*;
+// #1263 F6-8D2: the isolated admitted creature execution adapter. Production
+// does not call it — the production owner is still `RuntimeTickOwner::GlobalLegacy`
+// and the legacy scheduler, the stores and the canonical
+// `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime` are unchanged — so it is
+// exported as composition API for the D3 cutover and the F6-8D2 regressions.
+pub use runtime::isolated_creature_execution::{
+    IsolatedAdmittedCreatureExecutionOutcomeLikeCpp,
+    IsolatedCreatureExecutionDeliveryOutcomeLikeCpp, IsolatedCreatureExecutionRefusalLikeCpp,
+    deliver_isolated_admitted_creature_execution_like_cpp,
+    run_isolated_admitted_creature_execution_for_tick_like_cpp,
+};
 
 #[cfg(test)]
 #[path = "main_tests.rs"]

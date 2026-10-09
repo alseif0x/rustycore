@@ -5,6 +5,11 @@ use super::*;
 mod deferred_visibility;
 mod delivery;
 mod game_events;
+// #1263 F6-8D2: the isolated admitted creature execution adapter. Deliberately
+// not re-exported into this module's glob: `lib.rs` re-exports its two entries
+// as composition API, and a glob here would collide with the private
+// `use runtime::*` at the crate root.
+pub(crate) mod isolated_creature_execution;
 mod map;
 mod map_session_pass;
 pub(crate) mod map_tick;
