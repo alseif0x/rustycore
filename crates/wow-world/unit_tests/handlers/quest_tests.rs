@@ -78,10 +78,13 @@ pub(super) use catalog_persistence::{
 };
 
 /// The quest opcode registrations (#359: one `PacketHandlerEntry` per opcode).
-/// The query slice moved its bodies to `wow-world-application`.
+/// The query slice moved its bodies to `wow-world-application`, and #1263 F5
+/// moved the eleven quest-giver registrations to that crate's explicit area
+/// registrar, so this scan follows the registration source there.
 const QUEST_HANDLER_REGISTRATIONS: &str = concat!(
     include_str!("../../src/handlers/quest/handlers.rs"),
     include_str!("../../../wow-world-application/src/quest_query_handlers.rs"),
+    include_str!("../../../wow-world-application/src/quest_handlers.rs"),
 );
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {

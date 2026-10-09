@@ -1001,6 +1001,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::quest::handlers::queries",
           "trait_path": null,
           "cfg": [],
@@ -12164,6 +12170,146 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_adventure_map_start_quest_with_catalog_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_adventure_map_start_quest_with_catalog_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_push_quest_to_party",
+          "visibility": "private",
+          "signature": "fn handle_push_quest_to_party < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_confirm_accept_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_quest_confirm_accept_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_giver_accept_quest_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_quest_giver_accept_quest_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_giver_choose_reward_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_quest_giver_choose_reward_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_giver_hello",
+          "visibility": "private",
+          "signature": "fn handle_quest_giver_hello < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_giver_query_quest",
+          "visibility": "private",
+          "signature": "fn handle_quest_giver_query_quest < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_giver_request_reward_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_quest_giver_request_reward_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_giver_status_query_with_catalog_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_quest_giver_status_query_with_catalog_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::quest::handlers::host",
+          "trait_path": "QuestHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_quest_poi_query",
+          "visibility": "private",
+          "signature": "fn handle_quest_poi_query < 'a > (& 'a mut self , query : QuestPoiQuery) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -46175,6 +46321,58 @@
           "module": "crate::session",
           "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "kind": "method",
+          "name": "handle_cast_spell_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_cast_spell_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_open_item",
+          "visibility": "private",
+          "signature": "fn handle_open_item < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_self_res_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_self_res_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_spell_click_with_generator_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_spell_click_with_generator_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "SpellHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
           "name": "spell_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn spell_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> SpellHandlerCxLikeCpp < 'a >",
@@ -46204,6 +46402,45 @@
           "name": "trade_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn trade_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> TradeHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_activate_taxi",
+          "visibility": "private",
+          "signature": "fn handle_activate_taxi < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_area_trigger_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_area_trigger_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "TravelHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_world_port_response_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_world_port_response_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
