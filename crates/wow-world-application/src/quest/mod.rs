@@ -31,6 +31,7 @@ pub use self::dialog_status::{
 pub use self::loot_requirements::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 pub use self::money_persistence::{
     begin_exclusive_player_money_persistence_like_cpp,
+    mutate_and_persist_player_gold_exclusive_like_cpp,
     reconcile_durable_loot_money_before_save_like_cpp,
 };
 pub use self::objective_progress::{

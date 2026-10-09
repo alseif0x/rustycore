@@ -4,7 +4,10 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+// The moved `LootMoney` operation bodies are reached through the application
+// loot owner's host trait default methods (#1263 F4); the call text is unchanged.
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
+use wow_world_application::LootHandlerHostLikeCpp;
 
 #[test]
 fn map_owned_loot_guid_sequence_is_shared_across_owner_kinds_like_cpp() {

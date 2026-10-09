@@ -309,6 +309,14 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         WorldSession::represented_notify_loot_item_removed_like_cpp(self, owner_guid, loot_list_id)
     }
 
+    fn loot_money_lifecycle_ref_like_cpp(&self) -> &wow_world_lifecycle::SessionLifecycleState {
+        &self.lifecycle
+    }
+
+    fn loot_money_inventory_ref_like_cpp(&self) -> &wow_world_inventory::InventoryState {
+        &self.inventory
+    }
+
     fn loot_money_release_owner_access_like_cpp(
         &mut self,
     ) -> wow_world_core::session::LootReleaseOwnerAccessLikeCpp<'_> {
