@@ -25,7 +25,7 @@ use secondary_targets::{
 /// it is what lets the global loop become its sole owner. Damage arithmetic,
 /// tap assignment, threat, the death branch and the swing record are unchanged.
 pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
-    creature: &mut crate::map_manager::WorldCreature,
+    creature: &mut wow_entities::Creature,
     player_guid: ObjectGuid,
     tap_group_guids: &[ObjectGuid],
     canonical_swings: Option<&[crate::session::combat::RepresentedMeleeSwingLikeCpp]>,
@@ -74,9 +74,7 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
             continue;
         }
         let health_before = creature.current_hp();
-        creature
-            .creature
-            .set_tapped_by_player(player_guid, tap_group_guids);
+        creature.set_tapped_by_player(player_guid, tap_group_guids);
         died = creature.take_damage_before_death_state_like_cpp(damage);
         let over_damage = if died {
             damage.saturating_sub(health_before) as i32
@@ -84,7 +82,6 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
             -1
         };
         creature
-            .creature
             .unit_mut()
             .subsystems_mut()
             .combat
@@ -97,7 +94,7 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
             swing.original_damage,
         ));
         if died {
-            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            let combat = &mut creature.unit_mut().subsystems_mut().combat;
             combat.clear_threat();
             combat.clear_attackers();
             move_stop = creature
@@ -109,7 +106,7 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
     if canonical_swings.is_none() {
         creature.record_swing();
     }
-    let values_update = creature.creature.unit().values_update();
+    let values_update = creature.unit().values_update();
     Some(PlayerMeleeCreatureHitLikeCpp {
         swings,
         swing_presentations,
@@ -283,12 +280,16 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         let mut legacy_manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let Some(attacker) =
+        let Some(attacker_bridge) =
             legacy_manager.find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
         else {
             outcome.melee_precondition_rejections += 1;
             continue;
         };
+        // #1263 F6-8D1: the swing operation runs against the canonical
+        // attacker. The legacy store is only the transitional enumeration seam
+        // D2/D3 replace, so the operation itself takes the canonical entity.
+        let attacker = &mut attacker_bridge.creature;
 
         // #1263 F6-8C: the re-validation repeats the ownership gate, because the
         // collect phase released both guards and the incarnation may have gone.
@@ -299,14 +300,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
         }
 
         if !attacker.can_swing()
-            || attacker.creature.ai_ownership().combat_target != Some(swing.victim_guid)
-            || attacker.creature.lifecycle_metadata().ai_name == "TurretAI"
-            || !attacker.creature.can_melee_like_cpp()
+            || attacker.ai_ownership().combat_target != Some(swing.victim_guid)
+            || attacker.lifecycle_metadata().ai_name == "TurretAI"
+            || !attacker.can_melee_like_cpp()
         {
             outcome.melee_precondition_rejections += 1;
             continue;
         }
-        let unit = attacker.creature.unit();
+        let unit = attacker.unit();
         if unit.has_unit_state(UnitState::CHARGING.bits())
             || (unit.has_unit_state(UnitState::CASTING.bits())
                 && !unit
@@ -326,19 +327,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                 managed
                     .map()
                     .with_creature_like_cpp(swing.attacker_guid, |canonical_attacker| {
-                        canonical_attacker.spawn_id() == attacker.creature.spawn_id()
+                        canonical_attacker.spawn_id() == attacker.spawn_id()
                             && canonical_attacker
                                 .loot_authority_like_cpp()
-                                .shares_storage_like_cpp(
-                                    attacker.creature.loot_authority_like_cpp(),
-                                )
+                                .shares_storage_like_cpp(attacker.loot_authority_like_cpp())
                             && canonical_attacker
                                 .unit()
                                 .shares_health_state_revision_authority_like_cpp(
-                                    &attacker
-                                        .creature
-                                        .unit()
-                                        .health_state_revision_authority_like_cpp(),
+                                    &attacker.unit().health_state_revision_authority_like_cpp(),
                                 )
                     })
             })
@@ -552,7 +548,6 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             // auras before `CalculateMeleeDamage`, so an avoided swing removes
             // them too (`Unit.cpp:2172-2173`).
             outcome.attacking_interrupt_auras_removed += attacker
-                .creature
                 .unit_mut()
                 .remove_attacking_interrupt_auras_like_cpp();
             attacker.record_swing();
@@ -663,7 +658,6 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             }
         };
         outcome.attacking_interrupt_auras_removed += attacker
-            .creature
             .unit_mut()
             .remove_attacking_interrupt_auras_like_cpp();
         attacker.record_swing();

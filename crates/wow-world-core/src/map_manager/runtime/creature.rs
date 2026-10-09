@@ -1,6 +1,11 @@
 //! Creature packets.
 //!
 //! Separated from runtime.rs under #701.
+//!
+//! #1263 F6-8D1 moved the combat, swing, clock, RNG and `Unit::i_motionMaster`
+//! operations onto canonical `Creature` ownership. This module keeps the
+//! construction/projection seam and the delegating accessors the legacy
+//! scheduler still calls; it holds no creature runtime state of its own.
 
 use rand::rngs::StdRng;
 
@@ -145,14 +150,14 @@ impl WorldCreature {
         // persistent runtime state — including the elapsed-time clock, the RNG
         // and its authority marker — is reset exactly as the former
         // bridge-local field list reset it, and the canonical owner now stores
-        // it.
+        // it. #1263 F6-8D1 added the motion-master advance counter to that same
+        // reset.
         *creature.runtime_like_cpp_mut() =
             wow_entities::CreatureRuntimeLikeCpp::new_like_cpp(runtime_motion_master);
         Self {
             creature,
             create_data,
             home_health_restored_pending_like_cpp: false,
-            runtime_motion_master_ticks: 0,
             respawn_spell_hit_aura_source_authority_like_cpp: false,
             respawn_spell_cast_log_aura_source_authority_like_cpp: false,
         }
@@ -306,25 +311,17 @@ impl WorldCreature {
     }
 
     pub fn visibility_range_like_cpp(&self) -> f32 {
-        self.creature
-            .unit()
-            .world()
-            .visibility_distance_override_like_cpp()
-            .unwrap_or(VISIBILITY_RADIUS)
+        self.creature.visibility_range_like_cpp()
     }
 
     /// Canonical accessor: the creature-local elapsed time lives on
     /// `Creature::runtime_like_cpp`, not on this bridge.
     pub fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
-        self.creature
-            .runtime_like_cpp()
-            .runtime_elapsed_ms_like_cpp()
+        self.creature.runtime_elapsed_ms_like_cpp()
     }
 
     pub fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
-        self.creature
-            .runtime_like_cpp_mut()
-            .advance_runtime_clock_like_cpp(diff_ms);
+        self.creature.advance_runtime_clock_like_cpp(diff_ms);
     }
 
     /// Draw access to the creature-owned runtime RNG. The state has one owner
@@ -343,51 +340,51 @@ impl WorldCreature {
     }
 
     pub fn guid(&self) -> ObjectGuid {
-        self.creature.ai_guid()
+        self.creature.guid()
     }
 
     pub fn entry(&self) -> u32 {
-        self.creature.ai_entry()
+        self.creature.entry()
     }
 
     pub fn map_id(&self) -> u32 {
-        self.creature.unit().world().map_id()
+        self.creature.map_id()
     }
 
     pub fn instance_id(&self) -> u32 {
-        self.creature.unit().world().instance_id()
+        self.creature.instance_id()
     }
 
     pub fn phase_shift(&self) -> &PhaseShift {
-        self.creature.unit().world().phase_shift()
+        self.creature.phase_shift()
     }
 
     pub fn is_alive(&self) -> bool {
-        self.creature.ai_is_alive()
+        self.creature.is_alive()
     }
 
     pub fn current_hp(&self) -> u32 {
-        self.creature.ai_current_health().min(u64::from(u32::MAX)) as u32
+        self.creature.current_hp()
     }
 
     pub fn max_hp(&self) -> u32 {
-        self.creature.ai_max_health().min(u64::from(u32::MAX)) as u32
+        self.creature.max_hp()
     }
 
     pub fn level(&self) -> u8 {
-        self.creature.ai_level()
+        self.creature.level()
     }
 
     pub fn npc_flags(&self) -> u32 {
-        self.creature.ai_ownership().npc_flags
+        self.creature.npc_flags()
     }
 
     pub fn npc_flags2(&self) -> u32 {
-        self.creature.ai_ownership().npc_flags2
+        self.creature.npc_flags2()
     }
 
     pub fn unit_flags2_like_cpp(&self) -> UnitFlags2 {
-        self.creature.unit().unit_flags2_like_cpp()
+        self.creature.unit_flags2_like_cpp()
     }
 
     pub fn trainer_class_like_cpp(&self) -> u8 {
@@ -395,27 +392,27 @@ impl WorldCreature {
     }
 
     pub fn npc_flags_mask_like_cpp(&self) -> u64 {
-        (u64::from(self.npc_flags2()) << 32) | u64::from(self.npc_flags())
+        self.creature.npc_flags_mask_like_cpp()
     }
 
     pub fn unit_flags(&self) -> u32 {
-        self.creature.ai_ownership().unit_flags
+        self.creature.unit_flags()
     }
 
     pub fn display_id(&self) -> u32 {
-        self.creature.ai_ownership().display_id
+        self.creature.display_id()
     }
 
     pub fn faction(&self) -> u32 {
-        self.creature.ai_ownership().faction
+        self.creature.faction()
     }
 
     pub fn min_dmg(&self) -> u32 {
-        self.creature.ai_ownership().min_damage
+        self.creature.min_dmg()
     }
 
     pub fn max_dmg(&self) -> u32 {
-        self.creature.ai_ownership().max_damage
+        self.creature.max_dmg()
     }
 
     pub fn loot_id(&self) -> u32 {
@@ -443,7 +440,7 @@ impl WorldCreature {
     }
 
     pub fn state(&self) -> CreatureAiState {
-        self.creature.ai_state()
+        self.creature.state()
     }
 
     pub fn corpse_delay_secs_like_cpp(&self) -> u32 {
@@ -452,52 +449,6 @@ impl WorldCreature {
 
     pub fn ignore_corpse_decay_ratio_like_cpp(&self) -> bool {
         self.creature.ignore_corpse_decay_ratio()
-    }
-
-    pub(in crate::map_manager) fn finalize_runtime_represented_generator_like_cpp(
-        &mut self,
-        mut generator: MovementGeneratorRef,
-    ) {
-        match generator.kind {
-            MovementGeneratorKind::Point => {
-                let finalize = generator.finalize_point_like_cpp(true, true);
-                if finalize.clear_roaming_move {
-                    self.creature
-                        .unit_mut()
-                        .clear_unit_state(UnitState::ROAMING_MOVE.bits());
-                }
-                if let Some(inform) = finalize.inform {
-                    self.creature
-                        .record_ai_movement_inform(inform.kind.trinity_id(), inform.movement_id);
-                }
-            }
-            MovementGeneratorKind::Rotate => {
-                if let Some(inform) = generator.finalize_rotate_like_cpp(true, true).inform {
-                    self.creature
-                        .record_ai_movement_inform(inform.kind.trinity_id(), inform.movement_id);
-                }
-            }
-            MovementGeneratorKind::Distract => {
-                let finalize = generator.finalize_distract_like_cpp(true, true);
-                if finalize.set_home_orientation {
-                    let current = self.position();
-                    let home = self.home_position();
-                    self.creature.set_ai_position(Position::new(
-                        current.x,
-                        current.y,
-                        current.z,
-                        home.orientation,
-                    ));
-                }
-            }
-            MovementGeneratorKind::Effect => {
-                if let Some(inform) = generator.finalize_generic_like_cpp(true) {
-                    self.creature
-                        .record_ai_movement_inform(inform.kind.trinity_id(), inform.movement_id);
-                }
-            }
-            _ => {}
-        }
     }
 
     pub fn apply_corpse_loot_flags_after_death_state_like_cpp(
@@ -526,8 +477,7 @@ impl WorldCreature {
     }
 
     pub fn die(&mut self) {
-        self.creature
-            .mark_ai_dead(self.runtime_elapsed_ms_like_cpp());
+        self.creature.die();
     }
 
     pub(in crate::map_manager) fn walk_speed_like_cpp(&self) -> f32 {
@@ -639,37 +589,19 @@ impl WorldCreature {
     }
 
     pub fn can_swing(&self) -> bool {
-        self.is_alive()
-            && self.state() == CreatureAiState::InCombat
-            && self
-                .runtime_elapsed_ms_like_cpp()
-                .saturating_sub(self.creature.ai_ownership().last_swing_ms)
-                >= self.creature.ai_ownership().swing_timer_ms
+        self.creature.can_swing()
     }
 
     pub fn record_swing(&mut self) {
-        let now_ms = self.runtime_elapsed_ms_like_cpp();
-        let base_attack_time = if self.create_data.base_attack_time > 0 {
-            self.create_data.base_attack_time as u64
-        } else {
-            self.creature.ai_ownership().swing_timer_ms.max(1)
-        };
-        let ai = self.creature.ai_ownership_mut();
-        ai.last_swing_ms = now_ms;
-        ai.swing_timer_ms = base_attack_time;
+        self.creature.record_swing();
     }
 
     pub fn record_failed_swing_retry_like_cpp(&mut self) {
-        let now_ms = self.runtime_elapsed_ms_like_cpp();
-        let ai = self.creature.ai_ownership_mut();
-        ai.last_swing_ms = now_ms;
-        ai.swing_timer_ms = 100;
+        self.creature.record_failed_swing_retry_like_cpp();
     }
 
     pub fn runtime_rng_authority_complete_like_cpp(&self) -> bool {
-        self.creature
-            .runtime_like_cpp()
-            .runtime_rng_authority_complete_like_cpp()
+        self.creature.runtime_rng_authority_complete_like_cpp()
     }
 
     /// Permanently tombstone exact creature-spell RNG authority for this loaded
@@ -679,9 +611,7 @@ impl WorldCreature {
     /// their best-effort stream so an unrepresented spell cannot freeze normal
     /// gameplay.
     pub fn invalidate_runtime_rng_authority_like_cpp(&mut self) {
-        self.creature
-            .runtime_like_cpp_mut()
-            .invalidate_runtime_rng_authority_like_cpp();
+        self.creature.invalidate_runtime_rng_authority_like_cpp();
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

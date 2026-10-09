@@ -602,8 +602,12 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             };
             let expected_authority = creature.creature.loot_authority_like_cpp().clone();
             let expected_stamp = expected_authority.stamp_like_cpp();
+            // #1263 F6-8D1: the swing operation takes the canonical creature;
+            // the legacy representation is only the transitional enumeration
+            // seam. The cached packet projection keeps its movement-flag mirror,
+            // which the legacy body performed through the bridge spline stop.
             let Some(hit) = apply_player_melee_to_legacy_creature_like_cpp(
-                creature,
+                &mut creature.creature,
                 attacker.player_guid,
                 &attacker.tap_group_guids,
                 Some(&damages),
@@ -611,6 +615,12 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
                 outcome.commands.push(command);
                 continue;
             };
+            if hit.move_stop.is_some() {
+                // The legacy body mirrored the stopped spline's movement flags
+                // into the cached packet projection; preserve that projection
+                // update at the bridge boundary under the same condition.
+                creature.sync_create_projection_movement_flags_like_cpp();
+            }
             outcome.creature_hits += 1;
             command.target_level = hit.level;
             command.swings = hit

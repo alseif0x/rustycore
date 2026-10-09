@@ -415,52 +415,25 @@ impl WorldCreature {
         finalized
     }
 
+    /// C++ `MoveSplineInit::Stop` through `Unit::DisableSpline`.
+    ///
+    /// #1263 F6-8D1 moved the operation onto canonical `Creature` ownership.
+    /// This bridge entry point keeps the legacy name and additionally mirrors
+    /// the resulting movement flags into the cached `CreatureCreateData`
+    /// packet projection, exactly as the legacy body did through
+    /// `set_movement_flags_like_cpp`.
     pub fn stop_move_spline_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
-        let mut spline = self
-            .creature
-            .runtime_like_cpp_mut()
-            .active_move_spline
-            .take()?;
-        if spline.finalized() {
-            return None;
+        let stop = self.creature.stop_move_spline_like_cpp();
+        if stop.is_some() {
+            self.sync_create_projection_movement_flags_like_cpp();
         }
+        stop
+    }
 
-        let elapsed_ms = self
-            .runtime_elapsed_ms_like_cpp()
-            .saturating_sub(self.creature.ai_ownership().move_start_ms)
-            .min(i32::MAX as u64) as i32;
-        let diff_ms = elapsed_ms.saturating_sub(spline.time_passed_ms());
-        if diff_ms > 0 {
-            spline.update_state(diff_ms);
-        }
-        if spline.finalized() {
-            return None;
-        }
-
-        let stop_position = spline.compute_position().unwrap_or_else(|| self.position());
-        let mut init = MoveSplineInit::new(self.spline_id().saturating_add(1));
-        let stop = init.stop(
-            &mut spline,
-            MoveSplineStopInput {
-                current_position: self.position(),
-                active_spline_position: Some(stop_position),
-                on_transport: false,
-            },
-        )?;
-
-        self.creature.set_ai_position(stop.position);
-        let ai = self.creature.ai_ownership_mut();
-        ai.move_target = None;
-        ai.move_duration_ms = 0;
-        ai.spline_id = stop.spline_id;
-        let motion = &mut self.creature.unit_mut().subsystems_mut().motion;
-        motion.finalize_spline();
-        motion.spline.spline_id = stop.spline_id;
-        self.disable_spline_movement_like_cpp();
-        self.creature
-            .unit_mut()
-            .clear_unit_state(UnitState::ROAMING_MOVE.bits());
-        Some(stop)
+    /// Re-sync the cached packet projection's movement flags from the canonical
+    /// unit after a phase operation that changed them.
+    pub fn sync_create_projection_movement_flags_like_cpp(&mut self) {
+        self.create_data.movement_flags = self.creature.movement_flags_like_cpp().bits();
     }
 
     pub fn finish_move(&mut self) {

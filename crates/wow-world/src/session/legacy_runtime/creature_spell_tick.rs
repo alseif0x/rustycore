@@ -99,13 +99,14 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 continue;
             }
 
-            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, config) {
-                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
-                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
-                    outcome.ai_selection_unrepresented += 1;
-                    continue;
-                }
-            };
+            let ai_kind =
+                match legacy_creature_ai_selection_decision_like_cpp(&creature.creature, config) {
+                    LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                    LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+                        outcome.ai_selection_unrepresented += 1;
+                        continue;
+                    }
+                };
             let spells = creature.creature.spells();
 
             match ai_kind {
