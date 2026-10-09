@@ -2,25 +2,19 @@
 //!
 //! Separated from runtime.rs under #701.
 
+use rand::rngs::StdRng;
+
 use super::*;
 
 impl WorldCreature {
+    /// C++ `Creature::GetDefaultMovementType()` selects the `MotionMaster`
+    /// default generator (`MotionMaster::Initialize`). The selection itself
+    /// moved to the canonical owner under #1263 F6-8A; this thin bridge keeps
+    /// the legacy name for the map modules that still call it.
     pub(in crate::map_manager) fn runtime_default_generator_like_cpp(
         creature: &Creature,
     ) -> Box<dyn RuntimeMovementGenerator> {
-        match creature.default_movement_type() {
-            MovementGeneratorType::Idle => Box::new(IdleMovementGenerator::new()),
-            MovementGeneratorType::Random => Box::new(RandomMovementGenerator::new(
-                creature.ai_ownership().wander_radius,
-                None,
-            )),
-            MovementGeneratorType::Waypoint => {
-                Box::new(WaypointMovementGenerator::from_db_path_id(
-                    creature.waypoint_path_id_like_cpp(),
-                    true,
-                ))
-            }
-        }
+        wow_entities::runtime_default_generator_like_cpp(creature)
     }
 
     pub fn new(
@@ -147,33 +141,20 @@ impl WorldCreature {
             .motion
             .add_to_world_like_cpp();
         let runtime_motion_master = Self::new_runtime_motion_master_like_cpp(&creature);
+        // #1263 F6-8A: this bridge installs a fresh runtime incarnation. The
+        // persistent runtime state — including the elapsed-time clock, the RNG
+        // and its authority marker — is reset exactly as the former
+        // bridge-local field list reset it, and the canonical owner now stores
+        // it.
+        *creature.runtime_like_cpp_mut() =
+            wow_entities::CreatureRuntimeLikeCpp::new_like_cpp(runtime_motion_master);
         Self {
             creature,
             create_data,
-            active_move_spline: None,
-            active_random_generator: None,
-            active_random_path_poly_refs: Vec::new(),
-            active_home_generator: None,
-            active_chase_generator: None,
-            active_chase_path_poly_refs: Vec::new(),
-            active_waypoint_generator: None,
-            active_waypoint_random_at_path_end: None,
-            runtime_motion_master,
-            runtime_chase_target: None,
-            runtime_represented_active: None,
-            pending_assistance_like_cpp: Vec::new(),
-            assistance_called_like_cpp: false,
-            active_taunts_like_cpp: Vec::new(),
-            creature_spell_due_at_ms_like_cpp: [None; wow_entities::MAX_CREATURE_SPELLS],
-            creature_spell_schedule_initialized_like_cpp: false,
-            creature_spell_engagement_epoch_like_cpp: 0,
             home_health_restored_pending_like_cpp: false,
             runtime_motion_master_ticks: 0,
-            runtime_rng_authority_complete_like_cpp: true,
             respawn_spell_hit_aura_source_authority_like_cpp: false,
             respawn_spell_cast_log_aura_source_authority_like_cpp: false,
-            runtime_rng_like_cpp: StdRng::from_entropy(),
-            runtime_elapsed_ms_like_cpp: 0,
         }
     }
 
@@ -303,19 +284,33 @@ impl WorldCreature {
             .unwrap_or(VISIBILITY_RADIUS)
     }
 
-    pub const fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
-        self.runtime_elapsed_ms_like_cpp
+    /// Canonical accessor: the creature-local elapsed time lives on
+    /// `Creature::runtime_like_cpp`, not on this bridge.
+    pub fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
+        self.creature
+            .runtime_like_cpp()
+            .runtime_elapsed_ms_like_cpp()
     }
 
     pub fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
-        self.runtime_elapsed_ms_like_cpp = self
-            .runtime_elapsed_ms_like_cpp
-            .saturating_add(u64::from(diff_ms));
+        self.creature
+            .runtime_like_cpp_mut()
+            .advance_runtime_clock_like_cpp(diff_ms);
+    }
+
+    /// Draw access to the creature-owned runtime RNG. The state has one owner
+    /// (the canonical runtime state); this bridge only borrows it.
+    pub(crate) fn runtime_rng_mut(&mut self) -> &mut StdRng {
+        self.creature
+            .runtime_like_cpp_mut()
+            .runtime_rng_like_cpp_mut()
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
-        self.runtime_elapsed_ms_like_cpp = elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
+        self.creature
+            .runtime_like_cpp_mut()
+            .set_runtime_elapsed_ms_like_cpp(elapsed.as_millis().min(u128::from(u64::MAX)) as u64);
     }
 
     pub fn guid(&self) -> ObjectGuid {
@@ -521,6 +516,8 @@ impl WorldCreature {
     /// active spline falling).
     pub fn detour_owner_capabilities_like_cpp(&self) -> DetourOwnerCapabilitiesLikeCpp {
         let spline_falling = self
+            .creature
+            .runtime_like_cpp()
             .active_move_spline
             .as_ref()
             .is_some_and(|spline| spline.flags().contains(MoveSplineFlag::FALLING));
@@ -590,6 +587,8 @@ impl WorldCreature {
                 .unit()
                 .has_unit_state(UnitState::CASTING.bits()),
             move_spline_finalized: self
+                .creature
+                .runtime_like_cpp()
                 .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
@@ -639,7 +638,9 @@ impl WorldCreature {
     }
 
     pub fn runtime_rng_authority_complete_like_cpp(&self) -> bool {
-        self.runtime_rng_authority_complete_like_cpp
+        self.creature
+            .runtime_like_cpp()
+            .runtime_rng_authority_complete_like_cpp()
     }
 
     /// Permanently tombstone exact creature-spell RNG authority for this loaded
@@ -649,11 +650,15 @@ impl WorldCreature {
     /// their best-effort stream so an unrepresented spell cannot freeze normal
     /// gameplay.
     pub fn invalidate_runtime_rng_authority_like_cpp(&mut self) {
-        self.runtime_rng_authority_complete_like_cpp = false;
+        self.creature
+            .runtime_like_cpp_mut()
+            .invalidate_runtime_rng_authority_like_cpp();
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn seed_runtime_rng_like_cpp(&mut self, seed: u64) {
-        self.runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
+        self.creature
+            .runtime_like_cpp_mut()
+            .seed_runtime_rng_like_cpp(seed);
     }
 }

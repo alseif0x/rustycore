@@ -4,6 +4,7 @@
 //! #636; every method keeps its original body.
 
 use super::*;
+use wow_movement::MotionMaster;
 
 impl Creature {
     pub fn new(is_world_object: bool) -> Self {
@@ -15,7 +16,7 @@ impl Creature {
             .combat
             .initialize_threat_list_capability(true);
 
-        Self {
+        let mut creature = Self {
             unit,
             player_damage_req: 0,
             dont_clear_tap_list_on_evade: false,
@@ -76,7 +77,13 @@ impl Creature {
             loot_authority: OwnedLootAuthority::new(),
             shared_loot: None,
             personal_loot: HashMap::new(),
-        }
+            runtime_like_cpp: CreatureRuntimeLikeCpp::new_like_cpp(MotionMaster::new_pending()),
+        };
+        // C++ `Unit::i_motionMaster` is initialized with the creature's default
+        // movement generator once the unit exists.
+        let motion_master = new_runtime_motion_master_like_cpp(&creature);
+        creature.runtime_like_cpp = CreatureRuntimeLikeCpp::new_like_cpp(motion_master);
+        creature
     }
     pub fn create_from_lifecycle(record: CreatureCreateLifecycleRecord) -> Self {
         let mut creature = Self::new(false);

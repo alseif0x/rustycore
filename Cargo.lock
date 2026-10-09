@@ -3243,9 +3243,11 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "num-traits",
+ "rand",
  "wow-constants",
  "wow-core",
  "wow-loot",
+ "wow-movement",
 ]
 
 [[package]]

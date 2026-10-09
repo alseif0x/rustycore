@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 
 #[test]
 fn create_data_from_canonical_keeps_base_mana_distinct_from_non_mana_power_like_cpp() {

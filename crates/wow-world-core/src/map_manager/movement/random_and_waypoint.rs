@@ -3,6 +3,8 @@
 //! Divided out of the single inherent impl under #705; every method keeps
 //! its name, signature and body.
 
+use rand::Rng;
+
 use super::*;
 
 impl WorldCreature {
@@ -31,7 +33,9 @@ impl WorldCreature {
             self.creature
                 .set_ai_state(wow_entities::CreatureAiState::WalkingWaypoint);
         }
-        self.active_waypoint_generator = Some(generator);
+        self.creature
+            .runtime_like_cpp_mut()
+            .active_waypoint_generator = Some(generator);
         action
     }
 
@@ -59,8 +63,8 @@ impl WorldCreature {
             .subsystems_mut()
             .motion
             .stop_moving();
-        self.active_move_spline = None;
-        let next_wander_steps_roll = self.runtime_rng_like_cpp.gen_range(2..=10);
+        self.creature.runtime_like_cpp_mut().active_move_spline = None;
+        let next_wander_steps_roll = self.runtime_rng_mut().gen_range(2..=10);
         let snapshot = self.random_unit_snapshot_like_cpp(
             true,
             RandomPathResult::Success,
@@ -72,11 +76,14 @@ impl WorldCreature {
         );
         let mut generator = RandomMovementGenerator::new(0.0, None);
         let _ = generator.initialize_like_cpp(true, snapshot);
-        self.active_random_generator = Some(generator);
+        self.creature.runtime_like_cpp_mut().active_random_generator = Some(generator);
         // C++ `RandomMovementGenerator<Creature>::DoInitialize` drops the
         // generator's `PathGenerator` (`RandomMovementGenerator.cpp:95`), so the
         // next query starts from an empty corridor.
-        self.active_random_path_poly_refs.clear();
+        self.creature
+            .runtime_like_cpp_mut()
+            .active_random_path_poly_refs
+            .clear();
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let ai = self.creature.ai_ownership_mut();
         ai.move_target = None;
@@ -142,7 +149,12 @@ impl WorldCreature {
         update_spline: bool,
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
-        if self.active_random_generator.is_none() {
+        if self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_random_generator
+            .is_none()
+        {
             if !self.initialize_default_random_movement_like_cpp() {
                 if self.state() == CreatureAiState::WalkingRandom && self.movement_finished() {
                     self.finish_move();
@@ -156,10 +168,14 @@ impl WorldCreature {
         }
 
         let move_spline_finalized = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_move_spline
             .as_ref()
             .is_none_or(MoveSpline::finalized);
         let should_set_location = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_random_generator
             .as_ref()
             .is_some_and(|generator| generator.timer_ms().saturating_sub(diff_ms as i32) <= 0)
@@ -175,11 +191,13 @@ impl WorldCreature {
         let mut pause_seconds_roll = 4;
 
         if should_set_location {
-            distance_roll = self.runtime_rng_like_cpp.gen_range(0.0..=1.0);
-            angle_roll = self.runtime_rng_like_cpp.gen_range(0.0..=1.0);
-            next_wander_steps_roll = self.runtime_rng_like_cpp.gen_range(2..=10);
-            pause_seconds_roll = self.runtime_rng_like_cpp.gen_range(4..=10);
+            distance_roll = self.runtime_rng_mut().gen_range(0.0..=1.0);
+            angle_roll = self.runtime_rng_mut().gen_range(0.0..=1.0);
+            next_wander_steps_roll = self.runtime_rng_mut().gen_range(2..=10);
+            pause_seconds_roll = self.runtime_rng_mut().gen_range(4..=10);
             let reference = self
+                .creature
+                .runtime_like_cpp_mut()
                 .active_random_generator
                 .as_ref()
                 .map(RandomMovementGenerator::reference)
@@ -203,7 +221,11 @@ impl WorldCreature {
                     force_destination: false,
                     filter_context: self.path_query_filter_context_like_cpp(),
                     owner: self.detour_owner_capabilities_like_cpp(),
-                    previous_poly_refs: self.active_random_path_poly_refs.clone(),
+                    previous_poly_refs: self
+                        .creature
+                        .runtime_like_cpp_mut()
+                        .active_random_path_poly_refs
+                        .clone(),
                 });
                 if let Some(path) = detour_path.as_ref() {
                     let path_type = path_type_from_detour_like_cpp(path.point_path.path_type);
@@ -211,7 +233,9 @@ impl WorldCreature {
                     // The generator keeps its `PathGenerator` alive, so the
                     // corridor this query produced is the one the next one may
                     // reuse (`PathGenerator.cpp:291-413`).
-                    self.active_random_path_poly_refs
+                    self.creature
+                        .runtime_like_cpp_mut()
+                        .active_random_path_poly_refs
                         .clone_from(&path.poly_refs);
                 } else {
                     path_result = RandomPathResult::Failed;
@@ -228,7 +252,12 @@ impl WorldCreature {
             pause_seconds_roll,
             0,
         );
-        let action = match self.active_random_generator.as_mut() {
+        let action = match self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_random_generator
+            .as_mut()
+        {
             Some(generator) => generator.update_like_cpp(true, diff_ms, snapshot),
             None => return None,
         };
@@ -310,7 +339,7 @@ impl WorldCreature {
                     .subsystems_mut()
                     .motion
                     .stop_moving();
-                self.active_move_spline = None;
+                self.creature.runtime_like_cpp_mut().active_move_spline = None;
                 None
             }
             RandomMovementAction::Launch(launch) => {
@@ -328,11 +357,18 @@ impl WorldCreature {
                 self.creature
                     .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
                 self.creature.ai_ownership_mut().wander_steps_remaining = self
+                    .creature
+                    .runtime_like_cpp_mut()
                     .active_random_generator
                     .as_ref()
                     .map(RandomMovementGenerator::wander_steps)
                     .unwrap_or_default();
-                if let Some(generator) = self.active_random_generator.as_mut() {
+                if let Some(generator) = self
+                    .creature
+                    .runtime_like_cpp_mut()
+                    .active_random_generator
+                    .as_mut()
+                {
                     generator.adjust_launch_timer_for_actual_travel_time_like_cpp(
                         planned_travel_time_ms,
                         movement.1.duration_ms(),
@@ -387,15 +423,23 @@ impl WorldCreature {
         update_spline: bool,
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
-        if let Some(mut random) = self.active_waypoint_random_at_path_end {
+        if let Some(mut random) = self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_waypoint_random_at_path_end
+        {
             if update_spline {
                 let _ = self.update_move_spline_like_cpp();
             }
             random.duration_ms = random.duration_ms.saturating_sub(diff_ms as i32);
             if random.duration_ms > 0 {
-                self.active_waypoint_random_at_path_end = Some(random);
+                self.creature
+                    .runtime_like_cpp_mut()
+                    .active_waypoint_random_at_path_end = Some(random);
             } else {
-                self.active_waypoint_random_at_path_end = None;
+                self.creature
+                    .runtime_like_cpp_mut()
+                    .active_waypoint_random_at_path_end = None;
             }
             return (WaypointMovementAction::Continue, None);
         }
@@ -408,7 +452,12 @@ impl WorldCreature {
         }
 
         let snapshot = self.waypoint_unit_snapshot_like_cpp();
-        let Some(generator) = self.active_waypoint_generator.as_mut() else {
+        let Some(generator) = self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_waypoint_generator
+            .as_mut()
+        else {
             return (WaypointMovementAction::Continue, None);
         };
         let action = generator.update_like_cpp(true, diff_ms, snapshot, wait_time_roll_ms);
@@ -424,7 +473,12 @@ impl WorldCreature {
                 if arrived.timer_ms.is_none() && arrived.move_random_at_path_end.is_none()
         ) {
             let snapshot = self.waypoint_unit_snapshot_like_cpp();
-            if let Some(generator) = self.active_waypoint_generator.as_mut() {
+            if let Some(generator) = self
+                .creature
+                .runtime_like_cpp_mut()
+                .active_waypoint_generator
+                .as_mut()
+            {
                 let chained = generator.update_like_cpp(true, 0, snapshot, None);
                 if chained != WaypointMovementAction::Continue {
                     let chained_launch = self
@@ -469,7 +523,9 @@ impl WorldCreature {
                 );
                 if let Some(random) = arrived.move_random_at_path_end {
                     let launch_result = self.begin_waypoint_random_at_path_end_like_cpp(random);
-                    self.active_waypoint_random_at_path_end = Some(random);
+                    self.creature
+                        .runtime_like_cpp_mut()
+                        .active_waypoint_random_at_path_end = Some(random);
                     launch_result
                 } else {
                     None
@@ -602,10 +658,10 @@ impl WorldCreature {
 
     pub fn pick_wander_destination(&mut self) -> Option<Position> {
         let angle = self
-            .runtime_rng_like_cpp
+            .runtime_rng_mut()
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
         let radius = self.creature.ai_ownership().wander_radius.max(0.0);
-        let dist = self.runtime_rng_like_cpp.gen_range(0.0..=radius);
+        let dist = self.runtime_rng_mut().gen_range(0.0..=radius);
         let home = self.home_position();
         let x = home.x + angle.cos() * dist;
         let y = home.y + angle.sin() * dist;
@@ -618,10 +674,10 @@ impl WorldCreature {
         wander_distance: f32,
     ) -> Option<Position> {
         let angle = self
-            .runtime_rng_like_cpp
+            .runtime_rng_mut()
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
         let radius = wander_distance.max(0.0);
-        let dist = self.runtime_rng_like_cpp.gen_range(0.0..=radius);
+        let dist = self.runtime_rng_mut().gen_range(0.0..=radius);
         let reference = self.position();
         let x = reference.x + angle.cos() * dist;
         let y = reference.y + angle.sin() * dist;
@@ -631,7 +687,7 @@ impl WorldCreature {
 
     pub fn reset_wander_timer(&mut self) -> bool {
         let now_ms = self.runtime_elapsed_ms_like_cpp();
-        let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
+        let wander_delay_ms = self.runtime_rng_mut().gen_range(4_000..=10_000);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;
@@ -639,7 +695,7 @@ impl WorldCreature {
     }
 
     pub fn initialize_random_wander_steps_like_cpp(&mut self) -> bool {
-        let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let wander_steps_remaining = self.runtime_rng_mut().gen_range(2..=10);
         self.creature.ai_ownership_mut().wander_steps_remaining = wander_steps_remaining;
         true
     }
@@ -664,8 +720,8 @@ impl WorldCreature {
             ai.wander_delay_ms = 0;
             return true;
         }
-        let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
-        let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let wander_delay_ms = self.runtime_rng_mut().gen_range(4_000..=10_000);
+        let wander_steps_remaining = self.runtime_rng_mut().gen_range(2..=10);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;

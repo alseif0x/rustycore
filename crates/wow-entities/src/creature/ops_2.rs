@@ -597,6 +597,17 @@ impl Creature {
     pub const fn already_call_assistance(&self) -> bool {
         self.already_call_assistance
     }
+    /// The canonical persistent creature runtime state (#1263 F6-8A).
+    ///
+    /// Owners that still reach this state through a legacy bridge read this
+    /// same storage; there is no second copy.
+    pub const fn runtime_like_cpp(&self) -> &CreatureRuntimeLikeCpp {
+        &self.runtime_like_cpp
+    }
+    /// Mutable access to the canonical persistent creature runtime state.
+    pub const fn runtime_like_cpp_mut(&mut self) -> &mut CreatureRuntimeLikeCpp {
+        &mut self.runtime_like_cpp
+    }
     pub const fn already_searched_assistance(&self) -> bool {
         self.already_searched_assistance
     }

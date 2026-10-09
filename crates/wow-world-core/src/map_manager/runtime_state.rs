@@ -82,113 +82,14 @@ pub enum ChaseTickOutcomeLikeCpp {
 
 /// Runtime selector proxy for an active generator whose concrete lifecycle
 /// still lives in `wow_entities::MotionSubsystem`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct RuntimeRepresentedActiveKeyLikeCpp {
-    pub(super) kind: RuntimeMovementGeneratorType,
-    mode: RuntimeMovementGeneratorMode,
-    priority: RuntimeMovementGeneratorPriority,
-    base_unit_state: u32,
-}
-
-#[derive(Debug)]
-pub(super) struct RuntimeRepresentedActiveGeneratorLikeCpp {
-    state: RuntimeMovementGeneratorState,
-    kind: RuntimeMovementGeneratorType,
-}
-
-impl RuntimeRepresentedActiveGeneratorLikeCpp {
-    pub(super) fn from_represented(generator: MovementGeneratorRef) -> Option<Self> {
-        let kind = RuntimeMovementGeneratorType::from_trinity_id(generator.kind.trinity_id())?;
-        let mode = match generator.mode {
-            wow_entities::MovementGeneratorMode::Default => RuntimeMovementGeneratorMode::Default,
-            wow_entities::MovementGeneratorMode::Override => RuntimeMovementGeneratorMode::Override,
-        };
-        let priority = match generator.priority {
-            wow_entities::MovementGeneratorPriority::None => RuntimeMovementGeneratorPriority::None,
-            wow_entities::MovementGeneratorPriority::Normal => {
-                RuntimeMovementGeneratorPriority::Normal
-            }
-            wow_entities::MovementGeneratorPriority::Highest => {
-                RuntimeMovementGeneratorPriority::Highest
-            }
-        };
-        Some(Self {
-            state: RuntimeMovementGeneratorState {
-                mode,
-                priority,
-                flags: RuntimeMovementGeneratorFlags::INITIALIZATION_PENDING,
-                base_unit_state: generator.base_unit_state,
-            },
-            kind,
-        })
-    }
-
-    pub(super) const fn key(&self) -> RuntimeRepresentedActiveKeyLikeCpp {
-        RuntimeRepresentedActiveKeyLikeCpp {
-            kind: self.kind,
-            mode: self.state.mode,
-            priority: self.state.priority,
-            base_unit_state: self.state.base_unit_state,
-        }
-    }
-}
-
-impl RuntimeMovementGenerator for RuntimeRepresentedActiveGeneratorLikeCpp {
-    fn state(&self) -> &RuntimeMovementGeneratorState {
-        &self.state
-    }
-
-    fn state_mut(&mut self) -> &mut RuntimeMovementGeneratorState {
-        &mut self.state
-    }
-
-    fn kind(&self) -> RuntimeMovementGeneratorType {
-        self.kind
-    }
-
-    fn initialize(&mut self) {
-        self.state.flags.remove(
-            RuntimeMovementGeneratorFlags::INITIALIZATION_PENDING
-                | RuntimeMovementGeneratorFlags::DEACTIVATED,
-        );
-        self.state
-            .flags
-            .insert(RuntimeMovementGeneratorFlags::INITIALIZED);
-    }
-
-    fn reset(&mut self) {
-        self.initialize();
-    }
-
-    fn update(&mut self, _diff_ms: u32) -> bool {
-        !self
-            .state
-            .flags
-            .contains(RuntimeMovementGeneratorFlags::FINALIZED)
-    }
-
-    fn deactivate(&mut self) {
-        self.state
-            .flags
-            .insert(RuntimeMovementGeneratorFlags::DEACTIVATED);
-    }
-
-    fn finalize(&mut self, _active: bool, _movement_inform: bool) {
-        self.state
-            .flags
-            .insert(RuntimeMovementGeneratorFlags::FINALIZED);
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) struct ActiveTauntLikeCpp {
-    pub(super) caster: ObjectGuid,
-    /// `None` represents C++/DB2's permanent duration sentinel `-1`.
-    pub(super) due_at_ms: Option<u64>,
-    pub(super) spell_id: u32,
-    pub(super) effect_mask: u32,
-    pub(super) slot: u8,
-}
+///
+/// #1263 F6-8A moved the type, together with the canonical runtime state that
+/// stores it, into `wow-entities`; the name is re-exported here so the legacy
+/// map-manager modules keep resolving it unchanged.
+pub use wow_entities::{
+    ActiveTauntLikeCpp, RuntimeRepresentedActiveGeneratorLikeCpp,
+    RuntimeRepresentedActiveKeyLikeCpp,
+};
 
 /// Who owns the creature/combat tick for a given map at runtime.
 ///

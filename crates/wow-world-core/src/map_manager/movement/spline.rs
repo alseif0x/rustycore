@@ -26,7 +26,7 @@ impl WorldCreature {
     }
 
     pub fn movement_finished(&self) -> bool {
-        if let Some(spline) = &self.active_move_spline {
+        if let Some(spline) = &self.creature.runtime_like_cpp().active_move_spline {
             return spline.finalized();
         }
         self.creature
@@ -88,6 +88,8 @@ impl WorldCreature {
         }
         let spline_id = init.args.spline_id;
         let active_spline_position = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_move_spline
             .as_ref()
             .filter(|spline| !spline.finalized() && !spline.on_transport)
@@ -95,6 +97,8 @@ impl WorldCreature {
 
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_move_spline
             .take()
             .unwrap_or_else(MoveSpline::new);
@@ -140,7 +144,7 @@ impl WorldCreature {
             .unit_mut()
             .add_unit_state(UnitState::ROAMING_MOVE.bits());
         self.apply_launch_movement_flags_like_cpp(launch.movement_flags);
-        self.active_move_spline = Some(spline.clone());
+        self.creature.runtime_like_cpp_mut().active_move_spline = Some(spline.clone());
         Some((launch.real_position, spline))
     }
 
@@ -306,6 +310,8 @@ impl WorldCreature {
         let spline_id = self.spline_id().saturating_add(1);
         let current = self.position();
         let active_spline_position = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_move_spline
             .as_ref()
             .filter(|spline| !spline.finalized() && !spline.on_transport)
@@ -317,6 +323,8 @@ impl WorldCreature {
 
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_move_spline
             .take()
             .unwrap_or_else(MoveSpline::new);
@@ -355,12 +363,17 @@ impl WorldCreature {
                 None,
             );
         self.apply_launch_movement_flags_like_cpp(launch.movement_flags);
-        self.active_move_spline = Some(spline.clone());
+        self.creature.runtime_like_cpp_mut().active_move_spline = Some(spline.clone());
         Some((launch.real_position, spline))
     }
 
     pub fn update_move_spline_like_cpp(&mut self) -> bool {
-        let Some(mut spline) = self.active_move_spline.take() else {
+        let Some(mut spline) = self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_move_spline
+            .take()
+        else {
             return self.movement_finished();
         };
 
@@ -397,13 +410,17 @@ impl WorldCreature {
                 .unit_mut()
                 .clear_unit_state(UnitState::ROAMING_MOVE.bits());
         } else {
-            self.active_move_spline = Some(spline);
+            self.creature.runtime_like_cpp_mut().active_move_spline = Some(spline);
         }
         finalized
     }
 
     pub fn stop_move_spline_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
-        let mut spline = self.active_move_spline.take()?;
+        let mut spline = self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_move_spline
+            .take()?;
         if spline.finalized() {
             return None;
         }
@@ -451,7 +468,7 @@ impl WorldCreature {
             self.creature.set_ai_position(dst);
         }
         self.creature.ai_ownership_mut().move_duration_ms = 0;
-        self.active_move_spline = None;
+        self.creature.runtime_like_cpp_mut().active_move_spline = None;
         self.creature
             .unit_mut()
             .subsystems_mut()

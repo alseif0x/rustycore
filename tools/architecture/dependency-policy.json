@@ -448,7 +448,8 @@
       "wow-entities": {
         "normal": [
           "bitflags",
-          "num-traits"
+          "num-traits",
+          "rand"
         ],
         "build": []
       },
