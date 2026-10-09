@@ -1532,3 +1532,6 @@ mod scenarios_7;
 mod scenarios_8;
 #[path = "main_tests/scenarios_9.rs"]
 mod scenarios_9;
+// #1263 F6-8D2: the isolated admitted creature execution wiring.
+#[path = "main_tests/scenarios_15.rs"]
+mod scenarios_15;

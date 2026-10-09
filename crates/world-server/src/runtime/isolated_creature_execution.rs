@@ -219,7 +219,7 @@ pub fn run_isolated_admitted_creature_execution_for_tick_like_cpp(
         plan.effective_diff_ms(),
         plan.updated_maps_like_cpp()
             .iter()
-            .map(|participant| participant.key),
+            .map(|participant| (participant.key, participant.incarnation)),
         objects.iter().copied(),
     ) else {
         outcome.refusal = Some(IsolatedCreatureExecutionRefusalLikeCpp::CanonicalOwnerUnreadable);

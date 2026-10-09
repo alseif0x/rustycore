@@ -178,7 +178,7 @@ fn admitted_tick_and_capture_like_cpp(
         plan.effective_diff_ms(),
         plan.updated_maps_like_cpp()
             .iter()
-            .map(|participant| participant.key),
+            .map(|participant| (participant.key, participant.incarnation)),
         objects.iter().copied(),
     )
     .expect("the canonical owner is readable, so the admission is captured");

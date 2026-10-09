@@ -62,9 +62,10 @@ pub use legacy_runtime::{
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
     CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
-    IsolatedCreatureExecutionCompositionOutcomeLikeCpp, IsolatedCreatureExecutionOutcomeLikeCpp,
-    IsolatedLegacyArmOutcomeLikeCpp, IsolatedSessionArmOutcomeLikeCpp,
-    SharedCreatureExecutionLeaseLikeCpp, capture_admitted_creature_execution_like_cpp,
+    CreatureExecutionTransitionLikeCpp, IsolatedCreatureExecutionCompositionOutcomeLikeCpp,
+    IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
+    IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
+    capture_admitted_creature_execution_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
     run_isolated_admitted_creature_execution_composition_like_cpp,
 };

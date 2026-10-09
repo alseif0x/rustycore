@@ -154,27 +154,35 @@ impl IsolatedCreatureExecutionOutcomeLikeCpp {
     }
 }
 
-/// Capture the admission of one transition under the canonical guard.
+/// Freeze the admission of one transition from the tick that admitted it.
+///
+/// `maps` is the **plan's** admitted set — `(key, incarnation)` pairs taken from
+/// `MapTickPlanLikeCpp::updated_maps_like_cpp()` — and the recorded incarnation
+/// is the plan's, never a fresh read of the map key. That is what makes the
+/// admission a fence: a key recreated as N+1 between the split and the execution
+/// is still recorded as N here, so [`AdmittedCreatureExecutionLikeCpp::fence_like_cpp`]
+/// refuses it before the first mutation instead of silently adopting the
+/// replacement.
 ///
 /// `objects` is the tick's selected object set (the map's `ObjectUpdater`
-/// selection for the same diff), already filtered by the caller to the family
-/// it owns. `None` means the canonical owner is unreadable: an unreadable owner
-/// is not proof of absence, so no admission is captured.
+/// selection for the same diff), already filtered by the caller to the family it
+/// owns. Only objects whose key the plan admitted are captured, and the live
+/// record allocation is recorded as their identity.
+///
+/// `None` means the canonical owner is unreadable: an unreadable owner is not
+/// proof of absence, so no admission is captured.
 #[must_use]
 pub fn capture_admitted_creature_execution_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
     coordinator_id: u64,
     tick_epoch: u64,
     diff_ms: u32,
-    maps: impl IntoIterator<Item = wow_map::MapKey>,
+    maps: impl IntoIterator<Item = (wow_map::MapKey, u64)>,
     objects: impl IntoIterator<Item = (wow_map::MapKey, ObjectGuid)>,
 ) -> Option<AdmittedCreatureExecutionLikeCpp> {
     let manager = canonical_map_manager.lock().ok()?;
     let mut admitted_maps = Vec::new();
-    for key in maps {
-        let Some(incarnation) = manager.map_incarnation_like_cpp(key) else {
-            continue;
-        };
+    for (key, incarnation) in maps {
         admitted_maps.push(AdmittedCreatureExecutionMapLikeCpp {
             map_id: key.map_id,
             instance_id: key.instance_id,
@@ -186,7 +194,12 @@ pub fn capture_admitted_creature_execution_like_cpp(
 
     let mut admitted_objects = Vec::new();
     for (key, creature_guid) in objects {
-        let Some(incarnation) = manager.map_incarnation_like_cpp(key) else {
+        // An object of a map the plan did not admit is not part of this
+        // transition: the plan is the admission, not the selection alone.
+        let Some(admitted) = admitted_maps
+            .iter()
+            .find(|map| map.map_id == key.map_id && map.instance_id == key.instance_id)
+        else {
             continue;
         };
         let Some(record_identity) = manager
@@ -203,7 +216,7 @@ pub fn capture_admitted_creature_execution_like_cpp(
         admitted_objects.push(AdmittedCreatureExecutionObjectLikeCpp {
             map_id: key.map_id,
             instance_id: key.instance_id,
-            incarnation,
+            incarnation: admitted.incarnation,
             creature_guid,
             record_identity,
         });
