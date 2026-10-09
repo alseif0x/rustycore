@@ -797,8 +797,16 @@ fn legacy_creature_melee_tick_once_rejects_missing_canonical_attacker_before_sid
         &Default::default(),
     );
 
-    assert_eq!(outcome.swings_ready, 1);
-    assert_eq!(outcome.melee_precondition_rejections, 1);
+    // #1263 F6-8C: the canonical designated owner decides the swing selection,
+    // so a creature whose exact residence has no canonical incarnation is
+    // refused **before** a swing is selected. The refusal is the same fact this
+    // regression always asserted — the missing canonical attacker produces no
+    // side effect at all — now decided by ownership instead of by the later
+    // execution-time incarnation check, which is why the selection counter is 0
+    // and the ownership refusal is 1.
+    assert_eq!(outcome.swings_ready, 0);
+    assert_eq!(outcome.canonical_incarnation_rejections, 1);
+    assert_eq!(outcome.melee_precondition_rejections, 0);
     assert_eq!(outcome.melee_outcomes_unrepresented, 0);
     assert_eq!(outcome.runtime_rng_authority_rejections, 0);
     assert_eq!(outcome.attacking_interrupt_auras_removed, 0);
