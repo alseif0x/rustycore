@@ -48,11 +48,14 @@ fn committed_money_callers_publish_all_runtime_state_before_reopening_admission(
         include_str!("../../../src/handlers/character/login_support.rs"),
         include_str!("../../../src/handlers/character/login_transport_support.rs"),
         include_str!("../../../src/handlers/character/account.rs"),
+        include_str!("../../../src/handlers/character/account/host.rs"),
         include_str!("../../../src/handlers/character/account/registrations.rs"),
         include_str!("../../../src/handlers/character/account/registrations/character_setup.rs"),
-        include_str!("../../../src/handlers/character/account/registrations/world_queries.rs"),
-        include_str!("../../../src/handlers/character/account/registrations/world_services.rs"),
-        include_str!("../../../src/handlers/character/account/registrations/inventory_actions.rs"),
+        // #1263 F5: the character/account registration family moved off the
+        // legacy inventory path into the application crate's explicit area
+        // registrar, so this scan follows it there exactly as it followed the
+        // #224 character split above.
+        include_str!("../../../../wow-world-application/src/character_account_handlers.rs"),
         include_str!("../../../src/handlers/character/account/collections.rs"),
         include_str!("../../../src/handlers/character/bank.rs"),
         include_str!("../../../src/handlers/character/condition_objects.rs"),

@@ -54,10 +54,15 @@ use wow_constants::unit::{
     UNIT_FLAGS3_ALLOWED_LIKE_CPP, UnitFlags,
 };
 use wow_constants::{
-    ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, InventoryResult, InventoryType,
-    ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState,
+    ConditionSourceType, CreatureFlagsExtra, InventoryResult, InventoryType, ItemContext,
+    ItemExtendedCostFlags, ItemFieldFlags, ItemFlags, ItemModifier, ItemUpdateState,
     ItemVendorType, PowerType, TypeId, TypeMask, UnitStandStateType,
 };
+// Test-only: its production readers were the character/account registrations that
+// moved to `wow-world-application` under #1263 F5; the character scenarios still
+// reach these three names through `super::*`.
+#[cfg(test)]
+use wow_constants::ClientOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
@@ -93,12 +98,18 @@ use wow_entities::{
     normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
+// Test-only: the production registration source that used these two moved to the
+// application crate's character/account area registrar under #1263 F5.
+#[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 #[cfg(test)]
 pub(crate) use wow_world_lifecycle::login_transport::GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT_LIKE_CPP;
 
 use crate::session::hub_support::player_team_for_race_cpp;
-use crate::session::registry::PacketHandlerEntry;
+// The character/account packet registrations that used to reach
+// `crate::session::registry::PacketHandlerEntry` from here moved to the
+// application crate's explicit area registrar under #1263 F5, so this module no
+// longer needs the entry type in scope.
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToKey, ConnectToSerial, ResumeComms,
 };
