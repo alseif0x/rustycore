@@ -216,20 +216,25 @@ fn d1_drive_legacy_path_like_cpp(
     creature: &mut WorldCreature,
     victim: ObjectGuid,
     caster: ObjectGuid,
-) {
+) -> Vec<Option<u64>> {
+    let mut draws = Vec::new();
     creature.advance_runtime_clock_like_cpp(1_500);
     creature.enter_combat(victim);
     creature.record_failed_swing_retry_like_cpp();
     creature.advance_runtime_clock_like_cpp(200);
     for _ in 0..5 {
-        let _ = creature.roll_damage();
+        draws.push(creature.roll_damage().map(u64::from));
     }
     for _ in 0..3 {
-        let _ = creature.random_creature_spell_delay_like_cpp(1_000, 5_000);
+        draws.push(creature.random_creature_spell_delay_like_cpp(1_000, 5_000));
     }
-    let _ = creature.random_creature_spell_delay_like_cpp(2_500, 2_500);
+    draws.push(creature.random_creature_spell_delay_like_cpp(2_500, 2_500));
     for _ in 0..3 {
-        let _ = creature.random_creature_spell_hit_roll_like_cpp();
+        draws.push(
+            creature
+                .random_creature_spell_hit_roll_like_cpp()
+                .map(u64::from),
+        );
     }
     creature.schedule_creature_spell_slot_after_like_cpp(0, 500);
     creature.schedule_creature_spell_slot_after_like_cpp(3, 2_500);
@@ -245,7 +250,8 @@ fn d1_drive_legacy_path_like_cpp(
     let _ = creature.reset_combat();
     // Terminal draw whose invalid range tombstones exact RNG authority; it runs
     // last so every earlier draw stays comparable.
-    let _ = creature.roll_damage();
+    draws.push(creature.roll_damage().map(u64::from));
+    draws
 }
 
 /// The same sequence driven against a bare canonical entity.
@@ -253,20 +259,25 @@ fn d1_drive_canonical_path_like_cpp(
     creature: &mut Creature,
     victim: ObjectGuid,
     caster: ObjectGuid,
-) {
+) -> Vec<Option<u64>> {
+    let mut draws = Vec::new();
     creature.advance_runtime_clock_like_cpp(1_500);
     creature.enter_combat(victim);
     creature.record_failed_swing_retry_like_cpp();
     creature.advance_runtime_clock_like_cpp(200);
     for _ in 0..5 {
-        let _ = creature.roll_damage();
+        draws.push(creature.roll_damage().map(u64::from));
     }
     for _ in 0..3 {
-        let _ = creature.random_creature_spell_delay_like_cpp(1_000, 5_000);
+        draws.push(creature.random_creature_spell_delay_like_cpp(1_000, 5_000));
     }
-    let _ = creature.random_creature_spell_delay_like_cpp(2_500, 2_500);
+    draws.push(creature.random_creature_spell_delay_like_cpp(2_500, 2_500));
     for _ in 0..3 {
-        let _ = creature.random_creature_spell_hit_roll_like_cpp();
+        draws.push(
+            creature
+                .random_creature_spell_hit_roll_like_cpp()
+                .map(u64::from),
+        );
     }
     creature.schedule_creature_spell_slot_after_like_cpp(0, 500);
     creature.schedule_creature_spell_slot_after_like_cpp(3, 2_500);
@@ -280,7 +291,8 @@ fn d1_drive_canonical_path_like_cpp(
     let _ = creature.expire_taunt_auras_if_due_like_cpp();
     let _ = creature.take_damage_before_death_state_like_cpp(250);
     let _ = creature.reset_combat();
-    let _ = creature.roll_damage();
+    draws.push(creature.roll_damage().map(u64::from));
+    draws
 }
 
 /// Every observable the sequence produces, read off canonical ownership only.
@@ -336,9 +348,13 @@ fn canonical_phase_engine_preserves_state_and_rng_continuity_like_cpp() {
         d1_observables_like_cpp(&legacy.creature)
     );
 
-    d1_drive_legacy_path_like_cpp(&mut legacy, victim, caster);
-    d1_drive_canonical_path_like_cpp(&mut canonical, victim, caster);
+    let legacy_draws = d1_drive_legacy_path_like_cpp(&mut legacy, victim, caster);
+    let canonical_draws = d1_drive_canonical_path_like_cpp(&mut canonical, victim, caster);
 
+    assert_eq!(
+        canonical_draws, legacy_draws,
+        "the ported engine must reproduce the legacy draw sequence, in order"
+    );
     assert_eq!(
         d1_observables_like_cpp(&canonical),
         d1_observables_like_cpp(&legacy.creature),
