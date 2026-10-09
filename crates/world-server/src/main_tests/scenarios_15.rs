@@ -13,7 +13,7 @@
 
 use super::*;
 use crate::{
-    IsolatedCreatureExecutionRefusalLikeCpp, deliver_isolated_admitted_creature_execution_like_cpp,
+    IsolatedCreatureExecutionRefusalLikeCpp,
     run_isolated_admitted_creature_execution_for_tick_like_cpp,
 };
 use wow_world::session::{
@@ -207,10 +207,6 @@ fn isolated_admitted_execution_delivers_only_after_every_guard_is_released_like_
     assert_eq!(execution.effects_consumed, 1);
     assert_eq!(outcome.deferred_publication_like_cpp().len(), 1);
     assert!(
-        !outcome.publication_delivered_like_cpp(),
-        "the deferred batch is owed to the delivery entry, not delivered under the guards"
-    );
-    assert!(
         victim_rx.try_recv().is_err(),
         "nothing was published to the victim while the guards were held"
     );
@@ -226,11 +222,14 @@ fn isolated_admitted_execution_delivers_only_after_every_guard_is_released_like_
         "the canonical map guard is free after the execution"
     );
 
-    let delivery = deliver_isolated_admitted_creature_execution_like_cpp(&mut outcome, &registry);
-    assert_eq!(delivery.commands, 1);
-    assert_eq!(delivery.queued, 1);
-    assert_eq!(delivery.failed, 0);
-    assert!(outcome.publication_delivered_like_cpp());
+    // Delivery is the caller's step and it runs after the adapter returned. It
+    // uses the same tracked production helper the global legacy loop uses, so
+    // the isolated path adds no session-directory access of its own.
+    let batch = outcome.deferred_publication_like_cpp().to_vec();
+    let delivery = deliver_creature_melee_damage_commands_like_cpp(&batch, &registry);
+    assert_eq!(delivery.commands_seen, 1);
+    assert_eq!(delivery.candidates_queued, 1);
+    assert_eq!(delivery.send_failed, 0);
     let delivered = drain_durable_creature_runtime_commands_like_cpp(&registry, victim);
     assert_eq!(
         delivered.len(),
@@ -246,10 +245,21 @@ fn isolated_admitted_execution_delivers_only_after_every_guard_is_released_like_
         "the general session rail is not the creature melee publication path"
     );
 
-    // The batch is delivered exactly once.
-    let repeated = deliver_isolated_admitted_creature_execution_like_cpp(&mut outcome, &registry);
-    assert_eq!(repeated.commands, 0);
-    assert_eq!(repeated.queued, 0);
+    // Re-running the adapter for the same transition is refused by the
+    // single-owner claim and hands out no batch, so nothing is published twice.
+    let repeated = run_isolated_admitted_creature_execution_for_tick_like_cpp(
+        &plan,
+        &canonical,
+        &lease,
+        F6_8D2_COORDINATOR_LIKE_CPP,
+        Some(&respawn_db_mutation_order),
+        &[(f6_8d2_key_like_cpp(), attacker)],
+    );
+    assert_eq!(
+        repeated.refusal.map(|refusal| refusal.label_like_cpp()),
+        Some("owner-lease")
+    );
+    assert!(repeated.deferred_publication_like_cpp().is_empty());
     assert!(drain_durable_creature_runtime_commands_like_cpp(&registry, victim).is_empty());
 }
 
@@ -349,7 +359,6 @@ fn isolated_admitted_execution_refuses_a_recreated_incarnation_like_cpp() {
     assert_eq!(execution.swing_damage, 0);
     assert_eq!(execution.effects_consumed, 0);
     assert!(outcome.deferred_publication_like_cpp().is_empty());
-    assert!(!outcome.publication_delivered_like_cpp());
     assert_eq!(
         wiring_attacker_state_like_cpp(&canonical, attacker),
         replacement_before,
@@ -361,9 +370,11 @@ fn isolated_admitted_execution_refuses_a_recreated_incarnation_like_cpp() {
     );
 
     // Delivering a refused transition publishes nothing.
-    let delivery = deliver_isolated_admitted_creature_execution_like_cpp(&mut outcome, &registry);
-    assert_eq!(delivery.commands, 0);
-    assert_eq!(delivery.queued, 0);
+    let batch = outcome.deferred_publication_like_cpp().to_vec();
+    assert!(batch.is_empty());
+    let delivery = deliver_creature_melee_damage_commands_like_cpp(&batch, &registry);
+    assert_eq!(delivery.commands_seen, 0);
+    assert_eq!(delivery.candidates_queued, 0);
 }
 
 #[test]

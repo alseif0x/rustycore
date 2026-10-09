@@ -27,9 +27,12 @@
 //!    would submit keep the mailbox ordering the production fence guarantees.
 //!
 //! Both guards are released **before** this adapter returns, and the deferred
-//! `ApplyCreatureMeleeDamageLikeCppCommand` batch is only handed to
-//! [`deliver_isolated_admitted_creature_execution_like_cpp`] afterwards: no
-//! packet is published while a map or persistence guard is held.
+//! `ApplyCreatureMeleeDamageLikeCppCommand` batch is returned to the caller
+//! rather than delivered: the caller hands it to the already-tracked production
+//! helper `deliver_creature_melee_damage_commands_like_cpp` after this function
+//! returned, so no packet is published while a map or persistence guard is held.
+//! The adapter deliberately takes no `PlayerRegistry`, so the isolated path adds
+//! no direct session-directory access of its own.
 //!
 //! Production does not call either entry point. The production owner stays
 //! `RuntimeTickOwner::GlobalLegacy` / `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime`,
@@ -130,42 +133,23 @@ impl IsolatedAdmittedCreatureExecutionOutcomeLikeCpp {
         self.refusal.is_some()
     }
 
-    /// The deferred publication batch. It is still owed to
-    /// [`deliver_isolated_admitted_creature_execution_like_cpp`].
+    /// The deferred publication batch, returned to the caller instead of being
+    /// delivered here. The caller routes it after this adapter returned, so no
+    /// map or persistence guard is held while a session rail is written.
     #[must_use]
     pub fn deferred_publication_like_cpp(&self) -> &[ApplyCreatureMeleeDamageLikeCppCommand] {
         self.execution
             .as_ref()
             .map_or(&[], |execution| execution.deferred_publication.as_slice())
     }
-
-    /// Whether the deferred batch was handed to a publication consumer.
-    #[must_use]
-    pub fn publication_delivered_like_cpp(&self) -> bool {
-        self.execution
-            .as_ref()
-            .is_some_and(|execution| execution.publication_delivered)
-    }
-}
-
-/// What delivering the deferred batch produced.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub struct IsolatedCreatureExecutionDeliveryOutcomeLikeCpp {
-    /// Commands the deferred batch carried.
-    pub commands: usize,
-    /// Commands enqueued on their victim session's rail.
-    pub queued: usize,
-    /// Commands that could not be enqueued.
-    pub failed: usize,
 }
 
 /// Run the isolated admitted creature execution for one admitted tick plan.
 ///
 /// Every guard this function takes — the session barrier read, the admission
 /// capture, the persistence-order gate and the canonical manager guard of the
-/// execution itself — is released before it returns. The deferred publication
-/// is therefore only deliverable by a later call to
-/// [`deliver_isolated_admitted_creature_execution_like_cpp`].
+/// execution itself — is released before it returns, and the deferred
+/// publication is returned to the caller rather than delivered here.
 ///
 /// `objects` is the tick's selected canonical object set, already filtered by
 /// the caller to the creature family it owns; the keys must be the plan's
@@ -258,31 +242,4 @@ pub fn run_isolated_admitted_creature_execution_for_tick_like_cpp(
     }
     // Every guard is released here. The deferred batch is still owed.
     outcome
-}
-
-/// Deliver the deferred publication of one isolated execution.
-///
-/// This is a separate entry on purpose: it must be called after
-/// [`run_isolated_admitted_creature_execution_for_tick_like_cpp`] returned, so
-/// no map or persistence guard is held while a session rail is written. The
-/// canonical health is already committed by the execution, so this only routes
-/// the already-resolved commands.
-pub fn deliver_isolated_admitted_creature_execution_like_cpp(
-    outcome: &mut IsolatedAdmittedCreatureExecutionOutcomeLikeCpp,
-    registry: &PlayerRegistry,
-) -> IsolatedCreatureExecutionDeliveryOutcomeLikeCpp {
-    let Some(execution) = outcome.execution.as_mut() else {
-        return IsolatedCreatureExecutionDeliveryOutcomeLikeCpp::default();
-    };
-    if execution.publication_delivered {
-        return IsolatedCreatureExecutionDeliveryOutcomeLikeCpp::default();
-    }
-    let summary =
-        deliver_creature_melee_damage_commands_like_cpp(&execution.deferred_publication, registry);
-    execution.publication_delivered = true;
-    IsolatedCreatureExecutionDeliveryOutcomeLikeCpp {
-        commands: summary.commands_seen,
-        queued: summary.candidates_queued,
-        failed: summary.send_failed,
-    }
 }

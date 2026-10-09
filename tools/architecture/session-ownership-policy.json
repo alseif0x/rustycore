@@ -71217,6 +71217,90 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::session::legacy_runtime::admitted_creature_execution::composition",
+          "path": "crates/wow-world/src/session/legacy_runtime/admitted_creature_execution/composition.rs",
+          "enclosing": "fn::run_isolated_admitted_creature_execution_composition_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:44c5f851aecaa58822995e77a49faf53:len=99",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_map_manager",
+              "fingerprint": "fnv1a64x2:234341f18e29fa8aff360b65382e3a15:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn run_isolated_admitted_creature_execution_composition_like_cpp (admission : & AdmittedCreatureExecutionLikeCpp , canonical_armed : bool , canonical_map_manager : & SharedCanonicalMapManager , legacy_map_manager : & crate :: map_manager :: SharedMapManager , lease : & SharedCreatureExecutionLeaseLikeCpp , tick_owner : crate :: map_manager :: RuntimeTickOwner , legacy_config : & LegacyCreatureAggroConfigLikeCpp , session_arm : Option < & mut dyn FnMut () -> IsolatedSessionArmOutcomeLikeCpp > ,) -> IsolatedCreatureExecutionCompositionOutcomeLikeCpp|body=fnv1a64x2:e412e530fbddcf4d02e53f59cd30164a:len=2419|evidence=fnv1a64x2:a0e27cf3345bb2eada01ccc53a0bac99:len=472",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::legacy_runtime::admitted_creature_execution::composition",
+          "path": "crates/wow-world/src/session/legacy_runtime/admitted_creature_execution/composition.rs",
+          "enclosing": "fn::run_legacy_creature_execution_arm_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical_map_manager",
+              "fingerprint": "fnv1a64x2:72dfdf4ca324a334691fdfeca233b027:len=149",
+              "multiplicity": 3
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy_map_manager",
+              "fingerprint": "fnv1a64x2:44afa21bc5db6086dd07f9b456fd79c1:len=149",
+              "multiplicity": 3
+            }
+          ],
+          "fingerprint": "signature=fn run_legacy_creature_execution_arm_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : & SharedCanonicalMapManager , admission : & AdmittedCreatureExecutionLikeCpp , legacy_config : & LegacyCreatureAggroConfigLikeCpp ,) -> IsolatedLegacyArmOutcomeLikeCpp|body=fnv1a64x2:63ec714c2f98136f2ea8c997fe29bdba:len=1038|evidence=fnv1a64x2:d5d4615b55a8943737fb007aa80251bc:len=751",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session::legacy_runtime::canonical_incarnation_ownership",
           "path": "crates/wow-world/src/session/legacy_runtime/canonical_incarnation_ownership.rs",
           "enclosing": "fn::canonical_creature_ownership_like_cpp",

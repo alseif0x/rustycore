@@ -2113,9 +2113,7 @@ use runtime::*;
 // `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime` are unchanged — so it is
 // exported as composition API for the D3 cutover and the F6-8D2 regressions.
 pub use runtime::isolated_creature_execution::{
-    IsolatedAdmittedCreatureExecutionOutcomeLikeCpp,
-    IsolatedCreatureExecutionDeliveryOutcomeLikeCpp, IsolatedCreatureExecutionRefusalLikeCpp,
-    deliver_isolated_admitted_creature_execution_like_cpp,
+    IsolatedAdmittedCreatureExecutionOutcomeLikeCpp, IsolatedCreatureExecutionRefusalLikeCpp,
     run_isolated_admitted_creature_execution_for_tick_like_cpp,
 };
 

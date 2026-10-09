@@ -243,9 +243,10 @@ fn isolated_admitted_execution_consumes_the_diff_effects_and_defers_publication_
     );
     assert_eq!(outcome.effects_consumed, 1);
     assert_eq!(outcome.publication_events_like_cpp(), 1);
-    assert!(
-        !outcome.publication_delivered,
-        "the publication is deferred to its consumer, not delivered under the map guard"
+    assert_eq!(
+        outcome.deferred_publication.len(),
+        1,
+        "the publication is returned as a deferred batch, not delivered under the map guard"
     );
     let published = &outcome.deferred_publication[0];
     assert_eq!(published.attacker_guid, attacker);
@@ -412,7 +413,7 @@ fn recreated_map_incarnation_refuses_the_admitted_transition_like_cpp() {
     assert_eq!(outcome.effects_consumed, 0);
     assert_eq!(outcome.publication_events_like_cpp(), 0);
     assert!(
-        !outcome.publication_delivered,
+        outcome.deferred_publication.is_empty(),
         "a refusal publishes nothing, stale or otherwise"
     );
 

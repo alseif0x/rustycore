@@ -118,10 +118,9 @@ pub struct IsolatedCreatureExecutionOutcomeLikeCpp {
     /// Canonical effects applied inside the execution window.
     pub effects_consumed: usize,
     /// The deferred publication of the transition. It is returned to the
-    /// caller and never delivered while the map guard is held.
+    /// caller and never delivered while the map guard is held: this engine has
+    /// no publication consumer, so the returned batch *is* the deferral.
     pub deferred_publication: Vec<crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
-    /// The deferred batch was handed to a publication consumer.
-    pub publication_delivered: bool,
 }
 
 impl IsolatedCreatureExecutionOutcomeLikeCpp {
@@ -137,7 +136,6 @@ impl IsolatedCreatureExecutionOutcomeLikeCpp {
             swing_damage: 0,
             effects_consumed: 0,
             deferred_publication: Vec::new(),
-            publication_delivered: false,
         }
     }
 
