@@ -149,8 +149,11 @@ impl WorldSession {
             return;
         }
 
-        self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
-            .await;
+        wow_world_application::save_current_player_to_db_with_generator_like_cpp(
+            self,
+            item_guid_generator,
+        )
+        .await;
     }
     #[cfg(test)]
     pub(in crate::session) async fn process_pending_periodic_player_save_like_cpp(&mut self) {

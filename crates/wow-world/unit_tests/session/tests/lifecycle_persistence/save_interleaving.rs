@@ -197,6 +197,45 @@ async fn full_save_cancellation_keeps_receipt_unapplied_and_quarantines_unknown_
     );
 }
 
+/// The completion-before-capture fence: a durable Item-loot completion that
+/// outlived its packet waiter is published before the save captures its
+/// snapshot. A capture first would persist the pre-completion balance.
+#[tokio::test]
+async fn full_save_publishes_pending_durable_item_loot_completion_before_capture() {
+    let (mut session, port) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
+    let player_guid = session.player_guid().expect("canonical Player GUID");
+    session
+        .with_owned_player_mut_like_cpp(|player| player.set_money(100))
+        .unwrap();
+    let balance_applied = Arc::new(std::sync::atomic::AtomicBool::new(false));
+    let mut guard = session.begin_durable_item_loot_persistence_like_cpp();
+    guard.mark_committed_like_cpp(wow_world_lifecycle::DurableItemLootCompletionLikeCpp {
+        owner_guid: ObjectGuid::create_item(1, 61_848),
+        loot_list_id: 0,
+        player_guid,
+        item_owner_auto_release: false,
+        durable_item_money_applied_amount: Some(7),
+        durable_item_money_notified_amount: Some(7),
+        durable_item_money_balance_applied: Some(Arc::clone(&balance_applied)),
+        item_fanout: None,
+        runtime_inventory_applied: Arc::new(std::sync::atomic::AtomicBool::new(true)),
+    });
+    drop(guard);
+
+    session.save_current_player_to_db_like_cpp().await;
+
+    let requests = port.character_saves();
+    assert_eq!(requests.len(), 1);
+    assert!(
+        balance_applied.load(std::sync::atomic::Ordering::Acquire),
+        "the save must publish the committed Item-loot money before it captures"
+    );
+    assert_eq!(
+        requests[0].character.money, 107,
+        "capture must observe the completion the save published, not the pre-completion balance"
+    );
+}
+
 #[test]
 fn full_save_preparation_is_owned_and_matches_previous_projection_for_loaded_groups() {
     let (mut session, _) = canonical_session(PersistenceOutcomeLikeCpp::Applied { rows: 1 });

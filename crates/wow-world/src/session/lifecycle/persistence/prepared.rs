@@ -92,7 +92,7 @@ impl SavedPlayerReceipt {
 }
 
 #[cfg(test)]
-fn committed_groups_like_cpp(
+pub(in crate::session) fn committed_groups_like_cpp(
     expected: &PlayerCharacterCommittedGroupsLikeCpp,
     committed: &PlayerCharacterCommittedGroupsLikeCpp,
 ) -> PlayerCharacterCommittedGroupsLikeCpp {

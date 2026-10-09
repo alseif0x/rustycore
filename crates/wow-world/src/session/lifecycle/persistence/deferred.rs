@@ -4,13 +4,6 @@ pub use wow_world_lifecycle::PlayerSaveOutcomeLikeCpp;
 use super::WorldSession;
 
 impl WorldSession {
-    pub(in crate::session) fn defer_player_save_for_transfer_like_cpp(
-        &mut self,
-    ) -> Option<PlayerSaveOutcomeLikeCpp> {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.defer_player_save_for_transfer_like_cpp(&mut hub)
-    }
-
     pub(crate) async fn resume_deferred_player_save_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -28,8 +21,11 @@ impl WorldSession {
         {
             Some(false) => None,
             Some(true) => Some(
-                self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
-                    .await,
+                wow_world_application::save_current_player_to_db_with_generator_like_cpp(
+                    self,
+                    item_guid_generator,
+                )
+                .await,
             ),
             None => {
                 #[cfg(test)]

@@ -132,16 +132,20 @@ impl WorldSession {
                     .clear_buyback_on_logout()
                     .await
             }
-            CharacterSave => match self
-                .save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
+            CharacterSave => {
+                match wow_world_application::save_current_player_to_db_with_generator_like_cpp(
+                    self,
+                    item_guid_generator,
+                )
                 .await
-            {
-                PlayerSaveOutcomeLikeCpp::Applied => FinalizationOutcome::Applied,
-                PlayerSaveOutcomeLikeCpp::Failed => FinalizationOutcome::DefinitelyRolledBack,
-                PlayerSaveOutcomeLikeCpp::Quarantined => FinalizationOutcome::Unknown,
-                PlayerSaveOutcomeLikeCpp::Unavailable => FinalizationOutcome::Unavailable,
-                PlayerSaveOutcomeLikeCpp::Deferred => FinalizationOutcome::Deferred,
-            },
+                {
+                    PlayerSaveOutcomeLikeCpp::Applied => FinalizationOutcome::Applied,
+                    PlayerSaveOutcomeLikeCpp::Failed => FinalizationOutcome::DefinitelyRolledBack,
+                    PlayerSaveOutcomeLikeCpp::Quarantined => FinalizationOutcome::Unknown,
+                    PlayerSaveOutcomeLikeCpp::Unavailable => FinalizationOutcome::Unavailable,
+                    PlayerSaveOutcomeLikeCpp::Deferred => FinalizationOutcome::Deferred,
+                }
+            }
             Mounts => self.save_account_mounts_like_cpp().await,
             Toys => self.save_account_toys_like_cpp().await,
             Heirlooms => self.save_account_heirlooms_like_cpp().await,
