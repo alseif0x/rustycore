@@ -217,6 +217,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::character::bank",
           "trait_path": null,
           "cfg": [],
@@ -3111,6 +3117,328 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "auto_equip_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn auto_equip_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , equip : item :: AutoEquipItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "auto_equip_item_slot_like_cpp",
+          "visibility": "private",
+          "signature": "fn auto_equip_item_slot_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , equip : item :: AutoEquipItemSlot ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "auto_store_bag_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn auto_store_bag_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , store : item :: AutoStoreBagItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "autobank_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn autobank_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , packet : misc :: AutoBankItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "autostore_bank_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn autostore_bank_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , packet : misc :: AutoStoreBankItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "banker_activate_like_cpp",
+          "visibility": "private",
+          "signature": "fn banker_activate_like_cpp < 'a > (& 'a mut self , hello : gossip :: Hello) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "binder_activate_like_cpp",
+          "visibility": "private",
+          "signature": "fn binder_activate_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , hello : gossip :: Hello ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "buy_back_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn buy_back_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , buyback : misc :: BuyBackItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "buy_bank_slot_like_cpp",
+          "visibility": "private",
+          "signature": "fn buy_bank_slot_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , buy : misc :: BuyBankSlot ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "buy_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn buy_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , buy : misc :: BuyItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "destroy_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn destroy_item_like_cpp < 'a > (& 'a mut self , destroy : item :: DestroyItemPkt ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "gossip_hello_like_cpp",
+          "visibility": "private",
+          "signature": "fn gossip_hello_like_cpp < 'a > (& 'a mut self , hello : gossip :: Hello) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "gossip_select_option_like_cpp",
+          "visibility": "private",
+          "signature": "fn gossip_select_option_like_cpp < 'a > (& 'a mut self , select : gossip :: GossipSelectOption ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "hearth_and_resurrect_like_cpp",
+          "visibility": "private",
+          "signature": "fn hearth_and_resurrect_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "item_purchase_refund_like_cpp",
+          "visibility": "private",
+          "signature": "fn item_purchase_refund_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , refund : item :: ItemPurchaseRefund ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "list_inventory_like_cpp",
+          "visibility": "private",
+          "signature": "fn list_inventory_like_cpp < 'a > (& 'a mut self , hello : gossip :: Hello) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "logout_request_like_cpp",
+          "visibility": "private",
+          "signature": "fn logout_request_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , req : misc :: LogoutRequest ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "quest_giver_status_multiple_query_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_giver_status_multiple_query_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "quest_giver_status_tracked_query_like_cpp",
+          "visibility": "private",
+          "signature": "fn quest_giver_status_tracked_query_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "repair_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn repair_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , repair : misc :: RepairItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "sell_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn sell_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , sell : misc :: SellItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "swap_inv_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn swap_inv_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , swap : item :: SwapInvItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::character::account::host",
+          "trait_path": "CharacterAccountHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "swap_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn swap_item_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , swap : item :: SwapItem ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {

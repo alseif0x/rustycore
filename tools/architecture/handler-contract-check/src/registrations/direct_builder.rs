@@ -881,6 +881,32 @@ pub(crate) const TRAINER_REGISTRAR: DirectRegistrarContract = DirectRegistrarCon
     facades: TRAINER_FACADES,
 };
 
+const CHARACTER_ACCOUNT_ROOT_EXPORTS: &[&str] = &[
+    "CharacterAccountHandlerHostLikeCpp",
+    "register_character_account_handlers_like_cpp",
+];
+const CHARACTER_ACCOUNT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "character_account_handlers",
+    exports: CHARACTER_ACCOUNT_ROOT_EXPORTS,
+}];
+
+/// The character/account registration family (#1263 F5 remaining families).
+///
+/// It is the only direct owner that carries the session's catalog view into its
+/// host contract, because the legacy `inventory::submit!` closures it replaces
+/// destructured that view (`id_generators.item`, `creature_spawns`,
+/// `bank_bag_slot_prices`, `quest_info`) at the registration site.
+pub(crate) const CHARACTER_ACCOUNT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationCharacterAccount",
+    package: "wow-world-application",
+    module: "crate::character_account_handlers",
+    registrar: "register_character_account_handlers_like_cpp",
+    host_trait: "CharacterAccountHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: CHARACTER_ACCOUNT_FACADES,
+};
+
 pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationNpc",
     package: "wow-world-application",
@@ -931,6 +957,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     MOVEMENT_REGISTRAR,
     MOVEMENT_TAIL_REGISTRAR,
     TRAINER_REGISTRAR,
+    CHARACTER_ACCOUNT_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

@@ -432,7 +432,7 @@ fn trainer_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        66,
+        43,
     );
 }
 /// The movement registration tail (#1263 F5 tail, commit 2) left the legacy
@@ -829,6 +829,211 @@ fn movement_tail_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadSafe",
             ),
         ],
-        66,
+        43,
+    );
+}
+
+/// The character/account registration family (#1263 F5 remaining families) left
+/// the legacy inventory: 23 entries in the four files that lived under
+/// `handlers/character/account/registrations/`, all from its own area registrar.
+#[test]
+fn character_account_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "character/account",
+        |builder| {
+            wow_world_application::register_character_account_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("character/account registrar registers");
+        },
+        &[
+            contract_row(
+                0x34A1,
+                "ListInventory",
+                "handle_list_inventory",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(0x34A3, "BuyItem", "handle_buy_item", "LoggedIn", "Inplace"),
+            contract_row(
+                0x34A4,
+                "BuyBackItem",
+                "handle_buy_back_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x34A2,
+                "SellItem",
+                "handle_sell_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3530,
+                "ItemPurchaseRefund",
+                "handle_item_purchase_refund",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x34B3,
+                "BankerActivate",
+                "handle_banker_activate",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3997,
+                "AutobankItem",
+                "handle_autobank_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3996,
+                "AutostoreBankItem",
+                "handle_autostore_bank_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x34B4,
+                "BuyBankSlot",
+                "handle_buy_bank_slot",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x34B2,
+                "BinderActivate",
+                "handle_binder_activate",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3506,
+                "HearthAndResurrect",
+                "handle_hearth_and_resurrect",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x34EC,
+                "RepairItem",
+                "handle_repair_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x349D,
+                "QuestGiverStatusMultipleQuery",
+                "handle_quest_giver_status_multiple_query",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x356B,
+                "QuestGiverStatusTrackedQuery",
+                "handle_quest_giver_status_tracked_query",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x399B,
+                "SwapInvItem",
+                "handle_swap_inv_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3998,
+                "AutoEquipItem",
+                "handle_auto_equip_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x399D,
+                "AutoEquipItemSlot",
+                "handle_auto_equip_item_slot",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x399A,
+                "SwapItem",
+                "handle_swap_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3999,
+                "AutoStoreBagItem",
+                "handle_auto_store_bag_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3293,
+                "DestroyItem",
+                "handle_destroy_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3492,
+                "TalkToGossip",
+                "handle_gossip_hello",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3494,
+                "GossipSelectOption",
+                "handle_gossip_select_option",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x34D6,
+                "LogoutRequest",
+                "handle_logout_request",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+        ],
+        43,
+    );
+}
+
+/// Negative control (#1263 F5 remaining families): re-registering the migrated
+/// character/account family on the same builder is rejected and never replaces
+/// the first entry.
+#[test]
+fn duplicated_migrated_character_account_registration_is_rejected_without_replacement() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_character_account_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect("the first character/account registration succeeds");
+    let error = wow_world_application::register_character_account_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect_err("a second character/account registration must be rejected");
+    assert_eq!(error.opcode, wow_constants::ClientOpcodes::ListInventory);
+    assert_eq!(error.previous_handler_name, "handle_list_inventory");
+    assert_eq!(error.new_handler_name, "handle_list_inventory");
+    let registry = builder.build();
+    assert_eq!(
+        registry
+            .iter()
+            .filter(|entry| entry.opcode == wow_constants::ClientOpcodes::ListInventory)
+            .count(),
+        1,
+        "the rejected duplicate must not replace the original entry"
     );
 }
