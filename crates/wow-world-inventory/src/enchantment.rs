@@ -94,7 +94,25 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         item_guid: ObjectGuid,
     ) {
-        let Some(mut item) = self.resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.refresh_inventory_item_enchantment_duration_refs_with_access_like_cpp(
+            &access,
+            hub.shared(),
+            item_guid,
+        );
+    }
+
+    /// Access-based counterpart of
+    /// [`Self::refresh_inventory_item_enchantment_duration_refs_like_cpp`] for
+    /// owners that hold their own borrowed capability and shared hub.
+    pub fn refresh_inventory_item_enchantment_duration_refs_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+        hub: HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(mut item) =
+            self.resolved_player_inventory_item_object_with_access_like_cpp(access, item_guid)
         else {
             return;
         };
@@ -106,8 +124,10 @@ impl crate::InventoryState {
             return;
         };
 
-        self.insert_inventory_item_object(hub, item);
-        self.send_item_enchant_time_update_plans(hub.shared(), owner_guid, &enchantment_updates);
+        let _ = self.mutate_player_inventory_runtime_with_access_like_cpp(access, |inventory| {
+            inventory.store_item_object_like_cpp(item)
+        });
+        self.send_item_enchant_time_update_plans(hub, owner_guid, &enchantment_updates);
     }
 
     /// C++ `Player::RemoveItem` clears main-hand-only enchantments when the

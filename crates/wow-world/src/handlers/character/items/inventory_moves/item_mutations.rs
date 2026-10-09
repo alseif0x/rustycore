@@ -42,7 +42,8 @@ impl WorldSession {
         let offhand_guid = offhand.guid;
         let offhand_entry = offhand.entry_id;
 
-        self.execute_inventory_storage_move_like_cpp(
+        wow_world_application::execute_inventory_storage_move_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             INVENTORY_SLOT_BAG_0,

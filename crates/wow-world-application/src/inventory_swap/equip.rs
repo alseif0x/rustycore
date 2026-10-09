@@ -69,6 +69,14 @@ impl<'a> InventoryEquipFixtureRefsLikeCpp<'a> {
             visible_auras,
         }
     }
+
+    pub fn level_like_cpp(&self) -> &'a u8 {
+        self.level
+    }
+
+    pub fn form_like_cpp(&self) -> &'a u32 {
+        self.form
+    }
 }
 impl<'a> InventoryEquipCxLikeCpp<'a> {
     #[allow(clippy::too_many_arguments)]

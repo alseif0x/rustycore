@@ -850,6 +850,75 @@ async fn autobank_item_commit_failure_keeps_runtime_unchanged_like_cpp() {
     );
     assert!(send_rx.try_recv().is_err());
 }
+/// An `Unknown` commit outcome must leave the runtime unchanged and refuse
+/// every publication, exactly like `Failed`. This asserts nothing about the
+/// database: an unknown COMMIT is unproven, so the operation cannot claim the
+/// SQL state either way.
+#[tokio::test]
+async fn storage_move_unknown_preserves_runtime_and_refuses_publication() {
+    let (mut session, send_rx, canonical) = make_bank_slot_session(4);
+    let banker = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 46);
+    insert_banker_creature(&canonical, banker, NPCFlags1::BANKER.bits());
+    install_bank_move_item_fixture(&mut session, 712, 1);
+    let source_guid =
+        insert_bank_move_test_item(&mut session, INVENTORY_SLOT_ITEM_START, 712, 7_121, 1);
+
+    session.handle_banker_activate(Hello { unit: banker }).await;
+    assert!(send_rx.try_recv().is_ok(), "bank open should be sent");
+
+    let (port, requests) = PlayerInventoryPersistencePortFixtureLikeCpp::new_like_cpp(
+        PersistenceOutcomeLikeCpp::Unknown {
+            reason: "unknown COMMIT outcome fixture".into(),
+        },
+    );
+    session.set_player_inventory_persistence_port_like_cpp(port);
+    assert!(session.represented_can_use_current_bank_like_cpp());
+
+    session
+        .handle_autobank_item(AutoBankItem {
+            inv_update: InvUpdate {
+                items: vec![(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)],
+            },
+            bag: INVENTORY_SLOT_BAG_0,
+            slot: INVENTORY_SLOT_ITEM_START,
+        })
+        .await;
+
+    assert_eq!(
+        requests.lock().unwrap().len(),
+        1,
+        "the unknown commit is the outcome of a real persistence attempt"
+    );
+    assert_eq!(
+        session
+            .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
+            .map(|item| item.guid),
+        Some(source_guid),
+        "an unknown COMMIT must not expose the planned bank location"
+    );
+    assert!(
+        session
+            .get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, wow_entities::BANK_SLOT_ITEM_START,)
+            .is_none()
+    );
+    assert_eq!(
+        session.represented_non_bank_item_count_like_cpp(712),
+        Some(1)
+    );
+    assert!(session.represented_bank_item_moves_like_cpp().is_empty());
+
+    let refusal = send_rx
+        .try_recv()
+        .expect("unknown commit should publish the bag error");
+    assert_eq!(
+        inventory_failure_result(&refusal),
+        InventoryResult::InternalBagError as i32
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "nothing else may be published after an unknown COMMIT"
+    );
+}
 #[tokio::test]
 async fn autostore_missing_bank_item_does_not_record_unapplied_move_like_cpp() {
     let (mut session, send_rx, canonical) = make_bank_slot_session(4);

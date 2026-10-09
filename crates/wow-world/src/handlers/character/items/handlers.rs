@@ -280,7 +280,8 @@ impl WorldSession {
             return;
         };
 
-        self.execute_inventory_storage_move_like_cpp(
+        wow_world_application::execute_inventory_storage_move_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             destination_bag,
@@ -464,7 +465,8 @@ impl WorldSession {
             }
         }
 
-        self.execute_inventory_storage_move_like_cpp(
+        wow_world_application::execute_inventory_storage_move_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             store.container_slot_a,

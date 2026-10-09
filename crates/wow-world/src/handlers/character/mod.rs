@@ -85,12 +85,12 @@ use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START,
     CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_QUESTGIVER,
     GameObjectTemplateData, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
-    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, InventoryStorageMovePlanLikeCpp,
-    MAX_BAG_SIZE, MAX_MONEY_AMOUNT, MovementGeneratorType, NULL_BAG, NULL_SLOT,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemInstancePlan, SendNewItemModifier, SendNewItemPlan, SwapItemPreflightResult,
-    WorldObject, is_bank_pos, is_child_equipment_pos, is_equipment_pos, is_inventory_pos,
-    item_can_go_into_bag, normalize_creature_chase_movement_type_like_cpp,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, MAX_BAG_SIZE, MAX_MONEY_AMOUNT,
+    MovementGeneratorType, NULL_BAG, NULL_SLOT, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
+    SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan, SendNewItemModifier,
+    SendNewItemPlan, SwapItemPreflightResult, WorldObject, is_bank_pos, is_child_equipment_pos,
+    is_equipment_pos, is_inventory_pos, item_can_go_into_bag,
+    normalize_creature_chase_movement_type_like_cpp,
     normalize_creature_random_movement_type_like_cpp,
 };
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -216,30 +216,19 @@ struct DirectInventoryPositionUpdateLikeCpp {
 }
 
 use wow_world_application::InventorySwapTargetLikeCpp;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InventoryStorageTargetLikeCpp {
-    Inventory,
-    Bank,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum InventoryStorageQuestChecksLikeCpp {
-    None,
-    AutoBankItemRemoved,
-    AutoStoreBankItemAdded,
-}
-
-fn autostore_bank_target_like_cpp(
-    source_bag: u8,
-    source_slot: u8,
-) -> InventoryStorageTargetLikeCpp {
-    if is_bank_pos(source_bag, source_slot) {
-        InventoryStorageTargetLikeCpp::Inventory
-    } else {
-        InventoryStorageTargetLikeCpp::Bank
-    }
-}
+// The StorageMove vocabulary moved to its application owner (#1263 F4); these
+// re-exports keep the handler tree's existing paths resolving unchanged.
+pub(crate) use wow_world_application::{
+    InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp,
+    autostore_bank_target_like_cpp,
+};
+// Test-only: the StorageMove free helpers moved to `wow-world-application`
+// (#1263 F4) and their production callers are that owner's own body.
+#[cfg(test)]
+pub(crate) use wow_world_application::{
+    bank_store_destination_applies_obtain_spells_like_cpp,
+    bank_store_item_added_quest_count_like_cpp, inventory_storage_move_quest_directions_like_cpp,
+};
 
 fn autostore_bank_quest_checks_like_cpp(
     target: InventoryStorageTargetLikeCpp,
@@ -363,36 +352,6 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
     } else {
         saved_slots
     }
-}
-
-fn bank_store_item_added_quest_count_like_cpp(plan: &InventoryStorageMovePlanLikeCpp) -> u32 {
-    // C++ HandleAutoStoreBankItemOpcode passes storedItem->GetCount() after
-    // StoreItem. _StoreItem returns the last destination item, so a full merge
-    // reports that destination stack's total and a merge+remainder reports the
-    // final remainder stack count. This is deliberately not source_count.
-    plan.moved_destination
-        .map(|(_, _, count)| count)
-        .or_else(|| plan.existing_updates.last().map(|update| update.new_count))
-        .unwrap_or(0)
-}
-
-fn bank_store_destination_applies_obtain_spells_like_cpp(bag: u8) -> bool {
-    // C++ Player::_StoreItem checks only the bag value. INVENTORY_SLOT_BAG_0
-    // therefore includes top-level personal-bank slots as well as carried
-    // top-level slots; bank-bag containers remain excluded.
-    bag == INVENTORY_SLOT_BAG_0
-        || (wow_entities::INVENTORY_SLOT_BAG_START..wow_entities::INVENTORY_SLOT_BAG_END)
-            .contains(&bag)
-}
-
-fn inventory_storage_move_quest_directions_like_cpp(
-    source_bag: u8,
-    source_slot: u8,
-    target: InventoryStorageTargetLikeCpp,
-) -> (bool, bool) {
-    let moving_to_bank = target == InventoryStorageTargetLikeCpp::Bank;
-    let moving_from_bank = !moving_to_bank && is_bank_pos(source_bag, source_slot);
-    (moving_to_bank, moving_from_bank)
 }
 
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;

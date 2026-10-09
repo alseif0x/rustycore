@@ -423,6 +423,25 @@ pub(crate) fn split_inventory_ref(s: &WorldSession) -> (&InventoryState, HubRef<
     (&s.inventory, hub_ref(s))
 }
 
+/// `&mut` inventory state, the shared lifecycle state and the shared hub, from
+/// disjoint fields. The shared hub is required by owners that also hold
+/// canonical access capabilities, which a `HubMut` would alias.
+pub(crate) fn split_inventory_lifecycle_shared_hub_mut(
+    s: &mut WorldSession,
+) -> (&mut InventoryState, &SessionLifecycleState, HubRef<'_>) {
+    (
+        &mut s.inventory,
+        &s.lifecycle,
+        HubRef {
+            core: &s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures: &s.fixtures,
+        },
+    )
+}
+
 /// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
 pub(crate) fn split_loot_mut(s: &mut WorldSession) -> (&mut LootState, HubMut<'_>) {
     (

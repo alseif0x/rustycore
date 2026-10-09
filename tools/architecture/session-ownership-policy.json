@@ -1388,6 +1388,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "PlayerHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
@@ -3726,20 +3732,6 @@
           "module": "crate::handlers::character::items",
           "trait_path": null,
           "kind": "method",
-          "name": "execute_inventory_storage_move_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "async fn execute_inventory_storage_move_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp , quest_checks : InventoryStorageQuestChecksLikeCpp , represented_move : Option < RepresentedBankItemMoveLikeCpp > ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::items",
-          "trait_path": null,
-          "kind": "method",
           "name": "has_item_count_direct_inventory",
           "visibility": "pub (super)",
           "signature": "fn has_item_count_direct_inventory (& self , item_entry : u32 , count : u32) -> bool",
@@ -3771,20 +3763,6 @@
           "name": "plan_destroy_item_count_direct_inventory",
           "visibility": "pub (crate)",
           "signature": "fn plan_destroy_item_count_direct_inventory (& self , item_entry : u32 , count : u32 ,) -> Option < Vec < ExtendedCostItemTurninChange > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::character::items",
-          "trait_path": null,
-          "kind": "method",
-          "name": "plan_inventory_storage_move_like_cpp",
-          "visibility": "pub (super)",
-          "signature": "fn plan_inventory_storage_move_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp ,) -> Option < Result < InventoryStorageMovePlanLikeCpp , InventoryResult > >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -26066,6 +26044,21 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "plan_inventory_storage_move_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "fn plan_inventory_storage_move_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp ,) -> Option < Result < InventoryStorageMovePlanLikeCpp , InventoryResult > >",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "plan_inventory_swap_preflight_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn plan_inventory_swap_preflight_like_cpp (& self , src : u16 , dst : u16 ,) -> Option < SwapItemPreflightPlan >",
@@ -45397,6 +45390,136 @@
           "name": "item_text_query_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn item_text_query_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: ItemTextQueryHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_apply_obtain_spells_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_apply_obtain_spells_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , creature_spawn_catalogs : & 'a CreatureSpawnCatalogsLikeCpp , entry_id : u32 ,) -> impl Future < Output = () > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_apply_quest_item_added_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_apply_quest_item_added_like_cpp < 'a > (& 'a mut self , item_guid_generator : & 'a ObjectGuidGenerator , entry_id : u32 , quest_log_item_id : u32 , count : u32 ,) -> impl Future < Output = Vec < u32 > > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_apply_quest_item_removed_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_apply_quest_item_removed_like_cpp (& mut self , entry_id : u32 ,) -> Option < Vec < u32 > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_cx_like_cpp (& mut self) -> InventoryStorageMoveCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_plan_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_plan_like_cpp (& self , source_bag : u8 , source_slot : u8 , destination_bag : u8 , destination_slot : u8 , target : InventoryStorageTargetLikeCpp ,) -> Option < Result < InventoryStorageMovePlanLikeCpp , InventoryResult > >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_plan_quest_statuses_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_plan_quest_statuses_like_cpp (& self , entry_id : u32 , quest_log_item_id : u32 , moving_to_bank : bool , post_move_non_bank_count : u32 , added_count : u32 ,) -> Vec < wow_entities :: PlayerQuestStatusRecord >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_quest_log_item_id_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_quest_log_item_id_like_cpp < 'a > (& 'a mut self , entry_id : u32 ,) -> impl Future < Output = u32 > + Send + 'a",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_record_avg_equipped_item_level_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_record_avg_equipped_item_level_update_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_record_titan_grip_penalty_action_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_record_titan_grip_penalty_action_like_cpp (& mut self)",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "InventoryStorageMoveHostLikeCpp",
+          "kind": "method",
+          "name": "storage_move_stats_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn storage_move_stats_cx_like_cpp (& mut self) -> InventoryStorageMoveStatsCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [

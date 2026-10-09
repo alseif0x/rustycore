@@ -61,6 +61,11 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
             .inventory
             .remove_inventory_item_with_access_like_cpp(&self.access, slot);
     }
+    fn remove_inventory_item_object_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let _ = self
+            .inventory
+            .remove_inventory_item_object_with_access_like_cpp(&self.access, item_guid);
+    }
     fn insert_inventory_item_like_cpp(&mut self, slot: u8, item: PlayerInventoryItem) {
         let _ = self
             .inventory
@@ -178,6 +183,29 @@ impl<'a> InventoryCommittedRelocationCxLikeCpp<'a> {
                 moved_bag_size,
                 &moved_bag_children,
             );
+        true
+    }
+
+    /// Remove a source item after its complete stack was merged into existing
+    /// destination stacks by a committed storage transaction.
+    pub fn apply_committed_inventory_item_removal_like_cpp(
+        &mut self,
+        source_bag: u8,
+        source_slot: u8,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
+            return false;
+        };
+        if source.guid != item_guid {
+            return false;
+        }
+        if source_bag == INVENTORY_SLOT_BAG_0 {
+            self.remove_inventory_item_like_cpp(source_slot);
+        }
+        self.remove_inventory_item_object_like_cpp(item_guid);
+        self.access
+            .apply_committed_inventory_removal_native_placement_like_cpp(source_bag, source_slot);
         true
     }
 }
