@@ -2,16 +2,27 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Spell cancel handler family.
+//! Spell interaction handler family: cast, open-item, self-res, spell-click and
+//! the cast/aura cancellation surface.
 //!
-//! C++ source of truth: `SpellHandler.cpp` (`HandleCancelCast`,
-//! `HandleCancelAuraOpcode`, `HandleCancelAutoRepeatSpellOpcode`,
-//! `HandleCancelChanneling`, `HandleCancelGrowthAuraOpcode`,
-//! `HandleCancelMountAuraOpcode`, `HandleCancelQueuedSpellOpcode`,
-//! `HandlePetCancelAuraOpcode`, `HandleTotemDestroyed`). The family owns the
-//! packet bodies and the cast/aura cancellation transitions; the World session
-//! only lends the aura-application participants and the hub (#1263 F5).
-//! Bodies are moved unchanged from the World shell.
+//! C++ source of truth: `SpellHandler.cpp`. The family owns the packet bodies
+//! and the cast/aura cancellation transitions; the World session only lends the
+//! aura-application participants and the hub (#1263 F5). Bodies are moved
+//! unchanged from the World shell.
+//!
+//! `#1263 F5 remaining families` extended this already-owned registrar with the
+//! four remaining `SpellHandler.cpp` opcodes that were still submitted through
+//! the legacy inventory path in
+//! `crates/wow-world/src/handlers/spell.rs`:
+//! `HandleCastSpellOpcode:228`, `HandleOpenItemOpcode:66`,
+//! `HandleSelfResOpcode:416` and `HandleSpellClick:432`. They share this
+//! translation unit with the nine cancellation entries below, so the owner is
+//! the same area registrar and no new owner was declared. The legacy handlers
+//! were registered by
+//! `src/server/game/Server/Protocol/Opcodes.cpp:286`, `:706`, `:867` and `:934`
+//! (`STATUS_LOGGEDIN`, `PROCESS_THREADSAFE` for `CMSG_CAST_SPELL`,
+//! `PROCESS_THREADUNSAFE` for `CMSG_SELF_RES`, `PROCESS_INPLACE` for
+//! `CMSG_OPEN_ITEM` and `CMSG_SPELL_CLICK`).
 
 use tracing::{debug, warn};
 use wow_constants::{ClientOpcodes, SpellCastResult};
@@ -536,6 +547,35 @@ impl<'a> SpellHandlerCxLikeCpp<'a> {
 /// quest state.
 pub trait SpellHandlerHostLikeCpp<C> {
     fn spell_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> SpellHandlerCxLikeCpp<'a>;
+
+    /// C++ `SpellHandler.cpp:228` `HandleCastSpellOpcode`.
+    ///
+    /// The legacy registration closure destructured the session catalog view
+    /// (`area_triggers`, `creature_spawns`, `progression`, `player_grid_loader`
+    /// and `id_generators.item`) before calling the shell operation, so the host
+    /// receives that view here.
+    fn handle_cast_spell_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `SpellHandler.cpp:66` `HandleOpenItemOpcode`.
+    fn handle_open_item<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+
+    /// C++ `SpellHandler.cpp:416` `HandleSelfResOpcode`.
+    fn handle_self_res_with_generator_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `SpellHandler.cpp:432` `HandleSpellClick`.
+    fn handle_spell_click_with_generator_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_cancel_cast_thunk<'a, S, C>(
@@ -691,6 +731,68 @@ where
     })
 }
 
+fn handle_cast_spell_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: SpellHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_cast_spell_with_catalogs_like_cpp(catalogs, pkt)
+            .await;
+    })
+}
+
+fn handle_open_item_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: SpellHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session.handle_open_item(pkt).await;
+    })
+}
+
+fn handle_self_res_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: SpellHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_self_res_with_generator_like_cpp(catalogs, pkt)
+            .await;
+    })
+}
+
+fn handle_spell_click_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: SpellHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_spell_click_with_generator_like_cpp(catalogs, pkt)
+            .await;
+    })
+}
+
 /// Registers the spell cancel handlers on the packet registry.
 pub fn register_spell_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -761,6 +863,34 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_totem_destroyed",
         handler: handle_totem_destroyed_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::CastSpell,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_cast_spell",
+        handler: handle_cast_spell_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::OpenItem,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_open_item",
+        handler: handle_open_item_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SelfRes,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_self_res",
+        handler: handle_self_res_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SpellClick,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_spell_click",
+        handler: handle_spell_click_thunk::<S, C>,
     })?;
     Ok(())
 }

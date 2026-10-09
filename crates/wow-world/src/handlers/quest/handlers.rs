@@ -4,189 +4,23 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Quest packet entry points and their handler registrations.
+//!
+//! `#1263 F5 remaining families`: the eleven registrations that lived at the end
+//! of this module moved unchanged to the application crate's explicit area
+//! registrar (`wow_world_application::register_quest_handlers_like_cpp`,
+//! published by the crate-root facade and wired from
+//! `crate::handler_composition`). The [`host`] adapter lends that registrar the
+//! existing `WorldSession` operations and the catalog view the legacy closures
+//! destructured.
 
 use super::*;
 use wow_packet::ClientPacket;
 
 mod acceptance;
+mod host;
 mod queries;
 mod reward_flow;
 mod sharing;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AdventureMapStartQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_adventure_map_start_quest",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_adventure_map_start_quest_with_catalog_like_cpp(
-                        catalogs.adventure_map_pois.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverStatusQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_status_query",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_status_query_with_catalog_like_cpp(catalogs.quest_info.as_ref(), pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverHello,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_hello",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_hello(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverQueryQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_query_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_quest_giver_query_quest(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverAcceptQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_accept_quest",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_quest_giver_accept_quest_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestPoiQuery,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_poi_query",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::query::QuestPoiQuery::read(&mut pkt) {
-                    Ok(query) => session.handle_quest_poi_query(query).await,
-                    Err(e) => tracing::warn!("Failed to read QuestPoiQuery: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverRequestReward,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_request_reward",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_quest_giver_request_reward_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverCompleteQuest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_complete_quest",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move {
-                wow_world_application::handle_quest_giver_complete_quest_like_cpp(session, pkt)
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestGiverChooseReward,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_quest_giver_choose_reward",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_quest_giver_choose_reward_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QuestConfirmAccept,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_quest_confirm_accept",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_quest_confirm_accept_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::PushQuestToParty,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_push_quest_to_party",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_push_quest_to_party(pkt).await })
-        },
-    }
-}
 
 // ── Handler implementations ──────────────────────────────────────────────────
 

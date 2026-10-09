@@ -10,6 +10,14 @@
 //! requests share preparation, while the existing driver consumes timed casts.
 //! Other represented spell/item handlers retain their explicit operation paths.
 //! Reference: Classic Game/Handlers/SpellHandler.cpp, Player.cpp and Spell.cpp.
+//!
+//! `#1263 F5 remaining families`: the four registrations that lived here
+//! (`CMSG_CAST_SPELL`, `CMSG_OPEN_ITEM`, `CMSG_SELF_RES`, `CMSG_SPELL_CLICK`)
+//! moved unchanged to the application crate's `crate::spell_handlers` area
+//! registrar, which already owns the `SpellHandler.cpp` cancellation surface.
+//! `crates/wow-world/src/session/spell_handler_contexts.rs` lends that registrar
+//! the same `WorldSession` operations and catalog destructuring the legacy
+//! closures used.
 
 use std::collections::HashMap;
 
@@ -19,9 +27,7 @@ use wow_constants::{BagFamilyMask, ClientOpcodes, InventoryResult, ItemFlags, Ty
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
 use wow_entities::INVENTORY_SLOT_BAG_0;
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
     LootConditionRowLikeCpp, condition_compare_values_like_cpp,
     loot_conditions_allow_player_with_references_like_cpp_representable,
@@ -51,81 +57,6 @@ pub use ops_1::*;
 pub use ops_2::*;
 #[allow(unused_imports)]
 pub use state::*;
-
-// ── Handler registrations ─────────────────────────────────────────
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::CastSpell,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_cast_spell",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_cast_spell_with_catalogs_like_cpp(
-                        catalogs.area_triggers.as_ref(),
-                        catalogs.creature_spawns.as_ref(),
-                        catalogs.progression.as_ref(),
-                        &catalogs.player_grid_loader,
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::OpenItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_open_item",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_open_item(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SelfRes,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_self_res",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_self_res_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        catalogs.creature_spawns.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SpellClick,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_spell_click",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_spell_click_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        catalogs.creature_spawns.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 // ── Handler implementations ───────────────────────────────────────
 

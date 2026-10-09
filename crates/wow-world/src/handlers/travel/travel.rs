@@ -2,68 +2,21 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private travel capability handlers extracted from the legacy misc owner.
+//!
+//! `#1263 F5 remaining families`: the three registrations that lived here
+//! (`CMSG_ACTIVATE_TAXI`, `CMSG_AREA_TRIGGER`, `CMSG_WORLD_PORT_RESPONSE`)
+//! moved unchanged to the application crate's `crate::travel_handlers` area
+//! registrar. `crates/wow-world/src/session/travel_handler_contexts.rs` lends
+//! that registrar the same `WorldSession` operations and catalog destructuring
+//! the legacy closures used.
 
 use tracing::{debug, info, warn};
-use wow_constants::{ClientOpcodes, ConditionSourceType, ConditionType};
-use wow_handler::{PacketProcessing, SessionStatus};
+use wow_constants::{ConditionSourceType, ConditionType};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
-use wow_packet::packets::misc::{
-    ActivateTaxi, ActivateTaxiReply, ERR_TAXITOOFARAWAY_LIKE_CPP, SetTaxiBenchmarkMode,
-};
+use wow_packet::packets::misc::{ActivateTaxi, ActivateTaxiReply, ERR_TAXITOOFARAWAY_LIKE_CPP};
 
 use crate::session::{AreaTriggerCatalogsLikeCpp, RepresentedActivateTaxiLikeCpp};
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ActivateTaxi,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_activate_taxi",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_activate_taxi(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AreaTrigger,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_area_trigger",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_area_trigger_with_catalogs_like_cpp(
-                        catalogs.area_triggers.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::WorldPortResponse,
-        status: SessionStatus::Transfer,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_world_port_response",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_world_port_response_with_catalogs_like_cpp(
-                        catalogs.creature_spawns.as_ref(),
-                        catalogs.player_bootstrap.trait_node_entries.as_ref(),
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 #[cfg(test)]
 mod test_shims;
