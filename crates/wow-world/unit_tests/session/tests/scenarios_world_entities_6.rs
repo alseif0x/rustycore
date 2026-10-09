@@ -557,7 +557,7 @@ fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     assert_eq!(visible[0].guid(), visible_guid);
 }
 #[test]
-fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_like_cpp() {
+fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline_like_cpp() {
     use wow_constants::movement::MovementFlag;
 
     let (mut session, _pkt_tx, _send_rx) = make_session();
@@ -584,16 +584,49 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical viewer map");
-    add_canonical_test_creature_on_map_with_world_state(
-        &canonical,
+
+    // #1263 F6-8B: the canonical incarnation owns the live runtime state, so it
+    // is the one carrying the spline, and it is given a different level from
+    // its legacy duplicate so a legacy-preferred selection cannot satisfy both
+    // assertions below.
+    let mut canonical_carrier = crate::map_manager::WorldCreature::new(
         creature_guid,
         76_011,
         creature_position,
+        100,
+        33,
+        1,
+        2,
+        0.0,
+        1,
+        35,
         0,
-        571,
         0,
-        true,
     );
+    canonical_carrier
+        .creature
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    canonical_carrier
+        .creature
+        .unit_mut()
+        .world_mut()
+        .set_combat_reach(1.0);
+    canonical_carrier
+        .begin_move_spline_like_cpp(Position::new(24.0, 20.0, 0.0, 0.0))
+        .expect("canonical runtime spline must launch");
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .expect("canonical map instance")
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(
+            wow_entities::MapObjectRecord::new_creature(canonical_carrier.creature).unwrap(),
+        )
+        .unwrap();
 
     let mut legacy_creature = crate::map_manager::WorldCreature::new(
         creature_guid,
@@ -621,9 +654,6 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
         .world_mut()
         .object_mut()
         .add_to_world();
-    legacy_creature
-        .begin_move_spline_like_cpp(Position::new(24.0, 20.0, 0.0, 0.0))
-        .expect("legacy runtime spline must launch");
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager
@@ -635,14 +665,19 @@ fn visible_world_creatures_prefer_legacy_runtime_duplicate_with_active_spline_li
 
     assert_eq!(visible.len(), 1);
     assert_eq!(visible[0].guid(), creature_guid);
+    assert_eq!(
+        visible[0].level(),
+        33,
+        "the selected candidate is the canonical incarnation, not its legacy duplicate"
+    );
     assert!(
         visible[0].active_move_spline_like_cpp().is_some(),
-        "C++ has one map Creature; Rust visibility must keep the legacy active MoveSpline for duplicate canonical/legacy GUIDs"
+        "C++ has one map Creature; Rust visibility must select the canonical runtime state, which carries the active MoveSpline"
     );
     assert!(
         MovementFlag::from_bits_retain(visible[0].create_data.movement_flags)
             .contains(MovementFlag::FORWARD),
-        "active legacy spline should carry C++ MoveSplineInit::Launch movement flags into CREATE"
+        "the canonical active spline carries C++ MoveSplineInit::Launch movement flags into CREATE"
     );
 }
 #[test]

@@ -11,6 +11,7 @@ mod creature_melee_split;
 mod creature_melee_sync;
 mod creature_melee_threat;
 mod creature_melee_tick;
+mod creature_movement_publication;
 mod creature_movement_tick;
 mod creature_spell_tick;
 mod creature_spell_validation;
@@ -31,6 +32,7 @@ pub(in crate::session) use creature_melee_sync::{
 pub(in crate::session) use creature_melee_threat::CreatureDamageThreatOutcomeLikeCpp;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_melee_tick::*;
+pub(in crate::session) use creature_movement_publication::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_movement_tick::*;
 #[allow(unused_imports)]

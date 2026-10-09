@@ -678,6 +678,17 @@ fn creature_movement_tick_refuses_foreign_incarnation_mirror_like_cpp() {
         movement.canonical_syncs, 1,
         "the queued snapshot is an attempt and is counted even when refused"
     );
+    // #1263 F6-8B: the same refusal now also decides the movement publication.
+    // The tick keeps driving the creature's canonical runtime state, but the
+    // legacy copy publishes no movement frame the canonical authority refused.
+    assert_eq!(
+        movement.movement_packets, 0,
+        "a refused canonical application publishes no movement from the legacy copy"
+    );
+    assert!(
+        movement.plan.events.is_empty(),
+        "a refused representation decides nothing"
+    );
     assert_eq!(
         canonical_creature_like_cpp(&canonical, guid)
             .expect("canonical incarnation")

@@ -195,3 +195,193 @@ fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp
         other => panic!("expected NearbyVisible, got {other:?}"),
     }
 }
+
+/// #1263 F6-8B. The published movement projection is a projection of the
+/// canonical runtime state: the packet is reconstructible only from the
+/// canonical incarnation's `Unit::movespline` and position **after** the tick's
+/// canonical application.
+#[test]
+fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+    use wow_packet::ServerPacket;
+    use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let guid = test_creature_guid(90_011);
+    register_test_creature(&mut session, manager.clone(), guid, 25);
+    session
+        .mutate_world_creature(guid, |creature| {
+            creature
+                .creature
+                .set_default_movement_type_runtime_like_cpp(
+                    wow_entities::MovementGeneratorType::Random,
+                );
+            let ai = creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+            creature.seed_runtime_rng_like_cpp(0x9011);
+            creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+        })
+        .unwrap();
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+
+    let mmap_config = MMapRuntimeConfigLikeCpp {
+        enabled: false,
+        ..Default::default()
+    };
+    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &mmap_config,
+        None,
+        &HashMap::new(),
+        10,
+    );
+
+    assert_eq!(outcome.movement_packets, 1);
+    assert_eq!(outcome.canonical_syncs, 1);
+    let event = outcome
+        .plan
+        .events
+        .iter()
+        .find(|event| {
+            event.packet_bytes.first().copied() == Some(ServerOpcodes::OnMonsterMove as u8)
+        })
+        .expect("the applied movement frame publishes its MonsterMove");
+
+    let canonical_creature = canonical
+        .lock()
+        .unwrap()
+        .find_map(0, 0)
+        .expect("canonical map instance")
+        .map()
+        .with_creature_like_cpp(guid, Clone::clone)
+        .expect("the canonical incarnation applied the representation");
+    let canonical_spline = canonical_creature
+        .runtime_like_cpp()
+        .active_move_spline
+        .clone()
+        .expect("the spline the tick drove lives on the canonical incarnation");
+    let expected = MonsterMove {
+        mover_guid: guid,
+        current_pos: canonical_creature.ai_position(),
+        spline: MovementMonsterSpline::from_move_spline(&canonical_spline),
+    }
+    .to_bytes();
+
+    assert_eq!(
+        event.packet_bytes, expected,
+        "the published packet is the canonical runtime state's projection"
+    );
+    match &event.recipients {
+        crate::map_manager::RecipientRule::NearbyVisible {
+            source_position, ..
+        } => assert_eq!(
+            *source_position,
+            canonical_creature.ai_position(),
+            "the fanout source position is the canonical runtime state's position"
+        ),
+        other => panic!("expected NearbyVisible, got {other:?}"),
+    }
+}
+
+/// #1263 F6-8B publication gate. A canonical manager configured without an
+/// instance for the exact residence defers the representation: the tick still
+/// drives the creature's canonical runtime state, but the legacy copy publishes
+/// neither the movement packet nor any other frame event.
+#[test]
+fn legacy_creature_movement_tick_defers_publication_until_the_canonical_application_like_cpp() {
+    use crate::map_manager::RuntimeTickOwner;
+
+    let manager = shared_map_manager();
+    // Deliberately no `create_world_map`: the exact residence cannot admit.
+    let canonical = shared_canonical_map_manager();
+    let guid = test_creature_guid(90_012);
+    let position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
+
+    let mut creature = crate::map_manager::WorldCreature::new(
+        guid, 900, position, 100, 80, 1, 2, 0.0, 1, 35, 0, 0,
+    );
+    creature
+        .creature
+        .unit_mut()
+        .world_mut()
+        .set_map(0, 0)
+        .unwrap();
+    creature
+        .creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_world();
+    creature
+        .creature
+        .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
+    {
+        let ai = creature.creature.ai_ownership_mut();
+        ai.wander_delay_ms = 0;
+        ai.move_start_ms = 0;
+        ai.wander_radius = 3.0;
+    }
+    creature.seed_runtime_rng_like_cpp(0x9012);
+    creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+    {
+        let mut guard = manager.write().unwrap();
+        guard.add_creature(0, 0, grid_x, grid_y, creature);
+        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+    }
+
+    let mmap_config = MMapRuntimeConfigLikeCpp {
+        enabled: false,
+        ..Default::default()
+    };
+    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
+        &manager,
+        Some(&canonical),
+        &mmap_config,
+        None,
+        &HashMap::new(),
+        10,
+    );
+
+    assert_eq!(outcome.creatures_seen, 1);
+    assert_eq!(
+        outcome.canonical_syncs, 1,
+        "the queued snapshot is an attempt and is counted even when deferred"
+    );
+    assert_eq!(
+        outcome.movement_packets, 0,
+        "a deferred canonical application publishes no movement"
+    );
+    assert!(
+        outcome.plan.events.is_empty(),
+        "the legacy copy decides nothing once the canonical application did not happen"
+    );
+    assert!(
+        canonical.lock().unwrap().find_map(0, 0).is_none(),
+        "no canonical instance exists for the exact residence"
+    );
+    let guard = manager.read().unwrap();
+    let creature = guard
+        .find_creature(0, 0, guid)
+        .expect("legacy representation");
+    assert_eq!(
+        creature.runtime_motion_master_ticks_like_cpp(),
+        1,
+        "the tick still drove the canonical runtime state; only the publication is gated"
+    );
+    assert_eq!(
+        creature.state(),
+        wow_entities::CreatureAiState::WalkingRandom
+    );
+}

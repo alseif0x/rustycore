@@ -14,6 +14,17 @@ impl WorldSession {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.canonical_creature_access_like_cpp(hub, guid)
     }
+    /// Nearby creature candidates for one represented player position.
+    ///
+    /// #1263 F6-8B. The canonical creature on the canonical map is the one
+    /// canonical authority for the movement/visibility transition, so the
+    /// spline-bearing candidate set is selected from **it** first. The legacy
+    /// runtime representation is only the fallback for a GUID the canonical
+    /// store does not hold (canonical runtime absent or deferred); it is never a
+    /// second authority that decides a GUID canonical already owns. Both halves
+    /// keep their own phase and `CanSeeOrDetect` filtering unchanged, and the
+    /// resulting GUID set — and therefore every create/out-of-range decision
+    /// derived from it — is the same union as before.
     pub(crate) fn visible_world_creatures_from_map_like_cpp(
         &self,
         map_id: u16,
@@ -33,6 +44,15 @@ impl WorldSession {
         let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
             return Vec::new();
         };
+
+        // Canonical first: these candidates carry the canonical runtime state,
+        // including the live `Unit::movespline` a create block projects.
+        creatures.extend(
+            self.visible_creatures_from_canonical_map_like_cpp(map_id, position)
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|creature| seen.insert(creature.guid())),
+        );
 
         if let Some(manager) = &self.core.map_manager {
             let (_, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
@@ -80,16 +100,6 @@ impl WorldSession {
             );
         }
 
-        // C++ has one map-owned Creature object. During Rust's temporary
-        // canonical/legacy split, the legacy creature owns live movement
-        // splines, so prefer it for duplicate GUIDs and use canonical only as
-        // a fallback for objects absent from the legacy runtime.
-        creatures.extend(
-            self.visible_creatures_from_canonical_map_like_cpp(map_id, position)
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|creature| seen.insert(creature.guid())),
-        );
         creatures
     }
     pub(crate) fn visible_creatures_from_canonical_map_like_cpp(
@@ -170,7 +180,13 @@ impl WorldSession {
                         crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
                             &creature,
                         );
-                    crate::map_manager::WorldCreature::from_canonical(creature, create_data)
+                    // #1263 F6-8B: the visibility candidate must carry the
+                    // canonical runtime state, because the create projection at
+                    // the call site reads the live `Unit::movespline` from it.
+                    crate::map_manager::WorldCreature::from_canonical_preserving_runtime_like_cpp(
+                        creature,
+                        create_data,
+                    )
                 })
                 .collect()
         })
