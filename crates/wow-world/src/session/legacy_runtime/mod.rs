@@ -4,6 +4,7 @@
 //! complete tick responsibility.
 
 use super::*;
+mod admitted_creature_execution;
 mod canonical_incarnation_ownership;
 mod creature_aggro_tick;
 mod creature_lifecycle_tick;
@@ -24,6 +25,21 @@ mod player_tick;
 // the Session root glob, so removing them breaks the callers.
 #[allow(unused_imports)]
 pub(in crate::session) use canonical_incarnation_ownership::*;
+// #1263 F6-8D2: the isolated admitted creature execution seam. Production does
+// not call it - the world-server isolated adapter and the F6-8D2 regressions
+// do, and D3 owns the exclusive cutover. It is exported the same way as the
+// seven legacy tick entries so the external path stays stable.
+pub use admitted_creature_execution::{
+    AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
+    AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
+    CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
+    CreatureExecutionTransitionLikeCpp, IsolatedCreatureExecutionCompositionOutcomeLikeCpp,
+    IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
+    IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
+    capture_admitted_creature_execution_like_cpp,
+    run_admitted_creature_execution_isolated_like_cpp,
+    run_isolated_admitted_creature_execution_composition_like_cpp,
+};
 #[allow(unused_imports)]
 pub(in crate::session) use creature_aggro_tick::*;
 #[allow(unused_imports)]
