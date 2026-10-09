@@ -17,182 +17,39 @@ impl WorldCreature {
     }
 
     pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {
-        self.creature
-            .runtime_like_cpp()
-            .active_waypoint_generator
-            .as_ref()
+        self.creature.active_waypoint_generator_like_cpp()
     }
 
     pub fn active_waypoint_random_at_path_end_like_cpp(&self) -> Option<WaypointRandomAtPathEnd> {
-        self.creature
-            .runtime_like_cpp()
-            .active_waypoint_random_at_path_end
+        self.creature.active_waypoint_random_at_path_end_like_cpp()
     }
 
     pub fn position(&self) -> Position {
-        self.creature.ai_position()
+        self.creature.position()
     }
 
     pub fn home_position(&self) -> Position {
-        self.creature.ai_home_position()
+        self.creature.home_position()
     }
 
-    /// C++ interaction handlers call `PauseMovement(timer)` and then
-    /// `SetHomePosition(GetPosition())` for gossip/vendor/quest interactions.
     pub fn pause_interaction_movement_like_cpp(&mut self) -> bool {
-        let pause_timer = self.creature.interaction_pause_timer_ms_like_cpp();
-        if pause_timer == 0 {
-            return false;
-        }
-
-        let current_position = self.position();
-        let motion = &mut self.creature.unit_mut().subsystems_mut().motion;
-        motion.pause_current_movement_like_cpp(pause_timer, MovementSlot::Default, true);
-        self.creature.set_ai_home_position(current_position);
-        true
+        self.creature.pause_interaction_movement_like_cpp()
     }
 
     pub fn move_target(&self) -> Option<Position> {
-        self.creature.ai_ownership().move_target
+        self.creature.move_target()
     }
 
     pub fn active_move_spline_like_cpp(&self) -> Option<&MoveSpline> {
-        self.creature.runtime_like_cpp().active_move_spline.as_ref()
+        self.creature.active_move_spline_like_cpp()
     }
 
     pub fn spline_id(&self) -> u32 {
-        self.creature.ai_ownership().spline_id
+        self.creature.spline_id()
     }
 
     pub fn sync_runtime_motion_master_like_cpp(&mut self) {
-        let expected_default = match self.creature.default_movement_type() {
-            MovementGeneratorType::Idle => RuntimeMovementGeneratorType::Idle,
-            MovementGeneratorType::Random => RuntimeMovementGeneratorType::Random,
-            MovementGeneratorType::Waypoint => RuntimeMovementGeneratorType::Waypoint,
-        };
-        if self
-            .creature
-            .runtime_like_cpp_mut()
-            .runtime_motion_master
-            .current_kind_for_slot(RuntimeMovementSlot::Default)
-            != Some(expected_default)
-        {
-            let default_generator = Self::runtime_default_generator_like_cpp(&self.creature);
-            self.creature
-                .runtime_like_cpp_mut()
-                .runtime_motion_master
-                .add(default_generator, RuntimeMovementSlot::Default);
-        }
-
-        let expected_chase_target = self.creature.ai_ownership().combat_target.filter(|_| {
-            self.creature.ai_state() == CreatureAiState::InCombat && self.creature.is_alive()
-        });
-        if self.creature.runtime_like_cpp_mut().runtime_chase_target != expected_chase_target {
-            self.creature
-                .runtime_like_cpp_mut()
-                .runtime_motion_master
-                .remove_kind(
-                    RuntimeMovementGeneratorType::Chase,
-                    RuntimeMovementSlot::Active,
-                );
-            self.creature
-                .unit_mut()
-                .subsystems_mut()
-                .motion
-                .remove_generator_kind(MovementGeneratorKind::Chase, MovementSlot::Active);
-            if let Some(target) = expected_chase_target {
-                self.creature
-                    .runtime_like_cpp_mut()
-                    .runtime_motion_master
-                    .add(
-                        Box::new(ChaseMovementGenerator::new(target, None, None)),
-                        RuntimeMovementSlot::Active,
-                    );
-                self.creature
-                    .unit_mut()
-                    .subsystems_mut()
-                    .motion
-                    .move_chase_like_cpp(target);
-            }
-            self.creature.runtime_like_cpp_mut().runtime_chase_target = expected_chase_target;
-        }
-
-        // The represented subsystem already owns concrete Point/Distract/
-        // Charge/etc. lifecycle. Mirror its selected active entry into the
-        // runtime selector so adding normal-priority chase cannot incorrectly
-        // interrupt a higher-priority generator. C++ keeps both entries in the
-        // MotionMaster multiset and selects by mode/priority.
-        let expected_represented_active = {
-            let motion = &self.creature.unit().subsystems().motion;
-            (motion.current_slot() == MovementSlot::Active)
-                .then(|| motion.current_movement_generator())
-                .filter(|generator| generator.kind != MovementGeneratorKind::Chase)
-                .and_then(RuntimeRepresentedActiveGeneratorLikeCpp::from_represented)
-        };
-        let expected_key = expected_represented_active
-            .as_ref()
-            .map(RuntimeRepresentedActiveGeneratorLikeCpp::key);
-        let runtime_proxy_missing = expected_key.is_some_and(|key| {
-            !self
-                .creature
-                .runtime_like_cpp_mut()
-                .runtime_motion_master
-                .has_generator_kind(key.kind, RuntimeMovementSlot::Active)
-        });
-        if self
-            .creature
-            .runtime_like_cpp_mut()
-            .runtime_represented_active
-            != expected_key
-            || runtime_proxy_missing
-        {
-            if let Some(previous) = self
-                .creature
-                .runtime_like_cpp_mut()
-                .runtime_represented_active
-            {
-                self.creature
-                    .runtime_like_cpp_mut()
-                    .runtime_motion_master
-                    .remove_kind(previous.kind, RuntimeMovementSlot::Active);
-            }
-            if let Some(generator) = expected_represented_active {
-                self.creature
-                    .runtime_like_cpp_mut()
-                    .runtime_motion_master
-                    .add(Box::new(generator), RuntimeMovementSlot::Active);
-            }
-            self.creature
-                .runtime_like_cpp_mut()
-                .runtime_represented_active = expected_key;
-        }
-    }
-
-    fn tick_runtime_represented_motion_like_cpp(&mut self, diff_ms: u32) {
-        let unit = self.creature.unit();
-        let active_spline = self.creature.runtime_like_cpp().active_move_spline.as_ref();
-        let context = MotionMasterUpdateContext {
-            diff_ms,
-            can_move: !unit.has_unit_state(UnitState::NOT_MOVE.bits()),
-            owner_exists: true,
-            owner_is_standing: unit.is_stand_state_like_cpp(),
-            spline_finalized: active_spline.is_none_or(MoveSpline::finalized),
-            spline_cyclic: active_spline.is_some_and(MoveSpline::is_cyclic),
-            current_orientation: self.position().orientation,
-        };
-        let outcome = self
-            .creature
-            .unit_mut()
-            .subsystems_mut()
-            .motion
-            .update_motion_master_like_cpp(context);
-        if let MotionMasterUpdateOutcome::Updated {
-            popped: Some(generator),
-            ..
-        } = outcome
-        {
-            self.finalize_runtime_represented_generator_like_cpp(generator);
-        }
+        self.creature.sync_runtime_motion_master_like_cpp();
     }
 
     /// Advances the represented active lifecycle and the runtime selector once
@@ -201,54 +58,34 @@ impl WorldCreature {
         &mut self,
         diff_ms: u32,
     ) -> Option<RuntimeMovementGeneratorType> {
-        self.sync_runtime_motion_master_like_cpp();
-        self.tick_runtime_represented_motion_like_cpp(diff_ms);
-        self.sync_runtime_motion_master_like_cpp();
-        self.creature
-            .runtime_like_cpp_mut()
-            .runtime_motion_master
-            .update(diff_ms);
-        self.runtime_motion_master_ticks = self.runtime_motion_master_ticks.saturating_add(1);
-        self.creature
-            .runtime_like_cpp_mut()
-            .runtime_motion_master
-            .current_kind()
+        self.creature.tick_runtime_motion_master_like_cpp(diff_ms)
     }
 
     pub fn runtime_motion_master_current_kind_like_cpp(
         &self,
     ) -> Option<RuntimeMovementGeneratorType> {
-        self.creature
-            .runtime_like_cpp()
-            .runtime_motion_master
-            .current_kind()
+        self.creature.runtime_motion_master_current_kind_like_cpp()
     }
 
     pub const fn runtime_motion_master_ticks_like_cpp(&self) -> u64 {
-        self.runtime_motion_master_ticks
+        self.creature.runtime_motion_master_ticks_like_cpp()
     }
 
     /// The chase generator currently selected for this creature, kept alongside
     /// the random/waypoint ones so its C++ state (`_lastTargetPosition`,
     /// `_rangeCheckTimer`, `_movingTowards`, `_path`) survives between ticks.
     pub fn active_chase_generator_like_cpp(&self) -> Option<&ChaseMovementGenerator> {
-        self.creature
-            .runtime_like_cpp()
-            .active_chase_generator
-            .as_ref()
+        self.creature.active_chase_generator_like_cpp()
     }
 
     /// The corridor the random generator's `PathGenerator` still holds, for
     /// callers that build its next path request.
     pub fn active_random_path_poly_refs_like_cpp(&self) -> &[u64] {
-        &self
-            .creature
-            .runtime_like_cpp()
-            .active_random_path_poly_refs
+        self.creature.active_random_path_poly_refs_like_cpp()
     }
 
     /// Same, for the chase generator.
     pub fn active_chase_path_poly_refs_like_cpp(&self) -> &[u64] {
-        &self.creature.runtime_like_cpp().active_chase_path_poly_refs
+        self.creature.active_chase_path_poly_refs_like_cpp()
     }
 }

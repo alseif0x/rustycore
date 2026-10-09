@@ -17,7 +17,7 @@ use super::*;
 /// with the presentation and absorb terms the caller's delivery publishes.
 pub(super) fn player_victim_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
-    attacker: &crate::map_manager::WorldCreature,
+    attacker: &wow_entities::Creature,
     swing: &PendingCreatureSwingLikeCpp,
     config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
     damage: u32,
@@ -38,7 +38,7 @@ pub(super) fn player_victim_damage_like_cpp(
             // `MOD_EXPERTISE / 4` and it holds no offhand swing in this
             // bridge, so the dual-wield penalty never applies.
             let attacker_effects = crate::session_rules::creature_aura_effects_like_cpp(
-                &attacker.creature.unit().subsystems().auras.applied_auras,
+                &attacker.unit().subsystems().auras.applied_auras,
                 spell_store,
                 map_difficulty_id,
                 config.difficulty_store.as_deref(),
@@ -76,7 +76,7 @@ pub(super) fn player_victim_damage_like_cpp(
                 .map(|effect| (effect.misc_value, effect.amount))
                 .collect();
             let no_crit = wow_constants::CreatureFlagsExtra::from_bits_truncate(
-                attacker.creature.lifecycle_metadata().flags_extra,
+                attacker.lifecycle_metadata().flags_extra,
             )
             .contains(wow_constants::CreatureFlagsExtra::NO_CRIT);
             let creature_crit_pct = if no_crit {
@@ -88,12 +88,10 @@ pub(super) fn player_victim_damage_like_cpp(
             let expertise_reduction_pct =
                 aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE) / 4.0;
             let attacker_facts = crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
-                level: attacker.creature.level(),
-                is_controlled_by_player: attacker
-                    .creature
-                    .is_charmed_owned_by_player_or_player_like_cpp(),
+                level: attacker.level(),
+                is_controlled_by_player: attacker.is_charmed_owned_by_player_or_player_like_cpp(),
                 no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
-                    attacker.creature.lifecycle_metadata().flags_extra,
+                    attacker.lifecycle_metadata().flags_extra,
                 )
                 .contains(wow_constants::CreatureFlagsExtra::NO_CRUSHING_BLOWS),
                 // The represented bridge has no creature offhand
@@ -169,7 +167,7 @@ pub(super) fn player_victim_damage_like_cpp(
                         .subsystems()
                         .auras
                         .aura_state_mask
-                        | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                        | wow_entities::Creature::health_aura_state_like_cpp(
                             player.unit().data().health,
                             player.unit().data().max_health,
                             player.unit().is_alive(),
@@ -205,7 +203,7 @@ pub(super) fn player_victim_damage_like_cpp(
                             victim_mechanic_mask,
                             false,
                             crate::session::legacy_attack_power_multiplier_like_cpp(
-                                attacker.creature.unit().base_attack_speed()[0],
+                                attacker.unit().base_attack_speed()[0],
                             ),
                         );
                 let player_block_percent =

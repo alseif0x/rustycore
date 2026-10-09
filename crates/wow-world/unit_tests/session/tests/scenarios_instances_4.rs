@@ -233,7 +233,7 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
     assert_eq!(
         legacy_creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
-            creature,
+            &creature.creature,
             &candidate,
             &config,
         ),
@@ -244,7 +244,7 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
     assert_eq!(
         legacy_creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
-            creature,
+            &creature.creature,
             &candidate,
             &config,
         ),

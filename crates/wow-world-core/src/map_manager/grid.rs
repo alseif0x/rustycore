@@ -9,7 +9,11 @@ use super::*;
 pub const GRID_SIZE: f32 = 64.0;
 
 /// Visibility radius in yards (how far a player can see).
-pub const VISIBILITY_RADIUS: f32 = 100.0;
+///
+/// #1263 F6-8D1: the value now has one source on the canonical entity crate
+/// (`wow_entities::VISIBILITY_RADIUS_LIKE_CPP`), which the ported creature phase
+/// projection reads. The legacy map owner keeps the name.
+pub const VISIBILITY_RADIUS: f32 = wow_entities::VISIBILITY_RADIUS_LIKE_CPP;
 
 pub(super) const MAX_NUMBER_OF_CELLS_LIKE_CPP: i32 = 8;
 

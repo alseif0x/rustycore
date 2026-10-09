@@ -69,7 +69,14 @@ use wow_recastdetour::{
 /// the immutable packet projection `CreatureCreateData` and the scheduling
 /// seam named below; the accessor methods read and write that same canonical
 /// storage, so the legacy scheduling and publication bridges keep working
-/// unchanged until F6-8B-E delete them.
+/// unchanged until F6-8D2/D3 and E delete them.
+///
+/// #1263 F6-8D1: the combat, swing, clock, RNG and `Unit::i_motionMaster`
+/// operations moved onto canonical `Creature` ownership
+/// (`wow_entities::creature::phase_ops`/`phase_motion`) and the runtime motion
+/// master advance counter moved into `CreatureRuntimeLikeCpp`. What remains
+/// here is the publication/provenance seam named below, plus the delegating
+/// entry points the legacy scheduler still calls.
 #[derive(Debug, Clone)]
 pub struct WorldCreature {
     /// Canonical creature entity. Runtime/AI ownership lives here.
@@ -79,16 +86,14 @@ pub struct WorldCreature {
     /// Set by reached-home finalization until the global movement owner
     /// publishes the restored health values update.
     ///
-    /// F6-8A deliberately retains this publication flag, the tick counter and
-    /// the respawn-aura provenance on the bridge: they are the
-    /// scheduling/publication seam this slice keeps transitional. The runtime
-    /// RNG, its authority marker and the creature elapsed-time state are **not**
-    /// retained here — the reviewer required the RNG to move in A, so they live
-    /// with the canonical runtime state in
-    /// `wow_entities::CreatureRuntimeLikeCpp` and the accessors below delegate
-    /// to that single owner.
+    /// F6-8A deliberately retains this publication flag and the respawn-aura
+    /// provenance on the bridge: they are the scheduling/publication seam this
+    /// slice keeps transitional. The runtime RNG, its authority marker, the
+    /// creature elapsed-time state and the motion-master advance counter are
+    /// **not** retained here — they live with the canonical runtime state in
+    /// `wow_entities::CreatureRuntimeLikeCpp` and the accessors delegate to
+    /// that single owner.
     home_health_restored_pending_like_cpp: bool,
-    runtime_motion_master_ticks: u64,
     /// DB-backed aura-source proofs that may be re-accredited only after the
     /// respawn rail reapplies the captured creature/template addon source.
     /// These are provenance, not the live AuraSubsystem markers: ordinary aura

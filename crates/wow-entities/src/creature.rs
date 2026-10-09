@@ -26,11 +26,16 @@ use crate::{
 mod ops_1;
 mod ops_2;
 mod ops_3;
+mod phase_motion;
+mod phase_ops;
 mod runtime_1;
 mod state_1;
 mod state_2;
 #[allow(unused_imports)]
-pub use self::{ops_1::*, ops_2::*, ops_3::*, runtime_1::*, state_1::*, state_2::*};
+pub use self::{
+    ops_1::*, ops_2::*, ops_3::*, phase_motion::*, phase_ops::*, runtime_1::*, state_1::*,
+    state_2::*,
+};
 
 #[cfg(test)]
 #[path = "creature_tests/mod.rs"]

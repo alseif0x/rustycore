@@ -501,12 +501,21 @@ impl WorldSession {
         }) = self
             .core
             .mutate_world_creature(combat_target, |creature| {
-                apply_player_melee_to_legacy_creature_like_cpp(
-                    creature,
+                // #1263 F6-8D1: the swing operation takes the canonical
+                // creature; the gated mutation root only supplies it.
+                let hit = apply_player_melee_to_legacy_creature_like_cpp(
+                    &mut creature.creature,
                     player_guid,
                     &tap_group_guids,
                     canonical_swing_damages.as_deref(),
-                )
+                );
+                // The legacy body mirrored the stopped spline's movement flags
+                // into the cached packet projection; preserve that projection
+                // update at the bridge boundary under the same condition.
+                if hit.as_ref().is_some_and(|hit| hit.move_stop.is_some()) {
+                    creature.sync_create_projection_movement_flags_like_cpp();
+                }
+                hit
             })
             .flatten()
         else {

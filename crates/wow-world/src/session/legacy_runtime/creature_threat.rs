@@ -5,7 +5,7 @@
 use super::*;
 
 pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
-    creature: &mut crate::map_manager::WorldCreature,
+    creature: &mut wow_entities::Creature,
     candidates: &[&LegacyCreatureAggroCandidateLikeCpp],
     config: &LegacyCreatureAggroConfigLikeCpp,
     owner_snapshots: &HashMap<ObjectGuid, LegacyCreatureAggroOwnerSnapshotLikeCpp>,
@@ -14,10 +14,9 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         return LegacyCreatureThreatUpdateLikeCpp::Unchanged;
     }
 
-    let old_victim = creature.creature.ai_ownership().combat_target;
+    let old_victim = creature.ai_ownership().combat_target;
     if let Some(old_victim) = old_victim {
         creature
-            .creature
             .unit_mut()
             .subsystems_mut()
             .combat
@@ -80,9 +79,9 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
             && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(creature, snapshot, config)
                 .unwrap_or(false)
             && if snapshot.in_water {
-                creature.creature.can_enter_water_like_cpp()
+                creature.can_enter_water_like_cpp()
             } else {
-                creature.creature.can_walk_like_cpp() || creature.creature.can_fly_like_cpp()
+                creature.can_walk_like_cpp() || creature.can_fly_like_cpp()
             }
             && matches!(
                 legacy_creature_can_attack_snapshot_leash_decision_like_cpp(
@@ -95,22 +94,15 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
             ))
         .then_some(*guid)
     }));
-    let threat_guids = creature
-        .creature
-        .unit()
-        .subsystems()
-        .combat
-        .sorted_threat_guids();
+    let threat_guids = creature.unit().subsystems().combat.sorted_threat_guids();
     let (reevaluate_all_suppressed, pending_suppressed_threat) = creature
-        .creature
         .unit_mut()
         .subsystems_mut()
         .combat
         .take_suppressed_reactivation_requests_like_cpp();
-    let melee_school_mask = creature.creature.melee_damage_school_mask();
+    let melee_school_mask = creature.melee_damage_school_mask();
     for threat_guid in threat_guids {
         let previous_state = creature
-            .creature
             .unit()
             .subsystems()
             .combat
@@ -149,7 +141,6 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
             _ => wow_entities::ThreatOnlineState::Online,
         };
         creature
-            .creature
             .unit_mut()
             .subsystems_mut()
             .combat
@@ -157,7 +148,6 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         if online_state == wow_entities::ThreatOnlineState::Online {
             if let Some(amount) = pending_suppressed_threat.get(&threat_guid) {
                 creature
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
@@ -167,7 +157,6 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
     }
 
     let highest_guid = creature
-        .creature
         .unit()
         .subsystems()
         .combat
@@ -175,7 +164,6 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         .into_iter()
         .find(|guid| {
             creature
-                .creature
                 .unit()
                 .subsystems()
                 .combat
@@ -183,20 +171,12 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
                 .is_some_and(wow_entities::ThreatReferenceState::is_online)
         });
     if highest_guid.is_none() {
-        let participant_guids = creature
-            .creature
-            .unit()
-            .subsystems()
-            .combat
-            .sorted_threat_guids();
-        let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+        let participant_guids = creature.unit().subsystems().combat.sorted_threat_guids();
+        let combat = &mut creature.unit_mut().subsystems_mut().combat;
         combat.clear_threat();
         combat.clear_attackers();
-        creature
-            .creature
-            .unit_mut()
-            .add_unit_state(UnitState::EVADE.bits());
-        creature.creature.clear_tap_list_for_evade();
+        creature.unit_mut().add_unit_state(UnitState::EVADE.bits());
+        creature.clear_tap_list_for_evade();
         let removed_taunt_slots = creature.reset_combat();
         return LegacyCreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,
@@ -211,7 +191,7 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
             eligible_candidate_guids.contains(guid)
                 && is_within_melee_range_like_cpp(
                     creature.position(),
-                    creature.creature.unit().world().combat_reach(),
+                    creature.unit().world().combat_reach(),
                     snapshot.position,
                     snapshot.combat_reach,
                 )
@@ -219,22 +199,13 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         .map(|(guid, _)| *guid)
         .collect();
     let selected = creature
-        .creature
         .unit_mut()
         .subsystems_mut()
         .combat
         .reselect_victim(&melee_candidate_guids);
     let Some(selected) = selected else {
-        let participant_guids = creature
-            .creature
-            .unit()
-            .subsystems()
-            .combat
-            .sorted_threat_guids();
-        creature
-            .creature
-            .unit_mut()
-            .add_unit_state(UnitState::EVADE.bits());
+        let participant_guids = creature.unit().subsystems().combat.sorted_threat_guids();
+        creature.unit_mut().add_unit_state(UnitState::EVADE.bits());
         let removed_taunt_slots = creature.reset_combat();
         return LegacyCreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,
@@ -243,16 +214,8 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         };
     };
     if !eligible_candidate_guids.contains(&selected) {
-        let participant_guids = creature
-            .creature
-            .unit()
-            .subsystems()
-            .combat
-            .sorted_threat_guids();
-        creature
-            .creature
-            .unit_mut()
-            .add_unit_state(UnitState::EVADE.bits());
+        let participant_guids = creature.unit().subsystems().combat.sorted_threat_guids();
+        creature.unit_mut().add_unit_state(UnitState::EVADE.bits());
         let removed_taunt_slots = creature.reset_combat();
         return LegacyCreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,

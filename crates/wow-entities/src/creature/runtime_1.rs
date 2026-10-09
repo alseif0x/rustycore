@@ -216,6 +216,15 @@ pub struct CreatureRuntimeLikeCpp {
     /// cannot independently move spline, combat, spell, assistance or corpse
     /// state.
     runtime_elapsed_ms_like_cpp: u64,
+    /// Count of `Unit::i_motionMaster::Update` advances performed for this
+    /// incarnation.
+    ///
+    /// #1263 F6-8D1: the legacy `WorldCreature` bridge held this counter beside
+    /// the canonical runtime state it describes. It counts the runtime motion
+    /// master's advances, so it now lives with that state and the bridge keeps
+    /// only the delegating accessor. Initial value and clone carry-over are
+    /// unchanged, so the counter observes the same sequence.
+    runtime_motion_master_ticks_like_cpp: u64,
 }
 
 impl CreatureRuntimeLikeCpp {
@@ -246,6 +255,7 @@ impl CreatureRuntimeLikeCpp {
             runtime_rng_like_cpp: StdRng::from_entropy(),
             runtime_rng_authority_complete_like_cpp: true,
             runtime_elapsed_ms_like_cpp: 0,
+            runtime_motion_master_ticks_like_cpp: 0,
         }
     }
 
@@ -281,7 +291,19 @@ impl CreatureRuntimeLikeCpp {
             runtime_rng_like_cpp: source.runtime_rng_like_cpp.clone(),
             runtime_rng_authority_complete_like_cpp: source.runtime_rng_authority_complete_like_cpp,
             runtime_elapsed_ms_like_cpp: source.runtime_elapsed_ms_like_cpp,
+            runtime_motion_master_ticks_like_cpp: source.runtime_motion_master_ticks_like_cpp,
         }
+    }
+
+    /// Canonical accessor for the runtime motion master's advance counter.
+    pub const fn runtime_motion_master_ticks_like_cpp(&self) -> u64 {
+        self.runtime_motion_master_ticks_like_cpp
+    }
+
+    /// Record one `Unit::i_motionMaster::Update` advance.
+    pub fn record_runtime_motion_master_tick_like_cpp(&mut self) {
+        self.runtime_motion_master_ticks_like_cpp =
+            self.runtime_motion_master_ticks_like_cpp.saturating_add(1);
     }
 
     /// Canonical accessor for the creature-local elapsed time that C++
