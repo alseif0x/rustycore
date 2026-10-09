@@ -608,9 +608,9 @@
     },
     {
       "path": "crates/wow-world-core/unit_tests/map_manager_tests.rs",
-      "observed_lines": 339,
-      "ceiling_lines": 339,
-      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6273 to 339 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #1241 F1 relocated this file unchanged from src/ to unit_tests/ (still a cfg(test) module of the library; tests unchanged).",
+      "observed_lines": 341,
+      "ceiling_lines": 341,
+      "split": "Separate legacy clock/creature lifecycle, movement, combat and bridge scenarios. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 6273 to 339 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #1241 F1 relocated this file unchanged from src/ to unit_tests/ (still a cfg(test) module of the library; tests unchanged). 2026-10-09 #1263 F6-8D1 review: 339 -> 341 (+2). The two added lines are the `#[path]` mount and the `mod` declaration of the new `map_manager_tests/f6_8d1_phase_engine.rs` scenario module. The D1 regressions live in the child module; the parent root must declare and mount it, exactly as the #628 split requires. No production line moved and no test was removed.",
       "review_checkpoint": "584:C4"
     },
     {
