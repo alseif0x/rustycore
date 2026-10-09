@@ -5,6 +5,30 @@
 
 use super::*;
 
+/// The exact residence one lifecycle step addresses.
+///
+/// F6-8A residence contract: active residence is **canonical**, so a lifecycle
+/// step addresses the exact `(map_id, instance_id)` key it observed in the
+/// legacy store. A detached resolution must never invent instance zero, so this
+/// type has no `Default` and no general zero fallback: it is constructed only
+/// from an observed key, and every canonical lookup on the lifecycle path is
+/// taken through it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct LifecycleResidenceLikeCpp {
+    map_id: u16,
+    instance_id: u32,
+}
+
+impl LifecycleResidenceLikeCpp {
+    /// The residence observed for one legacy map key.
+    const fn observed_like_cpp(map_id: u16, instance_id: u32) -> Self {
+        Self {
+            map_id,
+            instance_id,
+        }
+    }
+}
+
 /// One ready respawn that passed the duplicate check and is built but not yet
 /// published in the legacy store.
 ///
@@ -12,8 +36,10 @@ use super::*;
 /// has decided the incarnation, so a refused candidate can never be left
 /// holding its own allocatable authority.
 struct ReadyRespawnCandidateLikeCpp {
-    map_id: u32,
-    instance_id: u32,
+    /// The exact residence this candidate belongs to. It is never re-derived and
+    /// never defaulted, so a ready respawn cannot be published — or admitted —
+    /// under a different key than the one its queue entry was drained from.
+    residence: LifecycleResidenceLikeCpp,
     guid: ObjectGuid,
     world_creature: crate::map_manager::WorldCreature,
     /// The queue entry this candidate was drained from.
@@ -52,17 +78,20 @@ enum ReadyRespawnAdmissionLikeCpp {
 /// A candidate that is not admitted is never installed, so a canonical
 /// incarnation that exists after that call is the refusal; this read therefore
 /// classifies R1a's decision without re-deriving it.
+///
+/// The lookup is taken at the **exact** residence the lifecycle observed
+/// (`find_map` is an exact `(map_id, instance_id)` key lookup); a detached
+/// resolution must not fall back to instance zero.
 fn canonical_creature_incarnation_exists_like_cpp(
     manager: &SharedCanonicalMapManager,
-    map_id: u32,
-    instance_id: u32,
+    residence: LifecycleResidenceLikeCpp,
     guid: ObjectGuid,
 ) -> bool {
     let Ok(manager) = manager.lock() else {
         return false;
     };
     manager
-        .find_map(map_id, instance_id)
+        .find_map(u32::from(residence.map_id), residence.instance_id)
         .is_some_and(|map| map.map().with_creature_like_cpp(guid, |_| ()).is_some())
 }
 
@@ -311,8 +340,10 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 // insertion moved after admission.
                 respawn_candidates.push((
                     ReadyRespawnCandidateLikeCpp {
-                        map_id: u32::from(map_id),
-                        instance_id,
+                        residence: LifecycleResidenceLikeCpp::observed_like_cpp(
+                            map_id,
+                            instance_id,
+                        ),
                         guid,
                         world_creature,
                         pending: respawn,
@@ -362,11 +393,15 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
         }
     }
 
-    // R1b: admission decides each ready respawn's incarnation, and the legacy
-    // store publication below consumes the authority, the canonical health
-    // timeline and the aura provenance of that one decision together. A refused
-    // candidate is never published, so it cannot leave a competing claimable
-    // allocation behind.
+    // F6-8A publication gate. Admission decides each ready respawn's incarnation
+    // first, and the legacy store publication below is reachable **only** through
+    // the decision this loop records: the authority, the canonical health
+    // timeline and the aura provenance of that one decision are consumed
+    // together. A refused candidate and a candidate the canonical owner could
+    // not admit yet are never published, so neither can leave a competing
+    // claimable allocation or an un-admitted representation behind. Each
+    // candidate is admitted at its own observed residence — the exact
+    // `(map_id, instance_id)` key it was drained from — never at a default.
     let mut respawn_admissions: Vec<(ReadyRespawnCandidateLikeCpp, ReadyRespawnAdmissionLikeCpp)> =
         Vec::with_capacity(respawn_candidates.len());
     for (candidate, canonical_creature) in respawn_candidates {
@@ -374,16 +409,15 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             Some(canonical_map_manager) => {
                 let admitted = insert_canonical_creature_map_object_on_map_like_cpp(
                     canonical_map_manager,
-                    candidate.map_id,
-                    candidate.instance_id,
+                    u32::from(candidate.residence.map_id),
+                    candidate.residence.instance_id,
                     canonical_creature,
                 );
                 match admitted {
                     Some(admitted) => ReadyRespawnAdmissionLikeCpp::Admitted(admitted),
                     None if canonical_creature_incarnation_exists_like_cpp(
                         canonical_map_manager,
-                        candidate.map_id,
-                        candidate.instance_id,
+                        candidate.residence,
                         candidate.guid,
                     ) =>
                     {
@@ -413,10 +447,11 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     // like the "already present" branch above: drop the stale
                     // persisted respawn row and publish nothing in the legacy
                     // store.
+                    outcome.respawn_publications_refused_like_cpp += 1;
                     if candidate.pending.persistent_spawn {
                         if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
-                            candidate.map_id as u16,
-                            candidate.instance_id,
+                            candidate.residence.map_id,
+                            candidate.residence.instance_id,
                             wow_map::SpawnObjectType::Creature,
                             candidate.pending.spawn_id,
                         ) {
@@ -425,8 +460,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                         if let Some(canonical_map_manager) = canonical_map_manager
                             && remove_canonical_respawn_time_on_map_like_cpp(
                                 canonical_map_manager,
-                                candidate.map_id,
-                                candidate.instance_id,
+                                u32::from(candidate.residence.map_id),
+                                candidate.residence.instance_id,
                                 wow_map::SpawnObjectType::Creature,
                                 candidate.pending.spawn_id,
                             )
@@ -434,7 +469,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                             outcome.canonical_respawn_removes += 1;
                         }
                     }
-                    affected_maps.insert((candidate.map_id as u16, candidate.instance_id));
+                    affected_maps
+                        .insert((candidate.residence.map_id, candidate.residence.instance_id));
                     continue;
                 }
                 ReadyRespawnAdmissionLikeCpp::Deferred => {
@@ -445,9 +481,10 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     // published, so no visibility refresh is requested here; the
                     // corpse despawn that queued this respawn already signalled
                     // the map key in this tick.
+                    outcome.respawn_publications_deferred_like_cpp += 1;
                     manager.push_respawn(
-                        candidate.map_id as u16,
-                        candidate.instance_id,
+                        candidate.residence.map_id,
+                        candidate.residence.instance_id,
                         candidate.pending,
                     );
                     continue;
@@ -471,21 +508,24 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             let (grid_x, grid_y) =
                 world_to_grid_coords(candidate.pending.home_pos.x, candidate.pending.home_pos.y);
             if !manager.add_creature(
-                candidate.map_id as u16,
-                candidate.instance_id,
+                candidate.residence.map_id,
+                candidate.residence.instance_id,
                 grid_x,
                 grid_y,
                 candidate.world_creature,
             ) {
-                // A concurrent publication won the GUID. The previous path
-                // installed no canonical object for such a candidate either, so
-                // undo a fresh canonical incarnation this tick just installed.
+                // A concurrent publication won the GUID, so this candidate's
+                // publication failed after its admission decision was taken and
+                // nothing of it is published. The previous path installed no
+                // canonical object for such a candidate either, so undo a fresh
+                // canonical incarnation this tick just installed.
+                outcome.respawn_publications_rolled_back_like_cpp += 1;
                 if fresh_canonical_insert && let Some(canonical_map_manager) = canonical_map_manager
                 {
                     remove_canonical_creature_map_object_on_map_like_cpp(
                         canonical_map_manager,
-                        candidate.map_id,
-                        candidate.instance_id,
+                        u32::from(candidate.residence.map_id),
+                        candidate.residence.instance_id,
                         candidate.guid,
                     );
                 }
@@ -493,8 +533,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             }
             if let Some(admitted) = &admitted
                 && let Some(world_creature) = manager.find_creature_mut(
-                    candidate.map_id as u16,
-                    candidate.instance_id,
+                    candidate.residence.map_id,
+                    candidate.residence.instance_id,
                     candidate.guid,
                 )
             {
@@ -534,8 +574,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             }
             if candidate.pending.persistent_spawn {
                 if let Some(stmt) = manager.remove_persisted_respawn_time_like_cpp(
-                    candidate.map_id as u16,
-                    candidate.instance_id,
+                    candidate.residence.map_id,
+                    candidate.residence.instance_id,
                     wow_map::SpawnObjectType::Creature,
                     candidate.pending.spawn_id,
                 ) {
@@ -548,8 +588,8 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                 if let Some(canonical_map_manager) = canonical_map_manager
                     && remove_canonical_respawn_time_on_map_like_cpp(
                         canonical_map_manager,
-                        candidate.map_id,
-                        candidate.instance_id,
+                        u32::from(candidate.residence.map_id),
+                        candidate.residence.instance_id,
                         wow_map::SpawnObjectType::Creature,
                         candidate.pending.spawn_id,
                     )
@@ -557,7 +597,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
                     outcome.canonical_respawn_removes += 1;
                 }
             }
-            affected_maps.insert((candidate.map_id as u16, candidate.instance_id));
+            affected_maps.insert((candidate.residence.map_id, candidate.residence.instance_id));
             outcome.respawns_processed += 1;
             outcome.canonical_inserts += 1;
         }
