@@ -2,12 +2,14 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private collections capability handlers extracted from the legacy misc owner.
+//!
+//! `#1263 F5 remaining families`: the `CMSG_ADD_TOY` and `CMSG_USE_TOY`
+//! registrations moved to the `ApplicationCollections` area registrar
+//! (`ToyHandler.cpp:28` and `:54`); the bodies stay here.
 
 use tracing::{debug, info, warn};
-use wow_constants::{ClientOpcodes, InventoryResult, SpellCastResult};
-use wow_handler::{PacketProcessing, SessionStatus};
+use wow_constants::{InventoryResult, SpellCastResult};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::collection::{
     COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
     CollectionItemSetFavorite, TransmogrifyItems,
@@ -19,36 +21,6 @@ use wow_packet::{ClientPacket, ServerPacket};
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::session::{CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, SpellCastMetadata};
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AddToy,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_add_toy",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_add_toy(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UseToy,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_use_toy",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_use_toy_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        catalogs.creature_spawns.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 #[cfg(test)]
 mod test_shims;

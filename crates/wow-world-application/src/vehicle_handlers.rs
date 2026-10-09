@@ -4,13 +4,15 @@
 
 //! Vehicle handlers that only need the hub and the registry-sync seam.
 //!
-//! C++ source of truth: `src/server/game/Handlers/VehicleHandler.cpp` for
-//! `HandleEjectPassenger` and `HandleRequestVehicleExit`. The represented
-//! vehicle seat state lives in the Core hub, so the World session only builds
-//! the borrowed context and the registry-state publication stays a bounded
-//! seam (#1263 F5). The seat-change, dismiss and ride-interact bodies stay in
-//! the World shell while they need its movement sanitization and spell-click
-//! planning helpers.
+//! C++ source of truth: `src/server/game/Handlers/VehicleHandler.cpp`. The
+//! represented vehicle seat state lives in the Core hub, so the World session
+//! only builds the borrowed context and the registry-state publication stays a
+//! bounded seam (#1263 F5). `#1263 F5 remaining families` moved the four
+//! remaining `VehicleHandler.cpp` registrations here too (`:27`
+//! `HandleMoveDismissVehicle`, `:73` `HandleMoveChangeVehicleSeats`, `:102`
+//! `HandleRequestVehicleSwitchSeat` and `:124` `HandleRideVehicleInteract`);
+//! their bodies stay in the World shell while they need its movement
+//! sanitization and spell-click planning helpers, and the host lends them.
 
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
@@ -282,6 +284,34 @@ pub trait VehicleHandlerHostLikeCpp<C> {
     /// Re-publishes the registry state after a vehicle seat change; the World
     /// session still owns the registry-sync providers.
     fn sync_player_registry_state_after_vehicle_change_like_cpp(&mut self);
+
+    /// C++ `VehicleHandler.cpp:27` `WorldSession::HandleMoveDismissVehicle`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure read the
+    /// packet itself and warned on failure, so this entry point carries the read
+    /// and the same warning literal. The body stays in the World session.
+    fn handle_move_dismiss_vehicle<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+
+    /// C++ `VehicleHandler.cpp:73` `WorldSession::HandleMoveChangeVehicleSeats`.
+    ///
+    /// Same read/warning contract as the legacy closure.
+    fn handle_move_change_vehicle_seats<'a>(
+        &'a mut self,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `VehicleHandler.cpp:102` `WorldSession::HandleRequestVehicleSwitchSeat`.
+    ///
+    /// Same read/warning contract as the legacy closure.
+    fn handle_request_vehicle_switch_seat<'a>(
+        &'a mut self,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `VehicleHandler.cpp:124` `WorldSession::HandleRideVehicleInteract`.
+    ///
+    /// Same read/warning contract as the legacy closure.
+    fn handle_ride_vehicle_interact<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_eject_passenger_thunk<'a, S, C>(
@@ -379,6 +409,58 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the four seat-change, dismiss and
+/// ride-interact entries that lived in the World shell's `handlers/vehicle.rs`.
+/// Each thunk keeps the legacy read and warning literal verbatim; only the
+/// registration moved.
+fn handle_move_dismiss_vehicle_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: VehicleHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_move_dismiss_vehicle(pkt).await })
+}
+
+fn handle_move_change_vehicle_seats_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: VehicleHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_move_change_vehicle_seats(pkt).await })
+}
+
+fn handle_request_vehicle_switch_seat_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: VehicleHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_request_vehicle_switch_seat(pkt).await })
+}
+
+fn handle_ride_vehicle_interact_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: VehicleHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_ride_vehicle_interact(pkt).await })
+}
+
 /// Registers the vehicle handlers on the packet registry.
 pub fn register_vehicle_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -414,6 +496,34 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_request_vehicle_next_seat",
         handler: handle_request_vehicle_next_seat_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveDismissVehicle,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_dismiss_vehicle",
+        handler: handle_move_dismiss_vehicle_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::MoveChangeVehicleSeats,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_move_change_vehicle_seats",
+        handler: handle_move_change_vehicle_seats_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::RequestVehicleSwitchSeat,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_request_vehicle_switch_seat",
+        handler: handle_request_vehicle_switch_seat_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::RideVehicleInteract,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_ride_vehicle_interact",
+        handler: handle_ride_vehicle_interact_thunk::<S, C>,
     })?;
     Ok(())
 }

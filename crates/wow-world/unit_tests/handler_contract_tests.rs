@@ -300,7 +300,10 @@ fn print_world_handler_contract_snapshot() {
 ///
 /// These are the registrations `register_remaining_handlers_like_cpp` links from
 /// `inventory::submit!`; every migrated family must be absent from this set, so
-/// a family that silently kept its legacy submission fails here.
+/// a family that silently kept its legacy submission fails here. After
+/// `#1263 F5 remaining families` the residual is exactly the ten deliberately
+/// deferred entries of `handlers/void_storage.rs` (4), `handlers/talent.rs` (2)
+/// and `handlers/entities/corpse.rs` (4).
 fn legacy_inventory_contract_rows() -> Vec<HandlerContractRow> {
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
     crate::session::registry::register_remaining_handlers_like_cpp(&mut builder)
@@ -432,7 +435,7 @@ fn trainer_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        25,
+        10,
     );
 }
 /// The movement registration tail (#1263 F5 tail, commit 2) left the legacy
@@ -829,7 +832,7 @@ fn movement_tail_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadSafe",
             ),
         ],
-        25,
+        10,
     );
 }
 
@@ -1004,7 +1007,7 @@ fn character_account_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        25,
+        10,
     );
 }
 
@@ -1131,7 +1134,7 @@ fn quest_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        25,
+        10,
     );
 }
 
@@ -1180,7 +1183,7 @@ fn spell_cast_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        25,
+        10,
     );
 }
 
@@ -1222,7 +1225,7 @@ fn travel_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        25,
+        10,
     );
 }
 
@@ -1322,5 +1325,467 @@ fn duplicated_migrated_travel_family_registration_is_rejected_without_replacemen
             .count(),
         1,
         "the rejected duplicate must not replace the activate-taxi entry"
+    );
+}
+
+/// `#1263 F5 remaining families`: the combat family (`CMSG_ATTACKSWING`,
+/// `CombatHandler.cpp:28`) left the legacy inventory.
+#[test]
+fn combat_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "combat",
+        |builder| {
+            wow_world_application::register_combat_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("combat registrar registers");
+        },
+        &[contract_row(
+            0x3255,
+            "AttackSwing",
+            "handle_attack_swing",
+            "LoggedIn",
+            "Inplace",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the client-state currency-flags entry
+/// (`CMSG_SET_CURRENCY_FLAGS`, `Opcodes.cpp:888`) left the legacy inventory.
+#[test]
+fn client_state_currency_flags_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "client-state currency flags",
+        |builder| {
+            wow_world_application::register_client_state_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("client-state registrar registers");
+        },
+        &[contract_row(
+            0x316C,
+            "SetCurrencyFlags",
+            "handle_set_currency_flags",
+            "LoggedIn",
+            "Inplace",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the text-emote entry (`CMSG_SEND_TEXT_EMOTE`,
+/// `ChatHandler.cpp:674`) left the legacy inventory.
+#[test]
+fn chat_text_emote_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "chat text emote",
+        |builder| {
+            wow_world_social::register_chat_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("chat registrar registers");
+        },
+        &[contract_row(
+            0x3488,
+            "SendTextEmote",
+            "handle_text_emote",
+            "LoggedIn",
+            "Inplace",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the gameobject-use entry (`CMSG_GAME_OBJ_USE`,
+/// `SpellHandler.cpp:200`) left the legacy inventory.
+#[test]
+fn gameobject_use_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "gameobject use",
+        |builder| {
+            wow_world_application::register_gameobject_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("gameobject registrar registers");
+        },
+        &[contract_row(
+            0x34EE,
+            "GameObjUse",
+            "handle_game_obj_use",
+            "LoggedIn",
+            "Inplace",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the LFG system-info entry
+/// (`CMSG_DF_GET_SYSTEM_INFO`, `LFGHandler.cpp:107`) left the legacy inventory.
+#[test]
+fn dungeon_finding_system_info_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "dungeon-finding system info",
+        |builder| {
+            wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("dungeon-finding registrar registers");
+        },
+        &[contract_row(
+            0x3615,
+            "DfGetSystemInfo",
+            "handle_df_get_system_info",
+            "LoggedIn",
+            "ThreadSafe",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the loot-money entry (`CMSG_LOOT_MONEY`,
+/// `LootHandler.cpp:142`) left the legacy inventory.
+#[test]
+fn loot_money_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "loot money",
+        |builder| {
+            wow_world_application::register_loot_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("loot registrar registers");
+        },
+        &[contract_row(
+            0x3210,
+            "LootMoney",
+            "handle_loot_money",
+            "LoggedIn",
+            "ThreadUnsafe",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the companion-dismissal entry
+/// (`CMSG_DISMISS_CRITTER`, `PetHandler.cpp:41`) left the legacy inventory.
+#[test]
+fn dismiss_critter_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "dismiss critter",
+        |builder| {
+            wow_world_application::register_battle_pet_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("battle-pet registrar registers");
+        },
+        &[contract_row(
+            0x34F9,
+            "DismissCritter",
+            "handle_dismiss_critter",
+            "LoggedIn",
+            "ThreadUnsafe",
+        )],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the skirmish-join and wargame-accept entries
+/// (`Opcodes.cpp:220` and `:144`) left the legacy inventory.
+#[test]
+fn pvp_skirmish_and_wargame_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "pvp skirmish/wargame",
+        |builder| {
+            wow_world_application::register_battleground_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("battleground registrar registers");
+        },
+        &[
+            contract_row(
+                0x3522,
+                "BattlemasterJoinSkirmish",
+                "handle_battlemaster_join_skirmish",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x35E1,
+                "AcceptWargameInvite",
+                "handle_accept_wargame_invite",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+        ],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the two toy entries (`CMSG_ADD_TOY`,
+/// `ToyHandler.cpp:28`, and `CMSG_USE_TOY`, `ToyHandler.cpp:54`) left the legacy
+/// inventory.
+#[test]
+fn toy_collection_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "toy collection",
+        |builder| {
+            wow_world_application::register_collections_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("collections registrar registers");
+        },
+        &[
+            contract_row(
+                0x3299,
+                "AddToy",
+                "handle_add_toy",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(0x329A, "UseToy", "handle_use_toy", "LoggedIn", "Inplace"),
+        ],
+        10,
+    );
+}
+
+/// `#1263 F5 remaining families`: the four remaining `VehicleHandler.cpp`
+/// entries (`:27`, `:73`, `:102`, `:124`) left the legacy inventory.
+#[test]
+fn vehicle_seat_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "vehicle seat",
+        |builder| {
+            wow_world_application::register_vehicle_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("vehicle registrar registers");
+        },
+        &[
+            contract_row(
+                0x3A33,
+                "MoveDismissVehicle",
+                "handle_move_dismiss_vehicle",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x3A34,
+                "MoveChangeVehicleSeats",
+                "handle_move_change_vehicle_seats",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x323A,
+                "RequestVehicleSwitchSeat",
+                "handle_request_vehicle_switch_seat",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x323B,
+                "RideVehicleInteract",
+                "handle_ride_vehicle_interact",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+        ],
+        10,
+    );
+}
+
+/// Negative control (#1263 F5 remaining families): every registrar extended or
+/// reused by this slice rejects a second registration of its own first entry and
+/// never replaces the original.
+#[test]
+fn duplicated_migrated_remaining_family_registrations_are_rejected_without_replacement() {
+    type Registrar = fn(
+        &mut crate::session::registry::WorldPacketHandlerRegistryBuilder,
+    ) -> Result<(), wow_handler::DuplicateHandlerRegistrationLikeCpp>;
+
+    let registrars: &[(&str, Registrar, wow_constants::ClientOpcodes, &str)] = &[
+        (
+            "combat",
+            wow_world_application::register_combat_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::AttackStop,
+            "handle_attack_stop",
+        ),
+        (
+            "client-state",
+            wow_world_application::register_client_state_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::LoadingScreenNotify,
+            "handle_loading_screen_notify",
+        ),
+        (
+            "chat",
+            wow_world_social::register_chat_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::ChatMessageSay,
+            "handle_chat_say",
+        ),
+        (
+            "gameobject",
+            wow_world_application::register_gameobject_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::CloseInteraction,
+            "handle_close_interaction",
+        ),
+        (
+            "dungeon-finding",
+            wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::DfGetJoinStatus,
+            "handle_df_get_join_status",
+        ),
+        (
+            "loot",
+            wow_world_application::register_loot_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::SetLootSpecialization,
+            "handle_set_loot_specialization",
+        ),
+        (
+            "battle-pet",
+            wow_world_application::register_battle_pet_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::BattlePetRequestJournal,
+            "handle_battle_pet_request_journal",
+        ),
+        (
+            "battleground",
+            wow_world_application::register_battleground_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::BattlefieldPort,
+            "handle_battlefield_port",
+        ),
+        (
+            "collections",
+            wow_world_application::register_collections_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::MountSetFavorite,
+            "handle_mount_set_favorite",
+        ),
+        (
+            "vehicle",
+            wow_world_application::register_vehicle_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >,
+            wow_constants::ClientOpcodes::EjectPassenger,
+            "handle_eject_passenger",
+        ),
+    ];
+
+    for entry in registrars {
+        let (family, register, opcode, handler_name) = *entry;
+        let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+        register(&mut builder).expect("the first family registration succeeds");
+        let error = register(&mut builder).expect_err("a duplicate registration must be rejected");
+        assert_eq!(error.opcode, opcode, "{family}: rejected opcode");
+        assert_eq!(
+            error.previous_handler_name, handler_name,
+            "{family}: the original entry stays in the builder"
+        );
+        assert_eq!(
+            error.new_handler_name, handler_name,
+            "{family}: the rejected entry is the duplicate"
+        );
+        let registry = builder.build();
+        assert_eq!(
+            registry
+                .iter()
+                .filter(|candidate| candidate.opcode == opcode)
+                .count(),
+            1,
+            "{family}: the rejected duplicate must not replace the original entry"
+        );
+    }
+}
+
+/// Negative control (#1263 F5 remaining families): the snapshot comparator
+/// reports a missing row and an added row against the linked registry rows.
+#[test]
+fn contract_comparison_reports_omitted_and_added_rows() {
+    let expected = vec![
+        contract_row(
+            0x1234,
+            "ExampleOpcode",
+            "handle_example",
+            "LoggedIn",
+            "ThreadUnsafe",
+        ),
+        contract_row(
+            0x1235,
+            "SecondOpcode",
+            "handle_second",
+            "LoggedIn",
+            "Inplace",
+        ),
+    ];
+
+    let omitted = vec![contract_row(
+        0x1234,
+        "ExampleOpcode",
+        "handle_example",
+        "LoggedIn",
+        "ThreadUnsafe",
+    )];
+    let error = compare_contract(&expected, &omitted).expect_err("a missing row must be reported");
+    assert!(
+        error.contains("missing actual") && error.contains("handle_second"),
+        "unexpected omitted-row report: {error:?}"
+    );
+
+    let added = vec![
+        contract_row(
+            0x1234,
+            "ExampleOpcode",
+            "handle_example",
+            "LoggedIn",
+            "ThreadUnsafe",
+        ),
+        contract_row(
+            0x1235,
+            "SecondOpcode",
+            "handle_second",
+            "LoggedIn",
+            "Inplace",
+        ),
+        contract_row(0x1236, "ThirdOpcode", "handle_third", "LoggedIn", "Inplace"),
+    ];
+    let error = compare_contract(&expected, &added).expect_err("an added row must be reported");
+    assert!(
+        error.contains("unexpected actual") && error.contains("handle_third"),
+        "unexpected added-row report: {error:?}"
     );
 }

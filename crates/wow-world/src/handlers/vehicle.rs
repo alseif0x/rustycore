@@ -1,4 +1,4 @@
-//! Vehicle packet handler registrations.
+//! Vehicle packet handler bodies.
 //!
 //! C++ refs:
 //! - `WorldSession::HandleMoveDismissVehicle`
@@ -9,16 +9,14 @@
 //! - `WorldSession::HandleRideVehicleInteract`
 //! - `WorldSession::HandleEjectPassenger`
 //! - `WorldSession::HandleRequestVehicleExit`
+//!
+//! `#1263 F5 remaining families`: all eight registrations now live in the
+//! `ApplicationVehicle` area registrar (`wow-world-application`); the bodies
+//! stay here.
 
-use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
-use wow_handler::{PacketProcessing, SessionStatus};
-use wow_packet::ClientPacket;
-
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::vehicle::{
-    EjectPassenger, MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleExit,
-    RequestVehicleNextSeat, RequestVehiclePrevSeat, RequestVehicleSwitchSeat, RideVehicleInteract,
+    MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleSwitchSeat, RideVehicleInteract,
 };
 
 use crate::session::WorldSession;
@@ -32,23 +30,6 @@ pub use wow_world_application::{
 
 #[cfg(test)]
 mod test_shims;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveDismissVehicle,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_move_dismiss_vehicle",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::MoveDismissVehicle::read(&mut pkt) {
-                    Ok(packet) => session.handle_move_dismiss_vehicle(packet).await,
-                    Err(e) => tracing::warn!("Failed to read MoveDismissVehicle: {e}"),
-                }
-            })
-        },
-    }
-}
 
 impl WorldSession {
     /// C++ `HandleMoveDismissVehicle`.
@@ -77,57 +58,6 @@ impl WorldSession {
     /// C++ `HandleRideVehicleInteract`.
     pub async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
         self.represented_ride_vehicle_interact_like_cpp(packet.vehicle);
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::MoveChangeVehicleSeats,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_move_change_vehicle_seats",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::MoveChangeVehicleSeats::read(&mut pkt) {
-                    Ok(packet) => session.handle_move_change_vehicle_seats(packet).await,
-                    Err(e) => tracing::warn!("Failed to read MoveChangeVehicleSeats: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestVehicleSwitchSeat,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_vehicle_switch_seat",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::RequestVehicleSwitchSeat::read(&mut pkt) {
-                    Ok(packet) => session.handle_request_vehicle_switch_seat(packet).await,
-                    Err(e) => tracing::warn!("Failed to read RequestVehicleSwitchSeat: {e}"),
-                }
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RideVehicleInteract,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_ride_vehicle_interact",
-        handler: |session, _catalogs, mut pkt| {
-            Box::pin(async move {
-                match wow_packet::packets::vehicle::RideVehicleInteract::read(&mut pkt) {
-                    Ok(packet) => session.handle_ride_vehicle_interact(packet).await,
-                    Err(e) => tracing::warn!("Failed to read RideVehicleInteract: {e}"),
-                }
-            })
-        },
     }
 }
 

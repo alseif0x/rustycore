@@ -15,8 +15,11 @@
 //! with the item, quest and creature orchestration it delegates to the existing
 //! World loot operations. The `LootMoney` **command receivers** (C++
 //! `LootHandler.cpp` money path) join them in `money`; they are session-command
-//! rails, not packet registrations, and the `CMSG_LOOT_MONEY` consumer stays in
-//! the World shell until its own slice.
+//! rails, not packet registrations. `#1263 F5 remaining families` moved the
+//! `CMSG_LOOT_MONEY` registration here as well (`LootHandler.cpp:142`
+//! `WorldSession::HandleLootMoneyOpcode`): its body stays in the World shell —
+//! it needs the shell loot and payout orchestration — and the host lends that
+//! operation with the same item GUID generator the legacy closure destructured.
 //!
 //! The packet bodies live in the private submodules of this owner
 //! (`specialization`, `unit`, `roll`, `master_loot`, `item`, `money`); this root
@@ -100,6 +103,17 @@ impl<'a> LootHandlerCxLikeCpp<'a> {
 /// resumption is needed.
 pub trait LootHandlerHostLikeCpp<C> {
     fn loot_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> LootHandlerCxLikeCpp<'a>;
+
+    /// C++ `LootHandler.cpp:142` `WorldSession::HandleLootMoneyOpcode`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure
+    /// destructured the dispatch catalogs bundle for its item GUID generator, so
+    /// the host receives that view here. The body stays in the World session.
+    fn handle_loot_money_with_generator_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 
     /// Builds the application loot-release context from the host's disjoint state.
     fn loot_release_handler_cx_like_cpp<'a>(
@@ -578,6 +592,24 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the money entry that lived in the World
+/// shell's `handlers/loot/handlers.rs`.
+fn handle_loot_money_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: LootHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_loot_money_with_generator_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
 /// Registers the loot handlers on the packet registry.
 pub fn register_loot_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -627,6 +659,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_master_loot_item",
         handler: handle_master_loot_item_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::LootMoney,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_loot_money",
+        handler: handle_loot_money_thunk::<S, C>,
     })?;
     Ok(())
 }

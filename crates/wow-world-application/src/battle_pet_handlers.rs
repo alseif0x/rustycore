@@ -15,8 +15,11 @@
 //! live in the Core hub, so the World session only builds the borrowed context
 //! (#1263 F5).
 //!
-//! `DismissCritter` (C++ `PetHandler.cpp`, a different family) stays in the World
-//! shell. `BattlePetUpdateDisplayNotify` is not registered anywhere: 3.4.3 leaves
+//! `#1263 F5 remaining families` moved the `DismissCritter` **registration**
+//! here too (`PetHandler.cpp:41`, the companion-pet translation unit whose
+//! World-side module `handlers/pets/` is this owner's adapter); its represented
+//! body stays in the World shell and the host lends it.
+//! `BattlePetUpdateDisplayNotify` is not registered anywhere: 3.4.3 leaves
 //! it `STATUS_UNHANDLED` / `Handle_NULL` (`Opcodes.cpp:243`), and the 2026-10-07
 //! #1263 F6 decision (D5) removed the empty registered body.
 
@@ -631,6 +634,13 @@ pub trait BattlePetHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> BattlePetHandlerCxLikeCpp<'a>;
+
+    /// C++ `PetHandler.cpp:41` `WorldSession::HandleDismissCritter`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure did not
+    /// read the catalog view, so this entry point does not carry it. The
+    /// represented companion-dismissal body stays in the World session.
+    fn handle_dismiss_critter<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_battle_pet_request_journal_thunk<'a, S, C>(
@@ -769,6 +779,20 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the companion-dismissal entry that lived in
+/// the World shell's `handlers/pets/mod.rs`.
+fn handle_dismiss_critter_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlePetHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_dismiss_critter(pkt).await })
+}
+
 /// Registers the C++ `BattlePetHandler.cpp` family on the packet registry.
 pub fn register_battle_pet_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -832,6 +856,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_query_battle_pet_name",
         handler: handle_query_battle_pet_name_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::DismissCritter,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_dismiss_critter",
+        handler: handle_dismiss_critter_thunk::<S, C>,
     })?;
     Ok(())
 }

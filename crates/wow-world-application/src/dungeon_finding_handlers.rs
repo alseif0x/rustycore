@@ -5,11 +5,13 @@
 //! Dungeon-finder status and blacklist handlers that only need the hub.
 //!
 //! C++ source of truth: `src/server/game/Handlers/LFGHandler.cpp` and
-//! `MiscHandler.cpp`. These four opcodes answer the client from the
+//! `MiscHandler.cpp`. Most of these opcodes answer the client from the
 //! represented session state and packet publication only, so the World session
-//! just builds the borrowed hub context (#1263 F5). The LFG system-info body
-//! stays in the World shell while it needs the LFG dungeon catalog and the
-//! shell reward projection.
+//! just builds the borrowed hub context (#1263 F5). `#1263 F5 remaining
+//! families` moved the `DfGetSystemInfo` registration here as well
+//! (`LFGHandler.cpp:107` `HandleDFGetSystemInfo`): its body stays in the World
+//! shell while it needs the LFG dungeon catalog and the shell reward
+//! projection, and the host lends that operation.
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -74,6 +76,17 @@ pub trait DungeonFindingHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> DungeonFindingHandlerCxLikeCpp<'a>;
+
+    /// C++ `LFGHandler.cpp:107` `WorldSession::HandleDFGetSystemInfo`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure
+    /// destructured the session catalog view (`lfg_dungeons`), so the host
+    /// receives that view here. The body stays in the World session.
+    fn handle_df_get_system_info_with_catalog_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_df_get_join_status_thunk<'a, S, C>(
@@ -144,6 +157,24 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the system-info entry that lived in the World
+/// shell's `handlers/dungeon_finding/mod.rs`.
+fn handle_df_get_system_info_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: DungeonFindingHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_df_get_system_info_with_catalog_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
 /// Registers the dungeon-finder status handlers on the packet registry.
 pub fn register_dungeon_finding_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -179,6 +210,13 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_lfg_list_get_status",
         handler: handle_lfg_list_get_status_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::DfGetSystemInfo,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_df_get_system_info",
+        handler: handle_df_get_system_info_thunk::<S, C>,
     })?;
     Ok(())
 }

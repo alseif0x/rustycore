@@ -13,9 +13,14 @@
 //! here and borrow the world-entity and instance state, as do the battlefield
 //! status, battlemaster hello, battlefield list and battlemaster join handlers,
 //! which record their represented intents through the hub. The rated arena join
-//! and its single-user arena chain now live here too; the skirmish join, the
-//! wargame accept and hearth-and-resurrect stay in the World shell while they
-//! need its group/registry or teleport orchestration.
+//! and its single-user arena chain now live here too. `#1263 F5 remaining
+//! families` moved the skirmish join and the wargame accept registrations here
+//! as well (`Opcodes.cpp:220` `CMSG_BATTLEMASTER_JOIN_SKIRMISH` and
+//! `Opcodes.cpp:144` `CMSG_ACCEPT_WARGAME_INVITE`, both
+//! `STATUS_UNHANDLED`/`Handle_NULL` in C++ and represented in the shell); their
+//! bodies stay in the World shell while they need its group/registry
+//! orchestration, and the host lends them. Hearth-and-resurrect also stays in
+//! the World shell.
 
 use tracing::debug;
 use tracing::warn;
@@ -577,6 +582,27 @@ pub trait BattlegroundHandlerHostLikeCpp<C> {
     /// Selects the `BattlemasterList.db2` catalog from the host's request
     /// catalogs (C++ `sBattlemasterListStore`).
     fn battlemaster_lists_like_cpp(catalogs: &C) -> &wow_data::BattlemasterListStore;
+
+    /// C++ `Opcodes.cpp:220`: `CMSG_BATTLEMASTER_JOIN_SKIRMISH` is
+    /// `STATUS_UNHANDLED`/`Handle_NULL`; the Rust port represents the
+    /// skirmish-join body in the World shell.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure
+    /// destructured the session catalog view for `BattlemasterList.db2`, so the
+    /// host receives that view here.
+    fn handle_battlemaster_join_skirmish_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `Opcodes.cpp:144`: `CMSG_ACCEPT_WARGAME_INVITE` is
+    /// `STATUS_UNHANDLED`/`Handle_NULL`; the Rust port represents the wargame
+    /// accept body in the World shell.
+    ///
+    /// The legacy registration closure did not read the catalog view, so this
+    /// entry point does not carry it.
+    fn handle_accept_wargame_invite<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_request_battlefield_status_thunk<'a, S, C>(
@@ -806,6 +832,36 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the two PvP entries that lived in the World
+/// shell's `handlers/battlegrounds/pvp.rs`.
+fn handle_battlemaster_join_skirmish_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_battlemaster_join_skirmish_with_catalogs_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
+fn handle_accept_wargame_invite_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: BattlegroundHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_accept_wargame_invite(pkt).await })
+}
+
 /// Registers the battleground and PvP-flag handlers on the packet registry.
 pub fn register_battleground_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -904,6 +960,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_battlemaster_join_arena",
         handler: handle_battlemaster_join_arena_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::BattlemasterJoinSkirmish,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_battlemaster_join_skirmish",
+        handler: handle_battlemaster_join_skirmish_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AcceptWargameInvite,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_accept_wargame_invite",
+        handler: handle_accept_wargame_invite_thunk::<S, C>,
     })?;
     Ok(())
 }

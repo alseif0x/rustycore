@@ -9,8 +9,11 @@
 //! C++ source of truth: the `MiscHandler.cpp` client-state and telemetry
 //! branches plus the movement acknowledgements TrinityCore accepts and drops.
 //! The family owns the packet bodies; the World session only builds the
-//! borrowed hub context (#1263 F5). The currency-flags handler remains in the
-//! World shell until its currency/condition publication chain is migrated.
+//! borrowed hub context (#1263 F5). `#1263 F5 remaining families` moved
+//! `CMSG_SET_CURRENCY_FLAGS` here as well: its body still runs in the World
+//! shell — it publishes through the currency/condition chain that stays there —
+//! and the host lends that operation (`Opcodes.cpp:888` maps
+//! `CMSG_SET_CURRENCY_FLAGS` to `STATUS_UNHANDLED`/`Handle_NULL`).
 
 use tracing::{trace, warn};
 use wow_constants::ClientOpcodes;
@@ -234,6 +237,15 @@ pub trait ClientStateHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> ClientStateHandlerCxLikeCpp<'a>;
+
+    /// C++ `Opcodes.cpp:888`: `CMSG_SET_CURRENCY_FLAGS` is `STATUS_UNHANDLED`
+    /// with `Handle_NULL`; the Rust port represents the body in the World shell.
+    ///
+    /// The legacy registration closure did not read the catalog view, so this
+    /// entry point does not carry it. The body publishes through the
+    /// shell-owned currency/condition chain and therefore stays in the World
+    /// session.
+    fn handle_set_currency_flags<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_add_battlenet_friend_thunk<'a, S, C>(
@@ -861,6 +873,20 @@ where
     })
 }
 
+/// The `#1263 F5 remaining families` `CMSG_SET_CURRENCY_FLAGS` entry: the legacy
+/// closure forwarded the raw packet to the World shell, which still reads it.
+fn handle_set_currency_flags_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ClientStateHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_set_currency_flags(pkt).await })
+}
+
 /// Register the client-state packet entries through their application adapter.
 pub fn register_client_state_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -1337,6 +1363,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_ping",
         handler: handle_ping_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SetCurrencyFlags,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_set_currency_flags",
+        handler: handle_set_currency_flags_thunk::<S, C>,
     })?;
     Ok(())
 }

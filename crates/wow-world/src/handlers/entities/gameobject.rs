@@ -2,9 +2,11 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private gameobject capability handlers extracted from the legacy misc owner.
+//!
+//! `#1263 F5 remaining families`: the `CMSG_GAMEOBJ_USE` registration moved to
+//! the `ApplicationGameObject` area registrar; the body stays here.
 
 use tracing::{debug, warn};
-use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
 use wow_entities::{
     GAMEOBJECT_TYPE_BARBER_CHAIR, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
@@ -16,9 +18,7 @@ use wow_entities::{
     GAMEOBJECT_TYPE_SPELL_FOCUS, GAMEOBJECT_TYPE_SPELLCASTER, GAMEOBJECT_TYPE_TRAP,
     GAMEOBJECT_TYPE_UI_LINK, GameObjectTemplateData,
 };
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::loot::{LOOT_TYPE_FISHING_JUNK_LIKE_CPP, LOOT_TYPE_FISHING_LIKE_CPP};
 use wow_packet::packets::misc::CloseInteraction;
@@ -26,27 +26,6 @@ use wow_packet::packets::misc::CloseInteraction;
 use super::represented_gameobject_icon_allows_interaction_like_cpp;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect};
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::GameObjUse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_game_obj_use",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_game_obj_use_with_catalogs_like_cpp(
-                        catalogs.object_mgr.as_ref(),
-                        catalogs.id_generators.item.as_ref(),
-                        catalogs.item_valuation.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 #[cfg(test)]
 mod test_shims;

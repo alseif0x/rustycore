@@ -70,8 +70,4 @@ mod test_shims;
 #[path = "../../unit_tests/handlers/chat/tests/mod.rs"]
 mod tests;
 
-// ── Handler registrations ─────────────────────────────────────────
-
-mod registrations;
-
 // ── Handler implementations ───────────────────────────────────────

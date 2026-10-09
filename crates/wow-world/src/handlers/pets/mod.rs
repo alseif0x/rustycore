@@ -6,18 +6,16 @@
 //! The eight C++ `BattlePetHandler.cpp` handlers moved to the
 //! `wow-world-application` `ApplicationBattlePet` owner under #1263 F5; their
 //! World-side host lives in [`battle_pet_host`]. `DismissCritter` (C++
-//! `PetHandler.cpp`) stays here. `BattlePetUpdateDisplayNotify` is deliberately
+//! `PetHandler.cpp`) keeps its body here and, since `#1263 F5 remaining
+//! families`, its registration also lives in that owner. `BattlePetUpdateDisplayNotify` is deliberately
 //! **not** registered: 3.4.3 leaves it `STATUS_UNHANDLED` / `Handle_NULL`
 //! (`Opcodes.cpp:243`), and the 2026-10-07 #1263 F6 decision (D5,
 //! `docs/migration/EXISTING-CODE-DEFECTS.md`) removes the empty registered body
 //! that used to claim otherwise.
 
 use tracing::warn;
-use wow_constants::ClientOpcodes;
 use wow_core::GameTime;
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 #[cfg(test)]
 use wow_packet::packets::misc::CageBattlePet;
@@ -27,16 +25,6 @@ use wow_packet::packets::pet::DismissCritter;
 mod battle_pet_host;
 #[cfg(test)]
 mod test_shims;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::DismissCritter,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_dismiss_critter",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_dismiss_critter(pkt).await }),
-    }
-}
 
 impl crate::session::WorldSession {
     pub async fn handle_battle_pet_delete_pet_represented_like_cpp(

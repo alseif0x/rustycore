@@ -183,6 +183,18 @@ mod ops;
 /// Builds a chat handler context from a host's social state, hub and policy.
 pub trait ChatHandlerHostLikeCpp<C> {
     fn chat_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> ChatHandlerCxLikeCpp<'a>;
+
+    /// C++ `ChatHandler.cpp` `WorldSession::HandleTextEmoteOpcode`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure
+    /// destructured the session catalog view (`emotes_text`, `emotes`,
+    /// `chat_policy`), so the host receives that view here. The body still runs
+    /// in the World shell.
+    fn handle_text_emote_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_chat_message_say_thunk<'a, S, C>(
@@ -627,6 +639,26 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the text-emote entry that lived in the World
+/// shell's `handlers/chat/registrations.rs`. It carries the session catalog view
+/// because the legacy closure destructured `emotes_text`, `emotes` and
+/// `chat_policy`.
+fn handle_text_emote_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: ChatHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_text_emote_with_catalogs_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
 /// Register the chat packet entries through their social owner.
 pub fn register_chat_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -900,6 +932,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_emote",
         handler: handle_emote_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SendTextEmote,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_text_emote",
+        handler: handle_text_emote_thunk::<S, C>,
     })?;
     Ok(())
 }

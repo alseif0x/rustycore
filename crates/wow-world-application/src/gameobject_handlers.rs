@@ -4,12 +4,14 @@
 
 //! GameObject interaction handlers that only need domain state and the hub.
 //!
-//! C++ source of truth: `src/server/game/Handlers/GameObjectHandler.cpp` for
-//! `HandleGameObjectReportUseOpcode` and `MiscHandler.cpp` for
-//! `HandleCloseInteraction`. The interaction state and the world-entity
-//! registry are domain owners, so the World session only builds the borrowed
-//! context (#1263 F5). The full `GameObjUse` body stays in the World shell
-//! while it needs the shell loot/spell/quest orchestration.
+//! C++ source of truth: `SpellHandler.cpp:200` `HandleGameObjectUseOpcode`,
+//! `SpellHandler.cpp:213` `HandleGameobjectReportUse` and `MiscHandler.cpp`
+//! `HandleCloseInteraction`. The interaction state and
+//! the world-entity registry are domain owners, so the World session only
+//! builds the borrowed context (#1263 F5). `#1263 F5 remaining families` moved
+//! the `GameObjUse` registration here too: its body stays in the World shell
+//! while it needs the shell loot/spell/quest orchestration, and the host lends
+//! that operation with the same catalog view the legacy closure used.
 
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -160,6 +162,18 @@ pub trait GameObjectHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> GameObjectHandlerCxLikeCpp<'a>;
+
+    /// C++ `GameObjectHandler.cpp` `WorldSession::HandleGameObjectUseOpcode`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure
+    /// destructured the session catalog view (`object_mgr`,
+    /// `id_generators.item`, `item_valuation`), so the host receives that view
+    /// here. The body stays in the World session.
+    fn handle_game_obj_use_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_close_interaction_thunk<'a, S, C>(
@@ -196,6 +210,24 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the gameobject-use entry that lived in the
+/// World shell's `handlers/entities/gameobject.rs`.
+fn handle_game_obj_use_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: GameObjectHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_game_obj_use_with_catalogs_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
 /// Registers the gameobject interaction handlers on the packet registry.
 pub fn register_gameobject_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -217,6 +249,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_game_obj_report_use",
         handler: handle_game_obj_report_use_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::GameObjUse,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_game_obj_use",
+        handler: handle_game_obj_use_thunk::<S, C>,
     })?;
     Ok(())
 }

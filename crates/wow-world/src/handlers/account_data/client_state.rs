@@ -5,31 +5,19 @@
 //!
 //! The client-state, telemetry, cinematic and inert movement-ack handlers and
 //! their registration moved to `wow-world-application` under #1263 F5. The
-//! currency-flags handler and the typed `Ping` entry (registered by the
+//! currency-flags handler body and the typed `Ping` entry (registered by the
 //! character/account world-query family) stay here: the former publishes
 //! through the currency/condition chain that still lives in the shell, and
 //! every scenario that drives a moved handler keeps a cfg(test) entry point so
 //! it can exercise one handler without composing a dispatch table.
+//!
+//! `#1263 F5 remaining families`: the `CMSG_SET_CURRENCY_FLAGS` registration
+//! also moved to the `ApplicationClientState` area registrar; only the body
+//! above remains shell-owned.
 
 use tracing::warn;
-use wow_constants::ClientOpcodes;
-use wow_handler::{PacketProcessing, SessionStatus};
-
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::SetCurrencyFlags;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetCurrencyFlags,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_set_currency_flags",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_currency_flags(pkt).await })
-        },
-    }
-}
 
 impl crate::session::WorldSession {
     pub async fn handle_set_currency_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
