@@ -4,30 +4,15 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Loot packet entry points and their handler registrations.
+//!
+//! `#1263 F5 remaining families`: the `CMSG_LOOT_MONEY` registration moved to
+//! the `ApplicationLoot` area registrar in `wow-world-application`; the body
+//! stays here.
 
 use super::*;
 use wow_packet::ClientPacket;
 
 mod money;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::LootMoney,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_loot_money",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_loot_money_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 // The inspected TrinityCore opcode table assigns the shared unresolved 0xBADD
 // placeholder to CMSG_CLEAR_RAID_MARKER (uint8 payload),

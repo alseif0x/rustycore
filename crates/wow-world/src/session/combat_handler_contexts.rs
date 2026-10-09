@@ -6,7 +6,12 @@
 //!
 //! The application crate owns the handlers and their context; the session only
 //! lends its hub, so no session reference crosses into the handler.
+//!
+//! `#1263 F5 remaining families`: the adapter also lends `CMSG_ATTACKSWING`,
+//! whose body and shell-owned admission seam stay on `WorldSession`.
 
+use wow_handler::HandlerFuture;
+use wow_packet::WorldPacket;
 use wow_world_application::{CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -17,5 +22,9 @@ impl CombatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         _catalogs: &'a SessionHandlerCatalogsLikeCpp,
     ) -> CombatHandlerCxLikeCpp<'a> {
         CombatHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+    }
+
+    fn handle_attack_swing<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_attack_swing(self, pkt).await })
     }
 }

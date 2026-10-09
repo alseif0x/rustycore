@@ -2,13 +2,13 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private lfg capability handlers extracted from the legacy misc owner.
+//!
+//! `#1263 F5 remaining families`: the `CMSG_DF_GET_SYSTEM_INFO` registration
+//! moved to the `ApplicationDungeonFinding` area registrar; the body stays here.
 
 use tracing::{info, warn};
-use wow_constants::ClientOpcodes;
 use wow_constants::unit::Team;
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     DfGetJoinStatus, DfGetSystemInfo, LfgBlackList, LfgListBlacklist, LfgListBlacklistEntry,
@@ -25,25 +25,6 @@ const LFG_LOCKSTATUS_QUEST_NOT_COMPLETED_LIKE_CPP: u32 = 1022;
 const LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP: u32 = 1025;
 const LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP: u32 = 1031;
 const LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP: u32 = 1034;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::DfGetSystemInfo,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadSafe,
-        handler_name: "handle_df_get_system_info",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_df_get_system_info_with_catalog_like_cpp(
-                        catalogs.lfg_dungeons.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
 
 #[cfg(test)]
 mod test_shims;

@@ -37,13 +37,17 @@
 //! The `LootMoney` **command receivers** (`Handlers/LootHandler.cpp` money
 //! path) join the application loot owner with the mutable release-owner access
 //! they refresh the loot summary through and the durable payout that mutates
-//! canonical money, the quest objectives and `SMSG_LOOT_MONEY_NOTIFY`. The
-//! `CMSG_LOOT_MONEY` consumer itself stays in the shell for a later slice.
+//! canonical money, the quest objectives and `SMSG_LOOT_MONEY_NOTIFY`.
+//! `#1263 F5 remaining families`: the `CMSG_LOOT_MONEY` **registration** also
+//! moved to that owner; its body stays in the shell and this host lends it the
+//! item GUID generator of the dispatch catalogs bundle.
 
 use std::future::Future;
 
 use wow_core::ObjectGuid;
+use wow_handler::HandlerFuture;
 use wow_loot::{LootClaimLease, LootEntry, OwnedLootAuthority};
+use wow_packet::WorldPacket;
 use wow_packet::packets::loot::{LootResponse, LootRoll};
 use wow_world_application::{LootHandlerCxLikeCpp, LootHandlerHostLikeCpp, LootReleaseCxLikeCpp};
 use wow_world_core::session::mailbox::ApplyLootMoneyResultLikeCpp;
@@ -157,6 +161,21 @@ impl LootHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         catalogs: &'c SessionHandlerCatalogsLikeCpp,
     ) -> &'c wow_core::ObjectGuidGenerator {
         catalogs.id_generators.item.as_ref()
+    }
+
+    fn handle_loot_money_with_generator_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            WorldSession::handle_loot_money_with_generator_like_cpp(
+                self,
+                catalogs.id_generators.item.as_ref(),
+                pkt,
+            )
+            .await
+        })
     }
 
     fn loot_roll_player_vote_like_cpp<'a>(

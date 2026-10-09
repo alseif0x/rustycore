@@ -4,12 +4,14 @@
 
 //! Combat packet handlers that only need the canonical combat state.
 //!
-//! C++ source of truth: `WorldSession::HandleAttackStopOpcode` and
-//! `WorldSession::HandleSetSheathedOpcode`
-//! (`src/server/game/Handlers/CombatHandler.cpp`). The family owns these two
-//! packet bodies; the World session only builds the borrowed hub context
-//! (#1263 F5). The attack-swing handler stays in the World shell because its
-//! admission seam `start_player_attack_like_cpp` is still shell-owned.
+//! C++ source of truth: `src/server/game/Handlers/CombatHandler.cpp` for
+//! `WorldSession::HandleAttackSwingOpcode`, `WorldSession::HandleAttackStopOpcode`
+//! and `WorldSession::HandleSetSheathedOpcode`. The family now owns all three
+//! registrations (#1263 F5 `#1263 F5 remaining families`): attack-stop and
+//! set-sheathed run on the borrowed hub context, while the attack-swing body
+//! stays in the World shell — its admission seam
+//! `start_player_attack_like_cpp` is shell-owned — and the host lends that
+//! operation.
 
 use tracing::debug;
 use wow_constants::ClientOpcodes;
@@ -72,6 +74,13 @@ impl<'a> CombatHandlerCxLikeCpp<'a> {
 /// Builds a combat handler context from a host's hub.
 pub trait CombatHandlerHostLikeCpp<C> {
     fn combat_handler_cx_like_cpp<'a>(&'a mut self, catalogs: &'a C) -> CombatHandlerCxLikeCpp<'a>;
+
+    /// C++ `CombatHandler.cpp` `WorldSession::HandleAttackSwingOpcode`.
+    ///
+    /// The legacy registration closure did not read the catalog view, so this
+    /// entry point does not carry it. The body and its shell-owned admission
+    /// seam (`start_player_attack_like_cpp`) stay in the World session.
+    fn handle_attack_swing<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_attack_stop_thunk<'a, S, C>(
@@ -107,6 +116,18 @@ where
     })
 }
 
+fn handle_attack_swing_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CombatHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_attack_swing(pkt).await })
+}
+
 /// Registers the combat handlers on the packet registry.
 pub fn register_combat_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
@@ -128,6 +149,13 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_sheathed",
         handler: handle_set_sheathed_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AttackSwing,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_attack_swing",
+        handler: handle_attack_swing_thunk::<S, C>,
     })?;
     Ok(())
 }

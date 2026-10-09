@@ -2,45 +2,15 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private pvp capability handlers extracted from the legacy misc owner.
+//!
+//! `#1263 F5 remaining families`: the `CMSG_BATTLEMASTER_JOIN_SKIRMISH` and
+//! `CMSG_ACCEPT_WARGAME_INVITE` registrations moved to the
+//! `ApplicationBattleground` area registrar; the bodies stay here.
 
 use tracing::warn;
-use wow_constants::ClientOpcodes;
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{AcceptWargameInvite, BattlemasterJoinSkirmish};
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::BattlemasterJoinSkirmish,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_battlemaster_join_skirmish",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_battlemaster_join_skirmish_with_catalog_like_cpp(
-                        catalogs.battlemaster_lists.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AcceptWargameInvite,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_accept_wargame_invite",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_accept_wargame_invite(pkt).await })
-        },
-    }
-}
 
 impl crate::session::WorldSession {
     /// CMSG_BATTLEMASTER_JOIN_SKIRMISH — player asks to join an arena skirmish queue.

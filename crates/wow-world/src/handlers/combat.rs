@@ -9,29 +9,16 @@
 //!
 //! Reference: C++ `WorldSession::HandleAttack*Opcode`
 //! (`src/server/game/Handlers/CombatHandler.cpp`).
+//!
+//! Registration moved to the `wow-world-application` `ApplicationCombat` area
+//! registrar under #1263 F5 `#1263 F5 remaining families`; the bodies stay here.
 
 use tracing::{debug, warn};
 
-use wow_constants::ClientOpcodes;
-use wow_handler::{PacketProcessing, SessionStatus};
-
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::combat::{AttackStart, AttackSwing, SAttackStop};
 
 use crate::session::{PlayerAttackStartLikeCppResult, WorldSession};
-
-// ── Handler registrations ─────────────────────────────────────────
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::AttackSwing,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_attack_swing",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_attack_swing(pkt).await }),
-    }
-}
 
 // ── Handler implementations ───────────────────────────────────────
 

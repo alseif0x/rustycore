@@ -11,8 +11,12 @@
 //! (`src/server/game/Handlers/MiscHandler.cpp`). The collection state, the
 //! movement-recipient directory and packet delivery already live in the Core
 //! hub, so the World session only builds the borrowed hub context (#1263 F5).
-//! The handlers that still touch item/inventory or spell state
-//! (`CollectionItemSetFavorite`, `AddToy`, `UseToy`) stay in the shell.
+//! The handler that still touches item/inventory state
+//! (`CollectionItemSetFavorite`) stays in the shell, and `#1263 F5 remaining
+//! families` added the two `ToyHandler.cpp` toy entries (`AddToy`,
+//! `UseToy`, whose bodies reach `CollectionMgr::AddToy`/`HasToy` plus the shell
+//! inventory and represented-spell paths) as registrations here while their
+//! bodies stay in the shell.
 
 use tracing::{debug, warn};
 use wow_constants::ClientOpcodes;
@@ -192,6 +196,26 @@ pub trait CollectionsHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> CollectionsHandlerCxLikeCpp<'a>;
+
+    /// C++ `ToyHandler.cpp:28` `WorldSession::HandleAddToy`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure did not
+    /// read the catalog view, so this entry point does not carry it. The body —
+    /// `CollectionMgr::AddToy` plus the inventory destruction — stays in the
+    /// World session.
+    fn handle_add_toy<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+
+    /// C++ `ToyHandler.cpp:54` `WorldSession::HandleUseToy`.
+    ///
+    /// `#1263 F5 remaining families`: the legacy registration closure
+    /// destructured the session catalog view (`id_generators.item`,
+    /// `creature_spawns`), so the host receives that view here. The represented
+    /// spell-execution body stays in the World session.
+    fn handle_use_toy_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_mount_set_favorite_thunk<'a, S, C>(
@@ -280,6 +304,36 @@ where
     })
 }
 
+/// `#1263 F5 remaining families`: the two toy entries that lived in the World
+/// shell's `handlers/collections/mod.rs`.
+fn handle_add_toy_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CollectionsHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_add_toy(pkt).await })
+}
+
+fn handle_use_toy_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: CollectionsHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_use_toy_with_catalogs_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
 pub fn register_collections_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -321,6 +375,20 @@ where
         processing: PacketProcessing::ThreadUnsafe,
         handler_name: "handle_collection_item_set_favorite",
         handler: handle_collection_item_set_favorite_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AddToy,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_add_toy",
+        handler: handle_add_toy_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::UseToy,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_use_toy",
+        handler: handle_use_toy_thunk::<S, C>,
     })?;
     Ok(())
 }

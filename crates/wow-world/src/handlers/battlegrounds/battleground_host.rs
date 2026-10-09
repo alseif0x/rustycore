@@ -6,7 +6,12 @@
 //!
 //! The application crate owns the handlers and their context; the session only
 //! lends its hub, so no session reference crosses into the handler.
+//!
+//! `#1263 F5 remaining families`: the host also lends `CMSG_BATTLEMASTER_JOIN_SKIRMISH`
+//! and `CMSG_ACCEPT_WARGAME_INVITE`, whose bodies stay in the World shell.
 
+use wow_handler::HandlerFuture;
+use wow_packet::WorldPacket;
 use wow_world_application::{BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
@@ -28,5 +33,24 @@ impl BattlegroundHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSess
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> &wow_data::BattlemasterListStore {
         catalogs.battlemaster_lists.as_ref()
+    }
+
+    fn handle_battlemaster_join_skirmish_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a SessionHandlerCatalogsLikeCpp,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()> {
+        Box::pin(async move {
+            WorldSession::handle_battlemaster_join_skirmish_with_catalog_like_cpp(
+                self,
+                Self::battlemaster_lists_like_cpp(catalogs),
+                pkt,
+            )
+            .await
+        })
+    }
+
+    fn handle_accept_wargame_invite<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()> {
+        Box::pin(async move { WorldSession::handle_accept_wargame_invite(self, pkt).await })
     }
 }
