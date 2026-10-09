@@ -5,11 +5,10 @@
 
 //! Character enumeration, account-session operations, and account-scoped packet registrations.
 
-use wow_packet::ClientPacket;
-
 use super::*;
 
 mod collections;
+mod host;
 mod registrations;
 
 impl WorldSession {

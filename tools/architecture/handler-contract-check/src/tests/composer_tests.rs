@@ -9,16 +9,16 @@ use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
     ACCOUNT_DATA_REGISTRAR, APPLICATION_GROUP_REGISTRAR, ARENA_TEAM_REGISTRAR, BANK_REGISTRAR,
     BATTLE_PET_REGISTRAR, BATTLEGROUND_REGISTRAR, BATTLENET_REGISTRAR, CALENDAR_REGISTRAR,
-    CHARACTER_QUERY_REGISTRAR, CHARACTER_REGISTRAR, CHAT_REGISTRAR, CLIENT_STATE_REGISTRAR,
-    COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR, DIRECT_REGISTRAR_CONTRACTS,
-    DUNGEON_FINDING_REGISTRAR, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
-    GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR, INSTANCES_REGISTRAR,
-    INVENTORY_REGISTRAR, LOOT_REGISTRAR, MOVEMENT_REGISTRAR, MOVEMENT_TAIL_REGISTRAR,
-    NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR, REPUTATION_REGISTRAR,
-    RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR, SOCIAL_GROUP_REGISTRAR,
-    SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR, TRADE_REGISTRAR,
-    TRAINER_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR, validate_composition_mounts,
-    validate_composition_mounts_with_contracts,
+    CHARACTER_ACCOUNT_REGISTRAR, CHARACTER_QUERY_REGISTRAR, CHARACTER_REGISTRAR, CHAT_REGISTRAR,
+    CLIENT_STATE_REGISTRAR, COLLECTIONS_REGISTRAR, COMBAT_REGISTRAR, DATA_SERVICE_REGISTRAR,
+    DIRECT_REGISTRAR_CONTRACTS, DUNGEON_FINDING_REGISTRAR, DirectRegistrarContract,
+    EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, LOOT_REGISTRAR, MOVEMENT_REGISTRAR,
+    MOVEMENT_TAIL_REGISTRAR, NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
+    REPUTATION_REGISTRAR, RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR,
+    SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR,
+    TRADE_REGISTRAR, TRAINER_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR,
+    validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 
 const SYNTHETIC_OWNER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
@@ -224,6 +224,14 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             TRAINER_REGISTRAR.module,
             "crates/wow-world-application/src/trainer_handlers.rs",
             include_str!("../../../../../crates/wow-world-application/src/trainer_handlers.rs"),
+        ),
+        mount(
+            CHARACTER_ACCOUNT_REGISTRAR.package,
+            CHARACTER_ACCOUNT_REGISTRAR.module,
+            "crates/wow-world-application/src/character_account_handlers.rs",
+            include_str!(
+                "../../../../../crates/wow-world-application/src/character_account_handlers.rs"
+            ),
         ),
         mount(
             NPC_REGISTRAR.package,
@@ -596,6 +604,7 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
     for registrar in [
         "wow_world_application::register_trainer_handlers_like_cpp",
         "wow_world_application::register_movement_tail_handlers_like_cpp",
+        "wow_world_application::register_character_account_handlers_like_cpp",
     ] {
         let mut missing = actual_mounts();
         let authority = authority_index(&missing);
@@ -606,6 +615,19 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
         );
         assert_rejected(&missing, "omitted migrated trainer/tail composition call");
     }
+
+    // The character/account family (#1263 F5 remaining families) must also keep
+    // its exact root facade.
+    let mut inexact_character_account_facade = actual_mounts();
+    inexact_character_account_facade[5].source = mutate_fixture(
+        &inexact_character_account_facade[5].source,
+        "pub use character_account_handlers::{\n    CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,\n};",
+        "pub use character_account_handlers::{CharacterAccountHandlerHostLikeCpp};",
+    );
+    assert_rejected(
+        &inexact_character_account_facade,
+        "inexact character/account root facade",
+    );
 
     // Index 5 is the Application crate root holding both exact facades.
     let mut aliased_tail_facade = actual_mounts();

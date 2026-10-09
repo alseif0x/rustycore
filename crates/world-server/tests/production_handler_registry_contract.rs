@@ -378,3 +378,157 @@ fn production_linked_registry_carries_the_migrated_movement_tail() {
         );
     }
 }
+
+/// The character/account registration family (#1263 F5 remaining families) must
+/// reach the production-linked registry: all 23 effective entries exactly once,
+/// with the reviewed handler names and metadata, from its explicit area
+/// registrar.
+#[test]
+fn production_linked_registry_carries_the_migrated_character_account_family() {
+    let registry = world_server::compose_packet_handlers_like_cpp()
+        .expect("valid world-server packet handler composition");
+    // (opcode, handler_name, processing)
+    let expected: &[(
+        wow_constants::ClientOpcodes,
+        &str,
+        wow_handler::PacketProcessing,
+    )] = &[
+        (
+            wow_constants::ClientOpcodes::ListInventory,
+            "handle_list_inventory",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::BuyItem,
+            "handle_buy_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::BuyBackItem,
+            "handle_buy_back_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::SellItem,
+            "handle_sell_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::ItemPurchaseRefund,
+            "handle_item_purchase_refund",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::BankerActivate,
+            "handle_banker_activate",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::AutobankItem,
+            "handle_autobank_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::AutostoreBankItem,
+            "handle_autostore_bank_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::BuyBankSlot,
+            "handle_buy_bank_slot",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::BinderActivate,
+            "handle_binder_activate",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::HearthAndResurrect,
+            "handle_hearth_and_resurrect",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::RepairItem,
+            "handle_repair_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverStatusMultipleQuery,
+            "handle_quest_giver_status_multiple_query",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverStatusTrackedQuery,
+            "handle_quest_giver_status_tracked_query",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::SwapInvItem,
+            "handle_swap_inv_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::AutoEquipItem,
+            "handle_auto_equip_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::AutoEquipItemSlot,
+            "handle_auto_equip_item_slot",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::SwapItem,
+            "handle_swap_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::AutoStoreBagItem,
+            "handle_auto_store_bag_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::DestroyItem,
+            "handle_destroy_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::TalkToGossip,
+            "handle_gossip_hello",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::GossipSelectOption,
+            "handle_gossip_select_option",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::LogoutRequest,
+            "handle_logout_request",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+    ];
+    assert_eq!(
+        expected.len(),
+        23,
+        "the character/account family carries 23 effective entries"
+    );
+    for (opcode, handler_name, processing) in expected {
+        let matches: Vec<_> = registry
+            .iter()
+            .filter(|entry| entry.opcode == *opcode)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "{opcode:?} must be registered exactly once"
+        );
+        assert_eq!(
+            matches[0].handler_name, *handler_name,
+            "{opcode:?} handler name"
+        );
+        assert_eq!(matches[0].status, wow_handler::SessionStatus::LoggedIn);
+        assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
+    }
+}
