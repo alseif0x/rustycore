@@ -7502,39 +7502,21 @@ evidence, labelled as such**; C2 produced the login attach only, because the
 detached/far-transfer window was not producible. **R6 itself therefore remains a
 bounded hold** (verbatim sentence in the capture entry).
 
-#### Closing status — 2026-10-08 (verifiable, with declared holds)
+#### Closing status — 2026-10-09 (verifiable, with declared holds)
 
-**Delivered in this campaign.** The six signed repairs are integrated into
-`3.4.3`, each as its own squash-merged PR with a green `final` on the committed
-candidate and a clean tree: R4a, R1a, R1b (earlier), R7 (R7a `#1316`, R7b-1
-`#1317`, R7b-2a `#1318`, R7b-2b `#1319`), R2+R3+R5 (`#1320`) and the instrumented
-runtime captures (`#1321`). F5's mechanical tail is integrated (`#1322`) with the
-measured frontier declared in its own entry below.
+**Delivered.** The **six signed repairs** are integrated into `3.4.3`, each as its own squash-merged PR with a green `final` on the committed candidate and a clean tree: R4a, R1a, R1b (earlier), R7 (R7a `#1316`, R7b-1 `#1317`, R7b-2a `#1318`, R7b-2b `#1319`) and R2+R3+R5 (`#1320`). The **instrumented C1/C2 runtime captures** are integrated (`#1321`) with their record at `docs/architecture/captures/1263-post-r3-2026-10-08.md`. **F4's four remates are delivered**: LootMoney structural — 8 of 9 dependencies, boundary re-signed by the reviewer — (`#1324`), StorageMove with the reviewer-approved R1 growth record (`#1325`), Save with the completion-before-capture fence turned into a proven fence (`#1327`) and refresh (`#1328`). **F6-8 slices A, B, C, D1 and D2 are delivered**: `#1329` (persistent creature runtime state, RNG, clock and lifecycle/spawn authority canonical, on the reviewer's order to complete the RNG move), `#1330` (movement and visibility publication canonical), `#1331` (player melee, creature aggro/spell/melee and loot consumers decide canonically), `#1332` (the complete phase-operation engine on canonical ownership, with continuity proven against verbatim pre-D1 bodies) and `#1333` (the isolated admitted-execution path with the pre-mutation admission fence, the reviewer-mandated three-owner exclusivity test and deferred publication; **production ownership unchanged**). **F5's non-deferred migration is complete: 466/476** effective registrations (413 literal-origin + 53 macro-origin) via `#1322`, `#1334`, `#1335` and `#1336`; the ownership census is in the entries below.
 
-**Declared bounded holds, approved by the operator.** These are **not** delivered
-and must not be read as delivered:
+**Declared holds — not delivered, and not to be read as delivered.**
 
-- **F4 remates** — LootMoney's complete operation (its nine dependencies),
-  StorageMove, Save and refresh, and the LootMoney payout-parity repairs
-  (aura bonuses, MoneyLooted criteria, notification phase, restart claim
-  recovery), which the reviewer ruled must be their own behaviour slice.
-- **F6-8** — retiring the legacy runtime and the legacy `map_manager`.
-- **R6** — the paired instrumented Rust/3.4.3 legitimate-mutation and
-  stale/ABA-rejection evidence.
-- **Unknown-COMMIT quarantine reopening or removal** — pending an explicit
-  durability/recovery contract and evidence; terminal fail-closed behaviour and
-  waiter drainage are preserved.
+- **F4 payout parity and restart claim recovery** (aura bonuses, MoneyLooted criteria, notification phase, process-restart claim recovery): the reviewer ruled these are a **separate behaviour-repair slice** and they were not implemented inside the structural moves.
+- **F5's 10 deliberately deferred entries** — `void_storage.rs` 4, `talent.rs` 2, `entities/corpse.rs` 4 — stay on the legacy path pending coherent adapter contracts for inventory/money persistence, talent-reset commit/publication and death/resurrection/map transitions respectively. They were **not touched** (empty diff verified).
+- **F6-8 D3 and E** — the exclusive production cutover with legacy-scheduler retirement, and the deletion of the legacy `MapManager`/`SharedMapManager` and its obsolete configuration. **Terminal D acceptance requires a real 3.4.3 client** (spline interruption and home return, observer visibility/create-destroy, combat/cast publication, transfer/relogin with queued effects) and is out of scope for the local campaigns. Reviewer's hold sentence: “F6-8D remains unaccepted: canonical execution preparation does not retire production legacy scheduling or satisfy client runtime acceptance. F6-8E, paired-reference parity and the explicitly enumerated remaining F5 families remain open; #1263 is not complete.”
+- **R6's paired evidence** — blocked by two **pre-existing defects in the pinned reference checkout** (`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`): the five `LOG_DEBUG` misuses in `LFGList.cpp` (fixed under explicit reviewer authorisation, diff and hashes recorded) and a link-time template-instantiation failure (`Spell::SearchTargets<…WorldObjectSpellAreaTargetCheck…>`) whose repair needs a further source change that is **not authorised**. The hold sentence is retained verbatim in the capture record and in audit §7, and the closure sentence is **absent from every document**.
+- **Unknown-COMMIT quarantine reopening or removal** — pending an explicit durability/recovery contract and evidence; terminal fail-closed behaviour and waiter drainage are preserved.
 
-**Performance record.** Every warm `final --architecture --timings` campaign on
-this campaign's slices measured **≤600 s** (138–367 s for the repair slices,
-305–323 s for the F5 tail), each with `dirty: false` and a clean tree. One
-**cold-cache** campaign measured **944,88 s** after a host disk-full incident
-forced deletion of this worktree's regenerable incremental cache; it is recorded
-as a cold-start cost, not as the ordinary warm run, and it is **not** hidden.
+**Performance record — every campaign, including the two overruns, with nothing hidden.** All warm `final --architecture --timings` campaigns on this campaign's slices measured **≤600 s** except two **disclosed overruns**: the F5 tail at **944,88 s** (a cold-cache run after a host disk-full incident forced deletion of this worktree's regenerable incremental cache; the warm re-measure was 305,41 s) and F6-8D2 at **613,37 s** (compiling ~2000 new lines; the warm re-measure was 136,29 s). The remaining warm figures span **112–479 s**. Every campaign reported `dirty: false` with a clean tree and is recorded with its manifest.
 
-**What this does not claim.** No new gameplay parity, no legacy-runtime
-retirement, no F4 delivery, no R6 parity, and no closure of #1263 or #584.
-
+**What this does not claim.** No new gameplay parity, no legacy-runtime retirement, no F5 closure (10 entries deliberately deferred), no R6 parity, no D3/E, and **#1263 is not closed**.
 #### F6-7 R7a: contrato de mutación con puerta — 2026-10-07, 4 commits desde `40042c0cd`
 
 **Qué es.** La primera mitad de R7, ejecutada como **cambio de comportamiento en corte propio** (nunca dentro de un refactor estructural): `SessionCore::mutate_world_creature` es ahora la **raíz con puerta** — resuelve la representación legada y la encarnación canónica, toma **canónico primero y legado después**, evalúa la admisión (misma línea temporal de salud, revisión al día o por delante con tupla igual, y asignación de loot propia o candidata prístina) **antes** de invocar el callback, ejecuta la mutación **una vez** y aplica la representación mutada a la encarnación canónica **dentro de la guarda**; el éxito se expone solo tras la aplicación canónica.
