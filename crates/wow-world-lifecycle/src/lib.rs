@@ -25,6 +25,7 @@ pub use handlers::{
 };
 pub mod login_transport;
 pub mod loot_delivery_contracts;
+pub mod loot_money_persistence;
 pub mod loot_template_rules;
 
 pub use finalization::{

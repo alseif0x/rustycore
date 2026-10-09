@@ -99,3 +99,78 @@ pub async fn begin_exclusive_player_money_persistence_like_cpp(
         mutation_lock,
     ))
 }
+
+/// Derive one runtime money change only after the shared payout barrier,
+/// persist it while admission and the mutation mutex remain held, then
+/// publish the runtime value. Criteria must be queued/drained by the caller
+/// after this returns so reward callbacks cannot re-enter under the fence.
+///
+/// Moved here beside [`begin_exclusive_player_money_persistence_like_cpp`]
+/// under #1263 F4: the coordinator keeps its unknown-COMMIT reconciliation
+/// (through the lifecycle owner's typed outcome classifier) and its
+/// after-COMMIT quarantine. The balance read and write go through the
+/// Inventory owner's selected-owner operations, not a World wrapper.
+pub async fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
+    lifecycle: &mut SessionLifecycleState,
+    inventory: &mut InventoryState,
+    quest_state: &mut SessionQuestState,
+    player: &mut QuestRewardPlayerAccessLikeCpp<'_>,
+    mutation: F,
+) -> Option<(u64, u64)>
+where
+    F: FnOnce(u64) -> u64,
+{
+    let money_persistence = begin_exclusive_player_money_persistence_like_cpp(
+        lifecycle,
+        inventory,
+        quest_state,
+        player,
+    )
+    .await?;
+    let guid = player.player_guid_like_cpp()?.counter() as u64;
+    let old_money = inventory.resolved_player_money_with_quest_reward_access_like_cpp(player)?;
+    let new_money = mutation(old_money);
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(success) = lifecycle.loot_money_persistence_test_result_like_cpp() {
+        if !success {
+            return None;
+        }
+        if !inventory.set_player_gold_with_quest_reward_access_like_cpp(player, new_money) {
+            return None;
+        }
+        drop(money_persistence);
+        return Some((old_money, new_money));
+    }
+
+    if old_money == new_money {
+        drop(money_persistence);
+        return Some((old_money, new_money));
+    }
+
+    let port = lifecycle.player_lifecycle_port_like_cpp().map(Arc::clone)?;
+    let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+        player_guid: guid,
+        money_after: new_money,
+        durability_repairs: Vec::new(),
+    };
+    let mut access = player.money_transaction_access_like_cpp();
+    let money_persistence = lifecycle
+        .await_exclusive_player_money_transaction_outcome_with_access_like_cpp(
+            &mut access,
+            money_persistence,
+            port.persist_money_transaction_like_cpp(request),
+            old_money,
+            new_money,
+            "exclusive player-money mutation",
+        )
+        .await?;
+    if !inventory.set_player_gold_with_quest_reward_access_like_cpp(player, new_money) {
+        player.quarantine_like_cpp(
+            "canonical Player money owner became unavailable after durable COMMIT",
+        );
+        return None;
+    }
+    drop(money_persistence);
+    Some((old_money, new_money))
+}

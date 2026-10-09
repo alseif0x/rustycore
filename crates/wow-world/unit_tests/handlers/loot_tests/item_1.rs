@@ -4,7 +4,10 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+// The moved `LootMoney` operation bodies are reached through the application
+// loot owner's host trait default methods (#1263 F4); the call text is unchanged.
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
+use wow_world_application::LootHandlerHostLikeCpp;
 
 #[test]
 fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
@@ -830,5 +833,54 @@ async fn cancelled_item_handler_after_commit_releases_and_forces_inventory_reloa
             .filter(|opcode| *opcode == wow_constants::ServerOpcodes::LootRelease as u16)
             .count(),
         1
+    );
+}
+
+/// #1263 F4: the *production-registered* `CMSG_LOOT_MONEY` consumer must reach
+/// the application loot owner's operation bodies, not a cfg(test)
+/// re-implementation of them. The registered thunk is the only entry point
+/// driven here, and the stored-Item durable half it reaches is the
+/// application-owned worker (its persistence hook and its balance/publication
+/// completion flags are read through the host's lifecycle borrow).
+#[tokio::test]
+async fn production_registered_loot_money_consumer_routes_through_the_application_owner_like_cpp() {
+    let entries = crate::session::registry::registered_handler_entries_like_cpp()
+        .filter(|entry| entry.opcode == wow_constants::ClientOpcodes::LootMoney)
+        .collect::<Vec<_>>();
+    assert_eq!(
+        entries.len(),
+        1,
+        "exactly one production LootMoney registration"
+    );
+    let entry = entries[0];
+    assert_eq!(entry.handler_name, "handle_loot_money");
+    assert_eq!(format!("{:?}", entry.status), "LoggedIn");
+    assert_eq!(format!("{:?}", entry.processing), "ThreadUnsafe");
+
+    let (mut session, send_rx) = make_session_with_send_capacity(16);
+    let player_guid = ObjectGuid::create_player(1, 61_901);
+    let owner_guid = ObjectGuid::create_item(1, 61_902);
+    install_active_item_loot_completion_fixture_like_cpp(&mut session, player_guid, owner_guid, 7);
+    // The application-owned stored-Item worker is the only implementation of
+    // the durable half of this path; this hook is the one it reads.
+    session.set_loot_money_persistence_test_result_like_cpp(true);
+
+    let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+    catalogs.id_generators = Arc::new(session.id_generators_for_test_like_cpp());
+    (entry.handler)(&mut session, &catalogs, loot_money_packet()).await;
+
+    assert_eq!(
+        session.resolved_player_money_like_cpp(),
+        Some(7),
+        "the registered consumer applied the application-owned durable delta"
+    );
+    let opcodes = drain_server_opcodes_like_cpp(&send_rx);
+    assert_eq!(
+        opcodes
+            .iter()
+            .filter(|opcode| **opcode == wow_constants::ServerOpcodes::LootMoneyNotify as u16)
+            .count(),
+        1,
+        "the registered consumer published the application-owned notification"
     );
 }

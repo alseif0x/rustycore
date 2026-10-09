@@ -4,8 +4,11 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+// The moved `LootMoney` operation bodies are reached through the application
+// loot owner's host trait default methods (#1263 F4); the call text is unchanged.
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
+use wow_world_application::LootHandlerHostLikeCpp;
 
 #[test]
 fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like_cpp() {

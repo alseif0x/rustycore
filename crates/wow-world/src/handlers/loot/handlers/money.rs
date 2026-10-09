@@ -465,11 +465,19 @@ impl WorldSession {
         let _ = player_guid;
     }
 
+    /// Test entry point for `CMSG_LOOT_MONEY`. It dispatches through the
+    /// **production registration** (`PacketHandlerEntry` for
+    /// `ClientOpcodes::LootMoney`) instead of re-implementing the body, so every
+    /// caller exercises the registered consumer and the application-owned
+    /// operation dependencies it now reaches (#1263 F4).
     #[cfg(test)]
     pub async fn handle_loot_money(&mut self, pkt: wow_packet::WorldPacket) {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.handle_loot_money_with_generator_like_cpp(generators.item.as_ref(), pkt)
-            .await;
+        let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
+        catalogs.id_generators = std::sync::Arc::new(self.id_generators_for_test_like_cpp());
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
+            .find(|entry| entry.opcode == ClientOpcodes::LootMoney)
+            .expect("registered loot money handler");
+        (entry.handler)(self, &catalogs, pkt).await;
     }
 
     /// Test-only receiver entry point. The receiver itself now lives in the

@@ -125,6 +125,12 @@ impl WorldSession {
     /// persist it while admission and the mutation mutex remain held, then
     /// publish the runtime value. Criteria must be queued/drained by the caller
     /// after this returns so reward callbacks cannot re-enter under the fence.
+    ///
+    /// World-owned construction seam (#1263 F4): the coordinator itself lives
+    /// beside the application money-fence operation
+    /// (`wow_world_application::mutate_and_persist_player_gold_exclusive_like_cpp`);
+    /// this method only builds the selected Player/Inventory/Lifecycle/Quest
+    /// participants the repo already uses.
     pub(crate) async fn mutate_and_persist_player_gold_exclusive_like_cpp<F>(
         &mut self,
         mutation: F,
@@ -132,54 +138,21 @@ impl WorldSession {
     where
         F: FnOnce(u64) -> u64,
     {
-        let money_persistence = self
-            .begin_exclusive_player_money_persistence_like_cpp()
-            .await?;
-        let guid = self.player_guid()?.counter() as u64;
-        let old_money = self.resolved_player_money_like_cpp()?;
-        let new_money = mutation(old_money);
-
-        #[cfg(test)]
-        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp() {
-            if !success {
-                return None;
-            }
-            if !self.set_player_gold_like_cpp(new_money) {
-                return None;
-            }
-            drop(money_persistence);
-            return Some((old_money, new_money));
-        }
-
-        if old_money == new_money {
-            drop(money_persistence);
-            return Some((old_money, new_money));
-        }
-
-        let port = self
-            .lifecycle
-            .player_lifecycle_port_like_cpp()
-            .map(Arc::clone)?;
-        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
-            player_guid: guid,
-            money_after: new_money,
-            durability_repairs: Vec::new(),
-        };
-        let money_persistence = self
-            .await_exclusive_player_money_transaction_outcome_like_cpp(
-                money_persistence,
-                port.persist_money_transaction_like_cpp(request),
-                old_money,
-                new_money,
-                "exclusive player-money mutation",
-            )
-            .await?;
-        if !self.set_player_gold_like_cpp(new_money) {
-            self.kick("canonical Player money owner became unavailable after durable COMMIT");
-            return None;
-        }
-        drop(money_persistence);
-        Some((old_money, new_money))
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut player = self.core.quest_reward_player_access_like_cpp(
+            &self.fixtures.identity.player_race,
+            &self.fixtures.identity.player_class,
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        wow_world_application::mutate_and_persist_player_gold_exclusive_like_cpp(
+            &mut self.lifecycle,
+            &mut self.inventory,
+            &mut self.quest_state,
+            &mut player,
+            mutation,
+        )
+        .await
     }
     pub(in crate::session) fn represented_talent_reset_persistence_plan_like_cpp(
         &self,

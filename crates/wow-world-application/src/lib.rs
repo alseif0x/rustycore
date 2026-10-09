@@ -202,8 +202,9 @@ pub use quest::{
     RepresentedQuestRewardReputationSourceLikeCpp, SessionQuestState,
     begin_exclusive_player_money_persistence_like_cpp, find_quest_slot_like_cpp,
     get_quest_slot_quest_id_like_cpp, invalidate_player_quest_status_authority_like_cpp,
-    plan_quest_status_save_like_cpp, quest_log_create_entries_like_cpp,
-    reconcile_durable_loot_money_before_save_like_cpp, represented_can_see_spell_click_on_like_cpp,
+    mutate_and_persist_player_gold_exclusive_like_cpp, plan_quest_status_save_like_cpp,
+    quest_log_create_entries_like_cpp, reconcile_durable_loot_money_before_save_like_cpp,
+    represented_can_see_spell_click_on_like_cpp,
     represented_viewer_dependent_creature_npc_flags_like_cpp, save_changed_quest_statuses_like_cpp,
     save_quest_to_db_like_cpp, send_represented_quest_log_slot_update_like_cpp,
 };

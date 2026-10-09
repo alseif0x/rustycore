@@ -24,6 +24,8 @@
 //! bodies are moved unchanged.
 
 use std::future::Future;
+use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 
 use tracing::{debug, warn};
 use wow_constants::{ClientOpcodes, InventoryResult};
@@ -46,12 +48,16 @@ use wow_packet::packets::loot::{
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::mailbox::{
     ApplyLootMoneyLikeCppCommand, ApplyLootMoneyResultLikeCpp, MasterLootGiveResult,
-    NotifyLootMoneyRemovedLikeCppCommand,
+    NotifyLootMoneyRemovedLikeCppCommand, SessionCommand,
 };
 use wow_world_core::session::{
     HubMut, HubRef, ItemValuationCatalogsLikeCpp, LootReleaseOwnerAccessLikeCpp,
     OwnedLootAuthorityLookupOutcomeLikeCpp,
 };
+use wow_world_lifecycle::loot_delivery_contracts::{
+    LootMoneyDeliveryAddressLikeCpp, LootMoneyViewerFanoutLikeCpp,
+};
+use wow_world_lifecycle::{LootMoneyPersistenceErrorLikeCpp, SessionLifecycleState};
 use wow_world_loot::{LootState, RepresentedCreatureLootStateLikeCpp};
 
 mod item;
@@ -325,6 +331,110 @@ pub trait LootHandlerHostLikeCpp<C> {
     {
         handle_notify_loot_money_removed_like_cpp_command(self, command);
     }
+
+    /// C++ `HandleLootMoneyOpcode`'s recipient selection
+    /// (`Handlers/LootHandler.cpp`): the complete selection body lives in the
+    /// owner (`loot_handlers::money`) and is reached as a default method, so the
+    /// World shell cannot fork it. Eligibility and divisor decisions are
+    /// unchanged.
+    fn represented_loot_money_recipients_like_cpp(&self, loot_guid: ObjectGuid) -> Vec<ObjectGuid>
+    where
+        Self: Sized,
+        C: Sync,
+    {
+        money::represented_loot_money_recipients_like_cpp(self, loot_guid)
+    }
+
+    /// C++ `Loot::NotifyMoneyRemoved` (`Loot.cpp`) for the represented cache:
+    /// the complete publication and pruning operation lives in the owner
+    /// (`loot_handlers::money`), including the authority-viewer retirement.
+    fn represented_notify_money_removed_like_cpp(&mut self, owner_guid: ObjectGuid)
+    where
+        Self: Sized,
+        C: Sync,
+    {
+        money::represented_notify_money_removed_like_cpp(self, owner_guid)
+    }
+
+    /// C++ `HandleLootMoneyOpcode`'s durable shared-pool half: the complete
+    /// detached worker (admission, per-recipient guards and mutation locks, the
+    /// SQL attempt with its rollback/unknown-COMMIT reconciliation, the
+    /// authority commit and the delivery scheduling) lives in the lifecycle
+    /// owner next to the loot-money delivery contracts and the durable money
+    /// tracker (`wow_world_lifecycle::loot_money_persistence`), and is reached
+    /// as a default method so the World shell cannot fork it.
+    fn spawn_group_loot_money_persistence_like_cpp(
+        &self,
+        payouts: Vec<(ObjectGuid, u64)>,
+        claim: LootClaimLease,
+        deliveries: Vec<(LootMoneyDeliveryAddressLikeCpp, SessionCommand)>,
+        authority_committed: Arc<AtomicBool>,
+        viewer_fanout: LootMoneyViewerFanoutLikeCpp,
+    ) -> Result<
+        wow_world_lifecycle::loot_money_persistence::LootMoneyPersistenceWorkerHandleLikeCpp,
+        LootMoneyPersistenceErrorLikeCpp,
+    >
+    where
+        Self: Sized,
+        C: Sync,
+    {
+        wow_world_lifecycle::loot_money_persistence::spawn_group_loot_money_persistence_like_cpp(
+            self.loot_money_lifecycle_ref_like_cpp(),
+            self.loot_unit_hub_ref_like_cpp()
+                .core
+                .player_guid()
+                .is_some(),
+            payouts,
+            claim,
+            deliveries,
+            authority_committed,
+            viewer_fanout,
+        )
+    }
+
+    /// C++ `HandleLootMoneyOpcode`'s stored-Item half
+    /// (`Handlers/LootHandler.cpp`): the complete atomic character/source-row
+    /// worker and its await live in the lifecycle owner next to the loot-money
+    /// delivery contracts (`wow_world_lifecycle::loot_money_persistence`); both
+    /// completion flags are returned unchanged.
+    fn persist_and_consume_stored_item_money_like_cpp<'a>(
+        &'a self,
+        item_guid: ObjectGuid,
+        cached_notified_amount: u64,
+    ) -> impl Future<Output = Option<(Arc<AtomicBool>, Arc<AtomicBool>, u64, u64)>> + Send + 'a
+    where
+        Self: Sync + Sized + 'a,
+        C: Sync + 'a,
+    {
+        // C++ `Player::GetMoney` through the Inventory owner's selected-owner
+        // operation (#1263 F4 dependency 5); no World wrapper is on this path.
+        let player_guid = self.loot_unit_hub_ref_like_cpp().core.player_guid();
+        let test_current_money = self
+            .loot_money_inventory_ref_like_cpp()
+            .resolved_player_money_like_cpp(self.loot_unit_hub_ref_like_cpp());
+        let command_tx = self
+            .loot_unit_hub_ref_like_cpp()
+            .core
+            .session_command_tx
+            .clone();
+        wow_world_lifecycle::loot_money_persistence::persist_and_consume_stored_item_money_like_cpp(
+            self.loot_money_lifecycle_ref_like_cpp(),
+            player_guid,
+            test_current_money,
+            command_tx,
+            item_guid,
+            cached_notified_amount,
+        )
+    }
+
+    /// The session lifecycle owner the moved detached money worker borrows its
+    /// persistence port, its per-character guards/trackers and its test hook
+    /// from; the World shell keeps the field, the owner keeps the operations.
+    fn loot_money_lifecycle_ref_like_cpp(&self) -> &SessionLifecycleState;
+
+    /// The session inventory owner the moved money operations read their
+    /// canonical balance through (`InventoryState::resolved_player_money_like_cpp`).
+    fn loot_money_inventory_ref_like_cpp(&self) -> &wow_world_inventory::InventoryState;
 
     /// The mutable canonical access of the `LootMoney` command receivers: they
     /// refresh the object-owned loot summary and re-read the active
