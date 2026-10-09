@@ -532,3 +532,214 @@ fn production_linked_registry_carries_the_migrated_character_account_family() {
         assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
     }
 }
+
+/// The quest-giver interaction registration family (#1263 F5 remaining
+/// families) must reach the production-linked registry: all 11 effective
+/// entries exactly once, with the reviewed handler names and metadata, from its
+/// explicit area registrar.
+#[test]
+fn production_linked_registry_carries_the_migrated_quest_family() {
+    let registry = world_server::compose_packet_handlers_like_cpp()
+        .expect("valid world-server packet handler composition");
+    // (opcode, handler_name, processing)
+    let expected: &[(
+        wow_constants::ClientOpcodes,
+        &str,
+        wow_handler::PacketProcessing,
+    )] = &[
+        (
+            wow_constants::ClientOpcodes::AdventureMapStartQuest,
+            "handle_adventure_map_start_quest",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverStatusQuery,
+            "handle_quest_giver_status_query",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverHello,
+            "handle_quest_giver_hello",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverQueryQuest,
+            "handle_quest_giver_query_quest",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverAcceptQuest,
+            "handle_quest_giver_accept_quest",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestPoiQuery,
+            "handle_quest_poi_query",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverRequestReward,
+            "handle_quest_giver_request_reward",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverCompleteQuest,
+            "handle_quest_giver_complete_quest",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestGiverChooseReward,
+            "handle_quest_giver_choose_reward",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::QuestConfirmAccept,
+            "handle_quest_confirm_accept",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::PushQuestToParty,
+            "handle_push_quest_to_party",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+    ];
+    assert_eq!(
+        expected.len(),
+        11,
+        "the quest family carries 11 effective entries"
+    );
+    for (opcode, handler_name, processing) in expected {
+        let matches: Vec<_> = registry
+            .iter()
+            .filter(|entry| entry.opcode == *opcode)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "{opcode:?} must be registered exactly once"
+        );
+        assert_eq!(
+            matches[0].handler_name, *handler_name,
+            "{opcode:?} handler name"
+        );
+        assert_eq!(matches[0].status, wow_handler::SessionStatus::LoggedIn);
+        assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
+    }
+}
+
+/// The spell cast/open registration family (#1263 F5 remaining families) must
+/// reach the production-linked registry: all 4 effective entries exactly once,
+/// with the reviewed handler names and metadata, from the spell area registrar
+/// that also owns the cancellation surface.
+#[test]
+fn production_linked_registry_carries_the_migrated_spell_cast_family() {
+    let registry = world_server::compose_packet_handlers_like_cpp()
+        .expect("valid world-server packet handler composition");
+    // (opcode, handler_name, processing)
+    let expected: &[(
+        wow_constants::ClientOpcodes,
+        &str,
+        wow_handler::PacketProcessing,
+    )] = &[
+        (
+            wow_constants::ClientOpcodes::CastSpell,
+            "handle_cast_spell",
+            wow_handler::PacketProcessing::ThreadSafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::OpenItem,
+            "handle_open_item",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::SelfRes,
+            "handle_self_res",
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::SpellClick,
+            "handle_spell_click",
+            wow_handler::PacketProcessing::Inplace,
+        ),
+    ];
+    assert_eq!(
+        expected.len(),
+        4,
+        "the spell cast/open family carries 4 effective entries"
+    );
+    for (opcode, handler_name, processing) in expected {
+        let matches: Vec<_> = registry
+            .iter()
+            .filter(|entry| entry.opcode == *opcode)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "{opcode:?} must be registered exactly once"
+        );
+        assert_eq!(
+            matches[0].handler_name, *handler_name,
+            "{opcode:?} handler name"
+        );
+        assert_eq!(matches[0].status, wow_handler::SessionStatus::LoggedIn);
+        assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
+    }
+}
+
+/// The travel/transfer registration family (#1263 F5 remaining families) must
+/// reach the production-linked registry: all 3 effective entries exactly once,
+/// with the reviewed handler names and metadata, from the travel area registrar
+/// that already owns the suspend-token and taxi-status surface.
+#[test]
+fn production_linked_registry_carries_the_migrated_travel_family() {
+    let registry = world_server::compose_packet_handlers_like_cpp()
+        .expect("valid world-server packet handler composition");
+    // (opcode, handler_name, status, processing)
+    let expected: &[(
+        wow_constants::ClientOpcodes,
+        &str,
+        wow_handler::SessionStatus,
+        wow_handler::PacketProcessing,
+    )] = &[
+        (
+            wow_constants::ClientOpcodes::ActivateTaxi,
+            "handle_activate_taxi",
+            wow_handler::SessionStatus::LoggedIn,
+            wow_handler::PacketProcessing::ThreadSafe,
+        ),
+        (
+            wow_constants::ClientOpcodes::AreaTrigger,
+            "handle_area_trigger",
+            wow_handler::SessionStatus::LoggedIn,
+            wow_handler::PacketProcessing::Inplace,
+        ),
+        (
+            wow_constants::ClientOpcodes::WorldPortResponse,
+            "handle_world_port_response",
+            wow_handler::SessionStatus::Transfer,
+            wow_handler::PacketProcessing::ThreadUnsafe,
+        ),
+    ];
+    assert_eq!(
+        expected.len(),
+        3,
+        "the travel family carries 3 effective entries"
+    );
+    for (opcode, handler_name, status, processing) in expected {
+        let matches: Vec<_> = registry
+            .iter()
+            .filter(|entry| entry.opcode == *opcode)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "{opcode:?} must be registered exactly once"
+        );
+        assert_eq!(
+            matches[0].handler_name, *handler_name,
+            "{opcode:?} handler name"
+        );
+        assert_eq!(matches[0].status, *status, "{opcode:?} status");
+        assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
+    }
+}

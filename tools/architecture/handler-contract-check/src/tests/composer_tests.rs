@@ -15,7 +15,7 @@ use crate::registrations::{
     EQUIPMENT_SET_USE_REGISTRAR, GAMEOBJECT_REGISTRAR, GUILD_BANK_REGISTRAR, GUILD_REGISTRAR,
     INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, LOOT_REGISTRAR, MOVEMENT_REGISTRAR,
     MOVEMENT_TAIL_REGISTRAR, NPC_REGISTRAR, PLAYER_REGISTRAR, QUEST_QUERY_REGISTRAR,
-    REPUTATION_REGISTRAR, RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR,
+    QUEST_REGISTRAR, REPUTATION_REGISTRAR, RegistrarFacadeContract, SOCIAL_CONTACTS_REGISTRAR,
     SOCIAL_GROUP_REGISTRAR, SOCIAL_INSPECT_REGISTRAR, SPELL_REGISTRAR, SUPPORT_REGISTRAR,
     TRADE_REGISTRAR, TRAINER_REGISTRAR, TRAVEL_REGISTRAR, VEHICLE_REGISTRAR,
     validate_composition_mounts, validate_composition_mounts_with_contracts,
@@ -232,6 +232,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             include_str!(
                 "../../../../../crates/wow-world-application/src/character_account_handlers.rs"
             ),
+        ),
+        mount(
+            QUEST_REGISTRAR.package,
+            QUEST_REGISTRAR.module,
+            "crates/wow-world-application/src/quest_handlers.rs",
+            include_str!("../../../../../crates/wow-world-application/src/quest_handlers.rs"),
         ),
         mount(
             NPC_REGISTRAR.package,
@@ -605,6 +611,7 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
         "wow_world_application::register_trainer_handlers_like_cpp",
         "wow_world_application::register_movement_tail_handlers_like_cpp",
         "wow_world_application::register_character_account_handlers_like_cpp",
+        "wow_world_application::register_quest_handlers_like_cpp",
     ] {
         let mut missing = actual_mounts();
         let authority = authority_index(&missing);
@@ -628,6 +635,16 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
         &inexact_character_account_facade,
         "inexact character/account root facade",
     );
+
+    // The quest-giver family (#1263 F5 remaining families) must also keep its
+    // exact root facade.
+    let mut inexact_quest_facade = actual_mounts();
+    inexact_quest_facade[5].source = mutate_fixture(
+        &inexact_quest_facade[5].source,
+        "pub use quest_handlers::{QuestHandlerHostLikeCpp, register_quest_handlers_like_cpp};",
+        "pub use quest_handlers::{QuestHandlerHostLikeCpp};",
+    );
+    assert_rejected(&inexact_quest_facade, "inexact quest root facade");
 
     // Index 5 is the Application crate root holding both exact facades.
     let mut aliased_tail_facade = actual_mounts();

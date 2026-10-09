@@ -48,6 +48,7 @@ mod player_handlers;
 mod player_save;
 mod profession;
 mod quest;
+mod quest_handlers;
 mod quest_query_handlers;
 mod registry_sync;
 mod reputation;
@@ -252,6 +253,10 @@ pub use quest_query_handlers::{
     QuestQueryHandlerCxLikeCpp, QuestQueryHandlerHostLikeCpp,
     register_quest_query_handlers_like_cpp,
 };
+// The exact `ApplicationQuest` owner facade the handler-contract checker
+// requires: the two canonical exports as one use item (#1263 F5 remaining
+// families).
+pub use quest_handlers::{QuestHandlerHostLikeCpp, register_quest_handlers_like_cpp};
 // The moved quest-completion body and the two quest helpers it owns are exported
 // as a separate item so the owner's exact three-name facade above stays unchanged.
 pub use quest_query_handlers::{

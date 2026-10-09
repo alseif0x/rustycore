@@ -907,6 +907,33 @@ pub(crate) const CHARACTER_ACCOUNT_REGISTRAR: DirectRegistrarContract = DirectRe
     facades: CHARACTER_ACCOUNT_FACADES,
 };
 
+const QUEST_ROOT_EXPORTS: &[&str] = &[
+    "QuestHandlerHostLikeCpp",
+    "register_quest_handlers_like_cpp",
+];
+const QUEST_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "quest_handlers",
+    exports: QUEST_ROOT_EXPORTS,
+}];
+
+/// The quest-giver interaction registration family (#1263 F5 remaining
+/// families).
+///
+/// Like the character/account family it carries the session's catalog view into
+/// its host contract, because the legacy `inventory::submit!` closures it
+/// replaces destructured that view (`adventure_map_pois`, `quest_info`,
+/// `id_generators.item`) at the registration site.
+pub(crate) const QUEST_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationQuest",
+    package: "wow-world-application",
+    module: "crate::quest_handlers",
+    registrar: "register_quest_handlers_like_cpp",
+    host_trait: "QuestHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: QUEST_FACADES,
+};
+
 pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationNpc",
     package: "wow-world-application",
@@ -958,6 +985,7 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     MOVEMENT_TAIL_REGISTRAR,
     TRAINER_REGISTRAR,
     CHARACTER_ACCOUNT_REGISTRAR,
+    QUEST_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

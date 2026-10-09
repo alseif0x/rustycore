@@ -432,7 +432,7 @@ fn trainer_family_is_migrated_off_the_legacy_inventory() {
                 "Inplace",
             ),
         ],
-        43,
+        25,
     );
 }
 /// The movement registration tail (#1263 F5 tail, commit 2) left the legacy
@@ -829,7 +829,7 @@ fn movement_tail_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadSafe",
             ),
         ],
-        43,
+        25,
     );
 }
 
@@ -1004,7 +1004,7 @@ fn character_account_family_is_migrated_off_the_legacy_inventory() {
                 "ThreadUnsafe",
             ),
         ],
-        43,
+        25,
     );
 }
 
@@ -1035,5 +1035,292 @@ fn duplicated_migrated_character_account_registration_is_rejected_without_replac
             .count(),
         1,
         "the rejected duplicate must not replace the original entry"
+    );
+}
+
+/// The quest-giver interaction registration family (#1263 F5 remaining
+/// families) left the legacy inventory: the eleven entries that lived in
+/// `handlers/quest/handlers.rs`, all from its own area registrar.
+#[test]
+fn quest_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "quest",
+        |builder| {
+            wow_world_application::register_quest_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("quest registrar registers");
+        },
+        &[
+            contract_row(
+                0x32D9,
+                "AdventureMapStartQuest",
+                "handle_adventure_map_start_quest",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x349C,
+                "QuestGiverStatusQuery",
+                "handle_quest_giver_status_query",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3496,
+                "QuestGiverHello",
+                "handle_quest_giver_hello",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3497,
+                "QuestGiverQueryQuest",
+                "handle_quest_giver_query_quest",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3498,
+                "QuestGiverAcceptQuest",
+                "handle_quest_giver_accept_quest",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x36B2,
+                "QuestPoiQuery",
+                "handle_quest_poi_query",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x349B,
+                "QuestGiverRequestReward",
+                "handle_quest_giver_request_reward",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3499,
+                "QuestGiverCompleteQuest",
+                "handle_quest_giver_complete_quest",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x349A,
+                "QuestGiverChooseReward",
+                "handle_quest_giver_choose_reward",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x349E,
+                "QuestConfirmAccept",
+                "handle_quest_confirm_accept",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x349F,
+                "PushQuestToParty",
+                "handle_push_quest_to_party",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+        ],
+        25,
+    );
+}
+
+/// The spell cast/open registration family (#1263 F5 remaining families) left
+/// the legacy inventory: the four non-cancellation `SpellHandler.cpp` entries
+/// that lived in `handlers/spell.rs`, all from the already-owned spell area
+/// registrar.
+#[test]
+fn spell_cast_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "spell cast/open",
+        |builder| {
+            wow_world_application::register_spell_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("spell registrar registers");
+        },
+        &[
+            contract_row(
+                0x329C,
+                "CastSpell",
+                "handle_cast_spell",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x32C6,
+                "OpenItem",
+                "handle_open_item",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x3531,
+                "SelfRes",
+                "handle_self_res",
+                "LoggedIn",
+                "ThreadUnsafe",
+            ),
+            contract_row(
+                0x3495,
+                "SpellClick",
+                "handle_spell_click",
+                "LoggedIn",
+                "Inplace",
+            ),
+        ],
+        25,
+    );
+}
+
+/// The travel/transfer registration family (#1263 F5 remaining families) left
+/// the legacy inventory: the three entries that lived in
+/// `handlers/travel/travel.rs`, all from the already-owned travel area
+/// registrar.
+#[test]
+fn travel_family_is_migrated_off_the_legacy_inventory() {
+    assert_migrated_family_like_cpp(
+        "travel",
+        |builder| {
+            wow_world_application::register_travel_handlers_like_cpp::<
+                crate::session::WorldSession,
+                crate::session::SessionHandlerCatalogsLikeCpp,
+            >(builder)
+            .expect("travel registrar registers");
+        },
+        &[
+            contract_row(
+                0x34AB,
+                "ActivateTaxi",
+                "handle_activate_taxi",
+                "LoggedIn",
+                "ThreadSafe",
+            ),
+            contract_row(
+                0x31D6,
+                "AreaTrigger",
+                "handle_area_trigger",
+                "LoggedIn",
+                "Inplace",
+            ),
+            contract_row(
+                0x35FA,
+                "WorldPortResponse",
+                "handle_world_port_response",
+                "Transfer",
+                "ThreadUnsafe",
+            ),
+        ],
+        25,
+    );
+}
+
+/// Negative control (#1263 F5 remaining families): re-registering the migrated
+/// quest family on the same builder is rejected and never replaces the first
+/// entry.
+#[test]
+fn duplicated_migrated_quest_registration_is_rejected_without_replacement() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_quest_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect("the first quest registration succeeds");
+    let error = wow_world_application::register_quest_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect_err("a second quest registration must be rejected");
+    assert_eq!(
+        error.opcode,
+        wow_constants::ClientOpcodes::AdventureMapStartQuest
+    );
+    assert_eq!(
+        error.previous_handler_name,
+        "handle_adventure_map_start_quest"
+    );
+    assert_eq!(error.new_handler_name, "handle_adventure_map_start_quest");
+    let registry = builder.build();
+    assert_eq!(
+        registry
+            .iter()
+            .filter(|entry| entry.opcode == wow_constants::ClientOpcodes::AdventureMapStartQuest)
+            .count(),
+        1,
+        "the rejected duplicate must not replace the original entry"
+    );
+}
+
+/// Negative control (#1263 F5 remaining families): re-registering the extended
+/// spell family on the same builder is rejected and never replaces the first
+/// entry.
+#[test]
+fn duplicated_migrated_spell_family_registration_is_rejected_without_replacement() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_spell_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect("the first spell registration succeeds");
+    let error = wow_world_application::register_spell_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect_err("a second spell registration must be rejected");
+    assert_eq!(error.opcode, wow_constants::ClientOpcodes::CancelCast);
+    assert_eq!(error.previous_handler_name, "handle_cancel_cast");
+    assert_eq!(error.new_handler_name, "handle_cancel_cast");
+    let registry = builder.build();
+    assert_eq!(
+        registry
+            .iter()
+            .filter(|entry| entry.opcode == wow_constants::ClientOpcodes::CastSpell)
+            .count(),
+        1,
+        "the rejected duplicate must not replace the cast-spell entry"
+    );
+}
+
+/// Negative control (#1263 F5 remaining families): re-registering the extended
+/// travel family on the same builder is rejected and never replaces the first
+/// entry.
+#[test]
+fn duplicated_migrated_travel_family_registration_is_rejected_without_replacement() {
+    let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world_application::register_travel_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect("the first travel registration succeeds");
+    let error = wow_world_application::register_travel_handlers_like_cpp::<
+        crate::session::WorldSession,
+        crate::session::SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)
+    .expect_err("a second travel registration must be rejected");
+    assert_eq!(
+        error.opcode,
+        wow_constants::ClientOpcodes::SuspendTokenResponse
+    );
+    assert_eq!(error.previous_handler_name, "handle_suspend_token_response");
+    assert_eq!(error.new_handler_name, "handle_suspend_token_response");
+    let registry = builder.build();
+    assert_eq!(
+        registry
+            .iter()
+            .filter(|entry| entry.opcode == wow_constants::ClientOpcodes::ActivateTaxi)
+            .count(),
+        1,
+        "the rejected duplicate must not replace the activate-taxi entry"
     );
 }

@@ -32,9 +32,13 @@ use std::{
 use tracing::{debug, info, warn};
 use wow_constants::item::ItemFlags3;
 use wow_constants::unit::NPCFlags1;
-use wow_constants::{
-    ClientOpcodes, InventoryResult, ItemBondingType, ItemContext, ItemFieldFlags, ItemFlags2,
-};
+use wow_constants::{InventoryResult, ItemBondingType, ItemContext, ItemFieldFlags, ItemFlags2};
+// Test-only: its production readers were the eleven quest-giver registrations
+// that moved to the application crate's `quest_handlers` area registrar under
+// #1263 F5; the quest test shims and scenarios still reach it through
+// `super::*`.
+#[cfg(test)]
+use wow_constants::ClientOpcodes;
 use wow_core::{GameTime, ObjectGuid};
 use wow_data::{
     progression_rewards::{
@@ -49,9 +53,17 @@ use wow_entities::{
     ItemPosCount, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
     SendNewItemModifier, SendNewItemPlan, is_bag_pos,
 };
+// Test-only: the production readers of these two were the eleven quest-giver
+// registrations that moved to the application crate's `quest_handlers` area
+// registrar under #1263 F5; the quest scenarios still reach them through
+// `super::*`.
+#[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
+// The quest-giver registrations that used to reach
+// `crate::session::registry::PacketHandlerEntry` from here moved to the
+// application crate's explicit area registrar under #1263 F5, so this module no
+// longer needs the entry type in scope.
 use wow_packet::ServerPacket;
 use wow_packet::packets::misc::SetCurrency;
 use wow_packet::packets::query::{

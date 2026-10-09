@@ -13,6 +13,22 @@
 //! lifecycle state and builds the borrowed context (#1263 F5). The taxi
 //! activation, area-trigger and world-port bodies stay in the shell while they
 //! call shell-owned seams.
+//!
+//! `#1263 F5 remaining families` extended this already-owned travel registrar
+//! with the three remaining travel/transfer opcodes that were still submitted
+//! through the legacy inventory path in
+//! `crates/wow-world/src/handlers/travel/travel.rs`:
+//! `TaxiHandler.cpp:167` `HandleActivateTaxiOpcode`,
+//! `MiscHandler.cpp:478` `HandleAreaTriggerOpcode` and
+//! `MovementHandler.cpp:44`/`:49`
+//! `HandleMoveWorldportAckOpcode`/`HandleMoveWorldportAck`. All three drive the
+//! same represented travel transitions this owner already coordinates — the
+//! taxi request record, the area-trigger teleport and the world-port
+//! destination attach — so no new owner was declared. `Opcodes.cpp` fixes
+//! `CMSG_ACTIVATE_TAXI` `:147` (`STATUS_LOGGEDIN`, `PROCESS_THREADSAFE`),
+//! `CMSG_AREA_TRIGGER` `:160` (`STATUS_LOGGEDIN`, `PROCESS_INPLACE`) and
+//! `CMSG_WORLD_PORT_RESPONSE` `:1019` (`STATUS_TRANSFER`,
+//! `PROCESS_THREADUNSAFE`).
 
 use tracing::{debug, info, warn};
 use wow_constants::ClientOpcodes;
@@ -169,6 +185,34 @@ pub trait TravelHandlerHostLikeCpp<C> {
     /// Re-publishes the registry state after a taxi benchmark flag change; the
     /// World session still owns the registry-sync providers.
     fn sync_player_registry_state_after_taxi_benchmark_change_like_cpp(&mut self);
+
+    /// C++ `TaxiHandler.cpp:167` `HandleActivateTaxiOpcode`.
+    ///
+    /// The legacy registration closure did not read the catalog view, so this
+    /// entry point does not carry it.
+    fn handle_activate_taxi<'a>(&'a mut self, pkt: WorldPacket) -> HandlerFuture<'a, ()>;
+
+    /// C++ `MiscHandler.cpp:478` `HandleAreaTriggerOpcode`.
+    ///
+    /// The legacy registration closure destructured the session catalog view
+    /// (`area_triggers`), so the host receives that view here.
+    fn handle_area_trigger_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
+
+    /// C++ `MovementHandler.cpp:44` `HandleMoveWorldportAckOpcode` and `:49`
+    /// `HandleMoveWorldportAck`.
+    ///
+    /// The legacy registration closure destructured the session catalog view
+    /// (`creature_spawns`, `player_bootstrap.trait_node_entries`,
+    /// `id_generators.item`), so the host receives that view here.
+    fn handle_world_port_response_with_catalogs_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+        pkt: WorldPacket,
+    ) -> HandlerFuture<'a, ()>;
 }
 
 fn handle_suspend_token_response_thunk<'a, S, C>(
@@ -243,6 +287,50 @@ where
     })
 }
 
+fn handle_activate_taxi_thunk<'a, S, C>(
+    session: &'a mut S,
+    _catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TravelHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move { session.handle_activate_taxi(pkt).await })
+}
+
+fn handle_area_trigger_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TravelHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_area_trigger_with_catalogs_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
+fn handle_world_port_response_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: TravelHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .handle_world_port_response_with_catalogs_like_cpp(catalogs, pkt)
+            .await
+    })
+}
+
 pub fn register_travel_handlers_like_cpp<S, C>(
     builder: &mut RegistryBuilder<S, C>,
 ) -> Result<(), DuplicateHandlerRegistrationLikeCpp>
@@ -277,6 +365,27 @@ where
         processing: PacketProcessing::Inplace,
         handler_name: "handle_set_taxi_benchmark_mode",
         handler: handle_set_taxi_benchmark_mode_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::ActivateTaxi,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadSafe,
+        handler_name: "handle_activate_taxi",
+        handler: handle_activate_taxi_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::AreaTrigger,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "handle_area_trigger",
+        handler: handle_area_trigger_thunk::<S, C>,
+    })?;
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::WorldPortResponse,
+        status: SessionStatus::Transfer,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_world_port_response",
+        handler: handle_world_port_response_thunk::<S, C>,
     })?;
     Ok(())
 }
