@@ -74304,6 +74304,106 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::session::tests::scenarios_world_entities_19::c1_runtime_capture_replay",
+          "path": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "fn::r6_run_respawn_tick_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical",
+              "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "guard",
+              "fingerprint": "fnv1a64x2:5eb124a3f480e9ba77f2118e36a4270d:len=97",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "manager",
+              "fingerprint": "fnv1a64x2:fcb060b47c655668b3e4665c11f30993:len=97",
+              "multiplicity": 2
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "new",
+              "fingerprint": "fnv1a64x2:3341858e1f18388223beebe2abfa23e1:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "queued",
+              "fingerprint": "fnv1a64x2:d6701da96a1f8f4eb8f61e4ce64590b1:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "function_call",
+              "symbol": "new",
+              "fingerprint": "fnv1a64x2:cd5fc0ce9dca2865561579b6814ac778:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "push_respawn",
+              "fingerprint": "fnv1a64x2:a4176968ea8dcf1ac5bca2a7b7c5b831:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "set_tick_owner",
+              "fingerprint": "fnv1a64x2:a684afa103d89cc67622efec1b86f0a5:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "unwrap_or_else",
+              "fingerprint": "fnv1a64x2:e5d75b5956d626fd9dcf1a4f5fc04c1e:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "write",
+              "fingerprint": "fnv1a64x2:8e03dd729c8d2988e205971c9c9c019b:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=fn r6_run_respawn_tick_like_cpp (manager : & crate :: map_manager :: SharedMapManager , canonical : & SharedCanonicalMapManager , guid : ObjectGuid , hp : u32 , now : Instant ,) -> crate :: session :: LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:9f3b4007e28b830b6cab202e8baa8a08:len=725|evidence=fnv1a64x2:c2a0c5e1c4bd39ace476fef8248318e7:len=1133",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session::tests::scenarios_world_entities_19::r1b_incarnation_lifecycle",
           "path": "crates/wow-world/src/session/mod.rs",
           "enclosing": "fn::legacy_creature_like_cpp",

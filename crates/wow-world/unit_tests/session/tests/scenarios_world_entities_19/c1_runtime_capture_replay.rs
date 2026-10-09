@@ -229,3 +229,395 @@ fn c1_injected_stale_and_aba_replay_capture_like_cpp() {
         file.flush().expect("flush C1 replay capture");
     }
 }
+
+// ---------------------------------------------------------------------------
+// #1263 C1-R6 — a refused representation publishes no success (injected)
+// ---------------------------------------------------------------------------
+//
+// Evidence label: **C1-R6-injected**. Both refusal shapes below are manufactured
+// by this fixture — the canonical incarnation is advanced while the transported
+// representation keeps its earlier state. Nothing in this section is a live
+// observation, and the rejection has **no C++ counterpart**: the revision/ABA
+// admission gate is a Rust safeguard. C++ `Unit`/`Creature` own one object in
+// place, so there is no second snapshot that could be refused; the pairing in
+// the R6 record is with that single-object in-place ownership contract, not with
+// an ABA rejection the reference implements.
+
+/// The two injected refusal shapes this section manufactures.
+#[derive(Clone, Copy)]
+enum R6RefusalShapeLikeCpp {
+    /// The canonical incarnation advanced without its representation, so the
+    /// transported health tuple disagrees with the incarnation's.
+    Stale,
+    /// Health left and returned to the same tuple while the revision advanced,
+    /// so the tuple agrees and only the revision betrays the replay.
+    Aba,
+}
+
+impl R6RefusalShapeLikeCpp {
+    fn label_like_cpp(self) -> &'static str {
+        match self {
+            Self::Stale => "stale",
+            Self::Aba => "ABA",
+        }
+    }
+}
+
+/// Manufacture one refusal shape on the canonical incarnation. `aba_restore_health`
+/// is the tuple the ABA cycle returns to — the health the transported
+/// representation carries — so the only difference left is the advanced revision.
+fn inject_r6_refusal_shape_like_cpp(
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    shape: R6RefusalShapeLikeCpp,
+    aba_restore_health: u64,
+) {
+    match shape {
+        R6RefusalShapeLikeCpp::Stale => {
+            advance_canonical_max_health_like_cpp(canonical, guid, 140);
+        }
+        R6RefusalShapeLikeCpp::Aba => {
+            canonical
+                .lock()
+                .unwrap()
+                .find_map_mut(0, 0)
+                .expect("canonical map instance")
+                .map_mut()
+                .with_creature_mut_like_cpp(guid, |creature| {
+                    creature.unit_mut().set_health(60);
+                    creature.unit_mut().set_health(aba_restore_health);
+                })
+                .expect("canonical incarnation");
+        }
+    }
+}
+
+/// Run one body under a subscriber that captures the production C1 events and
+/// return the body's value together with everything the instrumentation emitted.
+fn with_r6_capture_like_cpp<T>(body: impl FnOnce() -> T) -> (T, String) {
+    let sink = CaptureSinkLikeCpp(Arc::new(Mutex::new(Vec::new())));
+    let subscriber = tracing_subscriber::fmt()
+        .with_writer(sink.clone())
+        .with_ansi(false)
+        .with_target(true)
+        .with_max_level(tracing::Level::TRACE)
+        .finish();
+    let guard = tracing::subscriber::set_default(subscriber);
+    let result = body();
+    let chunk = drain_capture_like_cpp(&sink);
+    drop(guard);
+    (result, chunk)
+}
+
+fn r6_test_position_like_cpp() -> Position {
+    Position::new(10.0, 10.0, 0.0, 0.0)
+}
+
+/// Queue one ready respawn for `guid` and run the production global lifecycle
+/// tick once, so the legacy representation the movement tick carries exists.
+fn r6_run_respawn_tick_like_cpp(
+    manager: &crate::map_manager::SharedMapManager,
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    hp: u32,
+    now: Instant,
+) -> crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp {
+    use crate::map_manager::{RuntimeTickOwner, pending_respawn_from_world_creature_like_cpp};
+
+    let queued = crate::map_manager::WorldCreature::new(
+        guid,
+        9001,
+        r6_test_position_like_cpp(),
+        hp,
+        8,
+        9,
+        13,
+        20.0,
+        105,
+        14,
+        0,
+        0,
+    );
+    let pending = pending_respawn_from_world_creature_like_cpp(&queued, now, 0);
+    {
+        let mut guard = manager
+            .write()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        guard.push_respawn(0, 0, pending);
+    }
+    run_legacy_creature_lifecycle_tick_once_like_cpp(
+        manager,
+        Some(canonical),
+        &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
+        now + Duration::from_secs(1),
+    )
+}
+
+/// **C1-R6-injected.** Both the stale and the ABA refusal, driven through a
+/// production *consumer* rather than by calling an admission root directly, and
+/// covering **both** production admission roots:
+///
+/// * `SessionCore::with_admitted_world_creature_like_cpp`
+///   (`crates/wow-world-core/src/session/world_entities/creature_registry.rs`),
+///   reached through the loot-release owner consumer
+///   (`LootReleaseOwnerAccessLikeCpp::finish_looted_creature_like_cpp`);
+/// * `sync_admitted_creature_representation_on_map_like_cpp`
+///   (`crates/wow-world-core/src/session/creature_canonical_adapter.rs`),
+///   reached through the real creature movement tick.
+///
+/// For every case it asserts that the refusal happens **before** the callback
+/// (`mutation_invoked=false` in the production instrumentation), that **both
+/// stores** are unchanged, that the incarnation's **authority is preserved**, and
+/// that the refusal produces **no successful client publication**.
+///
+/// The movement tick's own legitimate movement packet is not a publication of
+/// the refused representation: that packet describes the representation's
+/// movement, which is not what the gate refuses. What the gate must not do — and
+/// what this asserts — is publish the refused snapshot *into* the incarnation, or
+/// rebind the legacy alias onto an authority the incarnation refused.
+#[test]
+fn c1_r6_refusal_has_no_success_publication_like_cpp() {
+    // ---- Root 1 (creature_registry.rs), through the loot-release consumer. ----
+    for (index, shape) in [R6RefusalShapeLikeCpp::Stale, R6RefusalShapeLikeCpp::Aba]
+        .into_iter()
+        .enumerate()
+    {
+        let what = shape.label_like_cpp();
+        let guid = test_creature_guid(94_000 + index as i64);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        let (mut session, _pkt_tx, send_rx) = make_session();
+        register_test_creature_mirrored_like_cpp(
+            &mut session,
+            manager.clone(),
+            &canonical,
+            guid,
+            100,
+        );
+
+        let legacy_authority_before = legacy_creature_like_cpp(&manager, guid)
+            .expect("legacy representation")
+            .loot_authority_like_cpp()
+            .clone();
+        let incarnation_authority_before = canonical_creature_like_cpp(&canonical, guid)
+            .expect("canonical incarnation")
+            .loot_authority_like_cpp()
+            .clone();
+
+        inject_r6_refusal_shape_like_cpp(&canonical, guid, shape, 100);
+
+        let legacy_before = observables_like_cpp(
+            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation"),
+        );
+        let canonical_before = observables_like_cpp(
+            &canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation"),
+        );
+
+        let (released, chunk) = with_r6_capture_like_cpp(|| {
+            session
+                .core
+                .loot_release_owner_access_like_cpp()
+                .finish_looted_creature_like_cpp(guid, false, 0.5, None)
+        });
+
+        assert!(
+            released.is_none(),
+            "the {what} representation must be refused by the production loot-release consumer"
+        );
+        let event = one_event_like_cpp(&chunk, what);
+        assert!(
+            event.contains("root=\"SessionCore::with_admitted_world_creature_like_cpp\"")
+                && event.contains("admission_clause=\"revision\"")
+                && event.contains("admission_verdict=false")
+                && event.contains("application=\"admission_refused\"")
+                && event.contains("representation_applied=false"),
+            "the {what} representation is refused on the revision clause: {event}"
+        );
+        assert!(
+            event.contains("mutation_invoked=false"),
+            "the refusal happens before the callback: {event}"
+        );
+        assert_eq!(
+            observables_like_cpp(
+                &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
+            ),
+            legacy_before,
+            "the refused {what} release does not mutate the legacy representation"
+        );
+        assert_eq!(
+            observables_like_cpp(
+                &canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation")
+            ),
+            canonical_before,
+            "the refused {what} release does not mutate the canonical incarnation"
+        );
+        assert!(
+            canonical_creature_like_cpp(&canonical, guid)
+                .expect("canonical incarnation")
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&incarnation_authority_before),
+            "the {what} refusal preserves the incarnation's authority"
+        );
+        assert!(
+            legacy_creature_like_cpp(&manager, guid)
+                .expect("legacy representation")
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&legacy_authority_before),
+            "the {what} refusal preserves the representation's authority"
+        );
+        assert!(
+            drain_server_opcodes(&send_rx).is_empty(),
+            "a refused {what} loot release publishes no successful client packet"
+        );
+    }
+
+    // ---- Root 2 (creature_canonical_adapter.rs), through the movement tick. ----
+    for (index, shape) in [R6RefusalShapeLikeCpp::Stale, R6RefusalShapeLikeCpp::Aba]
+        .into_iter()
+        .enumerate()
+    {
+        let what = shape.label_like_cpp();
+        let guid = test_creature_guid(94_100 + index as i64);
+        let manager = shared_map_manager();
+        let canonical = shared_canonical_map_manager();
+        canonical.lock().unwrap().create_world_map(0, 0);
+        let now = Instant::now();
+
+        // A canonical incarnation already exists while the legacy store is empty,
+        // so the ready respawn publishes the representation the movement tick
+        // later offers to the incarnation.
+        add_canonical_test_creature_on_map(
+            &canonical,
+            guid,
+            9001,
+            r6_test_position_like_cpp(),
+            0,
+            0,
+            0,
+        );
+        {
+            let mut guard = canonical.lock().unwrap();
+            let typed = guard
+                .find_map_mut(0, 0)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(guid)
+                .expect("the canonical incarnation pre-exists");
+            typed.unit_mut().set_level(80);
+            typed.unit_mut().set_max_health(105);
+            typed.unit_mut().set_health(105);
+        }
+        let respawned = r6_run_respawn_tick_like_cpp(
+            &manager,
+            &canonical,
+            guid,
+            105,
+            now - Duration::from_secs(1),
+        );
+        assert_eq!(
+            respawned.respawns_processed, 1,
+            "the ready respawn publishes the representation the movement tick carries"
+        );
+
+        let incarnation_authority_before = canonical_creature_like_cpp(&canonical, guid)
+            .expect("canonical incarnation")
+            .loot_authority_like_cpp()
+            .clone();
+        let legacy_authority_before = legacy_creature_like_cpp(&manager, guid)
+            .expect("legacy representation")
+            .loot_authority_like_cpp()
+            .clone();
+
+        inject_r6_refusal_shape_like_cpp(&canonical, guid, shape, 105);
+
+        let canonical_before =
+            canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation");
+        let canonical_ai_before = canonical_before.ai_state();
+        let canonical_observables_before = observables_like_cpp(&canonical_before);
+
+        // Arm the production creature movement tick exactly as the runtime does.
+        {
+            use crate::map_manager::RuntimeTickOwner;
+
+            let mut guard = manager
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+            let creature = guard
+                .find_creature_mut(0, 0, guid)
+                .expect("legacy representation");
+            creature
+                .creature
+                .set_default_movement_type_runtime_like_cpp(
+                    wow_entities::MovementGeneratorType::Random,
+                );
+            let ai = creature.creature.ai_ownership_mut();
+            ai.wander_delay_ms = 0;
+            ai.move_start_ms = 0;
+            ai.wander_radius = 3.0;
+            creature.seed_runtime_rng_like_cpp(0x9130);
+            creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+        }
+
+        let mmap_config = MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        };
+        let (movement, chunk) = with_r6_capture_like_cpp(|| {
+            run_legacy_creature_movement_tick_once_like_cpp(
+                &manager,
+                Some(&canonical),
+                &mmap_config,
+                None,
+                &HashMap::new(),
+                10,
+            )
+        });
+
+        assert_eq!(
+            movement.canonical_syncs, 1,
+            "the queued {what} snapshot is an attempt and is counted even when refused"
+        );
+        let event = one_event_like_cpp(&chunk, what);
+        assert!(
+            event.contains("root=\"sync_admitted_creature_representation_on_map_like_cpp\"")
+                && event.contains("admission_clause=\"revision\"")
+                && event.contains("admission_verdict=false")
+                && event.contains("representation_applied=false"),
+            "the {what} mirror is refused on the revision clause: {event}"
+        );
+        assert!(
+            event.contains("mutation_invoked=false"),
+            "the mirror refusal happens before the application: {event}"
+        );
+        assert_eq!(
+            canonical_creature_like_cpp(&canonical, guid)
+                .expect("canonical incarnation")
+                .ai_state(),
+            canonical_ai_before,
+            "the refused {what} mirror publishes no movement state to the incarnation"
+        );
+        assert_eq!(
+            observables_like_cpp(
+                &canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation")
+            ),
+            canonical_observables_before,
+            "the refused {what} mirror leaves the incarnation untouched"
+        );
+        assert!(
+            canonical_creature_like_cpp(&canonical, guid)
+                .expect("canonical incarnation")
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&incarnation_authority_before),
+            "the {what} mirror refusal preserves the incarnation's authority"
+        );
+        assert!(
+            legacy_creature_like_cpp(&manager, guid)
+                .expect("legacy representation")
+                .loot_authority_like_cpp()
+                .shares_storage_like_cpp(&legacy_authority_before),
+            "the {what} mirror refusal does not rebind the legacy alias onto a refused snapshot"
+        );
+    }
+}
