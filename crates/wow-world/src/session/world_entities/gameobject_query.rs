@@ -6,54 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn update_visible_gameobjects_like_cpp(&mut self) -> usize {
-        let mut sent = 0;
-        let visible_guids = self
-            .core
-            .client_visible_guids_like_cpp
-            .snapshot_like_cpp()
-            .into_iter()
-            .collect::<Vec<_>>();
-        for guid in visible_guids {
-            if !guid.is_game_object() {
-                continue;
-            }
-            let Some(access) = self.core.canonical_gameobject_access_like_cpp(guid) else {
-                continue;
-            };
-            let Some(state) = self
-                .world_entities
-                .represented_gameobject_use_state_like_cpp(guid)
-                .cloned()
-            else {
-                continue;
-            };
-            let objective_refresh =
-                self.represented_has_quest_for_gameobject_like_cpp(access.entry);
-            let relation_refresh =
-                self.represented_gameobject_is_for_quests_like_cpp(access.entry, &state);
-            if !objective_refresh && !relation_refresh {
-                continue;
-            }
-
-            let dynamic_flags =
-                self.represented_gameobject_dynamic_flags_for_player_like_cpp(access.entry, &state);
-            let Some(update) = crate::session::represented_gameobject_dynamic_flags_update_like_cpp(
-                guid,
-                self.core.player_map_id_like_cpp(),
-                dynamic_flags,
-            ) else {
-                continue;
-            };
-            self.send_packet(&update);
-            sent += 1;
-        }
-
-        sent
-    }
-    pub(crate) fn update_visible_gameobjects_or_spell_clicks_like_cpp(&mut self) -> usize {
-        self.update_visible_gameobjects_like_cpp() + self.update_visible_spell_clicks_like_cpp()
-    }
     pub(crate) fn visible_gameobjects_from_canonical_map_like_cpp(
         &self,
         map_id: u16,

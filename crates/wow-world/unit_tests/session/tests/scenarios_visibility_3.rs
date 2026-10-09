@@ -613,3 +613,177 @@ async fn far_sight_empty_or_missing_viewpoint_keeps_seer_and_forces_visibility_l
     );
     assert_eq!(session.visibility.last_visibility_pos_like_cpp(), None);
 }
+
+/// #1263 F4 pins the combined C++ operation
+/// `Player::UpdateVisibleGameobjectsOrSpellClicks` (`Player.cpp:24433`): every
+/// GameObject update precedes every spell-click update, and a stale owner or a
+/// missing represented state is refused without publishing.
+#[test]
+fn refresh_preserves_combined_scan_publication_and_stale_refusal() {
+    let (mut session, _, send_rx) = make_session();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 42);
+
+    // GameObject half: a chest whose active objective forces the viewer
+    // dependent DynamicFlags update.
+    let go_entry = 8_123;
+    let gameobject_guid = test_gameobject_guid(go_entry, 132);
+    let quest_id = 12_541;
+    let mut quest = test_quest_template(quest_id);
+    quest.objectives.push(wow_data::quest::QuestObjective {
+        id: quest_id * 10,
+        quest_id,
+        obj_type: 2,
+        order: 0,
+        storage_index: 0,
+        object_id: go_entry as i32,
+        amount: 1,
+        flags: 0,
+        flags2: 0,
+        progress_bar_weight: 0.0,
+        description: String::new(),
+    });
+
+    session.set_player_guid(Some(player_guid));
+    session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
+        [quest],
+    )));
+    session
+        .quest_state
+        .fixture_insert_player_quest_status_like_cpp(
+            quest_id,
+            crate::handlers::quest::PlayerQuestStatus {
+                quest_id,
+                status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+                explored: false,
+                accept_time_secs: 0,
+                end_time_secs: 0,
+                objective_counts: vec![0],
+                slot: 0,
+            },
+        );
+
+    // Spell-click half: a conditioned spell-click creature.
+    let creature_guid = test_creature_guid(128);
+    session.set_condition_store(Arc::new(
+        ConditionEntriesByTypeStore::from_conditions_like_cpp([Condition {
+            source_type: ConditionSourceType::SpellClickEvent,
+            source_group: 708,
+            source_entry: 908,
+            source_id: 0,
+            condition_type: ConditionType::Aura,
+            condition_value1: 999_999,
+            ..Condition::default()
+        }]),
+    ));
+    session.set_npc_spell_click_store(Arc::new(NpcSpellClickStoreLikeCpp::from_rows_like_cpp(
+        [wow_data::NpcSpellClickRowLikeCpp {
+            npc_entry: 708,
+            spell_id: 908,
+            cast_flags: 0,
+            user_type: wow_data::SPELL_CLICK_USER_ANY_LIKE_CPP,
+        }],
+        |entry| entry == 708,
+        |spell| spell == 908,
+    )));
+
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "Tester".to_string(),
+        Position::new(10.0, 0.0, 0.0, 0.0),
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    add_canonical_test_gameobject(
+        &canonical,
+        gameobject_guid,
+        go_entry,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+    );
+    session
+        .world_entities
+        .insert_represented_gameobject_use_state_for_test_like_cpp(
+            gameobject_guid,
+            RepresentedGameObjectUseState {
+                go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
+                loot_state: Some(wow_entities::LootState::Ready),
+                ..Default::default()
+            },
+        );
+    add_canonical_test_creature(
+        &canonical,
+        creature_guid,
+        708,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+        (UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32) | wow_constants::unit::NPCFlags1::GOSSIP.bits(),
+    );
+
+    // Refused entries: a visible gameobject absent from the canonical map (stale
+    // owner), a visible gameobject present canonically but with no represented
+    // use-state (missing state; it shares the quest-active entry, so a scan that
+    // fabricated state instead of skipping would publish), and a visible
+    // creature absent from the canonical map (stale owner).
+    let stale_gameobject_guid = test_gameobject_guid(9_999, 900);
+    let stateless_gameobject_guid = test_gameobject_guid(go_entry, 133);
+    let stale_creature_guid = test_creature_guid(901);
+    add_canonical_test_gameobject(
+        &canonical,
+        stateless_gameobject_guid,
+        go_entry,
+        Position::new(12.0, 0.0, 0.0, 0.0),
+    );
+
+    for guid in [
+        gameobject_guid,
+        creature_guid,
+        stale_gameobject_guid,
+        stateless_gameobject_guid,
+        stale_creature_guid,
+    ] {
+        session.core.client_visible_guids_like_cpp.insert(guid);
+    }
+
+    let mut packet_update = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
+    packet_update.changed_object_type_mask = 1 << TYPEID_UNIT;
+    packet_update.unit_data_mask[113 / 32] |= 1 << (113 % 32);
+    packet_update.unit_data_mask[114 / 32] |= 1 << (114 % 32);
+    packet_update.npc_flags = [
+        (UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32) | wow_constants::unit::NPCFlags1::GOSSIP.bits(),
+        0,
+    ];
+    let expected_spell_click_packet = session
+        .represented_unit_packet_update_to_update_object_like_cpp(creature_guid, 571, packet_update)
+        .to_bytes();
+    let expected_gameobject_packet = expected_gameobject_dynamic_flags_update_like_cpp(
+        gameobject_guid,
+        571,
+        wow_entities::GO_DYNFLAG_LO_ACTIVATE
+            | wow_entities::GO_DYNFLAG_LO_SPARKLE
+            | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT,
+    );
+
+    assert_eq!(
+        session.update_visible_gameobjects_or_spell_clicks_like_cpp(),
+        2
+    );
+    assert_eq!(
+        send_rx
+            .try_recv()
+            .expect("gameobject update published before the spell-click update"),
+        expected_gameobject_packet
+    );
+    assert_eq!(
+        send_rx
+            .try_recv()
+            .expect("spell-click update published after the gameobject update"),
+        expected_spell_click_packet
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "a stale owner or missing represented state must be refused without publication"
+    );
+}

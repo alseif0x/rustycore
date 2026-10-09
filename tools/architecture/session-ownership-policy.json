@@ -1460,6 +1460,12 @@
         },
         {
           "module": "crate::session",
+          "trait_path": "VisibilityRefreshHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
           "trait_path": "wow_world_application :: BankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
@@ -44201,9 +44207,11 @@
           "kind": "method",
           "name": "update_visible_gameobjects_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn update_visible_gameobjects_like_cpp (& mut self) -> usize",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn update_visible_gameobjects_like_cpp (& self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -44214,7 +44222,7 @@
           "kind": "method",
           "name": "update_visible_gameobjects_or_spell_clicks_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn update_visible_gameobjects_or_spell_clicks_like_cpp (& mut self) -> usize",
+          "signature": "fn update_visible_gameobjects_or_spell_clicks_like_cpp (& self) -> usize",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44227,9 +44235,11 @@
           "kind": "method",
           "name": "update_visible_spell_clicks_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn update_visible_spell_clicks_like_cpp (& mut self) -> usize",
-          "cfg": [],
-          "source_class": "production",
+          "signature": "fn update_visible_spell_clicks_like_cpp (& self) -> usize",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -44631,6 +44641,17 @@
           "guards": [
             "visible"
           ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
+          "name": "visibility_refresh_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn visibility_refresh_cx_like_cpp (& self) -> VisibilityRefreshCxLikeCpp < '_ >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": []
         },
         {
           "module": "crate::session",
@@ -45905,6 +45926,45 @@
           "name": "vehicle_handler_cx_like_cpp",
           "visibility": "private",
           "signature": "fn vehicle_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> VehicleHandlerCxLikeCpp < 'a >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "VisibilityRefreshHostLikeCpp",
+          "kind": "method",
+          "name": "visibility_refresh_gameobject_dynamic_flags_like_cpp",
+          "visibility": "private",
+          "signature": "fn visibility_refresh_gameobject_dynamic_flags_like_cpp (& self , gameobject_entry : u32 , state : & RepresentedGameObjectUseState ,) -> u32",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "VisibilityRefreshHostLikeCpp",
+          "kind": "method",
+          "name": "visibility_refresh_gameobject_values_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn visibility_refresh_gameobject_values_update_like_cpp (& self , guid : ObjectGuid , map_id : u16 , dynamic_flags : u32 ,) -> Option < wow_packet :: packets :: update :: UpdateObject >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "VisibilityRefreshHostLikeCpp",
+          "kind": "method",
+          "name": "visibility_refresh_unit_npc_flags_update_like_cpp",
+          "visibility": "private",
+          "signature": "fn visibility_refresh_unit_npc_flags_update_like_cpp (& self , guid : ObjectGuid , map_id : u16 , packet_update : wow_packet :: packets :: update :: UnitDataValuesDeltaUpdate ,) -> wow_packet :: packets :: update :: UpdateObject",
           "cfg": [],
           "source_class": "production",
           "guards": [
