@@ -269,6 +269,47 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
     candidates: &[LegacyCreatureAggroCandidateLikeCpp],
     config: LegacyCreatureAggroConfigLikeCpp,
 ) -> LegacyCreatureAggroTickOutcomeLikeCpp {
+    // The declared legacy-only configuration: no canonical store is configured,
+    // so the legacy representation is the designated owner of every creature
+    // and keeps deciding exactly as before.
+    run_legacy_creature_aggro_tick_once_with_config_and_ownership_like_cpp(
+        legacy_map_manager,
+        CanonicalCreatureOwnershipLikeCpp::LegacyOnlyConfiguration,
+        candidates,
+        config,
+    )
+}
+
+/// Run one global aggro scan against the canonical designated owner.
+///
+/// #1263 F6-8C. With a canonical store configured, the canonical incarnation is
+/// the designated owner of a creature object; a surviving legacy copy decides
+/// nothing by itself. A creature whose exact residence has no incarnation is
+/// refused (`canonical_incarnation_rejections`) instead of being decided from
+/// the legacy representation. The ownership roster is read once, before the
+/// legacy write guard is taken.
+pub fn run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
+    legacy_map_manager: &crate::map_manager::SharedMapManager,
+    canonical_map_manager: Option<&SharedCanonicalMapManager>,
+    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
+    config: LegacyCreatureAggroConfigLikeCpp,
+) -> LegacyCreatureAggroTickOutcomeLikeCpp {
+    let ownership =
+        canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
+    run_legacy_creature_aggro_tick_once_with_config_and_ownership_like_cpp(
+        legacy_map_manager,
+        ownership,
+        candidates,
+        config,
+    )
+}
+
+pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ownership_like_cpp(
+    legacy_map_manager: &crate::map_manager::SharedMapManager,
+    ownership: CanonicalCreatureOwnershipLikeCpp,
+    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
+    config: LegacyCreatureAggroConfigLikeCpp,
+) -> LegacyCreatureAggroTickOutcomeLikeCpp {
     use crate::map_manager::RuntimeTickOwner;
 
     let mut outcome = LegacyCreatureAggroTickOutcomeLikeCpp::default();
@@ -382,6 +423,13 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
         }
         for guid in guids.iter().copied() {
             outcome.creatures_seen += 1;
+            // #1263 F6-8C: the canonical designated owner decides. A creature
+            // with no canonical incarnation at this exact residence is refused
+            // rather than selected from the legacy representation.
+            if !ownership.decides_like_cpp(map_id, instance_id, guid) {
+                outcome.canonical_incarnation_rejections += 1;
+                continue;
+            }
             let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
                 continue;
             };
@@ -426,6 +474,12 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                     continue;
                 }
                 for assistant_guid in assistant_guids {
+                    // #1263 F6-8C: an assistant's engagement is a selection
+                    // decision too, so it needs the canonical owner as well.
+                    if !ownership.decides_like_cpp(map_id, instance_id, assistant_guid) {
+                        outcome.canonical_incarnation_rejections += 1;
+                        continue;
+                    }
                     let Some(assistant) =
                         manager.find_creature_mut(map_id, instance_id, assistant_guid)
                     else {
@@ -886,6 +940,12 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 }
                 let mut assistant_guids = Vec::new();
                 for assistant_guid in guids.iter().copied().filter(|guid| *guid != caller_guid) {
+                    // #1263 F6-8C: a family-assistance candidate must have a
+                    // canonical owner before it may be selected.
+                    if !ownership.decides_like_cpp(map_id, instance_id, assistant_guid) {
+                        outcome.canonical_incarnation_rejections += 1;
+                        continue;
+                    }
                     let Some(assistant) =
                         manager.find_creature_mut(map_id, instance_id, assistant_guid)
                     else {
@@ -945,6 +1005,10 @@ pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
                 }
                 if !assistant_guids.is_empty() {
                     outcome.assistance_scheduled += assistant_guids.len();
+                    if !ownership.decides_like_cpp(map_id, instance_id, caller_guid) {
+                        outcome.canonical_incarnation_rejections += 1;
+                        continue;
+                    }
                     if let Some(caller) =
                         manager.find_creature_mut(map_id, instance_id, caller_guid)
                     {

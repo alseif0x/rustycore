@@ -192,6 +192,17 @@ pub fn run_legacy_player_melee_tick_once_like_cpp(
             attacker.instance_id,
             swing.victim_guid,
         ) {
+            // #1263 F6-8C: the canonical designated owner executes the swing.
+            // A surviving legacy representation without a canonical incarnation
+            // at this exact residence no longer resolves one.
+            if map
+                .with_creature_like_cpp(swing.victim_guid, |_| ())
+                .is_none()
+            {
+                outcome.canonical_incarnation_rejections += 1;
+                outcome.victim_missing += 1;
+                continue;
+            }
             if !creature.is_alive() {
                 outcome.victim_not_alive += 1;
                 continue;

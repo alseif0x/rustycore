@@ -12,6 +12,9 @@ mod c1_runtime_capture_replay;
 mod creature_movement_tick;
 #[path = "scenarios_world_entities_19/creature_tick_owner.rs"]
 mod creature_tick_owner;
+// #1263 F6-8C: the canonical designated owner decides the combat selections.
+#[path = "scenarios_world_entities_19/f6_8c_canonical_ownership.rs"]
+mod f6_8c_canonical_ownership;
 #[path = "scenarios_world_entities_19/gameobject_use.rs"]
 mod gameobject_use;
 #[path = "scenarios_world_entities_19/legacy_creature_tick_noop.rs"]

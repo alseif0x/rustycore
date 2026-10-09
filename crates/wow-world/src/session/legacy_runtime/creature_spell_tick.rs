@@ -55,6 +55,10 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
             }
         });
     }
+    // #1263 F6-8C: the canonical designated owner decides which creature may
+    // select a template spell. Read once, before the legacy write guard.
+    let ownership =
+        canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
     let mut pending_actions = Vec::new();
     let mut manager = legacy_map_manager
         .write()
@@ -76,6 +80,13 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 continue;
             };
             outcome.creatures_seen += 1;
+            // #1263 F6-8C: a creature whose exact residence has no canonical
+            // incarnation is not the canonical owner's object, so it selects no
+            // spell from the legacy representation.
+            if !ownership.decides_like_cpp(map_id, instance_id, guid) {
+                outcome.canonical_incarnation_rejections += 1;
+                continue;
+            }
             if !creature.is_alive() || creature.state() != wow_entities::CreatureAiState::InCombat {
                 continue;
             }
@@ -718,6 +729,16 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 ) else {
                     continue;
                 };
+                // #1263 F6-8C: the deferred slot re-arm mutates the caster's
+                // canonical runtime schedule, so it needs the canonical owner.
+                if !ownership.decides_like_cpp(
+                    schedule.map_id,
+                    schedule.instance_id,
+                    schedule.caster_guid,
+                ) {
+                    outcome.canonical_incarnation_rejections += 1;
+                    continue;
+                }
                 if creature.creature_spell_engagement_epoch_like_cpp() != schedule.engagement_epoch
                 {
                     continue;

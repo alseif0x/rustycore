@@ -31,6 +31,18 @@ impl WorldSession {
             cfg!(test),
         )
     }
+    /// Single-store observation probe for the **legacy** representation.
+    ///
+    /// #1263 F6-8C: this is not a production loot-consumer seam any more. The
+    /// canonical designated-authority lookup
+    /// ([`Self::read_canonical_creature_loot_authority_on_map_like_cpp`] and
+    /// [`Self::represented_owned_loot_authority_outcome_like_cpp`]) is the only
+    /// authority a loot consumer may resolve; the World surface keeps this
+    /// probe `cfg(test)`-gated so no production consumer can reach the legacy
+    /// store. The surviving consumers are the loot fixtures that observe the
+    /// legacy store *as a store* to build a two-store divergence, and they
+    /// cannot move without deleting that store (slice E).
+    #[cfg(test)]
     pub(crate) fn read_legacy_creature_loot_authority_on_map_like_cpp(
         &self,
         guid: ObjectGuid,

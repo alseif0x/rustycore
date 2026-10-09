@@ -159,6 +159,9 @@ use overworld_personal_loot::{
 };
 #[path = "loot_tests/r1a_admission_authority.rs"]
 mod r1a_admission_authority;
+// #1263 F6-8C: the loot consumer resolves the canonical designated authority.
+#[path = "loot_tests/f6_8c_canonical_ownership.rs"]
+mod f6_8c_canonical_ownership;
 #[path = "loot_tests/r4a_lookup_exhaustion.rs"]
 mod r4a_lookup_exhaustion;
 
