@@ -44,13 +44,9 @@ use wow_map::map::MapWorldObjectEnvironment;
 use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider, SpawnObjectType};
 use wow_movement::generators::CreatureRandomMovementType as MovementCreatureRandomMovementType;
 use wow_movement::{
-    ChaseMovementGenerator, HomeMovementGenerator, IdleMovementGenerator, MotionMaster, MoveSpline,
-    MoveSplineFlag, MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput,
-    MoveSplineStopResult, MovementGenerator as RuntimeMovementGenerator,
-    MovementGeneratorFlags as RuntimeMovementGeneratorFlags,
-    MovementGeneratorMode as RuntimeMovementGeneratorMode,
-    MovementGeneratorPriority as RuntimeMovementGeneratorPriority,
-    MovementGeneratorState as RuntimeMovementGeneratorState,
+    ChaseMovementGenerator, HomeMovementGenerator, MotionMaster, MoveSpline, MoveSplineFlag,
+    MoveSplineInit, MoveSplineLaunchInput, MoveSplineStopInput, MoveSplineStopResult,
+    MovementGenerator as RuntimeMovementGenerator,
     MovementGeneratorType as RuntimeMovementGeneratorType, MovementSlot as RuntimeMovementSlot,
     PathGenerator, PathType, RANDOM_PATH_LENGTH_LIMIT_LIKE_CPP, RandomMovementAction,
     RandomMovementGenerator, RandomPathResult, RandomUnitSnapshot, WaypointAnimation,
@@ -67,58 +63,28 @@ use wow_recastdetour::{
 };
 
 /// A creature stored in the global map system.
-#[derive(Debug)]
+///
+/// #1263 F6-8A: the persistent creature runtime state that C++ keeps on the
+/// object now lives in the canonical `wow_entities::Creature`
+/// (`Creature::runtime_like_cpp`). This bridge keeps only the canonical entity,
+/// the immutable packet projection `CreatureCreateData` and the scheduling
+/// seam named below; the accessor methods read and write that same canonical
+/// storage, so the legacy scheduling and publication bridges keep working
+/// unchanged until F6-8B-E delete them.
+#[derive(Debug, Clone)]
 pub struct WorldCreature {
     /// Canonical creature entity. Runtime/AI ownership lives here.
     pub creature: Creature,
     /// Packet-create bridge retained for update-object construction.
     pub create_data: CreatureCreateData,
-    /// Active movement spline for the represented world tick.
-    ///
-    /// This is the first runtime bridge toward C++ `Unit::movespline`; the full
-    /// `MoveSplineInit`/`MotionMaster` port still owns generalized launch/stop.
-    active_move_spline: Option<MoveSpline>,
-    active_random_generator: Option<RandomMovementGenerator>,
-    /// Corridor kept by the random generator's `PathGenerator`, which C++
-    /// allocates once per generator lifetime and only drops in `DoInitialize`
-    /// (`RandomMovementGenerator.cpp:95,140-143`). Reusing it is what makes
-    /// `BuildPolyPath`'s subpath/suffix branches reachable
-    /// (`PathGenerator.cpp:291-413`).
-    active_random_path_poly_refs: Vec<u64>,
-    /// Selected home generator, kept so its C++ flags survive ticks.
-    active_home_generator: Option<HomeMovementGenerator>,
-    /// Selected chase generator, kept so its C++ state survives ticks.
-    active_chase_generator: Option<ChaseMovementGenerator>,
-    /// Corridor held by the chase generator's `PathGenerator`, which C++ keeps
-    /// alive across updates (`ChaseMovementGenerator.cpp:174-175`).
-    active_chase_path_poly_refs: Vec<u64>,
-    active_waypoint_generator: Option<WaypointMovementGenerator>,
-    active_waypoint_random_at_path_end: Option<WaypointRandomAtPathEnd>,
-    /// C++ `Unit::i_motionMaster`: the persistent priority stack that selects
-    /// which concrete runtime generator may advance this frame.
-    runtime_motion_master: MotionMaster,
-    runtime_chase_target: Option<ObjectGuid>,
-    runtime_represented_active: Option<RuntimeRepresentedActiveKeyLikeCpp>,
-    /// Caller-owned delayed `AssistDelayEvent` payload: victim, assistant
-    /// GUIDs, and map-local due time.
-    pending_assistance_like_cpp: Vec<(ObjectGuid, Vec<ObjectGuid>, u64)>,
-    /// C++ `m_AlreadyCallAssistance`, reset when combat stops.
-    assistance_called_like_cpp: bool,
-    /// Active `SPELL_AURA_MOD_TAUNT`s in application order: caster and expiry.
-    active_taunts_like_cpp: Vec<ActiveTauntLikeCpp>,
-    /// C++ `CombatAI::_events` due times for the eight template spell slots.
-    /// `None` means that slot is not scheduled for the current engagement.
-    creature_spell_due_at_ms_like_cpp: [Option<u64>; wow_entities::MAX_CREATURE_SPELLS],
-    /// C++ initializes and resets `CombatAI::_events` once per AI lifecycle.
-    /// The legacy map owner keeps that lifecycle bit beside the due times so
-    /// multiple player sessions cannot independently schedule the same cast.
-    creature_spell_schedule_initialized_like_cpp: bool,
-    /// Monotonic engagement token carried by deferred session commands. It
-    /// invalidates a queued cast after evade/death/reset even when the same
-    /// creature later attacks the same player again.
-    creature_spell_engagement_epoch_like_cpp: u64,
     /// Set by reached-home finalization until the global movement owner
     /// publishes the restored health values update.
+    ///
+    /// F6-8A deliberately retains this publication flag, the logical clock, the
+    /// tick counter, the RNG authority marker and the RNG on the bridge: they
+    /// are the scheduling/publication seam this slice keeps transitional. The
+    /// RNG cannot move yet because `rand` is not an allowed external dependency
+    /// of `wow-entities` (`tools/architecture/dependency-policy.json`).
     home_health_restored_pending_like_cpp: bool,
     runtime_motion_master_ticks: u64,
     /// False after the creature-spell slice reaches a C++ RNG decision whose
@@ -139,43 +105,6 @@ pub struct WorldCreature {
     /// cannot independently move spline, combat, spell, assistance or corpse
     /// state.
     runtime_elapsed_ms_like_cpp: u64,
-}
-
-impl Clone for WorldCreature {
-    fn clone(&self) -> Self {
-        let creature = self.creature.clone();
-        Self {
-            runtime_motion_master: Self::new_runtime_motion_master_like_cpp(&creature),
-            runtime_chase_target: None,
-            runtime_represented_active: None,
-            pending_assistance_like_cpp: self.pending_assistance_like_cpp.clone(),
-            assistance_called_like_cpp: self.assistance_called_like_cpp,
-            active_taunts_like_cpp: self.active_taunts_like_cpp.clone(),
-            creature_spell_due_at_ms_like_cpp: self.creature_spell_due_at_ms_like_cpp,
-            creature_spell_schedule_initialized_like_cpp: self
-                .creature_spell_schedule_initialized_like_cpp,
-            creature_spell_engagement_epoch_like_cpp: self.creature_spell_engagement_epoch_like_cpp,
-            home_health_restored_pending_like_cpp: self.home_health_restored_pending_like_cpp,
-            runtime_motion_master_ticks: self.runtime_motion_master_ticks,
-            runtime_rng_authority_complete_like_cpp: self.runtime_rng_authority_complete_like_cpp,
-            respawn_spell_hit_aura_source_authority_like_cpp: self
-                .respawn_spell_hit_aura_source_authority_like_cpp,
-            respawn_spell_cast_log_aura_source_authority_like_cpp: self
-                .respawn_spell_cast_log_aura_source_authority_like_cpp,
-            creature,
-            create_data: self.create_data.clone(),
-            active_move_spline: self.active_move_spline.clone(),
-            active_random_generator: self.active_random_generator.clone(),
-            active_random_path_poly_refs: self.active_random_path_poly_refs.clone(),
-            active_home_generator: self.active_home_generator.clone(),
-            active_chase_generator: self.active_chase_generator,
-            active_chase_path_poly_refs: self.active_chase_path_poly_refs.clone(),
-            active_waypoint_generator: self.active_waypoint_generator.clone(),
-            active_waypoint_random_at_path_end: self.active_waypoint_random_at_path_end,
-            runtime_rng_like_cpp: self.runtime_rng_like_cpp.clone(),
-            runtime_elapsed_ms_like_cpp: self.runtime_elapsed_ms_like_cpp,
-        }
-    }
 }
 
 /// An instance of a map (e.g., Eastern Kingdoms instance 0).
@@ -283,7 +212,6 @@ use grid::{
 use pending_respawn::spawn_object_type_raw_like_cpp;
 
 use runtime_state::{
-    ActiveTauntLikeCpp, BASE_ATTACK_TIME_LIKE_CPP, NOMINAL_MELEE_RANGE_LIKE_CPP,
-    RuntimeRepresentedActiveGeneratorLikeCpp, RuntimeRepresentedActiveKeyLikeCpp,
-    absolute_angle_like_cpp, power_type_from_u8_like_cpp,
+    BASE_ATTACK_TIME_LIKE_CPP, NOMINAL_MELEE_RANGE_LIKE_CPP, absolute_angle_like_cpp,
+    power_type_from_u8_like_cpp,
 };

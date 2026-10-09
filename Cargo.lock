@@ -3246,6 +3246,7 @@ dependencies = [
  "wow-constants",
  "wow-core",
  "wow-loot",
+ "wow-movement",
 ]
 
 [[package]]

@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use wow_movement::MovementGeneratorFlags as RuntimeMovementGeneratorFlags;
 
 #[test]
 fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap() {
@@ -343,6 +344,8 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
     assert!(creature.active_move_spline_like_cpp().is_none());
     assert_eq!(
         creature
+            .creature
+            .runtime_like_cpp_mut()
             .active_random_generator
             .as_ref()
             .expect("random generator")

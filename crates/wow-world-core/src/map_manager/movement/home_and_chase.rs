@@ -19,13 +19,22 @@ impl WorldCreature {
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> ChaseTickOutcomeLikeCpp {
         let snapshot = self.home_unit_snapshot_like_cpp();
-        let from_update = self.active_home_generator.is_some();
-        let action = match self.active_home_generator.as_mut() {
+        let from_update = self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_home_generator
+            .is_some();
+        let action = match self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_home_generator
+            .as_mut()
+        {
             Some(generator) => generator.update_like_cpp(true, snapshot),
             None => {
                 let mut generator = HomeMovementGenerator::new();
                 let action = generator.initialize_like_cpp(true, snapshot);
-                self.active_home_generator = Some(generator);
+                self.creature.runtime_like_cpp_mut().active_home_generator = Some(generator);
                 // C++ `CreatureAI::EnterEvadeMode` adds `UNIT_STATE_EVADE`
                 // immediately before `MoveTargetedHome()` (`CreatureAI.cpp:237`),
                 // and `HomeMovementGenerator::DoFinalize` is what clears it
@@ -136,6 +145,8 @@ impl WorldCreature {
             owner_unit_state: self.creature.unit().unit_state(),
             home_position: self.creature.ai_ownership().home_position,
             move_spline_finalized: self
+                .creature
+                .runtime_like_cpp()
                 .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
@@ -154,6 +165,8 @@ impl WorldCreature {
     fn finish_home_movement_like_cpp(&mut self) {
         let snapshot = self.home_unit_snapshot_like_cpp();
         let finalize = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_home_generator
             .as_mut()
             .map(|generator| generator.finalize_like_cpp(true, true, snapshot));
@@ -175,7 +188,7 @@ impl WorldCreature {
                 self.creature.record_ai_just_reached_home();
             }
         }
-        self.active_home_generator = None;
+        self.creature.runtime_like_cpp_mut().active_home_generator = None;
         self.creature.ai_ownership_mut().move_target = None;
         self.creature.set_ai_state(CreatureAiState::Idle);
     }
@@ -210,6 +223,8 @@ impl WorldCreature {
             owner_victim_is_target: self.creature.ai_ownership().combat_target == Some(target.guid),
             owner_has_chase_move: unit.has_unit_state(UnitState::CHASE_MOVE.bits()),
             owner_movespline_finalized: self
+                .creature
+                .runtime_like_cpp()
                 .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
@@ -275,18 +290,28 @@ impl WorldCreature {
         // `MovementInform` counter onto the new target, so the generator is
         // rebuilt whenever the victim differs.
         let victim_changed = self
+            .creature
+            .runtime_like_cpp_mut()
             .active_chase_generator
             .as_ref()
             .is_none_or(|generator| generator.target() != Some(target.guid));
         if victim_changed {
             let mut generator = ChaseMovementGenerator::new(target.guid, None, None);
             generator.initialize_like_cpp();
-            self.active_chase_generator = Some(generator);
-            self.active_chase_path_poly_refs.clear();
+            self.creature.runtime_like_cpp_mut().active_chase_generator = Some(generator);
+            self.creature
+                .runtime_like_cpp_mut()
+                .active_chase_path_poly_refs
+                .clear();
         }
 
         let snapshot = self.chase_unit_snapshot_like_cpp(target);
-        let action = match self.active_chase_generator.as_mut() {
+        let action = match self
+            .creature
+            .runtime_like_cpp_mut()
+            .active_chase_generator
+            .as_mut()
+        {
             Some(generator) => generator.update_like_cpp(true, target.in_world, diff_ms, snapshot),
             None => return ChaseTickOutcomeLikeCpp::Idle,
         };
@@ -313,7 +338,10 @@ impl WorldCreature {
                 self.creature
                     .unit_mut()
                     .clear_unit_state(UnitState::CHASE_MOVE.bits());
-                self.active_chase_path_poly_refs.clear();
+                self.creature
+                    .runtime_like_cpp_mut()
+                    .active_chase_path_poly_refs
+                    .clear();
                 match self.stop_move_spline_like_cpp() {
                     Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
                     None => ChaseTickOutcomeLikeCpp::Idle,
@@ -333,7 +361,10 @@ impl WorldCreature {
                     inform.movement_type.trinity_id(),
                     inform.target_counter,
                 );
-                self.active_chase_path_poly_refs.clear();
+                self.creature
+                    .runtime_like_cpp_mut()
+                    .active_chase_path_poly_refs
+                    .clear();
                 match self.stop_move_spline_like_cpp() {
                     Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
                     None => ChaseTickOutcomeLikeCpp::Idle,
@@ -345,7 +376,10 @@ impl WorldCreature {
                     // `CalculatePath` when chase direction flips
                     // (`ChaseMovementGenerator.cpp:171-175`). The retained
                     // Detour corridor belongs to that old path object.
-                    self.active_chase_path_poly_refs.clear();
+                    self.creature
+                        .runtime_like_cpp_mut()
+                        .active_chase_path_poly_refs
+                        .clear();
                 }
 
                 // C++ picks the target centre when closing in without an angle
@@ -391,7 +425,11 @@ impl WorldCreature {
                         force_destination: plan.allow_flying_path,
                         filter_context: self.path_query_filter_context_like_cpp(),
                         owner: self.detour_owner_capabilities_like_cpp(),
-                        previous_poly_refs: self.active_chase_path_poly_refs.clone(),
+                        previous_poly_refs: self
+                            .creature
+                            .runtime_like_cpp_mut()
+                            .active_chase_path_poly_refs
+                            .clone(),
                     });
                     // The resolver already answers a missing navmesh/tile with
                     // the C++ `BuildShortcut()` path, so `None` here means the
@@ -446,13 +484,21 @@ impl WorldCreature {
                 // SHORT and FARFROMPOLY all proceed
                 // (`ChaseMovementGenerator.cpp:197-203`).
                 if path.path_type().contains(PathType::NOPATH) {
-                    if let Some(generator) = self.active_chase_generator.as_mut() {
+                    if let Some(generator) = self
+                        .creature
+                        .runtime_like_cpp_mut()
+                        .active_chase_generator
+                        .as_mut()
+                    {
                         generator.cannot_reach_target = true;
                     }
                     self.creature
                         .unit_mut()
                         .clear_unit_state(UnitState::CHASE_MOVE.bits());
-                    self.active_chase_path_poly_refs.clear();
+                    self.creature
+                        .runtime_like_cpp_mut()
+                        .active_chase_path_poly_refs
+                        .clear();
                     return match self.stop_move_spline_like_cpp() {
                         Some(stop) => ChaseTickOutcomeLikeCpp::Stopped(stop),
                         None => ChaseTickOutcomeLikeCpp::Idle,
@@ -470,7 +516,12 @@ impl WorldCreature {
                     );
                 }
 
-                if let Some(generator) = self.active_chase_generator.as_mut() {
+                if let Some(generator) = self
+                    .creature
+                    .runtime_like_cpp_mut()
+                    .active_chase_generator
+                    .as_mut()
+                {
                     // C++ clears `CannotReachTarget` after a successful
                     // `CalculatePath` and enables the next arrival inform
                     // immediately before launching the spline. A failed query
@@ -498,12 +549,22 @@ impl WorldCreature {
                 match self.launch_move_spline_init_like_cpp(&mut init, dst) {
                     Some((from, spline)) => {
                         if let Some(detour_path) = detour_path.as_ref() {
-                            self.active_chase_path_poly_refs
+                            self.creature
+                                .runtime_like_cpp_mut()
+                                .active_chase_path_poly_refs
                                 .clone_from(&detour_path.poly_refs);
                         } else {
-                            self.active_chase_path_poly_refs.clear();
+                            self.creature
+                                .runtime_like_cpp_mut()
+                                .active_chase_path_poly_refs
+                                .clear();
                         }
-                        if let Some(generator) = self.active_chase_generator.as_mut() {
+                        if let Some(generator) = self
+                            .creature
+                            .runtime_like_cpp_mut()
+                            .active_chase_generator
+                            .as_mut()
+                        {
                             generator.confirm_launch_like_cpp(plan);
                         }
                         ChaseTickOutcomeLikeCpp::Launched(from, spline)
@@ -527,8 +588,11 @@ impl WorldCreature {
     /// flagged in combat may have chase re-selected next tick, but it no longer
     /// drives toward the gone target with a stale `UNIT_STATE_CHASE_MOVE`.
     pub fn finalize_runtime_chase_movement_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
-        self.active_chase_generator = None;
-        self.active_chase_path_poly_refs.clear();
+        self.creature.runtime_like_cpp_mut().active_chase_generator = None;
+        self.creature
+            .runtime_like_cpp_mut()
+            .active_chase_path_poly_refs
+            .clear();
         self.creature
             .unit_mut()
             .clear_unit_state(UnitState::CHASE_MOVE.bits());

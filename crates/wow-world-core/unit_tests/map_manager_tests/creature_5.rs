@@ -50,7 +50,13 @@ fn world_creature_begin_point_movement_uses_point_lifecycle_and_real_spline() {
         .expect("point movement starts direct spline");
 
     assert_eq!(from, Position::new(10.0, 10.0, 0.0, 0.0));
-    assert!(creature.active_move_spline.is_some());
+    assert!(
+        creature
+            .creature
+            .runtime_like_cpp_mut()
+            .active_move_spline
+            .is_some()
+    );
     assert_eq!(creature.move_target(), Some(dst));
     assert!(
         creature
@@ -126,7 +132,13 @@ fn world_creature_begin_point_movement_handles_blocked_and_prepath_branches() {
             .begin_point_movement_like_cpp(43, dst, false)
             .is_none()
     );
-    assert!(creature.active_move_spline.is_none());
+    assert!(
+        creature
+            .creature
+            .runtime_like_cpp_mut()
+            .active_move_spline
+            .is_none()
+    );
     let generator = creature
         .creature
         .unit()
@@ -141,7 +153,13 @@ fn world_creature_begin_point_movement_handles_blocked_and_prepath_branches() {
             .begin_point_movement_like_cpp(EVENT_CHARGE_PREPATH, dst, true)
             .is_none()
     );
-    assert!(creature.active_move_spline.is_none());
+    assert!(
+        creature
+            .creature
+            .runtime_like_cpp_mut()
+            .active_move_spline
+            .is_none()
+    );
     assert!(
         creature
             .creature
@@ -377,7 +395,13 @@ fn world_creature_stop_move_spline_emits_cpp_stop_state_before_arrival() {
     assert_eq!(stop.stop_distance_tolerance, 2);
     assert!(stop.position.x > 10.0 && stop.position.x < 20.0);
     assert_eq!(creature.position(), stop.position);
-    assert!(creature.active_move_spline.is_none());
+    assert!(
+        creature
+            .creature
+            .runtime_like_cpp_mut()
+            .active_move_spline
+            .is_none()
+    );
     assert_eq!(creature.move_target(), None);
     assert!(
         !creature

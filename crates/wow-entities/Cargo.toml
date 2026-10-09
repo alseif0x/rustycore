@@ -12,6 +12,7 @@ num-traits = { workspace = true }
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
 wow-loot = { workspace = true }
+wow-movement = { workspace = true }
 
 [lints]
 workspace = true
