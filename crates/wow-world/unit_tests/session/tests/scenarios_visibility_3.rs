@@ -787,3 +787,204 @@ fn refresh_preserves_combined_scan_publication_and_stale_refusal() {
         "a stale owner or missing represented state must be refused without publication"
     );
 }
+
+/// #1263 F6-8B. Visibility candidate selection reads the canonical
+/// spline-bearing runtime state first and uses the legacy store only as the
+/// fallback for a GUID the canonical store does not hold.
+///
+/// Preserved without change: the phase filter, the visibility-range/detection
+/// filter on both halves, the duplicate-GUID collapse and therefore the GUID set
+/// every create/out-of-range decision is derived from. The batch order is the
+/// canonical candidate order followed by the legacy-only fallbacks.
+#[test]
+fn visible_creatures_select_canonical_state_first_and_keep_phase_and_range_filters_like_cpp() {
+    let (mut session, _pkt_tx, _send_rx) = make_session();
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    let player_guid = ObjectGuid::create_player(1, 77_010);
+    let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
+    let canonical_guid = test_creature_guid(77_011);
+    let legacy_only_guid = test_creature_guid(77_012);
+    let out_of_range_guid = test_creature_guid(77_013);
+    let phase_mismatch_guid = test_creature_guid(77_014);
+
+    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+        player_guid,
+        "CanonicalCandidateViewer".to_string(),
+        player_position,
+        571,
+        1,
+        1,
+        80,
+        0,
+    ));
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical viewer map");
+
+    // Canonical incarnation in range, with a live canonical spline and a level
+    // its legacy duplicate does not share.
+    insert_canonical_visibility_candidate_like_cpp(
+        &canonical,
+        canonical_guid,
+        77_011,
+        Position::new(20.0, 20.0, 0.0, 0.0),
+        33,
+        None,
+        true,
+    );
+    // Canonical incarnation out of range: the range filter must still drop it.
+    insert_canonical_visibility_candidate_like_cpp(
+        &canonical,
+        out_of_range_guid,
+        77_013,
+        Position::new(5000.0, 5000.0, 0.0, 0.0),
+        33,
+        None,
+        false,
+    );
+    // Canonical incarnation in a phase the viewer is not in: the phase filter
+    // must still drop it.
+    insert_canonical_visibility_candidate_like_cpp(
+        &canonical,
+        phase_mismatch_guid,
+        77_014,
+        Position::new(21.0, 21.0, 0.0, 0.0),
+        33,
+        Some(PhaseShift::from_phases([10])),
+        false,
+    );
+
+    // Legacy-only representation for a GUID the canonical store does not hold.
+    let (legacy_grid_x, legacy_grid_y) = crate::map_manager::world_to_grid_coords(22.0, 22.0);
+    manager.write().unwrap().add_creature(
+        571,
+        0,
+        legacy_grid_x,
+        legacy_grid_y,
+        legacy_visibility_candidate_like_cpp(
+            legacy_only_guid,
+            77_012,
+            Position::new(22.0, 22.0, 0.0, 0.0),
+            7,
+            None,
+        ),
+    );
+    // Legacy duplicate of the canonical GUID: no spline and a different level,
+    // so it can neither be selected nor decide the projection.
+    let (duplicate_grid_x, duplicate_grid_y) = crate::map_manager::world_to_grid_coords(20.0, 20.0);
+    manager.write().unwrap().add_creature(
+        571,
+        0,
+        duplicate_grid_x,
+        duplicate_grid_y,
+        legacy_visibility_candidate_like_cpp(
+            canonical_guid,
+            77_011,
+            Position::new(20.0, 20.0, 0.0, 0.0),
+            7,
+            None,
+        ),
+    );
+
+    let visible = session.visible_world_creatures_from_map_like_cpp(571, &player_position);
+
+    assert_eq!(
+        visible
+            .iter()
+            .map(|creature| creature.guid())
+            .collect::<Vec<_>>(),
+        vec![canonical_guid, legacy_only_guid],
+        "canonical candidates first, legacy only for a GUID canonical does not hold; out-of-range and phase-incompatible candidates stay filtered"
+    );
+    assert_eq!(
+        visible[0].level(),
+        33,
+        "the duplicate GUID is decided by the canonical incarnation, not the legacy copy"
+    );
+    assert!(
+        visible[0].active_move_spline_like_cpp().is_some(),
+        "the selected candidate carries the canonical spline-bearing runtime state"
+    );
+    assert!(
+        visible[1].active_move_spline_like_cpp().is_none(),
+        "the legacy-only fallback carries its own representation"
+    );
+}
+
+/// Insert one canonical visibility candidate, optionally with an active spline
+/// and an explicit phase shift.
+fn insert_canonical_visibility_candidate_like_cpp(
+    canonical: &SharedCanonicalMapManager,
+    guid: ObjectGuid,
+    entry: u32,
+    position: Position,
+    level: u8,
+    phase_shift: Option<PhaseShift>,
+    with_spline: bool,
+) {
+    let mut carrier = crate::map_manager::WorldCreature::new(
+        guid, entry, position, 100, level, 1, 2, 0.0, 1, 35, 0, 0,
+    );
+    carrier
+        .creature
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    carrier
+        .creature
+        .unit_mut()
+        .world_mut()
+        .set_combat_reach(1.0);
+    if let Some(phase_shift) = phase_shift {
+        *carrier.creature.unit_mut().world_mut().phase_shift_mut() = phase_shift;
+    }
+    if with_spline {
+        carrier
+            .begin_move_spline_like_cpp(Position::new(position.x + 4.0, position.y, 0.0, 0.0))
+            .expect("canonical runtime spline must launch");
+    }
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(571, 0)
+        .expect("canonical viewer map instance")
+        .map_mut()
+        .add_map_object_record_to_map_like_cpp(
+            wow_entities::MapObjectRecord::new_creature(carrier.creature).unwrap(),
+        )
+        .unwrap();
+}
+
+/// Build one legacy representation for the visibility candidate set.
+fn legacy_visibility_candidate_like_cpp(
+    guid: ObjectGuid,
+    entry: u32,
+    position: Position,
+    level: u8,
+    phase_shift: Option<PhaseShift>,
+) -> crate::map_manager::WorldCreature {
+    let mut creature = crate::map_manager::WorldCreature::new(
+        guid, entry, position, 100, level, 1, 2, 0.0, 1, 35, 0, 0,
+    );
+    creature
+        .creature
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 0)
+        .unwrap();
+    if let Some(phase_shift) = phase_shift {
+        *creature.creature.unit_mut().world_mut().phase_shift_mut() = phase_shift;
+    }
+    creature
+        .creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .add_to_world();
+    creature
+}

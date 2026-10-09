@@ -158,6 +158,35 @@ impl WorldCreature {
         }
     }
 
+    /// Materialize the read-only visibility/create projection of one canonical
+    /// creature **carrying that creature's own canonical runtime state**.
+    ///
+    /// #1263 F6-8B. [`Self::from_canonical`] installs a fresh runtime
+    /// incarnation, so it drops `Unit::movespline` and `Unit::i_motionMaster`,
+    /// and a create block built from such a projection loses the spline the
+    /// canonical owner holds. This projection therefore restores the creature's
+    /// canonical runtime state through
+    /// `CreatureRuntimeLikeCpp::cloned_for_like_cpp` (persistent spline,
+    /// generators and corridors cloned; `Unit::i_motionMaster` rebuilt for the
+    /// projection; chase target and represented-active key empty — the canonical
+    /// owner's own clone semantics).
+    ///
+    /// A projection of the one canonical authority, **not a second mirror**:
+    /// nothing writes back through it and the canonical map stays the writer.
+    pub fn from_canonical_preserving_runtime_like_cpp(
+        creature: Creature,
+        create_data: CreatureCreateData,
+    ) -> Self {
+        let source = creature.clone();
+        let mut projected = Self::from_canonical(creature, create_data);
+        *projected.creature.runtime_like_cpp_mut() =
+            wow_entities::CreatureRuntimeLikeCpp::cloned_for_like_cpp(
+                &projected.creature,
+                source.runtime_like_cpp(),
+            );
+        projected
+    }
+
     pub fn create_data_from_canonical_like_cpp(creature: &Creature) -> CreatureCreateData {
         let unit = creature.unit();
         let data = unit.data();
