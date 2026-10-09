@@ -66,24 +66,17 @@ impl WorldSession {
         source_slot: u8,
         item_guid: ObjectGuid,
     ) -> bool {
-        let Some(source) = self.get_inventory_item_by_pos(source_bag, source_slot) else {
-            return false;
-        };
-        if source.guid != item_guid {
-            return false;
-        }
-        if source_bag == INVENTORY_SLOT_BAG_0 {
-            self.remove_inventory_item_like_cpp(source_slot);
-        }
-        self.remove_inventory_item_object(item_guid);
-        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
-            if source_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.remove_top_level_item(source_slot);
-            } else {
-                let _ = player.remove_bag_item(source_bag, source_slot);
-            }
-        });
-        true
+        wow_world_application::InventoryCommittedRelocationCxLikeCpp::new(
+            &mut self.inventory,
+            self.core.owned_inventory_access_like_cpp(),
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+        )
+        .apply_committed_inventory_item_removal_like_cpp(
+            source_bag,
+            source_slot,
+            item_guid,
+        )
     }
     pub fn set_stored_item_money_persistence_port_like_cpp(
         &mut self,

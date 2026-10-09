@@ -42,4 +42,22 @@ impl OwnedInventoryAccessLikeCpp<'_> {
             }
         });
     }
+
+    /// Final native placement for a removal: the source item left its slot
+    /// because its whole stack merged into existing destination stacks. The
+    /// caller writes the destination projections in its own scopes, so only the
+    /// retired native position is applied here.
+    pub fn apply_committed_inventory_removal_native_placement_like_cpp(
+        &self,
+        source_bag: u8,
+        source_slot: u8,
+    ) {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
+            if source_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.remove_top_level_item(source_slot);
+            } else {
+                let _ = player.remove_bag_item(source_bag, source_slot);
+            }
+        });
+    }
 }

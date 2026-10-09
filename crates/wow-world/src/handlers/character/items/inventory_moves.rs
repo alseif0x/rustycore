@@ -130,8 +130,9 @@ impl WorldSession {
         second_src: u16,
         second_dst: u16,
     ) -> Result<u8, InventoryResult> {
-        let child_move = self
-            .plan_inventory_storage_move_like_cpp(
+        let child_move =
+            wow_world_application::InventoryStorageMoveHostLikeCpp::storage_move_plan_like_cpp(
+                self,
                 child_bag,
                 child_slot,
                 INVENTORY_SLOT_BAG_0,
@@ -236,7 +237,8 @@ impl WorldSession {
             return true;
         }
 
-        self.execute_inventory_storage_move_like_cpp(
+        wow_world_application::execute_inventory_storage_move_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             child_bag,
@@ -391,7 +393,8 @@ impl WorldSession {
         }
 
         if let Some((bag, slot, target)) = plan.displaced_storage {
-            self.execute_inventory_storage_move_like_cpp(
+            wow_world_application::execute_inventory_storage_move_like_cpp(
+                self,
                 item_guid_generator,
                 creature_spawn_catalogs,
                 INVENTORY_SLOT_BAG_0,
@@ -533,7 +536,8 @@ impl WorldSession {
             }
             match target {
                 InventorySwapTargetLikeCpp::Inventory => {
-                    self.execute_inventory_storage_move_like_cpp(
+                    wow_world_application::execute_inventory_storage_move_like_cpp(
+                        self,
                         item_guid_generator,
                         creature_spawn_catalogs,
                         src_bag,
@@ -547,7 +551,8 @@ impl WorldSession {
                     .await;
                 }
                 InventorySwapTargetLikeCpp::Bank => {
-                    self.execute_inventory_storage_move_like_cpp(
+                    wow_world_application::execute_inventory_storage_move_like_cpp(
+                        self,
                         item_guid_generator,
                         creature_spawn_catalogs,
                         src_bag,

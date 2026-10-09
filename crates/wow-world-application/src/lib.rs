@@ -76,9 +76,15 @@ pub use inventory_move_planning::{InventoryMovePlanningCxLikeCpp, InventorySwapT
 mod inventory_swap;
 pub use inventory_swap::{
     InventoryCommittedRelocationCxLikeCpp, InventoryCommittedSwapCxLikeCpp,
-    InventoryEquipCxLikeCpp, InventoryPositionPublicationCxLikeCpp, InventorySwapEffectsCxLikeCpp,
-    bind_inventory_item_for_destination_like_cpp, item_dynamic_flags_changed_like_cpp,
-    item_spell_charges_db_string, item_storage_mutable_persistence_like_cpp,
+    InventoryEquipCxLikeCpp, InventoryPositionPublicationCxLikeCpp, InventoryStorageMoveCxLikeCpp,
+    InventoryStorageMoveHostLikeCpp, InventoryStorageMoveStatsCxLikeCpp,
+    InventoryStorageQuestChecksLikeCpp, InventoryStorageTargetLikeCpp,
+    InventorySwapEffectsCxLikeCpp, autostore_bank_target_like_cpp,
+    bank_store_destination_applies_obtain_spells_like_cpp,
+    bank_store_item_added_quest_count_like_cpp, bind_inventory_item_for_destination_like_cpp,
+    execute_inventory_storage_move_like_cpp, inventory_storage_move_quest_directions_like_cpp,
+    item_dynamic_flags_changed_like_cpp, item_spell_charges_db_string,
+    item_storage_mutable_persistence_like_cpp, plan_inventory_storage_move_like_cpp,
 };
 mod bank;
 pub use bank::{

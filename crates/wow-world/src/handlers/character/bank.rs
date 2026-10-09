@@ -87,7 +87,8 @@ impl WorldSession {
             bag: packet.bag,
             slot: packet.slot,
         };
-        self.execute_inventory_storage_move_like_cpp(
+        wow_world_application::execute_inventory_storage_move_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             packet.bag,
@@ -127,7 +128,8 @@ impl WorldSession {
             bag: packet.bag,
             slot: packet.slot,
         };
-        self.execute_inventory_storage_move_like_cpp(
+        wow_world_application::execute_inventory_storage_move_like_cpp(
+            self,
             item_guid_generator,
             creature_spawn_catalogs,
             packet.bag,

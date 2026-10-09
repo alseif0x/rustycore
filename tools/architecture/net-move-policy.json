@@ -15,10 +15,10 @@
     "crates/wow-world-visibility/src/"
   ],
   "reviewed_new_code": {
-    "budget": 0,
-    "measured_requirement": 0,
-    "recorded_at_revision": "12cd23b0ace1543350d9c95f11589e53418acfca",
-    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base origin/3.4.3 (merge-base 6ff11b635, the #1280 integration): S = 505, G_move = 729, ratio and slack credits = 830.25, so the requirement is -101.25 and the reviewed budget above is 0.",
+    "budget": 661,
+    "measured_requirement": 661,
+    "recorded_at_revision": "4962c56ab7efea0ef5066ca10e4ede0df04f2491",
+    "method": "measured_requirement = max(0, G_move - (S * (1 + ratio) + slack)), measured by tools/architecture/net_move.py at recorded_at_revision with base 0a6efaf7f: S = 284, G_move = 1259, ratio and slack credits = 598.2, so the measured requirement is 660.8 and the reviewed budget above is 661 (rounded up; the checker reads an integer). Phase new_code = G - S = 975, recorded separately from the budget.",
     "phases": [
       {
         "phase": "P4b (base..21159a71c)",
@@ -845,6 +845,13 @@
         "destination_growth": 95,
         "new_code": 0,
         "note": "Typed lookup outcome plus the mandated regression file; the growth is a new 368-line test file and additive typed counterparts."
+      },
+      {
+        "phase": "F4 StorageMove body (0a6efaf7f..4962c56ab)",
+        "shrink": 284,
+        "destination_growth": 1259,
+        "new_code": 975,
+        "note": "Reviewed by the architecture reviewer: complete StorageMove boundary extraction requires borrowed Inventory/persistence/publication and separate Stats contexts, narrow shell capabilities, and canonical-access adapters; these support one application coordinator. The 253-line shell adapter reduces S and is not additional destination growth."
       }
     ],
     "areas": [
