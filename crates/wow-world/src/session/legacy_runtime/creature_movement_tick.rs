@@ -352,13 +352,21 @@ pub(crate) fn step_creature_movement_like_cpp(
 /// `RuntimeTickOwner::GlobalLegacy`; with the default `Session` owner it is a
 /// no-op. The lock order is explicit:
 ///
-/// 1. take the legacy map write lock, mutate creatures, collect packet events
-///    and canonical sync snapshots;
+/// 1. take the legacy map write lock, drive every creature's canonical runtime
+///    state (spline, generators, `Unit::i_motionMaster`) and capture one
+///    publication frame per creature;
 /// 2. release the legacy lock;
-/// 3. sync canonical map state under its mutex;
-/// 4. return a `RuntimePlan` for a caller to deliver outside all map locks.
+/// 3. transport each frame through the shared canonical admission gate and
+///    publish only the frames the canonical incarnation **applied**, returning
+///    a `RuntimePlan` for a caller to deliver outside all map locks.
 ///
 /// There is no async work, no packet delivery, and no production loop here.
+///
+/// #1263 F6-8B: the movement publication is no longer decided by the legacy
+/// bridge copy. The drive already reads and writes the canonical runtime state
+/// (`Creature::runtime_like_cpp`), and the publication is now gated on the
+/// canonical application of the transported representation at the exact
+/// residence, exactly like the lifecycle respawn publication gated in F6-8A.
 pub fn run_legacy_creature_movement_tick_once_like_cpp(
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -378,8 +386,7 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
         canonical_syncs: 0,
         plan: RuntimePlan { events: Vec::new() },
     };
-    let mut canonical_syncs: Vec<(u32, u32, wow_core::ObjectGuid, wow_entities::Creature)> =
-        Vec::new();
+    let mut frames: Vec<CreatureMovementFrameLikeCpp> = Vec::new();
 
     {
         let mut manager = legacy_map_manager
@@ -442,14 +449,13 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                     diff_ms,
                 );
                 let source_position = creature.position();
-                if creature.take_home_health_restored_pending_like_cpp()
-                    && let Some(update) = unit_values_update_to_update_object(
+                let home_health_restore = if creature.take_home_health_restored_pending_like_cpp() {
+                    unit_values_update_to_update_object(
                         guid,
                         map_id,
                         &creature.creature.unit().values_update(),
                     )
-                {
-                    outcome.plan.events.push(RuntimeEvent {
+                    .map(|update| RuntimeEvent {
                         source_guid: guid,
                         recipients: RecipientRule::NearbyVisibleDurable {
                             source_guid: guid,
@@ -460,60 +466,32 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                             required_3d: false,
                         },
                         packet_bytes: update.to_bytes(),
-                    });
-                }
-                canonical_syncs.push((
-                    u32::from(map_id),
+                    })
+                } else {
+                    None
+                };
+                let snapshot = creature.creature.clone();
+                let visibility_range = creature.visibility_range_like_cpp();
+                frames.push(CreatureMovementFrameLikeCpp {
+                    map_id,
                     instance_id,
                     guid,
-                    creature.creature.clone(),
-                ));
-                if let Some(packet_bytes) = packet_bytes {
-                    outcome.movement_packets += 1;
-                    let visibility_range = creature.visibility_range_like_cpp();
-                    outcome.plan.events.push(RuntimeEvent {
-                        source_guid: guid,
-                        recipients: RecipientRule::NearbyVisible {
-                            source_guid: guid,
-                            map_id,
-                            instance_id,
-                            source_position,
-                            range: visibility_range,
-                            required_3d: false,
-                        },
-                        packet_bytes,
-                    });
-                }
+                    snapshot,
+                    source_position,
+                    visibility_range,
+                    home_health_restore,
+                    movement_packet: packet_bytes,
+                });
             }
         }
     }
 
-    if let Some(canonical_map_manager) = canonical_map_manager {
-        for (map_id, instance_id, _guid, creature) in canonical_syncs {
-            let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
-            let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
-            // F6-7 R7b-2b: the shared map-level gate admits the transported
-            // representation against the current canonical incarnation before
-            // applying it, and rebinds the legacy alias only for an applied
-            // snapshot. This site used to call
-            // `sync_canonical_creature_entity_on_map_like_cpp` directly, so a
-            // foreign incarnation's representation was still offered to the
-            // canonical object and still attempted a legacy rebind.
-            let _ = sync_admitted_creature_representation_on_map_like_cpp(
-                canonical_map_manager,
-                Some(legacy_map_manager),
-                map_id as u16,
-                instance_id,
-                creature,
-                &expected_legacy_authority,
-                expected_legacy_stamp,
-            );
-            // Attempt count: one increment for every queued snapshot processed
-            // while a canonical manager exists, including refusals.
-            outcome.canonical_syncs += 1;
-        }
-    }
-
+    publish_creature_movement_frames_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        frames,
+        &mut outcome,
+    );
     outcome
 }
 #[cfg(test)]
