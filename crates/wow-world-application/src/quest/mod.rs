@@ -75,10 +75,12 @@ pub use self::session_state::{
 };
 pub use self::visibility::QuestEligibilityCx;
 pub use self::visibility::{
-    RepresentedCanSeeSpellClickOutcomeLikeCpp, represented_can_see_spell_click_on_like_cpp,
+    RepresentedCanSeeSpellClickOutcomeLikeCpp, VisibilityRefreshCxLikeCpp,
+    VisibilityRefreshHostLikeCpp, represented_can_see_spell_click_on_like_cpp,
     represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,
     represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp,
-    represented_viewer_dependent_creature_npc_flags_like_cpp,
+    represented_viewer_dependent_creature_npc_flags_like_cpp, update_visible_gameobjects_like_cpp,
+    update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
 };

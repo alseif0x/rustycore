@@ -6,8 +6,14 @@
 mod dialog_status;
 mod gameobject_flags;
 mod quest_eligibility;
+mod refresh;
 
 pub use self::quest_eligibility::QuestEligibilityCx;
+
+pub use self::refresh::{
+    VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp, update_visible_gameobjects_like_cpp,
+    update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
+};
 
 pub(crate) use self::gameobject_flags::represented_gameobject_go_state_for_viewer_like_cpp;
 pub use self::gameobject_flags::{

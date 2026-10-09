@@ -388,62 +388,6 @@ impl WorldSession {
         )
         .await
     }
-    pub(crate) fn update_visible_spell_clicks_like_cpp(&mut self) -> usize {
-        let Some(spell_click_store) = self.catalogs.spell_catalogs.npc_spell_click_store.as_ref()
-        else {
-            return 0;
-        };
-        let Some(condition_store) = self.catalogs.condition_store.as_ref() else {
-            return 0;
-        };
-
-        let mut sent = 0;
-        let visible_guids = self
-            .core
-            .client_visible_guids_like_cpp
-            .snapshot_like_cpp()
-            .into_iter()
-            .collect::<Vec<_>>();
-        for guid in visible_guids {
-            if !guid.is_creature_or_vehicle() {
-                continue;
-            }
-            let Some(creature) = self.represented_spell_click_creature_snapshot_like_cpp(guid)
-            else {
-                continue;
-            };
-            if (u64::from(creature.npc_flags) & UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP) == 0 {
-                continue;
-            }
-            let click_bounds =
-                spell_click_store.spell_click_info_map_bounds_like_cpp(creature.entry);
-            if !click_bounds.iter().any(|click| {
-                wow_conditions::has_conditions_for_spell_click_event_like_cpp(
-                    condition_store,
-                    creature.entry,
-                    click.spell_id,
-                )
-            }) {
-                continue;
-            }
-
-            let mut packet_update =
-                wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
-            packet_update.changed_object_type_mask = 1 << wow_entities::TYPEID_UNIT;
-            packet_update.unit_data_mask[113 / 32] |= 1 << (113 % 32);
-            packet_update.unit_data_mask[114 / 32] |= 1 << (114 % 32);
-            packet_update.npc_flags = [creature.npc_flags, 0];
-            let update = self.represented_unit_packet_update_to_update_object_like_cpp(
-                guid,
-                self.core.player_map_id_like_cpp(),
-                packet_update,
-            );
-            self.send_packet(&update);
-            sent += 1;
-        }
-
-        sent
-    }
     pub(in crate::session) fn represented_vehicle_seat_spell_click_plan_available_like_cpp(
         &self,
         vehicle_guid: ObjectGuid,
