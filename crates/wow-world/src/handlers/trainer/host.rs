@@ -67,7 +67,7 @@ impl TrainerBuySpellHostLikeCpp for WorldSession {
         item_guid_generator: &'a ObjectGuidGenerator,
     ) -> impl Future<Output = ()> + Send {
         async move {
-            WorldSession::save_current_player_to_db_with_generator_like_cpp(
+            wow_world_application::save_current_player_to_db_with_generator_like_cpp(
                 self,
                 item_guid_generator,
             )

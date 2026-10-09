@@ -180,10 +180,13 @@ pub use player_conditions::{
     RepresentedPlayerConditionContextLikeCpp, meets_player_condition_id_like_cpp,
     player_condition_projection_cx_like_cpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use player_save::{OwnerlessPlayerSaveCaptureLikeCpp, OwnerlessPlayerSaveReceiptLikeCpp};
 pub use player_save::{
+    PlayerSaveDiagnosticsLikeCpp, PlayerSaveHostLikeCpp, PlayerSaveParticipantsLikeCpp,
     PlayerSavePersistenceResultLikeCpp, apply_player_save_acknowledgement_like_cpp,
     capture_player_save_request_like_cpp, persist_player_save_request_like_cpp,
-    save_canonical_player_like_cpp,
+    save_canonical_player_like_cpp, save_current_player_to_db_with_generator_like_cpp,
 };
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
