@@ -409,5 +409,9 @@ pub struct LegacyPlayerMeleeTickOutcomeLikeCpp {
     pub attacker_unavailable: usize,
     pub canonical_mirror_rejections: usize,
     pub in_combat_reconciles: usize,
+    /// #1263 F6-8C: creature victims whose execution was refused because the
+    /// canonical designated owner holds no incarnation for them. The legacy
+    /// copy alone no longer executes a swing.
+    pub canonical_incarnation_rejections: usize,
     pub commands: Vec<crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand>,
 }

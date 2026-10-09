@@ -185,6 +185,10 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
 
     let mut outcome = LegacyCreatureMeleeTickOutcomeLikeCpp::default();
     let mut pending_swings = Vec::new();
+    // #1263 F6-8C: the canonical designated owner decides which creature may
+    // swing. Read once, before the legacy write guard.
+    let ownership =
+        canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
 
     {
         let mut manager = legacy_map_manager
@@ -227,6 +231,16 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
                             .is_some_and(|spell| spell.allow_actions_during_channel))
                 {
                     outcome.melee_precondition_rejections += 1;
+                    continue;
+                }
+                // #1263 F6-8C: a creature with no canonical incarnation at its
+                // exact residence is not the canonical owner's object, so it
+                // selects no swing from the legacy representation. The gate sits
+                // after C++'s own preconditions (`can_swing`, `CanMelee`, the
+                // charging/channelling state), so their order and their counters
+                // are unchanged.
+                if !ownership.decides_like_cpp(map_id, instance_id, guid) {
+                    outcome.canonical_incarnation_rejections += 1;
                     continue;
                 }
                 let Some(victim_guid) = creature.creature.ai_ownership().combat_target else {
@@ -275,6 +289,14 @@ pub fn run_legacy_creature_melee_tick_once_like_cpp(
             outcome.melee_precondition_rejections += 1;
             continue;
         };
+
+        // #1263 F6-8C: the re-validation repeats the ownership gate, because the
+        // collect phase released both guards and the incarnation may have gone.
+        if !ownership.decides_like_cpp(swing.map_id, swing.instance_id, swing.attacker_guid) {
+            outcome.canonical_incarnation_rejections += 1;
+            outcome.melee_precondition_rejections += 1;
+            continue;
+        }
 
         if !attacker.can_swing()
             || attacker.creature.ai_ownership().combat_target != Some(swing.victim_guid)

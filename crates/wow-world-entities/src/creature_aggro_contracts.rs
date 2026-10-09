@@ -135,6 +135,10 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub evades_started: usize,
     pub assistance_scheduled: usize,
     pub assistance_starts: usize,
+    /// #1263 F6-8C: creature objects the aggro selector refused because the
+    /// canonical designated owner holds no incarnation for them. A surviving
+    /// legacy copy decides nothing by itself.
+    pub canonical_incarnation_rejections: usize,
     pub plan: wow_world_core::map_manager::RuntimePlan,
     pub aggro_starts: usize,
     pub commands: Vec<wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand>,
@@ -173,6 +177,9 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub canonical_creature_hits: usize,
     pub legacy_creature_victim_syncs: usize,
     pub legacy_creature_victim_sync_cas_rejections: usize,
+    /// #1263 F6-8C: swing selections refused because the attacker's canonical
+    /// designated owner holds no incarnation at its residence.
+    pub canonical_incarnation_rejections: usize,
     pub commands: Vec<wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
     pub plan: RuntimePlan,
 }
@@ -211,6 +218,9 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
     pub canonical_cast_missing_target: usize,
     pub canonical_cast_target_rejections: usize,
     pub canonical_cast_cooldown_rejections: usize,
+    /// #1263 F6-8C: template-spell selections refused because the caster's
+    /// canonical designated owner holds no incarnation at its residence.
+    pub canonical_incarnation_rejections: usize,
     pub plan: RuntimePlan,
 }
 

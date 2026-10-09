@@ -4,6 +4,7 @@
 //! complete tick responsibility.
 
 use super::*;
+mod canonical_incarnation_ownership;
 mod creature_aggro_tick;
 mod creature_lifecycle_tick;
 mod creature_melee_share;
@@ -21,6 +22,8 @@ mod player_tick;
 
 // These re-exports look unused inside this module: they are consumed through
 // the Session root glob, so removing them breaks the callers.
+#[allow(unused_imports)]
+pub(in crate::session) use canonical_incarnation_ownership::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_aggro_tick::*;
 #[allow(unused_imports)]
@@ -50,6 +53,7 @@ pub(in crate::session) use player_tick::*;
 // `wow_world::session::run_legacy_*`, so world-server keeps calling them
 // unchanged. Only these seven are public; everything else stays crate-internal.
 pub use creature_aggro_tick::run_legacy_creature_aggro_tick_once_like_cpp;
+pub use creature_aggro_tick::run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp;
 pub use creature_aggro_tick::run_legacy_creature_aggro_tick_once_with_config_like_cpp;
 pub use creature_lifecycle_tick::run_legacy_creature_lifecycle_tick_once_like_cpp;
 pub use creature_melee_tick::run_legacy_creature_melee_tick_once_like_cpp;

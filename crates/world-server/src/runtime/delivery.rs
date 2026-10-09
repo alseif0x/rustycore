@@ -1448,11 +1448,16 @@ pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         registry,
         canonical_map_manager,
     );
-    let mut outcome = wow_world::session::run_legacy_creature_aggro_tick_once_with_config_like_cpp(
-        legacy_map_manager,
-        &candidates,
-        aggro_config,
-    );
+    // #1263 F6-8C: the aggro selector decides against the canonical designated
+    // owner. The world-server wiring feeds it the canonical manager so a
+    // surviving legacy copy decides nothing by itself.
+    let mut outcome =
+        wow_world::session::run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
+            legacy_map_manager,
+            canonical_map_manager,
+            &candidates,
+            aggro_config,
+        );
     let start_outcomes =
         apply_canonical_creature_attack_starts_like_cpp(&outcome.commands, canonical_map_manager);
     let stop_outcomes = apply_canonical_creature_attack_stops_like_cpp(
@@ -1912,6 +1917,8 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     aggro_commands = outcome.aggro_delivery.candidates_queued,
                     aggro_alerts = outcome.aggro.alert_triggers,
                     aggro_movement_interrupts = outcome.aggro.movement_interrupts,
+                    aggro_canonical_incarnation_rejections =
+                        outcome.aggro.canonical_incarnation_rejections,
                     aggro_plan_commands = outcome.aggro_plan_delivery.candidates_queued,
                     creature_spell_casts = outcome.spell.casts_ready,
                     creature_spell_plan_events = outcome.spell_plan_delivery.events_seen,
