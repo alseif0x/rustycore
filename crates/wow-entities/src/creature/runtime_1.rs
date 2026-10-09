@@ -4,16 +4,20 @@
 //! `Unit::movespline`, the active `MovementGenerator`s and the path corridors
 //! their `PathGenerator`s hold, `Unit::i_motionMaster`, the chase target, the
 //! represented-active selector key, the delayed `AssistDelayEvent` payload,
-//! `m_AlreadyCallAssistance`, the active `SPELL_AURA_MOD_TAUNT`s and the
-//! `CombatAI::_events` spell deadline/epoch slots — into the canonical
-//! `Creature` owner. The legacy `WorldCreature` bridge keeps only the
-//! immutable packet projection (`CreatureCreateData`) and the canonical entity
-//! itself.
+//! `m_AlreadyCallAssistance`, the active `SPELL_AURA_MOD_TAUNT`s, the
+//! `CombatAI::_events` spell deadline/epoch slots, the creature elapsed-time
+//! clock and the creature-owned runtime RNG with its authority marker — into
+//! the canonical `Creature` owner. The legacy `WorldCreature` bridge keeps only
+//! the immutable packet projection (`CreatureCreateData`) and the canonical
+//! entity itself.
 //!
 //! Behaviour is preserved: every field keeps its name, its type and its
 //! initial value, and the clone semantics that the legacy bridge applied
 //! (a fresh `MotionMaster` with cleared chase target and represented-active
 //! key) are reproduced by [`Creature`]'s manual `Clone`.
+
+use rand::SeedableRng;
+use rand::rngs::StdRng;
 
 use crate::{MovementGeneratorMode, MovementGeneratorPriority, MovementGeneratorRef};
 use wow_movement::{
@@ -192,6 +196,26 @@ pub struct CreatureRuntimeLikeCpp {
     /// invalidates a queued cast after evade/death/reset even when the same
     /// creature later attacks the same player again.
     pub creature_spell_engagement_epoch_like_cpp: u64,
+    /// Owned runtime RNG for C++ `urand`/`frand`-style gameplay rolls.
+    ///
+    /// #1263 F6-8A completion: the reviewer required the RNG to move in A. It
+    /// lived on the legacy `WorldCreature` bridge as the only copy; the
+    /// canonical owner now owns it, its authority marker and the creature
+    /// elapsed-time state. Draw order, the `from_entropy` seed installed by
+    /// [`Self::new_like_cpp`], the `seed_from_u64` fixture seam and the
+    /// clone carry-over are unchanged.
+    runtime_rng_like_cpp: StdRng,
+    /// False after the creature-spell slice reaches a C++ RNG decision whose
+    /// exact number/order of draws is unknown. The marker prevents later spell
+    /// casts from claiming exact RNG authority, but it must not disable the
+    /// pre-existing best-effort melee and movement runtimes.
+    runtime_rng_authority_complete_like_cpp: bool,
+    /// C++ `Unit::Update(p_time)` advances every creature-local deadline from
+    /// the `Map::Update(t_diff)` value. This logical clock is advanced only by
+    /// the owning creature tick; scheduler delay or time spent between phases
+    /// cannot independently move spline, combat, spell, assistance or corpse
+    /// state.
+    runtime_elapsed_ms_like_cpp: u64,
 }
 
 impl CreatureRuntimeLikeCpp {
@@ -219,14 +243,18 @@ impl CreatureRuntimeLikeCpp {
             creature_spell_due_at_ms_like_cpp: [None; MAX_CREATURE_SPELLS],
             creature_spell_schedule_initialized_like_cpp: false,
             creature_spell_engagement_epoch_like_cpp: 0,
+            runtime_rng_like_cpp: StdRng::from_entropy(),
+            runtime_rng_authority_complete_like_cpp: true,
+            runtime_elapsed_ms_like_cpp: 0,
         }
     }
 
     /// Clone the persistent runtime state for a new creature object.
     ///
     /// This preserves the legacy bridge's clone semantics exactly: the
-    /// persistent generators, spline, corridors, assistance payload, taunts and
-    /// spell deadline slots are carried over, while `Unit::i_motionMaster` is
+    /// persistent generators, spline, corridors, assistance payload, taunts,
+    /// spell deadline slots, elapsed-time clock, RNG authority marker and the
+    /// RNG stream itself are carried over, while `Unit::i_motionMaster` is
     /// rebuilt for the receiving creature and the chase target and
     /// represented-active key start empty.
     pub fn cloned_for_like_cpp(creature: &Creature, source: &Self) -> Self {
@@ -250,7 +278,62 @@ impl CreatureRuntimeLikeCpp {
                 .creature_spell_schedule_initialized_like_cpp,
             creature_spell_engagement_epoch_like_cpp: source
                 .creature_spell_engagement_epoch_like_cpp,
+            runtime_rng_like_cpp: source.runtime_rng_like_cpp.clone(),
+            runtime_rng_authority_complete_like_cpp: source.runtime_rng_authority_complete_like_cpp,
+            runtime_elapsed_ms_like_cpp: source.runtime_elapsed_ms_like_cpp,
         }
+    }
+
+    /// Canonical accessor for the creature-local elapsed time that C++
+    /// `Unit::Update(p_time)` reads. The legacy scheduling bridges read it
+    /// through here; no bridge holds a copy.
+    pub const fn runtime_elapsed_ms_like_cpp(&self) -> u64 {
+        self.runtime_elapsed_ms_like_cpp
+    }
+
+    /// Advance the creature-local clock by one owning tick's `Map::Update`
+    /// difference. Saturating addition is the pre-existing behaviour.
+    pub fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
+        self.runtime_elapsed_ms_like_cpp = self
+            .runtime_elapsed_ms_like_cpp
+            .saturating_add(u64::from(diff_ms));
+    }
+
+    /// Install an absolute creature-local elapsed time.
+    ///
+    /// Test seam for the fixtures that backdate `Unit::Update`; production
+    /// ticks only ever advance the clock.
+    pub fn set_runtime_elapsed_ms_like_cpp(&mut self, elapsed_ms: u64) {
+        self.runtime_elapsed_ms_like_cpp = elapsed_ms;
+    }
+
+    /// Canonical accessor for the exact-RNG-authority marker.
+    pub const fn runtime_rng_authority_complete_like_cpp(&self) -> bool {
+        self.runtime_rng_authority_complete_like_cpp
+    }
+
+    /// Permanently tombstone exact creature-spell RNG authority for this loaded
+    /// creature. C++ keeps the same generator across combat resets, so neither
+    /// a new target nor a new engagement epoch can restore a provable draw
+    /// position.
+    pub fn invalidate_runtime_rng_authority_like_cpp(&mut self) {
+        self.runtime_rng_authority_complete_like_cpp = false;
+    }
+
+    /// Replace the creature-owned stream with a deterministic seed.
+    ///
+    /// Test seam used by the translated fixtures; interaction never re-seeds a
+    /// loaded creature.
+    pub fn seed_runtime_rng_like_cpp(&mut self, seed: u64) {
+        self.runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
+    }
+
+    /// Draw from the creature-owned stream.
+    ///
+    /// Callers must keep the C++ draw order: this accessor exists so the state
+    /// has one owner, not so a caller can re-seed or re-order it.
+    pub const fn runtime_rng_like_cpp_mut(&mut self) -> &mut StdRng {
+        &mut self.runtime_rng_like_cpp
     }
 }
 

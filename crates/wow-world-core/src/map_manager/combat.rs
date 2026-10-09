@@ -5,6 +5,8 @@
 
 //! Creature combat: aggro, threat, melee and evade.
 
+use rand::{Rng, RngCore};
+
 use super::*;
 
 impl WorldCreature {
@@ -434,7 +436,7 @@ impl WorldCreature {
         minimum_ms: u64,
         maximum_ms: u64,
     ) -> Option<u64> {
-        if !self.runtime_rng_authority_complete_like_cpp {
+        if !self.runtime_rng_authority_complete_like_cpp() {
             return None;
         }
         if minimum_ms > maximum_ms {
@@ -445,15 +447,15 @@ impl WorldCreature {
             // C++ `urand(min, max)` still invokes its process-global engine
             // when both inclusive bounds are equal. Preserve that logical
             // draw in the Creature-owned represented stream.
-            let _ = self.runtime_rng_like_cpp.next_u32();
+            let _ = self.runtime_rng_mut().next_u32();
             return Some(minimum_ms);
         }
-        Some(self.runtime_rng_like_cpp.gen_range(minimum_ms..=maximum_ms))
+        Some(self.runtime_rng_mut().gen_range(minimum_ms..=maximum_ms))
     }
 
     pub fn random_creature_spell_hit_roll_like_cpp(&mut self) -> Option<u32> {
-        self.runtime_rng_authority_complete_like_cpp
-            .then(|| self.runtime_rng_like_cpp.gen_range(0..=9_999))
+        self.runtime_rng_authority_complete_like_cpp()
+            .then(|| self.runtime_rng_mut().gen_range(0..=9_999))
     }
 
     pub fn roll_damage(&mut self) -> Option<u32> {
@@ -464,9 +466,9 @@ impl WorldCreature {
             return None;
         }
         if min_dmg == max_dmg {
-            let _ = self.runtime_rng_like_cpp.next_u32();
+            let _ = self.runtime_rng_mut().next_u32();
             return Some(min_dmg);
         }
-        Some(self.runtime_rng_like_cpp.gen_range(min_dmg..=max_dmg))
+        Some(self.runtime_rng_mut().gen_range(min_dmg..=max_dmg))
     }
 }

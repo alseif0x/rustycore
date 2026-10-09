@@ -23,7 +23,6 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
@@ -80,31 +79,22 @@ pub struct WorldCreature {
     /// Set by reached-home finalization until the global movement owner
     /// publishes the restored health values update.
     ///
-    /// F6-8A deliberately retains this publication flag, the logical clock, the
-    /// tick counter, the RNG authority marker and the RNG on the bridge: they
-    /// are the scheduling/publication seam this slice keeps transitional. The
-    /// RNG cannot move yet because `rand` is not an allowed external dependency
-    /// of `wow-entities` (`tools/architecture/dependency-policy.json`).
+    /// F6-8A deliberately retains this publication flag, the tick counter and
+    /// the respawn-aura provenance on the bridge: they are the
+    /// scheduling/publication seam this slice keeps transitional. The runtime
+    /// RNG, its authority marker and the creature elapsed-time state are **not**
+    /// retained here — the reviewer required the RNG to move in A, so they live
+    /// with the canonical runtime state in
+    /// `wow_entities::CreatureRuntimeLikeCpp` and the accessors below delegate
+    /// to that single owner.
     home_health_restored_pending_like_cpp: bool,
     runtime_motion_master_ticks: u64,
-    /// False after the creature-spell slice reaches a C++ RNG decision whose
-    /// exact number/order of draws is unknown. The marker prevents later spell
-    /// casts from claiming exact RNG authority, but it must not disable the
-    /// pre-existing best-effort melee and movement runtimes.
-    runtime_rng_authority_complete_like_cpp: bool,
     /// DB-backed aura-source proofs that may be re-accredited only after the
     /// respawn rail reapplies the captured creature/template addon source.
     /// These are provenance, not the live AuraSubsystem markers: ordinary aura
     /// mutations still revoke the live markers permanently for that lifetime.
     respawn_spell_hit_aura_source_authority_like_cpp: bool,
     respawn_spell_cast_log_aura_source_authority_like_cpp: bool,
-    runtime_rng_like_cpp: StdRng,
-    /// C++ `Unit::Update(p_time)` advances every creature-local deadline from
-    /// the `Map::Update(t_diff)` value. This logical clock is advanced only by
-    /// the owning creature tick; scheduler delay or time spent between phases
-    /// cannot independently move spline, combat, spell, assistance or corpse
-    /// state.
-    runtime_elapsed_ms_like_cpp: u64,
 }
 
 /// An instance of a map (e.g., Eastern Kingdoms instance 0).

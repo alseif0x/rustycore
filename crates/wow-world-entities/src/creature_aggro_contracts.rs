@@ -47,11 +47,13 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
     /// installation failed — so they were returned to the map's own spawn queue
     /// instead of being published without an admitted owner.
     pub respawn_publications_deferred_like_cpp: usize,
-    /// Ready respawns that had a recorded admission decision but lost the GUID to
-    /// a concurrent publisher, so their legacy publication failed. When this
-    /// tick had just installed a fresh canonical incarnation for the candidate,
-    /// that incarnation is rolled back; nothing stays published either way.
-    pub respawn_publications_rolled_back_like_cpp: usize,
+    /// Ready respawns whose legacy publication **failed** because the store
+    /// refused the insertion (a concurrent publisher won the GUID), counted
+    /// **before** the fresh-insertion condition is examined. It therefore also
+    /// counts failures with **no** canonical rollback: only a failure that
+    /// followed a fresh canonical incarnation installed by this same tick undoes
+    /// that incarnation. Nothing stays published either way.
+    pub respawn_publications_failed_like_cpp: usize,
     /// Map instances whose sessions must recompute creature visibility.
     pub refresh_map_keys: Vec<(u16, u32)>,
 }

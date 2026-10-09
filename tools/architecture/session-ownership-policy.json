@@ -71487,7 +71487,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : Instant ,) -> LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:48fe9b0f1a9c81c29d8497d4068930d5:len=12428|evidence=fnv1a64x2:361fb11f4465e7578bc2633c61875c82:len=9840",
+          "fingerprint": "signature=fn run_legacy_creature_lifecycle_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , map_store : & wow_data :: MapStore , now : Instant ,) -> LegacyCreatureLifecycleTickOutcomeLikeCpp|body=fnv1a64x2:8dd841e00895246db79b610bd47f02a2:len=12423|evidence=fnv1a64x2:361fb11f4465e7578bc2633c61875c82:len=9840",
           "cfg": [],
           "multiplicity": 1
         },
@@ -77343,7 +77343,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldCreature::fn from_canonical (mut creature : Creature , mut create_data : CreatureCreateData) -> Self|body=fnv1a64x2:8fa9d9b304bcdeb5992dcf83c9a80034:len=1384|evidence=fnv1a64x2:4330e6aeaae722b5f914614863143f8c:len=3280",
+          "fingerprint": "signature=impl:WorldCreature::fn from_canonical (mut creature : Creature , mut create_data : CreatureCreateData) -> Self|body=fnv1a64x2:54f6c0d413db347e09e1bb08ea615ab1:len=1250|evidence=fnv1a64x2:4330e6aeaae722b5f914614863143f8c:len=3280",
           "cfg": [],
           "multiplicity": 1
         },

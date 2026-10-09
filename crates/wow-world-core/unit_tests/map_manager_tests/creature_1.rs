@@ -4,6 +4,7 @@
 //! registrations are unchanged and shared fixtures stay in the parent module.
 
 use super::*;
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 
 #[test]
 fn only_loaded_grid_creature_bridge_completes_spell_aura_authorities_like_cpp() {
@@ -880,5 +881,58 @@ fn world_creature_waypoint_default_initialize_resolves_owner_path_like_cpp() {
             .active_waypoint_generator_like_cpp()
             .map(WaypointMovementGenerator::next_move_time_ms),
         Some(wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP)
+    );
+}
+#[test]
+fn world_creature_rng_and_clock_are_owned_by_the_canonical_runtime_state_like_cpp() {
+    let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70009);
+    let mut creature = test_creature(guid);
+    let seed = 0x00C0_FFEE_u64;
+    creature.seed_runtime_rng_like_cpp(seed);
+    creature.backdate_runtime_clock_for_test(Duration::from_millis(4_321));
+    creature.invalidate_runtime_rng_authority_like_cpp();
+
+    // #1263 F6-8A completion: the bridge owns no copy of the clock, the marker
+    // or the RNG. Every mutation through a bridge accessor is observable on the
+    // canonical runtime state, which is the single owner.
+    let canonical = creature.creature.runtime_like_cpp();
+    assert_eq!(canonical.runtime_elapsed_ms_like_cpp(), 4_321);
+    assert!(!canonical.runtime_rng_authority_complete_like_cpp());
+
+    // The bridge draws from that same canonical stream: its next draw is the
+    // seeded `StdRng`'s next draw, not a re-seeded or bridge-local value.
+    let mut expected = StdRng::seed_from_u64(seed);
+    assert_eq!(
+        creature
+            .creature
+            .runtime_like_cpp_mut()
+            .runtime_rng_like_cpp_mut()
+            .next_u32(),
+        expected.next_u32()
+    );
+
+    // A freshly built bridge installs a fresh canonical incarnation: clock zero
+    // and complete RNG authority, as the former bridge-local initialization did.
+    let fresh = test_creature(ObjectGuid::create_world_object(
+        HighGuid::Creature,
+        0,
+        1,
+        0,
+        0,
+        1,
+        70010,
+    ));
+    assert_eq!(
+        fresh
+            .creature
+            .runtime_like_cpp()
+            .runtime_elapsed_ms_like_cpp(),
+        0
+    );
+    assert!(
+        fresh
+            .creature
+            .runtime_like_cpp()
+            .runtime_rng_authority_complete_like_cpp()
     );
 }

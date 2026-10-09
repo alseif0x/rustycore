@@ -3,6 +3,8 @@
 //! Divided out of the single inherent impl under #705; every method keeps
 //! its name, signature and body.
 
+use rand::Rng;
+
 use super::*;
 
 impl WorldCreature {
@@ -62,7 +64,7 @@ impl WorldCreature {
             .motion
             .stop_moving();
         self.creature.runtime_like_cpp_mut().active_move_spline = None;
-        let next_wander_steps_roll = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let next_wander_steps_roll = self.runtime_rng_mut().gen_range(2..=10);
         let snapshot = self.random_unit_snapshot_like_cpp(
             true,
             RandomPathResult::Success,
@@ -189,10 +191,10 @@ impl WorldCreature {
         let mut pause_seconds_roll = 4;
 
         if should_set_location {
-            distance_roll = self.runtime_rng_like_cpp.gen_range(0.0..=1.0);
-            angle_roll = self.runtime_rng_like_cpp.gen_range(0.0..=1.0);
-            next_wander_steps_roll = self.runtime_rng_like_cpp.gen_range(2..=10);
-            pause_seconds_roll = self.runtime_rng_like_cpp.gen_range(4..=10);
+            distance_roll = self.runtime_rng_mut().gen_range(0.0..=1.0);
+            angle_roll = self.runtime_rng_mut().gen_range(0.0..=1.0);
+            next_wander_steps_roll = self.runtime_rng_mut().gen_range(2..=10);
+            pause_seconds_roll = self.runtime_rng_mut().gen_range(4..=10);
             let reference = self
                 .creature
                 .runtime_like_cpp_mut()
@@ -656,10 +658,10 @@ impl WorldCreature {
 
     pub fn pick_wander_destination(&mut self) -> Option<Position> {
         let angle = self
-            .runtime_rng_like_cpp
+            .runtime_rng_mut()
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
         let radius = self.creature.ai_ownership().wander_radius.max(0.0);
-        let dist = self.runtime_rng_like_cpp.gen_range(0.0..=radius);
+        let dist = self.runtime_rng_mut().gen_range(0.0..=radius);
         let home = self.home_position();
         let x = home.x + angle.cos() * dist;
         let y = home.y + angle.sin() * dist;
@@ -672,10 +674,10 @@ impl WorldCreature {
         wander_distance: f32,
     ) -> Option<Position> {
         let angle = self
-            .runtime_rng_like_cpp
+            .runtime_rng_mut()
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
         let radius = wander_distance.max(0.0);
-        let dist = self.runtime_rng_like_cpp.gen_range(0.0..=radius);
+        let dist = self.runtime_rng_mut().gen_range(0.0..=radius);
         let reference = self.position();
         let x = reference.x + angle.cos() * dist;
         let y = reference.y + angle.sin() * dist;
@@ -685,7 +687,7 @@ impl WorldCreature {
 
     pub fn reset_wander_timer(&mut self) -> bool {
         let now_ms = self.runtime_elapsed_ms_like_cpp();
-        let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
+        let wander_delay_ms = self.runtime_rng_mut().gen_range(4_000..=10_000);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;
@@ -693,7 +695,7 @@ impl WorldCreature {
     }
 
     pub fn initialize_random_wander_steps_like_cpp(&mut self) -> bool {
-        let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let wander_steps_remaining = self.runtime_rng_mut().gen_range(2..=10);
         self.creature.ai_ownership_mut().wander_steps_remaining = wander_steps_remaining;
         true
     }
@@ -718,8 +720,8 @@ impl WorldCreature {
             ai.wander_delay_ms = 0;
             return true;
         }
-        let wander_delay_ms = self.runtime_rng_like_cpp.gen_range(4_000..=10_000);
-        let wander_steps_remaining = self.runtime_rng_like_cpp.gen_range(2..=10);
+        let wander_delay_ms = self.runtime_rng_mut().gen_range(4_000..=10_000);
+        let wander_steps_remaining = self.runtime_rng_mut().gen_range(2..=10);
         let ai = self.creature.ai_ownership_mut();
         ai.move_start_ms = now_ms;
         ai.wander_delay_ms = wander_delay_ms;

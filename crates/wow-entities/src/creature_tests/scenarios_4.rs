@@ -3,6 +3,7 @@
 //! Moved out of the creature_tests.rs root under #648; every test is unchanged.
 
 use super::*;
+use rand::{Rng, RngCore, SeedableRng, rngs::StdRng};
 
 #[test]
 fn creature_runtime_just_respawned_resets_represented_runtime_state() {
@@ -350,4 +351,112 @@ fn creature_runtime_update_plan_covers_dead_corpse_and_alive_branches() {
     assert!(alive_plan.contains(CreatureRuntimeAction::Evade(
         CreatureRuntimeEvadeReason::NoPath
     )));
+}
+
+#[test]
+fn creature_runtime_rng_and_elapsed_clock_are_canonical_owned_state_like_cpp() {
+    let mut creature = Creature::new(false);
+
+    // A fresh incarnation clocks at zero with complete RNG authority, exactly as
+    // the legacy bridge initialized the two fields it used to own.
+    assert_eq!(creature.runtime_like_cpp().runtime_elapsed_ms_like_cpp(), 0);
+    assert!(
+        creature
+            .runtime_like_cpp()
+            .runtime_rng_authority_complete_like_cpp()
+    );
+
+    // #1263 F6-8A completion: the creature owns the stream. Seeding it here and
+    // drawing through the canonical accessor reproduces a fresh `StdRng`'s exact
+    // sequence, so the draw order did not change with the owner.
+    let seed = 0x5150_2468_u64;
+    creature
+        .runtime_like_cpp_mut()
+        .seed_runtime_rng_like_cpp(seed);
+    let mut expected = StdRng::seed_from_u64(seed);
+    let drawn: Vec<u32> = (0..8)
+        .map(|_| {
+            creature
+                .runtime_like_cpp_mut()
+                .runtime_rng_like_cpp_mut()
+                .gen_range(0..=9_999)
+        })
+        .collect();
+    let expected_drawn: Vec<u32> = (0..8).map(|_| expected.gen_range(0..=9_999)).collect();
+    assert_eq!(drawn, expected_drawn);
+
+    // `Unit::Update(p_time)` advances the canonical clock by the owning tick's
+    // diff, and the backdating fixture seam installs an absolute value.
+    creature
+        .runtime_like_cpp_mut()
+        .advance_runtime_clock_like_cpp(17);
+    creature
+        .runtime_like_cpp_mut()
+        .advance_runtime_clock_like_cpp(4_000);
+    assert_eq!(
+        creature.runtime_like_cpp().runtime_elapsed_ms_like_cpp(),
+        4_017
+    );
+    creature
+        .runtime_like_cpp_mut()
+        .set_runtime_elapsed_ms_like_cpp(86_400_000);
+    assert_eq!(
+        creature.runtime_like_cpp().runtime_elapsed_ms_like_cpp(),
+        86_400_000
+    );
+
+    // The exact-RNG-authority tombstone is canonical state as well.
+    creature
+        .runtime_like_cpp_mut()
+        .invalidate_runtime_rng_authority_like_cpp();
+    assert!(
+        !creature
+            .runtime_like_cpp()
+            .runtime_rng_authority_complete_like_cpp()
+    );
+}
+
+#[test]
+fn creature_clone_continues_the_canonical_rng_stream_and_clock_like_cpp() {
+    let seed = 0x60D5_EED_u64;
+    let mut source = Creature::new(false);
+    source
+        .runtime_like_cpp_mut()
+        .seed_runtime_rng_like_cpp(seed);
+    source
+        .runtime_like_cpp_mut()
+        .set_runtime_elapsed_ms_like_cpp(1_234);
+    source
+        .runtime_like_cpp_mut()
+        .invalidate_runtime_rng_authority_like_cpp();
+
+    // Consume part of the stream so a clone that restarted from the seed — or
+    // re-seeded on the wrong path — would diverge from this expected sequence.
+    let mut expected = StdRng::seed_from_u64(seed);
+    let _ = source
+        .runtime_like_cpp_mut()
+        .runtime_rng_like_cpp_mut()
+        .next_u32();
+    let _ = expected.next_u32();
+    let expected_next: Vec<u32> = (0..4).map(|_| expected.next_u32()).collect();
+
+    let mut clone = source.clone();
+    assert_eq!(
+        clone.runtime_like_cpp().runtime_elapsed_ms_like_cpp(),
+        1_234
+    );
+    assert!(
+        !clone
+            .runtime_like_cpp()
+            .runtime_rng_authority_complete_like_cpp()
+    );
+    let clone_next: Vec<u32> = (0..4)
+        .map(|_| {
+            clone
+                .runtime_like_cpp_mut()
+                .runtime_rng_like_cpp_mut()
+                .next_u32()
+        })
+        .collect();
+    assert_eq!(clone_next, expected_next);
 }

@@ -516,10 +516,11 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
             ) {
                 // A concurrent publication won the GUID, so this candidate's
                 // publication failed after its admission decision was taken and
-                // nothing of it is published. The previous path installed no
-                // canonical object for such a candidate either, so undo a fresh
-                // canonical incarnation this tick just installed.
-                outcome.respawn_publications_rolled_back_like_cpp += 1;
+                // nothing of it is published. The counter records the failed
+                // legacy publication itself, before the fresh-insertion
+                // condition below is examined, so it also counts failures that
+                // installed no canonical object and have nothing to roll back.
+                outcome.respawn_publications_failed_like_cpp += 1;
                 if fresh_canonical_insert && let Some(canonical_map_manager) = canonical_map_manager
                 {
                     remove_canonical_creature_map_object_on_map_like_cpp(
