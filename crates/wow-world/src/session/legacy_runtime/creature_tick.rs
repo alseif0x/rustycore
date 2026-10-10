@@ -11,20 +11,35 @@ pub(in crate::session) fn legacy_creature_snapshot_is_hostile_to_creature_like_c
     target: &LegacyCreatureAggroOwnerSnapshotLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> Option<bool> {
+    legacy_creature_reaction_to_snapshot_like_cpp(creature, target, config)
+        .map(|rank| rank <= wow_data::reputation::ReputationRankLikeCpp::Hostile)
+}
+/// C++ `WorldObject::GetFactionReactionTo` common faction branch for a
+/// represented unit snapshot.
+pub(in crate::session) fn legacy_creature_reaction_to_snapshot_like_cpp(
+    creature: &wow_entities::Creature,
+    target: &LegacyCreatureAggroOwnerSnapshotLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Option<wow_data::reputation::ReputationRankLikeCpp> {
+    use wow_data::reputation::ReputationRankLikeCpp;
     let faction_templates = config.faction_template_store.as_ref()?;
     let creature_faction =
         faction_templates.get(u32::try_from(creature.unit().data().faction_template).ok()?)?;
     let target_faction = faction_templates.get(target.faction_template_id?)?;
 
     if creature_faction.is_hostile_to_like_cpp(target_faction) {
-        return Some(true);
+        return Some(ReputationRankLikeCpp::Hostile);
     }
     if creature_faction.is_friendly_to_like_cpp(target_faction)
         || target_faction.is_friendly_to_like_cpp(creature_faction)
     {
-        return Some(false);
+        return Some(ReputationRankLikeCpp::Friendly);
     }
-    Some(creature_faction.is_hostile_by_default_like_cpp())
+    Some(if creature_faction.is_hostile_by_default_like_cpp() {
+        ReputationRankLikeCpp::Hostile
+    } else {
+        ReputationRankLikeCpp::Neutral
+    })
 }
 pub(in crate::session) fn legacy_creature_ai_selection_decision_like_cpp(
     creature: &wow_entities::Creature,

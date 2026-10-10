@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[path = "scenarios_combat_5/neutral_engagement.rs"]
+mod neutral_engagement;
+
 /// C++ `Unit::CalcAbsorbResist`'s school-absorb loop
 /// (`Unit.cpp:1812-1880`) for one physical melee hit.
 ///

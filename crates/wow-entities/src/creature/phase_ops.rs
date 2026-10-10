@@ -100,6 +100,24 @@ impl Creature {
         self.sync_runtime_motion_master_like_cpp();
     }
 
+    /// C++ `Unit::EngageWithTarget` on a creature victim, as reached from
+    /// `Unit::AtTargetAttacked` (`Unit::AttackerStateUpdate`): threat 0 toward
+    /// the attacker, which engages the creature (`Creature::AtEngage`) but does
+    /// not pick a victim. The victim, `SMSG_AI_REACTION` and
+    /// `SMSG_ATTACK_START` come later from `CreatureAI::UpdateVictim` →
+    /// `AttackStart` → `Unit::Attack` (#1344).
+    pub fn engage_with_target_like_cpp(&mut self, attacker: ObjectGuid) {
+        if self.ai_state() != CreatureAiState::InCombat {
+            self.reset_creature_spell_schedule_like_cpp();
+            self.refresh_can_swim_flag_like_cpp(false);
+            self.ai_ownership.state = CreatureAiState::InCombat;
+        }
+        self.unit_mut()
+            .subsystems_mut()
+            .combat
+            .add_threat(attacker, 0.0);
+    }
+
     pub fn schedule_assistance_like_cpp(
         &mut self,
         victim: ObjectGuid,

@@ -33,9 +33,10 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
     if !creature.is_alive() {
         return None;
     }
-    if creature.state() != wow_entities::CreatureAiState::InCombat {
-        creature.enter_combat(player_guid);
-    }
+    // C++ `Unit::AttackerStateUpdate` → `AtTargetAttacked` → `EngageWithTarget`:
+    // the swing engages the creature (threat 0) without choosing its victim;
+    // the aggro tick's `UpdateVictim` then publishes the reaction (#1344).
+    creature.engage_with_target_like_cpp(player_guid);
     let damages: Vec<crate::session::combat::RepresentedMeleeSwingLikeCpp> = match canonical_swings
     {
         Some(swings) => swings.to_vec(),

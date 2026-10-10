@@ -4,6 +4,7 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
+use wow_data::reputation::ReputationRankLikeCpp;
 
 pub(in crate::session) fn legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
@@ -146,15 +147,27 @@ fn legacy_creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
             (*candidate_faction_id == faction_id).then_some(*rank)
         })
 }
+/// C++ `Creature::IsHostileTo(player)`: `GetReactionTo(player) <= REP_HOSTILE`.
 pub(in crate::session) fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
     creature: &wow_entities::Creature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> Option<bool> {
+    legacy_creature_reaction_to_candidate_like_cpp(creature, candidate, config)
+        .map(|rank| rank <= ReputationRankLikeCpp::Hostile)
+}
+/// C++ `WorldObject::GetFactionReactionTo(creatureTemplate, player)`, the
+/// branch `WorldObject::GetReactionTo` takes for a creature looking at a
+/// player. `None` keeps the unrepresented forced-reputation case explicit.
+pub(in crate::session) fn legacy_creature_reaction_to_candidate_like_cpp(
+    creature: &wow_entities::Creature,
+    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> Option<ReputationRankLikeCpp> {
     let faction_template_store = config.faction_template_store.as_ref()?;
     let creature_faction_template_id = creature.unit().data().faction_template.max(0) as u32;
     if creature_faction_template_id == 0 || candidate.player_faction_template_id == 0 {
-        return Some(false);
+        return Some(ReputationRankLikeCpp::Neutral);
     }
 
     let creature_faction_template = faction_template_store.get(creature_faction_template_id)?;
@@ -164,7 +177,7 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_hostile_to_creature
     if creature_faction_template.is_contested_guard_faction_like_cpp()
         && candidate.player_is_contested_pvp
     {
-        return Some(true);
+        return Some(ReputationRankLikeCpp::Hostile);
     }
 
     let creature_faction_id = u32::from(creature_faction_template.faction);
@@ -175,7 +188,7 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_hostile_to_creature
                 creature_faction_id,
             )
         {
-            return Some(forced_rank <= wow_data::reputation::ReputationRankLikeCpp::Hostile);
+            return Some(forced_rank);
         }
         if candidate
             .player_forced_reputation_faction_ids
@@ -194,10 +207,6 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_hostile_to_creature
                 creature_faction_id,
             )
         {
-            if !legacy_creature_aggro_candidate_is_at_war_like_cpp(candidate, creature_faction_id) {
-                return Some(false);
-            }
-
             let rank = wow_data::reputation::reputation_rank_from_standing_like_cpp(
                 legacy_creature_aggro_candidate_reputation_standing_like_cpp(
                     candidate,
@@ -205,25 +214,29 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_hostile_to_creature
                 ),
             );
             // C++ `GetFactionReactionTo` caps an at-war player reaction to at
-            // most neutral; `Creature::_IsTargetAcceptable` still requires an
-            // actually hostile reaction to start aggro.
-            return Some(rank <= wow_data::reputation::ReputationRankLikeCpp::Hostile);
+            // most neutral and returns the plain rank otherwise. C++
+            // `ReputationMgr` forces AtWar for ranks <= hostile
+            // (`ReputationMgr.cpp:549-550,777-778`), so a not-at-war rank is at
+            // least unfriendly; the represented state keeps that invariant.
+            if !legacy_creature_aggro_candidate_is_at_war_like_cpp(candidate, creature_faction_id) {
+                return Some(rank.max(ReputationRankLikeCpp::Unfriendly));
+            }
+            return Some(rank.min(ReputationRankLikeCpp::Neutral));
         }
     }
 
     if creature_faction_template.is_hostile_to_like_cpp(player_faction_template) {
-        return Some(true);
+        return Some(ReputationRankLikeCpp::Hostile);
     }
-    if creature_faction_template.is_friendly_to_like_cpp(player_faction_template) {
-        return Some(false);
-    }
-    if player_faction_template.is_friendly_to_like_cpp(creature_faction_template) {
-        return Some(false);
+    if creature_faction_template.is_friendly_to_like_cpp(player_faction_template)
+        || player_faction_template.is_friendly_to_like_cpp(creature_faction_template)
+    {
+        return Some(ReputationRankLikeCpp::Friendly);
     }
     if creature_faction_template.is_hostile_by_default_like_cpp() {
-        return Some(true);
+        return Some(ReputationRankLikeCpp::Hostile);
     }
-    Some(false)
+    Some(ReputationRankLikeCpp::Neutral)
 }
 pub(in crate::session) fn legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
     creature: &wow_entities::Creature,
@@ -589,16 +602,29 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     if let Some(victim_guid) = creature.creature.ai_ownership().combat_target {
                         use crate::map_manager::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
+                        let recipients = RecipientRule::NearbyVisibleDurable {
+                            source_guid: guid,
+                            map_id,
+                            instance_id,
+                            source_position: creature.position(),
+                            range: creature.visibility_range_like_cpp(),
+                            required_3d: false,
+                        };
+                        // C++ `UpdateVictim` → `AttackStart` → `Unit::Attack`:
+                        // `SendAIReaction(AI_REACTION_HOSTILE)` to the set, then
+                        // `SendMeleeAttackStart` (#1344).
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: guid,
-                            recipients: RecipientRule::NearbyVisibleDurable {
-                                source_guid: guid,
-                                map_id,
-                                instance_id,
-                                source_position: creature.position(),
-                                range: creature.visibility_range_like_cpp(),
-                                required_3d: false,
-                            },
+                            recipients: recipients.clone(),
+                            packet_bytes: wow_packet::packets::combat::AIReaction {
+                                unit_guid: guid,
+                                reaction: wow_constants::creature::AiReaction::Hostile,
+                            }
+                            .to_bytes(),
+                        });
+                        outcome.plan.events.push(RuntimeEvent {
+                            source_guid: guid,
+                            recipients,
                             packet_bytes: wow_packet::packets::combat::AttackStart {
                                 attacker: guid,
                                 victim: victim_guid,

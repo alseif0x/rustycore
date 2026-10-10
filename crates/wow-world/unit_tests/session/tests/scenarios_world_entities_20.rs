@@ -179,17 +179,30 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
     );
     assert_eq!(switched.commands[0].victim_guid, challenger);
     assert_eq!(switched.commands[0].previous_victim_guid, Some(tank));
-    assert!(matches!(
-        switched.plan.events[0].recipients,
+    assert!(switched.plan.events.iter().all(|event| matches!(
+        event.recipients,
         crate::map_manager::RecipientRule::NearbyVisibleDurable { .. }
-    ));
-    assert_eq!(switched.plan.events.len(), 1);
-    let mut attack_start =
-        wow_packet::WorldPacket::from_bytes(&switched.plan.events[0].packet_bytes);
+    )));
+    // C++ `Unit::Attack` (`Unit.cpp:5724-5741`): a creature attacker taking a
+    // new victim always runs `SendAIReaction(AI_REACTION_HOSTILE)` before
+    // `SendMeleeAttackStart`, including on a threat switch (#1344).
+    let opcodes: Vec<u16> = switched
+        .plan
+        .events
+        .iter()
+        .map(|event| {
+            wow_packet::WorldPacket::from_bytes(&event.packet_bytes)
+                .read_uint16()
+                .expect("opcode")
+        })
+        .collect();
     assert_eq!(
-        attack_start.read_uint16().expect("opcode"),
-        ServerOpcodes::AttackStart as u16,
-        "C++ Unit::Attack changes the attacker relationship and broadcasts only SendMeleeAttackStart for the new target"
+        opcodes,
+        vec![
+            ServerOpcodes::AiReaction as u16,
+            ServerOpcodes::AttackStart as u16
+        ],
+        "C++ Unit::Attack broadcasts the hostile AI reaction, then SendMeleeAttackStart for the new target"
     );
 }
 #[test]
