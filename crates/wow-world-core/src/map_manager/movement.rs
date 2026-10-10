@@ -33,8 +33,8 @@ impl MapInstance {
         object_type: SpawnObjectType,
         spawn_id: u64,
     ) -> Option<PersistedRespawnRowLikeCpp> {
-        self.persisted_respawn_times
-            .remove(&(object_type, spawn_id))
+        self.respawns
+            .remove_persisted_respawn_time_like_cpp(object_type, spawn_id)
     }
 }
 

@@ -751,7 +751,7 @@ fn respawn_ground_snap_skips_creature_far_below_surface_like_cpp() {
     let mut pending = make_pending_respawn(Instant::now());
     pending.home_pos.z = 10.0; // far under the 77.0 surface
     let mut creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
-    snap_respawn_creature_to_ground_like_cpp(&mut creature, 0, &terrain);
+    snap_respawn_creature_to_ground_like_cpp(&mut creature.creature, 0, &terrain);
 
     assert!((creature.creature.unit().world().position().z - 10.0).abs() < 1e-3);
 

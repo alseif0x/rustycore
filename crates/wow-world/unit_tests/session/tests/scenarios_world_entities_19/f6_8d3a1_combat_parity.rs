@@ -337,6 +337,8 @@ fn d3a1_executor_tick_like_cpp(
             mmap_pathfinder: None,
             chase_targets: &chase_targets,
             config: &config,
+            map_store: &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
+            now: Instant::now(),
         },
     )
 }

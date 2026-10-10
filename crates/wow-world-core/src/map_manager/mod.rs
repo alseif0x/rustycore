@@ -32,8 +32,7 @@ use wow_constants::{
 use wow_core::{ObjectGuid, Position};
 use wow_entities::creature_create::CreatureCreateData;
 use wow_entities::{
-    AllowedPositionZCaps, Creature, CreatureAddonLifecycleRecordLikeCpp, CreatureAiState,
-    CreatureCombatLogStatsLikeCpp, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
+    AllowedPositionZCaps, Creature, CreatureAiState, DEFAULT_HEIGHT_SEARCH, DistractMovementAction,
     EVENT_CHARGE_PREPATH, GenericMovementInform, INVALID_HEIGHT, MotionMasterUpdateContext,
     MotionMasterUpdateOutcome, MovementGeneratorKind, MovementGeneratorRef, MovementGeneratorType,
     MovementSlot, PhaseShift, PointMovementAction, PointMovementInform, RotateMovementUpdate,
@@ -83,15 +82,9 @@ pub struct WorldCreature {
     pub creature: Creature,
     /// Packet-create bridge retained for update-object construction.
     pub create_data: CreatureCreateData,
-    // #1263 F6-8D3a-2: the reached-home publication flag moved to the
-    // canonical runtime state (`CreatureRuntimeLikeCpp`); the respawn-aura
-    // provenance below stays on this bridge with the lifecycle seam.
-    /// DB-backed aura-source proofs that may be re-accredited only after the
-    /// respawn rail reapplies the captured creature/template addon source.
-    /// These are provenance, not the live AuraSubsystem markers: ordinary aura
-    /// mutations still revoke the live markers permanently for that lifetime.
-    respawn_spell_hit_aura_source_authority_like_cpp: bool,
-    respawn_spell_cast_log_aura_source_authority_like_cpp: bool,
+    // #1263 F6-8D3a-2/3: the reached-home publication flag and the respawn
+    // aura-source provenance moved to the canonical runtime state
+    // (`CreatureRuntimeLikeCpp`).
 }
 
 /// An instance of a map (e.g., Eastern Kingdoms instance 0).
@@ -101,12 +94,9 @@ pub struct MapInstance {
     pub instance_id: u32,
     pub grids: HashMap<GridCoord, Grid>,
     pub grid_unload_timeout: Duration,
-    /// C++ `Map::_creatureRespawnTimesBySpawnId` and
-    /// `_gameObjectRespawnTimesBySpawnId`, represented as DB-persistable rows.
-    pub persisted_respawn_times: HashMap<(SpawnObjectType, u64), PersistedRespawnRowLikeCpp>,
-    /// Creatures waiting to respawn; drained by `tick_creatures_sync`.
-    /// C++ ref: `Map::_respawnTimes` (Map.h:748).
-    pub respawn_queue: Vec<PendingRespawn>,
+    /// C++ `Map::_respawnTimes` and the per-type respawn-time maps, with the
+    /// creature rebuild data (#1263 F6-8D3a-3: the map crate's queue type).
+    pub respawns: CreatureRespawnQueueLikeCpp,
 }
 
 // ── Slice 4A.1a: addressable routing types ────────────────────────────────────
@@ -190,14 +180,15 @@ pub use grid::*;
 pub use movement::{queries::CreatureMovementQueriesLikeCpp, view::CreatureMovementLikeCpp};
 pub use pathfinder::*;
 pub use pending_respawn::*;
+pub use respawn::{
+    creature_corpse_despawn_due_like_cpp, creature_respawn_at_from_death_at_game_time_like_cpp,
+};
 pub use runtime_state::*;
 pub use terrain::*;
 
 use grid::{
     calculate_cell_area_like_cpp, cell_area_contains_position_like_cpp, position_to_i32_tuple,
 };
-
-use pending_respawn::spawn_object_type_raw_like_cpp;
 
 use runtime_state::{
     BASE_ATTACK_TIME_LIKE_CPP, NOMINAL_MELEE_RANGE_LIKE_CPP, absolute_angle_like_cpp,

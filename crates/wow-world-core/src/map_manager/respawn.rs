@@ -7,17 +7,78 @@
 
 use super::*;
 
+/// Re-accredit the DB-backed respawn aura-source proofs on one creature
+/// incarnation: the runtime keeps the provenance, the aura subsystem the inert
+/// markers it enables.
+pub(super) fn restore_respawn_aura_source_authority_like_cpp(
+    creature: &mut Creature,
+    spell_hit: bool,
+    spell_cast_log: bool,
+) {
+    creature
+        .runtime_like_cpp_mut()
+        .set_respawn_aura_source_authority_like_cpp(spell_hit, spell_cast_log);
+    let auras = &mut creature.unit_mut().subsystems_mut().auras;
+    auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
+    auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
+}
+
+/// C++ `Creature::Update` `CORPSE` case: `m_corpseRemoveTime <= now`, on the
+/// creature-local clock (#1263 F6-8D3a-3: one body for either store).
+pub fn creature_corpse_despawn_due_like_cpp(creature: &Creature) -> bool {
+    creature
+        .ai_ownership()
+        .corpse_despawn_at_ms
+        .is_some_and(|due_at_ms| creature.runtime_elapsed_ms_like_cpp() >= due_at_ms)
+}
+
+/// The respawn deadline of a dead creature: the later of its death time plus
+/// the respawn delay and its stored `m_respawnTime`.
+pub fn creature_respawn_at_from_death_at_game_time_like_cpp(
+    creature: &Creature,
+    now: Instant,
+    game_time_secs: i64,
+) -> Instant {
+    let elapsed_ms = creature.runtime_elapsed_ms_like_cpp();
+    let death_at = creature
+        .ai_ownership()
+        .death_time_ms
+        .map(|death_ms| {
+            if death_ms <= elapsed_ms {
+                now.checked_sub(Duration::from_millis(elapsed_ms - death_ms))
+                    .unwrap_or(now)
+            } else {
+                now + Duration::from_millis(death_ms - elapsed_ms)
+            }
+        })
+        .unwrap_or(now);
+    let compatibility_corpse_delay = creature
+        .respawn_compatibility_mode()
+        .then_some(u64::from(creature.corpse_delay()))
+        .unwrap_or(0);
+    let death_based = death_at
+        + Duration::from_secs(
+            creature
+                .ai_ownership()
+                .respawn_time_secs
+                .saturating_add(compatibility_corpse_delay),
+        );
+    let stored_based =
+        instant_from_respawn_time_like_cpp(creature.respawn_time(), now, game_time_secs);
+    death_based.max(stored_based)
+}
+
 impl WorldCreature {
     pub(super) fn restore_respawn_aura_source_authority_like_cpp(
         &mut self,
         spell_hit: bool,
         spell_cast_log: bool,
     ) {
-        self.respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
-        self.respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
-        let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
-        auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
-        auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
+        restore_respawn_aura_source_authority_like_cpp(
+            &mut self.creature,
+            spell_hit,
+            spell_cast_log,
+        );
     }
 
     pub fn corpse_despawn_at(&self) -> Option<Instant> {
@@ -34,8 +95,7 @@ impl WorldCreature {
     }
 
     pub fn corpse_despawn_due_like_cpp(&self) -> bool {
-        self.corpse_despawn_deadline_ms_like_cpp()
-            .is_some_and(|due_at_ms| self.runtime_elapsed_ms_like_cpp() >= due_at_ms)
+        creature_corpse_despawn_due_like_cpp(&self.creature)
     }
 
     pub fn respawn_at_from_death_like_cpp(&self) -> Instant {
@@ -47,35 +107,7 @@ impl WorldCreature {
         now: Instant,
         game_time_secs: i64,
     ) -> Instant {
-        let elapsed_ms = self.runtime_elapsed_ms_like_cpp();
-        let death_at = self
-            .creature
-            .ai_ownership()
-            .death_time_ms
-            .map(|death_ms| {
-                if death_ms <= elapsed_ms {
-                    now.checked_sub(Duration::from_millis(elapsed_ms - death_ms))
-                        .unwrap_or(now)
-                } else {
-                    now + Duration::from_millis(death_ms - elapsed_ms)
-                }
-            })
-            .unwrap_or(now);
-        let compatibility_corpse_delay = self
-            .creature
-            .respawn_compatibility_mode()
-            .then_some(u64::from(self.creature.corpse_delay()))
-            .unwrap_or(0);
-        let death_based = death_at
-            + Duration::from_secs(
-                self.creature
-                    .ai_ownership()
-                    .respawn_time_secs
-                    .saturating_add(compatibility_corpse_delay),
-            );
-        let stored_based =
-            instant_from_respawn_time_like_cpp(self.creature.respawn_time(), now, game_time_secs);
-        death_based.max(stored_based)
+        creature_respawn_at_from_death_at_game_time_like_cpp(&self.creature, now, game_time_secs)
     }
 
     pub fn set_corpse_despawn_at(&mut self, when: Option<Instant>) {
@@ -111,28 +143,7 @@ impl MapInstance {
         &mut self,
         row: PersistedRespawnRowLikeCpp,
     ) -> LegacyRespawnTimeAddOutcomeLikeCpp {
-        if row.spawn_id == 0 {
-            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId;
-        }
-        if !matches!(
-            row.object_type,
-            SpawnObjectType::Creature | SpawnObjectType::GameObject
-        ) {
-            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType;
-        }
-
-        let key = (row.object_type, row.spawn_id);
-        if let Some(existing) = self.persisted_respawn_times.get(&key) {
-            if row.respawn_time <= existing.respawn_time {
-                self.persisted_respawn_times.insert(key, row);
-                LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting
-            } else {
-                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual
-            }
-        } else {
-            self.persisted_respawn_times.insert(key, row);
-            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
-        }
+        self.respawns.add_persisted_respawn_time_like_cpp(row)
     }
 
     pub fn persisted_respawn_time_like_cpp(
@@ -140,52 +151,27 @@ impl MapInstance {
         object_type: SpawnObjectType,
         spawn_id: u64,
     ) -> Option<i64> {
-        self.persisted_respawn_times
-            .get(&(object_type, spawn_id))
-            .map(|row| row.respawn_time)
+        self.respawns
+            .persisted_respawn_time_like_cpp(object_type, spawn_id)
     }
 
     pub fn persisted_respawn_rows_like_cpp(&self) -> Vec<PersistedRespawnRowLikeCpp> {
-        self.persisted_respawn_times.values().copied().collect()
+        self.respawns.persisted_respawn_rows_like_cpp()
     }
 
     /// Enqueue a creature waiting to respawn.
-    /// C++ ref: `Map::_respawnTimes` insertion path (Map.cpp:2191).
     pub fn push_respawn(&mut self, respawn: PendingRespawn) {
-        if let Some(existing_index) = self.respawn_queue.iter().position(|queued| {
-            queued.persistent_spawn == respawn.persistent_spawn
-                && queued.spawn_id == respawn.spawn_id
-        }) {
-            if respawn.respawn_at <= self.respawn_queue[existing_index].respawn_at {
-                self.respawn_queue.remove(existing_index);
-            } else {
-                return;
-            }
-        }
-        self.respawn_queue.push(respawn);
+        self.respawns.push_respawn(respawn);
     }
 
     /// Drain entries whose `respawn_at <= now` in insertion order.
-    ///
-    /// Entries that are NOT yet ready are retained in the queue.
-    /// C++ ref: `Map::ProcessRespawns` (Map.cpp:2191).
     pub fn drain_ready_respawns(&mut self, now: Instant) -> Vec<PendingRespawn> {
-        let mut remaining = Vec::new();
-        let mut spawn_now = Vec::new();
-        for r in self.respawn_queue.drain(..) {
-            if now >= r.respawn_at {
-                spawn_now.push(r);
-            } else {
-                remaining.push(r);
-            }
-        }
-        self.respawn_queue = remaining;
-        spawn_now
+        self.respawns.drain_ready_respawns(now)
     }
 
     /// Number of entries currently waiting to respawn.
     pub fn respawn_queue_len(&self) -> usize {
-        self.respawn_queue.len()
+        self.respawns.respawn_queue_len()
     }
 
     pub fn save_pending_respawn_time_like_cpp(
@@ -194,30 +180,14 @@ impl MapInstance {
         now: Instant,
         now_secs: i64,
     ) -> Option<RespawnPersistenceMutationLikeCpp> {
-        let row = PersistedRespawnRowLikeCpp {
-            object_type: SpawnObjectType::Creature,
-            spawn_id: respawn.spawn_id,
-            respawn_time: respawn_time_from_instant_like_cpp(respawn.respawn_at, now, now_secs),
-            map_id: self.map_id,
-            instance_id: self.instance_id,
-        };
-        match self.add_persisted_respawn_time_like_cpp(row) {
-            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
-            | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
-                Some(RespawnPersistenceMutationLikeCpp::Save {
-                    key: RespawnPersistenceKeyLikeCpp {
-                        object_type_raw: spawn_object_type_raw_like_cpp(row.object_type),
-                        spawn_id: row.spawn_id,
-                        map_id: row.map_id,
-                        instance_id: row.instance_id,
-                    },
-                    respawn_time: row.respawn_time,
-                })
-            }
-            LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
-            | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
-            | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => None,
-        }
+        save_pending_respawn_time_on_queue_like_cpp(
+            &mut self.respawns,
+            self.map_id,
+            self.instance_id,
+            respawn,
+            now,
+            now_secs,
+        )
     }
 
     pub fn load_persisted_respawns_into_queue_like_cpp(

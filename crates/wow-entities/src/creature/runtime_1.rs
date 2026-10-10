@@ -235,6 +235,23 @@ pub struct CreatureRuntimeLikeCpp {
     /// executor publishes it without reading the bridge. Initial value and
     /// clone carry-over are the bridge's.
     home_health_restored_pending_like_cpp: bool,
+    /// DB-backed aura-source proofs that the respawn rail may re-accredit only
+    /// after it reapplies the captured creature/template addon source: spell
+    /// hit, then spell cast log. They are provenance, not the live
+    /// `AuraSubsystem` markers, which ordinary aura mutations still revoke.
+    ///
+    /// #1263 F6-8D3a-3: the legacy `WorldCreature` bridge held both flags. The
+    /// respawn entry the lifecycle builds captures them from this creature, so
+    /// they now live on the canonical runtime and the admitted executor builds
+    /// that entry without the bridge. Initial value (`false`) and clone
+    /// carry-over are the bridge's.
+    respawn_aura_source_authority_like_cpp: (bool, bool),
+    /// The create-time class and power projection a respawn create packet
+    /// carries (`CreatureCreateData::unit_class`/`display_power`/`power`/
+    /// `max_power`/`base_mana`), captured where this incarnation was built.
+    /// #1263 F6-8D3a-3: read by the respawn entry builder on either store.
+    respawn_create_projection_like_cpp:
+        Option<crate::creature_create::CreatureRespawnCreateProjectionLikeCpp>,
 }
 
 impl CreatureRuntimeLikeCpp {
@@ -267,6 +284,8 @@ impl CreatureRuntimeLikeCpp {
             runtime_elapsed_ms_like_cpp: 0,
             runtime_motion_master_ticks_like_cpp: 0,
             home_health_restored_pending_like_cpp: false,
+            respawn_aura_source_authority_like_cpp: (false, false),
+            respawn_create_projection_like_cpp: None,
         }
     }
 
@@ -304,6 +323,8 @@ impl CreatureRuntimeLikeCpp {
             runtime_elapsed_ms_like_cpp: source.runtime_elapsed_ms_like_cpp,
             runtime_motion_master_ticks_like_cpp: source.runtime_motion_master_ticks_like_cpp,
             home_health_restored_pending_like_cpp: source.home_health_restored_pending_like_cpp,
+            respawn_aura_source_authority_like_cpp: source.respawn_aura_source_authority_like_cpp,
+            respawn_create_projection_like_cpp: source.respawn_create_projection_like_cpp.clone(),
         }
     }
 
@@ -315,6 +336,28 @@ impl CreatureRuntimeLikeCpp {
     /// Consume the reached-home restore, once, for its publication.
     pub fn take_home_health_restored_pending_like_cpp(&mut self) -> bool {
         std::mem::take(&mut self.home_health_restored_pending_like_cpp)
+    }
+
+    /// The respawn aura-source proofs: `(spell_hit, spell_cast_log)`.
+    pub const fn respawn_aura_source_authority_like_cpp(&self) -> (bool, bool) {
+        self.respawn_aura_source_authority_like_cpp
+    }
+
+    pub fn set_respawn_aura_source_authority_like_cpp(&mut self, spell_hit: bool, cast_log: bool) {
+        self.respawn_aura_source_authority_like_cpp = (spell_hit, cast_log);
+    }
+
+    pub const fn respawn_create_projection_like_cpp(
+        &self,
+    ) -> Option<&crate::creature_create::CreatureRespawnCreateProjectionLikeCpp> {
+        self.respawn_create_projection_like_cpp.as_ref()
+    }
+
+    pub fn set_respawn_create_projection_like_cpp(
+        &mut self,
+        projection: crate::creature_create::CreatureRespawnCreateProjectionLikeCpp,
+    ) {
+        self.respawn_create_projection_like_cpp = Some(projection);
     }
 
     /// Canonical accessor for the runtime motion master's advance counter.

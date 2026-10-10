@@ -79,14 +79,50 @@ fn admit_canonical_creature_map_object_on_map_like_cpp(
     manager: &SharedCanonicalMapManager,
     map_id: u32,
     instance_id: u32,
+    creature: wow_entities::Creature,
+) -> CanonicalCreatureAdmissionLikeCpp {
+    let Ok(mut manager) = manager.lock() else {
+        return CanonicalCreatureAdmissionLikeCpp::Deferred;
+    };
+    admit_canonical_creature_map_object_on_locked_map_like_cpp(
+        &mut manager,
+        map_id,
+        instance_id,
+        creature,
+    )
+}
+
+/// [`insert_canonical_creature_map_object_on_map_like_cpp`] on a canonical
+/// manager the caller already holds (#1263 F6-8D3a-3: the admitted executor
+/// admits a respawn under its one canonical guard).
+pub fn insert_canonical_creature_map_object_on_locked_map_like_cpp(
+    manager: &mut wow_map::MapManager,
+    map_id: u32,
+    instance_id: u32,
+    creature: wow_entities::Creature,
+) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
+    match admit_canonical_creature_map_object_on_locked_map_like_cpp(
+        manager,
+        map_id,
+        instance_id,
+        creature,
+    ) {
+        CanonicalCreatureAdmissionLikeCpp::Admitted(outcome) => Some(outcome),
+        CanonicalCreatureAdmissionLikeCpp::NoCanonicalManager
+        | CanonicalCreatureAdmissionLikeCpp::Deferred
+        | CanonicalCreatureAdmissionLikeCpp::Refused => None,
+    }
+}
+
+fn admit_canonical_creature_map_object_on_locked_map_like_cpp(
+    manager: &mut wow_map::MapManager,
+    map_id: u32,
+    instance_id: u32,
     mut creature: wow_entities::Creature,
 ) -> CanonicalCreatureAdmissionLikeCpp {
     use CanonicalCreatureAdmissionLikeCpp::{Admitted, Deferred, Refused};
 
     let guid = creature.unit().world().object().guid();
-    let Ok(mut manager) = manager.lock() else {
-        return Deferred;
-    };
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
         return Deferred;
     };
@@ -373,6 +409,16 @@ impl WorldEntitiesState {
             creature
         };
         canonical_creature.clear_data_changes();
+        // #1263 F6-8D3a-3: the canonical incarnation keeps the create-time
+        // class/power projection its legacy bridge is built with, so a respawn
+        // entry built from either carries the same CREATE fields.
+        canonical_creature
+            .runtime_like_cpp_mut()
+            .set_respawn_create_projection_like_cpp(
+                wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp::from_create_data_like_cpp(
+                    &create_data,
+                ),
+            );
         // R1: admission selects the incarnation's canonical authority *before*
         // any legacy alias is published. A refused admission means the canonical
         // owner already exists and this candidate would be a second claimable

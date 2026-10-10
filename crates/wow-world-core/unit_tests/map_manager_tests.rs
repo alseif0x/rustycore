@@ -230,7 +230,7 @@ fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
         level: 1,
         min_dmg: 1,
         max_dmg: 5,
-        combat_log_stats: CreatureCombatLogStatsLikeCpp::default(),
+        combat_log_stats: wow_entities::CreatureCombatLogStatsLikeCpp::default(),
         spell_hit_aura_source_authority_like_cpp: false,
         spell_cast_log_aura_source_authority_like_cpp: false,
         aggro_radius: 10.0,

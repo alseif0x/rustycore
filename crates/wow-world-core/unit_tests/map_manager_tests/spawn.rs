@@ -114,7 +114,7 @@ fn respawn_ground_snap_uses_real_terrain_like_cpp() {
     let mut creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
     assert!((creature.creature.unit().world().position().z - 80.0).abs() < 1e-3);
 
-    snap_respawn_creature_to_ground_like_cpp(&mut creature, 0, &terrain);
+    snap_respawn_creature_to_ground_like_cpp(&mut creature.creature, 0, &terrain);
 
     // Grounded, non-hovering: snapped exactly onto the surface (+0 hover).
     assert!(
@@ -135,7 +135,7 @@ fn respawn_ground_snap_noop_without_terrain_tile_like_cpp() {
     let mut pending = make_pending_respawn(Instant::now());
     pending.home_pos.z = 80.0;
     let mut creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
-    snap_respawn_creature_to_ground_like_cpp(&mut creature, 0, &terrain);
+    snap_respawn_creature_to_ground_like_cpp(&mut creature.creature, 0, &terrain);
 
     assert!(
         (creature.creature.unit().world().position().z - 80.0).abs() < 1e-3,
@@ -174,11 +174,11 @@ fn pending_respawn_preserves_flags_extra_like_cpp() {
     let mut pending = pending_respawn_from_world_creature_like_cpp(&creature, Instant::now(), 0);
     pending.create_data.hover_height = 1.5;
     pending.ground_movement_type = wow_constants::CreatureGroundMovementType::Hover as u8;
-    pending.addon = Some(CreatureAddonLifecycleRecordLikeCpp {
+    pending.addon = Some(wow_entities::CreatureAddonLifecycleRecordLikeCpp {
         path_id: 88_001,
         visibility_distance_type: wow_entities::VisibilityDistanceTypeLikeCpp::Large,
         auras: vec![70_020],
-        ..CreatureAddonLifecycleRecordLikeCpp::default()
+        ..wow_entities::CreatureAddonLifecycleRecordLikeCpp::default()
     });
     assert_eq!(
         pending.spawn_id, 42,

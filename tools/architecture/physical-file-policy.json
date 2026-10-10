@@ -48,9 +48,9 @@
     },
     {
       "path": "crates/world-server/src/creature_loaded_grid.rs",
-      "observed_lines": 797,
-      "ceiling_lines": 797,
-      "split": "#584 P4 splits the 2,944-line file into 797 lines of production grid population and loaded-creature construction plus the shared test facade and two responsibility-scoped test modules (1,194/525 lines). All 28 tests remain registered; the old root is retained as the production facade and its test files carry explicit cfg(test) attribution.",
+      "observed_lines": 804,
+      "ceiling_lines": 804,
+      "split": "#584 P4 splits the 2,944-line file into 797 lines of production grid population and loaded-creature construction plus the shared test facade and two responsibility-scoped test modules (1,194/525 lines). All 28 tests remain registered; the old root is retained as the production facade and its test files carry explicit cfg(test) attribution. 2026-10-10 #1263 F6-8D3a-3 review: 797 -> 804 (+7). The DB-backed loaded-grid boundary in `resolve_loaded_grid_creature_like_cpp` — the one place that has resolved and applied the creature_addon/template_addon source — now also records that fact and the create-time class/power projection on the canonical creature runtime (`set_respawn_aura_source_authority_like_cpp(true, true)`, `set_respawn_create_projection_like_cpp`), plus one import. The legacy mirror records the same two facts on its bridge (`from_loaded_grid_canonical_like_cpp`), and the admitted canonical executor builds the respawn entry from the canonical incarnation, so they must be recorded on the canonical side at the same boundary; a sibling module would separate the stamp from the boundary it certifies. No production reader changes: only the respawn entry builder reads them.",
       "review_checkpoint": "584:C4"
     },
     {

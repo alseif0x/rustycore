@@ -30,6 +30,9 @@ mod f6_8d3a1b_spell_parity;
 // #1263 F6-8D3a-2: the executor runs the creature movement phase with parity.
 #[path = "scenarios_world_entities_19/f6_8d3a2_movement_lifecycle_parity.rs"]
 mod f6_8d3a2_movement_lifecycle_parity;
+// #1263 F6-8D3a-3: the executor runs the creature lifecycle phase with parity.
+#[path = "scenarios_world_entities_19/f6_8d3a3_lifecycle_parity.rs"]
+mod f6_8d3a3_lifecycle_parity;
 #[path = "scenarios_world_entities_19/gameobject_use.rs"]
 mod gameobject_use;
 #[path = "scenarios_world_entities_19/legacy_creature_tick_noop.rs"]

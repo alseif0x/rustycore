@@ -5,14 +5,13 @@
 
 use super::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct PersistedRespawnRowLikeCpp {
-    pub object_type: SpawnObjectType,
-    pub spawn_id: u64,
-    pub respawn_time: i64,
-    pub map_id: u16,
-    pub instance_id: u32,
-}
+// #1263 F6-8D3a-3: the respawn entry types and the queue moved to the map
+// crate, so the canonical map owns the same queue the legacy `MapInstance`
+// owns; every legacy path keeps naming them here.
+pub use wow_map::creature_respawn_queue::{
+    CreatureRespawnQueueLikeCpp, LegacyRespawnTimeAddOutcomeLikeCpp, PendingRespawn,
+    PersistedRespawnRowLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct LegacyRespawnQueueReloadReportLikeCpp {
@@ -24,15 +23,6 @@ pub struct LegacyRespawnQueueReloadReportLikeCpp {
     pub rejected_unsupported_type: usize,
     pub rejected_existing_later: usize,
     pub missing_creature_runtime: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LegacyRespawnTimeAddOutcomeLikeCpp {
-    Inserted,
-    ReplacedExisting,
-    RejectedZeroSpawnId,
-    RejectedUnsupportedType,
-    RejectedExistingSoonerOrEqual,
 }
 
 pub(super) fn spawn_object_type_raw_like_cpp(object_type: SpawnObjectType) -> u16 {
@@ -79,6 +69,42 @@ pub fn instant_from_respawn_time_like_cpp(
     now.checked_add(Duration::from_secs(low)).unwrap_or(now)
 }
 
+/// Persist one pending respawn's time in a map's respawn queue and return the
+/// DB statement, like C++ `Map::SaveRespawnInfoDB` after `SaveRespawnTime`.
+pub fn save_pending_respawn_time_on_queue_like_cpp(
+    queue: &mut CreatureRespawnQueueLikeCpp,
+    map_id: u16,
+    instance_id: u32,
+    respawn: &PendingRespawn,
+    now: Instant,
+    now_secs: i64,
+) -> Option<RespawnPersistenceMutationLikeCpp> {
+    let row = PersistedRespawnRowLikeCpp {
+        object_type: SpawnObjectType::Creature,
+        spawn_id: respawn.spawn_id,
+        respawn_time: respawn_time_from_instant_like_cpp(respawn.respawn_at, now, now_secs),
+        map_id,
+        instance_id,
+    };
+    match queue.add_persisted_respawn_time_like_cpp(row) {
+        LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
+        | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
+            Some(RespawnPersistenceMutationLikeCpp::Save {
+                key: RespawnPersistenceKeyLikeCpp {
+                    object_type_raw: spawn_object_type_raw_like_cpp(row.object_type),
+                    spawn_id: row.spawn_id,
+                    map_id: row.map_id,
+                    instance_id: row.instance_id,
+                },
+                respawn_time: row.respawn_time,
+            })
+        }
+        LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
+        | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
+        | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => None,
+    }
+}
+
 pub fn respawn_delete_mutation_like_cpp(
     object_type: SpawnObjectType,
     spawn_id: u64,
@@ -102,11 +128,10 @@ pub fn respawn_delete_mutation_like_cpp(
 /// no-terrain runtime path is byte-identical to before this wiring. Flyers keep
 /// their altitude (raise-only); grounded creatures sit on `ground + hover`.
 pub fn snap_respawn_creature_to_ground_like_cpp(
-    world_creature: &mut WorldCreature,
+    creature: &mut Creature,
     map_id: u16,
     terrain: &LiveTerrainHeights,
 ) {
-    let creature = &world_creature.creature;
     let pos = creature.unit().world().position();
     // C++ `Unit::GetHoverOffset()`: hover height only while the HOVER flag is set.
     let hover_offset = if creature
@@ -133,86 +158,9 @@ pub fn snap_respawn_creature_to_ground_like_cpp(
     let new_z = allowed_position_z_from_ground_like_cpp(true, ground, pos.z, caps);
     if new_z != pos.z {
         let snapped = Position::new(pos.x, pos.y, new_z, pos.orientation);
-        world_creature
-            .creature
-            .unit_mut()
-            .world_mut()
-            .relocate(snapped);
-        world_creature.creature.set_ai_home_position(snapped);
+        creature.unit_mut().world_mut().relocate(snapped);
+        creature.set_ai_home_position(snapped);
     }
-}
-
-/// A creature waiting to respawn after its corpse despawned.
-///
-/// Owned by `MapInstance::respawn_queue`; processed by `tick_creatures_sync`.
-/// C++ refs: `Creature::RemoveCorpse` / `AllLootRemovedFromCorpse` schedule a
-/// map-owned `RespawnInfo`, and `Map::ProcessRespawns` later calls
-/// `DoRespawn(SPAWN_TYPE_CREATURE, spawnId, gridId)`.
-#[derive(Debug)]
-pub struct PendingRespawn {
-    /// When to respawn.
-    pub respawn_at: Instant,
-    /// C++ `RespawnInfo::spawnId` / `Creature::m_spawnId`, separate from the live ObjectGuid low counter.
-    pub spawn_id: u64,
-    /// Whether `spawn_id` is a real DB spawn identity rather than the
-    /// queue-only GUID-low fallback used for dynamic creatures.
-    pub persistent_spawn: bool,
-    /// Home position (spawn point).
-    pub home_pos: wow_core::Position,
-    /// Full create data retained until the represented loader converges on
-    /// C++ `Creature::LoadFromDB(spawnId, map, true, true)`.
-    pub create_data: CreatureCreateData,
-    /// AI fields needed to rebuild the canonical creature runtime.
-    pub max_hp: u32,
-    pub level: u8,
-    pub min_dmg: u32,
-    pub max_dmg: u32,
-    /// Live totals used by C++ `SpellCastLogData::Initialize`.
-    pub combat_log_stats: CreatureCombatLogStatsLikeCpp,
-    /// DB-backed source proofs captured independently of the live aura markers.
-    /// The live markers are revoked during death cleanup; the respawn rail may
-    /// restore only proofs that crossed the authoritative loaded-grid bridge.
-    pub spell_hit_aura_source_authority_like_cpp: bool,
-    pub spell_cast_log_aura_source_authority_like_cpp: bool,
-    pub aggro_radius: f32,
-    pub wander_distance: f32,
-    pub flags_extra: u32,
-    pub static_flags: [u32; 8],
-    pub ai_name: String,
-    pub script_name: String,
-    pub string_id: Option<String>,
-    pub addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
-    pub ground_movement_type: u8,
-    pub swim_allowed: bool,
-    pub flight_movement_type: u8,
-    pub rooted: bool,
-    pub chase_movement_type: u8,
-    pub random_movement_type: u8,
-    pub interaction_pause_timer_ms: u32,
-    pub default_movement_type: MovementGeneratorType,
-    pub waypoint_path_id: u32,
-    pub npc_flags: u32,
-    pub unit_flags: u32,
-    pub map_id: u16,
-    pub loot_id: u32,
-    pub skin_loot_id: u32,
-    pub gold_min: u32,
-    pub gold_max: u32,
-    pub respawn_delay_secs: u32,
-    pub selected_equipment_id: u8,
-    pub original_equipment_id: i8,
-    pub boss_id: Option<u32>,
-    pub dungeon_encounter_id: u32,
-    pub phase_use_flags: u8,
-    pub phase_id: u16,
-    pub phase_group_id: u32,
-    pub terrain_swap_map: i32,
-    /// Already-resolved DB phase shift from the creature that despawned.
-    ///
-    /// The global runtime has no `WorldSession` phase stores, so respawn must
-    /// reuse the resolved phase state captured at despawn time instead of
-    /// recalculating it through session-local helpers.
-    pub phase_shift: PhaseShift,
 }
 
 /// Build a map-owned respawn entry from the represented runtime creature.
@@ -225,8 +173,41 @@ pub fn pending_respawn_from_world_creature_like_cpp(
     respawn_at: Instant,
     map_id: u16,
 ) -> PendingRespawn {
-    let persistent_spawn = creature.creature.spawn_id() != 0;
-    let spawn_id = match creature.creature.spawn_id() {
+    pending_respawn_from_creature_like_cpp(&creature.creature, respawn_at, map_id)
+}
+
+/// The class/power projection a respawn entry carries: the one this
+/// incarnation was built with, or — for an incarnation built without one — the
+/// unit's own fields, exactly as `WorldCreature::create_data_from_canonical_like_cpp`
+/// projects them.
+fn respawn_create_projection_like_cpp(
+    creature: &Creature,
+) -> wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp {
+    creature
+        .runtime_like_cpp()
+        .respawn_create_projection_like_cpp()
+        .cloned()
+        .unwrap_or_else(|| {
+            wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp::from_unit_like_cpp(
+                creature.unit(),
+            )
+        })
+}
+
+/// Build a map-owned respawn entry from one creature incarnation, on either
+/// store (#1263 F6-8D3a-3: the one body; it reads only the canonical
+/// creature and its runtime state).
+pub fn pending_respawn_from_creature_like_cpp(
+    creature: &Creature,
+    respawn_at: Instant,
+    map_id: u16,
+) -> PendingRespawn {
+    let (spell_hit_aura_source_authority, spell_cast_log_aura_source_authority) = creature
+        .runtime_like_cpp()
+        .respawn_aura_source_authority_like_cpp();
+    let projection = respawn_create_projection_like_cpp(creature);
+    let persistent_spawn = creature.spawn_id() != 0;
+    let spawn_id = match creature.spawn_id() {
         0 => creature.guid().low_value().max(0) as u64,
         spawn_id => spawn_id,
     };
@@ -242,8 +223,8 @@ pub fn pending_respawn_from_world_creature_like_cpp(
             native_display_id: creature.display_id(),
             display_scale: 1.0,
             native_x_display_scale: 1.0,
-            bounding_radius: creature.creature.unit().data().bounding_radius,
-            combat_reach: creature.creature.unit().data().combat_reach,
+            bounding_radius: creature.unit().data().bounding_radius,
+            combat_reach: creature.unit().data().combat_reach,
             health: creature.max_hp() as i64,
             max_health: creature.max_hp() as i64,
             level: creature.level(),
@@ -257,100 +238,93 @@ pub fn pending_respawn_from_world_creature_like_cpp(
                 creature.max_hp() as u64,
                 creature.max_hp() > 0,
             ),
-            damage_school: creature.creature.melee_damage_school_like_cpp(),
+            damage_school: creature.melee_damage_school_like_cpp(),
             scale: 1.0,
-            unit_class: creature.create_data.unit_class,
-            display_power: creature.create_data.display_power,
-            power: creature.create_data.power,
-            max_power: creature.create_data.max_power,
-            base_mana: creature.create_data.base_mana,
+            unit_class: projection.unit_class,
+            display_power: projection.display_power,
+            power: projection.power,
+            max_power: projection.max_power,
+            base_mana: projection.base_mana,
             virtual_items: [
                 (
-                    creature.creature.unit().data().virtual_items[0].item_id,
-                    creature.creature.unit().data().virtual_items[0].item_appearance_mod_id,
-                    creature.creature.unit().data().virtual_items[0].item_visual,
+                    creature.unit().data().virtual_items[0].item_id,
+                    creature.unit().data().virtual_items[0].item_appearance_mod_id,
+                    creature.unit().data().virtual_items[0].item_visual,
                 ),
                 (
-                    creature.creature.unit().data().virtual_items[1].item_id,
-                    creature.creature.unit().data().virtual_items[1].item_appearance_mod_id,
-                    creature.creature.unit().data().virtual_items[1].item_visual,
+                    creature.unit().data().virtual_items[1].item_id,
+                    creature.unit().data().virtual_items[1].item_appearance_mod_id,
+                    creature.unit().data().virtual_items[1].item_visual,
                 ),
                 (
-                    creature.creature.unit().data().virtual_items[2].item_id,
-                    creature.creature.unit().data().virtual_items[2].item_appearance_mod_id,
-                    creature.creature.unit().data().virtual_items[2].item_visual,
+                    creature.unit().data().virtual_items[2].item_id,
+                    creature.unit().data().virtual_items[2].item_appearance_mod_id,
+                    creature.unit().data().virtual_items[2].item_visual,
                 ),
             ],
             base_attack_time: 2000,
             ranged_attack_time: 0,
-            movement_flags: creature.creature.movement_flags_like_cpp().bits(),
-            vehicle_id: creature
-                .creature
-                .lifecycle_metadata()
-                .vehicle_id
-                .unwrap_or(0),
+            movement_flags: creature.movement_flags_like_cpp().bits(),
+            vehicle_id: creature.lifecycle_metadata().vehicle_id.unwrap_or(0),
             play_hover_anim: false,
-            hover_height: creature.creature.unit().data().hover_height,
-            mount_display_id: creature.creature.unit().data().mount_display_id,
-            stand_state: creature.creature.unit().data().stand_state,
-            vis_flags: creature.creature.unit().data().vis_flags,
-            anim_tier: creature.creature.unit().data().anim_tier,
-            emote_state: creature.creature.unit().emote_state_like_cpp() as i32,
-            sheathe_state: creature.creature.unit().data().sheathe_state,
-            pvp_flags: creature.creature.unit().data().pvp_flags,
+            hover_height: creature.unit().data().hover_height,
+            mount_display_id: creature.unit().data().mount_display_id,
+            stand_state: creature.unit().data().stand_state,
+            vis_flags: creature.unit().data().vis_flags,
+            anim_tier: creature.unit().data().anim_tier,
+            emote_state: creature.unit().emote_state_like_cpp() as i32,
+            sheathe_state: creature.unit().data().sheathe_state,
+            pvp_flags: creature.unit().data().pvp_flags,
             current_area_id: 0,
             speed_walk_rate: 1.0,
             speed_run_rate: 1.14286,
-            ai_anim_kit_id: creature.creature.unit().ai_anim_kit_id_like_cpp(),
-            movement_anim_kit_id: creature.creature.unit().movement_anim_kit_id_like_cpp(),
-            melee_anim_kit_id: creature.creature.unit().melee_anim_kit_id_like_cpp(),
+            ai_anim_kit_id: creature.unit().ai_anim_kit_id_like_cpp(),
+            movement_anim_kit_id: creature.unit().movement_anim_kit_id_like_cpp(),
+            melee_anim_kit_id: creature.unit().melee_anim_kit_id_like_cpp(),
         },
         max_hp: creature.max_hp(),
         level: creature.level(),
         min_dmg: creature.min_dmg(),
         max_dmg: creature.max_dmg(),
-        combat_log_stats: creature.creature.combat_log_stats_like_cpp(),
-        spell_hit_aura_source_authority_like_cpp: creature
-            .respawn_spell_hit_aura_source_authority_like_cpp,
-        spell_cast_log_aura_source_authority_like_cpp: creature
-            .respawn_spell_cast_log_aura_source_authority_like_cpp,
-        aggro_radius: creature.creature.ai_ownership().aggro_radius,
-        wander_distance: creature.creature.ai_ownership().wander_radius.max(0.0),
-        flags_extra: creature.creature.lifecycle_metadata().flags_extra,
-        static_flags: creature.creature.lifecycle_metadata().static_flags,
-        ai_name: creature.creature.lifecycle_metadata().ai_name.clone(),
-        script_name: creature.creature.lifecycle_metadata().script_name.clone(),
-        string_id: creature.creature.lifecycle_metadata().string_id.clone(),
-        addon: creature.creature.lifecycle_metadata().addon.clone(),
-        ground_movement_type: creature.creature.ground_movement_type_like_cpp(),
-        swim_allowed: creature.creature.swim_allowed_like_cpp(),
-        flight_movement_type: creature.creature.flight_movement_type_like_cpp(),
-        rooted: creature.creature.is_template_rooted_like_cpp(),
-        chase_movement_type: creature.creature.chase_movement_type_like_cpp(),
-        random_movement_type: creature.creature.random_movement_type_like_cpp(),
-        interaction_pause_timer_ms: creature.creature.interaction_pause_timer_ms_like_cpp(),
-        default_movement_type: creature.creature.default_movement_type(),
-        waypoint_path_id: creature.creature.waypoint_path_id_like_cpp(),
+        combat_log_stats: creature.combat_log_stats_like_cpp(),
+        spell_hit_aura_source_authority_like_cpp: spell_hit_aura_source_authority,
+        spell_cast_log_aura_source_authority_like_cpp: spell_cast_log_aura_source_authority,
+        aggro_radius: creature.ai_ownership().aggro_radius,
+        wander_distance: creature.ai_ownership().wander_radius.max(0.0),
+        flags_extra: creature.lifecycle_metadata().flags_extra,
+        static_flags: creature.lifecycle_metadata().static_flags,
+        ai_name: creature.lifecycle_metadata().ai_name.clone(),
+        script_name: creature.lifecycle_metadata().script_name.clone(),
+        string_id: creature.lifecycle_metadata().string_id.clone(),
+        addon: creature.lifecycle_metadata().addon.clone(),
+        ground_movement_type: creature.ground_movement_type_like_cpp(),
+        swim_allowed: creature.swim_allowed_like_cpp(),
+        flight_movement_type: creature.flight_movement_type_like_cpp(),
+        rooted: creature.is_template_rooted_like_cpp(),
+        chase_movement_type: creature.chase_movement_type_like_cpp(),
+        random_movement_type: creature.random_movement_type_like_cpp(),
+        interaction_pause_timer_ms: creature.interaction_pause_timer_ms_like_cpp(),
+        default_movement_type: creature.default_movement_type(),
+        waypoint_path_id: creature.waypoint_path_id_like_cpp(),
         npc_flags: creature.npc_flags(),
         unit_flags: creature.unit_flags(),
         map_id,
-        loot_id: creature.loot_id(),
-        skin_loot_id: creature.skin_loot_id(),
-        gold_min: creature.gold_min(),
-        gold_max: creature.gold_max(),
+        loot_id: creature.ai_ownership().loot_id,
+        skin_loot_id: creature.ai_ownership().skin_loot_id,
+        gold_min: creature.ai_ownership().gold_min,
+        gold_max: creature.ai_ownership().gold_max,
         respawn_delay_secs: creature
-            .creature
             .ai_ownership()
             .respawn_time_secs
             .min(u64::from(u32::MAX)) as u32,
-        selected_equipment_id: creature.creature.equipment_id(),
-        original_equipment_id: creature.creature.original_equipment_id(),
-        boss_id: creature.boss_id(),
-        dungeon_encounter_id: creature.dungeon_encounter_id(),
-        phase_use_flags: creature.creature.ai_ownership().phase_use_flags,
-        phase_id: creature.creature.ai_ownership().phase_id,
-        phase_group_id: creature.creature.ai_ownership().phase_group_id,
-        terrain_swap_map: creature.creature.ai_ownership().terrain_swap_map,
+        selected_equipment_id: creature.equipment_id(),
+        original_equipment_id: creature.original_equipment_id(),
+        boss_id: creature.ai_ownership().boss_id,
+        dungeon_encounter_id: creature.ai_ownership().dungeon_encounter_id,
+        phase_use_flags: creature.ai_ownership().phase_use_flags,
+        phase_id: creature.ai_ownership().phase_id,
+        phase_group_id: creature.ai_ownership().phase_group_id,
+        terrain_swap_map: creature.ai_ownership().terrain_swap_map,
         phase_shift: creature.phase_shift().clone(),
     }
 }
@@ -376,6 +350,21 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     respawn: &PendingRespawn,
     instance_id: u32,
 ) -> WorldCreature {
+    WorldCreature::from_installed_canonical_like_cpp(
+        creature_from_pending_respawn_like_cpp(respawn, instance_id),
+        respawn.create_data.clone(),
+    )
+}
+
+/// Rebuild the creature incarnation of one map-owned respawn entry.
+///
+/// #1263 F6-8D3a-3: the one rebuild body. The legacy bridge wraps the result
+/// in its packet projection; the admitted canonical executor installs it on
+/// the canonical map as is.
+pub fn creature_from_pending_respawn_like_cpp(
+    respawn: &PendingRespawn,
+    instance_id: u32,
+) -> Creature {
     let create_data = &respawn.create_data;
     let position = pending_respawn_create_position_like_cpp(respawn);
     let guid = create_data.guid;
@@ -488,12 +477,23 @@ pub fn world_creature_from_pending_respawn_like_cpp(
     creature.ai_ownership_mut().phase_id = respawn.phase_id;
     creature.ai_ownership_mut().phase_group_id = respawn.phase_group_id;
     creature.ai_ownership_mut().terrain_swap_map = respawn.terrain_swap_map;
+    // C++ `Creature::UpdateEntry` (`Creature.cpp:547-550`), reached from
+    // `Map::DoRespawn` → `Creature::LoadFromDB` → `Create` → `InitEntry`: the
+    // template walk/run rates, swim and flight at 1.0. #1263 F6-8D3a-3: the
+    // rebuilt unit carries the rates its CREATE projection caches, so
+    // `Unit::m_speed_rate` and `CreatureCreateData::speed_*_rate` agree.
+    let unit = creature.unit_mut();
+    unit.set_speed_rate_like_cpp(UnitMoveType::Walk, create_data.speed_walk_rate);
+    unit.set_speed_rate_like_cpp(UnitMoveType::Run, create_data.speed_run_rate);
+    unit.set_speed_rate_like_cpp(UnitMoveType::Swim, 1.0);
+    unit.set_speed_rate_like_cpp(UnitMoveType::Flight, 1.0);
     creature.clear_data_changes();
 
-    let mut world_creature = WorldCreature::from_canonical(creature, respawn.create_data.clone());
-    world_creature.restore_respawn_aura_source_authority_like_cpp(
+    WorldCreature::install_bridge_runtime_like_cpp(&mut creature, &respawn.create_data);
+    super::respawn::restore_respawn_aura_source_authority_like_cpp(
+        &mut creature,
         respawn.spell_hit_aura_source_authority_like_cpp,
         respawn.spell_cast_log_aura_source_authority_like_cpp,
     );
-    world_creature
+    creature
 }

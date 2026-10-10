@@ -255,9 +255,12 @@ pub use creature_spawn_contracts::{
 mod creature_canonical_adapter;
 mod loot;
 pub use creature_canonical_adapter::{
+    add_canonical_creature_respawn_info_and_remove_map_object_on_locked_map_like_cpp,
     add_canonical_creature_respawn_info_and_remove_map_object_on_map_like_cpp,
     relocate_canonical_creature_map_object_on_map_like_cpp,
+    remove_canonical_creature_map_object_on_locked_map_like_cpp,
     remove_canonical_creature_map_object_on_map_like_cpp,
+    remove_canonical_respawn_time_on_locked_map_like_cpp,
     remove_canonical_respawn_time_on_map_like_cpp,
     sync_admitted_creature_representation_on_map_like_cpp,
     sync_canonical_creature_entity_on_map_like_cpp,

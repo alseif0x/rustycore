@@ -47,8 +47,10 @@ pub use contracts::{
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 pub use creature_publication::represented_creature_aura_info_like_cpp;
 pub use creature_registry::{
-    CanonicalCreatureInsertOutcomeLikeCpp, insert_canonical_creature_map_object_on_map_like_cpp,
-    sheath_state_from_u8_like_cpp, unit_stand_state_from_u8_like_cpp,
+    CanonicalCreatureInsertOutcomeLikeCpp,
+    insert_canonical_creature_map_object_on_locked_map_like_cpp,
+    insert_canonical_creature_map_object_on_map_like_cpp, sheath_state_from_u8_like_cpp,
+    unit_stand_state_from_u8_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use gameobject_contracts::RepresentedGameObjectCriteriaEvent;

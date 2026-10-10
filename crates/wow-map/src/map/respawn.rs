@@ -30,6 +30,23 @@ where
         &mut self.respawn_store
     }
 
+    /// #1263 F6-8D3a-3: the creature respawn queue with the rebuild data
+    /// (`PendingRespawn`) and the persisted respawn rows of this map — the same
+    /// queue type the legacy map manager owns, so the creature lifecycle phase
+    /// runs one body against either. It sits beside [`Self::respawn_store_like_cpp`]
+    /// exactly as the legacy lifecycle keeps both.
+    pub const fn creature_respawn_queue_like_cpp(
+        &self,
+    ) -> &crate::creature_respawn_queue::CreatureRespawnQueueLikeCpp {
+        &self.creature_respawn_queue
+    }
+
+    pub fn creature_respawn_queue_like_cpp_mut(
+        &mut self,
+    ) -> &mut crate::creature_respawn_queue::CreatureRespawnQueueLikeCpp {
+        &mut self.creature_respawn_queue
+    }
+
     pub fn add_respawn_info_like_cpp(
         &mut self,
         info: RespawnInfoLikeCpp,

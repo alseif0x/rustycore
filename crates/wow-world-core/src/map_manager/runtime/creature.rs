@@ -120,7 +120,22 @@ impl WorldCreature {
         Self::from_canonical(creature, create_data)
     }
 
-    pub fn from_canonical(mut creature: Creature, mut create_data: CreatureCreateData) -> Self {
+    pub fn from_canonical(mut creature: Creature, create_data: CreatureCreateData) -> Self {
+        Self::install_bridge_runtime_like_cpp(&mut creature, &create_data);
+        Self::from_installed_canonical_like_cpp(creature, create_data)
+    }
+
+    /// The creature half of [`Self::from_canonical`]: install a fresh runtime
+    /// incarnation on the canonical creature.
+    ///
+    /// #1263 F6-8D3a-3: separated so the respawn rebuild produces the same
+    /// canonical incarnation on either store; the legacy bridge then wraps it
+    /// with [`Self::from_installed_canonical_like_cpp`]. The runtime also keeps
+    /// the create-time class/power projection the respawn entry reads.
+    pub fn install_bridge_runtime_like_cpp(
+        creature: &mut Creature,
+        create_data: &CreatureCreateData,
+    ) {
         // This generic bridge carries no proof that every aura source was
         // hydrated. Preserve fail-closed semantics even if a caller passes a
         // clone that previously crossed a more authoritative boundary.
@@ -129,6 +144,33 @@ impl WorldCreature {
             .subsystems_mut()
             .auras
             .invalidate_spell_hit_aura_authority_like_cpp();
+        let _ = creature
+            .unit_mut()
+            .subsystems_mut()
+            .motion
+            .add_to_world_like_cpp();
+        let runtime_motion_master = Self::new_runtime_motion_master_like_cpp(creature);
+        // #1263 F6-8A: this bridge installs a fresh runtime incarnation. The
+        // persistent runtime state — including the elapsed-time clock, the RNG
+        // and its authority marker — is reset exactly as the former
+        // bridge-local field list reset it, and the canonical owner now stores
+        // it. #1263 F6-8D1 added the motion-master advance counter to that same
+        // reset.
+        *creature.runtime_like_cpp_mut() =
+            wow_entities::CreatureRuntimeLikeCpp::new_like_cpp(runtime_motion_master);
+        creature.runtime_like_cpp_mut().set_respawn_create_projection_like_cpp(
+            wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp::from_create_data_like_cpp(
+                create_data,
+            ),
+        );
+    }
+
+    /// The projection half of [`Self::from_canonical`], over a creature whose
+    /// runtime incarnation is already installed.
+    pub fn from_installed_canonical_like_cpp(
+        creature: Creature,
+        mut create_data: CreatureCreateData,
+    ) -> Self {
         let ai = creature.ai_ownership();
         create_data.npc_flags = (u64::from(ai.npc_flags2) << 32) | u64::from(ai.npc_flags);
         create_data.unit_flags = ai.unit_flags;
@@ -138,25 +180,9 @@ impl WorldCreature {
         create_data.ai_anim_kit_id = creature.unit().ai_anim_kit_id_like_cpp();
         create_data.movement_anim_kit_id = creature.unit().movement_anim_kit_id_like_cpp();
         create_data.melee_anim_kit_id = creature.unit().melee_anim_kit_id_like_cpp();
-        let _ = creature
-            .unit_mut()
-            .subsystems_mut()
-            .motion
-            .add_to_world_like_cpp();
-        let runtime_motion_master = Self::new_runtime_motion_master_like_cpp(&creature);
-        // #1263 F6-8A: this bridge installs a fresh runtime incarnation. The
-        // persistent runtime state — including the elapsed-time clock, the RNG
-        // and its authority marker — is reset exactly as the former
-        // bridge-local field list reset it, and the canonical owner now stores
-        // it. #1263 F6-8D1 added the motion-master advance counter to that same
-        // reset.
-        *creature.runtime_like_cpp_mut() =
-            wow_entities::CreatureRuntimeLikeCpp::new_like_cpp(runtime_motion_master);
         Self {
             creature,
             create_data,
-            respawn_spell_hit_aura_source_authority_like_cpp: false,
-            respawn_spell_cast_log_aura_source_authority_like_cpp: false,
         }
     }
 
