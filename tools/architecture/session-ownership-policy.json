@@ -70406,7 +70406,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_like_cpp ()|body=fnv1a64x2:17f89449a05d700cb2536573e5c3ceb7:len=4767|evidence=fnv1a64x2:e0c04662de226f95c1be1db29debd52c:len=2828",
+          "fingerprint": "signature=fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_like_cpp ()|body=fnv1a64x2:da90d199cd3b771889f5bb3fafbb48ab:len=4765|evidence=fnv1a64x2:e0c04662de226f95c1be1db29debd52c:len=2828",
           "cfg": [
             "cfg (test)"
           ],
@@ -79208,7 +79208,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:SessionCore::fn with_admitted_world_creature_captured_like_cpp < R > (& mut self , guid : ObjectGuid , mutation : impl FnOnce (& mut crate :: map_manager :: WorldCreature) -> Option < R > ,) -> (Option < R > , Option < CreatureRepresentationCaptureLikeCpp >)|body=fnv1a64x2:b54fc5a39b51603ee4bb6e1e3d4d85f1:len=4004|evidence=fnv1a64x2:f23746e3d7abf196b1f17ec55d01a96d:len=2646",
+          "fingerprint": "signature=impl:SessionCore::fn with_admitted_world_creature_captured_like_cpp < R > (& mut self , guid : ObjectGuid , mutation : impl FnOnce (& mut crate :: map_manager :: WorldCreature) -> Option < R > ,) -> (Option < R > , Option < CreatureRepresentationCaptureLikeCpp >)|body=fnv1a64x2:aee72a034d8bf792ba1f64a82ccf9125:len=4006|evidence=fnv1a64x2:f23746e3d7abf196b1f17ec55d01a96d:len=2646",
           "cfg": [],
           "multiplicity": 1
         },
@@ -79887,7 +79887,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldEntitiesState::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , hub : & mut HubMut < '_ > , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:57814e39b431547471802d5553003b37:len=9106|evidence=fnv1a64x2:5f586d947f94e9fdd907812af463dcee:len=17009",
+          "fingerprint": "signature=impl:WorldEntitiesState::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , hub : & mut HubMut < '_ > , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:4cac11cd08ed19329b52ec5705fa38c1:len=9104|evidence=fnv1a64x2:5f586d947f94e9fdd907812af463dcee:len=17009",
           "cfg": [],
           "multiplicity": 1
         },

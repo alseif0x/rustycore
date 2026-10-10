@@ -392,15 +392,18 @@ fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
     let (start, go) = decode_atomic_creature_spell_wire_pair_like_cpp(&cast.plan.events[0]);
     assert_eq!(start.opcode, ServerOpcodes::SpellStart as u16);
     assert_eq!(go.opcode, ServerOpcodes::SpellGo as u16);
-    let can_swing_immediately = mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature.can_swing())
+    let can_swing_immediately =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+            creature.can_swing()
+        })
         .unwrap();
     assert!(!can_swing_immediately);
 
     mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
-            creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
-            assert!(creature.can_swing());
-        })
-        .unwrap();
+        creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+        assert!(creature.can_swing());
+    })
+    .unwrap();
     let melee = run_legacy_creature_melee_tick_once_like_cpp(
         &manager,
         Some(&canonical),
@@ -491,7 +494,10 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
 
         let outcome =
             run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
-        let swing_ready = mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature.can_swing())
+        let swing_ready =
+            mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+                creature.can_swing()
+            })
             .unwrap();
         (outcome, swing_ready)
     };

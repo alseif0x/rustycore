@@ -500,6 +500,8 @@ pub(in crate::session::tests) fn mutate_legacy_creature_for_test_like_cpp<R>(
     guid: ObjectGuid,
     f: impl FnOnce(&mut crate::map_manager::WorldCreature) -> R,
 ) -> Option<R> {
-    let mut manager = manager.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let mut manager = manager
+        .write()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     manager.find_creature_mut(0, 0, guid).map(f)
 }

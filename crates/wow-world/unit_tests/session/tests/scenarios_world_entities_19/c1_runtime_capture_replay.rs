@@ -173,11 +173,21 @@ fn c1_injected_stale_and_aba_replay_capture_like_cpp() {
     // rejection shapes are no longer refusals: there is no transported
     // representation to admit, and the mutation runs once on the incarnation,
     // whose own (advanced) state it starts from.
-    assert!(stale_result.is_some(), "the stale shape is applied on the incarnation");
-    assert!(aba_result.is_some(), "the ABA shape is applied on the incarnation");
+    assert!(
+        stale_result.is_some(),
+        "the stale shape is applied on the incarnation"
+    );
+    assert!(
+        aba_result.is_some(),
+        "the ABA shape is applied on the incarnation"
+    );
     assert!(stale_invoked.load(std::sync::atomic::Ordering::SeqCst));
     assert!(aba_invoked.load(std::sync::atomic::Ordering::SeqCst));
-    for (what, chunk) in [("fresh", &fresh_chunk), ("stale", &stale_chunk), ("ABA", &aba_chunk)] {
+    for (what, chunk) in [
+        ("fresh", &fresh_chunk),
+        ("stale", &stale_chunk),
+        ("ABA", &aba_chunk),
+    ] {
         let applied = one_event_like_cpp(chunk, what);
         assert!(
             applied.contains("root=\"SessionCore::with_admitted_world_creature_like_cpp\"")
@@ -418,7 +428,12 @@ fn c1_r6_refusal_has_no_success_publication_like_cpp() {
                 .shares_storage_like_cpp(&incarnation_authority_before),
             "the {what} release preserves the incarnation's authority"
         );
-        let _ = (legacy_before, canonical_before, legacy_authority_before, &send_rx);
+        let _ = (
+            legacy_before,
+            canonical_before,
+            legacy_authority_before,
+            &send_rx,
+        );
     }
 
     // ---- Root 2 (creature_canonical_adapter.rs), through the movement tick. ----

@@ -509,12 +509,7 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         535000,
     ));
 
-    let summary = game_event_spawn_for_event_like_cpp(
-        &mut manager,
-        &metadata,
-        &caches,
-        event_id,
-    );
+    let summary = game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.non_pool.missing_event_creature_guids);
@@ -592,8 +587,7 @@ fn game_event_spawn_for_event_missing_creature_bucket_skips_gameobjects_and_pool
         .with_game_event_spawn_guids_like_cpp(guids);
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-    let summary =
-        game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+    let summary = game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(summary.non_pool.missing_event_creature_guids);
@@ -696,8 +690,7 @@ fn game_event_spawn_for_event_missing_gameobject_bucket_skips_pool_after_creatur
             535000,
         ));
 
-    let summary =
-        game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
+    let summary = game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.non_pool.missing_event_creature_guids);

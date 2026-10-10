@@ -325,9 +325,7 @@ fn d3a1b_caster_state_like_cpp(
     // a 1..2 range coincide for neighbouring positions one time in sixteen).
     let mut probe = runtime.clone();
     let draws: Vec<u32> = (0..4)
-        .map(|_| {
-            rand::RngCore::next_u32(probe.runtime_like_cpp_mut().runtime_rng_like_cpp_mut())
-        })
+        .map(|_| rand::RngCore::next_u32(probe.runtime_like_cpp_mut().runtime_rng_like_cpp_mut()))
         .collect();
     let schedule = runtime.runtime_like_cpp();
     format!(

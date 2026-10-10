@@ -459,9 +459,7 @@ async fn d3b_run_like_cpp(
         {
             observed.respawn_create_delivered = true;
         }
-        if observed.despawned
-            && !session.client_sees_guid_for_test_like_cpp(world.creature)
-        {
+        if observed.despawned && !session.client_sees_guid_for_test_like_cpp(world.creature) {
             observed.destroy_delivered = true;
         }
         if observed.destroy_delivered && opcodes.contains(&ServerOpcodes::UpdateObject) {

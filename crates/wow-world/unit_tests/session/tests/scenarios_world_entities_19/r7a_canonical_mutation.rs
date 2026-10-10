@@ -349,9 +349,7 @@ fn stale_legacy_copy_cannot_overwrite_the_incarnation_like_cpp() {
         "the incarnation keeps its authority"
     );
     assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy projection")
-        ),
+        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy projection")),
         expected,
         "the legacy copy is refreshed from the incarnation, never the reverse"
     );
@@ -399,9 +397,7 @@ fn aba_health_cycle_mutates_the_incarnation_once_like_cpp() {
     expected.npc_flags = 0x0000_00AB;
     assert_eq!(observables_like_cpp(&canonical_after), expected);
     assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy projection")
-        ),
+        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy projection")),
         expected
     );
     let _ = legacy_before;

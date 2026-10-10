@@ -362,7 +362,12 @@ impl SessionCore {
         if !reinserted {
             return (
                 None,
-                Some(capture(decision, true, "canonical_application_refused", false)),
+                Some(capture(
+                    decision,
+                    true,
+                    "canonical_application_refused",
+                    false,
+                )),
             );
         }
         reconcile_creature_threat_references_on_map_like_cpp(map, guid, old_threat_guids);

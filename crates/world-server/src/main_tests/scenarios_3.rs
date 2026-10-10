@@ -304,8 +304,7 @@ fn game_event_pool_spawn_filters_by_pool_template_map_id_like_cpp() {
     );
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
-    let summary =
-        game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[pool_id]);
+    let summary = game_event_spawn_pools_like_cpp(&mut manager, &metadata, &caches, &[pool_id]);
 
     assert_eq!(summary.event_pool_ids_seen, 1);
     assert_eq!(summary.missing_pool_templates, 0);

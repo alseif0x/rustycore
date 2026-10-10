@@ -5,9 +5,7 @@ use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle};
 use wow_world_core::map_manager::{
     WorldCreature, pending_respawn_from_world_creature_like_cpp, world_to_grid_coords,
 };
-use wow_world_core::session::{
-    HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp,
-};
+use wow_world_core::session::{HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp};
 
 use crate::WorldEntitiesState;
 
@@ -465,9 +463,9 @@ impl WorldEntitiesState {
             wow_world_core::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(
                 &mut canonical_creature,
             )
-            .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
-                resolver.as_ref().and_then(|resolver| resolver(path_id))
-            });
+            .initialize_default_waypoint_movement_with_path_resolver_like_cpp(
+                |path_id| resolver.as_ref().and_then(|resolver| resolver(path_id)),
+            );
         }
         // R1: admission selects the incarnation's canonical authority *before*
         // any legacy alias is published. A refused admission means the canonical
@@ -531,12 +529,13 @@ impl WorldEntitiesState {
         // keep their copy — a projection the mutation root refreshes from the
         // incarnation — until F6-8E deletes them; so does the legacy-only
         // configuration (no canonical manager).
-        if matches!(admitted_or_unconfigured, AdmittedOrUnconfiguredLikeCpp::Admitted)
-            && hub.core.map_manager.as_ref().is_none_or(|manager| {
-                wow_world_core::map_manager::shared_runtime_tick_owner_like_cpp(manager)
-                    == wow_world_core::map_manager::RuntimeTickOwner::CanonicalMap
-            })
-        {
+        if matches!(
+            admitted_or_unconfigured,
+            AdmittedOrUnconfiguredLikeCpp::Admitted
+        ) && hub.core.map_manager.as_ref().is_none_or(|manager| {
+            wow_world_core::map_manager::shared_runtime_tick_owner_like_cpp(manager)
+                == wow_world_core::map_manager::RuntimeTickOwner::CanonicalMap
+        }) {
             return;
         }
         if let Some(manager) = &hub.core.map_manager {
@@ -616,7 +615,9 @@ impl WorldEntitiesState {
         let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
         let canonical = hub.core.canonical_map_manager.as_ref().and_then(|manager| {
             let mut manager = manager.lock().ok()?;
-            let map = manager.find_map_mut(u32::from(map_id), instance_id)?.map_mut();
+            let map = manager
+                .find_map_mut(u32::from(map_id), instance_id)?
+                .map_mut();
             let creature = map.get_typed_creature_mut(guid)?;
             creature.clear_loot_like_cpp();
             let creature = creature.clone();

@@ -122,7 +122,8 @@ impl WorldSession {
     /// map's last `SendObjectUpdates` to this client (once per map update
     /// generation). Returns how many updates it sent.
     pub fn send_map_unit_values_updates_for_test_like_cpp(&mut self) -> usize {
-        self.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp()
+        self.send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+        )
     }
 
     /// Whether this session's client currently has `guid` (C++

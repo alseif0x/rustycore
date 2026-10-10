@@ -425,10 +425,7 @@ impl WorldSession {
         let victim = {
             self.core
                 .with_represented_creature_like_cpp(target_guid, |creature| {
-                    (
-                        creature.combat_log_stats_like_cpp().armor,
-                        creature.level(),
-                    )
+                    (creature.combat_log_stats_like_cpp().armor, creature.level())
                 })
         };
         let Some((victim_armor, victim_level)) = victim else {

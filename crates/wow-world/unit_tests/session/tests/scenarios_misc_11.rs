@@ -829,8 +829,9 @@ fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_c
     assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
     assert!(rejected.plan.events.is_empty());
     assert!(
-        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature.can_swing())
-            .unwrap(),
+        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
+            .can_swing())
+        .unwrap(),
         "TurretAI must reset BASE_ATTACK after its raw-max CastSpell attempt"
     );
 }
