@@ -301,11 +301,11 @@ fn bridge_hiding_macros_fail_closed_but_transparent_arguments_are_visible() {
 fn curated_anchor_records_its_declared_direction() {
     let baseline = inventory_bridge_accesses(&[BridgeSource {
         package: "world-server",
-        module: "crate::runtime::game_events::grid",
+        module: "crate::runtime::delivery",
         source_path: "src/session.rs",
         inherited_cfg: &[],
         source: r#"
-            fn mirror_loaded_grid_creature_to_legacy_like_cpp(
+            fn run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
                 canonical: &wow_map::MapManager,
                 legacy: &wow_world::MapManager,
             ) {}
@@ -315,7 +315,7 @@ fn curated_anchor_records_its_declared_direction() {
     assert_eq!(baseline.bridges.len(), 1);
     assert_eq!(
         baseline.bridges[0].direction_markers,
-        vec![BridgeDirection::CanonicalToLegacy]
+        vec![BridgeDirection::LegacyToCanonical]
     );
     let sides: BTreeSet<_> = baseline.bridges[0]
         .evidence

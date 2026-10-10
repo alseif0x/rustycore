@@ -677,18 +677,6 @@
       },
       "entries": [
         {
-          "id": "loaded_grid_canonical_to_legacy_creature",
-          "anchors": [
-            "world-server::mirror_loaded_grid_creature_to_legacy_like_cpp"
-          ],
-          "direction": "canonical wow-map loaded/spawned creature -> legacy wow-world-core MapManager through the retained wow-world facade",
-          "owner": "canonical load/spawn path supplies the source; world-server bridge performs the compatibility insertion.",
-          "open_retirement_issues": [
-            584
-          ],
-          "retirement_condition": "Legacy creature storage is no longer read for the complete migrated load/spawn/runtime transition."
-        },
-        {
           "id": "legacy_creature_runtime_outcomes_to_canonical",
           "anchors": [
             "world-server::run_legacy_creature_movement_tick_and_deliver_once_like_cpp",
