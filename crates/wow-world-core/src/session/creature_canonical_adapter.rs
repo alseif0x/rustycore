@@ -688,6 +688,23 @@ pub fn remove_canonical_creature_map_object_on_map_like_cpp(
     let Ok(mut manager) = manager.lock() else {
         return;
     };
+    remove_canonical_creature_map_object_on_locked_map_like_cpp(
+        &mut manager,
+        map_id,
+        instance_id,
+        guid,
+    );
+}
+
+/// [`remove_canonical_creature_map_object_on_map_like_cpp`] on a canonical
+/// manager the caller already holds (#1263 F6-8D3a-3: the admitted executor
+/// runs the lifecycle under its one canonical guard).
+pub fn remove_canonical_creature_map_object_on_locked_map_like_cpp(
+    manager: &mut wow_map::MapManager,
+    map_id: u32,
+    instance_id: u32,
+    guid: ObjectGuid,
+) {
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
         return;
     };
@@ -704,6 +721,22 @@ pub fn add_canonical_creature_respawn_info_and_remove_map_object_on_map_like_cpp
     let Ok(mut manager) = manager.lock() else {
         return (false, false);
     };
+    add_canonical_creature_respawn_info_and_remove_map_object_on_locked_map_like_cpp(
+        &mut manager,
+        map_id,
+        instance_id,
+        guid,
+        info,
+    )
+}
+
+pub fn add_canonical_creature_respawn_info_and_remove_map_object_on_locked_map_like_cpp(
+    manager: &mut wow_map::MapManager,
+    map_id: u32,
+    instance_id: u32,
+    guid: ObjectGuid,
+    info: wow_map::RespawnInfoLikeCpp,
+) -> (bool, bool) {
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
         return (false, false);
     };
@@ -727,6 +760,22 @@ pub fn remove_canonical_respawn_time_on_map_like_cpp(
     let Ok(mut manager) = manager.lock() else {
         return false;
     };
+    remove_canonical_respawn_time_on_locked_map_like_cpp(
+        &mut manager,
+        map_id,
+        instance_id,
+        object_type,
+        spawn_id,
+    )
+}
+
+pub fn remove_canonical_respawn_time_on_locked_map_like_cpp(
+    manager: &mut wow_map::MapManager,
+    map_id: u32,
+    instance_id: u32,
+    object_type: wow_map::SpawnObjectType,
+    spawn_id: wow_map::SpawnId,
+) -> bool {
     let Some(map) = manager.find_map_mut(map_id, instance_id) else {
         return false;
     };

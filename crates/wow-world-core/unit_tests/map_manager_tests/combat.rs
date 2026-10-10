@@ -65,7 +65,7 @@ fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_c
     canonical.set_power_type(PowerType::Focus);
     canonical.unit_mut().set_max_power(PowerType::Focus, 100);
     canonical.unit_mut().set_power(PowerType::Focus, 37);
-    let combat_log_stats = CreatureCombatLogStatsLikeCpp {
+    let combat_log_stats = wow_entities::CreatureCombatLogStatsLikeCpp {
         attack_power: 111,
         ranged_attack_power: 222,
         spell_power: 333,

@@ -38,6 +38,7 @@ use wow_data::{
     CreatureTemplateLifecycleModelLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
     character_progression::{ChrClassesStore, PowerTypeStore},
 };
+use wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp;
 use wow_entities::{
     Creature, CreatureAddToWorldVehicleResetContextLikeCpp, CreatureAddonLifecycleRecordLikeCpp,
     CreatureCombatLogStatsLikeCpp, CreatureCreateLifecycleRecord, CreatureFormationInfoLikeCpp,
@@ -264,6 +265,12 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
             .subsystems_mut()
             .auras
             .set_spell_cast_log_aura_authority_inert_like_cpp(true);
+        // #1263 F6-8D3a-3: the respawn rail's record of this boundary.
+        let projection =
+            CreatureRespawnCreateProjectionLikeCpp::from_unit_like_cpp(creature.unit());
+        let runtime = creature.runtime_like_cpp_mut();
+        runtime.set_respawn_aura_source_authority_like_cpp(true, true);
+        runtime.set_respawn_create_projection_like_cpp(projection);
         let map_insertion_requested = spawn.add_to_map;
         let map_object_record = if map_insertion_requested {
             Some(

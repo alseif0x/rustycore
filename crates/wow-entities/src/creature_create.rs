@@ -62,3 +62,45 @@ pub struct CreatureCreateData {
     pub movement_anim_kit_id: u16,
     pub melee_anim_kit_id: u16,
 }
+
+/// The create-time class and power fields of one creature's CREATE projection.
+///
+/// #1263 F6-8D3a-3: the respawn entry carries these from the projection the
+/// creature was built with, not from the live unit (whose power may have moved
+/// since). The canonical runtime keeps them so the respawn entry can be built
+/// without the legacy projection.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CreatureRespawnCreateProjectionLikeCpp {
+    pub unit_class: u8,
+    pub display_power: u8,
+    pub power: [i32; 10],
+    pub max_power: [i32; 10],
+    pub base_mana: i32,
+}
+
+impl CreatureRespawnCreateProjectionLikeCpp {
+    #[must_use]
+    pub const fn from_create_data_like_cpp(create_data: &CreatureCreateData) -> Self {
+        Self {
+            unit_class: create_data.unit_class,
+            display_power: create_data.display_power,
+            power: create_data.power,
+            max_power: create_data.max_power,
+            base_mana: create_data.base_mana,
+        }
+    }
+
+    /// The same fields read from a unit, as
+    /// `WorldCreature::create_data_from_canonical_like_cpp` projects them.
+    #[must_use]
+    pub fn from_unit_like_cpp(unit: &crate::Unit) -> Self {
+        let data = unit.data();
+        Self {
+            unit_class: data.class_id,
+            display_power: data.display_power,
+            power: data.power,
+            max_power: data.max_power,
+            base_mana: data.base_mana,
+        }
+    }
+}

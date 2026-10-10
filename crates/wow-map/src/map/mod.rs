@@ -2017,6 +2017,7 @@ pub struct Map<Terrain = NoopTerrainGridLoader, Lifecycle = NoopGridLifecycle> {
     personal_phase_tracker: MultiPersonalPhaseTracker,
     spawn_group_state: SpawnGroupRuntimeState,
     respawn_store: RespawnStoreLikeCpp,
+    creature_respawn_queue: crate::creature_respawn_queue::CreatureRespawnQueueLikeCpp,
     pool_data: SpawnedPoolDataLikeCpp,
     grid_state_unloaded: bool,
     /// Whether the one-shot C++ `Map::LoadCorpseData` database load completed.
@@ -2214,6 +2215,7 @@ where
             personal_phase_tracker: MultiPersonalPhaseTracker::default(),
             spawn_group_state: SpawnGroupRuntimeState::new(),
             respawn_store: RespawnStoreLikeCpp::new(),
+            creature_respawn_queue: Default::default(),
             pool_data: SpawnedPoolDataLikeCpp::new(),
             grid_state_unloaded: false,
             corpse_data_loaded_like_cpp: false,

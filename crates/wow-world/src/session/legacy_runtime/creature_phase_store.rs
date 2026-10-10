@@ -167,25 +167,50 @@ pub(in crate::session) struct AdmittedCanonicalCreatureStoreLikeCpp<'a> {
 }
 
 impl<'a> AdmittedCanonicalCreatureStoreLikeCpp<'a> {
-    /// Build the store over the admitted objects. The admission is already
-    /// fenced by the caller under the same guard; an object whose residence
-    /// does not fit the legacy `(u16, u32)` key space is not visited.
+    /// Build the store over the admitted maps and objects. The admission is
+    /// already fenced by the caller under the same guard; an object whose
+    /// residence does not fit the legacy `(u16, u32)` key space is not visited.
+    ///
+    /// #1263 F6-8D3a-3: every admitted map is a residence, with or without
+    /// selected objects, exactly as the legacy store visits every active map —
+    /// the lifecycle phase drains a map's respawn queue after its last creature
+    /// despawned.
     pub(in crate::session) fn new_like_cpp(
         manager: &'a mut wow_map::MapManager,
+        maps: &[AdmittedCreatureExecutionMapLikeCpp],
         objects: &[AdmittedCreatureExecutionObjectLikeCpp],
     ) -> Self {
         let mut selection: Vec<((u16, u32), Vec<ObjectGuid>)> = Vec::new();
-        for object in objects {
-            let Ok(map_id) = u16::try_from(object.map_id) else {
+        let residences = maps
+            .iter()
+            .map(|map| (map.map_id, map.instance_id, None))
+            .chain(objects.iter().map(|object| {
+                (
+                    object.map_id,
+                    object.instance_id,
+                    Some(object.creature_guid),
+                )
+            }));
+        for (map_id, instance_id, guid) in residences {
+            let Ok(map_id) = u16::try_from(map_id) else {
                 continue;
             };
-            let key = (map_id, object.instance_id);
-            match selection.iter_mut().find(|(existing, _)| *existing == key) {
-                Some((_, guids)) => guids.push(object.creature_guid),
-                None => selection.push((key, vec![object.creature_guid])),
-            }
+            let key = (map_id, instance_id);
+            let index = match selection.iter().position(|(existing, _)| *existing == key) {
+                Some(index) => index,
+                None => {
+                    selection.push((key, Vec::new()));
+                    selection.len() - 1
+                }
+            };
+            selection[index].1.extend(guid);
         }
         Self { manager, selection }
+    }
+
+    /// The canonical manager, read-only.
+    pub(in crate::session) fn manager_like_cpp(&self) -> &wow_map::MapManager {
+        self.manager
     }
 
     /// The canonical manager itself, for the map-owned operations a phase runs

@@ -20,8 +20,17 @@
 //! and the reached-home values update — through the same body the legacy
 //! bridge calls (`run_creature_movement_phase_on_store_like_cpp`), on the
 //! canonical incarnation in place; the aggro phase's `TriggerAlert` starts
-//! `MoveDistract` on the canonical store too. Lifecycle (corpse despawn,
-//! respawn and its visibility refresh) is the declared remaining boundary.
+//! `MoveDistract` on the canonical store too.
+//!
+//! #1263 F6-8D3a-3: the lifecycle phase runs between player melee and movement,
+//! where the legacy loop runs it, through the same body the legacy bridge calls
+//! (`run_creature_lifecycle_phase_on_store_like_cpp`) over the admitted maps:
+//! the JUST_DIED respawn-time save, corpse despawn, the canonical map's own
+//! respawn queue, and the rebuild and admission of each ready respawn. Its
+//! respawn DB statements and the visibility refresh it drives are returned as
+//! deferred output, in the legacy order. A despawned corpse leaves the
+//! selection of the later phases and a respawn joins it, exactly as the legacy
+//! store's enumeration changes within the same tick.
 //!
 //! #1263 F6-8D3a-1b: the spell phase runs between aggro and creature melee,
 //! where the legacy loop runs it, through the same selection body
@@ -51,6 +60,11 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     pub chase_targets:
         &'a HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
     pub config: &'a LegacyCreatureAggroConfigLikeCpp,
+    /// The lifecycle phase's map catalog (which maps persist respawn times) and
+    /// the tick deadline its respawn queue drains against, as the legacy bridge
+    /// receives them.
+    pub map_store: &'a wow_data::MapStore,
+    pub now: Instant,
 }
 
 /// The typed outcome of one admitted combat-phase execution.
@@ -61,6 +75,9 @@ pub struct AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     /// The one `Unit::Update` clock advancement of the transition.
     pub clock_advanced_ms: u64,
     pub player_melee: LegacyPlayerMeleeTickOutcomeLikeCpp,
+    /// The lifecycle phase outcome (F6-8D3a-3), with its deferred respawn DB
+    /// statements and refresh map keys.
+    pub lifecycle: LegacyCreatureLifecycleTickOutcomeLikeCpp,
     /// The movement phase outcome (F6-8D3a-2). Every frame was driven on the
     /// canonical incarnation in place, so `canonical_syncs` stays zero.
     pub movement: LegacyCreatureMovementTickOutcomeLikeCpp,
@@ -86,6 +103,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
             owner,
             clock_advanced_ms: 0,
             player_melee: LegacyPlayerMeleeTickOutcomeLikeCpp::default(),
+            lifecycle: LegacyCreatureLifecycleTickOutcomeLikeCpp::default(),
             movement: LegacyCreatureMovementTickOutcomeLikeCpp::default(),
             aggro: LegacyCreatureAggroTickOutcomeLikeCpp::default(),
             aggro_committed_starts: Vec::new(),
@@ -100,6 +118,34 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     #[must_use]
     pub const fn executed_like_cpp(&self) -> bool {
         self.admission.is_admitted_like_cpp()
+    }
+
+    /// The deferred respawn DB statements, in the order the legacy bridge
+    /// submits them to the respawn writer.
+    #[must_use]
+    pub fn deferred_respawn_db_mutations_like_cpp(
+        &self,
+    ) -> &[wow_persistence::RespawnPersistenceMutationLikeCpp] {
+        &self.lifecycle.respawn_db_mutations
+    }
+
+    /// The deferred visibility refresh the lifecycle phase drives: one
+    /// `RefreshVisibleWorldCreaturesLikeCpp` per affected map, which the legacy
+    /// bridge sends to every in-world session on that map and instance.
+    #[must_use]
+    pub fn deferred_visibility_refreshes_like_cpp(
+        &self,
+    ) -> Vec<crate::session::mailbox::RefreshVisibleWorldCreaturesLikeCppCommand> {
+        self.lifecycle
+            .refresh_map_keys
+            .iter()
+            .map(|&(map_id, instance_id)| {
+                crate::session::mailbox::RefreshVisibleWorldCreaturesLikeCppCommand {
+                    map_id,
+                    instance_id,
+                }
+            })
+            .collect()
     }
 
     /// The deferred plan events, in phase order (movement, aggro, spell, then
@@ -121,7 +167,8 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
 /// Run the admitted combat phases once.
 ///
 /// Order, mirroring the legacy loop body: the admission fence and the
-/// single-owner claim before any mutation; player melee; the movement phase;
+/// single-owner claim before any mutation; player melee; the lifecycle phase;
+/// the movement phase;
 /// aggro and its canonical start/stop commit; the creature spell phase;
 /// creature melee. The canonical
 /// guard is held for the whole transition and released before returning, and
@@ -174,13 +221,70 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
         );
     }
 
+    // Lifecycle: `Creature::setDeathState(JUST_DIED)`'s `SaveRespawnTime`, the
+    // `CORPSE` → `RemoveCorpse` despawn, and `Map::ProcessRespawns` →
+    // `DoRespawn`, after player melee (so a creature a player just killed is
+    // already dead) and before movement, as the legacy loop orders it.
+    let mut selection = admission.objects.clone();
+    {
+        let map_keys = admission
+            .maps
+            .iter()
+            .filter_map(|map| Some((u16::try_from(map.map_id).ok()?, map.instance_id)))
+            .collect();
+        let mut store = AdmittedCanonicalCreatureLifecycleStoreLikeCpp {
+            store: AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
+                &mut manager,
+                &admission.maps,
+                &selection,
+            ),
+            terrain: inputs.terrain,
+            taken: Vec::new(),
+            respawned: Vec::new(),
+        };
+        run_creature_lifecycle_phase_on_store_like_cpp(
+            &mut store,
+            map_keys,
+            inputs.map_store,
+            inputs.now,
+            (Instant::now(), unix_now()),
+            &mut outcome.lifecycle,
+        );
+        selection.retain(|object| {
+            !store.taken.iter().any(|&((map_id, instance_id), guid)| {
+                u32::from(map_id) == object.map_id
+                    && instance_id == object.instance_id
+                    && guid == object.creature_guid
+            })
+        });
+        for ((map_id, instance_id), creature_guid) in store.respawned {
+            let incarnation = admission
+                .maps
+                .iter()
+                .find(|map| map.map_id == u32::from(map_id) && map.instance_id == instance_id)
+                .map_or(0, |map| map.incarnation);
+            // Installed by this transition after its fence: it has no frozen
+            // record identity to re-check.
+            selection.push(AdmittedCreatureExecutionObjectLikeCpp {
+                map_id: u32::from(map_id),
+                instance_id,
+                incarnation,
+                creature_guid,
+                record_identity: 0,
+            });
+        }
+    }
+
     // Movement: `Unit::Update(p_time)` — the creature's one clock advancement,
     // `UpdateSplineMovement` and `MotionMaster::Update` — at the place the
     // legacy loop runs its movement phase, on the canonical incarnation in
     // place. Each frame is therefore already applied and is published as is.
     {
-        let mut store =
-            AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &admission.objects);
+        let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
+            &mut manager,
+            &admission.maps,
+            &selection,
+        );
         let frames = run_creature_movement_phase_on_store_like_cpp(
             &mut store,
             inputs.terrain,
@@ -201,8 +305,11 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     // canonical commit of every start/stop and the publication reduction the
     // legacy bridge applies before delivery.
     {
-        let mut store =
-            AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &admission.objects);
+        let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
+            &mut manager,
+            &admission.maps,
+            &selection,
+        );
         outcome.aggro = run_creature_aggro_phase_on_store_like_cpp(
             &mut store,
             inputs.terrain,
@@ -243,7 +350,8 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
         let actions = {
             let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
                 &mut manager,
-                &admission.objects,
+                &admission.maps,
+                &selection,
             );
             collect_creature_spell_actions_on_store_like_cpp(
                 &mut store,
@@ -268,8 +376,11 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
 
     // Creature melee (`DoMeleeAttackIfReady`) with the real attack table.
     let pending = {
-        let mut store =
-            AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &admission.objects);
+        let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
+            &mut manager,
+            &admission.maps,
+            &selection,
+        );
         collect_creature_melee_swings_on_store_like_cpp(
             &mut store,
             &CanonicalCreatureOwnershipLikeCpp::AdmittedCanonicalStore,

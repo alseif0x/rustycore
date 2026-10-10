@@ -1,5 +1,6 @@
 pub mod cell;
 pub mod coords;
+pub mod creature_respawn_queue;
 pub mod grid;
 pub mod grid_map;
 pub mod grid_unload;
