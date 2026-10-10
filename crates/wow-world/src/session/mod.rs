@@ -7,8 +7,6 @@
 mod admission;
 mod appearance;
 mod connection;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod cross_crate_session_fixtures;
 mod deferred_visibility;
 pub use crate::player_directory as directory;
 mod dispatch;

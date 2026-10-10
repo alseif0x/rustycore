@@ -71007,50 +71007,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::cross_crate_session_fixtures",
-          "path": "crates/wow-world/src/session/cross_crate_session_fixtures.rs",
-          "enclosing": "WorldSession::enter_canonical_world_for_test_like_cpp",
-          "direction_markers": [
-            "unresolved_dual_side"
-          ],
-          "evidence": [
-            {
-              "side": "canonical",
-              "kind": "type_reference",
-              "symbol": "SharedCanonicalMapManager",
-              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "canonical",
-              "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "type_reference",
-              "symbol": "SharedMapManager",
-              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy",
-              "fingerprint": "fnv1a64x2:944ad21ec9f505aa0b60f53fcf04ded1:len=48",
-              "multiplicity": 1
-            }
-          ],
-          "fingerprint": "signature=impl:WorldSession::async fn enter_canonical_world_for_test_like_cpp (& mut self , legacy : crate :: map_manager :: SharedMapManager , canonical : SharedCanonicalMapManager , map_store : Arc < wow_data :: MapStore > , registry : Arc < PlayerRegistry > , player_guid : ObjectGuid , name : & str , position : Position , level : u8 ,) -> bool|body=fnv1a64x2:04662228ac825d80505e60aec22d9b0b:len=725|evidence=fnv1a64x2:16d5d13fe806133b9b8c641f588248c0:len=349",
-          "cfg": [
-            "cfg (any (test , feature = \"test-fixtures\"))"
-          ],
-          "multiplicity": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::session::deferred_visibility::tests",
           "path": "crates/wow-world/src/session/deferred_visibility.rs",
           "enclosing": "Fixture::new",
@@ -71090,6 +71046,50 @@
           "fingerprint": "signature=impl:Fixture::fn new () -> Self|body=fnv1a64x2:d18cd9631673a8da6fbd858e929254a5:len=2501|evidence=fnv1a64x2:7eaea3832d373b1fee0683c61b52eebe:len=464",
           "cfg": [
             "cfg (test)"
+          ],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::driver::cross_crate_fixtures",
+          "path": "crates/wow-world/src/session/driver/cross_crate_fixtures.rs",
+          "enclosing": "WorldSession::enter_canonical_world_for_test_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "canonical",
+              "fingerprint": "fnv1a64x2:81400c5ad53aa446f7f79ef63abba475:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "legacy",
+              "fingerprint": "fnv1a64x2:944ad21ec9f505aa0b60f53fcf04ded1:len=48",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:WorldSession::async fn enter_canonical_world_for_test_like_cpp (& mut self , legacy : crate :: map_manager :: SharedMapManager , canonical : SharedCanonicalMapManager , map_store : Arc < wow_data :: MapStore > , registry : Arc < PlayerRegistry > , player_guid : ObjectGuid , name : & str , position : Position , level : u8 ,) -> bool|body=fnv1a64x2:04662228ac825d80505e60aec22d9b0b:len=725|evidence=fnv1a64x2:16d5d13fe806133b9b8c641f588248c0:len=349",
+          "cfg": [
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "multiplicity": 1
         },
