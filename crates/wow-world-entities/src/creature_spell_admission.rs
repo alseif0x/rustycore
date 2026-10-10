@@ -172,6 +172,98 @@ pub struct TurretRejectedCastAttemptLikeCpp {
     pub difficulty_id: u8,
 }
 
+/// Where a creature spell cast finds its caster: the creature whose engagement,
+/// clocks, swing timer and runtime RNG the cast consumes.
+///
+/// #1263 F6-8D3a-1b: the legacy bridge keeps that state on the legacy
+/// representation (the legacy `MapManager`, under the write guard the bridge
+/// already holds beside the canonical guard); the admitted canonical executor's
+/// caster *is* the canonical incarnation on the canonical manager. The cast
+/// bodies are written once against this seam. Every map-owned read (range,
+/// LOS, victim, cooldown history, cast GUID sequence) stays on the canonical
+/// manager in both cases.
+pub trait CreatureSpellCastersLikeCpp {
+    /// Read the caster; `None` when it is gone.
+    fn with_spell_caster_like_cpp<R>(
+        &self,
+        canonical_manager: &wow_map::MapManager,
+        map_id: u16,
+        instance_id: u32,
+        caster_guid: ObjectGuid,
+        operation: impl FnOnce(&wow_entities::Creature) -> R,
+    ) -> Option<R>;
+    /// Mutate the caster; `None` when it is gone.
+    fn with_spell_caster_mut_like_cpp<R>(
+        &mut self,
+        canonical_manager: &mut wow_map::MapManager,
+        map_id: u16,
+        instance_id: u32,
+        caster_guid: ObjectGuid,
+        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
+    ) -> Option<R>;
+}
+
+/// The legacy bridge's casters: the legacy representation.
+impl CreatureSpellCastersLikeCpp for wow_world_core::map_manager::MapManager {
+    fn with_spell_caster_like_cpp<R>(
+        &self,
+        _: &wow_map::MapManager,
+        map_id: u16,
+        instance_id: u32,
+        caster_guid: ObjectGuid,
+        operation: impl FnOnce(&wow_entities::Creature) -> R,
+    ) -> Option<R> {
+        self.find_creature(map_id, instance_id, caster_guid)
+            .map(|caster| operation(&caster.creature))
+    }
+
+    fn with_spell_caster_mut_like_cpp<R>(
+        &mut self,
+        _: &mut wow_map::MapManager,
+        map_id: u16,
+        instance_id: u32,
+        caster_guid: ObjectGuid,
+        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
+    ) -> Option<R> {
+        self.find_creature_mut(map_id, instance_id, caster_guid)
+            .map(|caster| operation(&mut caster.creature))
+    }
+}
+
+/// The admitted canonical executor's casters: the canonical incarnation itself,
+/// on the manager the executor holds locked.
+pub struct CanonicalCreatureSpellCastersLikeCpp;
+
+impl CreatureSpellCastersLikeCpp for CanonicalCreatureSpellCastersLikeCpp {
+    fn with_spell_caster_like_cpp<R>(
+        &self,
+        canonical_manager: &wow_map::MapManager,
+        map_id: u16,
+        instance_id: u32,
+        caster_guid: ObjectGuid,
+        operation: impl FnOnce(&wow_entities::Creature) -> R,
+    ) -> Option<R> {
+        canonical_manager
+            .find_map(u32::from(map_id), instance_id)?
+            .map()
+            .with_creature_like_cpp(caster_guid, operation)
+    }
+
+    fn with_spell_caster_mut_like_cpp<R>(
+        &mut self,
+        canonical_manager: &mut wow_map::MapManager,
+        map_id: u16,
+        instance_id: u32,
+        caster_guid: ObjectGuid,
+        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
+    ) -> Option<R> {
+        canonical_manager
+            .find_map_mut(u32::from(map_id), instance_id)?
+            .map_mut()
+            .with_creature_mut_like_cpp(caster_guid, operation)
+    }
+}
+
 /// Consume the BASE_ATTACK swing of a TurretAI attempt C++ would have made.
 ///
 /// C++ `UnitAI::DoSpellAttackIfReady` runs the strict
@@ -186,23 +278,46 @@ pub fn apply_turret_rejected_cast_attempt_like_cpp(
     attempt: &TurretRejectedCastAttemptLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
-    let Ok(manager) = canonical_map_manager.lock() else {
+    let Ok(mut manager) = canonical_map_manager.lock() else {
         return false;
     };
     // Same canonical -> legacy lock order the cast validation path uses.
     let mut legacy_guard = legacy_map_manager
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let Some(legacy_caster) =
-        legacy_guard.find_creature(attempt.map_id, attempt.instance_id, attempt.caster_guid)
-    else {
-        return false;
-    };
-    if !legacy_caster.is_alive()
-        || legacy_caster.state() != wow_entities::CreatureAiState::InCombat
-        || legacy_caster.creature.ai_ownership().combat_target != Some(attempt.target_guid)
-        || legacy_caster.creature_spell_engagement_epoch_like_cpp() != attempt.engagement_epoch
-    {
+    apply_turret_rejected_cast_attempt_on_manager_like_cpp(
+        &mut manager,
+        &mut *legacy_guard,
+        attempt,
+        config,
+    )
+}
+
+/// The body of [`apply_turret_rejected_cast_attempt_like_cpp`] on a locked
+/// canonical manager, with the caster wherever `casters` keeps it.
+/// #1263 F6-8D3a-1b: one body for the legacy bridge and the admitted executor.
+pub fn apply_turret_rejected_cast_attempt_on_manager_like_cpp<C>(
+    manager: &mut wow_map::MapManager,
+    casters: &mut C,
+    attempt: &TurretRejectedCastAttemptLikeCpp,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> bool
+where
+    C: CreatureSpellCastersLikeCpp + ?Sized,
+{
+    let still_engaged = casters.with_spell_caster_like_cpp(
+        manager,
+        attempt.map_id,
+        attempt.instance_id,
+        attempt.caster_guid,
+        |caster| {
+            caster.is_alive()
+                && caster.state() == wow_entities::CreatureAiState::InCombat
+                && caster.ai_ownership().combat_target == Some(attempt.target_guid)
+                && caster.creature_spell_engagement_epoch_like_cpp() == attempt.engagement_epoch
+        },
+    );
+    if still_engaged != Some(true) {
         return false;
     }
     let Some(range) =
@@ -236,11 +351,13 @@ pub fn apply_turret_rejected_cast_attempt_like_cpp(
     if !within_raw_combat_range {
         return false;
     }
-    let Some(creature) =
-        legacy_guard.find_creature_mut(attempt.map_id, attempt.instance_id, attempt.caster_guid)
-    else {
-        return false;
-    };
-    creature.record_swing();
-    true
+    casters
+        .with_spell_caster_mut_like_cpp(
+            manager,
+            attempt.map_id,
+            attempt.instance_id,
+            attempt.caster_guid,
+            wow_entities::Creature::record_swing,
+        )
+        .is_some()
 }

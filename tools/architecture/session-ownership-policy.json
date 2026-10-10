@@ -73269,6 +73269,34 @@
         },
         {
           "package": "wow-world",
+          "module": "crate::session::legacy_runtime::creature_spell_actions",
+          "path": "crates/wow-world/src/session/legacy_runtime/creature_spell_actions.rs",
+          "enclosing": "struct::LegacyCreatureSpellActionOwnerLikeCpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=struct::LegacyCreatureSpellActionOwnerLikeCpp|surface=fnv1a64x2:a0b6db642ea7db6dde7cb4c7061e413e:len=375|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
           "module": "crate::session::legacy_runtime::creature_spell_tick",
           "path": "crates/wow-world/src/session/legacy_runtime/creature_spell_tick.rs",
           "enclosing": "fn::run_legacy_creature_spell_tick_once_like_cpp",
@@ -73287,8 +73315,8 @@
               "side": "canonical",
               "kind": "value_reference",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:d461ddfe81e34c94d2fbeaf61a553ca7:len=349",
-              "multiplicity": 7
+              "fingerprint": "fnv1a64x2:5e668fa3f912eff894872d84f14ae613:len=199",
+              "multiplicity": 4
             },
             {
               "side": "canonical",
@@ -73307,240 +73335,16 @@
             {
               "side": "legacy",
               "kind": "value_reference",
-              "symbol": "creature",
-              "fingerprint": "fnv1a64x2:3a6b89bbfb3e4bac2ed4164ae2e58a8f:len=2106",
-              "multiplicity": 43
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "delay",
-              "fingerprint": "fnv1a64x2:8a88abcd58d5333446d958f36662afb7:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
               "symbol": "legacy_map_manager",
-              "fingerprint": "fnv1a64x2:889c593b2c4182e2098e8b0f79381fcd:len=249",
-              "multiplicity": 5
+              "fingerprint": "fnv1a64x2:44afa21bc5db6086dd07f9b456fd79c1:len=149",
+              "multiplicity": 3
             },
             {
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:82b4a098afe27748103501fa229a5193:len=293",
-              "multiplicity": 6
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "map_keys",
-              "fingerprint": "fnv1a64x2:8c4704721e371a849de3cd85aaa89f4f:len=97",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "recipient_guid",
-              "fingerprint": "fnv1a64x2:2f21bd0280a94ed81bbc6ed474d9e8d3:len=499",
-              "multiplicity": 10
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "spell_id",
-              "fingerprint": "fnv1a64x2:282567706c8dfc8477909e010adb698f:len=1371",
-              "multiplicity": 28
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "spells",
-              "fingerprint": "fnv1a64x2:7c86862673c891f4010750454b7dc88f:len=342",
-              "multiplicity": 7
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "combat_target",
-              "fingerprint": "fnv1a64x2:06c0be673d813a57634a14126cbe6154:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "creature",
-              "fingerprint": "fnv1a64x2:b332fbd01139848c1fb5a23374e9d3cf:len=249",
-              "multiplicity": 5
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "active_map_keys",
-              "fingerprint": "fnv1a64x2:2f04c2425ea84db7c91ca65d64fa15a4:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "ai_ownership",
-              "fingerprint": "fnv1a64x2:a5b0fcd7d5bf970c68659391ce3251ef:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "any",
-              "fingerprint": "fnv1a64x2:22fc8ef807067154bf0aa8d29713f3bf:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "can_swing",
-              "fingerprint": "fnv1a64x2:cceee901ab1ed61be98de1929f388554:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "clear_creature_spell_slot_like_cpp",
-              "fingerprint": "fnv1a64x2:f7cb5990d51131ebabfdc5191736e960:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "creature_guids",
-              "fingerprint": "fnv1a64x2:5c9452f0fd0fb315607bd0d82498047e:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "creature_spell_engagement_epoch_like_cpp",
-              "fingerprint": "fnv1a64x2:9cba042d27c87888ffeebe1e63780f63:len=199",
-              "multiplicity": 4
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "creature_spell_schedule_initialized_like_cpp",
-              "fingerprint": "fnv1a64x2:2e80f057e622a8ac0ccb4ff56c1d711f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "enumerate",
-              "fingerprint": "fnv1a64x2:5bf3ee01ca51e5c5f20e5c7ee8ac652a:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "find_creature_mut",
-              "fingerprint": "fnv1a64x2:44f1c79b9f0e0e15e3623611d11ed326:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "first_due_creature_spell_slot_like_cpp",
-              "fingerprint": "fnv1a64x2:878b4fa5b2ba1b49c4dff5da656cc84a:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "has_unit_state",
-              "fingerprint": "fnv1a64x2:38997ff0f53f6cdca004705278018457:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "into_iter",
-              "fingerprint": "fnv1a64x2:11aedbf07f95fc1c76472884999a288f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "invalidate_runtime_rng_authority_like_cpp",
-              "fingerprint": "fnv1a64x2:9726ee8abf2e49c36b67bd0c0a65cd9c:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "is_alive",
-              "fingerprint": "fnv1a64x2:6b9763a0cf8ba0a528f5b23b357b7d22:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "is_player",
-              "fingerprint": "fnv1a64x2:6f942e529b56c40b56ac3f8d88d11324:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "iter",
-              "fingerprint": "fnv1a64x2:ead5b8d7fe01b128c4dd9949db0ef0fb:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "len",
-              "fingerprint": "fnv1a64x2:44f9da7ebabcab05b45badc36631d1e2:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "mark_creature_spell_schedule_initialized_like_cpp",
-              "fingerprint": "fnv1a64x2:40f7c09c461a9d04b6658f4b4831b77f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "random_creature_spell_delay_like_cpp",
-              "fingerprint": "fnv1a64x2:07b6c903cd0089f39729a5af4cdfc82e:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "record_swing",
-              "fingerprint": "fnv1a64x2:50499abcc37ebba54dfe905c9fa88de2:len=749",
-              "multiplicity": 15
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "schedule_creature_spell_slot_after_like_cpp",
-              "fingerprint": "fnv1a64x2:a141ba2914a950c846946dc46efce0e3:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "spells",
-              "fingerprint": "fnv1a64x2:dcaf17ffd2af630e5e33cc7a650bbd59:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "state",
-              "fingerprint": "fnv1a64x2:00926ff177f4e70f2b415a3d70716424:len=49",
-              "multiplicity": 1
+              "fingerprint": "fnv1a64x2:3157af3d909b7290a752fa79f461dce3:len=146",
+              "multiplicity": 3
             },
             {
               "side": "legacy",
@@ -73552,26 +73356,19 @@
             {
               "side": "legacy",
               "kind": "method_call",
-              "symbol": "unit",
-              "fingerprint": "fnv1a64x2:abaebc128693d9441ed27056a7cd52af:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
               "symbol": "unwrap_or_else",
-              "fingerprint": "fnv1a64x2:19139a8cc7ba6c38e54a27ce535f5f73:len=99",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:b9b1b69b29ebffff5444b7ae1a8c2864:len=49",
+              "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "write",
-              "fingerprint": "fnv1a64x2:40b71c655ccecd184faf552b6df26c73:len=99",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:a626373a31b1ffc23c2542777d666669:len=49",
+              "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn run_legacy_creature_spell_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureSpellTickOutcomeLikeCpp|body=fnv1a64x2:0784442644520c958222cde4c8b649ae:len=20269|evidence=fnv1a64x2:0cba12d8dc069de06fef89f90bc9ea73:len=13977",
+          "fingerprint": "signature=fn run_legacy_creature_spell_tick_once_like_cpp (legacy_map_manager : & crate :: map_manager :: SharedMapManager , canonical_map_manager : Option < & SharedCanonicalMapManager > , config : & LegacyCreatureAggroConfigLikeCpp ,) -> LegacyCreatureSpellTickOutcomeLikeCpp|body=fnv1a64x2:e58d2529fac11851104597f3687d30e2:len=1169|evidence=fnv1a64x2:71372eb99da9187d4d1d1564d7d64b9e:len=1397",
           "cfg": [],
           "multiplicity": 1
         },
@@ -73594,13 +73391,6 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "canonical_caster",
-              "fingerprint": "fnv1a64x2:19e428f09a5b34cefe7a10e551df6555:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
               "symbol": "canonical_map_manager",
               "fingerprint": "fnv1a64x2:bc1ccf86e6629ce4647fd817847f34e7:len=49",
               "multiplicity": 1
@@ -73608,190 +73398,8 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "counter",
-              "fingerprint": "fnv1a64x2:e3bbe2461a473287a19f22c16625e2b2:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "managed",
-              "fingerprint": "fnv1a64x2:a5f52669dd63ab32f5f5136ebc01487d:len=97",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
               "symbol": "manager",
-              "fingerprint": "fnv1a64x2:3157af3d909b7290a752fa79f461dce3:len=146",
-              "multiplicity": 3
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:654134ad811502bccd579289e2b8f827:len=195",
-              "multiplicity": 4
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "target_has_no_vehicle_kit",
-              "fingerprint": "fnv1a64x2:1ed3a00f1dbdf8d1a0b247f836f72e06:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "victim",
-              "fingerprint": "fnv1a64x2:8c2e041ab9fc5c24d4d3ef4b68c2d467:len=440",
-              "multiplicity": 9
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "victim_hit_aura_sources_are_hit_inert",
-              "fingerprint": "fnv1a64x2:1db1c1f1d1c420c42592a1e00307cee7:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "victim_movement",
-              "fingerprint": "fnv1a64x2:0cbfd7cd121a99f0d66fa50418f5b27b:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "victim_reach",
-              "fingerprint": "fnv1a64x2:684aa8fee0f3a84c3c20a5186a50bd47:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "auras",
-              "fingerprint": "fnv1a64x2:70828f95c859d0df444956845097dfa0:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "history",
-              "fingerprint": "fnv1a64x2:23982d712c07a2c29e0d5698c5e3122d:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "kit",
-              "fingerprint": "fnv1a64x2:e6d745288c8ee294dee0a344bf50dadf:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "spells",
-              "fingerprint": "fnv1a64x2:300e16c265c449f7617ad52e30837478:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "vehicle",
-              "fingerprint": "fnv1a64x2:ef5206a0e78fb8a55b55a200086a09be:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "combat_reach",
-              "fingerprint": "fnv1a64x2:a5d6b9dbfe33fb5dc56fe5f7cea122de:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "contains",
-              "fingerprint": "fnv1a64x2:78f6649b1617fe05c0b97914fa32430a:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "expect",
-              "fingerprint": "fnv1a64x2:fc4e77b04303660781127648ca1bdd78:len=101",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "find_map",
-              "fingerprint": "fnv1a64x2:825c49b3ebe994f0369ee5691b77e023:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "find_map_mut",
-              "fingerprint": "fnv1a64x2:e87643e8578607d4e82be4de48828f7f:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "generate_low_guid_like_cpp",
-              "fingerprint": "fnv1a64x2:cc43e8f592dd8b5a1d1dcaa2a4de8689:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "get_typed_creature_mut",
-              "fingerprint": "fnv1a64x2:9a75c202271d9f4d4c8381537d795c8e:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "get_typed_player",
-              "fingerprint": "fnv1a64x2:3a0b2fa2434250487fc5044dd45e174b:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "has_complete_spell_hit_inert_aura_authority_like_cpp",
-              "fingerprint": "fnv1a64x2:20f521191d256952fc6da3948280f525:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "has_in_arc",
-              "fingerprint": "fnv1a64x2:a2a4750c3e02b5601c4edde963771003:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "intersects",
-              "fingerprint": "fnv1a64x2:0c265ec54ca78f8a36da6fe79d8099d5:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "is_alive",
-              "fingerprint": "fnv1a64x2:bd0d3d98a5f53c1f81646510748f75f0:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "is_none",
-              "fingerprint": "fnv1a64x2:31487b1c0f8d1616686e789a441017d1:len=49",
+              "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
               "multiplicity": 1
             },
             {
@@ -73800,90 +73408,6 @@
               "symbol": "lock",
               "fingerprint": "fnv1a64x2:9ee648ec80449e395cc30d7e8204083a:len=49",
               "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:a54ee2747d1064be5ee77b049b58b701:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map_mut",
-              "fingerprint": "fnv1a64x2:7f08c5a31541bb51ea0c44fae167ed0c:len=100",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "max",
-              "fingerprint": "fnv1a64x2:2de3d6c63d57757f7fa5a4f6b74a6704:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "movement_flags_like_cpp",
-              "fingerprint": "fnv1a64x2:3e7389fedeafc508c9da80e26e2e84c3:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "position",
-              "fingerprint": "fnv1a64x2:344efc216bd634a4676a71ef37053287:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "start_cooldown",
-              "fingerprint": "fnv1a64x2:f2d4ef993e2d6517a73b52e5dd907b4a:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "subsystems",
-              "fingerprint": "fnv1a64x2:d64a8d3bf986b00ca41dab5bab39d837:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "subsystems_mut",
-              "fingerprint": "fnv1a64x2:784634a74322d0a91bbef76b3f79d3ae:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "unit",
-              "fingerprint": "fnv1a64x2:600a54f1a6244558e6494dfd527a7d13:len=399",
-              "multiplicity": 8
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "unit_mut",
-              "fingerprint": "fnv1a64x2:69cc9f67be4f13629dfe764cfea326cd:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "with_creature_like_cpp",
-              "fingerprint": "fnv1a64x2:bf71d18d938dbb45c58f0fdf75d4e1c2:len=51",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "world",
-              "fingerprint": "fnv1a64x2:5121dd2823fb05402d6b1b94750cfadb:len=199",
-              "multiplicity": 4
             },
             {
               "side": "legacy",
@@ -73895,44 +73419,9 @@
             {
               "side": "legacy",
               "kind": "value_reference",
-              "symbol": "caster_hit_aura_sources_are_empty",
-              "fingerprint": "fnv1a64x2:5c55eed8d64c607645b8a40d648712c1:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "control",
-              "fingerprint": "fnv1a64x2:01b7614246f218f40cd5d622f293325f:len=195",
-              "multiplicity": 4
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "cooldown_now_ms",
-              "fingerprint": "fnv1a64x2:e20219ff4956dde84c17a84797425563:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "creature",
-              "fingerprint": "fnv1a64x2:d85913bd7892822c60545d787e01e9cf:len=342",
-              "multiplicity": 7
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_caster",
-              "fingerprint": "fnv1a64x2:60cf689aa3ef2f984ed6d61d229bed93:len=399",
-              "multiplicity": 8
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
               "symbol": "legacy_guard",
-              "fingerprint": "fnv1a64x2:815af9cfc940bf5ce07bc644e424c13f:len=349",
-              "multiplicity": 7
+              "fingerprint": "fnv1a64x2:980dc02aa2ef691c390e00f9fc26930f:len=49",
+              "multiplicity": 1
             },
             {
               "side": "legacy",
@@ -73940,167 +73429,6 @@
               "symbol": "legacy_map_manager",
               "fingerprint": "fnv1a64x2:234341f18e29fa8aff360b65382e3a15:len=49",
               "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "roll",
-              "fingerprint": "fnv1a64x2:bb93d1b8e518f6f18ae9cf6c47aa159c:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "auras",
-              "fingerprint": "fnv1a64x2:84352b8b1199d2e2385708c404074a8d:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "charmer_guid",
-              "fingerprint": "fnv1a64x2:8d467703ecc90e07d4a41278c32219a0:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "combat_target",
-              "fingerprint": "fnv1a64x2:29befeafa3b55b20a005adc5bab52e5b:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "control",
-              "fingerprint": "fnv1a64x2:c6ae4a11b40b2d1991bfe77b76be1066:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "controlled_by_player",
-              "fingerprint": "fnv1a64x2:68fa4ac99f4ff72238d1b6e63b9ee0e9:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "creature",
-              "fingerprint": "fnv1a64x2:e74b95ef7901e728c2962a0ceb7d5043:len=199",
-              "multiplicity": 4
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "owner_guid",
-              "fingerprint": "fnv1a64x2:8f1f95c9ea9e3b44656d6a97136bc26f:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "ai_ownership",
-              "fingerprint": "fnv1a64x2:0756f554382d91b265479ba341159f65:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "creature_spell_engagement_epoch_like_cpp",
-              "fingerprint": "fnv1a64x2:fdb64955d2ecb469aa609318ee27657e:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "find_creature",
-              "fingerprint": "fnv1a64x2:b39499faa343fc315ca8c76554d23e36:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "find_creature_mut",
-              "fingerprint": "fnv1a64x2:54dfb8549219ab40271cebfe01d1ab43:len=304",
-              "multiplicity": 6
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "has_charm_info",
-              "fingerprint": "fnv1a64x2:703d3fb7780cbd89c788db8e65efbb42:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "has_complete_spell_hit_inert_aura_authority_like_cpp",
-              "fingerprint": "fnv1a64x2:cf1f518954ae581ccb80564d96e84ac7:len=50",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "invalidate_runtime_rng_authority_like_cpp",
-              "fingerprint": "fnv1a64x2:1cfe811883aab3a04af18e58703d42bb:len=199",
-              "multiplicity": 4
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "is_alive",
-              "fingerprint": "fnv1a64x2:92d8fbfb693820af30176719e0842244:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "is_none",
-              "fingerprint": "fnv1a64x2:efa61dc7945273d0a4d8c0bac051f913:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "random_creature_spell_hit_roll_like_cpp",
-              "fingerprint": "fnv1a64x2:a27a9bcee5fb2ff645cfd63070292805:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "record_swing",
-              "fingerprint": "fnv1a64x2:a92f7ecd5bcc26942705b403b7ebc50f:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "runtime_elapsed_ms_like_cpp",
-              "fingerprint": "fnv1a64x2:2592a329148aecb9ec8ba327d34c0492:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "state",
-              "fingerprint": "fnv1a64x2:fc1bfa59b75363afd0626f2c2b60873c:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "subsystems",
-              "fingerprint": "fnv1a64x2:6b1f8bf99ea8d37878b8eb6446831c13:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "unit",
-              "fingerprint": "fnv1a64x2:13f578e0d338b7a45427591abf0cce9f:len=99",
-              "multiplicity": 2
             },
             {
               "side": "legacy",
@@ -74117,7 +73445,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn validate_and_append_creature_spell_cast_like_cpp (canonical_map_manager : & SharedCanonicalMapManager , legacy_map_manager : & crate :: map_manager :: SharedMapManager , command : & CreatureSpellCastPlanLikeCpp , difficulty_id : u8 , turret_ai : bool , config : & LegacyCreatureAggroConfigLikeCpp , plan : & mut RuntimePlan ,) -> CreatureSpellCastValidationResultLikeCpp|body=fnv1a64x2:62fb72ed244d1cb8208d28050fef26b3:len=11212|evidence=fnv1a64x2:25c319d5b04bb42afb74260a73656d49:len=12049",
+          "fingerprint": "signature=fn validate_and_append_creature_spell_cast_like_cpp (canonical_map_manager : & SharedCanonicalMapManager , legacy_map_manager : & crate :: map_manager :: SharedMapManager , command : & CreatureSpellCastPlanLikeCpp , difficulty_id : u8 , turret_ai : bool , config : & LegacyCreatureAggroConfigLikeCpp , plan : & mut RuntimePlan ,) -> CreatureSpellCastValidationResultLikeCpp|body=fnv1a64x2:7c6b81953dab6521c50a74c5f29824ea:len=403|evidence=fnv1a64x2:e2113088cbe85d649bd43636821a02b7:len=775",
           "cfg": [],
           "multiplicity": 1
         },
@@ -75385,6 +74713,36 @@
             }
           ],
           "fingerprint": "signature=struct::D3a1WorldLikeCpp|surface=fnv1a64x2:9ee8b4b4e3948ef22830390a2ad65b31:len=375|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::tests::scenarios_world_entities_19::f6_8d3a1b_spell_parity",
+          "path": "crates/wow-world/src/session/mod.rs",
+          "enclosing": "struct::D3a1bWorldLikeCpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "SharedCanonicalMapManager",
+              "fingerprint": "fnv1a64x2:8d7dcef49208e0d2cf3f8511772d0fad:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "type_reference",
+              "symbol": "SharedMapManager",
+              "fingerprint": "fnv1a64x2:df2aff8d3eff1d38865124f6bc81aeeb:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=struct::D3a1bWorldLikeCpp|surface=fnv1a64x2:4e22894f1d433a23a89b1b3c8dda318a:len=250|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [
             "cfg (test)"
           ],
@@ -80510,6 +79868,132 @@
           "package": "wow-world-entities",
           "module": "crate::creature_spell_admission",
           "path": "crates/wow-world-entities/src/creature_spell_admission.rs",
+          "enclosing": "<wow_world_core :: map_manager :: MapManager as CreatureSpellCastersLikeCpp>::with_spell_caster_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "Creature",
+              "fingerprint": "fnv1a64x2:4bd99eb9477a6c1fe592a13daab18bb8:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "operation",
+              "fingerprint": "fnv1a64x2:41366a60a3b21e70239d1914e4e3be9b:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "self",
+              "fingerprint": "fnv1a64x2:78ba87a8a44996b7c32b6f1c15aacffe:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "find_creature",
+              "fingerprint": "fnv1a64x2:efdd09ec24f460d631780705076bae4d:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "map",
+              "fingerprint": "fnv1a64x2:1e3b4cddcc15366894818ef928e7feeb:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "self_type",
+              "symbol": "Self",
+              "fingerprint": "fnv1a64x2:e3f33941d9b934e0fd014907aa48c0c3:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:wow_world_core :: map_manager :: MapManager:CreatureSpellCastersLikeCpp:fn with_spell_caster_like_cpp < R > (& self , _ : & wow_map :: MapManager , map_id : u16 , instance_id : u32 , caster_guid : ObjectGuid , operation : impl FnOnce (& wow_entities :: Creature) -> R ,) -> Option < R >|body=fnv1a64x2:1cb34a7ffbbe1b6e72f646a325995f7d:len=112|evidence=fnv1a64x2:93208e42612aa73cf35d3c154cdfd94f:len=553",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::creature_spell_admission",
+          "path": "crates/wow-world-entities/src/creature_spell_admission.rs",
+          "enclosing": "<wow_world_core :: map_manager :: MapManager as CreatureSpellCastersLikeCpp>::with_spell_caster_mut_like_cpp",
+          "direction_markers": [
+            "unresolved_dual_side"
+          ],
+          "evidence": [
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "Creature",
+              "fingerprint": "fnv1a64x2:4bd99eb9477a6c1fe592a13daab18bb8:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "type_reference",
+              "symbol": "MapManager",
+              "fingerprint": "fnv1a64x2:6a8ff8984c55ee0c2a76565f50e5525f:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "canonical",
+              "kind": "value_reference",
+              "symbol": "operation",
+              "fingerprint": "fnv1a64x2:41366a60a3b21e70239d1914e4e3be9b:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "value_reference",
+              "symbol": "self",
+              "fingerprint": "fnv1a64x2:78ba87a8a44996b7c32b6f1c15aacffe:len=48",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "find_creature_mut",
+              "fingerprint": "fnv1a64x2:850bf9d62976d9455ceab7056d59d566:len=49",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "method_call",
+              "symbol": "map",
+              "fingerprint": "fnv1a64x2:01b845b1bf6a914b21c2502509111dfa:len=50",
+              "multiplicity": 1
+            },
+            {
+              "side": "legacy",
+              "kind": "self_type",
+              "symbol": "Self",
+              "fingerprint": "fnv1a64x2:e3f33941d9b934e0fd014907aa48c0c3:len=49",
+              "multiplicity": 1
+            }
+          ],
+          "fingerprint": "signature=impl:wow_world_core :: map_manager :: MapManager:CreatureSpellCastersLikeCpp:fn with_spell_caster_mut_like_cpp < R > (& mut self , _ : & mut wow_map :: MapManager , map_id : u16 , instance_id : u32 , caster_guid : ObjectGuid , operation : impl FnOnce (& mut wow_entities :: Creature) -> R ,) -> Option < R >|body=fnv1a64x2:d3e88c3ec9af074dd7e27ae96899e788:len=120|evidence=fnv1a64x2:81e6818da3a9e9391c46106ce8c0b992:len=557",
+          "cfg": [],
+          "multiplicity": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::creature_spell_admission",
+          "path": "crates/wow-world-entities/src/creature_spell_admission.rs",
           "enclosing": "fn::apply_turret_rejected_cast_attempt_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -80532,106 +80016,8 @@
             {
               "side": "canonical",
               "kind": "value_reference",
-              "symbol": "caster",
-              "fingerprint": "fnv1a64x2:599396386c471690a3399b5625863803:len=146",
-              "multiplicity": 3
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "distance_sq",
-              "fingerprint": "fnv1a64x2:fe0a93530a09b47695359e99adfe472d:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "managed",
-              "fingerprint": "fnv1a64x2:c73056fed8ca26096047fecdd12ad79c:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
               "symbol": "manager",
               "fingerprint": "fnv1a64x2:4e67829db448c020520a29115e4640e3:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:05b94fb8d5e7d1ae4dd40e7460682669:len=97",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "value_reference",
-              "symbol": "victim",
-              "fingerprint": "fnv1a64x2:89ea5be36df80b7ca109777af1f288ef:len=146",
-              "multiplicity": 3
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "combat_reach",
-              "fingerprint": "fnv1a64x2:506e8297723fee83723a560a87aded48:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "is_alive",
-              "fingerprint": "fnv1a64x2:9fcb59aa85a4db251434a24e065cb346:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "field_access",
-              "symbol": "position",
-              "fingerprint": "fnv1a64x2:a3198754f2d8a78e4d8af070d1fe6e31:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "combat_reach",
-              "fingerprint": "fnv1a64x2:a5d6b9dbfe33fb5dc56fe5f7cea122de:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "creature_transform_vitals_snapshot_like_cpp",
-              "fingerprint": "fnv1a64x2:4d7af6b59deb36772f05b812011a6dbc:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "distance_sq",
-              "fingerprint": "fnv1a64x2:cb30a0859e2d3bc82f5030d168a7ab63:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "find_map",
-              "fingerprint": "fnv1a64x2:7ea88a2a274ef67090aaabeb43623d33:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "get_typed_player",
-              "fingerprint": "fnv1a64x2:fa5fa326c7e4a337e9d26f7d6bd7d7e0:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "is_alive",
-              "fingerprint": "fnv1a64x2:bd0d3d98a5f53c1f81646510748f75f0:len=49",
               "multiplicity": 1
             },
             {
@@ -80640,41 +80026,6 @@
               "symbol": "lock",
               "fingerprint": "fnv1a64x2:9ee648ec80449e395cc30d7e8204083a:len=49",
               "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "map",
-              "fingerprint": "fnv1a64x2:a54ee2747d1064be5ee77b049b58b701:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "max",
-              "fingerprint": "fnv1a64x2:e291f34a43545cecffbce3c92d0fe5df:len=99",
-              "multiplicity": 2
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "position",
-              "fingerprint": "fnv1a64x2:344efc216bd634a4676a71ef37053287:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "unit",
-              "fingerprint": "fnv1a64x2:c8fa0f67079b7fa8e2d1fbcc585a45e3:len=149",
-              "multiplicity": 3
-            },
-            {
-              "side": "canonical",
-              "kind": "method_call",
-              "symbol": "world",
-              "fingerprint": "fnv1a64x2:694df49a6ca75e9c691159789c9fe4e7:len=99",
-              "multiplicity": 2
             },
             {
               "side": "legacy",
@@ -80686,92 +80037,15 @@
             {
               "side": "legacy",
               "kind": "value_reference",
-              "symbol": "creature",
-              "fingerprint": "fnv1a64x2:8c9ca98c4908b2ec33721a7b80c2c26f:len=48",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
-              "symbol": "legacy_caster",
-              "fingerprint": "fnv1a64x2:3a575b903b026ff8d16414c4eaea4193:len=199",
-              "multiplicity": 4
-            },
-            {
-              "side": "legacy",
-              "kind": "value_reference",
               "symbol": "legacy_guard",
-              "fingerprint": "fnv1a64x2:444f74201336d21835e3bb166c57dd83:len=99",
-              "multiplicity": 2
+              "fingerprint": "fnv1a64x2:980dc02aa2ef691c390e00f9fc26930f:len=49",
+              "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "value_reference",
               "symbol": "legacy_map_manager",
               "fingerprint": "fnv1a64x2:234341f18e29fa8aff360b65382e3a15:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "combat_target",
-              "fingerprint": "fnv1a64x2:29befeafa3b55b20a005adc5bab52e5b:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "field_access",
-              "symbol": "creature",
-              "fingerprint": "fnv1a64x2:72eb88f17ce3546d0ce6f1d6128e1436:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "ai_ownership",
-              "fingerprint": "fnv1a64x2:0756f554382d91b265479ba341159f65:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "creature_spell_engagement_epoch_like_cpp",
-              "fingerprint": "fnv1a64x2:fdb64955d2ecb469aa609318ee27657e:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "find_creature",
-              "fingerprint": "fnv1a64x2:5174fd7b915ebda229cc6e3e964abd3d:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "find_creature_mut",
-              "fingerprint": "fnv1a64x2:3306ccbeb65b68ef23f1e7b4e7e7c5fc:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "is_alive",
-              "fingerprint": "fnv1a64x2:92d8fbfb693820af30176719e0842244:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "record_swing",
-              "fingerprint": "fnv1a64x2:55b5d3917935bc71f4fefb1fa9581ebe:len=49",
-              "multiplicity": 1
-            },
-            {
-              "side": "legacy",
-              "kind": "method_call",
-              "symbol": "state",
-              "fingerprint": "fnv1a64x2:fc1bfa59b75363afd0626f2c2b60873c:len=49",
               "multiplicity": 1
             },
             {
@@ -80789,7 +80063,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=fn apply_turret_rejected_cast_attempt_like_cpp (canonical_map_manager : & SharedCanonicalMapManager , legacy_map_manager : & wow_world_core :: map_manager :: SharedMapManager , attempt : & TurretRejectedCastAttemptLikeCpp , config : & LegacyCreatureAggroConfigLikeCpp ,) -> bool|body=fnv1a64x2:e9cc1bd05c107dd51037f9d9bab1f510:len=1854|evidence=fnv1a64x2:45f9e9518c4b9340cfa0de0dae8bb693:len=4310",
+          "fingerprint": "signature=fn apply_turret_rejected_cast_attempt_like_cpp (canonical_map_manager : & SharedCanonicalMapManager , legacy_map_manager : & wow_world_core :: map_manager :: SharedMapManager , attempt : & TurretRejectedCastAttemptLikeCpp , config : & LegacyCreatureAggroConfigLikeCpp ,) -> bool|body=fnv1a64x2:a1f135b2e10069484e28f2fced3b357b:len=311|evidence=fnv1a64x2:9dd9f115e8500c843e9d86979d685dc7:len=775",
           "cfg": [],
           "multiplicity": 1
         }

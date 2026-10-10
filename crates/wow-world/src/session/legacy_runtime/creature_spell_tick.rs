@@ -2,6 +2,13 @@
 //!
 //! Moved out of the Session root under #619. Behaviour is preserved; the
 //! canonical owner of this state is unchanged.
+//!
+//! #1263 F6-8D3a-1b: the selection half of the phase
+//! ([`collect_creature_spell_actions_on_store_like_cpp`]) is written once
+//! against [`CreaturePhaseStoreLikeCpp`], so the legacy bridge and the admitted
+//! canonical executor run the same body; the deferred actions it returns are
+//! drained by `creature_spell_actions.rs`. The legacy entry keeps only the
+//! guard, the owner check and the lock scopes.
 
 use super::*;
 
@@ -18,29 +25,6 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
 ) -> LegacyCreatureSpellTickOutcomeLikeCpp {
     use crate::map_manager::RuntimeTickOwner;
 
-    struct PendingCreatureSpellCastLikeCpp {
-        command: CreatureSpellCastPlanLikeCpp,
-        difficulty_id: u8,
-        turret_ai: bool,
-    }
-
-    struct PendingCreatureSpellScheduleLikeCpp {
-        caster_guid: ObjectGuid,
-        map_id: u16,
-        instance_id: u32,
-        engagement_epoch: u64,
-        slot: usize,
-        minimum_ms: u64,
-    }
-
-    enum PendingCreatureSpellActionLikeCpp {
-        Cast(PendingCreatureSpellCastLikeCpp),
-        Schedule(PendingCreatureSpellScheduleLikeCpp),
-        /// A TurretAI attempt C++ would still have made through `CastSpell`,
-        /// whose swing reset depends only on the raw combat-range gate.
-        TurretRejectedAttempt(TurretRejectedCastAttemptLikeCpp),
-    }
-
     let mut outcome = LegacyCreatureSpellTickOutcomeLikeCpp::default();
     let Some(spell_store) = config.spell_store.as_ref() else {
         return outcome;
@@ -49,17 +33,12 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
     if let Some(canonical_map_manager) = canonical_map_manager
         && let Ok(manager) = canonical_map_manager.lock()
     {
-        manager.do_for_all_maps(|managed| {
-            if let Ok(map_id) = u16::try_from(managed.map_id()) {
-                map_difficulties.insert((map_id, managed.instance_id()), managed.difficulty());
-            }
-        });
+        map_difficulties = creature_spell_map_difficulties_like_cpp(&manager);
     }
     // #1263 F6-8C: the canonical designated owner decides which creature may
     // select a template spell. Read once, before the legacy write guard.
     let ownership =
         canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
-    let mut pending_actions = Vec::new();
     let mut manager = legacy_map_manager
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -67,16 +46,68 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
         outcome.skipped_owner_not_global = true;
         return outcome;
     }
+    let pending_actions = collect_creature_spell_actions_on_store_like_cpp(
+        &mut *manager,
+        &ownership,
+        &map_difficulties,
+        spell_store,
+        config,
+        &mut outcome,
+    );
+    drop(manager);
+    drain_creature_spell_actions_like_cpp(
+        &mut LegacyCreatureSpellActionOwnerLikeCpp {
+            legacy_map_manager,
+            canonical_map_manager,
+        },
+        &ownership,
+        pending_actions,
+        config,
+        &mut outcome,
+    );
+    outcome
+}
 
-    let map_keys = manager.active_map_keys();
+/// The difficulty of every canonical map, keyed like the legacy residences.
+pub(super) fn creature_spell_map_difficulties_like_cpp(
+    manager: &wow_map::MapManager,
+) -> HashMap<(u16, u32), u8> {
+    let mut map_difficulties = HashMap::new();
+    manager.do_for_all_maps(|managed| {
+        if let Ok(map_id) = u16::try_from(managed.map_id()) {
+            map_difficulties.insert((map_id, managed.instance_id()), managed.difficulty());
+        }
+    });
+    map_difficulties
+}
+
+/// The selection half of `CombatAI::UpdateAI` / `TurretAI::UpdateAI`
+/// (`CombatAI.cpp:91-107, 217-223`): for every creature of the store, the
+/// schedule initialisation, the due-event choice and the represented cast
+/// plan, deferred as actions in C++ order. #1263 F6-8D3a-1b: one body for the
+/// legacy store and the admitted canonical store.
+pub(super) fn collect_creature_spell_actions_on_store_like_cpp<S>(
+    store: &mut S,
+    ownership: &CanonicalCreatureOwnershipLikeCpp,
+    map_difficulties: &HashMap<(u16, u32), u8>,
+    spell_store: &wow_data::SpellStore,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+    outcome: &mut LegacyCreatureSpellTickOutcomeLikeCpp,
+) -> Vec<PendingCreatureSpellActionLikeCpp>
+where
+    S: CreaturePhaseStoreLikeCpp + ?Sized,
+{
+    let mut pending_actions = Vec::new();
+    let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
     for (map_id, instance_id) in map_keys {
         let difficulty_id = map_difficulties
             .get(&(map_id, instance_id))
             .copied()
             .unwrap_or(0);
-        for guid in manager.creature_guids(map_id, instance_id) {
-            let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
+        for guid in store.phase_creature_guids_like_cpp(map_id, instance_id) {
+            let Some(creature) = store.phase_creature_mut_like_cpp(map_id, instance_id, guid)
+            else {
                 continue;
             };
             outcome.creatures_seen += 1;
@@ -90,7 +121,7 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
             if !creature.is_alive() || creature.state() != wow_entities::CreatureAiState::InCombat {
                 continue;
             }
-            let Some(recipient_guid) = creature.creature.ai_ownership().combat_target else {
+            let Some(recipient_guid) = creature.ai_ownership().combat_target else {
                 continue;
             };
             // Creature-vs-creature effects need a future map-owned generic
@@ -99,15 +130,14 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                 continue;
             }
 
-            let ai_kind =
-                match legacy_creature_ai_selection_decision_like_cpp(&creature.creature, config) {
-                    LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
-                    LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
-                        outcome.ai_selection_unrepresented += 1;
-                        continue;
-                    }
-                };
-            let spells = creature.creature.spells();
+            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, config) {
+                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+                    outcome.ai_selection_unrepresented += 1;
+                    continue;
+                }
+            };
+            let spells = creature.spells();
 
             match ai_kind {
                 CreatureAiKindLikeCpp::CombatAI => {
@@ -324,11 +354,7 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
 
                     // C++ advances EventMap before this gate but executes no
                     // due event while the creature owns UNIT_STATE_CASTING.
-                    if creature
-                        .creature
-                        .unit()
-                        .has_unit_state(UnitState::CASTING.bits())
-                    {
+                    if creature.unit().has_unit_state(UnitState::CASTING.bits()) {
                         outcome.unit_state_casting_skips += 1;
                         continue;
                     }
@@ -553,11 +579,7 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
                         outcome.noninstant_casts_unrepresented += 1;
                         continue;
                     }
-                    if creature
-                        .creature
-                        .unit()
-                        .has_unit_state(UnitState::CASTING.bits())
-                    {
+                    if creature.unit().has_unit_state(UnitState::CASTING.bits()) {
                         outcome.unit_state_casting_skips += 1;
                         continue;
                     }
@@ -715,126 +737,5 @@ pub fn run_legacy_creature_spell_tick_once_like_cpp(
             }
         }
     }
-
-    drop(manager);
-    for pending_action in pending_actions {
-        let pending_cast = match pending_action {
-            PendingCreatureSpellActionLikeCpp::Schedule(schedule) => {
-                let mut manager = legacy_map_manager
-                    .write()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                let Some(creature) = manager.find_creature_mut(
-                    schedule.map_id,
-                    schedule.instance_id,
-                    schedule.caster_guid,
-                ) else {
-                    continue;
-                };
-                // #1263 F6-8C: the deferred slot re-arm mutates the caster's
-                // canonical runtime schedule, so it needs the canonical owner.
-                if !ownership.decides_like_cpp(
-                    schedule.map_id,
-                    schedule.instance_id,
-                    schedule.caster_guid,
-                ) {
-                    outcome.canonical_incarnation_rejections += 1;
-                    continue;
-                }
-                if creature.creature_spell_engagement_epoch_like_cpp() != schedule.engagement_epoch
-                {
-                    continue;
-                }
-                let Some(delay) = creature.random_creature_spell_delay_like_cpp(
-                    schedule.minimum_ms,
-                    schedule.minimum_ms.saturating_mul(2),
-                ) else {
-                    outcome.runtime_rng_authority_rejections += 1;
-                    continue;
-                };
-                creature.schedule_creature_spell_slot_after_like_cpp(schedule.slot, delay);
-                continue;
-            }
-            PendingCreatureSpellActionLikeCpp::TurretRejectedAttempt(attempt) => {
-                let Some(canonical_map_manager) = canonical_map_manager else {
-                    continue;
-                };
-                if apply_turret_rejected_cast_attempt_like_cpp(
-                    canonical_map_manager,
-                    legacy_map_manager,
-                    &attempt,
-                    config,
-                ) {
-                    outcome.turret_rejected_attempt_swings += 1;
-                }
-                continue;
-            }
-            PendingCreatureSpellActionLikeCpp::Cast(pending_cast) => pending_cast,
-        };
-        let Some(canonical_map_manager) = canonical_map_manager else {
-            outcome.canonical_cast_missing_target += 1;
-            outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-            continue;
-        };
-        let validation = validate_and_append_creature_spell_cast_like_cpp(
-            canonical_map_manager,
-            legacy_map_manager,
-            &pending_cast.command,
-            pending_cast.difficulty_id,
-            pending_cast.turret_ai,
-            config,
-            &mut outcome.plan,
-        );
-
-        match validation {
-            CreatureSpellCastValidationResultLikeCpp::Ready(hit_result) => {
-                outcome.canonical_cast_preconditions_passed += 1;
-                match hit_result {
-                    CreatureSpellTargetHitResultLikeCpp::Hit => outcome.spell_hits += 1,
-                    CreatureSpellTargetHitResultLikeCpp::Miss => outcome.spell_misses += 1,
-                }
-            }
-            CreatureSpellCastValidationResultLikeCpp::OutOfRange => {
-                outcome.spell_range_rejections += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::LosRejected => {
-                outcome.spell_los_rejections += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::MissingTarget => {
-                outcome.canonical_cast_missing_target += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::TargetRejected => {
-                outcome.canonical_cast_target_rejections += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::CooldownRejected => {
-                outcome.canonical_cast_cooldown_rejections += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented => {
-                outcome.spell_hit_results_unrepresented += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected => {
-                outcome.caster_incarnation_rejections += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-            CreatureSpellCastValidationResultLikeCpp::RuntimeRngAuthorityRejected => {
-                outcome.runtime_rng_authority_rejections += 1;
-                outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-                continue;
-            }
-        }
-    }
-
-    outcome
+    pending_actions
 }

@@ -110,7 +110,7 @@ pub fn creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
 }
 
 pub fn creature_ai_spell_plan_like_cpp(
-    creature: &wow_world_core::map_manager::WorldCreature,
+    creature: &wow_entities::Creature,
     caster_guid: ObjectGuid,
     target_guid: ObjectGuid,
     map_id: u16,
@@ -138,9 +138,7 @@ pub fn creature_ai_spell_plan_like_cpp(
             config,
         ),
         engagement_epoch: creature.creature_spell_engagement_epoch_like_cpp(),
-        caster_incarnation: CreatureSpellCasterIncarnationLikeCpp::capture_like_cpp(
-            &creature.creature,
-        ),
+        caster_incarnation: CreatureSpellCasterIncarnationLikeCpp::capture_like_cpp(creature),
     })
 }
 
@@ -226,7 +224,7 @@ pub fn creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
     config: &LegacyCreatureAggroConfigLikeCpp,
-    creature: &wow_world_core::map_manager::WorldCreature,
+    creature: &wow_entities::Creature,
 ) -> bool {
     const SPELL_ATTR1_USE_ALL_MANA_LIKE_CPP: u32 = 0x0000_0002;
     const SPELL_ATTR4_WEAPON_SPEED_COST_SCALING_LIKE_CPP: u32 = 0x0000_0400;
@@ -254,7 +252,7 @@ pub fn creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
         return true;
     }
 
-    let auras = &creature.creature.unit().subsystems().auras;
+    let auras = &creature.unit().subsystems().auras;
     auras.has_aura_type_like_cpp(SPELL_AURA_MOD_ADDITIONAL_POWER_COST_LIKE_CPP)
         || auras
             .has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_COST_SCHOOL)
