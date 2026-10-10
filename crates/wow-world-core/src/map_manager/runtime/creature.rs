@@ -7,8 +7,6 @@
 //! construction/projection seam and the delegating accessors the legacy
 //! scheduler still calls; it holds no creature runtime state of its own.
 
-use rand::rngs::StdRng;
-
 use super::*;
 
 impl WorldCreature {
@@ -157,7 +155,6 @@ impl WorldCreature {
         Self {
             creature,
             create_data,
-            home_health_restored_pending_like_cpp: false,
             respawn_spell_hit_aura_source_authority_like_cpp: false,
             respawn_spell_cast_log_aura_source_authority_like_cpp: false,
         }
@@ -298,12 +295,16 @@ impl WorldCreature {
         world_creature.restore_respawn_aura_source_authority_like_cpp(true, true);
         match world_creature.creature.default_movement_type() {
             wow_entities::MovementGeneratorType::Random => {
-                world_creature.initialize_default_random_movement_like_cpp();
+                world_creature
+                    .movement_like_cpp()
+                    .initialize_default_random_movement_like_cpp();
             }
             wow_entities::MovementGeneratorType::Waypoint => {
-                world_creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
-                    |path_id| waypoint_path_resolver(path_id),
-                );
+                world_creature
+                    .movement_like_cpp()
+                    .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
+                        waypoint_path_resolver(path_id)
+                    });
             }
             wow_entities::MovementGeneratorType::Idle => {}
         }
@@ -322,14 +323,6 @@ impl WorldCreature {
 
     pub fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
         self.creature.advance_runtime_clock_like_cpp(diff_ms);
-    }
-
-    /// Draw access to the creature-owned runtime RNG. The state has one owner
-    /// (the canonical runtime state); this bridge only borrows it.
-    pub(crate) fn runtime_rng_mut(&mut self) -> &mut StdRng {
-        self.creature
-            .runtime_like_cpp_mut()
-            .runtime_rng_like_cpp_mut()
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -478,114 +471,6 @@ impl WorldCreature {
 
     pub fn die(&mut self) {
         self.creature.die();
-    }
-
-    pub(in crate::map_manager) fn walk_speed_like_cpp(&self) -> f32 {
-        (self.create_data.speed_walk_rate * 2.5).max(0.01)
-    }
-
-    pub(in crate::map_manager) fn run_speed_like_cpp(&self) -> f32 {
-        (self.create_data.speed_run_rate * 7.0).max(0.01)
-    }
-
-    /// Owner capabilities `PathGenerator::BuildPolyPath` reads off `_source`
-    /// when a position has no navmesh polygon: `Creature::CanFly()`
-    /// (`Creature.h:126`), `Creature::CanSwim()` (`Creature.cpp:2912-2921`) and
-    /// `Unit::IsFalling()` (`Unit.cpp:12173-12176`, movement flags **or** the
-    /// active spline falling).
-    pub fn detour_owner_capabilities_like_cpp(&self) -> DetourOwnerCapabilitiesLikeCpp {
-        let spline_falling = self
-            .creature
-            .runtime_like_cpp()
-            .active_move_spline
-            .as_ref()
-            .is_some_and(|spline| spline.flags().contains(MoveSplineFlag::FALLING));
-        DetourOwnerCapabilitiesLikeCpp {
-            can_fly: self.creature.can_fly_like_cpp(),
-            can_swim: self.creature.can_swim_like_cpp(),
-            is_falling: self
-                .creature
-                .movement_flags_like_cpp()
-                .intersects(MovementFlag::FALLING | MovementFlag::FALLING_FAR)
-                || spline_falling,
-        }
-    }
-
-    /// C++ `WorldObject::GetNearPoint2D` + `GetNearPoint`
-    /// (`Object.cpp:3379-3441`): a point `distance_2d` beyond the combined
-    /// combat reaches, at `absolute_angle` around the target, with Z snapped by
-    /// the searcher's `UpdateAllowedPositionZ`.
-    ///
-    /// Boundary: C++ also sweeps the angle in `M_PI/8` steps until the candidate
-    /// is in line of sight when `CONFIG_DETECT_POS_COLLISION` is on. VMap line of
-    /// sight is still a stub here, so the first candidate is taken.
-    pub(in crate::map_manager) fn near_point_like_cpp(
-        &self,
-        target: ChaseTargetSnapshotLikeCpp,
-        distance_2d: f32,
-        absolute_angle: f32,
-        terrain: Option<&LiveTerrainHeights>,
-    ) -> Position {
-        let effective_reach =
-            target.combat_reach + self.creature.unit().data().combat_reach.max(0.0);
-        let radius = effective_reach + distance_2d;
-        let point = Position::new(
-            target.position.x + radius * absolute_angle.cos(),
-            target.position.y + radius * absolute_angle.sin(),
-            target.position.z,
-            0.0,
-        );
-        self.normalize_path_position_z_like_cpp(point, terrain)
-    }
-
-    pub(in crate::map_manager) fn random_unit_snapshot_like_cpp(
-        &self,
-        has_los_to_destination: bool,
-        path_result: RandomPathResult,
-        distance_roll: f32,
-        angle_roll: f32,
-        next_wander_steps_roll: u8,
-        pause_seconds_roll: i32,
-        travel_time_ms: i32,
-    ) -> RandomUnitSnapshot {
-        let random_type = match self.creature.random_movement_type_like_cpp() {
-            value if value == ConstantsCreatureRandomMovementType::CanRun as u8 => {
-                MovementCreatureRandomMovementType::CanRun
-            }
-            value if value == ConstantsCreatureRandomMovementType::AlwaysRun as u8 => {
-                MovementCreatureRandomMovementType::AlwaysRun
-            }
-            _ => MovementCreatureRandomMovementType::AlwaysWalk,
-        };
-        RandomUnitSnapshot {
-            owner_position: self.position(),
-            owner_alive: self.is_alive(),
-            owner_unit_state: self.creature.unit().unit_state(),
-            movement_prevented_by_casting: self
-                .creature
-                .unit()
-                .has_unit_state(UnitState::CASTING.bits()),
-            move_spline_finalized: self
-                .creature
-                .runtime_like_cpp()
-                .active_move_spline
-                .as_ref()
-                .is_none_or(MoveSpline::finalized),
-            owner_wander_distance: self.creature.ai_ownership().wander_radius,
-            has_los_to_destination,
-            path_result,
-            movement_template: random_type,
-            owner_is_walking: self
-                .creature
-                .movement_flags_like_cpp()
-                .contains(MovementFlag::WALKING),
-            travel_time_ms,
-            distance_roll,
-            angle_roll,
-            next_wander_steps_roll,
-            pause_seconds_roll,
-            ai_enabled: true,
-        }
     }
 
     pub fn can_swing(&self) -> bool {

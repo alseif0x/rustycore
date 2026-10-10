@@ -116,6 +116,7 @@ async fn killing_moving_creature_sends_cpp_like_monster_move_stop() {
     session
         .mutate_world_creature(guid, |creature| {
             creature
+                .movement_like_cpp()
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("valid represented spline");
         })

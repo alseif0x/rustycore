@@ -46,7 +46,7 @@ fn waypoint_path_store_initializes_world_creature_default_waypoint_like_cpp() {
     assert_eq!(action, wow_movement::WaypointMovementAction::StopMoving);
     assert!(creature.creature.unit().subsystems().motion.stopped);
     assert!(matches!(
-        creature.update_default_waypoint_movement_like_cpp(
+        creature.movement_like_cpp().update_default_waypoint_movement_like_cpp(
             wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
         ),
         wow_movement::WaypointMovementAction::Launch(launch)

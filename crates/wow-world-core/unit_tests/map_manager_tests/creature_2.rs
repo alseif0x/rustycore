@@ -30,13 +30,17 @@ fn world_creature_waypoint_update_launches_initial_node_spline_like_cpp() {
         ],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
 
-    let action = creature.update_default_waypoint_movement_like_cpp(
-        wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
-    );
+    let action = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_like_cpp(
+            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+        );
 
     match action {
         WaypointMovementAction::Launch(launch) => {
@@ -95,31 +99,35 @@ fn world_creature_waypoint_generate_path_uses_detour_point_path_like_cpp() {
         vec![wow_movement::WaypointNode::new(10, 30.0, 10.0, 0.0)],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
     let mut resolver_calls = 0;
 
-    let (action, launched) = creature.update_default_waypoint_movement_with_path_resolver_like_cpp(
-        wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
-        true,
-        |query| {
-            resolver_calls += 1;
-            assert_eq!(query.start, Position::new(10.0, 10.0, 0.0, 0.0));
-            assert_eq!(query.destination, destination);
-            assert_eq!(query.point_path_limit, MAX_POINT_PATH_LENGTH_LIKE_CPP);
-            Some(DetourPolyPath {
-                poly_refs: vec![11, 22, 33],
-                point_path: wow_recastdetour::DetourPointPath {
-                    points: vec![[10.0, 10.0, 0.0], [20.0, 15.0, 2.0], [30.0, 10.0, 0.0]],
-                    actual_end: [30.0, 10.0, 0.0],
-                    path_type: DetourPathType::NORMAL,
-                },
-                start_far_from_poly: false,
-                end_far_from_poly: false,
-            })
-        },
-    );
+    let (action, launched) = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_with_path_resolver_like_cpp(
+            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+            true,
+            |query| {
+                resolver_calls += 1;
+                assert_eq!(query.start, Position::new(10.0, 10.0, 0.0, 0.0));
+                assert_eq!(query.destination, destination);
+                assert_eq!(query.point_path_limit, MAX_POINT_PATH_LENGTH_LIKE_CPP);
+                Some(DetourPolyPath {
+                    poly_refs: vec![11, 22, 33],
+                    point_path: wow_recastdetour::DetourPointPath {
+                        points: vec![[10.0, 10.0, 0.0], [20.0, 15.0, 2.0], [30.0, 10.0, 0.0]],
+                        actual_end: [30.0, 10.0, 0.0],
+                        path_type: DetourPathType::NORMAL,
+                    },
+                    start_far_from_poly: false,
+                    end_far_from_poly: false,
+                })
+            },
+        );
 
     assert!(matches!(action, WaypointMovementAction::Launch(_)));
     assert_eq!(resolver_calls, 1);
@@ -159,12 +167,15 @@ fn world_creature_waypoint_generate_path_nopath_falls_back_direct_like_cpp() {
         vec![wow_movement::WaypointNode::new(10, 30.0, 10.0, 0.0)],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
     let mut resolver_calls = 0;
 
     let (_action, launched) = creature
+        .movement_like_cpp()
         .update_default_waypoint_movement_with_path_resolver_like_cpp(
             wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
             true,
@@ -226,14 +237,18 @@ fn world_creature_waypoint_launch_applies_land_takeoff_anim_tier_like_cpp() {
         );
         path.move_type = move_type;
         assert_eq!(
-            creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+            creature
+                .movement_like_cpp()
+                .initialize_default_waypoint_movement_like_cpp(Some(path)),
             WaypointMovementAction::StopMoving
         );
 
         assert!(matches!(
-            creature.update_default_waypoint_movement_like_cpp(
-                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
-            ),
+            creature
+                .movement_like_cpp()
+                .update_default_waypoint_movement_like_cpp(
+                    wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+                ),
             WaypointMovementAction::Launch(_)
         ));
 
@@ -274,13 +289,17 @@ fn world_creature_waypoint_arrival_records_inform_and_launches_next_node_like_cp
         ],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
     assert!(matches!(
-        creature.update_default_waypoint_movement_like_cpp(
-            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
-        ),
+        creature
+            .movement_like_cpp()
+            .update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
         WaypointMovementAction::Launch(_)
     ));
     creature
@@ -290,9 +309,11 @@ fn world_creature_waypoint_arrival_records_inform_and_launches_next_node_like_cp
         .as_mut()
         .expect("initial waypoint spline")
         .finalize();
-    assert!(creature.update_move_spline_like_cpp());
+    assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
 
-    let arrived = creature.update_default_waypoint_movement_like_cpp(0);
+    let arrived = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_like_cpp(0);
 
     match arrived {
         WaypointMovementAction::Arrived(arrived) => {
@@ -316,7 +337,9 @@ fn world_creature_waypoint_arrival_records_inform_and_launches_next_node_like_cp
         })
     );
 
-    let next = creature.update_default_waypoint_movement_like_cpp(500);
+    let next = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_like_cpp(500);
 
     match next {
         WaypointMovementAction::Launch(launch) => {
@@ -356,13 +379,17 @@ fn world_creature_waypoint_arrival_without_delay_launches_next_node_same_tick_li
         ],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
     assert!(matches!(
-        creature.update_default_waypoint_movement_like_cpp(
-            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
-        ),
+        creature
+            .movement_like_cpp()
+            .update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
         WaypointMovementAction::Launch(_)
     ));
     creature
@@ -372,9 +399,11 @@ fn world_creature_waypoint_arrival_without_delay_launches_next_node_same_tick_li
         .as_mut()
         .expect("single waypoint spline")
         .finalize();
-    assert!(creature.update_move_spline_like_cpp());
+    assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
 
-    let action = creature.update_default_waypoint_movement_like_cpp(0);
+    let action = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_like_cpp(0);
 
     match action {
         WaypointMovementAction::Launch(launch) => {
@@ -421,13 +450,17 @@ fn world_creature_waypoint_tick_advances_spline_before_motionmaster_like_cpp() {
         ],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
     assert!(matches!(
-        creature.update_default_waypoint_movement_like_cpp(
-            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
-        ),
+        creature
+            .movement_like_cpp()
+            .update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
         WaypointMovementAction::Launch(_)
     ));
     creature
@@ -448,7 +481,9 @@ fn world_creature_waypoint_tick_advances_spline_before_motionmaster_like_cpp() {
         "the represented MotionSubsystem is stale until Unit::UpdateSplineMovement runs"
     );
 
-    let action = creature.update_default_waypoint_movement_like_cpp(0);
+    let action = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_like_cpp(0);
 
     match action {
         WaypointMovementAction::Launch(launch) => {
@@ -488,13 +523,17 @@ fn world_creature_waypoint_single_node_path_ends_same_tick_after_arrival_like_cp
         vec![wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0)],
     );
     assert_eq!(
-        creature.initialize_default_waypoint_movement_like_cpp(Some(path)),
+        creature
+            .movement_like_cpp()
+            .initialize_default_waypoint_movement_like_cpp(Some(path)),
         WaypointMovementAction::StopMoving
     );
     assert!(matches!(
-        creature.update_default_waypoint_movement_like_cpp(
-            wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
-        ),
+        creature
+            .movement_like_cpp()
+            .update_default_waypoint_movement_like_cpp(
+                wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
+            ),
         WaypointMovementAction::Launch(_)
     ));
     creature
@@ -504,9 +543,11 @@ fn world_creature_waypoint_single_node_path_ends_same_tick_after_arrival_like_cp
         .as_mut()
         .expect("single waypoint spline")
         .finalize();
-    assert!(creature.update_move_spline_like_cpp());
+    assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
 
-    let ended = creature.update_default_waypoint_movement_like_cpp(0);
+    let ended = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_like_cpp(0);
 
     match ended {
         WaypointMovementAction::PathEnded(ended) => {
@@ -563,7 +604,10 @@ fn world_creature_waypoint_path_end_random_handoff_launches_active_random_spline
     ));
 
     for expected_node in [10, 20, 30] {
-        match creature.update_default_waypoint_movement_like_cpp(0) {
+        match creature
+            .movement_like_cpp()
+            .update_default_waypoint_movement_like_cpp(0)
+        {
             WaypointMovementAction::Launch(launch) => assert_eq!(launch.node_id, expected_node),
             other => panic!("expected waypoint launch for node {expected_node}, got {other:?}"),
         }
@@ -574,10 +618,12 @@ fn world_creature_waypoint_path_end_random_handoff_launches_active_random_spline
             .as_mut()
             .expect("active waypoint spline")
             .finalize();
-        assert!(creature.update_move_spline_like_cpp());
+        assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
     }
 
-    let action = creature.update_default_waypoint_movement_with_wait_roll_like_cpp(0, Some(1_500));
+    let action = creature
+        .movement_like_cpp()
+        .update_default_waypoint_movement_with_wait_roll_like_cpp(0, Some(1_500));
 
     match action {
         WaypointMovementAction::Arrived(arrived) => {
@@ -622,7 +668,9 @@ fn world_creature_waypoint_path_end_random_handoff_launches_active_random_spline
     );
 
     assert_eq!(
-        creature.update_default_waypoint_movement_like_cpp(100),
+        creature
+            .movement_like_cpp()
+            .update_default_waypoint_movement_like_cpp(100),
         WaypointMovementAction::Continue
     );
     assert!(
@@ -671,6 +719,7 @@ fn world_creature_detour_path_bridge_uses_moveby_path_or_direct_fallback_like_cp
     let dst = Position::new(15.0, 12.0, 0.0, 0.0);
 
     let (from, spline, path) = creature
+        .movement_like_cpp()
         .begin_move_spline_with_detour_path_like_cpp(dst, Some(&normal_path), false)
         .expect("detour path launches");
 
@@ -702,6 +751,7 @@ fn world_creature_detour_path_bridge_uses_moveby_path_or_direct_fallback_like_cp
     let fallback_dst = Position::new(20.0, 10.0, 0.0, 0.0);
 
     let (_from, fallback_spline, fallback_path) = creature
+        .movement_like_cpp()
         .begin_move_spline_with_detour_path_like_cpp(fallback_dst, Some(&nopath), false)
         .expect("direct fallback launches");
 
@@ -756,6 +806,7 @@ fn world_creature_detour_path_bridge_normalizes_points_to_terrain_like_cpp() {
     };
 
     let (_from, spline, path) = creature
+        .movement_like_cpp()
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&normal_path),
@@ -829,6 +880,7 @@ fn world_creature_detour_path_bridge_raises_low_mmap_points_to_grid_ground_like_
     };
 
     let (_from, spline, path) = creature
+        .movement_like_cpp()
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&low_mmap_path),

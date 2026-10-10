@@ -838,8 +838,9 @@ impl WorldSession {
                 }
 
                 let orientation = creature.position().angle_to(&destination);
-                let (_, from, spline) =
-                    creature.begin_distract_movement_like_cpp(duration_ms, orientation)?;
+                let (_, from, spline) = creature
+                    .movement_like_cpp()
+                    .begin_distract_movement_like_cpp(duration_ms, orientation)?;
                 Some(
                     MonsterMove {
                         mover_guid: target_guid,

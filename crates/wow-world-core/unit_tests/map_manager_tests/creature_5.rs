@@ -46,6 +46,7 @@ fn world_creature_begin_point_movement_uses_point_lifecycle_and_real_spline() {
     let dst = Position::new(14.0, 10.0, 0.0, 0.0);
 
     let (from, spline) = creature
+        .movement_like_cpp()
         .begin_point_movement_like_cpp(42, dst, true)
         .expect("point movement starts direct spline");
 
@@ -87,7 +88,9 @@ fn world_creature_begin_point_movement_uses_point_lifecycle_and_real_spline() {
         );
     }
     assert_eq!(
-        creature.finalize_point_movement_like_cpp(true, true),
+        creature
+            .movement_like_cpp()
+            .finalize_point_movement_like_cpp(true, true),
         Some(PointMovementInform {
             kind: MovementGeneratorKind::Point,
             movement_id: 42,
@@ -129,6 +132,7 @@ fn world_creature_begin_point_movement_handles_blocked_and_prepath_branches() {
 
     assert!(
         creature
+            .movement_like_cpp()
             .begin_point_movement_like_cpp(43, dst, false)
             .is_none()
     );
@@ -150,6 +154,7 @@ fn world_creature_begin_point_movement_handles_blocked_and_prepath_branches() {
 
     assert!(
         creature
+            .movement_like_cpp()
             .begin_point_movement_like_cpp(EVENT_CHARGE_PREPATH, dst, true)
             .is_none()
     );
@@ -212,7 +217,9 @@ fn world_creature_finalize_generic_movement_records_ai_inform_like_cpp() {
     }
 
     assert_eq!(
-        creature.finalize_generic_movement_like_cpp(MovementGeneratorKind::Effect, 77, true),
+        creature
+            .movement_like_cpp()
+            .finalize_generic_movement_like_cpp(MovementGeneratorKind::Effect, 77, true),
         Some(GenericMovementInform {
             kind: MovementGeneratorKind::Effect,
             movement_id: 77,
@@ -252,6 +259,7 @@ fn world_creature_begin_distract_and_rotate_launch_facing_splines_like_cpp() {
         .set_stand_state_like_cpp(UnitStandStateType::Sit);
 
     let (action, from, spline) = creature
+        .movement_like_cpp()
         .begin_distract_movement_like_cpp(500, 1.25)
         .expect("distract launches facing spline");
 
@@ -294,7 +302,11 @@ fn world_creature_begin_distract_and_rotate_launch_facing_splines_like_cpp() {
             .expect("distract generator");
         assert!(!generator.update_distract_like_cpp(true, 501));
     }
-    assert!(creature.finalize_distract_movement_like_cpp(true));
+    assert!(
+        creature
+            .movement_like_cpp()
+            .finalize_distract_movement_like_cpp(true)
+    );
     assert!((creature.position().orientation - 2.5).abs() < 0.0001);
 
     creature
@@ -312,6 +324,7 @@ fn world_creature_begin_distract_and_rotate_launch_facing_splines_like_cpp() {
             .move_rotate_like_cpp(8, 1_000, wow_entities::RotateDirection::Left)
     );
     let (update, spline) = creature
+        .movement_like_cpp()
         .tick_rotate_movement_like_cpp(250)
         .expect("rotate tick launches facing spline");
     assert!(update.keep_running);
@@ -340,7 +353,9 @@ fn world_creature_begin_distract_and_rotate_launch_facing_splines_like_cpp() {
     assert_eq!(generator.kind, MovementGeneratorKind::Rotate);
     assert_eq!(generator.duration_ms, Some(750));
     assert_eq!(
-        creature.finalize_rotate_movement_like_cpp(true),
+        creature
+            .movement_like_cpp()
+            .finalize_rotate_movement_like_cpp(true),
         Some(PointMovementInform {
             kind: MovementGeneratorKind::Rotate,
             movement_id: 8,
@@ -374,6 +389,7 @@ fn world_creature_stop_move_spline_emits_cpp_stop_state_before_arrival() {
     creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(20.0, 10.0, 0.0, 0.0);
     let (_, spline) = creature
+        .movement_like_cpp()
         .begin_move_spline_like_cpp(dst)
         .expect("valid two-point spline");
     assert!(
@@ -388,6 +404,7 @@ fn world_creature_stop_move_spline_emits_cpp_stop_state_before_arrival() {
         now_ms.saturating_sub(u64::from(duration_ms / 2));
 
     let stop = creature
+        .movement_like_cpp()
         .stop_move_spline_like_cpp()
         .expect("active spline stops");
 
@@ -424,7 +441,12 @@ fn world_creature_stop_move_spline_emits_cpp_stop_state_before_arrival() {
     assert!(!motion_spline.enabled);
     assert!(motion_spline.finalized);
     assert_eq!(motion_spline.spline_id, stop.spline_id);
-    assert!(creature.stop_move_spline_like_cpp().is_none());
+    assert!(
+        creature
+            .movement_like_cpp()
+            .stop_move_spline_like_cpp()
+            .is_none()
+    );
 }
 #[test]
 fn test_visible_creatures() {

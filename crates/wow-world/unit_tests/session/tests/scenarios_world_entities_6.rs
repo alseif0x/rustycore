@@ -615,6 +615,7 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
         .world_mut()
         .set_combat_reach(1.0);
     canonical_carrier
+        .movement_like_cpp()
         .begin_move_spline_like_cpp(Position::new(24.0, 20.0, 0.0, 0.0))
         .expect("canonical runtime spline must launch");
     canonical

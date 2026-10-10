@@ -5,7 +5,7 @@
 
 use super::*;
 
-impl WorldCreature {
+impl CreatureMovementLikeCpp<'_> {
     pub fn begin_point_movement_like_cpp(
         &mut self,
         movement_id: u32,

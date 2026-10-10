@@ -16,7 +16,7 @@ pub use wow_world_core::session::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
 pub use wow_world_core::session::LegacyCreatureAggroConfigLikeCpp;
 pub use wow_world_core::session::spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct LegacyCreatureMovementTickOutcomeLikeCpp {
     pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
@@ -130,10 +130,6 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub ai_can_attack_rejections: usize,
     pub alert_triggers: usize,
     pub alert_rejections: usize,
-    /// #1263 F6-8D3a-1: an alert whose `MoveDistract` the phase store does not
-    /// represent (the admitted canonical store until F6-8D3a-2). Refused, so no
-    /// alert reaction is published without its movement.
-    pub alert_movement_unrepresented: usize,
     pub movement_interrupts: usize,
     pub victim_switches: usize,
     pub evades_started: usize,

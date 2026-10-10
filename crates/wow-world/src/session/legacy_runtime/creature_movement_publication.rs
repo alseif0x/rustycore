@@ -26,7 +26,11 @@ pub(in crate::session) struct CreatureMovementFrameLikeCpp {
     pub(in crate::session) instance_id: u32,
     pub(in crate::session) guid: ObjectGuid,
     /// Transported representation offered to the canonical incarnation.
-    pub(in crate::session) snapshot: wow_entities::Creature,
+    ///
+    /// #1263 F6-8D3a-2: `None` when the frame was driven on the canonical
+    /// incarnation itself (the admitted executor), so there is nothing to
+    /// transport.
+    pub(in crate::session) snapshot: Option<wow_entities::Creature>,
     /// Position the spline was launched from, read from the creature's canonical
     /// runtime state after this frame's `Unit::Update`.
     pub(in crate::session) source_position: Position,
@@ -49,12 +53,10 @@ pub(in crate::session) fn publish_creature_movement_frames_like_cpp(
     frames: Vec<CreatureMovementFrameLikeCpp>,
     outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
 ) {
-    use crate::map_manager::{RecipientRule, RuntimeEvent};
-
-    for frame in frames {
-        let applied = match canonical_map_manager {
-            Some(canonical) => {
-                let expected_legacy_authority = frame.snapshot.loot_authority_like_cpp().clone();
+    for mut frame in frames {
+        let applied = match (canonical_map_manager, frame.snapshot.take()) {
+            (Some(canonical), Some(snapshot)) => {
+                let expected_legacy_authority = snapshot.loot_authority_like_cpp().clone();
                 let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
                 outcome.canonical_syncs += 1;
                 // F6-7 R7b-2b: the shared map-level gate admits the transported
@@ -66,14 +68,14 @@ pub(in crate::session) fn publish_creature_movement_frames_like_cpp(
                     Some(legacy_map_manager),
                     frame.map_id,
                     frame.instance_id,
-                    frame.snapshot,
+                    snapshot,
                     &expected_legacy_authority,
                     expected_legacy_stamp,
                 )
             }
             // Legacy-only runtime: there is no canonical application to gate the
             // publication on, so this configuration is preserved by name.
-            None => true,
+            _ => true,
         };
         if !applied {
             // The canonical incarnation refused or deferred this representation,
@@ -81,23 +83,38 @@ pub(in crate::session) fn publish_creature_movement_frames_like_cpp(
             // canonical authority did not accept.
             continue;
         }
-        if let Some(event) = frame.home_health_restore {
-            outcome.plan.events.push(event);
-        }
-        if let Some(packet_bytes) = frame.movement_packet {
-            outcome.movement_packets += 1;
-            outcome.plan.events.push(RuntimeEvent {
+        push_creature_movement_frame_events_like_cpp(frame, outcome);
+    }
+}
+
+/// Publish one applied frame: the reached-home values update first, then the
+/// movement packet, in the tick's established order.
+///
+/// #1263 F6-8D3a-2: the admitted canonical executor drives its frames on the
+/// canonical incarnation in place, so each of its frames is applied and goes
+/// straight here.
+pub(in crate::session) fn push_creature_movement_frame_events_like_cpp(
+    frame: CreatureMovementFrameLikeCpp,
+    outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
+) {
+    use crate::map_manager::{RecipientRule, RuntimeEvent};
+
+    if let Some(event) = frame.home_health_restore {
+        outcome.plan.events.push(event);
+    }
+    if let Some(packet_bytes) = frame.movement_packet {
+        outcome.movement_packets += 1;
+        outcome.plan.events.push(RuntimeEvent {
+            source_guid: frame.guid,
+            recipients: RecipientRule::NearbyVisible {
                 source_guid: frame.guid,
-                recipients: RecipientRule::NearbyVisible {
-                    source_guid: frame.guid,
-                    map_id: frame.map_id,
-                    instance_id: frame.instance_id,
-                    source_position: frame.source_position,
-                    range: frame.visibility_range,
-                    required_3d: false,
-                },
-                packet_bytes,
-            });
-        }
+                map_id: frame.map_id,
+                instance_id: frame.instance_id,
+                source_position: frame.source_position,
+                range: frame.visibility_range,
+                required_3d: false,
+            },
+            packet_bytes,
+        });
     }
 }

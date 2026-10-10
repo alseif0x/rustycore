@@ -5,11 +5,13 @@
 
 use super::*;
 
-impl WorldCreature {
+impl CreatureMovementLikeCpp<'_> {
     fn set_movement_flags_like_cpp(&mut self, movement_flags: MovementFlag) {
         self.creature
             .set_movement_flags_runtime_like_cpp(movement_flags);
-        self.create_data.movement_flags = movement_flags.bits();
+        if let Some(projection) = self.projection.as_deref_mut() {
+            projection.movement_flags = movement_flags.bits();
+        }
     }
 
     fn apply_launch_movement_flags_like_cpp(&mut self, movement_flags: MovementFlag) {
@@ -23,42 +25,6 @@ impl WorldCreature {
         let mut movement_flags = self.creature.movement_flags_like_cpp();
         movement_flags.remove(MovementFlag::FORWARD);
         self.set_movement_flags_like_cpp(movement_flags);
-    }
-
-    pub fn movement_finished(&self) -> bool {
-        if let Some(spline) = &self.creature.runtime_like_cpp().active_move_spline {
-            return spline.finalized();
-        }
-        self.creature
-            .ai_ownership()
-            .move_target
-            .map(|_| {
-                self.runtime_elapsed_ms_like_cpp()
-                    .saturating_sub(self.creature.ai_ownership().move_start_ms)
-                    >= u64::from(self.creature.ai_ownership().move_duration_ms)
-            })
-            .unwrap_or(true)
-    }
-
-    pub fn interpolated_position(&self) -> Position {
-        let Some(dst) = self.creature.ai_ownership().move_target else {
-            return self.position();
-        };
-        let elapsed =
-            self.runtime_elapsed_ms_like_cpp()
-                .saturating_sub(self.creature.ai_ownership().move_start_ms) as f32;
-        let total = self.creature.ai_ownership().move_duration_ms as f32;
-        if total <= 0.0 {
-            return dst;
-        }
-        let src = self.position();
-        let t = (elapsed / total).min(1.0);
-        Position::new(
-            src.x + (dst.x - src.x) * t,
-            src.y + (dst.y - src.y) * t,
-            src.z + (dst.z - src.z) * t,
-            dst.orientation,
-        )
     }
 
     pub fn begin_move(&mut self, dst: Position) {
@@ -184,17 +150,6 @@ impl WorldCreature {
         init.move_by_path(points, 0);
 
         self.launch_move_spline_init_like_cpp(&mut init, dst)
-    }
-
-    pub fn random_movement_walk_like_cpp(&self) -> bool {
-        match self.creature.random_movement_type_like_cpp() {
-            value if value == ConstantsCreatureRandomMovementType::CanRun as u8 => self
-                .creature
-                .movement_flags_like_cpp()
-                .contains(MovementFlag::WALKING),
-            value if value == ConstantsCreatureRandomMovementType::AlwaysRun as u8 => false,
-            _ => true,
-        }
     }
 
     pub fn begin_move_spline_by_path_like_cpp<I>(
@@ -425,15 +380,9 @@ impl WorldCreature {
     pub fn stop_move_spline_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
         let stop = self.creature.stop_move_spline_like_cpp();
         if stop.is_some() {
-            self.sync_create_projection_movement_flags_like_cpp();
+            self.mirror_projection_movement_flags_like_cpp();
         }
         stop
-    }
-
-    /// Re-sync the cached packet projection's movement flags from the canonical
-    /// unit after a phase operation that changed them.
-    pub fn sync_create_projection_movement_flags_like_cpp(&mut self) {
-        self.create_data.movement_flags = self.creature.movement_flags_like_cpp().bits();
     }
 
     pub fn finish_move(&mut self) {
@@ -451,5 +400,14 @@ impl WorldCreature {
         self.creature
             .unit_mut()
             .clear_unit_state(UnitState::ROAMING_MOVE.bits());
+    }
+}
+
+impl WorldCreature {
+    /// Re-sync the cached packet projection's movement flags from the canonical
+    /// unit after a phase operation that changed them.
+    pub fn sync_create_projection_movement_flags_like_cpp(&mut self) {
+        self.movement_like_cpp()
+            .mirror_projection_movement_flags_like_cpp();
     }
 }

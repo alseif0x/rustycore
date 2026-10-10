@@ -7,11 +7,7 @@ use rand::Rng;
 
 use super::*;
 
-impl WorldCreature {
-    pub fn can_wander(&self) -> bool {
-        self.creature.can_ai_wander()
-    }
-
+impl CreatureMovementLikeCpp<'_> {
     pub fn initialize_default_waypoint_movement_like_cpp(
         &mut self,
         loaded_path: Option<WaypointPath>,
@@ -572,22 +568,6 @@ impl WorldCreature {
         }
     }
 
-    fn waypoint_unit_snapshot_like_cpp(&self) -> WaypointUnitSnapshot {
-        let unit = self.creature.unit();
-        WaypointUnitSnapshot {
-            owner_alive: self.creature.is_alive(),
-            owner_unit_state: unit.unit_state(),
-            movement_prevented_by_casting: unit.has_unit_state(UnitState::CASTING.bits()),
-            move_spline_finalized: unit.subsystems().motion.spline.finalized,
-            owner_is_on_transport: false,
-            owner_is_formation_leader: false,
-            formation_leader_move_allowed: true,
-            owner_orientation: self.position().orientation,
-            owner_position: self.position(),
-            ai_enabled: true,
-        }
-    }
-
     fn begin_waypoint_launch_with_detour_path_like_cpp(
         &mut self,
         launch: WaypointLaunchPlan,
@@ -642,18 +622,6 @@ impl WorldCreature {
         let dst =
             self.pick_random_destination_from_current_position_like_cpp(random.wander_distance)?;
         self.begin_move_spline_like_cpp(dst)
-    }
-
-    pub fn should_wander(&self) -> bool {
-        self.is_alive()
-            && self.state() == CreatureAiState::Idle
-            && self.creature.default_movement_type() == wow_entities::MovementGeneratorType::Random
-            && self.can_wander()
-            && self.creature.ai_ownership().wander_radius > 0.0
-            && self
-                .runtime_elapsed_ms_like_cpp()
-                .saturating_sub(self.creature.ai_ownership().move_start_ms)
-                >= self.creature.ai_ownership().wander_delay_ms
     }
 
     pub fn pick_wander_destination(&mut self) -> Option<Position> {

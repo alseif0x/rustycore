@@ -22,9 +22,14 @@
 //!
 //! Two operations are bridge-only and therefore explicit hooks, not hidden
 //! differences: the legacy packet projection's movement-flag mirror after a
-//! spline stop (the canonical store has no cached projection), and
-//! `CreatureAI::TriggerAlert`'s `MoveDistract`, a movement operation that still
-//! needs the legacy movement bridge and moves with movement in F6-8D3a-2.
+//! spline stop (the canonical store has no cached projection), and whether a
+//! movement frame carries a transported representation for the legacy
+//! bridge's canonical gate.
+//!
+//! #1263 F6-8D3a-2: the movement phase lends each creature to the movement
+//! bodies as a `CreatureMovementLikeCpp` — with the legacy bridge's cached
+//! projection, or the canonical incarnation alone — so the movement step and
+//! `CreatureAI::TriggerAlert`'s `MoveDistract` run one body on either store.
 
 use super::*;
 
@@ -50,16 +55,43 @@ pub(in crate::session) trait CreaturePhaseStoreLikeCpp {
     /// projection mirrors the stopped spline's movement flags. A store without
     /// a cached projection has nothing to mirror.
     fn phase_after_spline_stop_like_cpp(&mut self, map_id: u16, instance_id: u32, guid: ObjectGuid);
-    /// C++ `CreatureAI::TriggerAlert` → `MotionMaster::MoveDistract(5s, angle)`.
-    /// `Some(started)` when this store represents the distract movement,
-    /// `None` when it does not (the canonical store until F6-8D3a-2).
+    /// One creature lent to the movement bodies (`MotionMaster`, the spline
+    /// and the generators), when this store visits it.
+    fn phase_creature_movement_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        guid: ObjectGuid,
+    ) -> Option<crate::map_manager::CreatureMovementLikeCpp<'_>>;
+    /// Any creature of the residence's map, visited or not: the chase victim
+    /// C++ `ChaseMovementGenerator` reaches through its `Unit*`.
+    fn phase_map_creature_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        guid: ObjectGuid,
+    ) -> Option<&wow_entities::Creature>;
+    /// Whether a movement frame carries the moved creature's representation
+    /// for the legacy bridge's canonical admission gate. A store that drives
+    /// the canonical incarnation in place has nothing to transport.
+    fn phase_movement_representation_like_cpp(&self) -> bool;
+    /// C++ `CreatureAI::TriggerAlert` → `MotionMaster::MoveDistract(5s, angle)`
+    /// (`CreatureAI.cpp:141-160`, `MotionMaster.cpp:1096-1104`): whether the
+    /// distract generator started.
     fn phase_begin_alert_distract_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,
         guid: ObjectGuid,
         orientation: f32,
-    ) -> Option<bool>;
+    ) -> bool {
+        self.phase_creature_movement_like_cpp(map_id, instance_id, guid)
+            .is_some_and(|mut creature| {
+                creature
+                    .begin_distract_movement_like_cpp(5_000, orientation)
+                    .is_some()
+            })
+    }
 }
 
 impl CreaturePhaseStoreLikeCpp for crate::map_manager::MapManager {
@@ -102,19 +134,27 @@ impl CreaturePhaseStoreLikeCpp for crate::map_manager::MapManager {
         }
     }
 
-    fn phase_begin_alert_distract_like_cpp(
+    fn phase_creature_movement_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,
         guid: ObjectGuid,
-        orientation: f32,
-    ) -> Option<bool> {
-        let creature = self.find_creature_mut(map_id, instance_id, guid)?;
-        Some(
-            creature
-                .begin_distract_movement_like_cpp(5_000, orientation)
-                .is_some(),
-        )
+    ) -> Option<crate::map_manager::CreatureMovementLikeCpp<'_>> {
+        self.find_creature_mut(map_id, instance_id, guid)
+            .map(crate::map_manager::WorldCreature::movement_like_cpp)
+    }
+
+    fn phase_map_creature_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        guid: ObjectGuid,
+    ) -> Option<&wow_entities::Creature> {
+        self.phase_creature_like_cpp(map_id, instance_id, guid)
+    }
+
+    fn phase_movement_representation_like_cpp(&self) -> bool {
+        true
     }
 }
 
@@ -206,13 +246,29 @@ impl CreaturePhaseStoreLikeCpp for AdmittedCanonicalCreatureStoreLikeCpp<'_> {
 
     fn phase_after_spline_stop_like_cpp(&mut self, _: u16, _: u32, _: ObjectGuid) {}
 
-    fn phase_begin_alert_distract_like_cpp(
+    fn phase_creature_movement_like_cpp(
         &mut self,
-        _: u16,
-        _: u32,
-        _: ObjectGuid,
-        _: f32,
-    ) -> Option<bool> {
-        None
+        map_id: u16,
+        instance_id: u32,
+        guid: ObjectGuid,
+    ) -> Option<crate::map_manager::CreatureMovementLikeCpp<'_>> {
+        self.phase_creature_mut_like_cpp(map_id, instance_id, guid)
+            .map(crate::map_manager::CreatureMovementLikeCpp::canonical_like_cpp)
+    }
+
+    fn phase_map_creature_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        guid: ObjectGuid,
+    ) -> Option<&wow_entities::Creature> {
+        self.manager
+            .find_map(u32::from(map_id), instance_id)?
+            .map()
+            .get_typed_creature(guid)
+    }
+
+    fn phase_movement_representation_like_cpp(&self) -> bool {
+        false
     }
 }

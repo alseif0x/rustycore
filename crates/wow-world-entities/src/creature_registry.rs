@@ -434,13 +434,13 @@ impl WorldEntitiesState {
             if world_creature.creature.default_movement_type()
                 == wow_entities::MovementGeneratorType::Waypoint
             {
-                world_creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(
-                    |path_id| {
+                world_creature
+                    .movement_like_cpp()
+                    .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
                         waypoint_path_resolver
                             .as_ref()
                             .and_then(|resolver| resolver(path_id))
-                    },
-                );
+                    });
             }
             let mut manager = manager
                 .write()

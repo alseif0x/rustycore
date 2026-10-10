@@ -945,6 +945,7 @@ fn insert_canonical_visibility_candidate_like_cpp(
     }
     if with_spline {
         carrier
+            .movement_like_cpp()
             .begin_move_spline_like_cpp(Position::new(position.x + 4.0, position.y, 0.0, 0.0))
             .expect("canonical runtime spline must launch");
     }

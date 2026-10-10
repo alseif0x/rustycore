@@ -96,9 +96,11 @@ pub fn initialize_world_creature_default_waypoint_from_store_like_cpp(
     creature: &mut wow_world::map_manager::WorldCreature,
     waypoint_paths: &WaypointPathStoreLikeCpp,
 ) -> wow_movement::WaypointMovementAction {
-    creature.initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
-        waypoint_paths.get(path_id).cloned()
-    })
+    creature
+        .movement_like_cpp()
+        .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
+            waypoint_paths.get(path_id).cloned()
+        })
 }
 pub(super) fn waypoint_move_type_from_db_like_cpp(
     move_type: u8,

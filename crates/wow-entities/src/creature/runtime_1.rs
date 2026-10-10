@@ -225,6 +225,16 @@ pub struct CreatureRuntimeLikeCpp {
     /// only the delegating accessor. Initial value and clone carry-over are
     /// unchanged, so the counter observes the same sequence.
     runtime_motion_master_ticks_like_cpp: u64,
+    /// Set by `HomeMovementGenerator<Creature>::DoFinalize`'s reached-home
+    /// `SetSpawnHealth()` until the movement phase that ran it publishes the
+    /// restored health values update.
+    ///
+    /// #1263 F6-8D3a-2: the legacy `WorldCreature` bridge held this flag. It
+    /// is a fact of this creature's own movement frame, so it now lives with
+    /// the runtime state the home generator mutates, and the admitted canonical
+    /// executor publishes it without reading the bridge. Initial value and
+    /// clone carry-over are the bridge's.
+    home_health_restored_pending_like_cpp: bool,
 }
 
 impl CreatureRuntimeLikeCpp {
@@ -256,6 +266,7 @@ impl CreatureRuntimeLikeCpp {
             runtime_rng_authority_complete_like_cpp: true,
             runtime_elapsed_ms_like_cpp: 0,
             runtime_motion_master_ticks_like_cpp: 0,
+            home_health_restored_pending_like_cpp: false,
         }
     }
 
@@ -292,7 +303,18 @@ impl CreatureRuntimeLikeCpp {
             runtime_rng_authority_complete_like_cpp: source.runtime_rng_authority_complete_like_cpp,
             runtime_elapsed_ms_like_cpp: source.runtime_elapsed_ms_like_cpp,
             runtime_motion_master_ticks_like_cpp: source.runtime_motion_master_ticks_like_cpp,
+            home_health_restored_pending_like_cpp: source.home_health_restored_pending_like_cpp,
         }
+    }
+
+    /// Record a reached-home spawn-health restore for this frame's publication.
+    pub fn mark_home_health_restored_pending_like_cpp(&mut self) {
+        self.home_health_restored_pending_like_cpp = true;
+    }
+
+    /// Consume the reached-home restore, once, for its publication.
+    pub fn take_home_health_restored_pending_like_cpp(&mut self) -> bool {
+        std::mem::take(&mut self.home_health_restored_pending_like_cpp)
     }
 
     /// Canonical accessor for the runtime motion master's advance counter.
