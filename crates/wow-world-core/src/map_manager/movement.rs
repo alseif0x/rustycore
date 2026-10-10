@@ -107,6 +107,7 @@ mod corpse_loot;
 mod home_and_chase;
 mod motion_master;
 mod point_and_effects;
+pub(super) mod queries;
 mod random_and_waypoint;
 mod spline;
-mod terrain;
+pub(super) mod view;

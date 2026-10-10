@@ -4,21 +4,45 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
+use crate::map_manager::CreatureMovementQueriesLikeCpp as _;
 
 /// Advances a single creature's movement state for one tick and returns the
 /// serialised `MonsterMove` packet bytes if a new spline was launched, or
 /// `None` otherwise.
 ///
-/// This is a pure function of `creature`, `guid`, and the two mmap resources;
-/// it does NOT touch any `WorldSession` state, making it callable from the
-/// future global creature-tick driver (4A.3b) as well as from the existing
-/// per-session tick.
-///
-/// Logic is byte-identical to the closure that previously lived inside
-/// `run_creatures_tick` — only the location changed.
+/// The legacy bridge entry: it lends the bridge's canonical entity and cached
+/// projection to [`step_creature_movement_on_view_like_cpp`], the one body.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn step_creature_movement_like_cpp(
     creature: &mut crate::map_manager::WorldCreature,
+    guid: wow_core::ObjectGuid,
+    mmap_config: &MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    chase_target: Option<crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    diff_ms: u32,
+) -> Option<Vec<u8>> {
+    step_creature_movement_on_view_like_cpp(
+        &mut creature.movement_like_cpp(),
+        guid,
+        mmap_config,
+        mmap_pathfinder,
+        terrain,
+        chase_target,
+        diff_ms,
+    )
+}
+
+/// The creature movement step — `Unit::Update(p_time)`'s clock,
+/// `UpdateSplineMovement` and `MotionMaster::Update` with the home, random,
+/// waypoint and chase generators — written once over a borrowed canonical
+/// creature (#1263 F6-8D3a-2).
+///
+/// This is a pure function of `creature`, `guid`, and the two mmap resources;
+/// it does NOT touch any `WorldSession` state.
+#[allow(clippy::too_many_arguments)]
+pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
+    creature: &mut crate::map_manager::CreatureMovementLikeCpp<'_>,
     guid: wow_core::ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
@@ -105,7 +129,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                 trace_monster_move_packet_like_cpp(
                     "home",
                     guid,
-                    creature,
+                    creature.creature,
                     &move_spline,
                     &packet_spline,
                     &bytes,
@@ -182,7 +206,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                 trace_monster_move_packet_like_cpp(
                     "random",
                     guid,
-                    creature,
+                    creature.creature,
                     &move_spline,
                     &packet_spline,
                     &bytes,
@@ -239,7 +263,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                 trace_monster_move_packet_like_cpp(
                     "waypoint",
                     guid,
-                    creature,
+                    creature.creature,
                     &move_spline,
                     &packet_spline,
                     &bytes,
@@ -333,7 +357,7 @@ pub(crate) fn step_creature_movement_like_cpp(
                     trace_monster_move_packet_like_cpp(
                         "chase",
                         guid,
-                        creature,
+                        creature.creature,
                         &move_spline,
                         &packet_spline,
                         &bytes,
@@ -367,6 +391,10 @@ pub(crate) fn step_creature_movement_like_cpp(
 /// (`Creature::runtime_like_cpp`), and the publication is now gated on the
 /// canonical application of the transported representation at the exact
 /// residence, exactly like the lifecycle respawn publication gated in F6-8A.
+///
+/// #1263 F6-8D3a-2: the drive is [`run_creature_movement_phase_on_store_like_cpp`],
+/// the one body the admitted canonical executor also runs; this entry keeps
+/// only the guard, the owner check and the canonical-gated publication.
 pub fn run_legacy_creature_movement_tick_once_like_cpp(
     legacy_map_manager: &crate::map_manager::SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -375,20 +403,10 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
     chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> LegacyCreatureMovementTickOutcomeLikeCpp {
-    use crate::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan, RuntimeTickOwner};
-    use wow_packet::ServerPacket;
+    use crate::map_manager::RuntimeTickOwner;
 
-    let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp {
-        skipped_owner_not_global: false,
-        maps_seen: 0,
-        creatures_seen: 0,
-        movement_packets: 0,
-        canonical_syncs: 0,
-        plan: RuntimePlan { events: Vec::new() },
-    };
-    let mut frames: Vec<CreatureMovementFrameLikeCpp> = Vec::new();
-
-    {
+    let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp::default();
+    let frames = {
         let mut manager = legacy_map_manager
             .write()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -396,65 +414,97 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
             outcome.skipped_owner_not_global = true;
             return outcome;
         }
-
-        let map_keys = manager.active_map_keys();
         let live_terrain = manager.terrain();
-        outcome.maps_seen = map_keys.len();
-        for (map_id, instance_id) in map_keys {
-            let guids = manager.creature_guids(map_id, instance_id);
-            for guid in guids {
-                // C++ `ChaseMovementGenerator` dereferences a live `Unit*`. This
-                // runtime has no object accessor inside the creature step, so the
-                // victim's facts are snapshotted first: players come from the
-                // caller's registry snapshot, creature victims from this manager.
-                // Both lookups are immutable and finish before the mutable borrow.
-                let chase_target = manager
-                    .find_creature(map_id, instance_id, guid)
-                    .and_then(|creature| creature.creature.ai_ownership().combat_target)
-                    .and_then(|target_guid| {
-                        chase_targets
-                            .get(&(map_id, instance_id, target_guid))
-                            .copied()
-                            .or_else(|| {
-                                manager.find_creature(map_id, instance_id, target_guid).map(
-                                    |target| crate::map_manager::ChaseTargetSnapshotLikeCpp {
-                                        guid: target_guid,
-                                        position: target.position(),
-                                        combat_reach: target
-                                            .creature
-                                            .unit()
-                                            .data()
-                                            .combat_reach
-                                            .max(0.0),
-                                        in_world: target.creature.is_alive(),
-                                        // Creature entities carry no liquid state;
-                                        // unknown, not "dry".
-                                        in_water: None,
-                                    },
-                                )
-                            })
-                    });
+        run_creature_movement_phase_on_store_like_cpp(
+            &mut *manager,
+            live_terrain.as_deref(),
+            mmap_config,
+            mmap_pathfinder,
+            chase_targets,
+            diff_ms,
+            &mut outcome,
+        )
+    };
 
-                let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
-                    continue;
-                };
-                outcome.creatures_seen += 1;
-                let packet_bytes = step_creature_movement_like_cpp(
-                    creature,
-                    guid,
-                    mmap_config,
-                    mmap_pathfinder,
-                    live_terrain.as_deref(),
-                    chase_target,
-                    diff_ms,
-                );
-                let source_position = creature.position();
-                let home_health_restore = if creature.take_home_health_restored_pending_like_cpp() {
-                    unit_values_update_to_update_object(
-                        guid,
-                        map_id,
-                        &creature.creature.unit().values_update(),
-                    )
+    publish_creature_movement_frames_like_cpp(
+        legacy_map_manager,
+        canonical_map_manager,
+        frames,
+        &mut outcome,
+    );
+    outcome
+}
+
+/// The creature movement phase over one store: for every creature, the chase
+/// victim snapshot, the movement step and one publication frame.
+///
+/// C++ `ChaseMovementGenerator` dereferences a live `Unit*`. The creature step
+/// has no object accessor, so the victim's facts are snapshotted first:
+/// players come from the caller's snapshot, creature victims from the store's
+/// map. Both lookups are immutable and finish before the mutable borrow.
+pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp<
+    S: CreaturePhaseStoreLikeCpp,
+>(
+    store: &mut S,
+    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    mmap_config: &MMapRuntimeConfigLikeCpp,
+    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    diff_ms: u32,
+    outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
+) -> Vec<CreatureMovementFrameLikeCpp> {
+    use crate::map_manager::{RecipientRule, RuntimeEvent};
+    use wow_packet::ServerPacket;
+
+    let mut frames = Vec::new();
+    let map_keys = store.phase_map_keys_like_cpp();
+    outcome.maps_seen = map_keys.len();
+    for (map_id, instance_id) in map_keys {
+        for guid in store.phase_creature_guids_like_cpp(map_id, instance_id) {
+            let chase_target = store
+                .phase_creature_like_cpp(map_id, instance_id, guid)
+                .and_then(|creature| creature.ai_ownership().combat_target)
+                .and_then(|target_guid| {
+                    chase_targets
+                        .get(&(map_id, instance_id, target_guid))
+                        .copied()
+                        .or_else(|| {
+                            store
+                                .phase_map_creature_like_cpp(map_id, instance_id, target_guid)
+                                .map(|target| crate::map_manager::ChaseTargetSnapshotLikeCpp {
+                                    guid: target_guid,
+                                    position: target.position(),
+                                    combat_reach: target.unit().data().combat_reach.max(0.0),
+                                    in_world: target.is_alive(),
+                                    // Creature entities carry no liquid state;
+                                    // unknown, not "dry".
+                                    in_water: None,
+                                })
+                        })
+                });
+
+            let representation = store.phase_movement_representation_like_cpp();
+            let Some(mut creature) =
+                store.phase_creature_movement_like_cpp(map_id, instance_id, guid)
+            else {
+                continue;
+            };
+            outcome.creatures_seen += 1;
+            let packet_bytes = step_creature_movement_on_view_like_cpp(
+                &mut creature,
+                guid,
+                mmap_config,
+                mmap_pathfinder,
+                terrain,
+                chase_target,
+                diff_ms,
+            );
+            let source_position = creature.position();
+            let home_health_restore = if creature
+                .runtime_like_cpp_mut()
+                .take_home_health_restored_pending_like_cpp()
+            {
+                unit_values_update_to_update_object(guid, map_id, &creature.unit().values_update())
                     .map(|update| RuntimeEvent {
                         source_guid: guid,
                         recipients: RecipientRule::NearbyVisibleDurable {
@@ -467,32 +517,24 @@ pub fn run_legacy_creature_movement_tick_once_like_cpp(
                         },
                         packet_bytes: update.to_bytes(),
                     })
-                } else {
-                    None
-                };
-                let snapshot = creature.creature.clone();
-                let visibility_range = creature.visibility_range_like_cpp();
-                frames.push(CreatureMovementFrameLikeCpp {
-                    map_id,
-                    instance_id,
-                    guid,
-                    snapshot,
-                    source_position,
-                    visibility_range,
-                    home_health_restore,
-                    movement_packet: packet_bytes,
-                });
-            }
+            } else {
+                None
+            };
+            let snapshot = representation.then(|| creature.creature.clone());
+            let visibility_range = creature.visibility_range_like_cpp();
+            frames.push(CreatureMovementFrameLikeCpp {
+                map_id,
+                instance_id,
+                guid,
+                snapshot,
+                source_position,
+                visibility_range,
+                home_health_restore,
+                movement_packet: packet_bytes,
+            });
         }
     }
-
-    publish_creature_movement_frames_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        frames,
-        &mut outcome,
-    );
-    outcome
+    frames
 }
 #[cfg(test)]
 pub(in crate::session) fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {

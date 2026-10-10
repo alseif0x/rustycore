@@ -101,7 +101,7 @@ impl WorldMMapPathfinderLikeCpp {
         force_destination: bool,
     ) -> Result<Option<DetourPolyPath>, WorldDetourPathError> {
         let creature_position = creature.position();
-        let owner = creature.detour_owner_capabilities_like_cpp();
+        let owner = creature.creature.detour_owner_capabilities_like_cpp();
         self.calculate_path_from_positions_like_cpp(
             creature_position,
             destination,
@@ -450,7 +450,7 @@ pub fn calculate_creature_detour_path_like_cpp(
             DetourPathOptions {
                 point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
                 force_destination,
-                owner: creature.detour_owner_capabilities_like_cpp(),
+                owner: creature.creature.detour_owner_capabilities_like_cpp(),
                 ..DetourPathOptions::default()
             },
         )

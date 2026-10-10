@@ -786,12 +786,7 @@ where
                                     orientation,
                                 )
                             });
-                            if matches!(alert, Some(None)) {
-                                // The store does not represent `MoveDistract`
-                                // (F6-8D3a-2): refuse instead of publishing an
-                                // alert without its movement.
-                                outcome.alert_movement_unrepresented += 1;
-                            } else if matches!(alert, Some(Some(true))) {
+                            if alert == Some(true) {
                                 use wow_packet::ServerPacket;
                                 let packet_bytes = wow_packet::packets::combat::AIReaction {
                                     unit_guid: guid,

@@ -7,7 +7,8 @@
 //! the R6-fix semantics (`EngageWithTarget`, accepted by `_IsTargetAcceptable`
 //! only because it is engaged) and is that player's melee victim. World **L**
 //! is driven through the legacy bridge in the legacy loop order (player melee,
-//! the movement phase's `Unit::Update` clock step, aggro plus its canonical
+//! the movement phase (F6-8D3a-2; before it only its `Unit::Update` clock
+//! step), aggro plus its canonical
 //! start/stop commit and publication reduction, the creature spell phase
 //! (F6-8D3a-1b; this fixture's creatures know no spell, so it only proves the
 //! phase's place and its empty outcome), creature melee); world **C**
@@ -195,6 +196,7 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
 #[derive(Debug)]
 struct D3a1TickLikeCpp {
     player_melee: crate::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
+    movement: crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
     aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
     committed_starts: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
     committed_stops: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
@@ -215,18 +217,18 @@ fn d3a1_legacy_tick_like_cpp(world: &D3a1WorldLikeCpp, diff_ms: u32) -> D3a1Tick
         &mut phase_state,
         &config,
     );
-    // The legacy movement phase opens with `Unit::Update`'s clock step
-    // (`creature_movement_tick.rs`); the fixture creatures have no generator,
-    // so that step is the whole of what the phase would do to them.
-    for guid in [world.hostile, world.neutral] {
-        world
-            .manager
-            .write()
-            .unwrap()
-            .find_creature_mut(0, 0, guid)
-            .unwrap()
-            .advance_runtime_clock_like_cpp(diff_ms);
-    }
+    // #1263 F6-8D3a-2: the complete legacy movement phase, with the player
+    // chase snapshots the bridge takes from the registry.
+    let chase_targets = super::f6_8d3a2_movement_lifecycle_parity::d3a2_chase_targets_like_cpp(
+        &world.canonical,
+        &[world.striker, world.defender],
+    );
+    let movement = super::f6_8d3a2_movement_lifecycle_parity::d3a2_legacy_movement_tick_like_cpp(
+        &world.manager,
+        &world.canonical,
+        &chase_targets,
+        diff_ms,
+    );
     let mut aggro = run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
         &world.manager,
         Some(&world.canonical),
@@ -270,6 +272,7 @@ fn d3a1_legacy_tick_like_cpp(world: &D3a1WorldLikeCpp, diff_ms: u32) -> D3a1Tick
     );
     D3a1TickLikeCpp {
         player_melee,
+        movement,
         aggro,
         committed_starts,
         committed_stops,
@@ -316,6 +319,11 @@ fn d3a1_executor_tick_like_cpp(
     let config = d3a1_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
     let lease = std::sync::Arc::new(std::sync::Mutex::new(CreatureExecutionLeaseLikeCpp::new()));
+    let chase_targets = super::f6_8d3a2_movement_lifecycle_parity::d3a2_chase_targets_like_cpp(
+        &world.canonical,
+        &[world.striker, world.defender],
+    );
+    let mmap_config = super::f6_8d3a2_movement_lifecycle_parity::d3a2_mmap_config_like_cpp();
     run_admitted_creature_combat_phases_isolated_like_cpp(
         admission,
         &world.canonical,
@@ -325,6 +333,9 @@ fn d3a1_executor_tick_like_cpp(
             player_melee_phase_state: &mut phase_state,
             aggro_candidates: &world.candidates,
             terrain: None,
+            mmap_config: &mmap_config,
+            mmap_pathfinder: None,
+            chase_targets: &chase_targets,
             config: &config,
         },
     )
@@ -471,6 +482,20 @@ fn d3a1_parity_like_cpp(
         "player melee commands",
         format!("{:?}", legacy.player_melee.commands),
         format!("{:?}", executor.player_melee.commands),
+    );
+    check(
+        "movement counters",
+        super::f6_8d3a2_movement_lifecycle_parity::d3a2_movement_counters_like_cpp(
+            &legacy.movement,
+        ),
+        super::f6_8d3a2_movement_lifecycle_parity::d3a2_movement_counters_like_cpp(
+            &executor.movement,
+        ),
+    );
+    check(
+        "movement plan",
+        format!("{:?}", d3a1_events_like_cpp(&legacy.movement.plan.events)),
+        format!("{:?}", d3a1_events_like_cpp(&executor.movement.plan.events)),
     );
     check(
         "aggro counters",

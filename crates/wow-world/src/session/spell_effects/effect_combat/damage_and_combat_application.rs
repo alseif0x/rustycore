@@ -395,14 +395,17 @@ impl WorldSession {
                         target_guid,
                         creature.entry()
                     );
-                    let move_stop = creature.stop_move_spline_like_cpp().map(|stop| {
-                        MonsterMoveStop {
-                            mover_guid: target_guid,
-                            current_pos: stop.position,
-                            spline_id: stop.spline_id,
-                        }
-                        .to_bytes()
-                    });
+                    let move_stop = creature
+                        .movement_like_cpp()
+                        .stop_move_spline_like_cpp()
+                        .map(|stop| {
+                            MonsterMoveStop {
+                                mover_guid: target_guid,
+                                current_pos: stop.position,
+                                spline_id: stop.spline_id,
+                            }
+                            .to_bytes()
+                        });
                     Some((creature.entry(), target_guid, move_stop))
                 } else {
                     None

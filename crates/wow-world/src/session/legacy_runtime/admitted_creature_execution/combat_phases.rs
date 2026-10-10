@@ -14,10 +14,14 @@
 //! the canonical map, so there is nothing to mirror afterwards.
 //!
 //! Between player melee and aggro the legacy loop runs lifecycle and movement.
-//! Of those this slice runs only the `Unit::Update(p_time)` clock step the
-//! movement phase begins with (`creature_movement_tick.rs`,
-//! `advance_runtime_clock_like_cpp`), once per admitted creature; lifecycle,
-//! the movement generators and the visibility refresh are F6-8D3a-2.
+//! #1263 F6-8D3a-2: the executor runs the complete movement phase there —
+//! `Unit::Update(p_time)`'s clock step, `UpdateSplineMovement` and
+//! `MotionMaster::Update` with the home, random, waypoint and chase generators,
+//! and the reached-home values update — through the same body the legacy
+//! bridge calls (`run_creature_movement_phase_on_store_like_cpp`), on the
+//! canonical incarnation in place; the aggro phase's `TriggerAlert` starts
+//! `MoveDistract` on the canonical store too. Lifecycle (corpse despawn,
+//! respawn and its visibility refresh) is the declared remaining boundary.
 //!
 //! #1263 F6-8D3a-1b: the spell phase runs between aggro and creature melee,
 //! where the legacy loop runs it, through the same selection body
@@ -37,8 +41,15 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     pub player_melee_attackers: &'a [PlayerMeleeAttackerSnapshotLikeCpp],
     pub player_melee_phase_state: &'a mut PlayerMeleePhaseStateLikeCpp,
     pub aggro_candidates: &'a [LegacyCreatureAggroCandidateLikeCpp],
-    /// The map environment seam the family-assistance LOS check reads.
+    /// The map environment seam the family-assistance LOS check and the
+    /// movement generators' height normalization read.
     pub terrain: Option<&'a crate::map_manager::LiveTerrainHeights>,
+    /// The movement phase's pathfinding seam, as the legacy bridge receives it.
+    pub mmap_config: &'a MMapRuntimeConfigLikeCpp,
+    pub mmap_pathfinder: Option<&'a crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    /// The player chase victims the legacy bridge snapshots from the registry.
+    pub chase_targets:
+        &'a HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
     pub config: &'a LegacyCreatureAggroConfigLikeCpp,
 }
 
@@ -50,6 +61,9 @@ pub struct AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     /// The one `Unit::Update` clock advancement of the transition.
     pub clock_advanced_ms: u64,
     pub player_melee: LegacyPlayerMeleeTickOutcomeLikeCpp,
+    /// The movement phase outcome (F6-8D3a-2). Every frame was driven on the
+    /// canonical incarnation in place, so `canonical_syncs` stays zero.
+    pub movement: LegacyCreatureMovementTickOutcomeLikeCpp,
     /// The aggro phase outcome. Its plan is already reduced to the committed
     /// combat events, exactly as the legacy bridge reduces it before delivery.
     pub aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
@@ -72,6 +86,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
             owner,
             clock_advanced_ms: 0,
             player_melee: LegacyPlayerMeleeTickOutcomeLikeCpp::default(),
+            movement: LegacyCreatureMovementTickOutcomeLikeCpp::default(),
             aggro: LegacyCreatureAggroTickOutcomeLikeCpp::default(),
             aggro_committed_starts: Vec::new(),
             aggro_committed_stops: Vec::new(),
@@ -87,14 +102,15 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
         self.admission.is_admitted_like_cpp()
     }
 
-    /// The deferred plan events, in phase order (aggro, spell, then melee),
-    /// exactly as the legacy bridge delivers its per-phase plans.
+    /// The deferred plan events, in phase order (movement, aggro, spell, then
+    /// melee), exactly as the legacy bridge delivers its per-phase plans.
     #[must_use]
     pub fn deferred_plan_events_like_cpp(&self) -> Vec<RuntimeEvent> {
-        self.aggro
+        self.movement
             .plan
             .events
             .iter()
+            .chain(&self.aggro.plan.events)
             .chain(&self.spell.plan.events)
             .chain(&self.melee.plan.events)
             .cloned()
@@ -105,7 +121,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
 /// Run the admitted combat phases once.
 ///
 /// Order, mirroring the legacy loop body: the admission fence and the
-/// single-owner claim before any mutation; player melee; the clock step;
+/// single-owner claim before any mutation; player melee; the movement phase;
 /// aggro and its canonical start/stop commit; the creature spell phase;
 /// creature melee. The canonical
 /// guard is held for the whole transition and released before returning, and
@@ -158,22 +174,27 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
         );
     }
 
-    // `Unit::Update(p_time)`: the creature's one clock advancement, at the
-    // place the legacy movement phase takes it (F6-8D3a-2 owns the rest).
-    for object in &admission.objects {
-        let advanced = manager
-            .find_map_mut(object.map_id, object.instance_id)
-            .and_then(|map| {
-                map.map_mut()
-                    .with_creature_mut_like_cpp(object.creature_guid, |creature| {
-                        creature.advance_runtime_clock_like_cpp(admission.diff_ms);
-                    })
-            });
-        if advanced.is_some() {
-            outcome.clock_advanced_ms = outcome
-                .clock_advanced_ms
-                .saturating_add(u64::from(admission.diff_ms));
+    // Movement: `Unit::Update(p_time)` — the creature's one clock advancement,
+    // `UpdateSplineMovement` and `MotionMaster::Update` — at the place the
+    // legacy loop runs its movement phase, on the canonical incarnation in
+    // place. Each frame is therefore already applied and is published as is.
+    {
+        let mut store =
+            AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &admission.objects);
+        let frames = run_creature_movement_phase_on_store_like_cpp(
+            &mut store,
+            inputs.terrain,
+            inputs.mmap_config,
+            inputs.mmap_pathfinder,
+            inputs.chase_targets,
+            admission.diff_ms,
+            &mut outcome.movement,
+        );
+        for frame in frames {
+            push_creature_movement_frame_events_like_cpp(frame, &mut outcome.movement);
         }
+        outcome.clock_advanced_ms =
+            (outcome.movement.creatures_seen as u64).saturating_mul(u64::from(admission.diff_ms));
     }
 
     // Aggro: `UpdateVictim`, assistance, `MoveInLineOfSight`, then the

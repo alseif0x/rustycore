@@ -183,6 +183,7 @@ fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_c
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
             creature.creature.unit_mut().set_level(25);
             creature
+                .movement_like_cpp()
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("launch high-priority point spline");
             creature

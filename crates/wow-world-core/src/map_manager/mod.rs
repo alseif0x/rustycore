@@ -83,17 +83,9 @@ pub struct WorldCreature {
     pub creature: Creature,
     /// Packet-create bridge retained for update-object construction.
     pub create_data: CreatureCreateData,
-    /// Set by reached-home finalization until the global movement owner
-    /// publishes the restored health values update.
-    ///
-    /// F6-8A deliberately retains this publication flag and the respawn-aura
-    /// provenance on the bridge: they are the scheduling/publication seam this
-    /// slice keeps transitional. The runtime RNG, its authority marker, the
-    /// creature elapsed-time state and the motion-master advance counter are
-    /// **not** retained here — they live with the canonical runtime state in
-    /// `wow_entities::CreatureRuntimeLikeCpp` and the accessors delegate to
-    /// that single owner.
-    home_health_restored_pending_like_cpp: bool,
+    // #1263 F6-8D3a-2: the reached-home publication flag moved to the
+    // canonical runtime state (`CreatureRuntimeLikeCpp`); the respawn-aura
+    // provenance below stays on this bridge with the lifecycle seam.
     /// DB-backed aura-source proofs that may be re-accredited only after the
     /// respawn rail reapplies the captured creature/template addon source.
     /// These are provenance, not the live AuraSubsystem markers: ordinary aura
@@ -195,6 +187,7 @@ pub use corpse_load::{
     materialize_loaded_map_corpses_like_cpp, parse_corpse_items_like_cpp,
 };
 pub use grid::*;
+pub use movement::{queries::CreatureMovementQueriesLikeCpp, view::CreatureMovementLikeCpp};
 pub use pathfinder::*;
 pub use pending_respawn::*;
 pub use runtime_state::*;

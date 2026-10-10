@@ -17,6 +17,7 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
             creature.creature.unit_mut().set_level(25);
             creature
+                .movement_like_cpp()
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("launch pre-aggro wander spline");
         })

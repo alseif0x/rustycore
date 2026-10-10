@@ -177,7 +177,8 @@ impl crate::session::HubRef<'_> {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
-                return Some(creature.movement_finished());
+                use crate::map_manager::CreatureMovementQueriesLikeCpp as _;
+                return Some(creature.creature.movement_finished());
             }
         }
 

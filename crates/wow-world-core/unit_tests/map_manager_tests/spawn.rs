@@ -101,7 +101,7 @@ fn pending_respawn_rebuild_preserves_zero_wander_distance_like_cpp() {
         Some("respawn-string"),
         "C++ respawn reloads CreatureData::StringId through Creature::LoadFromDB"
     );
-    assert!(!creature.should_wander());
+    assert!(!creature.creature.should_wander());
 }
 #[test]
 fn respawn_ground_snap_uses_real_terrain_like_cpp() {

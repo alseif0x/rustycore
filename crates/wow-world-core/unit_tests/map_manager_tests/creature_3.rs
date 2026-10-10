@@ -45,6 +45,7 @@ fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap
     };
 
     let (_from, spline, path) = creature
+        .movement_like_cpp()
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&elevated_path),
@@ -112,6 +113,7 @@ fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfac
     };
 
     let (_from, spline, path) = creature
+        .movement_like_cpp()
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&projected_path),
@@ -175,6 +177,7 @@ fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
     };
 
     let (_from, spline, path) = creature
+        .movement_like_cpp()
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&projected_path),
@@ -238,6 +241,7 @@ fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_
     };
 
     let (_from, spline, path) = creature
+        .movement_like_cpp()
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&far_below_path),
@@ -297,6 +301,7 @@ fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
 
         assert!(
             creature
+                .movement_like_cpp()
                 .begin_random_move_spline_with_detour_path_like_cpp(dst, Some(&detour_path), false)
                 .is_none(),
             "C++ RandomMovementGenerator retries later instead of launching {:?} paths",
@@ -330,8 +335,9 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
     creature.seed_runtime_rng_like_cpp(0x24_5A0);
 
     let mut resolver_called = false;
-    let movement =
-        creature.update_default_random_movement_with_path_resolver_like_cpp(10, true, |_query| {
+    let movement = creature
+        .movement_like_cpp()
+        .update_default_random_movement_with_path_resolver_like_cpp(10, true, |_query| {
             resolver_called = true;
             None
         });
@@ -380,8 +386,9 @@ fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
     );
     creature.creature.set_swim_allowed_runtime_like_cpp(false);
 
-    let idle = create_path_query_filter_like_cpp(creature.path_query_filter_context_like_cpp())
-        .expect("filter");
+    let idle =
+        create_path_query_filter_like_cpp(creature.creature.path_query_filter_context_like_cpp())
+            .expect("filter");
     assert_eq!(
         idle.include_flags(),
         wow_recastdetour::NavTerrainFlag::GROUND.bits(),
@@ -393,8 +400,9 @@ fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
         creature.creature.is_in_combat(),
         "enter_combat must leave a runtime combat signal the filter can read"
     );
-    let engaged = create_path_query_filter_like_cpp(creature.path_query_filter_context_like_cpp())
-        .expect("filter");
+    let engaged =
+        create_path_query_filter_like_cpp(creature.creature.path_query_filter_context_like_cpp())
+            .expect("filter");
     assert_eq!(
         engaged.include_flags(),
         (wow_recastdetour::NavTerrainFlag::GROUND | wow_recastdetour::NavTerrainFlag::GROUND_STEEP)
@@ -445,18 +453,21 @@ fn world_creature_chase_unknown_water_does_not_block_an_aquatic_chaser_like_cpp(
 
     assert!(
         creature
+            .creature
             .chase_unit_snapshot_like_cpp(target(None))
             .target_accessible,
         "an unknown water state must not block a chaser that can enter water"
     );
     assert!(
         creature
+            .creature
             .chase_unit_snapshot_like_cpp(target(Some(true)))
             .target_accessible,
         "C++ takes the water branch and asks CanEnterWater()"
     );
     assert!(
         !creature
+            .creature
             .chase_unit_snapshot_like_cpp(target(Some(false)))
             .target_accessible,
         "C++ takes the else branch and asks CanWalk() || CanFly()"
@@ -495,13 +506,9 @@ fn world_creature_chase_rebuilds_the_generator_when_the_victim_changes_like_cpp(
     };
 
     creature.enter_combat(first);
-    let _ = creature.update_runtime_chase_movement_like_cpp(
-        100,
-        target(first, 40.0),
-        false,
-        None,
-        |_| None,
-    );
+    let _ = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(100, target(first, 40.0), false, None, |_| None);
     assert_eq!(
         creature
             .active_chase_generator_like_cpp()
@@ -510,13 +517,9 @@ fn world_creature_chase_rebuilds_the_generator_when_the_victim_changes_like_cpp(
     );
 
     creature.enter_combat(second);
-    let _ = creature.update_runtime_chase_movement_like_cpp(
-        100,
-        target(second, 45.0),
-        false,
-        None,
-        |_| None,
-    );
+    let _ = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(100, target(second, 45.0), false, None, |_| None);
     assert_eq!(
         creature
             .active_chase_generator_like_cpp()
@@ -536,16 +539,18 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
     let mut creature = test_creature(guid);
     creature.enter_combat(victim);
 
-    let launched = creature.update_runtime_chase_movement_like_cpp(
-        1,
-        test_chase_target(victim, 60.0),
-        true,
-        None,
-        |query| {
-            assert!(query.previous_poly_refs.is_empty());
-            Some(test_chase_corridor(vec![101, 102], 59.0))
-        },
-    );
+    let launched = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 60.0),
+            true,
+            None,
+            |query| {
+                assert!(query.previous_poly_refs.is_empty());
+                Some(test_chase_corridor(vec![101, 102], 59.0))
+            },
+        );
     assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[101, 102]);
     assert!(
@@ -555,32 +560,36 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
             .moving_towards()
     );
 
-    let launched = creature.update_runtime_chase_movement_like_cpp(
-        1,
-        test_chase_target(victim, 65.0),
-        true,
-        None,
-        |query| {
-            assert_eq!(query.previous_poly_refs, vec![101, 102]);
-            Some(test_chase_corridor(vec![201, 202], 64.0))
-        },
-    );
+    let launched = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 65.0),
+            true,
+            None,
+            |query| {
+                assert_eq!(query.previous_poly_refs, vec![101, 102]);
+                Some(test_chase_corridor(vec![201, 202], 64.0))
+            },
+        );
     assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[201, 202]);
 
-    let launched = creature.update_runtime_chase_movement_like_cpp(
-        1,
-        test_chase_target(victim, 10.5),
-        true,
-        None,
-        |query| {
-            assert!(
-                query.previous_poly_refs.is_empty(),
-                "a toward-to-away flip must discard the old path object"
-            );
-            Some(test_chase_corridor(vec![301, 302], 7.0))
-        },
-    );
+    let launched = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 10.5),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "a toward-to-away flip must discard the old path object"
+                );
+                Some(test_chase_corridor(vec![301, 302], 7.0))
+            },
+        );
     assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
     assert!(
         !creature
@@ -590,19 +599,21 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
     );
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[301, 302]);
 
-    let launched = creature.update_runtime_chase_movement_like_cpp(
-        1,
-        test_chase_target(victim, 70.0),
-        true,
-        None,
-        |query| {
-            assert!(
-                query.previous_poly_refs.is_empty(),
-                "an away-to-toward flip must discard the old path object"
-            );
-            Some(test_chase_corridor(vec![401, 402], 69.0))
-        },
-    );
+    let launched = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 70.0),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "an away-to-toward flip must discard the old path object"
+                );
+                Some(test_chase_corridor(vec![401, 402], 69.0))
+            },
+        );
     assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
     assert!(
         creature
@@ -620,30 +631,34 @@ fn world_creature_failed_direction_flip_does_not_publish_unlaunched_direction() 
     creature.enter_combat(victim);
 
     assert!(matches!(
-        creature.update_runtime_chase_movement_like_cpp(
-            1,
-            test_chase_target(victim, 60.0),
-            true,
-            None,
-            |_| Some(test_chase_corridor(vec![501, 502], 59.0)),
-        ),
+        creature
+            .movement_like_cpp()
+            .update_runtime_chase_movement_like_cpp(
+                1,
+                test_chase_target(victim, 60.0),
+                true,
+                None,
+                |_| Some(test_chase_corridor(vec![501, 502], 59.0)),
+            ),
         ChaseTickOutcomeLikeCpp::Launched(..)
     ));
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[501, 502]);
 
-    let failed = creature.update_runtime_chase_movement_like_cpp(
-        1,
-        test_chase_target(victim, 10.5),
-        true,
-        None,
-        |query| {
-            assert!(
-                query.previous_poly_refs.is_empty(),
-                "the old toward corridor must be gone before the away query"
-            );
-            None
-        },
-    );
+    let failed = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 10.5),
+            true,
+            None,
+            |query| {
+                assert!(
+                    query.previous_poly_refs.is_empty(),
+                    "the old toward corridor must be gone before the away query"
+                );
+                None
+            },
+        );
     assert!(matches!(
         failed,
         ChaseTickOutcomeLikeCpp::Stopped(_) | ChaseTickOutcomeLikeCpp::Idle
@@ -672,13 +687,15 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
     creature.enter_combat(victim);
 
     assert!(matches!(
-        creature.update_runtime_chase_movement_like_cpp(
-            1,
-            test_chase_target(victim, 60.0),
-            true,
-            None,
-            |_| Some(test_chase_corridor(vec![601, 602], 59.0)),
-        ),
+        creature
+            .movement_like_cpp()
+            .update_runtime_chase_movement_like_cpp(
+                1,
+                test_chase_target(victim, 60.0),
+                true,
+                None,
+                |_| Some(test_chase_corridor(vec![601, 602], 59.0)),
+            ),
         ChaseTickOutcomeLikeCpp::Launched(..)
     ));
 
@@ -688,14 +705,16 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
         .duration_ms();
     creature
         .backdate_runtime_clock_for_test(Duration::from_millis(u64::from(duration_ms as u32) + 50));
-    assert!(creature.update_move_spline_like_cpp());
-    let _ = creature.update_runtime_chase_movement_like_cpp(
-        100,
-        test_chase_target(victim, 60.0),
-        true,
-        None,
-        |_| panic!("arrival must not calculate another path"),
-    );
+    assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
+    let _ = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            100,
+            test_chase_target(victim, 60.0),
+            true,
+            None,
+            |_| panic!("arrival must not calculate another path"),
+        );
     assert!(
         !creature
             .active_chase_generator_like_cpp()
@@ -707,13 +726,15 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
         "the successful spline arrival must consume and publish its inform"
     );
 
-    let failed = creature.update_runtime_chase_movement_like_cpp(
-        1,
-        test_chase_target(victim, 100.0),
-        true,
-        None,
-        |_| None,
-    );
+    let failed = creature
+        .movement_like_cpp()
+        .update_runtime_chase_movement_like_cpp(
+            1,
+            test_chase_target(victim, 100.0),
+            true,
+            None,
+            |_| None,
+        );
     assert!(matches!(
         failed,
         ChaseTickOutcomeLikeCpp::Stopped(_) | ChaseTickOutcomeLikeCpp::Idle
@@ -740,7 +761,9 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
         in_world: true,
         in_water: Some(false),
     };
-    let snapshot = creature.chase_unit_snapshot_like_cpp(in_range_target);
+    let snapshot = creature
+        .creature
+        .chase_unit_snapshot_like_cpp(in_range_target);
     let bounds = creature
         .active_chase_generator_like_cpp()
         .expect("chase generator")
@@ -757,13 +780,11 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
          snapshot={snapshot:?}, bounds={bounds:?}"
     );
     assert_eq!(
-        creature.update_runtime_chase_movement_like_cpp(
-            100,
-            in_range_target,
-            true,
-            None,
-            |_| panic!("an in-range target must not calculate another path"),
-        ),
+        creature
+            .movement_like_cpp()
+            .update_runtime_chase_movement_like_cpp(100, in_range_target, true, None, |_| panic!(
+                "an in-range target must not calculate another path"
+            ),),
         ChaseTickOutcomeLikeCpp::Idle
     );
     assert!(
@@ -805,22 +826,24 @@ fn world_creature_chase_passes_can_fly_as_force_destination_like_cpp() {
         creature.enter_combat(victim);
 
         let mut observed = None;
-        let _ = creature.update_runtime_chase_movement_like_cpp(
-            100,
-            ChaseTargetSnapshotLikeCpp {
-                guid: victim,
-                position: Position::new(60.0, 10.0, 0.0, 0.0),
-                combat_reach: 1.0,
-                in_world: true,
-                in_water: Some(false),
-            },
-            true,
-            None,
-            |query| {
-                observed = Some(query.force_destination);
-                None
-            },
-        );
+        let _ = creature
+            .movement_like_cpp()
+            .update_runtime_chase_movement_like_cpp(
+                100,
+                ChaseTargetSnapshotLikeCpp {
+                    guid: victim,
+                    position: Position::new(60.0, 10.0, 0.0, 0.0),
+                    combat_reach: 1.0,
+                    in_world: true,
+                    in_water: Some(false),
+                },
+                true,
+                None,
+                |query| {
+                    observed = Some(query.force_destination);
+                    None
+                },
+            );
         assert_eq!(
             observed,
             Some(can_fly),

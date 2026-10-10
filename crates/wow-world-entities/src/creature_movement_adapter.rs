@@ -83,7 +83,7 @@ pub fn resolve_creature_detour_path_like_cpp(
 pub fn trace_monster_move_packet_like_cpp(
     source: &'static str,
     guid: wow_core::ObjectGuid,
-    creature: &wow_world_core::map_manager::WorldCreature,
+    creature: &wow_entities::Creature,
     move_spline: &wow_movement::MoveSpline,
     packet_spline: &wow_packet::packets::movement::MovementMonsterSpline,
     bytes: &[u8],
