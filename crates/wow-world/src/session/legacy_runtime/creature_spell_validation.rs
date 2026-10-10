@@ -1,8 +1,15 @@
 //! Validation and append of a legacy creature spell cast plan.
 //!
 //! Moved out of the Session root under #619. Behaviour is preserved.
+//!
+//! #1263 F6-8D3a-1b: the body is written once
+//! ([`validate_and_append_creature_spell_cast_on_manager_like_cpp`]) against a
+//! locked canonical manager and the caster seam
+//! [`CreatureSpellCastersLikeCpp`]; the legacy entry keeps only its two guards,
+//! in the established canonical -> legacy order.
 
 use super::*;
+use wow_world_entities::creature_spell_admission::CreatureSpellCastersLikeCpp;
 
 pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
@@ -13,9 +20,6 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
     config: &LegacyCreatureAggroConfigLikeCpp,
     plan: &mut RuntimePlan,
 ) -> CreatureSpellCastValidationResultLikeCpp {
-    const SPELL_RANGE_MELEE_LIKE_CPP: u8 = 0x01;
-    const SPELL_RANGE_RANGED_LIKE_CPP: u8 = 0x02;
-
     let Ok(mut manager) = canonical_map_manager.lock() else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     };
@@ -26,51 +30,112 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
     let mut legacy_guard = legacy_map_manager
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let Some(legacy_caster) =
-        legacy_guard.find_creature(command.map_id, command.instance_id, command.caster_guid)
-    else {
-        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-    };
-    if !legacy_caster.is_alive()
-        || legacy_caster.state() != wow_entities::CreatureAiState::InCombat
-        || legacy_caster.creature.ai_ownership().combat_target != Some(command.target_guid)
-        || legacy_caster.creature_spell_engagement_epoch_like_cpp() != command.engagement_epoch
-    {
-        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-    }
-    // The planning phase read this creature before the canonical tick could
-    // replace it. Prove the live legacy creature is still that incarnation
-    // before any cooldown, timer or RNG state is consumed from it.
-    if !command
-        .caster_incarnation
-        .matches_like_cpp(&legacy_caster.creature)
-    {
-        return CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected;
-    }
-    let cooldown_now_ms = legacy_caster.runtime_elapsed_ms_like_cpp();
+    validate_and_append_creature_spell_cast_on_manager_like_cpp(
+        &mut manager,
+        &mut *legacy_guard,
+        command,
+        difficulty_id,
+        turret_ai,
+        config,
+        plan,
+    )
+}
+
+/// Run one caster operation for `command`; `None` when the caster is gone.
+fn with_command_caster_mut_like_cpp<C, R>(
+    manager: &mut wow_map::MapManager,
+    casters: &mut C,
+    command: &CreatureSpellCastPlanLikeCpp,
+    operation: impl FnOnce(&mut wow_entities::Creature) -> R,
+) -> Option<R>
+where
+    C: CreatureSpellCastersLikeCpp + ?Sized,
+{
+    casters.with_spell_caster_mut_like_cpp(
+        manager,
+        command.map_id,
+        command.instance_id,
+        command.caster_guid,
+        operation,
+    )
+}
+
+/// The cast validation and append body on a locked canonical manager, with the
+/// caster's engagement, timers and RNG wherever `casters` keeps them.
+pub(in crate::session) fn validate_and_append_creature_spell_cast_on_manager_like_cpp<C>(
+    manager: &mut wow_map::MapManager,
+    casters: &mut C,
+    command: &CreatureSpellCastPlanLikeCpp,
+    difficulty_id: u8,
+    turret_ai: bool,
+    config: &LegacyCreatureAggroConfigLikeCpp,
+    plan: &mut RuntimePlan,
+) -> CreatureSpellCastValidationResultLikeCpp
+where
+    C: CreatureSpellCastersLikeCpp + ?Sized,
+{
+    const SPELL_RANGE_MELEE_LIKE_CPP: u8 = 0x01;
+    const SPELL_RANGE_RANGED_LIKE_CPP: u8 = 0x02;
+
+    let caster_facts = casters.with_spell_caster_like_cpp(
+        manager,
+        command.map_id,
+        command.instance_id,
+        command.caster_guid,
+        |caster| {
+            if !caster.is_alive()
+                || caster.state() != wow_entities::CreatureAiState::InCombat
+                || caster.ai_ownership().combat_target != Some(command.target_guid)
+                || caster.creature_spell_engagement_epoch_like_cpp() != command.engagement_epoch
+            {
+                return Err(CreatureSpellCastValidationResultLikeCpp::MissingTarget);
+            }
+            // The planning phase read this creature before the canonical tick
+            // could replace it. Prove the live caster is still that incarnation
+            // before any cooldown, timer or RNG state is consumed from it.
+            if !command.caster_incarnation.matches_like_cpp(caster) {
+                return Err(CreatureSpellCastValidationResultLikeCpp::CasterIncarnationRejected);
+            }
+            let caster_hit_aura_sources_are_empty = caster
+                .unit()
+                .subsystems()
+                .auras
+                .has_complete_spell_hit_inert_aura_authority_like_cpp();
+            let caster_has_no_owner_or_charmer = {
+                let control = &caster.unit().subsystems().control;
+                control.owner_guid.is_none()
+                    && control.charmer_guid.is_none()
+                    && !control.controlled_by_player
+                    // C++ CanHaveGlobalCooldown treats any Creature with CharmInfo
+                    // as controlled even if its owner/charmer GUIDs are
+                    // momentarily empty. Keep that GCD-bearing surface outside
+                    // this stock-AI slice.
+                    && !control.has_charm_info()
+            };
+            Ok((
+                caster.runtime_elapsed_ms_like_cpp(),
+                caster_hit_aura_sources_are_empty,
+                caster_has_no_owner_or_charmer,
+            ))
+        },
+    );
+    let (cooldown_now_ms, caster_hit_aura_sources_are_empty, caster_has_no_owner_or_charmer) =
+        match caster_facts {
+            None => return CreatureSpellCastValidationResultLikeCpp::MissingTarget,
+            Some(Err(result)) => return result,
+            Some(Ok(facts)) => facts,
+        };
     let cooldown_profile = u32::try_from(command.spell_id).ok().and_then(|spell_id| {
         creature_ai_spell_cooldown_profile_like_cpp(spell_id, difficulty_id, config)
     });
-    let caster_hit_aura_sources_are_empty = legacy_caster
-        .creature
-        .unit()
-        .subsystems()
-        .auras
-        .has_complete_spell_hit_inert_aura_authority_like_cpp();
-    let caster_has_no_owner_or_charmer = {
-        let control = &legacy_caster.creature.unit().subsystems().control;
-        control.owner_guid.is_none()
-            && control.charmer_guid.is_none()
-            && !control.controlled_by_player
-            // C++ CanHaveGlobalCooldown treats any Creature with CharmInfo as
-            // controlled even if its owner/charmer GUIDs are momentarily empty.
-            // Keep that GCD-bearing surface outside this stock-AI slice.
-            && !control.has_charm_info()
-    };
+    // `UnitAI::DoSpellAttackIfReady` resets BASE_ATTACK once its raw-max
+    // combat-range gate admitted the attempt. Nothing the closure below reads
+    // depends on the swing timer, so the reset is applied right after it.
+    let mut turret_attempt_resets_swing = false;
     let Some(managed) = manager.find_map(u32::from(command.map_id), command.instance_id) else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     };
-    let (hit_profile, source_position, visibility_range, full_log_data) = match {
+    let prepared = {
         let map = managed.map();
         map.with_creature_like_cpp(command.caster_guid, |caster| {
             // A canonical replacement can hold the same GUID as the legacy creature
@@ -143,17 +208,10 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
                 return Err(CreatureSpellCastValidationResultLikeCpp::OutOfRange);
             }
             if turret_ai {
-                let Some(creature) = legacy_guard.find_creature_mut(
-                    command.map_id,
-                    command.instance_id,
-                    command.caster_guid,
-                ) else {
-                    return Err(CreatureSpellCastValidationResultLikeCpp::MissingTarget);
-                };
                 // `UnitAI::DoSpellAttackIfReady` calls `CastSpell` after only the
                 // raw-max combat-range gate, then resets BASE_ATTACK regardless of
                 // whether Spell::CheckRange/CheckCast rejects min range or LOS.
-                creature.record_swing();
+                turret_attempt_resets_swing = true;
             }
             if cooldown_profile.is_some_and(|profile| {
                 !profile.passive
@@ -266,7 +324,19 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
                 full_log_data,
             ))
         })
-    } {
+    };
+    if turret_attempt_resets_swing
+        && with_command_caster_mut_like_cpp(
+            manager,
+            casters,
+            command,
+            wow_entities::Creature::record_swing,
+        )
+        .is_none()
+    {
+        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
+    }
+    let (hit_profile, source_position, visibility_range, full_log_data) = match prepared {
         Some(Ok(prepared)) => prepared,
         Some(Err(result)) => return result,
         None => return CreatureSpellCastValidationResultLikeCpp::MissingTarget,
@@ -277,63 +347,55 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
             difficulty_id,
             config,
         )
-    {
-        let Some(creature) = legacy_guard.find_creature_mut(
-            command.map_id,
-            command.instance_id,
-            command.caster_guid,
-        ) else {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
         // `Spell::ResetCombatTimers` rearms BASE_ATTACK before the same map
         // update can reach `DoMeleeAttackIfReady` (Spell.cpp:8363-8372).
-        creature.record_swing();
+        && with_command_caster_mut_like_cpp(
+            manager,
+            casters,
+            command,
+            wow_entities::Creature::record_swing,
+        )
+        .is_none()
+    {
+        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     }
-    let Some(hit_profile) = hit_profile else {
-        let Some(creature) = legacy_guard.find_creature_mut(
-            command.map_id,
-            command.instance_id,
-            command.caster_guid,
-        ) else {
+    // At this point C++ may have returned before its melee hit roll
+    // (immunity/reflection) or after consuming it (avoidance/facing). The
+    // exact shared-RNG position is therefore unknowable. Tombstone exact
+    // creature-spell RNG accreditation; the pre-existing transitional
+    // melee and movement runtimes remain available as best-effort work.
+    let (Some(hit_profile), Some(full_log_data)) = (hit_profile, full_log_data) else {
+        if with_command_caster_mut_like_cpp(
+            manager,
+            casters,
+            command,
+            wow_entities::Creature::invalidate_runtime_rng_authority_like_cpp,
+        )
+        .is_none()
+        {
             return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
-        // At this point C++ may have returned before its melee hit roll
-        // (immunity/reflection) or after consuming it (avoidance/facing). The
-        // exact shared-RNG position is therefore unknowable. Tombstone exact
-        // creature-spell RNG accreditation; the pre-existing transitional
-        // melee and movement runtimes remain available as best-effort work.
-        creature.invalidate_runtime_rng_authority_like_cpp();
+        }
         return CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented;
     };
-    let Some(full_log_data) = full_log_data else {
-        let Some(creature) = legacy_guard.find_creature_mut(
-            command.map_id,
-            command.instance_id,
-            command.caster_guid,
-        ) else {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
-        creature.invalidate_runtime_rng_authority_like_cpp();
-        return CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented;
-    };
-    let Some(creature) =
-        legacy_guard.find_creature_mut(command.map_id, command.instance_id, command.caster_guid)
-    else {
+    let Some(roll) = with_command_caster_mut_like_cpp(
+        manager,
+        casters,
+        command,
+        wow_entities::Creature::random_creature_spell_hit_roll_like_cpp,
+    ) else {
         return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
     };
-    let Some(roll) = creature.random_creature_spell_hit_roll_like_cpp() else {
+    let Some(roll) = roll else {
         return CreatureSpellCastValidationResultLikeCpp::RuntimeRngAuthorityRejected;
     };
     let Some(hit_result) = resolve_creature_spell_hit_profile_like_cpp(hit_profile, Some(roll))
     else {
-        let Some(creature) = legacy_guard.find_creature_mut(
-            command.map_id,
-            command.instance_id,
-            command.caster_guid,
-        ) else {
-            return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-        };
-        creature.invalidate_runtime_rng_authority_like_cpp();
+        let _ = with_command_caster_mut_like_cpp(
+            manager,
+            casters,
+            command,
+            wow_entities::Creature::invalidate_runtime_rng_authority_like_cpp,
+        );
         return CreatureSpellCastValidationResultLikeCpp::HitResultUnrepresented;
     };
     if let Some(profile) = cooldown_profile
@@ -399,7 +461,12 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
         // resolved HIT topology, then stop later creature-spell schedules or
         // hit results from claiming an exact shared-RNG position. Transitional
         // melee and movement continue best-effort instead of freezing gameplay.
-        creature.invalidate_runtime_rng_authority_like_cpp();
+        let _ = with_command_caster_mut_like_cpp(
+            manager,
+            casters,
+            command,
+            wow_entities::Creature::invalidate_runtime_rng_authority_like_cpp,
+        );
     }
     CreatureSpellCastValidationResultLikeCpp::Ready(hit_result)
 }

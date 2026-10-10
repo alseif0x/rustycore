@@ -17,9 +17,13 @@
 //! Of those this slice runs only the `Unit::Update(p_time)` clock step the
 //! movement phase begins with (`creature_movement_tick.rs`,
 //! `advance_runtime_clock_like_cpp`), once per admitted creature; lifecycle,
-//! the movement generators and the visibility refresh are F6-8D3a-2. The spell
-//! phase is the declared F6-8D3a-1 boundary (`spell_phase_executed` stays
-//! `false`).
+//! the movement generators and the visibility refresh are F6-8D3a-2.
+//!
+//! #1263 F6-8D3a-1b: the spell phase runs between aggro and creature melee,
+//! where the legacy loop runs it, through the same selection body
+//! (`collect_creature_spell_actions_on_store_like_cpp`) and the same deferred
+//! drain (`drain_creature_spell_actions_like_cpp`) the legacy bridge calls; the
+//! caster is the canonical incarnation itself.
 //!
 //! Every publication is returned as deferred output: the plan events and the
 //! committed commands, with the same packet bytes the legacy bridge would
@@ -51,8 +55,10 @@ pub struct AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     pub aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
     pub aggro_committed_starts: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
     pub aggro_committed_stops: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
-    /// F6-8D3a-1 boundary: the spell phase is not run by this executor.
+    /// Whether the spell phase ran (F6-8D3a-1b). Its outcome carries the
+    /// START/GO plan, exactly as the legacy bridge delivers it.
     pub spell_phase_executed: bool,
+    pub spell: LegacyCreatureSpellTickOutcomeLikeCpp,
     pub melee: LegacyCreatureMeleeTickOutcomeLikeCpp,
 }
 
@@ -70,6 +76,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
             aggro_committed_starts: Vec::new(),
             aggro_committed_stops: Vec::new(),
             spell_phase_executed: false,
+            spell: LegacyCreatureSpellTickOutcomeLikeCpp::default(),
             melee: LegacyCreatureMeleeTickOutcomeLikeCpp::default(),
         }
     }
@@ -80,14 +87,15 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
         self.admission.is_admitted_like_cpp()
     }
 
-    /// The deferred plan events, in phase order (aggro, then melee), exactly
-    /// as the legacy bridge delivers its per-phase plans.
+    /// The deferred plan events, in phase order (aggro, spell, then melee),
+    /// exactly as the legacy bridge delivers its per-phase plans.
     #[must_use]
     pub fn deferred_plan_events_like_cpp(&self) -> Vec<RuntimeEvent> {
         self.aggro
             .plan
             .events
             .iter()
+            .chain(&self.spell.plan.events)
             .chain(&self.melee.plan.events)
             .cloned()
             .collect()
@@ -98,7 +106,8 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
 ///
 /// Order, mirroring the legacy loop body: the admission fence and the
 /// single-owner claim before any mutation; player melee; the clock step;
-/// aggro and its canonical start/stop commit; creature melee. The canonical
+/// aggro and its canonical start/stop commit; the creature spell phase;
+/// creature melee. The canonical
 /// guard is held for the whole transition and released before returning, and
 /// nothing is delivered.
 #[must_use]
@@ -203,6 +212,38 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
             &stop_outcomes,
         );
     }
+
+    // Spell: `CombatAI::UpdateAI` / `TurretAI::UpdateAI` after `UpdateVictim`
+    // (`CombatAI.cpp:91-107, 217-223`), before melee as the legacy loop orders
+    // it. Selection over the admitted store, then the deferred `DoCast` /
+    // `ScheduleEvent` drain on the canonical manager still held here.
+    if let Some(spell_store) = config.spell_store.as_ref() {
+        let map_difficulties = creature_spell_map_difficulties_like_cpp(&manager);
+        let actions = {
+            let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
+                &mut manager,
+                &admission.objects,
+            );
+            collect_creature_spell_actions_on_store_like_cpp(
+                &mut store,
+                &CanonicalCreatureOwnershipLikeCpp::AdmittedCanonicalStore,
+                &map_difficulties,
+                spell_store,
+                config,
+                &mut outcome.spell,
+            )
+        };
+        drain_creature_spell_actions_like_cpp(
+            &mut CanonicalCreatureSpellActionOwnerLikeCpp {
+                manager: &mut manager,
+            },
+            &CanonicalCreatureOwnershipLikeCpp::AdmittedCanonicalStore,
+            actions,
+            config,
+            &mut outcome.spell,
+        );
+    }
+    outcome.spell_phase_executed = true;
 
     // Creature melee (`DoMeleeAttackIfReady`) with the real attack table.
     let pending = {

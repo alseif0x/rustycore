@@ -17,6 +17,7 @@ mod creature_melee_tick;
 mod creature_movement_publication;
 mod creature_movement_tick;
 mod creature_phase_store;
+mod creature_spell_actions;
 mod creature_spell_tick;
 mod creature_spell_validation;
 mod creature_threat;
@@ -60,6 +61,7 @@ pub(in crate::session) use creature_movement_publication::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_movement_tick::*;
 pub(in crate::session) use creature_phase_store::*;
+use creature_spell_actions::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_spell_tick::*;
 #[allow(unused_imports)]

@@ -8,7 +8,9 @@
 //! only because it is engaged) and is that player's melee victim. World **L**
 //! is driven through the legacy bridge in the legacy loop order (player melee,
 //! the movement phase's `Unit::Update` clock step, aggro plus its canonical
-//! start/stop commit and publication reduction, creature melee); world **C**
+//! start/stop commit and publication reduction, the creature spell phase
+//! (F6-8D3a-1b; this fixture's creatures know no spell, so it only proves the
+//! phase's place and its empty outcome), creature melee); world **C**
 //! is driven through `run_admitted_creature_combat_phases_isolated_like_cpp`.
 //! The comparison covers each phase's outcome (counters, `RuntimePlan` packet
 //! bytes and recipients, command lists), the creature-owned RNG positions, the
@@ -196,6 +198,7 @@ struct D3a1TickLikeCpp {
     aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
     committed_starts: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
     committed_stops: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
+    spell: crate::session::LegacyCreatureSpellTickOutcomeLikeCpp,
     melee: crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
 }
 
@@ -255,6 +258,11 @@ fn d3a1_legacy_tick_like_cpp(world: &D3a1WorldLikeCpp, diff_ms: u32) -> D3a1Tick
             ),
         )
     };
+    let spell = run_legacy_creature_spell_tick_once_like_cpp(
+        &world.manager,
+        Some(&world.canonical),
+        &config,
+    );
     let melee = run_legacy_creature_melee_tick_once_like_cpp(
         &world.manager,
         Some(&world.canonical),
@@ -265,6 +273,7 @@ fn d3a1_legacy_tick_like_cpp(world: &D3a1WorldLikeCpp, diff_ms: u32) -> D3a1Tick
         aggro,
         committed_starts,
         committed_stops,
+        spell,
         melee,
     }
 }
@@ -488,6 +497,21 @@ fn d3a1_parity_like_cpp(
             "{:?}",
             d3a1_sorted_debug_like_cpp(&executor.aggro_committed_stops)
         ),
+    );
+    check(
+        "spell phase executed",
+        "true".to_string(),
+        executor.spell_phase_executed.to_string(),
+    );
+    check(
+        "spell counters",
+        d3a1_counters_like_cpp(&legacy.spell),
+        d3a1_counters_like_cpp(&executor.spell),
+    );
+    check(
+        "spell plan",
+        format!("{:?}", d3a1_events_like_cpp(&legacy.spell.plan.events)),
+        format!("{:?}", d3a1_events_like_cpp(&executor.spell.plan.events)),
     );
     check(
         "melee counters",

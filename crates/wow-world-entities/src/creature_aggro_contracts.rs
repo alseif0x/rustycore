@@ -231,7 +231,7 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
 pub fn creature_ai_spell_disable_decision_like_cpp(
     spell_id: u32,
     map_id: u16,
-    creature: &wow_world_core::map_manager::WorldCreature,
+    creature: &wow_entities::Creature,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> CreatureSpellDisableDecisionLikeCpp {
     let Some(disable_mgr) = config.disable_mgr.as_deref() else {
@@ -242,7 +242,7 @@ pub fn creature_ai_spell_disable_decision_like_cpp(
         .as_deref()
         .and_then(|store| store.get(u32::from(map_id)))
         .map(|entry| entry.instance_type);
-    let area_id = creature.creature.unit().world().area_id();
+    let area_id = creature.unit().world().area_id();
     disable_mgr.creature_spell_disable_decision_like_cpp(
         spell_id,
         u32::from(map_id),
