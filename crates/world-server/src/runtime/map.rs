@@ -5,7 +5,7 @@ use wow_persistence::{
     GameEventPersistencePortLikeCpp,
 };
 
-use super::map_tick::{canonical_map_tick_begin_like_cpp, canonical_map_tick_resume_like_cpp};
+use super::map_tick::canonical_map_tick_begin_like_cpp;
 use super::*;
 mod creature_addon_provenance;
 pub(crate) use creature_addon_provenance::creature_addon_spell_x_spell_visual_id_like_cpp;

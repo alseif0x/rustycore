@@ -167,7 +167,8 @@ pub fn run_isolated_admitted_creature_execution_composition_like_cpp(
                 return outcome;
             }
         }
-        crate::map_manager::RuntimeTickOwner::Session => {
+        crate::map_manager::RuntimeTickOwner::Session
+        | crate::map_manager::RuntimeTickOwner::CanonicalMap => {
             outcome.refusals.push((
                 CreatureExecutionOwnerLikeCpp::LegacyGlobal,
                 "owner-not-global-legacy",

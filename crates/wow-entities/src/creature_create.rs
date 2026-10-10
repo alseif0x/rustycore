@@ -69,13 +69,24 @@ pub struct CreatureCreateData {
 /// creature was built with, not from the live unit (whose power may have moved
 /// since). The canonical runtime keeps them so the respawn entry can be built
 /// without the legacy projection.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// #1263 F6-8D3b-1: it also carries the template movement rates and scales C++
+/// `Creature::InitEntry` re-applies on every respawn (`Creature.cpp:547-553`:
+/// `SetSpeedRate(MOVE_WALK/RUN, cinfo->speed_walk/run)` and
+/// `SetObjectScale(GetNativeObjectScale())`; the display scales come with the
+/// model), so a respawn entry no longer hardcodes 1.0/1.14286 and 1.0.
+#[derive(Debug, Clone, PartialEq)]
 pub struct CreatureRespawnCreateProjectionLikeCpp {
     pub unit_class: u8,
     pub display_power: u8,
     pub power: [i32; 10],
     pub max_power: [i32; 10],
     pub base_mana: i32,
+    pub speed_walk_rate: f32,
+    pub speed_run_rate: f32,
+    pub display_scale: f32,
+    pub native_x_display_scale: f32,
+    pub scale: f32,
 }
 
 impl CreatureRespawnCreateProjectionLikeCpp {
@@ -87,6 +98,11 @@ impl CreatureRespawnCreateProjectionLikeCpp {
             power: create_data.power,
             max_power: create_data.max_power,
             base_mana: create_data.base_mana,
+            speed_walk_rate: create_data.speed_walk_rate,
+            speed_run_rate: create_data.speed_run_rate,
+            display_scale: create_data.display_scale,
+            native_x_display_scale: create_data.native_x_display_scale,
+            scale: create_data.scale,
         }
     }
 
@@ -95,12 +111,18 @@ impl CreatureRespawnCreateProjectionLikeCpp {
     #[must_use]
     pub fn from_unit_like_cpp(unit: &crate::Unit) -> Self {
         let data = unit.data();
+        let speed_rate = unit.speed_rate();
         Self {
             unit_class: data.class_id,
             display_power: data.display_power,
             power: data.power,
             max_power: data.max_power,
             base_mana: data.base_mana,
+            speed_walk_rate: speed_rate[wow_constants::UnitMoveType::Walk as usize],
+            speed_run_rate: speed_rate[wow_constants::UnitMoveType::Run as usize],
+            display_scale: data.display_scale,
+            native_x_display_scale: data.native_display_scale,
+            scale: unit.world().object().scale(),
         }
     }
 }

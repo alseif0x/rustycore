@@ -8,16 +8,22 @@ use wow_persistence::GameEventPersistencePortLikeCpp;
 
 use crate::deliver_canonical_map_object_values_updates_like_cpp;
 
-use super::super::{deferred_visibility, map_session_pass, world_session_pass};
+use super::super::canonical_creature_runtime::{
+    CanonicalCreatureRuntimeLikeCpp, deliver_canonical_creature_phases_like_cpp,
+};
+use super::super::map_tick::canonical_map_tick_resume_with_creature_owner_like_cpp;
+use super::super::{
+    deferred_visibility, map_session_pass, submit_creature_lifecycle_respawn_db_mutations_like_cpp,
+    world_session_pass,
+};
 use super::{
     CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
     LoadedGridCreatureRespawnCachesLikeCpp, PlayerRegistry, RespawnDbWriterSenderLikeCpp,
     SharedCanonicalMapManager, SharedCanonicalSpawnMetadataLikeCpp, SharedMapManager,
     SharedRespawnDbMutationOrderLikeCpp, SharedRespawnDbProducerStopLikeCpp,
     SharedWorldStateMgrLikeCpp, canonical_map_coordinator_id_like_cpp,
-    canonical_map_tick_begin_like_cpp, canonical_map_tick_resume_like_cpp,
-    consume_game_event_live_update_side_effects_like_cpp, current_unix_time_secs_like_cpp,
-    execute_game_event_seasonal_quest_db_deletes_like_cpp,
+    canonical_map_tick_begin_like_cpp, consume_game_event_live_update_side_effects_like_cpp,
+    current_unix_time_secs_like_cpp, execute_game_event_seasonal_quest_db_deletes_like_cpp,
     execute_game_event_world_event_state_db_bridge_like_cpp,
     fanout_reset_event_seasonal_quests_to_player_sessions_after_db_delete_like_cpp,
     load_loaded_grid_area_triggers_like_cpp,
@@ -44,6 +50,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
     active_session_registry: Arc<crate::ActiveWorldSessionRegistryLikeCpp>,
     battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
     world_state_mgr: SharedWorldStateMgrLikeCpp,
+    // #1263 F6-8D3b-1: present only for `RuntimeTickOwner::CanonicalMap`.
+    mut canonical_creature_runtime: Option<CanonicalCreatureRuntimeLikeCpp>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
         let mut interval =
@@ -221,7 +229,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 );
             }
 
-            let tick_summary = {
+            let (tick_summary, creature_phases) = {
                 let Some(plan) = session_plan else {
                     continue;
                 };
@@ -254,6 +262,15 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     }
                     continue;
                 }
+                // #1263 F6-8D3b-1: the registry snapshots the creature phases
+                // read, before any guard, as the legacy bridge takes them.
+                let creature_inputs = canonical_creature_runtime.as_ref().and_then(|runtime| {
+                    runtime.collect_inputs_like_cpp(
+                        &legacy_map_manager,
+                        &map_manager,
+                        &player_registry,
+                    )
+                });
                 // The persistence fence is re-taken for the half that produces
                 // respawn mutations, and its statements are still coalesced
                 // before it is released, so mailbox replacement order still
@@ -273,16 +290,37 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     );
                     break;
                 };
-                let mut tick_summary = canonical_map_tick_resume_like_cpp(
-                    &mut manager,
-                    Some(&legacy_map_manager),
-                    plan.plan,
-                    &mut respawn_condition_scheduler,
-                    &canonical_spawn_metadata,
-                    condition_store.as_ref(),
-                    map_store.as_ref(),
-                    &loaded_grid_creature_respawn_caches,
-                );
+                let mut creature_phases = None;
+                let mut tick_summary = {
+                    let mut creature_phase =
+                        |manager: &mut wow_map::MapManager, plan: &wow_map::MapTickPlanLikeCpp| {
+                            if let (Some(runtime), Some(inputs)) = (
+                                canonical_creature_runtime.as_mut(),
+                                creature_inputs.as_ref(),
+                            ) {
+                                creature_phases = Some(runtime.run_on_locked_manager_like_cpp(
+                                    manager,
+                                    plan,
+                                    coordinator_id,
+                                    inputs,
+                                    &legacy_map_manager,
+                                    map_store.as_ref(),
+                                    now,
+                                ));
+                            }
+                        };
+                    canonical_map_tick_resume_with_creature_owner_like_cpp(
+                        &mut manager,
+                        Some(&legacy_map_manager),
+                        plan.plan,
+                        &mut respawn_condition_scheduler,
+                        &canonical_spawn_metadata,
+                        condition_store.as_ref(),
+                        map_store.as_ref(),
+                        &loaded_grid_creature_respawn_caches,
+                        Some(&mut creature_phase),
+                    )
+                };
                 drop(canonical_spawn_metadata);
                 drop(manager);
 
@@ -331,9 +369,36 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         }
                     }
                 }
+                // The executor's lifecycle ran after the respawn phase, so its
+                // statements follow the canonical ones, still under the gate.
+                if let Some(phases) = creature_phases.as_mut() {
+                    submit_creature_lifecycle_respawn_db_mutations_like_cpp(
+                        &mut phases.lifecycle.respawn_db_mutations,
+                        &respawn_db_writer_tx,
+                    );
+                }
 
-                tick_summary
+                (tick_summary, creature_phases)
             };
+
+            // C++ `Creature::Update` publishes as it runs, before the map's
+            // `SendObjectUpdates`; the deferred creature output goes first.
+            if let Some(phases) = creature_phases.as_ref() {
+                let delivery = deliver_canonical_creature_phases_like_cpp(phases, &player_registry);
+                debug!(
+                    executed = phases.executed_like_cpp(),
+                    clock_advanced_ms = phases.clock_advanced_ms,
+                    player_melee_commands = delivery.player_melee.candidates_queued,
+                    lifecycle_refresh_commands = delivery.lifecycle.candidates_queued,
+                    movement_commands = delivery.movement.candidates_queued,
+                    aggro_commands = delivery.aggro.candidates_queued,
+                    aggro_plan_commands = delivery.aggro_plan.candidates_queued,
+                    spell_plan_commands = delivery.spell_plan.candidates_queued,
+                    melee_commands = delivery.melee.candidates_queued,
+                    melee_plan_commands = delivery.melee_plan.candidates_queued,
+                    "Canonical creature tick owner delivered its deferred output outside map guards"
+                );
+            }
 
             if let Some(summary) = tick_summary.as_ref() {
                 deferred_visibility::deliver_directed_object_destroy_like_cpp(

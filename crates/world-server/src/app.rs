@@ -5316,21 +5316,17 @@ async fn run_inner(
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
-    let legacy_creature_global_runtime_enabled =
-        legacy_creature_global_runtime_enabled_from_config_like_cpp();
-    if legacy_creature_global_runtime_enabled {
-        info!(
-            map_update_interval_ms,
-            "RustyCore.LegacyCreatureGlobalRuntime enabled; legacy creature tick owner set to GlobalLegacy"
-        );
-        match shared_map.write() {
-            Ok(mut manager) => {
-                manager.set_tick_owner(wow_world::map_manager::RuntimeTickOwner::GlobalLegacy);
-            }
-            Err(_) => {
-                warn!("Legacy MapManager lock poisoned; cannot enable GlobalLegacy tick owner")
-            }
-        }
+    // #1263 F6-8D3b-1: one owner value decides which creature loop is live.
+    let creature_tick_owner = creature_tick_owner_from_config_like_cpp();
+    let creature_tick_owner_loops = creature_tick_owner_loops_like_cpp(creature_tick_owner);
+    info!(
+        map_update_interval_ms,
+        ?creature_tick_owner,
+        "Creature tick owner selected"
+    );
+    match shared_map.write() {
+        Ok(mut manager) => manager.set_tick_owner(creature_tick_owner),
+        Err(_) => warn!("Legacy MapManager lock poisoned; cannot set the creature tick owner"),
     }
     let respawn_condition_interval_ms = world_config_u32(
         &world_configs,
@@ -5361,9 +5357,19 @@ async fn run_inner(
         Arc::clone(&active_session_registry),
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
+        creature_tick_owner_loops
+            .canonical_creature_runtime
+            .then(|| {
+                CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
+                    mmap_runtime_config.clone(),
+                    mmap_pathfinder.clone(),
+                    legacy_creature_aggro_config.clone(),
+                    Some(Arc::clone(&group_registry)),
+                )
+            }),
     );
     let mut legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
-        legacy_creature_global_runtime_enabled,
+        creature_tick_owner_loops.legacy_creature_loop,
         Arc::clone(&shared_map),
         Arc::clone(&canonical_map_manager),
         Arc::clone(&map_store),

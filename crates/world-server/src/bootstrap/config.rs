@@ -155,6 +155,26 @@ pub(crate) fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> b
         .unwrap_or(true)
 }
 
+/// The one creature tick owner, decided once at startup (#1263 F6-8D3b-1).
+///
+/// `RustyCore.CanonicalCreatureRuntime = 1` selects
+/// [`RuntimeTickOwner::CanonicalMap`](wow_world::map_manager::RuntimeTickOwner);
+/// absent or `0` keeps the production default, `GlobalLegacy`, or `Session`
+/// when `RustyCore.LegacyCreatureGlobalRuntime = 0`.
+pub(crate) fn creature_tick_owner_from_config_like_cpp() -> wow_world::map_manager::RuntimeTickOwner
+{
+    use wow_world::map_manager::RuntimeTickOwner;
+    if wow_config::get_value::<u8>(RUSTYCORE_CANONICAL_CREATURE_RUNTIME_CONFIG)
+        .is_some_and(|value| value != 0)
+    {
+        RuntimeTickOwner::CanonicalMap
+    } else if legacy_creature_global_runtime_enabled_from_config_like_cpp() {
+        RuntimeTickOwner::GlobalLegacy
+    } else {
+        RuntimeTickOwner::Session
+    }
+}
+
 pub(crate) fn realm_id_like_cpp() -> Result<u16> {
     let Some(realm_id) = wow_config::get_value::<u16>("RealmID") else {
         bail!("Realm ID not defined in configuration file");

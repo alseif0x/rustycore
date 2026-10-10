@@ -1535,3 +1535,6 @@ mod scenarios_9;
 // #1263 F6-8D2: the isolated admitted creature execution wiring.
 #[path = "main_tests/scenarios_15.rs"]
 mod scenarios_15;
+// #1263 F6-8D3b-1: the `RuntimeTickOwner::CanonicalMap` creature tick owner.
+#[path = "main_tests/scenarios_16.rs"]
+mod scenarios_16;

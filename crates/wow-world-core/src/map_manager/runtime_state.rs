@@ -107,6 +107,14 @@ pub enum RuntimeTickOwner {
     Session,
     /// Global legacy-manager tick used by production startup by default.
     GlobalLegacy,
+    /// #1263 F6-8D3b-1: the canonical map update loop runs the admitted
+    /// canonical creature executor inside each admitted map tick (C++
+    /// `Map::Update` → `ObjectUpdater` → `Creature::Update`). The legacy
+    /// creature loop and the session creature ticks both skip under it: every
+    /// legacy phase body runs only for `GlobalLegacy` and every session tick
+    /// only for `Session`. Selected only by `RustyCore.CanonicalCreatureRuntime
+    /// = 1`; never the default.
+    CanonicalMap,
 }
 
 /// Initial session-local packet seam produced by `run_creatures_tick` /

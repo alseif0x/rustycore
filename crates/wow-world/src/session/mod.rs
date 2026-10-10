@@ -61,10 +61,8 @@ pub use legacy_runtime::{
     apply_creature_attack_stop_commands_on_manager_like_cpp,
     committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
 };
-// #1263 F6-8D2 exports the isolated admitted creature execution seam at the same
-// external path as the seven legacy tick entries above. Nothing in production
-// calls it: the world-server isolated adapter and the F6-8D2 regressions do, and
-// D3 owns the exclusive cutover.
+// #1263 F6-8D2/D3b-1: the admitted creature executor, at the path of the legacy
+// tick entries; world-server's `RuntimeTickOwner::CanonicalMap` owner calls it.
 pub use legacy_runtime::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
@@ -74,7 +72,9 @@ pub use legacy_runtime::{
     IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
     IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
     capture_admitted_creature_execution_like_cpp,
+    capture_admitted_creature_execution_on_manager_like_cpp,
     run_admitted_creature_combat_phases_isolated_like_cpp,
+    run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
     run_isolated_admitted_creature_execution_composition_like_cpp,
 };

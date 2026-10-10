@@ -1336,15 +1336,49 @@ pub(crate) fn run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp(
         map_store,
         now,
     );
+    let delivery =
+        deliver_creature_lifecycle_refreshes_like_cpp(&outcome.refresh_map_keys, registry);
+    (outcome, delivery)
+}
+
+/// Wake every in-world session of each map key the lifecycle phase changed.
+///
+/// One body for both creature tick owners: the legacy bridge calls it right
+/// after its lifecycle phase, and the canonical owner (#1263 F6-8D3b-1) calls it
+/// with the executor's deferred refresh keys once every guard is released.
+pub(crate) fn deliver_creature_lifecycle_refreshes_like_cpp(
+    refresh_map_keys: &[(u16, u32)],
+    registry: &wow_world::session::directory::PlayerRegistry,
+) -> RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
     let mut delivery = RuntimeVisibilityRefreshDeliverySummaryLikeCpp::default();
-    for (map_id, instance_id) in &outcome.refresh_map_keys {
+    for (map_id, instance_id) in refresh_map_keys {
         delivery.merge(deliver_refresh_visible_world_creatures_like_cpp(
             *map_id,
             *instance_id,
             registry,
         ));
     }
-    (outcome, delivery)
+    delivery
+}
+
+/// Submit the lifecycle phase's respawn statements to the shared writer, in
+/// production order, while the caller still holds the respawn mutation-order
+/// gate. One body for both creature tick owners (#1263 F6-8D3b-1).
+pub(crate) fn submit_creature_lifecycle_respawn_db_mutations_like_cpp(
+    mutations: &mut Vec<wow_persistence::RespawnPersistenceMutationLikeCpp>,
+    respawn_db_writer_tx: &RespawnDbWriterSenderLikeCpp,
+) -> usize {
+    let mut submitted = 0;
+    for mutation in mutations.drain(..) {
+        if respawn_db_writer_tx.send(mutation).is_err() {
+            tracing::error!(
+                "Shared respawn DB writer stopped before legacy respawn statement submission"
+            );
+        } else {
+            submitted += 1;
+        }
+    }
+    submitted
 }
 
 /// Run one legacy global creature aggro scan and deliver attack-start commands.
@@ -1401,10 +1435,28 @@ pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
         &outcome.stop_commands,
         &stop_outcomes,
     );
+    let delivery = deliver_committed_creature_combat_commands_like_cpp(
+        &applied_start_commands,
+        &applied_stop_commands,
+        registry,
+    );
+    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
+    (outcome, delivery, plan_delivery)
+}
+
+/// Deliver the committed attack starts, then the committed stops, to their
+/// victim sessions, as one summary. One body for both creature tick owners: the
+/// legacy aggro bridge and the canonical owner (#1263 F6-8D3b-1), which hands it
+/// the executor's committed commands after every guard is released.
+pub(crate) fn deliver_committed_creature_combat_commands_like_cpp(
+    applied_start_commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
+    applied_stop_commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
+    registry: &wow_world::session::directory::PlayerRegistry,
+) -> RuntimeCreatureAttackStartDeliverySummaryLikeCpp {
     let mut delivery =
-        deliver_creature_attack_start_commands_like_cpp(&applied_start_commands, registry);
+        deliver_creature_attack_start_commands_like_cpp(applied_start_commands, registry);
     let stop_delivery =
-        deliver_creature_attack_stop_commands_like_cpp(&applied_stop_commands, registry);
+        deliver_creature_attack_stop_commands_like_cpp(applied_stop_commands, registry);
     delivery.commands_seen += stop_delivery.commands_seen;
     delivery.candidates_seen += stop_delivery.candidates_seen;
     delivery.candidates_queued += stop_delivery.candidates_queued;
@@ -1414,8 +1466,7 @@ pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
     delivery.candidates_skipped_not_in_world += stop_delivery.candidates_skipped_not_in_world;
     delivery.candidates_skipped_dead += stop_delivery.candidates_skipped_dead;
     delivery.send_failed += stop_delivery.send_failed;
-    let plan_delivery = deliver_runtime_plan_like_cpp(&outcome.plan, registry);
-    (outcome, delivery, plan_delivery)
+    delivery
 }
 
 /// Run one legacy global creature melee tick and deliver victim commands.
@@ -1539,18 +1590,12 @@ pub(crate) fn run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_
             registry,
         );
     let db_mutations_produced = lifecycle.respawn_db_mutations.len();
-    let mut db_mutations_submitted = 0;
-    if let Some(respawn_db_writer_tx) = respawn_db_writer_tx {
-        for mutation in lifecycle.respawn_db_mutations.drain(..) {
-            if respawn_db_writer_tx.send(mutation).is_err() {
-                tracing::error!(
-                    "Shared respawn DB writer stopped before legacy respawn statement submission"
-                );
-            } else {
-                db_mutations_submitted += 1;
-            }
-        }
-    }
+    let db_mutations_submitted = respawn_db_writer_tx.map_or(0, |respawn_db_writer_tx| {
+        submit_creature_lifecycle_respawn_db_mutations_like_cpp(
+            &mut lifecycle.respawn_db_mutations,
+            respawn_db_writer_tx,
+        )
+    });
     drop(respawn_db_mutation_order_guard);
 
     let (movement, movement_delivery) = run_legacy_creature_movement_tick_and_deliver_once_like_cpp(
