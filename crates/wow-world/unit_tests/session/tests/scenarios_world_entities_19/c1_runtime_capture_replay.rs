@@ -122,6 +122,10 @@ fn c1_injected_stale_and_aba_replay_capture_like_cpp() {
         .expect("canonical incarnation");
 
     let guard = tracing::subscriber::set_default(subscriber);
+    // Parallel test threads register the capture callsites while no scoped
+    // subscriber is live; re-evaluate the cached interest and max level now that
+    // this thread's subscriber exists, so the capture cannot be silently empty.
+    tracing::callsite::rebuild_interest_cache();
     let mut capture = String::new();
 
     let fresh_applied = fresh_session
@@ -303,6 +307,10 @@ fn with_r6_capture_like_cpp<T>(body: impl FnOnce() -> T) -> (T, String) {
         .with_max_level(tracing::Level::TRACE)
         .finish();
     let guard = tracing::subscriber::set_default(subscriber);
+    // Parallel test threads register the capture callsites while no scoped
+    // subscriber is live; re-evaluate the cached interest and max level now that
+    // this thread's subscriber exists, so the capture cannot be silently empty.
+    tracing::callsite::rebuild_interest_cache();
     let result = body();
     let chunk = drain_capture_like_cpp(&sink);
     drop(guard);
