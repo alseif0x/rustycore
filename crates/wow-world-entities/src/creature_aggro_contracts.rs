@@ -130,6 +130,10 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub ai_can_attack_rejections: usize,
     pub alert_triggers: usize,
     pub alert_rejections: usize,
+    /// #1263 F6-8D3a-1: an alert whose `MoveDistract` the phase store does not
+    /// represent (the admitted canonical store until F6-8D3a-2). Refused, so no
+    /// alert reaction is published without its movement.
+    pub alert_movement_unrepresented: usize,
     pub movement_interrupts: usize,
     pub victim_switches: usize,
     pub evades_started: usize,

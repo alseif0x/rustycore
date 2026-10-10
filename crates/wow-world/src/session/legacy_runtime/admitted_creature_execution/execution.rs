@@ -31,32 +31,11 @@ pub fn run_admitted_creature_execution_isolated_like_cpp(
             owner,
         );
     };
-    let fenced = admission.fence_like_cpp(&manager);
-    if !fenced.is_admitted_like_cpp() {
-        return IsolatedCreatureExecutionOutcomeLikeCpp::refused_like_cpp(fenced, owner);
+    let admitted =
+        admit_and_claim_admitted_creature_execution_like_cpp(admission, &manager, lease, owner);
+    if !admitted.is_admitted_like_cpp() {
+        return IsolatedCreatureExecutionOutcomeLikeCpp::refused_like_cpp(admitted, owner);
     }
-    // Claim every transition before executing any of them: a partially
-    // admitted transition must not advance the diff of its siblings.
-    let Ok(mut lease) = lease.lock() else {
-        return IsolatedCreatureExecutionOutcomeLikeCpp::refused_like_cpp(
-            CreatureExecutionAdmissionLikeCpp::RefusedOwnerLease { held_by: owner },
-            owner,
-        );
-    };
-    for object in &admission.objects {
-        let transition = admission.transition_like_cpp(object);
-        if let Some(held_by) = lease.owner_like_cpp(transition) {
-            return IsolatedCreatureExecutionOutcomeLikeCpp::refused_like_cpp(
-                CreatureExecutionAdmissionLikeCpp::RefusedOwnerLease { held_by },
-                owner,
-            );
-        }
-    }
-    for object in &admission.objects {
-        let transition = admission.transition_like_cpp(object);
-        let _ = lease.claim_like_cpp(transition, owner);
-    }
-    drop(lease);
 
     let mut outcome = IsolatedCreatureExecutionOutcomeLikeCpp::refused_like_cpp(
         CreatureExecutionAdmissionLikeCpp::Admitted,
@@ -77,6 +56,37 @@ pub fn run_admitted_creature_execution_isolated_like_cpp(
         outcome.deferred_publication.extend(execution.publication);
     }
     outcome
+}
+
+/// The fence and the single-owner claim of one admitted transition, evaluated
+/// under the canonical guard the caller already holds and **before** the first
+/// mutation. Every transition is claimed before any of them executes: a
+/// partially admitted transition must not advance the diff of its siblings.
+pub(super) fn admit_and_claim_admitted_creature_execution_like_cpp(
+    admission: &AdmittedCreatureExecutionLikeCpp,
+    manager: &wow_map::MapManager,
+    lease: &SharedCreatureExecutionLeaseLikeCpp,
+    owner: CreatureExecutionOwnerLikeCpp,
+) -> CreatureExecutionAdmissionLikeCpp {
+    let fenced = admission.fence_like_cpp(manager);
+    if !fenced.is_admitted_like_cpp() {
+        return fenced;
+    }
+    let Ok(mut lease) = lease.lock() else {
+        return CreatureExecutionAdmissionLikeCpp::RefusedOwnerLease { held_by: owner };
+    };
+    for object in &admission.objects {
+        let transition = admission.transition_like_cpp(object);
+        if let Some(held_by) = lease.owner_like_cpp(transition) {
+            return CreatureExecutionAdmissionLikeCpp::RefusedOwnerLease { held_by };
+        }
+    }
+    for object in &admission.objects {
+        let transition = admission.transition_like_cpp(object);
+        let _ = lease.claim_like_cpp(transition, owner);
+    }
+    drop(lease);
+    CreatureExecutionAdmissionLikeCpp::Admitted
 }
 
 #[derive(Debug, Default)]

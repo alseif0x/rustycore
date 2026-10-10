@@ -21,6 +21,9 @@ mod f6_8d1_canonical_execution;
 // #1263 F6-8D2: the admitted tick drives the canonical engine exactly once.
 #[path = "scenarios_world_entities_19/f6_8d2_admitted_execution.rs"]
 mod f6_8d2_admitted_execution;
+// #1263 F6-8D3a-1: the admitted canonical executor reaches combat-phase parity.
+#[path = "scenarios_world_entities_19/f6_8d3a1_combat_parity.rs"]
+mod f6_8d3a1_combat_parity;
 #[path = "scenarios_world_entities_19/gameobject_use.rs"]
 mod gameobject_use;
 #[path = "scenarios_world_entities_19/legacy_creature_tick_noop.rs"]

@@ -269,33 +269,28 @@ pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_lik
         LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
     }
 }
-pub(in crate::session) fn legacy_creature_try_trigger_alert_like_cpp(
-    creature: &mut crate::map_manager::WorldCreature,
+/// The decision half of C++ `CreatureAI::TriggerAlert` after
+/// `CreatureUnitRelocationWorker`: only hostile stealthed players can distract
+/// an alive, non-engaged, non-controlled aggressive creature. Returns the
+/// `MoveDistract` facing; the caller runs the distract movement on its store
+/// and then sends `SMSG_AI_REACTION` (alert) to the visible set.
+pub(in crate::session) fn legacy_creature_alert_orientation_like_cpp(
+    creature: &wow_entities::Creature,
     candidate: &LegacyCreatureAggroCandidateLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
-) -> Option<Vec<u8>> {
-    use wow_constants::creature::AiReaction;
-    use wow_packet::ServerPacket;
-    use wow_packet::packets::combat::AIReaction;
-
-    // C++ `CreatureAI::TriggerAlert` after `CreatureUnitRelocationWorker`:
-    // only hostile stealthed players can distract an alive, non-engaged,
-    // non-controlled aggressive creature, sends `SMSG_AI_REACTION` to the
-    // visible set, then runs `MoveDistract(5s, angle)`.
+) -> Option<f32> {
     if !legacy_creature_aggro_candidate_has_stealth_aura_like_cpp(candidate) {
         return None;
     }
-    if creature.creature.ai_ownership().combat_target.is_some() {
+    if creature.ai_ownership().combat_target.is_some() {
         return None;
     }
-    if creature.creature.is_civilian_like_cpp()
-        || creature
-            .creature
-            .has_react_state(wow_entities::ReactState::Passive)
+    if creature.is_civilian_like_cpp()
+        || creature.has_react_state(wow_entities::ReactState::Passive)
     {
         return None;
     }
-    if creature.creature.unit().has_unit_state(
+    if creature.unit().has_unit_state(
         (UnitState::CONFUSED | UnitState::STUNNED | UnitState::FLEEING | UnitState::DISTRACTED)
             .bits(),
     ) {
@@ -304,24 +299,10 @@ pub(in crate::session) fn legacy_creature_try_trigger_alert_like_cpp(
     if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
         return None;
     }
-    if !legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-        &creature.creature,
-        candidate,
-        config,
-    )
-    .unwrap_or(false)
+    if !legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(creature, candidate, config)
+        .unwrap_or(false)
     {
         return None;
     }
-
-    let orientation = creature.position().angle_to(&candidate.position);
-    creature
-        .begin_distract_movement_like_cpp(5_000, orientation)
-        .map(|_| {
-            AIReaction {
-                unit_guid: creature.guid(),
-                reaction: AiReaction::Alert,
-            }
-            .to_bytes()
-        })
+    Some(creature.position().angle_to(&candidate.position))
 }

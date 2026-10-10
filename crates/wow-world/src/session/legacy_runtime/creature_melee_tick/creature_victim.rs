@@ -17,7 +17,7 @@ use super::*;
 /// with the presentation and absorb terms the caller's delivery publishes.
 pub(super) fn creature_victim_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
-    attacker: &wow_entities::Creature,
+    attacker: &CreatureMeleeAttackerFactsLikeCpp,
     swing: &PendingCreatureSwingLikeCpp,
     config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
     damage: u32,
@@ -35,7 +35,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                 .map(|managed| managed.difficulty())
                 .unwrap_or(0);
             let attacker_effects = crate::session_rules::creature_aura_effects_like_cpp(
-                &attacker.unit().subsystems().auras.applied_auras,
+                &attacker.applied_auras,
                 spell_store,
                 map_difficulty_id,
                 config.difficulty_store.as_deref(),
@@ -54,10 +54,9 @@ pub(super) fn creature_victim_damage_like_cpp(
                     .map(|effect| effect.amount as f32)
                     .sum()
             };
-            let no_crit = wow_constants::CreatureFlagsExtra::from_bits_truncate(
-                attacker.lifecycle_metadata().flags_extra,
-            )
-            .contains(wow_constants::CreatureFlagsExtra::NO_CRIT);
+            let no_crit =
+                wow_constants::CreatureFlagsExtra::from_bits_truncate(attacker.flags_extra)
+                    .contains(wow_constants::CreatureFlagsExtra::NO_CRIT);
             let creature_crit_pct = if no_crit {
                 0.0
             } else {
@@ -67,10 +66,10 @@ pub(super) fn creature_victim_damage_like_cpp(
             let expertise_reduction_pct =
                 aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE) / 4.0;
             let attacker_facts = crate::session_rules::RepresentedMeleeAttackerFactsLikeCpp {
-                level: attacker.level(),
-                is_controlled_by_player: attacker.is_charmed_owned_by_player_or_player_like_cpp(),
+                level: attacker.level,
+                is_controlled_by_player: attacker.is_charmed_owned_by_player_or_player,
                 no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
-                    attacker.lifecycle_metadata().flags_extra,
+                    attacker.flags_extra,
                 )
                 .contains(wow_constants::CreatureFlagsExtra::NO_CRUSHING_BLOWS),
                 dual_wielding: false,
@@ -282,7 +281,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                             victim_mechanic_mask,
                             false,
                             crate::session::legacy_attack_power_multiplier_like_cpp(
-                                attacker.unit().base_attack_speed()[0],
+                                attacker.base_attack_speed[0],
                             ),
                         );
                     let taken = crate::session_rules::melee_damage_taken_flat_pct_like_cpp(
@@ -301,7 +300,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                     );
                     let mitigated = crate::session_rules::armor_reduced_damage_like_cpp(
                         after_taken,
-                        attacker.level(),
+                        attacker.level,
                         victim_facts.level,
                         victim_armor,
                         // CR_ARMOR_PENETRATION is a player-attacker
