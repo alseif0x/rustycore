@@ -438,8 +438,20 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
         range: 100.0,
         required_3d: false,
     };
+    // #1344: the hostile AI reaction published ahead of the creature's own
+    // attack start is dropped together with the rejected start.
+    let reaction_bytes = wow_packet::packets::combat::AIReaction {
+        unit_guid: attacker,
+        reaction: wow_constants::creature::AiReaction::Hostile,
+    }
+    .to_bytes();
     let mut plan = wow_world::map_manager::RuntimePlan {
         events: vec![
+            wow_world::map_manager::RuntimeEvent {
+                source_guid: attacker,
+                recipients: recipients.clone(),
+                packet_bytes: reaction_bytes,
+            },
             wow_world::map_manager::RuntimeEvent {
                 source_guid: attacker,
                 recipients: recipients.clone(),

@@ -1211,13 +1211,27 @@ pub(crate) fn retain_committed_creature_combat_events_like_cpp(
                 .to_bytes(),
             )
         };
+    // The hostile `SMSG_AI_REACTION` that precedes a creature's own attack
+    // start (C++ `Unit::Attack`) commits or drops together with it (#1344).
+    let reaction_signature =
+        |command: &wow_world::session::mailbox::CreatureAttackStartLikeCppCommand| {
+            (
+                command.attacker_guid,
+                wow_packet::packets::combat::AIReaction {
+                    unit_guid: command.attacker_guid,
+                    reaction: wow_constants::creature::AiReaction::Hostile,
+                }
+                .to_bytes(),
+            )
+        };
     let mut all_combat_signatures: Vec<_> = start_commands.iter().map(start_signature).collect();
+    all_combat_signatures.extend(start_commands.iter().map(reaction_signature));
     all_combat_signatures.extend(stop_commands.iter().map(stop_signature));
     let mut applied_combat_signatures: Vec<_> = start_commands
         .iter()
         .zip(start_outcomes)
         .filter(|(_, outcome)| outcome.is_applied())
-        .map(|(command, _)| start_signature(command))
+        .flat_map(|(command, _)| [start_signature(command), reaction_signature(command)])
         .collect();
     applied_combat_signatures.extend(
         stop_commands

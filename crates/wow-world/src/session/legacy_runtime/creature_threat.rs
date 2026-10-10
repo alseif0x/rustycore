@@ -3,6 +3,7 @@
 //! Moved out of the Session root under #619. Behaviour is preserved.
 
 use super::*;
+use wow_data::reputation::ReputationRankLikeCpp;
 
 pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
     creature: &mut wow_entities::Creature,
@@ -27,14 +28,34 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         .iter()
         .map(|candidate| (candidate.player_guid, *candidate))
         .collect();
+    // C++ `ThreatReference::ShouldBeOffline` keeps a reference online through
+    // `Creature::_IsTargetAcceptable`: not friendly, targetable for attack (the
+    // vehicle clause is unrepresented), not dead, and then
+    // `IsEngagedBy(target) || IsHostileTo(target)`. The engaged clause is what
+    // keeps a neutral creature fighting the player who attacked it (#1344);
+    // aggro *start* stays hostile-only in the detection scan.
+    let is_engaged_by = |guid: ObjectGuid| {
+        let combat = &creature.unit().subsystems().combat;
+        if combat.owner_can_have_threat_list {
+            combat.is_threatened_by_with_offline(guid, true)
+        } else {
+            combat.is_in_combat_with(guid)
+        }
+    };
+    let target_acceptable = |guid: ObjectGuid, reaction: Option<ReputationRankLikeCpp>| {
+        reaction.is_some_and(|rank| {
+            rank < ReputationRankLikeCpp::Friendly
+                && (is_engaged_by(guid) || rank <= ReputationRankLikeCpp::Hostile)
+        })
+    };
     let mut eligible_candidate_guids: HashSet<_> = candidates
         .iter()
         .filter(|candidate| {
             legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate)
-                && legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-                    creature, candidate, config,
+                && target_acceptable(
+                    candidate.player_guid,
+                    legacy_creature_reaction_to_candidate_like_cpp(creature, candidate, config),
                 )
-                .unwrap_or(false)
                 && legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
                     creature, candidate,
                 )
@@ -76,8 +97,10 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
                     | UnitFlags::IMMUNE_TO_NPC
                     | UnitFlags::UNINTERACTIBLE,
             )
-            && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(creature, snapshot, config)
-                .unwrap_or(false)
+            && target_acceptable(
+                *guid,
+                legacy_creature_reaction_to_snapshot_like_cpp(creature, snapshot, config),
+            )
             && if snapshot.in_water {
                 creature.can_enter_water_like_cpp()
             } else {

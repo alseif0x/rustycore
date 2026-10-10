@@ -198,10 +198,12 @@ impl WorldSession {
             PlayerAttackStartLikeCppResult::Accepted { send_attack_start } => send_attack_start,
         };
 
-        // Start combat with the canonical map-owned creature after C++-style
-        // attack validation succeeds.
+        // Engage the canonical map-owned creature after C++-style attack
+        // validation succeeds. Like C++ `EngageWithTarget` this sets no victim:
+        // the creature's own `UpdateVictim` (aggro tick) picks it and publishes
+        // `SMSG_AI_REACTION` + `SMSG_ATTACK_START` (#1344).
         let _ = self.core.mutate_world_creature(swing.victim, |creature| {
-            creature.enter_combat(player_guid);
+            creature.creature.engage_with_target_like_cpp(player_guid);
         });
 
         // Unit::Attack only emits a melee start packet for new targets or a
