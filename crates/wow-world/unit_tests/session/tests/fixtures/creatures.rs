@@ -487,3 +487,19 @@ pub(in crate::session::tests) fn reputation_aura_for_test(
         applied_at: std::time::Instant::now(),
     }
 }
+
+/// Mutate the deprecated legacy owner's own representation at map 0/0.
+///
+/// #1263 F6-8D3b-2: the session mutation root is canonical-first and projects
+/// the incarnation over the legacy copy, so a fixture that drives a legacy
+/// phase body (`GlobalLegacy`) and then adjusts the state that body owns —
+/// schedules, clocks, RNG — must write that copy directly, as the legacy body
+/// itself does, until F6-8E deletes the legacy runtime.
+pub(in crate::session::tests) fn mutate_legacy_creature_for_test_like_cpp<R>(
+    manager: &crate::map_manager::SharedMapManager,
+    guid: ObjectGuid,
+    f: impl FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+) -> Option<R> {
+    let mut manager = manager.write().unwrap_or_else(|poisoned| poisoned.into_inner());
+    manager.find_creature_mut(0, 0, guid).map(f)
+}

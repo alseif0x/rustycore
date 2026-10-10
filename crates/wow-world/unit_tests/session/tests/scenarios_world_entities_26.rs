@@ -65,8 +65,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
         run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
             creature.creature.ai_ownership_mut().last_swing_ms = 0;
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
@@ -85,8 +84,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     assert_eq!(start.spell_id, spell_id);
     assert_eq!(go.spell_id, spell_id);
     assert!(
-        !session
-            .mutate_world_creature(creature_guid, |creature| creature.can_swing())
+        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature.can_swing())
             .unwrap(),
         "successful untriggered 15691 must reset BASE_ATTACK before melee"
     );
@@ -105,8 +103,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     Arc::get_mut(config.spell_store.as_mut().unwrap())
         .unwrap()
         .insert_spell_misc_attributes_like_cpp(spell_id, implicit_cost_attributes);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
         })
         .unwrap();
@@ -122,8 +119,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     Arc::get_mut(config.spell_store.as_mut().unwrap())
         .unwrap()
         .insert_spell_misc_attributes_like_cpp(spell_id, weapon_speed_cost_attributes);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.backdate_runtime_clock_for_test(Duration::from_secs(180));
         })
         .unwrap();
@@ -139,8 +135,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
             spell_id,
             represented_creature_spell_test_attributes_like_cpp(false),
         );
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature
                 .creature
                 .unit_mut()
@@ -212,8 +207,7 @@ fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
         run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
             creature.creature.ai_ownership_mut().last_swing_ms = 0;
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
@@ -304,10 +298,12 @@ fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
         // A pure observation of the surviving legacy representation: the
         // canonical map now owns the replacement incarnation, so this must not
         // run the mutation root (F6-7 R7a).
-        session
-            .core
-            .read_world_creature_like_cpp(creature_guid, |creature| creature.can_swing())
-            .unwrap(),
+        manager
+            .read()
+            .unwrap()
+            .find_creature(0, 0, creature_guid)
+            .unwrap()
+            .can_swing(),
         "the stale legacy creature keeps its swing because no cast happened"
     );
 }
@@ -425,8 +421,7 @@ fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
     let initialized =
         run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(initialized.schedules_initialized, 1);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
         })
         .unwrap();
@@ -437,8 +432,7 @@ fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
     assert_eq!(rejected.spell_range_rejections, 1);
     assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
     assert!(rejected.plan.events.is_empty());
-    let repeat_due_in_ms = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let repeat_due_in_ms = mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.creature_spell_due_in_ms_for_test(0).unwrap()
         })
         .unwrap();
@@ -496,8 +490,7 @@ fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
         .unwrap()
         .unit_mut()
         .add_unit_state(UnitState::IN_FLIGHT.bits());
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
         })
         .unwrap();
@@ -508,8 +501,7 @@ fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
     assert_eq!(rejected.canonical_cast_target_rejections, 1);
     assert_eq!(rejected.spell_hit_results_unrepresented, 0);
     assert!(rejected.plan.events.is_empty());
-    let (repeat_due_in_ms, rng_authoritative) = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let (repeat_due_in_ms, rng_authoritative) = mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0).unwrap(),
                 creature.runtime_rng_authority_complete_like_cpp(),

@@ -1,79 +1,42 @@
 use super::super::*;
-pub(crate) fn mirror_loaded_grid_creature_to_legacy_like_cpp(
-    legacy_manager: Option<&SharedMapManager>,
+/// Initialize one loaded-grid creature's default waypoint movement on its
+/// canonical incarnation (C++ `Creature::AddToWorld` → `MotionMaster::Initialize`
+/// → `WaypointMovementGenerator::DoInitialize` with the spawn's `PathId`).
+///
+/// #1263 F6-8D3b-2: this used to happen only on the legacy compatibility copy
+/// the canonical→legacy mirror built for every loaded-grid creature; the mirror
+/// is gone and the canonical incarnation is the creature's only
+/// representation. Random movement keeps its lazy initialization on the first
+/// movement update; idle needs none. Returns whether a waypoint path was
+/// initialized.
+pub(crate) fn initialize_loaded_grid_creature_default_motion_like_cpp(
+    creature: &mut wow_entities::Creature,
     waypoint_paths: &spawn_store_loader::WaypointPathStoreLikeCpp,
-    creature: wow_entities::Creature,
 ) -> bool {
-    let Some(legacy_manager) = legacy_manager else {
-        return false;
-    };
-    let Ok(map_id) = u16::try_from(creature.unit().world().map_id()) else {
-        warn!(
-            guid = ?creature.guid(),
-            map_id = creature.unit().world().map_id(),
-            "C++ AddToMap legacy mirror skipped: map id does not fit legacy MapManager key"
-        );
-        return false;
-    };
-    let instance_id = creature.unit().world().instance_id();
-    let guid = creature.guid();
-    let entry = creature.entry();
-    let canonical_level = creature.level();
-    let canonical_health = creature.current_health();
-    let canonical_max_health = creature.max_health();
-    let metadata = creature.lifecycle_metadata();
-    let spawn_id = metadata.spawn_id;
-    let selected_level = metadata.selected_level;
-    let selected_display_id = metadata.selected_display_id;
-    let position = creature.position();
-    let (grid_x, grid_y) = wow_world::map_manager::world_to_grid_coords(position.x, position.y);
-    let world_creature = wow_world::map_manager::WorldCreature::from_loaded_grid_canonical_like_cpp(
-        creature,
-        |path_id| waypoint_paths.get(path_id).cloned(),
-    );
-    if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-        info!(
-            ?guid,
-            entry,
-            spawn_id,
-            selected_level,
-            selected_display_id,
-            canonical_level,
-            canonical_health,
-            canonical_max_health,
-            legacy_level = world_creature.level(),
-            legacy_health = world_creature.current_hp(),
-            legacy_max_health = world_creature.max_hp(),
-            create_level = world_creature.create_data.level,
-            create_health = world_creature.create_data.health,
-            create_max_health = world_creature.create_data.max_health,
-            "RUST_CREATURE_MIRROR loaded_grid_canonical_to_legacy"
-        );
-    }
-
-    let mut guard = legacy_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if guard.find_creature(map_id, instance_id, guid).is_some() {
+    if creature.default_movement_type() != wow_entities::MovementGeneratorType::Waypoint {
         return false;
     }
-    guard.add_creature(map_id, instance_id, grid_x, grid_y, world_creature)
+    wow_world::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
+            waypoint_paths.get(path_id).cloned()
+        });
+    true
 }
 
-pub(crate) fn mirror_loaded_grid_primary_records_to_legacy_like_cpp(
-    legacy_manager: Option<&SharedMapManager>,
+/// [`initialize_loaded_grid_creature_default_motion_like_cpp`] for the
+/// creatures a map-owned respawn/spawn pass already added to `map`.
+pub(crate) fn initialize_loaded_grid_primary_records_default_motion_like_cpp(
+    map: &mut wow_map::ManagedMapInnerLikeCpp,
     waypoint_paths: &spawn_store_loader::WaypointPathStoreLikeCpp,
     records: &[wow_entities::MapObjectRecord],
 ) -> usize {
     records
         .iter()
-        .filter_map(|record| record.creature().cloned())
-        .filter(|creature| {
-            mirror_loaded_grid_creature_to_legacy_like_cpp(
-                legacy_manager,
-                waypoint_paths,
-                creature.clone(),
-            )
+        .filter_map(|record| record.creature().map(wow_entities::Creature::guid))
+        .filter(|guid| {
+            map.get_typed_creature_mut(*guid).is_some_and(|creature| {
+                initialize_loaded_grid_creature_default_motion_like_cpp(creature, waypoint_paths)
+            })
         })
         .count()
 }
@@ -111,7 +74,6 @@ pub(crate) fn player_visible_grid_coords_like_cpp(
 
 pub(crate) fn materialize_loaded_player_grid_records_like_cpp(
     map: &mut wow_map::Map,
-    legacy_manager: &SharedMapManager,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
@@ -152,14 +114,10 @@ pub(crate) fn materialize_loaded_player_grid_records_like_cpp(
                 .map(|spawn_id| (wow_map::SpawnObjectType::AreaTrigger, spawn_id)),
         )
     {
-        let already_loaded_creature = match object_type {
-            wow_map::SpawnObjectType::Creature => {
-                map.get_creature_by_spawn_id_like_cpp(spawn_id).cloned()
-            }
-            wow_map::SpawnObjectType::GameObject | wow_map::SpawnObjectType::AreaTrigger => None,
-        };
         let already_loaded = match object_type {
-            wow_map::SpawnObjectType::Creature => already_loaded_creature.is_some(),
+            wow_map::SpawnObjectType::Creature => {
+                map.get_creature_by_spawn_id_like_cpp(spawn_id).is_some()
+            }
             wow_map::SpawnObjectType::GameObject => {
                 map.get_gameobject_by_spawn_id_like_cpp(spawn_id).is_some()
             }
@@ -169,15 +127,6 @@ pub(crate) fn materialize_loaded_player_grid_records_like_cpp(
         };
         if already_loaded {
             outcome.skipped_already_loaded += 1;
-            if let Some(creature) = already_loaded_creature
-                && mirror_loaded_grid_creature_to_legacy_like_cpp(
-                    Some(legacy_manager),
-                    canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                    creature,
-                )
-            {
-                outcome.legacy_creature_mirrors += 1;
-            }
             continue;
         }
 
@@ -261,21 +210,17 @@ pub(crate) fn materialize_loaded_player_grid_records_like_cpp(
             }
         }
 
-        let primary_record = records.primary_record;
-        let legacy_creature = primary_record.creature().cloned();
+        let mut primary_record = records.primary_record;
+        if let Some(creature) = primary_record.creature_mut() {
+            initialize_loaded_grid_creature_default_motion_like_cpp(
+                creature,
+                canonical_spawn_metadata.waypoint_paths_like_cpp(),
+            );
+        }
         match map.add_map_object_record_to_map_like_cpp(primary_record) {
             Ok(_add) => match object_type {
                 wow_map::SpawnObjectType::Creature => {
                     outcome.creature_records_added += 1;
-                    if let Some(creature) = legacy_creature
-                        && mirror_loaded_grid_creature_to_legacy_like_cpp(
-                            Some(legacy_manager),
-                            canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                            creature,
-                        )
-                    {
-                        outcome.legacy_creature_mirrors += 1;
-                    }
                 }
                 wow_map::SpawnObjectType::GameObject => {
                     outcome.gameobject_records_added += 1;
@@ -331,7 +276,6 @@ pub(crate) fn existing_login_grid_map_matches_map_entry_like_cpp(
 
 pub(crate) fn ensure_login_player_grid_loaded_like_cpp(
     canonical_map_manager: &SharedCanonicalMapManager,
-    legacy_manager: &SharedMapManager,
     canonical_spawn_metadata: &SharedCanonicalSpawnMetadataLikeCpp,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     area_trigger_template_store: &wow_data::AreaTriggerTemplateStore,
@@ -428,7 +372,6 @@ pub(crate) fn ensure_login_player_grid_loaded_like_cpp(
         }
         materialize_loaded_player_grid_records_like_cpp(
             map,
-            legacy_manager,
             &metadata,
             loaded_grid_creature_respawn_caches,
             area_trigger_template_store,
@@ -451,8 +394,7 @@ pub(crate) fn ensure_login_player_grid_loaded_like_cpp(
             || outcome.area_trigger_records_added != 0
             || outcome.pre_add_records_added != 0
             || outcome.add_to_map_errors != 0
-            || outcome.load_record_missing != 0
-            || outcome.legacy_creature_mirrors != 0)
+            || outcome.load_record_missing != 0)
     {
         info!(
             map_id = map_id_u32,
@@ -480,7 +422,6 @@ pub(crate) fn ensure_login_player_grid_loaded_like_cpp(
             creature_load_record_missing = outcome.creature_load_record_missing,
             gameobject_load_record_missing = outcome.gameobject_load_record_missing,
             area_trigger_load_record_missing = outcome.area_trigger_load_record_missing,
-            legacy_creature_mirrors = outcome.legacy_creature_mirrors,
             "RUST_CREATURE_VIS login_grid_load"
         );
     }

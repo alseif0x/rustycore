@@ -9,11 +9,12 @@ use super::*;
 
 /// Which runtime owns one admitted creature transition.
 ///
-/// C++ has one `ObjectUpdater` writer per `Map::Update`. RustyCore still
-/// composes three candidates while the cutover is staged: the canonical
-/// admitted execution introduced by F6-8D2, the legacy global runtime that
-/// production uses today, and the per-session runtime that
-/// `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps alive.
+/// C++ has one `ObjectUpdater` writer per `Map::Update`. Since #1263
+/// F6-8D3b-2 production has one: the canonical admitted execution
+/// (`RuntimeTickOwner::CanonicalMap`). The legacy global runtime and the
+/// per-session runtime remain only as test-fixture owners until F6-8E deletes
+/// them; the retired `RustyCore.LegacyCreatureGlobalRuntime` key no longer
+/// selects either.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CreatureExecutionOwnerLikeCpp {
     /// The canonical admitted execution path of this module.
@@ -65,8 +66,14 @@ pub struct CreatureExecutionLeaseLikeCpp {
     )>,
 }
 
-/// Shared claim table. The isolated path owns it; production never constructs
-/// one.
+/// Shared claim table of one canonical creature runtime.
+///
+/// Production constructs exactly one, owned by the canonical map loop's
+/// `CanonicalCreatureRuntimeLikeCpp` (#1263 F6-8D3b-1); the isolated path and
+/// test fixtures construct their own. It is **not** shared with the legacy
+/// phase bodies, so it serialises the executor's own claims (one execution per
+/// admitted transition) and is not what keeps the legacy owners out: the single
+/// owner value (`MapManager::tick_owner`) does that.
 pub type SharedCreatureExecutionLeaseLikeCpp =
     std::sync::Arc<std::sync::Mutex<CreatureExecutionLeaseLikeCpp>>;
 

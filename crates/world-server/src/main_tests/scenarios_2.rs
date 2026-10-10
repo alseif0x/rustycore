@@ -511,7 +511,6 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
 
     let summary = game_event_spawn_for_event_like_cpp(
         &mut manager,
-        Some(&legacy_manager),
         &metadata,
         &caches,
         event_id,
@@ -524,7 +523,6 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
     assert_eq!(summary.non_pool.creature.respawn_timers_removed, 1);
     assert_eq!(summary.non_pool.creature.load_attempts, 1);
     assert_eq!(summary.non_pool.creature.successful_loaded_grid_spawns, 1);
-    assert_eq!(summary.non_pool.creature.legacy_creature_mirrors, 1);
     assert_eq!(summary.non_pool.gameobject.guids_seen, 1);
     assert_eq!(summary.non_pool.gameobject.respawn_timers_removed, 1);
     assert_eq!(summary.non_pool.gameobject.load_attempts, 1);
@@ -548,8 +546,8 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
             .read()
             .unwrap()
             .find_creature(571, 0, creature.guid())
-            .is_some(),
-        "Rust split runtime must mirror C++ AddToMap-loaded creatures into the legacy tick manager"
+            .is_none(),
+        "#1263 F6-8D3b-2: C++ AddToMap has one store; no canonical->legacy mirror"
     );
     let gameobject = map
         .get_gameobject_by_spawn_id_like_cpp(gameobject_spawn_id)
@@ -595,7 +593,7 @@ fn game_event_spawn_for_event_missing_creature_bucket_skips_gameobjects_and_pool
     let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
 
     let summary =
-        game_event_spawn_for_event_like_cpp(&mut manager, None, &metadata, &caches, event_id);
+        game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(summary.non_pool.missing_event_creature_guids);
@@ -699,7 +697,7 @@ fn game_event_spawn_for_event_missing_gameobject_bucket_skips_pool_after_creatur
         ));
 
     let summary =
-        game_event_spawn_for_event_like_cpp(&mut manager, None, &metadata, &caches, event_id);
+        game_event_spawn_for_event_like_cpp(&mut manager, &metadata, &caches, event_id);
 
     assert_eq!(summary.event_id, event_id);
     assert!(!summary.non_pool.missing_event_creature_guids);
@@ -791,7 +789,6 @@ fn game_event_spawn_non_pool_unloaded_grid_removes_timer_without_fabricating_lik
 
     let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        None,
         &metadata,
         &caches,
         event_id,
@@ -863,7 +860,6 @@ fn game_event_spawn_missing_creature_bucket_returns_before_gameobjects_like_cpp(
 
     let summary = game_event_spawn_creatures_and_gameobjects_for_event_like_cpp(
         &mut manager,
-        None,
         &metadata,
         &caches,
         event_id,

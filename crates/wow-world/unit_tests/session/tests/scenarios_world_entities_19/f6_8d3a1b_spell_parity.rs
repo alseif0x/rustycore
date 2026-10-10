@@ -320,8 +320,15 @@ fn d3a1b_caster_state_like_cpp(
     runtime: &wow_entities::Creature,
     cooldowns: &wow_entities::Creature,
 ) -> String {
+    // The exact stream position: raw 32-bit draws of a clone of the
+    // creature-owned generator (#1263 F6-8D3b-2: four `roll_damage` draws over
+    // a 1..2 range coincide for neighbouring positions one time in sixteen).
     let mut probe = runtime.clone();
-    let draws: Vec<_> = (0..4).map(|_| probe.roll_damage()).collect();
+    let draws: Vec<u32> = (0..4)
+        .map(|_| {
+            rand::RngCore::next_u32(probe.runtime_like_cpp_mut().runtime_rng_like_cpp_mut())
+        })
+        .collect();
     let schedule = runtime.runtime_like_cpp();
     format!(
         "draws={draws:?} rng_complete={} elapsed={} last_swing={} swing_timer={} victim={:?} \

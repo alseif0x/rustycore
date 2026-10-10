@@ -59,7 +59,7 @@ use super::{
     get_address_for_client_with_local_networks, half_max_core_stuck_time_like_cpp,
     install_canonical_spawn_group_initializer_like_cpp, is_ffa_pvp_realm_type_like_cpp,
     is_pvp_realm_type_like_cpp, kick_all_sessions_like_cpp, legacy_creature_aggro_config_like_cpp,
-    legacy_creature_global_runtime_enabled_from_config_like_cpp,
+    creature_tick_owner_from_config_like_cpp,
     load_loaded_grid_area_triggers_like_cpp, load_world_config_from, loot_drop_rates_like_cpp,
     loot_quest_required_from_signed_db_like_cpp,
     materialize_game_event_quest_complete_db_bridge_like_cpp,

@@ -93,6 +93,11 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 }
             }
 
+            // C++ `World::Update` refreshes the game clock once, in
+            // `_UpdateGameTime` before `UpdateSessions` (`World.cpp:2566-2570`),
+            // and `Map::Update`/`ProcessRespawns`/`Creature::Update` read that
+            // same `GameTime` after the sessions ran. `now` is therefore taken
+            // here, before the session passes, and is not re-captured.
             let now = Instant::now();
             let mut diff_ms = now
                 .duration_since(last_tick)
@@ -303,7 +308,6 @@ pub(crate) fn spawn_canonical_map_update_loop(
                                     plan,
                                     coordinator_id,
                                     inputs,
-                                    &legacy_map_manager,
                                     map_store.as_ref(),
                                     now,
                                 ));
@@ -311,7 +315,6 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         };
                     canonical_map_tick_resume_with_creature_owner_like_cpp(
                         &mut manager,
-                        Some(&legacy_map_manager),
                         plan.plan,
                         &mut respawn_condition_scheduler,
                         &canonical_spawn_metadata,
@@ -369,8 +372,13 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         }
                     }
                 }
-                // The executor's lifecycle ran after the respawn phase, so its
-                // statements follow the canonical ones, still under the gate.
+                // Still under the gate, the executor's lifecycle statements are
+                // submitted after every statement of the map tick summary above —
+                // the respawn phase's deletes and the GameObject respawn saves the
+                // object visitors produced. C++ interleaves creature and GameObject
+                // saves in cell-visit order inside `ObjectUpdater`; they address
+                // different (type, spawnId) keys, so the writer's per-key final
+                // state is the same either way.
                 if let Some(phases) = creature_phases.as_mut() {
                     submit_creature_lifecycle_respawn_db_mutations_like_cpp(
                         &mut phases.lifecycle.respawn_db_mutations,
@@ -510,7 +518,6 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     };
                     consume_game_event_live_update_side_effects_like_cpp(
                         &mut manager,
-                        Some(&legacy_map_manager),
                         &mut canonical_spawn_metadata,
                         &loaded_grid_creature_respawn_caches,
                         Some(battlemaster_list_store.as_ref()),

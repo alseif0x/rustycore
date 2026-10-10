@@ -75,7 +75,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 | PACKET SPOOF PROTECTION SETTINGS | 4303-4336 | `PacketSpoof.Policy=1` (0 log / 1 log+kick / 2 log+kick+ban), `PacketSpoof.BanMode=0` (0 account / 2 IP), `PacketSpoof.BanDuration=86400` |
 | METRIC SETTINGS | 4338-4389 | `Metric.Enable`, `Metric.Interval=1`, `Metric.ConnectionInfo="127.0.0.1;8086;worldserver"`, `Metric.OverallStatusInterval=1`, `Metric.Threshold.<name>` |
 | PVP SETTINGS | 4391-4426 | `Pvp.FactionBalance.LevelCheckDiff`, `Pvp.FactionBalance.{Pct5=0.6,Pct10=0.7,Pct20=0.8}` |
-| RUSTYCORE TEST / RUNTIME FLAGS | 4428-4444 | `Bot.AccountPrefix` (RustyCore-only addition; gates the synchronous-login path used by headless test bots), `RustyCore.LegacyCreatureGlobalRuntime` (RustyCore-only runtime owner flag; default enabled / absent means map-owned), `RustyCore.CanonicalCreatureRuntime` (RustyCore-only, #1263 F6-8D3b-1; default `0`; `1` selects the `CanonicalMap` creature tick owner) |
+| RUSTYCORE TEST / RUNTIME FLAGS | 4428-4444 | `Bot.AccountPrefix` (RustyCore-only addition; gates the synchronous-login path used by headless test bots), `RustyCore.LegacyCreatureGlobalRuntime` and `RustyCore.CanonicalCreatureRuntime` (RustyCore-only; **retired** by #1263 F6-8D3b-2 — ignored with a startup warning; the creature tick owner is always `CanonicalMap`) |
 
 ### `bnetserver.conf.dist` section index
 
@@ -128,7 +128,7 @@ All paths relative to `/home/server/woltk-trinity-legacy/`.
 - `Realm`, `Database` — `LoginDatabaseInfo`, `WorldDatabaseInfo`, `CharacterDatabaseInfo`, `HotfixDatabaseInfo`, `*.WorkerThreads`, `*.SynchThreads`, `MaxPingTime`, `RealmID`
 - `WorldSocket` / `WorldSocketMgr` — `WorldServerPort`, `InstanceServerPort`, `BindIP`, `Network.Threads`, `Network.{OutKBuff,OutUBuff,TcpNodelay}`, `SocketTimeOutTime{,Active}`, `CONFIG_COMPRESSION`, `PacketSpoof.{Policy,BanMode,BanDuration}`
 - `WorldSocket` / `WorldSession` — `MaxOverspeedPings`, `SessionAddDelay`, `Auth*`, `WrongPass.*`, `Bot.AccountPrefix`
-- `Map` / `MapManager` — `GridUnload`, `BaseMapLoadAllGrids`, `InstanceMapLoadAllGrids`, `BattlegroundMapLoadAllGrids`, `GridCleanUpDelay`, `MinWorldUpdateTime`, `MapUpdateInterval`, `RustyCore.LegacyCreatureGlobalRuntime`, `RustyCore.CanonicalCreatureRuntime`
+- `Map` / `MapManager` — `GridUnload`, `BaseMapLoadAllGrids`, `InstanceMapLoadAllGrids`, `BattlegroundMapLoadAllGrids`, `GridCleanUpDelay`, `MinWorldUpdateTime`, `MapUpdateInterval` (the retired `RustyCore.LegacyCreatureGlobalRuntime` / `RustyCore.CanonicalCreatureRuntime` keys are ignored)
 - `Player` — every `Rate.XP.*`, `Rate.Health/Mana/...`, `MaxPlayerLevel`, `StartPlayerLevel`, `StartPlayerMoney`, `Death.*`, `CharDelete.*`, `Visibility.*`, `Stats.Limits.*`
 - `Creature` — `Rate.Creature.{Damage,SpellDamage,HP}.*`, `Corpse.Decay.*`, `Rate.Creature.Aggro`
 - `BattlegroundMgr` — every `Battleground.*`
@@ -193,8 +193,8 @@ The config layer is process-internal — it does not originate packets. It does,
 - ✅ Single section headers (`[worldserver]` / `[bnetserver]`) are accepted and flattened, matching C++ `fullTree.begin()->second`.
 - ✅ Canonical TC semicolon DB strings (`LoginDatabaseInfo = "host;port;user;pass;db[;ssl]"`) are parsed by `get_database_info_default`.
 - ✅ BNet TLS uses configured `CertificatesFile` and `PrivateKeyFile` paths with C++ defaults.
-- ✅ RustyCore-only runtime flags can be read ad hoc. `RustyCore.LegacyCreatureGlobalRuntime` is numeric `0`/`1`, defaults to enabled when absent, and is intentionally not part of TrinityCore config parity.
-- ✅ `RustyCore.CanonicalCreatureRuntime` (#1263 F6-8D3b-1) is numeric `0`/`1` and defaults to `0`. With `1` the creature tick owner is `RuntimeTickOwner::CanonicalMap`: the canonical map update loop runs the admitted canonical creature executor inside each admitted map tick, the legacy creature loop is spawned idle and session creature ticks are skipped; it takes precedence over `RustyCore.LegacyCreatureGlobalRuntime`. One owner value is set once at startup, so exactly one creature loop is live. Like every key, it can be overridden by its TrinityCore `TC_*` environment variable only when the key is present in a config file. It is a staged, non-default owner: until #1263 F6-8D3b-2 inverts the session-side creature mutation root to canonical-first, it must not be enabled for real clients.
+- ✅ RustyCore-only runtime flags can be read ad hoc; they are intentionally not part of TrinityCore config parity.
+- ✅ Creature tick owner (#1263 F6-8D3b-2): production always runs `RuntimeTickOwner::CanonicalMap` — the canonical map update loop runs the admitted canonical creature executor inside each admitted map tick (C++ `Map::Update` → `Creature::Update`), no legacy creature loop is spawned and session creature ticks are skipped. The two former selection keys, `RustyCore.LegacyCreatureGlobalRuntime` (legacy global loop / per-session tick) and `RustyCore.CanonicalCreatureRuntime` (F6-8D3b-1 opt-in), are **retired**: a configuration that still sets either gets a startup warning and the key has no effect. Neither is kept as a rollback knob: the legacy owners tick the legacy compatibility store, which production no longer fills (no registry copy, no loaded-grid mirror), so selecting them would leave every creature unticked. Rolling back means reverting the change.
 
 **What's missing vs C++:**
 
@@ -286,7 +286,7 @@ The config layer is process-internal — it does not originate packets. It does,
 
 10. **`Bot.AccountPrefix`** is a RustyCore-specific addition (not in TC). It is documented in `worldserver.conf.dist` lines 4428-4444 and gates the synchronous-login path used by the LFG headless test bot. Production realms must leave it `""` — see AGENTS.md.
 
-11. **`RustyCore.LegacyCreatureGlobalRuntime`** is a RustyCore-specific runtime flag (not in TC). It is read as numeric `0`/`1`; absent and non-zero flip the shared legacy map owner to `GlobalLegacy` and start the global creature runtime loop at `MapUpdateInterval`, matching C++ map-owned creature updates. `0` is a diagnostic override for the old session-owned path.
+11. **`RustyCore.LegacyCreatureGlobalRuntime`** and **`RustyCore.CanonicalCreatureRuntime`** were RustyCore-specific creature-owner flags (not in TC). Both are retired since #1263 F6-8D3b-2 and ignored with a startup warning; the creature tick owner is always the canonical map loop.
 
 12. **`TOTPMasterSecret` is a hex string**, not a base64 string. TC uses raw 16-byte AES-128-CBC keys formatted as 32 hex chars (`000102…0F`).
 

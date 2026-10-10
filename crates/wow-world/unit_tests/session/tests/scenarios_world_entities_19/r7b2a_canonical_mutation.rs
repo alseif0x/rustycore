@@ -190,6 +190,32 @@ pub(super) fn admission_candidate_like_cpp(guid: ObjectGuid) -> wow_entities::Cr
     creature
 }
 
+/// The former `SessionCore::sync_canonical_creature_entity_like_cpp` root,
+/// which #1263 F6-8D3b-2 deleted (production never transports a legacy
+/// representation into the incarnation any more): the session's key and the
+/// representation's own authority, through the shared map-level gate the legacy
+/// runtime bodies still use until F6-8E.
+fn sync_canonical_creature_entity_like_cpp(
+    session: &WorldSession,
+    creature: wow_entities::Creature,
+) -> bool {
+    let expected = creature.loot_authority_like_cpp().clone();
+    let stamp = expected.stamp_like_cpp();
+    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let Some(manager) = session.core.canonical_map_manager.as_ref().cloned() else {
+        return false;
+    };
+    crate::session::sync_admitted_creature_representation_on_map_like_cpp(
+        &manager,
+        session.core.map_manager.as_ref(),
+        map_id,
+        instance_id,
+        creature,
+        &expected,
+        stamp,
+    )
+}
+
 // ---------------------------------------------------------------------------
 // Root 1: `SessionCore::sync_canonical_creature_entity_like_cpp`
 // ---------------------------------------------------------------------------
@@ -233,9 +259,7 @@ fn fresh_sync_applies_to_the_incarnation_and_synchronizes_the_legacy_alias_like_
     );
     transported.ai_ownership_mut().npc_flags = 0x0001_0002;
 
-    let applied = session
-        .core
-        .sync_canonical_creature_entity_like_cpp(transported);
+    let applied = sync_canonical_creature_entity_like_cpp(&session, transported);
 
     assert!(
         applied,
@@ -285,9 +309,7 @@ fn stale_sync_is_refused_before_application_and_leaves_both_stores_like_cpp() {
     advance_canonical_max_health_like_cpp(&canonical, guid, 140);
     let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
 
-    let applied = session
-        .core
-        .sync_canonical_creature_entity_like_cpp(transported);
+    let applied = sync_canonical_creature_entity_like_cpp(&session, transported);
 
     assert!(
         !applied,
@@ -336,9 +358,7 @@ fn aba_sync_is_refused_before_application_like_cpp() {
     let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
 
     assert!(
-        !session
-            .core
-            .sync_canonical_creature_entity_like_cpp(transported),
+        !sync_canonical_creature_entity_like_cpp(&session, transported),
         "an ABA replay is a stale representation, not a fresh one"
     );
     assert_eq!(
@@ -371,9 +391,7 @@ fn different_incarnation_and_competing_allocation_refuse_the_sync_like_cpp() {
         &canonical_creature_like_cpp(&canonical, guid).expect("replacement"),
     );
     assert!(
-        !session
-            .core
-            .sync_canonical_creature_entity_like_cpp(destroyed),
+        !sync_canonical_creature_entity_like_cpp(&session, destroyed),
         "a representation of a destroyed incarnation must not replace the recreation"
     );
     assert_eq!(
@@ -399,9 +417,7 @@ fn different_incarnation_and_competing_allocation_refuse_the_sync_like_cpp() {
         .clone();
 
     assert!(
-        !session
-            .core
-            .sync_canonical_creature_entity_like_cpp(transported),
+        !sync_canonical_creature_entity_like_cpp(&session, transported),
         "a competing used allocation must not be reconciled into the incarnation"
     );
     assert_eq!(
@@ -436,9 +452,7 @@ fn unavailable_sync_ownership_is_refused_before_application_like_cpp() {
 
     // No canonical manager at all: there is no incarnation to synchronize into.
     assert!(
-        !session
-            .core
-            .sync_canonical_creature_entity_like_cpp(transported.clone()),
+        !sync_canonical_creature_entity_like_cpp(&session, transported.clone()),
         "a session without a canonical store has no incarnation to synchronize"
     );
 
@@ -446,18 +460,14 @@ fn unavailable_sync_ownership_is_refused_before_application_like_cpp() {
     let canonical = shared_canonical_map_manager();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     assert!(
-        !session
-            .core
-            .sync_canonical_creature_entity_like_cpp(transported.clone()),
+        !sync_canonical_creature_entity_like_cpp(&session, transported.clone()),
         "a missing canonical map instance is unavailable ownership"
     );
 
     // A canonical map instance without the incarnation for this GUID.
     canonical.lock().unwrap().create_world_map(0, 0);
     assert!(
-        !session
-            .core
-            .sync_canonical_creature_entity_like_cpp(transported.clone()),
+        !sync_canonical_creature_entity_like_cpp(&session, transported.clone()),
         "a missing canonical object is unavailable ownership"
     );
     assert!(
@@ -490,9 +500,7 @@ fn sync_without_a_legacy_representation_still_applies_to_the_incarnation_like_cp
         .expect("the fixture registered the legacy representation");
 
     assert!(
-        session
-            .core
-            .sync_canonical_creature_entity_like_cpp(transported),
+        sync_canonical_creature_entity_like_cpp(&session, transported),
         "the canonical incarnation is the ownership this root resolves"
     );
     assert_eq!(

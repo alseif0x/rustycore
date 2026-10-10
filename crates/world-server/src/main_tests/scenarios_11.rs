@@ -463,7 +463,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        Some(&legacy),
         1,
         &mut scheduler,
         &metadata,
@@ -474,7 +473,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
     .expect("scheduler fires and condition spawn executes");
 
     assert_eq!(summary.condition_spawn_executed_loaded_grid_spawns, 1);
-    assert_eq!(summary.condition_spawn_legacy_creature_mirrors, 1);
     let creature = manager
         .find_map(571, 0)
         .expect("canonical map")
@@ -488,8 +486,8 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
             .read()
             .unwrap()
             .find_creature(571, 0, creature.guid())
-            .is_some(),
-        "C++ AddToMap has one live runtime; Rust split runtime must mirror internal wow-map loaded-grid inserts into legacy"
+            .is_none(),
+        "#1263 F6-8D3b-2: C++ AddToMap has one live runtime; no canonical->legacy mirror"
     );
 }
 #[test]

@@ -44,7 +44,6 @@ pub struct PlayerGridLoadOutcomeLikeCpp {
     pub creature_load_record_missing: usize,
     pub gameobject_load_record_missing: usize,
     pub area_trigger_load_record_missing: usize,
-    pub legacy_creature_mirrors: usize,
 }
 
 pub type PlayerGridLoadResolverLikeCpp =

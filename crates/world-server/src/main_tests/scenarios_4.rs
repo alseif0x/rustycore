@@ -571,18 +571,12 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
         "production must decide the tick owner exactly once, found {}",
         calls.len()
     );
-    let spawn = app
-        .find("spawn_legacy_creature_runtime_update_loop_like_cpp(")
-        .expect("the global legacy creature loop is spawned in app.rs");
-    assert!(
-        calls[0].0 < spawn,
-        "the owner must be set before the loop that reads it is spawned"
-    );
-    // #1263 F6-8D3b-1: both creature loops derive from that one value.
+    // #1263 F6-8D3b-2: the owner is set before the canonical map loop, the
+    // only creature loop production spawns.
     assert!(calls[0].0 < app.find("spawn_canonical_map_update_loop(").unwrap());
-    assert_eq!(
-        app.matches("creature_tick_owner_loops_like_cpp(").count(),
-        1
+    assert!(
+        !app.contains("spawn_legacy_creature_runtime_update_loop_like_cpp("),
+        "production no longer spawns the legacy creature loop"
     );
 
     for source in [
@@ -611,19 +605,24 @@ fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     assert!(validation < first_runtime_write);
 }
 #[test]
-fn legacy_creature_global_runtime_config_defaults_to_cpp_map_owned_runtime() {
+fn retired_creature_owner_keys_do_not_select_a_legacy_owner_like_cpp() {
+    use wow_world::map_manager::RuntimeTickOwner;
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
-    wow_config::load_config_from_str("").expect("config should load");
-    assert!(legacy_creature_global_runtime_enabled_from_config_like_cpp());
-
-    wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 0\n")
-        .expect("config should load");
-    assert!(!legacy_creature_global_runtime_enabled_from_config_like_cpp());
-
-    wow_config::load_config_from_str("RustyCore.LegacyCreatureGlobalRuntime = 1\n")
-        .expect("config should load");
-    assert!(legacy_creature_global_runtime_enabled_from_config_like_cpp());
+    for config in [
+        "",
+        "RustyCore.LegacyCreatureGlobalRuntime = 0\n",
+        "RustyCore.LegacyCreatureGlobalRuntime = 1\n",
+        "RustyCore.CanonicalCreatureRuntime = 0\n",
+        "RustyCore.CanonicalCreatureRuntime = 1\n",
+    ] {
+        wow_config::load_config_from_str(config).expect("config should load");
+        assert_eq!(
+            creature_tick_owner_from_config_like_cpp(),
+            RuntimeTickOwner::CanonicalMap,
+            "{config:?}"
+        );
+    }
 }
 #[test]
 fn legacy_creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {

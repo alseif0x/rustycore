@@ -1,31 +1,34 @@
 //! Scenarios for [`super`], part 16.
 //!
-//! #1263 F6-8D3b-1: the `RuntimeTickOwner::CanonicalMap` creature tick owner.
+//! #1263 F6-8D3b-1/D3b-2: the `RuntimeTickOwner::CanonicalMap` creature tick
+//! owner, end to end.
 //!
 //! The integration regression boots the real canonical map update loop
-//! (`spawn_canonical_map_update_loop`) with the canonical creature owner on a
-//! fixture with one hostile creature and one player, drives it for real ticks,
-//! and reads what reached the player's session rails. The legacy creature loop
-//! is spawned **enabled** beside it, as a misconfiguration would, to prove the
-//! single owner value keeps it inert: the legacy representation is never
-//! ticked, and the canonical creature's clock equals the executor's own count.
-//! The same fixture under `GlobalLegacy` is the VALUES-count comparison.
+//! (`spawn_canonical_map_update_loop`) with the canonical creature owner — the
+//! production default since F6-8D3b-2 — on a fixture with one hostile creature
+//! and one **real** `WorldSession` in the world. The loop's production delivery
+//! reaches the session's own mailbox, and the session runs the update steps the
+//! driver runs for them (mailbox drain, then the creature-kill phase), so the
+//! kill hooks and `setDeathState(JUST_DIED)` go through the canonical-first
+//! mutation root, the loot is opened and released with the registered packet
+//! handlers, and the respawn CREATE is built by the session from the canonical
+//! map. No legacy creature loop runs and no legacy copy of the creature exists.
 
 use std::sync::atomic::Ordering;
 
 use super::*;
 use crate::runtime::canonical_creature_runtime::{
     CanonicalCreatureRuntimeLikeCpp, CanonicalCreatureRuntimeProbeLikeCpp,
-    creature_tick_owner_loops_like_cpp,
 };
 use wow_world::map_manager::RuntimeTickOwner;
 
-const D3B1_TICK_MS_LIKE_CPP: u32 = 20;
-const D3B1_CREATURE_HP_LIKE_CPP: u32 = 20;
-const D3B1_PLAYER_HP_LIKE_CPP: u64 = 1_000;
-const D3B1_SPAWN_ID_LIKE_CPP: u64 = 96_301;
+const D3B_TICK_MS_LIKE_CPP: u32 = 20;
+const D3B_CREATURE_HP_LIKE_CPP: u32 = 20;
+const D3B_PLAYER_HP_LIKE_CPP: u64 = 1_000;
+const D3B_SPAWN_ID_LIKE_CPP: u64 = 96_301;
+const D3B_CREATURE_GOLD_LIKE_CPP: u32 = 7;
 
-fn d3b1_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+fn d3b_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
     let template = |id, faction, enemies| wow_data::progression_rewards::FactionTemplateEntry {
         id,
         faction,
@@ -52,34 +55,46 @@ fn d3b1_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfig
     }
 }
 
-/// One hostile persistent-spawn creature, admitted on both stores as
-/// production registers it, and one player that swings at it.
-struct D3b1WorldLikeCpp {
+fn d3b_canonical_runtime_like_cpp() -> CanonicalCreatureRuntimeLikeCpp {
+    CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
+        wow_world::MMapRuntimeConfigLikeCpp {
+            enabled: false,
+            ..Default::default()
+        },
+        None,
+        d3b_aggro_config_like_cpp(),
+        None,
+    )
+}
+
+/// One hostile persistent-spawn creature on the canonical map only, as the
+/// production registration and loaded-grid paths now leave it, and the map
+/// data the sessions and the loop share.
+struct D3bWorldLikeCpp {
     legacy: wow_world::SharedMapManager,
     canonical: wow_world::SharedCanonicalMapManager,
     registry: Arc<PlayerRegistry>,
-    player: ObjectGuid,
+    map_store: Arc<wow_data::MapStore>,
     creature: ObjectGuid,
-    command_rx: flume::Receiver<SessionCommand>,
     writer: RespawnDbWriterSenderLikeCpp,
 }
 
-fn d3b1_world_like_cpp(base: i64, owner: RuntimeTickOwner) -> D3b1WorldLikeCpp {
+fn d3b_world_like_cpp(base: i64) -> D3bWorldLikeCpp {
     let legacy: wow_world::SharedMapManager =
         Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
+    legacy
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::CanonicalMap);
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
     canonical.lock().unwrap().create_world_map(0, 0);
     let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, base);
-    let player = ObjectGuid::create_player(1, base + 1);
-    let creature_position = Position::new(10.0, 10.0, 0.0, 0.0);
-    let player_position = Position::new(11.0, 10.0, 0.0, std::f32::consts::PI);
-
     let mut world_creature = wow_world::map_manager::WorldCreature::new(
         creature,
         9001,
-        creature_position,
-        D3B1_CREATURE_HP_LIKE_CPP,
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        D3B_CREATURE_HP_LIKE_CPP,
         2,
         3,
         5,
@@ -89,13 +104,17 @@ fn d3b1_world_like_cpp(base: i64, owner: RuntimeTickOwner) -> D3b1WorldLikeCpp {
         0,
         0,
     );
-    world_creature.creature.set_spawn_id(D3B1_SPAWN_ID_LIKE_CPP);
+    world_creature.creature.set_spawn_id(D3B_SPAWN_ID_LIKE_CPP);
+    // A money drop (C++ `Creature::GetLootMode` / `mingold..maxgold`), so the
+    // corpse is lootable without an item template store.
+    world_creature.creature.ai_ownership_mut().gold_min = D3B_CREATURE_GOLD_LIKE_CPP;
+    world_creature.creature.ai_ownership_mut().gold_max = D3B_CREATURE_GOLD_LIKE_CPP;
     world_creature.creature.set_corpse_delay(1, false);
     world_creature.creature.set_respawn_delay(1);
     world_creature.creature.ai_ownership_mut().respawn_time_secs = 1;
     world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-    world_creature.seed_runtime_rng_like_cpp(0xD3B1);
-    let mut canonical_creature = world_creature.creature.clone();
+    world_creature.seed_runtime_rng_like_cpp(0xD3B2);
+    let mut canonical_creature = world_creature.creature;
     canonical_creature
         .unit_mut()
         .world_mut()
@@ -113,94 +132,156 @@ fn d3b1_world_like_cpp(base: i64, owner: RuntimeTickOwner) -> D3b1WorldLikeCpp {
             MapObjectRecord::new_creature(canonical_creature).unwrap(),
         )
         .unwrap();
-    {
-        let mut manager = legacy.write().unwrap();
-        manager.add_creature(
-            0,
-            0,
-            wow_world::map_manager::world_to_grid_x(creature_position.x),
-            wow_world::map_manager::world_to_grid_y(creature_position.y),
-            world_creature,
-        );
-        manager.set_tick_owner(owner);
-    }
-
-    {
-        let mut canonical_player = Player::new(Some(1), false);
-        let unit = canonical_player.unit_mut();
-        unit.world_mut().object_mut().create(player);
-        unit.world_mut().set_name("D3b1Player");
-        unit.world_mut().set_map(0, 0).unwrap();
-        unit.world_mut().relocate(player_position);
-        unit.set_level(80);
-        unit.set_faction(1);
-        unit.set_max_health(D3B1_PLAYER_HP_LIKE_CPP);
-        unit.set_health(D3B1_PLAYER_HP_LIKE_CPP);
-        canonical
-            .lock()
-            .unwrap()
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .add_map_object_record_to_map_like_cpp(
-                MapObjectRecord::new_player(canonical_player).unwrap(),
-            )
-            .unwrap();
-    }
-    {
-        let mut guard = canonical.lock().unwrap();
-        let map = guard.find_map_mut(0, 0).unwrap().map_mut();
-        let unit = map.get_typed_player_mut(player).unwrap().unit_mut();
-        unit.set_death_state(wow_constants::DeathState::Alive);
-        unit.subsystems_mut()
-            .auras
-            .set_spell_hit_aura_authority_inert_like_cpp(true);
-        unit.set_attacking(Some(creature));
-        unit.set_target(creature);
-        unit.add_unit_state(wow_constants::UnitState::MELEE_ATTACKING.bits());
-        unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::BaseAttack, 300);
-        unit.set_weapon_damage(wow_constants::WeaponAttackType::BaseAttack, 10.0, 10.0);
-        unit.reset_attack_timer_like_cpp(wow_constants::WeaponAttackType::BaseAttack);
-    }
-
     let registry = Arc::new(PlayerRegistry::default());
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
-    let (send_tx, _send_rx) = flume::bounded(1024);
-    let (command_tx, command_rx) = flume::bounded(1024);
-    let mut info = player_registration_fixture_like_cpp(send_tx, command_tx, "D3b1Player");
-    info.placement.map_id = 0;
-    info.placement.instance_id = 0;
-    info.placement.position = player_position;
-    info.placement.is_in_world = true;
-    info.client_visible_guids_like_cpp.insert(creature);
-    registry.register_or_replace(player, info, Default::default());
-
-    D3b1WorldLikeCpp {
+    D3bWorldLikeCpp {
         legacy,
         canonical,
         registry,
-        player,
+        map_store: Arc::new(legacy_runtime_world_map_store_like_cpp()),
         creature,
-        command_rx,
         writer: RespawnDbWriterSenderLikeCpp::new_like_cpp(),
     }
 }
 
-/// What reached the player's rails and the respawn writer over one run.
+/// A real session entering the canonical world as the login path leaves it.
+async fn d3b_session_like_cpp(
+    world: &D3bWorldLikeCpp,
+    player: ObjectGuid,
+    name: &str,
+    position: Position,
+) -> (wow_world::session::WorldSession, flume::Receiver<Vec<u8>>) {
+    let (_pkt_tx, pkt_rx) = flume::bounded(16);
+    let (send_tx, send_rx) = flume::unbounded();
+    let mut session = wow_world::session::WorldSession::new(
+        1,
+        name.to_string(),
+        0,
+        2,
+        9,
+        54261,
+        vec![0u8; 40],
+        "esES".into(),
+        pkt_rx,
+        send_tx,
+        wow_world::session::registry::build_dispatch_table(),
+    );
+    assert!(
+        session
+            .enter_canonical_world_for_test_like_cpp(
+                Arc::clone(&world.legacy),
+                Arc::clone(&world.canonical),
+                Arc::clone(&world.map_store),
+                Arc::clone(&world.registry),
+                player,
+                name,
+                position,
+                80,
+            )
+            .await,
+        "the canonical map admits the player"
+    );
+    (session, send_rx)
+}
+
+/// The player swings at the creature: the attack state the session's
+/// `CMSG_ATTACKSWING` leaves on the canonical player.
+fn d3b_player_attacks_like_cpp(world: &D3bWorldLikeCpp, player: ObjectGuid) {
+    let mut guard = world.canonical.lock().unwrap();
+    let map = guard.find_map_mut(0, 0).unwrap().map_mut();
+    let unit = map.get_typed_player_mut(player).unwrap().unit_mut();
+    unit.set_faction(1);
+    unit.set_max_health(D3B_PLAYER_HP_LIKE_CPP);
+    unit.set_health(D3B_PLAYER_HP_LIKE_CPP);
+    unit.set_death_state(wow_constants::DeathState::Alive);
+    unit.subsystems_mut()
+        .auras
+        .set_spell_hit_aura_authority_inert_like_cpp(true);
+    unit.set_attacking(Some(world.creature));
+    unit.set_target(world.creature);
+    unit.add_unit_state(wow_constants::UnitState::MELEE_ATTACKING.bits());
+    unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::BaseAttack, 300);
+    unit.set_weapon_damage(wow_constants::WeaponAttackType::BaseAttack, 10.0, 10.0);
+    unit.reset_attack_timer_like_cpp(wow_constants::WeaponAttackType::BaseAttack);
+}
+
+fn d3b_canonical_creature_like_cpp<R>(
+    world: &D3bWorldLikeCpp,
+    read: impl FnOnce(&wow_entities::Creature) -> R,
+) -> Option<R> {
+    world
+        .canonical
+        .lock()
+        .unwrap()
+        .find_map(0, 0)
+        .unwrap()
+        .map()
+        .get_typed_creature(world.creature)
+        .map(read)
+}
+
+fn d3b_guid_packet_like_cpp(guid: ObjectGuid) -> wow_packet::WorldPacket {
+    let mut packet = wow_packet::WorldPacket::new_empty();
+    packet.write_packed_guid(&guid);
+    packet.reset_read();
+    packet
+}
+
+fn d3b_packed_guid_like_cpp(guid: ObjectGuid) -> Vec<u8> {
+    let mut packet = wow_packet::WorldPacket::new_empty();
+    packet.write_packed_guid(&guid);
+    packet.data().to_vec()
+}
+
+fn d3b_server_opcodes_like_cpp(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
+    send_rx
+        .try_iter()
+        .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(&bytes).server_opcode())
+        .collect()
+}
+
+/// The lifecycle stage the run is in, for the per-stage VALUES counts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+enum D3bStageLikeCpp {
+    Combat,
+    Corpse,
+    Despawned,
+    Respawned,
+}
+
+/// What reached the session and the writer over one run.
 #[derive(Debug, Default)]
-struct D3b1ObservedLikeCpp {
+struct D3bObservedLikeCpp {
     attack_starts: usize,
     creature_melee: usize,
     player_melee_results: usize,
     kills: usize,
     refreshes: usize,
-    creature_values_updates: usize,
+    /// `SendVisibleObjectValuesUpdate` commands for the creature the session
+    /// received, per lifecycle stage.
+    creature_values_updates: BTreeMap<D3bStageLikeCpp, usize>,
+    /// Creature VALUES `SMSG_UPDATE_OBJECT` packets the session sent, per
+    /// lifecycle stage.
+    creature_values_packets: BTreeMap<D3bStageLikeCpp, usize>,
+    destroy_delivered: bool,
+    update_after_despawn: bool,
     db_mutations: Vec<RespawnPersistenceMutationLikeCpp>,
+    just_died: bool,
+    loot_response: bool,
+    loot_released: bool,
+    despawned: bool,
     respawned: bool,
+    respawn_create_delivered: bool,
+    legacy_copy_seen: bool,
 }
 
-impl D3b1ObservedLikeCpp {
-    fn record_like_cpp(&mut self, creature: ObjectGuid, command: SessionCommand) {
+impl D3bObservedLikeCpp {
+    fn record_like_cpp(
+        &mut self,
+        creature: ObjectGuid,
+        stage: D3bStageLikeCpp,
+        command: &SessionCommand,
+    ) {
         match command {
             SessionCommand::CreatureAttackStartLikeCpp(_) => self.attack_starts += 1,
             SessionCommand::ApplyCreatureMeleeDamageLikeCpp(_) => self.creature_melee += 1,
@@ -212,50 +293,44 @@ impl D3b1ObservedLikeCpp {
             SessionCommand::SendVisibleObjectValuesUpdate(update)
                 if update.object_guid == creature =>
             {
-                self.creature_values_updates += 1;
+                *self.creature_values_updates.entry(stage).or_default() += 1;
             }
             _ => {}
         }
     }
+
+    fn stage_like_cpp(&self) -> D3bStageLikeCpp {
+        if self.respawned {
+            D3bStageLikeCpp::Respawned
+        } else if self.despawned {
+            D3bStageLikeCpp::Despawned
+        } else if self.kills > 0 {
+            D3bStageLikeCpp::Corpse
+        } else {
+            D3bStageLikeCpp::Combat
+        }
+    }
 }
 
-/// Boot the canonical map loop (with the canonical creature owner when
-/// `owner` selects it) and the legacy creature loop, drive them until the
-/// creature has died and respawned or `deadline` passes, and return what the
-/// player and the writer observed, plus the executor probe.
-async fn d3b1_run_like_cpp(
-    world: &D3b1WorldLikeCpp,
-    owner: RuntimeTickOwner,
-    legacy_loop_enabled: bool,
+/// Boot the canonical map loop with the canonical creature owner and drive the
+/// real session until the creature has died, been looted, despawned,
+/// respawned and been re-created at the client, or `deadline` passes.
+async fn d3b_run_like_cpp(
+    world: &D3bWorldLikeCpp,
+    session: &mut wow_world::session::WorldSession,
+    send_rx: &flume::Receiver<Vec<u8>>,
     deadline: Duration,
-    mut on_first_creature_melee: impl FnMut(&D3b1WorldLikeCpp, &CanonicalCreatureRuntimeProbeLikeCpp),
+    mut on_first_creature_melee: impl FnMut(&D3bWorldLikeCpp, &CanonicalCreatureRuntimeProbeLikeCpp),
 ) -> (
-    D3b1ObservedLikeCpp,
+    D3bObservedLikeCpp,
     Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
 ) {
-    let loops = creature_tick_owner_loops_like_cpp(owner);
-    let runtime = loops.canonical_creature_runtime.then(|| {
-        CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
-            wow_world::MMapRuntimeConfigLikeCpp {
-                enabled: false,
-                ..Default::default()
-            },
-            None,
-            d3b1_aggro_config_like_cpp(),
-            None,
-        )
-    });
-    let probe = runtime.as_ref().map_or_else(
-        || Arc::new(CanonicalCreatureRuntimeProbeLikeCpp::default()),
-        |runtime| Arc::clone(&runtime.probe),
-    );
-    let respawn_db_mutation_order = Arc::new(Mutex::new(()));
-    let producer_stop = Arc::new(std::sync::atomic::AtomicBool::new(false));
-    let map_store = Arc::new(legacy_runtime_world_map_store_like_cpp());
+    let runtime = d3b_canonical_runtime_like_cpp();
+    let probe = Arc::clone(&runtime.probe);
     let canonical_handle = crate::runtime::spawn_canonical_map_update_loop(
         Arc::clone(&world.canonical),
         Arc::clone(&world.legacy),
-        D3B1_TICK_MS_LIKE_CPP,
+        D3B_TICK_MS_LIKE_CPP,
         60_000,
         Arc::new(Mutex::new(
             spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(
@@ -264,11 +339,11 @@ async fn d3b1_run_like_cpp(
             ),
         )),
         Arc::new(wow_data::ConditionEntriesByTypeStore::default()),
-        Arc::clone(&map_store),
+        Arc::clone(&world.map_store),
         Arc::new(FakeGameEventPersistencePortLikeCpp::default()),
         world.writer.clone(),
-        Arc::clone(&respawn_db_mutation_order),
-        Arc::clone(&producer_stop),
+        Arc::new(Mutex::new(())),
+        Arc::new(std::sync::atomic::AtomicBool::new(false)),
         empty_loaded_grid_creature_respawn_caches_like_cpp(),
         Arc::new(wow_data::AreaTriggerTemplateStore::default()),
         CanonicalGameEventSchedulerLikeCpp::start_system(3_600_000),
@@ -276,65 +351,85 @@ async fn d3b1_run_like_cpp(
         Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
         Arc::new(wow_data::BattlemasterListStore::from_entries([])),
         Arc::new(Mutex::new(Default::default())),
-        runtime,
-    );
-    let legacy_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
-        legacy_loop_enabled,
-        Arc::clone(&world.legacy),
-        Arc::clone(&world.canonical),
-        map_store,
-        wow_world::MMapRuntimeConfigLikeCpp {
-            enabled: false,
-            ..Default::default()
-        },
-        None,
-        d3b1_aggro_config_like_cpp(),
-        D3B1_TICK_MS_LIKE_CPP,
-        Some(world.writer.clone()),
-        respawn_db_mutation_order,
-        producer_stop,
-        None,
-        Arc::clone(&world.registry),
+        Some(runtime),
     );
 
-    let mut observed = D3b1ObservedLikeCpp::default();
+    let mut observed = D3bObservedLikeCpp::default();
     let mut seen_creature_melee = false;
-    let mut death_completed = false;
     let started = Instant::now();
-    while started.elapsed() < deadline && !observed.respawned {
-        tokio::time::sleep(Duration::from_millis(u64::from(D3B1_TICK_MS_LIKE_CPP))).await;
-        // A dropped map-pass request is revoked by its coordinator, so the
-        // tick continues without a session pass.
-        for command in world.command_rx.try_iter() {
-            observed.record_like_cpp(world.creature, command);
-        }
-        for command in
-            drain_durable_creature_runtime_commands_like_cpp(&world.registry, world.player)
-        {
-            observed.record_like_cpp(world.creature, command);
+    while started.elapsed() < deadline && !observed.respawn_create_delivered {
+        tokio::time::sleep(Duration::from_millis(u64::from(D3B_TICK_MS_LIKE_CPP))).await;
+        // The session update the driver runs for delivered commands: the
+        // mailbox, then the creature-kill phase.
+        let stage = observed.stage_like_cpp();
+        let creature = world.creature;
+        session
+            .run_session_commands_and_kills_for_test_like_cpp(|command| {
+                observed.record_like_cpp(creature, stage, command);
+            })
+            .await;
+        let mut opcodes = d3b_server_opcodes_like_cpp(send_rx);
+        // The driver's logged-in step that publishes the map's Unit VALUES:
+        // every creature VALUES packet this client receives comes from here.
+        // The stage is the creature's state on the canonical map when sent.
+        if session.send_map_unit_values_updates_for_test_like_cpp() > 0 {
+            let values_stage = match (
+                d3b_canonical_creature_like_cpp(world, wow_entities::Creature::is_alive),
+                observed.kills > 0,
+            ) {
+                (None, _) => D3bStageLikeCpp::Despawned,
+                (Some(false), _) => D3bStageLikeCpp::Corpse,
+                (Some(true), true) => D3bStageLikeCpp::Respawned,
+                (Some(true), false) => D3bStageLikeCpp::Combat,
+            };
+            let packed = d3b_packed_guid_like_cpp(creature);
+            for bytes in send_rx.try_iter() {
+                let packet = wow_packet::WorldPacket::from_bytes(&bytes);
+                if packet.server_opcode() == Some(ServerOpcodes::UpdateObject)
+                    && bytes.windows(packed.len()).any(|window| window == packed)
+                {
+                    *observed
+                        .creature_values_packets
+                        .entry(values_stage)
+                        .or_default() += 1;
+                }
+                opcodes.extend(packet.server_opcode());
+            }
         }
         if observed.creature_melee > 0 && !seen_creature_melee {
             seen_creature_melee = true;
             on_first_creature_melee(world, &probe);
         }
-        if observed.kills > 0 && !death_completed {
-            death_completed = true;
-            // The kill hooks and `setDeathState(JUST_DIED)` are the attacker
-            // session's (`process_pending_creature_kills_*` →
-            // `complete_represented_creature_death_state_after_kill_hooks_like_cpp`),
-            // through the legacy-first mutation root. Under `CanonicalMap` that
-            // root refuses the stale legacy representation (F6-8D3b-2 inverts
-            // it), so the test completes the death on the canonical
-            // incarnation, as the canonical-first root will.
-            let mut guard = world.canonical.lock().unwrap();
-            guard
-                .find_map_mut(0, 0)
-                .unwrap()
-                .map_mut()
-                .with_creature_mut_like_cpp(world.creature, |creature| {
-                    creature.complete_death_state_after_kill_hooks_like_cpp();
-                })
-                .expect("the killed creature is on the canonical map");
+        observed.legacy_copy_seen |= world
+            .legacy
+            .read()
+            .unwrap()
+            .find_creature(0, 0, world.creature)
+            .is_some();
+        let alive = d3b_canonical_creature_like_cpp(world, wow_entities::Creature::is_alive);
+        if observed.kills > 0 && !observed.just_died && alive == Some(false) {
+            // `setDeathState(JUST_DIED)` ran in the session's kill phase,
+            // through the canonical-first mutation root.
+            observed.just_died = true;
+            session
+                .dispatch_client_packet_for_test_like_cpp(
+                    wow_constants::ClientOpcodes::LootUnit,
+                    d3b_guid_packet_like_cpp(world.creature),
+                )
+                .await;
+            observed.loot_response =
+                d3b_server_opcodes_like_cpp(send_rx).contains(&ServerOpcodes::LootResponse);
+            session
+                .dispatch_client_packet_for_test_like_cpp(
+                    wow_constants::ClientOpcodes::LootRelease,
+                    d3b_guid_packet_like_cpp(world.creature),
+                )
+                .await;
+            observed.loot_released =
+                d3b_server_opcodes_like_cpp(send_rx).contains(&ServerOpcodes::LootRelease);
+        }
+        if observed.just_died && alive.is_none() {
+            observed.despawned = true;
         }
         // The test is the writer: it takes every due statement in order.
         loop {
@@ -351,52 +446,56 @@ async fn d3b1_run_like_cpp(
             };
             observed.db_mutations.push(attempt.pending.mutation);
         }
-        observed.respawned = observed.kills > 0
-            && observed.db_mutations.iter().any(|mutation| {
+        if observed.despawned && !observed.respawned && alive == Some(true) {
+            observed.respawned = observed.db_mutations.iter().any(|mutation| {
                 matches!(mutation, RespawnPersistenceMutationLikeCpp::Delete { .. })
-            })
-            && world
-                .canonical
-                .lock()
-                .unwrap()
-                .find_map(0, 0)
-                .unwrap()
-                .map()
-                .get_typed_creature(world.creature)
-                .is_some_and(|creature| creature.is_alive());
+            });
+        }
+        // The despawn DESTROY removed the creature from the client; only the
+        // respawn CREATE puts it back.
+        if observed.respawned
+            && (opcodes.contains(&ServerOpcodes::UpdateObject) || observed.update_after_despawn)
+            && session.client_sees_guid_for_test_like_cpp(world.creature)
+        {
+            observed.respawn_create_delivered = true;
+        }
+        if observed.despawned
+            && !session.client_sees_guid_for_test_like_cpp(world.creature)
+        {
+            observed.destroy_delivered = true;
+        }
+        if observed.destroy_delivered && opcodes.contains(&ServerOpcodes::UpdateObject) {
+            observed.update_after_despawn = true;
+        }
     }
     canonical_handle.abort();
-    legacy_handle.abort();
     let _ = canonical_handle.await;
-    let _ = legacy_handle.await;
     (observed, probe)
 }
 
-/// The legacy representation's runtime clock: it moves only when a legacy
-/// phase body ticks it.
-fn d3b1_legacy_clock_like_cpp(world: &D3b1WorldLikeCpp) -> Option<u64> {
-    world
-        .legacy
-        .read()
-        .unwrap()
-        .find_creature(0, 0, world.creature)
-        .map(|creature| creature.creature.runtime_elapsed_ms_like_cpp())
-}
-
 #[tokio::test]
-async fn canonical_map_owner_runs_the_creature_lifecycle_alone_and_delivers_to_the_session_like_cpp()
- {
-    let world = d3b1_world_like_cpp(96_300, RuntimeTickOwner::CanonicalMap);
+async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
+    let world = d3b_world_like_cpp(96_300);
+    let player = ObjectGuid::create_player(1, 96_301);
+    let player_position = Position::new(11.0, 10.0, 0.0, std::f32::consts::PI);
+    let (mut session, send_rx) =
+        d3b_session_like_cpp(&world, player, "D3bPlayer", player_position).await;
+    assert!(
+        session.client_sees_guid_for_test_like_cpp(world.creature),
+        "the login visibility pass created the canonical creature"
+    );
+    d3b_player_attacks_like_cpp(&world, player);
+    let _ = d3b_server_opcodes_like_cpp(&send_rx);
+
     let mut clock_check = None;
-    let (observed, probe) = d3b1_run_like_cpp(
+    let (observed, probe) = d3b_run_like_cpp(
         &world,
-        RuntimeTickOwner::CanonicalMap,
-        // Spawned enabled on purpose: the owner value alone keeps it inert.
-        true,
-        Duration::from_secs(8),
+        &mut session,
+        &send_rx,
+        Duration::from_secs(10),
         |world, probe| {
-            // Read under the canonical guard, which the executor holds while it
-            // advances the clock and the probe: both are this tick's values.
+            // Read under the canonical guard, which the executor holds while
+            // it advances the clock and the probe: both are this tick's values.
             let guard = world.canonical.lock().unwrap();
             let creature_clock = guard
                 .find_map(0, 0)
@@ -407,17 +506,12 @@ async fn canonical_map_owner_runs_the_creature_lifecycle_alone_and_delivers_to_t
             clock_check = Some((
                 creature_clock,
                 probe.clock_advanced_ms.load(Ordering::Relaxed),
-                d3b1_legacy_clock_like_cpp(world),
             ));
             drop(guard);
         },
     )
     .await;
 
-    assert!(
-        observed.respawned,
-        "the creature died and respawned: {observed:?}"
-    );
     assert!(
         observed.attack_starts >= 1,
         "aggro reached the victim: {observed:?}"
@@ -428,27 +522,66 @@ async fn canonical_map_owner_runs_the_creature_lifecycle_alone_and_delivers_to_t
     );
     assert!(
         observed.kills >= 1,
-        "the kill reached the attacker: {observed:?}"
+        "the player's melee killed the creature: {observed:?}"
+    );
+    assert!(
+        observed.just_died,
+        "the session's kill phase completed JUST_DIED on the canonical incarnation: {observed:?}"
+    );
+    assert!(
+        observed.loot_response,
+        "the killer sees the corpse's loot: {observed:?}"
+    );
+    assert!(
+        observed.loot_released,
+        "the loot release is answered: {observed:?}"
+    );
+    assert!(observed.despawned, "the corpse despawned: {observed:?}");
+    assert!(observed.respawned, "the creature respawned: {observed:?}");
+    assert!(
+        observed.respawn_create_delivered,
+        "the respawn CREATE reached the session: {observed:?}"
     );
     assert!(
         observed.refreshes >= 2,
         "despawn and respawn refreshed the map: {observed:?}"
     );
-    let kinds: Vec<_> = observed
+    assert!(
+        !observed.legacy_copy_seen,
+        "no legacy copy of the creature ever existed"
+    );
+    // JUST_DIED saves the respawn time; the respawn deletes it. The corpse
+    // despawn re-saves only when its wall-clock conversion of the same
+    // respawn instant lands one second later (the lifecycle body's existing
+    // upsert, masked to one second in the F6-8D3a-3 parity test), and the
+    // shared writer coalesces a re-save it has not handed out yet.
+    let (saves, rest) = observed
         .db_mutations
+        .split_at(observed.db_mutations.len().saturating_sub(1));
+    assert!(
+        matches!(
+            rest,
+            [RespawnPersistenceMutationLikeCpp::Delete { key }] if key.spawn_id == D3B_SPAWN_ID_LIKE_CPP
+        ),
+        "the respawn delete is last: {:?}",
+        observed.db_mutations
+    );
+    let save_times: Vec<i64> = saves
         .iter()
         .map(|mutation| match mutation {
-            RespawnPersistenceMutationLikeCpp::Save { key, .. } => ("save", key.spawn_id),
-            RespawnPersistenceMutationLikeCpp::Delete { key } => ("delete", key.spawn_id),
+            RespawnPersistenceMutationLikeCpp::Save { key, respawn_time }
+                if key.spawn_id == D3B_SPAWN_ID_LIKE_CPP =>
+            {
+                *respawn_time
+            }
+            other => panic!("only the spawn's REP_RESPAWN precedes the delete: {other:?}"),
         })
         .collect();
-    assert_eq!(
-        kinds,
-        [
-            ("save", D3B1_SPAWN_ID_LIKE_CPP),
-            ("delete", D3B1_SPAWN_ID_LIKE_CPP)
-        ],
-        "JUST_DIED save, then the respawn delete, through the shared writer"
+    assert!(
+        (1..=2).contains(&save_times.len())
+            && save_times.iter().max().unwrap() - save_times.iter().min().unwrap() <= 1,
+        "the JUST_DIED save, re-saved at most once one second later: {:?}",
+        observed.db_mutations
     );
 
     let executed = probe.executed_ticks.load(Ordering::Relaxed);
@@ -457,250 +590,60 @@ async fn canonical_map_owner_runs_the_creature_lifecycle_alone_and_delivers_to_t
         "the executor ran every admitted tick: {executed}"
     );
     assert_eq!(probe.owner_skipped_ticks.load(Ordering::Relaxed), 0);
-
-    // No double tick: the creature's own clock is exactly the executor's
-    // advancement, and the legacy representation was never ticked although
-    // the legacy loop was running.
-    let (creature_clock, probe_clock, legacy_clock) =
-        clock_check.expect("creature melee was observed");
+    // One creature tick owner: the creature's own clock is exactly the
+    // executor's advancement (the session runs no creature tick of its own).
+    let (creature_clock, probe_clock) = clock_check.expect("creature melee was observed");
     assert_eq!(creature_clock, Some(probe_clock));
-    assert_eq!(
-        legacy_clock,
-        Some(0),
-        "the legacy loop never ticked the creature"
-    );
-    assert_eq!(d3b1_legacy_clock_like_cpp(&world), Some(0));
-}
 
-/// Drive `ticks` admitted canonical ticks by hand, with the creature owner
-/// `owner` selects, and count the creature's Unit VALUES snapshots each
-/// `Map::SendObjectUpdates` captured (the session-side P3.10 adapter turns each
-/// into one `SMSG_UPDATE_OBJECT` per viewer).
-fn d3b1_values_per_tick_like_cpp(owner: RuntimeTickOwner, ticks: usize) -> Vec<usize> {
-    let world = d3b1_world_like_cpp(96_320, owner);
-    d3b1_drive_ticks_like_cpp(&world, owner, ticks).0
-}
-
-/// Drive `ticks` admitted canonical ticks by hand on `world`; returns the
-/// creature's VALUES snapshots per tick and the executor probe.
-fn d3b1_drive_ticks_like_cpp(
-    world: &D3b1WorldLikeCpp,
-    owner: RuntimeTickOwner,
-    ticks: usize,
-) -> (Vec<usize>, Arc<CanonicalCreatureRuntimeProbeLikeCpp>) {
-    let mut runtime = creature_tick_owner_loops_like_cpp(owner)
-        .canonical_creature_runtime
-        .then(|| {
-            CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
-                wow_world::MMapRuntimeConfigLikeCpp {
-                    enabled: false,
-                    ..Default::default()
-                },
-                None,
-                d3b1_aggro_config_like_cpp(),
-                None,
-            )
-        });
-    let map_store = legacy_runtime_world_map_store_like_cpp();
-    let metadata =
-        spawn_store_loader::CanonicalSpawnMetadataLikeCpp::new(SpawnStore::new(), BTreeMap::new());
-    let conditions = wow_data::ConditionEntriesByTypeStore::default();
-    let caches = empty_loaded_grid_creature_respawn_caches_like_cpp();
-    let mut scheduler = CanonicalRespawnConditionSchedulerLikeCpp::new(60_000);
-    let player_melee_state = Arc::new(Mutex::new(Default::default()));
-    let mut per_tick = Vec::new();
-    for _ in 0..ticks {
-        let now = Instant::now();
-        if owner == RuntimeTickOwner::GlobalLegacy {
-            let _ = run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
-                &world.legacy,
-                Some(&world.canonical),
-                &map_store,
-                &wow_world::MMapRuntimeConfigLikeCpp {
-                    enabled: false,
-                    ..Default::default()
-                },
-                None,
-                d3b1_aggro_config_like_cpp(),
-                100,
-                now,
-                &world.registry,
-                None,
-                None,
-                None,
-                &player_melee_state,
-            );
-        }
-        let inputs = runtime.as_ref().and_then(|runtime| {
-            runtime.collect_inputs_like_cpp(&world.legacy, &world.canonical, &world.registry)
-        });
-        let mut manager = world.canonical.lock().unwrap();
-        let plan = crate::runtime::map_tick::canonical_map_tick_begin_like_cpp(&mut manager, 100)
-            .expect("the fixture map is due every 100 ms");
-        let mut creature_phase =
-            |manager: &mut wow_map::MapManager, plan: &wow_map::MapTickPlanLikeCpp| {
-                if let (Some(runtime), Some(inputs)) = (runtime.as_mut(), inputs.as_ref()) {
-                    let _ = runtime.run_on_locked_manager_like_cpp(
-                        manager,
-                        plan,
-                        0x0D3B_1000,
-                        inputs,
-                        &world.legacy,
-                        &map_store,
-                        now,
-                    );
-                }
-            };
-        let _ = crate::runtime::map_tick::canonical_map_tick_resume_with_creature_owner_like_cpp(
-            &mut manager,
-            Some(&world.legacy),
-            plan.plan,
-            &mut scheduler,
-            &metadata,
-            &conditions,
-            &map_store,
-            &caches,
-            Some(&mut creature_phase),
-        );
-        per_tick.push(
-            manager
-                .find_map(0, 0)
-                .unwrap()
-                .last_send_object_updates_summary_like_cpp()
-                .unit_values_updates
-                .iter()
-                .filter(|update| update.guid == world.creature)
-                .count(),
-        );
-    }
-    let probe = runtime.as_ref().map_or_else(
-        || Arc::new(CanonicalCreatureRuntimeProbeLikeCpp::default()),
-        |runtime| Arc::clone(&runtime.probe),
-    );
-    (per_tick, probe)
-}
-
-#[test]
-fn canonical_map_owner_publishes_no_more_values_than_the_legacy_owner_like_cpp() {
-    // 30 ticks of 100 ms: aggro, the creature's swings, the player's two
-    // swings and the kill, then a corpse whose values never change again.
-    let canonical = d3b1_values_per_tick_like_cpp(RuntimeTickOwner::CanonicalMap, 30);
-    let legacy = d3b1_values_per_tick_like_cpp(RuntimeTickOwner::GlobalLegacy, 30);
-    let canonical_total: usize = canonical.iter().sum();
-    let legacy_total: usize = legacy.iter().sum();
+    // R6 UPDATE_OBJECT flood (Rust 1900 vs C++ 11 VALUES in the paired run):
+    // count the creature VALUES packets this client actually received. They
+    // are published on change only — once per map update that changed the
+    // creature — so a handful across the fight, at most the death and
+    // loot-flag changes while the corpse lies untouched, none while despawned.
+    // The generic VALUES rail never carries Unit snapshots.
+    let packets = &observed.creature_values_packets;
+    let total: usize = packets.values().sum();
+    assert!(total >= 1, "the fight changed the creature: {packets:?}");
     assert!(
-        canonical_total > 0,
-        "the fight changed the creature: {canonical:?}"
-    );
-    // R6 flood: unchanged values are never republished, so most ticks carry
-    // no snapshot and the tail after the kill carries none at all.
-    assert!(
-        canonical.iter().filter(|&&count| count > 0).count() * 3 < canonical.len(),
-        "values are published on change only: {canonical:?}"
+        total * 4 <= usize::try_from(executed).unwrap(),
+        "VALUES are not republished every tick: {total} over {executed} ticks ({packets:?})"
     );
     assert!(
-        canonical[20..].iter().all(|&count| count == 0),
-        "{canonical:?}"
-    );
-    assert!(
-        canonical_total <= legacy_total,
-        "the canonical owner publishes no more VALUES than the legacy owner: canonical {canonical:?}, legacy {legacy:?}"
-    );
-}
-
-#[test]
-fn creature_tick_owner_stays_global_legacy_unless_canonical_map_is_selected_like_cpp() {
-    let _guard = TEST_LOCK.lock().expect("test lock poisoned");
-    let owner_for = |config: &str| {
-        wow_config::load_config_from_str(config).expect("config should load");
-        crate::creature_tick_owner_from_config_like_cpp()
-    };
-
-    assert_eq!(RuntimeTickOwner::default(), RuntimeTickOwner::Session);
-    assert_eq!(owner_for(""), RuntimeTickOwner::GlobalLegacy);
-    assert_eq!(
-        owner_for("RustyCore.CanonicalCreatureRuntime = 0\n"),
-        RuntimeTickOwner::GlobalLegacy
+        packets.get(&D3bStageLikeCpp::Corpse).copied().unwrap_or(0) <= 3,
+        "an untouched corpse republishes nothing: {packets:?}"
     );
     assert_eq!(
-        owner_for("RustyCore.CanonicalCreatureRuntime = 1\n"),
-        RuntimeTickOwner::CanonicalMap
-    );
-    assert_eq!(
-        owner_for(
-            "RustyCore.CanonicalCreatureRuntime = 1\nRustyCore.LegacyCreatureGlobalRuntime = 1\n"
-        ),
-        RuntimeTickOwner::CanonicalMap
-    );
-    assert_eq!(
-        owner_for("RustyCore.LegacyCreatureGlobalRuntime = 0\n"),
-        RuntimeTickOwner::Session
-    );
-    wow_config::load_config_from_str("").expect("config should load");
-
-    // One owner value, one live creature loop.
-    for (owner, legacy_loop, canonical_runtime) in [
-        (RuntimeTickOwner::Session, false, false),
-        (RuntimeTickOwner::GlobalLegacy, true, false),
-        (RuntimeTickOwner::CanonicalMap, false, true),
-    ] {
-        let loops = creature_tick_owner_loops_like_cpp(owner);
-        assert_eq!(loops.legacy_creature_loop, legacy_loop, "{owner:?}");
-        assert_eq!(
-            loops.canonical_creature_runtime, canonical_runtime,
-            "{owner:?}"
-        );
-    }
-}
-
-#[test]
-fn canonical_map_owner_adopts_r7b1_deferred_registrations_from_the_legacy_queue_like_cpp() {
-    // R7b-1: a registration deferred while the canonical manager had no
-    // instance for its key waits in the legacy map queue, which no legacy
-    // lifecycle drains under `CanonicalMap`. The admitted map adopts it.
-    let world = d3b1_world_like_cpp(96_340, RuntimeTickOwner::CanonicalMap);
-    let deferred_guid =
-        ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9002, 96_349);
-    let deferred = wow_world::map_manager::WorldCreature::new(
-        deferred_guid,
-        9002,
-        Position::new(30.0, 30.0, 0.0, 0.0),
-        D3B1_CREATURE_HP_LIKE_CPP,
-        2,
-        3,
-        5,
-        20.0,
-        100,
-        14,
+        packets
+            .get(&D3bStageLikeCpp::Despawned)
+            .copied()
+            .unwrap_or(0),
         0,
-        0,
+        "a despawned creature has no VALUES: {packets:?}"
     );
-    world.legacy.write().unwrap().push_respawn(
-        0,
-        0,
-        wow_world::map_manager::pending_respawn_from_world_creature_like_cpp(
-            &deferred,
-            Instant::now(),
-            0,
-        ),
-    );
-
-    let (_, probe) = d3b1_drive_ticks_like_cpp(&world, RuntimeTickOwner::CanonicalMap, 3);
-
-    assert_eq!(probe.adopted_legacy_respawns.load(Ordering::Relaxed), 1);
-    assert_eq!(world.legacy.read().unwrap().respawn_queue_len(0, 0), 0);
-    let canonical = world.canonical.lock().unwrap();
-    let map = canonical.find_map(0, 0).unwrap().map();
     assert!(
-        map.typed_combat_unit_guids_like_cpp()
-            .into_iter()
-            .any(|guid| {
-                map.get_typed_creature(guid)
-                    .is_some_and(|creature| creature.entry() == 9002 && creature.is_alive())
-            }),
-        "the deferred creature was admitted on the canonical map"
+        observed.creature_values_updates.is_empty(),
+        "no Unit snapshot travels the generic VALUES rail: {observed:?}"
     );
-    assert_eq!(map.creature_respawn_queue_like_cpp().respawn_queue_len(), 0);
+    eprintln!(
+        "F6-8D3b-2 VALUES: {total} creature VALUES packets over {executed} executor ticks: {packets:?}"
+    );
+
+    // Login near the respawned creature: a fresh session entering the map
+    // gets the creature's CREATE from the canonical map.
+    let (newcomer, newcomer_rx) = d3b_session_like_cpp(
+        &world,
+        ObjectGuid::create_player(1, 96_302),
+        "D3bNewcomer",
+        Position::new(12.0, 10.0, 0.0, 0.0),
+    )
+    .await;
+    assert!(newcomer.client_sees_guid_for_test_like_cpp(world.creature));
+    assert!(d3b_server_opcodes_like_cpp(&newcomer_rx).contains(&ServerOpcodes::UpdateObject));
+    assert_eq!(
+        d3b_canonical_creature_like_cpp(&world, wow_entities::Creature::is_alive),
+        Some(true),
+        "the respawned incarnation is alive"
+    );
 }
 
 #[test]
@@ -712,7 +655,7 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
         guid,
         9003,
         Position::new(10.0, 10.0, 0.0, 0.0),
-        D3B1_CREATURE_HP_LIKE_CPP,
+        D3B_CREATURE_HP_LIKE_CPP,
         2,
         3,
         5,
@@ -756,7 +699,7 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
 fn session_owned_creature_lifecycle_is_unreachable_under_canonical_map_like_cpp() {
     // The session-owned corpse/respawn body (`run_creatures_tick`) has one
     // caller, `tick_creatures_sync`, whose one production caller is the session
-    // driver, gated on the `Session` owner.
+    // driver, gated on the `Session` owner — which production never selects.
     let ticks = include_str!("../../../wow-world/src/session/spell_effects/ticks.rs");
     assert_eq!(ticks.matches("self.run_creatures_tick()").count(), 1);
     assert!(ticks.contains(
@@ -767,5 +710,13 @@ fn session_owned_creature_lifecycle_is_unreachable_under_canonical_map_like_cpp(
     let call = driver.find("self.tick_creatures_sync()").unwrap();
     assert!(
         driver[call.saturating_sub(160)..call].contains("&& owner == RuntimeTickOwner::Session")
+    );
+    let config = include_str!("../bootstrap/config.rs");
+    let owner = config
+        .find("fn creature_tick_owner_from_config_like_cpp")
+        .unwrap();
+    assert!(
+        config[owner..].contains("RuntimeTickOwner::CanonicalMap\n}"),
+        "production selects the canonical map owner unconditionally"
     );
 }

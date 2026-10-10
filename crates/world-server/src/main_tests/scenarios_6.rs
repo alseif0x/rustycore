@@ -429,7 +429,6 @@ fn game_event_world_state_no_holiday_action_is_represented_noop_like_cpp() {
 
     let summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -469,7 +468,6 @@ fn game_event_world_state_holiday_lookup_remains_unrepresented_like_cpp() {
 
     let summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -493,7 +491,6 @@ fn game_event_world_state_missing_event_is_counted_without_panic_like_cpp() {
 
     let summary = consume_game_event_live_update_side_effects_like_cpp(
         &mut manager,
-        None,
         &mut metadata,
         &empty_loaded_grid_creature_respawn_caches_like_cpp(),
         None,
@@ -571,7 +568,6 @@ fn game_event_world_state_live_consumer_propagates_holiday_lookup_counters_like_
         let outcome = game_event_world_state_start_outcome_like_cpp(1);
         consume_game_event_live_update_side_effects_like_cpp(
             &mut manager,
-            None,
             metadata,
             &empty_loaded_grid_creature_respawn_caches_like_cpp(),
             battlemaster_list_store,

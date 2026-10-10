@@ -558,8 +558,7 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     assert!(initialized.plan.events.is_empty());
-    let initial_due_in_ms = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let initial_due_in_ms = mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             assert!(creature.runtime_rng_authority_complete_like_cpp());
             creature.creature_spell_due_in_ms_for_test(0).unwrap()
         })
@@ -575,8 +574,7 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);
     assert!(melee.commands.is_empty());
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             assert!(
                 creature.runtime_rng_authority_complete_like_cpp(),
                 "NO_MELEE must return before the melee damage RNG draw"
@@ -603,8 +601,7 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
     assert_eq!(go.spell_id, spell_id);
     assert_eq!(go.hit_targets, vec![victim_guid]);
     assert!(go.miss_targets.is_empty());
-    session
-        .mutate_world_creature(creature_guid, |creature| {
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             assert!(
                 !creature.runtime_rng_authority_complete_like_cpp(),
                 "the committed HIT remains in the plan before launch RNG is tombstoned"

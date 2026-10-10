@@ -1,10 +1,10 @@
 //! F6-7 R7b-2a regressions: the two guarded creature loot mutators.
 //!
-//! The slice gates the viewed and unviewed guarded loot mutators with the same
-//! mechanism the R7a gate uses (`SessionCore::with_admitted_world_creature_like_cpp`:
-//! the R7a admission predicate against the current canonical incarnation,
-//! canonical→legacy lock order and the canonical application before any success
-//! is exposed). Each mutator adds its own admission — the observed allocation
+//! The slice gated the viewed and unviewed guarded loot mutators with the same
+//! mechanism as the R7a root (`SessionCore::with_admitted_world_creature_like_cpp`).
+//! Since #1263 F6-8D3b-2 that root is canonical-first: it lends the canonical
+//! incarnation itself, so there is no transported representation to admit and
+//! the "stale representation" refusals became applications on the incarnation. Each mutator adds its own admission — the observed allocation
 //! must be the representation's, and the fully-looted/unviewed lifecycle
 //! observation must still be current — *before* the mutation is invoked, with
 //! the observation and the mutation in one critical section.
@@ -260,37 +260,28 @@ fn fresh_viewed_release_lifecycle_is_applied_once_to_both_stores_like_cpp() {
     assert_one_incarnation_like_cpp(&manager, &canonical, guid);
 }
 
-/// **Negative control (R7b-2a, primary).** With the guarded mutator's pre-slice
-/// body restored this test fails: the stale representation still runs the corpse
-/// lifecycle and reports success while the canonical incarnation keeps its
-/// earlier state.
+/// #1263 F6-8D3b-2: the guarded roots are canonical-first. A release after
+/// the incarnation advanced (the former "stale representation" refusal) runs
+/// on the incarnation itself, keeps the incarnation's advanced state and
+/// refreshes the legacy copy from it.
 #[test]
-fn stale_viewed_release_is_refused_before_invocation_like_cpp() {
+fn viewed_release_after_the_incarnation_advanced_applies_to_it_like_cpp() {
     let guid = test_creature_guid(92_202);
     let viewer = ObjectGuid::create_player(1, 92_203);
     let (mut session, manager, canonical, lifecycle) = release_fixture_like_cpp(guid, viewer);
-    // The canonical incarnation advances without the representation.
     advance_canonical_max_health_like_cpp(&canonical, guid, 140);
-    let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
 
-    let result = viewed_release_like_cpp(&mut session, guid, &lifecycle);
-
-    assert!(
-        result.is_none(),
-        "a stale representation must not report a successful lifecycle mutation"
-    );
+    assert!(viewed_release_like_cpp(&mut session, guid, &lifecycle).is_some());
+    let owner = canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation");
+    assert!(!has_lootable_flag_like_cpp(&owner));
+    assert_eq!(owner.max_health(), 140, "the advanced state is kept");
     assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid),
-        before,
-        "ownership is refused before the mutation runs: the lootable flag and its change mark stay"
+        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy copy")),
+        observables_like_cpp(&owner),
+        "the legacy copy is the incarnation's projection"
     );
-    assert_eq!(
-        lifecycle.authority.lifecycle_like_cpp(),
-        wow_loot::OwnedLootAuthorityLifecycle::Active,
-        "the refused release leaves the response authority untouched"
-    );
+    assert_one_incarnation_like_cpp(&manager, &canonical, guid);
 }
-
 #[test]
 fn unviewed_release_detached_lifecycle_is_applied_once_to_both_stores_like_cpp() {
     let guid = test_creature_guid(92_204);
@@ -314,23 +305,21 @@ fn unviewed_release_detached_lifecycle_is_applied_once_to_both_stores_like_cpp()
 }
 
 #[test]
-fn unviewed_release_refuses_a_stale_representation_before_invocation_like_cpp() {
+fn unviewed_release_after_the_incarnation_advanced_applies_to_it_like_cpp() {
     let guid = test_creature_guid(92_206);
     let viewer = ObjectGuid::create_player(1, 92_207);
     let (mut session, manager, canonical, lifecycle) = release_fixture_like_cpp(guid, viewer);
     advance_canonical_max_health_like_cpp(&canonical, guid, 140);
-    let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
 
-    assert!(
-        unviewed_release_like_cpp(&mut session, guid, &lifecycle).is_none(),
-        "a stale representation must not report a successful detached mutation"
-    );
+    assert!(unviewed_release_like_cpp(&mut session, guid, &lifecycle).is_some());
+    let owner = canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation");
+    assert!(!has_lootable_flag_like_cpp(&owner));
+    assert_eq!(owner.max_health(), 140);
     assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid),
-        before
+        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy copy")),
+        observables_like_cpp(&owner)
     );
 }
-
 #[test]
 fn guarded_release_refuses_a_mismatched_authority_before_invocation_like_cpp() {
     let guid = test_creature_guid(92_208);
@@ -443,12 +432,10 @@ fn guarded_release_refuses_a_reopened_pool_for_the_detached_variant_like_cpp() {
 }
 
 #[test]
-fn guarded_release_refuses_an_aba_replay_like_cpp() {
+fn guarded_release_after_an_aba_health_cycle_applies_once_like_cpp() {
     let guid = test_creature_guid(92_219);
     let viewer = ObjectGuid::create_player(1, 92_220);
     let (mut session, manager, canonical, lifecycle) = release_fixture_like_cpp(guid, viewer);
-    // Health leaves and returns to the same tuple while the revision advances,
-    // so the representation's tuple matches and its timeline does not.
     {
         let mut guard = canonical.lock().unwrap();
         let map = guard.find_map_mut(0, 0).expect("canonical map instance");
@@ -459,30 +446,13 @@ fn guarded_release_refuses_an_aba_replay_like_cpp() {
             })
             .expect("canonical incarnation");
     }
-    let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
 
-    assert!(
-        viewed_release_like_cpp(&mut session, guid, &lifecycle).is_none(),
-        "an ABA replay is a stale representation, not a fresh one"
-    );
-    assert!(
-        unviewed_release_like_cpp(&mut session, guid, &lifecycle).is_none(),
-        "the detached variant refuses an ABA replay too"
-    );
-    assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid),
-        before,
-        "both refusals ran before the callback: the lootable flag and its change mark stay"
-    );
-    assert_eq!(
-        lifecycle.authority.lifecycle_like_cpp(),
-        wow_loot::OwnedLootAuthorityLifecycle::Active,
-        "the refused releases leave the response authority untouched"
-    );
+    assert!(viewed_release_like_cpp(&mut session, guid, &lifecycle).is_some());
+    let owner = canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation");
+    assert!(!has_lootable_flag_like_cpp(&owner));
+    assert_eq!(owner.current_health(), 100);
+    assert_one_incarnation_like_cpp(&manager, &canonical, guid);
 }
-
-/// The two guarded mutator roots themselves: their callback runs exactly once
-/// when both admissions pass and not at all when either refuses.
 #[test]
 fn guarded_mutator_roots_invoke_their_callback_exactly_once_like_cpp() {
     let guid = test_creature_guid(92_221);
@@ -528,67 +498,30 @@ fn guarded_mutator_roots_invoke_their_callback_exactly_once_like_cpp() {
         "the admitted detached mutation executes once"
     );
 
-    // The same roots after the canonical incarnation advances: refuse with the
-    // callback never invoked and neither store written.
+    // #1263 F6-8D3b-2: after the incarnation advances the root still runs its
+    // callback exactly once, on the incarnation (no legacy admission to fail).
     let advance_guid = test_creature_guid(92_223);
     let advance_viewer = ObjectGuid::create_player(1, 92_224);
-    let (mut stale_session, stale_manager, stale_canonical, stale_lifecycle) =
+    let (mut advanced_session, _advanced_manager, advanced_canonical, advanced_lifecycle) =
         release_fixture_like_cpp(advance_guid, advance_viewer);
-    advance_canonical_max_health_like_cpp(&stale_canonical, advance_guid, 140);
-    let before =
-        session_loot_lifecycle_state_like_cpp(&stale_manager, &stale_canonical, advance_guid);
-
-    let mut refused_runs = 0_usize;
-    assert!(
-        stale_session
+    advance_canonical_max_health_like_cpp(&advanced_canonical, advance_guid, 140);
+    let mut advanced_runs = 0_usize;
+    assert_eq!(
+        advanced_session
             .core
             .mutate_world_creature_if_fully_looted_observation_like_cpp(
                 advance_guid,
-                &stale_lifecycle.authority,
-                stale_lifecycle.viewed_object_generation,
-                stale_lifecycle.viewed_lifecycle_revision,
-                |_| {
-                    refused_runs += 1;
+                &advanced_lifecycle.authority,
+                advanced_lifecycle.viewed_object_generation,
+                advanced_lifecycle.viewed_lifecycle_revision,
+                |creature| {
+                    advanced_runs += 1;
+                    creature.creature.max_health()
                 },
-            )
-            .is_none(),
-        "the stale viewed mutation is refused"
-    );
-    assert!(
-        stale_session
-            .core
-            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
-                advance_guid,
-                &stale_lifecycle.authority,
-                stale_lifecycle.unviewed_object_generation,
-                stale_lifecycle.unviewed_lifecycle_revision,
-                |_| {
-                    refused_runs += 1;
-                },
-            )
-            .is_none(),
-        "the stale detached mutation is refused"
-    );
-    assert_eq!(
-        refused_runs, 0,
-        "ownership is refused before either callback is invoked"
-    );
-    assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&stale_manager, &stale_canonical, advance_guid),
-        before,
-        "the refused mutations wrote neither the legacy nor the canonical store"
-    );
-    assert!(
-        legacy_creature_like_cpp(&stale_manager, advance_guid)
-            .expect("legacy representation")
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(
-                canonical_creature_like_cpp(&stale_canonical, advance_guid)
-                    .expect("canonical incarnation")
-                    .loot_authority_like_cpp()
             ),
-        "the refusals keep the incarnation's single loot allocation"
+        Some(140)
     );
+    assert_eq!(advanced_runs, 1);
 }
 
 #[test]

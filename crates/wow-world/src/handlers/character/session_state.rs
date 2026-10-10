@@ -416,7 +416,6 @@ impl WorldSession {
                 creature_load_record_missing = outcome.creature_load_record_missing,
                 gameobject_load_record_missing = outcome.gameobject_load_record_missing,
                 area_trigger_load_record_missing = outcome.area_trigger_load_record_missing,
-                legacy_creature_mirrors = outcome.legacy_creature_mirrors,
                 "RUST_LOGIN grid_load"
             );
         }

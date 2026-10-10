@@ -398,24 +398,7 @@ pub fn apply_canonical_creature_entity_on_map_like_cpp(
     // owned by the live legacy entity. Do not detach it here; the caller
     // performs the expected-stamp CAS on that actual entity.
     creature.adopt_loot_authority_for_snapshot_like_cpp(authority);
-    let old_threat_guids = map
-        .with_creature_like_cpp(guid, |current| {
-            current.unit().subsystems().combat.sorted_threat_guids()
-        })
-        .unwrap_or_default();
-    let incoming_threat_guids: HashSet<_> = creature
-        .unit()
-        .subsystems()
-        .combat
-        .sorted_threat_guids()
-        .into_iter()
-        .collect();
-    let removed_threat_guids: Vec<_> = old_threat_guids
-        .into_iter()
-        .filter(|threat_guid| !incoming_threat_guids.contains(threat_guid))
-        .collect();
-    let mirrored_threat_guids: Vec<_> = incoming_threat_guids.iter().copied().collect();
-
+    let old_threat_guids = creature_threat_guids_on_map_like_cpp(map, guid);
     creature.unit_mut().world_mut().object_mut().add_to_world();
     let Ok(record) = wow_entities::MapObjectRecord::new_creature(creature) else {
         return CanonicalCreatureEntityApplicationLikeCpp::Refused;
@@ -429,7 +412,38 @@ pub fn apply_canonical_creature_entity_on_map_like_cpp(
     if map.insert_map_object_record(record).is_err() {
         return CanonicalCreatureEntityApplicationLikeCpp::Refused;
     }
-    for added_guid in mirrored_threat_guids {
+    reconcile_creature_threat_references_on_map_like_cpp(map, guid, old_threat_guids);
+    CanonicalCreatureEntityApplicationLikeCpp::Applied(authority)
+}
+
+/// The creature's current threat-list GUIDs on the locked canonical map.
+pub fn creature_threat_guids_on_map_like_cpp(
+    map: &wow_map::ManagedMapInnerLikeCpp,
+    guid: ObjectGuid,
+) -> Vec<ObjectGuid> {
+    map.with_creature_like_cpp(guid, |current| {
+        current.unit().subsystems().combat.sorted_threat_guids()
+    })
+    .unwrap_or_default()
+}
+
+/// Bring every other unit's `threatened by me` reference in line with the
+/// creature's threat list after the creature's combat state changed, given
+/// the threat GUIDs it held before the change (C++ keeps both ends of a
+/// `ThreatReference` on the live objects, so one change updates both).
+pub fn reconcile_creature_threat_references_on_map_like_cpp(
+    map: &mut wow_map::ManagedMapInnerLikeCpp,
+    guid: ObjectGuid,
+    old_threat_guids: Vec<ObjectGuid>,
+) {
+    let current_threat_guids: HashSet<_> = creature_threat_guids_on_map_like_cpp(map, guid)
+        .into_iter()
+        .collect();
+    let removed_threat_guids: Vec<_> = old_threat_guids
+        .into_iter()
+        .filter(|threat_guid| !current_threat_guids.contains(threat_guid))
+        .collect();
+    for added_guid in current_threat_guids {
         let threat_ref = map
             .with_creature_like_cpp(guid, |creature| {
                 creature
@@ -472,7 +486,6 @@ pub fn apply_canonical_creature_entity_on_map_like_cpp(
                 .purge_threatened_by_me_ref(guid);
         }
     }
-    CanonicalCreatureEntityApplicationLikeCpp::Applied(authority)
 }
 
 /// Synchronize one transported creature snapshot through the shared canonical

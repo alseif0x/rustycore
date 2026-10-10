@@ -7,7 +7,6 @@ use wow_world_core::map_manager::{
 };
 use wow_world_core::session::{
     HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp,
-    remove_canonical_creature_map_object_on_map_like_cpp,
 };
 
 use crate::WorldEntitiesState;
@@ -56,16 +55,23 @@ enum CanonicalCreatureAdmissionLikeCpp {
     Admitted(CanonicalCreatureInsertOutcomeLikeCpp),
 }
 
-/// R7b-1 under `RuntimeTickOwner::CanonicalMap` (#1263 F6-8D3b-1).
+/// Whether one registration's canonical admission installed the incarnation.
+enum AdmittedOrUnconfiguredLikeCpp {
+    Admitted,
+    Unconfigured,
+}
+
+/// R7b-1 under `RuntimeTickOwner::CanonicalMap` (#1263 F6-8D3b-1/D3b-2).
 ///
-/// The legacy lifecycle tick that drains the legacy map queue never runs under
-/// that owner, so a deferred registration joins the canonical map's own
-/// respawn queue, which the admitted executor's lifecycle phase drains and
-/// admits canonically. Returns `false`, leaving the entry to the legacy queue,
-/// for every other owner and when the canonical manager has no map instance
-/// for the key yet: there is then no canonical queue to hold it. The canonical
-/// guard is taken alone, after the owner read released the legacy one.
-fn push_deferred_registration_to_canonical_queue_like_cpp(
+/// A deferred registration is held **on the canonical side**: in the canonical
+/// map's own respawn queue when the instance exists, otherwise by the canonical
+/// manager until it creates that instance
+/// ([`wow_map::MapManager::defer_creature_respawn_like_cpp`]). The admitted
+/// executor's lifecycle phase drains that queue and admits the spawn
+/// canonically; no legacy queue is involved. Returns `false` only for the
+/// deprecated legacy owners (their lifecycle drains the legacy queue) or when no
+/// canonical manager can be locked.
+fn defer_registration_to_canonical_side_like_cpp(
     canonical: Option<&SharedCanonicalMapManager>,
     legacy: &wow_world_core::map_manager::SharedMapManager,
     map_id: u16,
@@ -79,16 +85,14 @@ fn push_deferred_registration_to_canonical_queue_like_cpp(
     let Some(Ok(mut canonical)) = canonical.map(|canonical| canonical.lock()) else {
         return false;
     };
-    let Some(map) = canonical.find_map_mut(u32::from(map_id), 0) else {
-        return false;
-    };
-    map.map_mut()
-        .creature_respawn_queue_like_cpp_mut()
-        .push_respawn(pending_respawn_from_world_creature_like_cpp(
+    canonical.defer_creature_respawn_like_cpp(
+        wow_map::MapKey::new(u32::from(map_id), 0),
+        pending_respawn_from_world_creature_like_cpp(
             world_creature,
             std::time::Instant::now(),
             map_id,
-        ));
+        ),
+    );
     true
 }
 
@@ -448,13 +452,23 @@ impl WorldEntitiesState {
         // #1263 F6-8D3a-3: the canonical incarnation keeps the create-time
         // class/power projection its legacy bridge is built with, so a respawn
         // entry built from either carries the same CREATE fields.
-        canonical_creature
-            .runtime_like_cpp_mut()
-            .set_respawn_create_projection_like_cpp(
-                wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp::from_create_data_like_cpp(
-                    &create_data,
-                ),
-            );
+        //
+        // #1263 F6-8D3b-2: the incarnation is now the creature's only
+        // representation, so it receives the runtime installation (motion
+        // master, respawn create projection) and the default waypoint
+        // initialization its legacy bridge used to receive.
+        WorldCreature::install_bridge_runtime_like_cpp(&mut canonical_creature, &create_data);
+        if canonical_creature.default_movement_type()
+            == wow_entities::MovementGeneratorType::Waypoint
+        {
+            let resolver = hub.catalogs.waypoint_path_resolver_like_cpp.clone();
+            wow_world_core::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(
+                &mut canonical_creature,
+            )
+            .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
+                resolver.as_ref().and_then(|resolver| resolver(path_id))
+            });
+        }
         // R1: admission selects the incarnation's canonical authority *before*
         // any legacy alias is published. A refused admission means the canonical
         // owner already exists and this candidate would be a second claimable
@@ -462,18 +476,18 @@ impl WorldEntitiesState {
         //
         // R7b-1: a configured canonical manager whose admission could not install
         // an incarnation (no map instance for this key, or an installation
-        // failure) leaves the candidate with no admitted owner, so the legacy
-        // publication is deferred instead of publishing a representation the
-        // mutation root must refuse for its whole life. Only the legacy-only
-        // configuration — no canonical manager at all — keeps the previous
-        // publication path, exactly as `sync_canonical_creature_entity_like_cpp`
-        // and `mutate_world_creature` keep it.
+        // failure) leaves the candidate with no admitted owner, so its
+        // publication is deferred until a canonical instance admits it (held on
+        // the canonical side under the production owner, F6-8D3b-2). Only the
+        // legacy-only configuration — no canonical manager at all — keeps the
+        // legacy publication path, exactly as `mutate_world_creature` keeps it.
         let admission = self.admit_canonical_creature_map_object_like_cpp(
             hub,
             map_id,
             canonical_creature.clone(),
         );
         let mut deferred = false;
+        let mut admitted_or_unconfigured = AdmittedOrUnconfiguredLikeCpp::Unconfigured;
         match admission {
             CanonicalCreatureAdmissionLikeCpp::Refused => return,
             CanonicalCreatureAdmissionLikeCpp::Deferred => deferred = true,
@@ -505,9 +519,26 @@ impl WorldEntitiesState {
                 canonical_creature
                     .unit_mut()
                     .preserve_authoritative_health_state_for_snapshot_like_cpp(&health_owner);
+                admitted_or_unconfigured = AdmittedOrUnconfiguredLikeCpp::Admitted;
             }
         }
 
+        // #1263 F6-8D3b-2: under the production owner (`CanonicalMap`) an
+        // admitted creature has exactly one representation, the canonical
+        // incarnation, and the legacy store publishes no compatibility copy of
+        // it. The deprecated legacy owners (`Session`, `GlobalLegacy`), now
+        // reachable only from test fixtures, tick that legacy store, so they
+        // keep their copy — a projection the mutation root refreshes from the
+        // incarnation — until F6-8E deletes them; so does the legacy-only
+        // configuration (no canonical manager).
+        if matches!(admitted_or_unconfigured, AdmittedOrUnconfiguredLikeCpp::Admitted)
+            && hub.core.map_manager.as_ref().is_none_or(|manager| {
+                wow_world_core::map_manager::shared_runtime_tick_owner_like_cpp(manager)
+                    == wow_world_core::map_manager::RuntimeTickOwner::CanonicalMap
+            })
+        {
+            return;
+        }
         if let Some(manager) = &hub.core.map_manager {
             let (grid_x, grid_y) = world_to_grid_coords(position.x, position.y);
             let waypoint_path_resolver = hub.catalogs.waypoint_path_resolver_like_cpp.clone();
@@ -525,7 +556,7 @@ impl WorldEntitiesState {
                     });
             }
             if deferred
-                && push_deferred_registration_to_canonical_queue_like_cpp(
+                && defer_registration_to_canonical_side_like_cpp(
                     hub.core.canonical_map_manager.as_ref(),
                     manager,
                     map_id,
@@ -538,15 +569,11 @@ impl WorldEntitiesState {
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             if deferred {
-                // R7b-1: no canonical incarnation can admit this candidate yet, so
-                // hold the spawn in the map's own spawn queue instead of
-                // publishing it. That queue is the established deferral rail
-                // (C++ `Map::_respawnTimes`, drained by `Map::ProcessRespawns`),
-                // and both publication rails retry it — the global legacy
-                // lifecycle tick and the session-owned creature tick — so the
-                // creature is published as soon as a canonical instance admits
-                // it. A fresh registration carries no DB spawn identity, so the
-                // entry is a queue-only non-persistent spawn.
+                // R7b-1 under the deprecated legacy owners (`Session`,
+                // `GlobalLegacy`; test fixtures only since F6-8D3b-2): their
+                // lifecycle bodies drain the legacy map queue, so the deferred
+                // spawn waits there. A fresh registration carries no DB spawn
+                // identity, so the entry is a queue-only non-persistent spawn.
                 manager.push_respawn(
                     map_id,
                     0,
@@ -574,14 +601,29 @@ impl WorldEntitiesState {
         admit_canonical_creature_map_object_on_map_like_cpp(manager, u32::from(map_id), 0, creature)
     }
 
+    /// Remove one represented creature from the session's current map and
+    /// return it (its incarnation, with its create projection).
+    ///
+    /// #1263 F6-8D3b-2: canonical first. The canonical incarnation is removed
+    /// and returned when the canonical map holds it; a legacy compatibility
+    /// copy, where one exists, is cleared and dropped with it. Only a creature
+    /// the canonical map does not hold is returned from the legacy store.
     pub fn remove_world_creature(
         &mut self,
         hub: &mut HubMut<'_>,
         guid: ObjectGuid,
     ) -> Option<WorldCreature> {
         let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        let manager = hub.core.map_manager.as_ref().cloned()?;
-        let removed = {
+        let canonical = hub.core.canonical_map_manager.as_ref().and_then(|manager| {
+            let mut manager = manager.lock().ok()?;
+            let map = manager.find_map_mut(u32::from(map_id), instance_id)?.map_mut();
+            let creature = map.get_typed_creature_mut(guid)?;
+            creature.clear_loot_like_cpp();
+            let creature = creature.clone();
+            let _ = map.remove_from_map_like_cpp(guid, true);
+            Some(creature)
+        });
+        let legacy = hub.core.map_manager.as_ref().and_then(|manager| {
             let mut manager = manager
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
@@ -589,28 +631,17 @@ impl WorldEntitiesState {
                 creature.creature.clear_loot_like_cpp();
             }
             manager.remove_creature_any(map_id, instance_id, guid)
-        };
-        if removed.is_some() {
-            self.remove_canonical_creature_map_object_like_cpp(hub, guid);
+        });
+        match canonical {
+            Some(creature) => {
+                let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+                Some(WorldCreature {
+                    creature,
+                    create_data,
+                })
+            }
+            None => legacy,
         }
-        removed
-    }
-
-    fn remove_canonical_creature_map_object_like_cpp(
-        &mut self,
-        hub: &mut HubMut<'_>,
-        guid: ObjectGuid,
-    ) {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return;
-        };
-        remove_canonical_creature_map_object_on_map_like_cpp(
-            manager,
-            u32::from(map_id),
-            instance_id,
-            guid,
-        );
     }
 }
 

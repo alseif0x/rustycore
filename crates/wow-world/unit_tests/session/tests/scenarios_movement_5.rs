@@ -177,6 +177,9 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         let creature = manager.find_creature(571, 0, selected_guid).unwrap();
         assert!(!creature.creature.unit().has_attacker_like_cpp(player_guid));
         assert_eq!(creature.creature.ai_ownership().combat_target, None);
+        // #1263 F6-8D3b-2: the legacy copy is now the canonical incarnation's
+        // projection; ending the PvE combat reference removed its threat entry
+        // there (C++ `CombatReference::EndCombat` → `ClearThreat`).
         assert_eq!(
             creature
                 .creature
@@ -184,7 +187,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .subsystems()
                 .combat
                 .threat_value(player_guid),
-            Some(0.0)
+            None
         );
     }
     assert_eq!(session.fixtures.combat.combat_target, None);

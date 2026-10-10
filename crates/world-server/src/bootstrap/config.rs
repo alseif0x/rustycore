@@ -149,30 +149,37 @@ pub(crate) fn database_thread_count_like_cpp(key: &str, default: u32) -> u32 {
     value
 }
 
-pub(crate) fn legacy_creature_global_runtime_enabled_from_config_like_cpp() -> bool {
-    wow_config::get_value::<u8>(RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG)
-        .map(|value| value != 0)
-        .unwrap_or(true)
-}
-
-/// The one creature tick owner, decided once at startup (#1263 F6-8D3b-1).
+/// The one creature tick owner, decided once at startup.
 ///
-/// `RustyCore.CanonicalCreatureRuntime = 1` selects
-/// [`RuntimeTickOwner::CanonicalMap`](wow_world::map_manager::RuntimeTickOwner);
-/// absent or `0` keeps the production default, `GlobalLegacy`, or `Session`
-/// when `RustyCore.LegacyCreatureGlobalRuntime = 0`.
+/// #1263 F6-8D3b-2: production has a single creature owner,
+/// [`RuntimeTickOwner::CanonicalMap`](wow_world::map_manager::RuntimeTickOwner):
+/// the canonical map update loop runs every creature phase on the canonical
+/// incarnations (C++ `Map::Update` → `Creature::Update`). The two former
+/// selection keys are retired and ignored, with a startup warning when a
+/// configuration still sets them:
+///
+/// * `RustyCore.LegacyCreatureGlobalRuntime` selected the legacy global
+///   creature loop (`GlobalLegacy`) or the per-session tick (`Session`). Both
+///   tick the legacy compatibility store, which production no longer fills
+///   (no registry copy, no loaded-grid mirror), so either would leave every
+///   creature unticked.
+/// * `RustyCore.CanonicalCreatureRuntime` selected `CanonicalMap`. It is not
+///   kept as a rollback knob for the same reason: `0` would select an owner
+///   with nothing to tick. Rolling back is reverting the change.
 pub(crate) fn creature_tick_owner_from_config_like_cpp() -> wow_world::map_manager::RuntimeTickOwner
 {
-    use wow_world::map_manager::RuntimeTickOwner;
-    if wow_config::get_value::<u8>(RUSTYCORE_CANONICAL_CREATURE_RUNTIME_CONFIG)
-        .is_some_and(|value| value != 0)
-    {
-        RuntimeTickOwner::CanonicalMap
-    } else if legacy_creature_global_runtime_enabled_from_config_like_cpp() {
-        RuntimeTickOwner::GlobalLegacy
-    } else {
-        RuntimeTickOwner::Session
+    for key in [
+        RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG,
+        RUSTYCORE_CANONICAL_CREATURE_RUNTIME_CONFIG,
+    ] {
+        if wow_config::get_value::<u8>(key).is_some() {
+            warn!(
+                key,
+                "Retired creature tick owner key ignored: the canonical map owner is the only creature owner"
+            );
+        }
     }
+    wow_world::map_manager::RuntimeTickOwner::CanonicalMap
 }
 
 pub(crate) fn realm_id_like_cpp() -> Result<u16> {

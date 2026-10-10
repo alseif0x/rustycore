@@ -311,7 +311,6 @@ impl WorldSession {
                     creature_records_added = outcome.creature_records_added,
                     gameobject_records_added = outcome.gameobject_records_added,
                     area_trigger_records_added = outcome.area_trigger_records_added,
-                    legacy_creature_mirrors = outcome.legacy_creature_mirrors,
                     "C++ Map::PlayerRelocation active grid loaded before player visibility"
                 );
                 if (std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
@@ -329,8 +328,7 @@ impl WorldSession {
                         || outcome.area_trigger_records_added != 0
                         || outcome.pre_add_records_added != 0
                         || outcome.add_to_map_errors != 0
-                        || outcome.load_record_missing != 0
-                        || outcome.legacy_creature_mirrors != 0)
+                        || outcome.load_record_missing != 0)
                 {
                     info!(
                         account = self.core.account_id,
@@ -360,7 +358,6 @@ impl WorldSession {
                         creature_load_record_missing = outcome.creature_load_record_missing,
                         gameobject_load_record_missing = outcome.gameobject_load_record_missing,
                         area_trigger_load_record_missing = outcome.area_trigger_load_record_missing,
-                        legacy_creature_mirrors = outcome.legacy_creature_mirrors,
                         "RUST_CREATURE_VIS movement_grid_load"
                     );
                 }
