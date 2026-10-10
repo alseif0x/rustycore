@@ -26,6 +26,10 @@ pub(in crate::session) enum CanonicalCreatureOwnershipLikeCpp {
     /// A canonical store is configured. Only the listed `(map, instance, guid)`
     /// triples have an incarnation; every other creature has no canonical owner.
     CanonicalConfigured(std::collections::HashSet<(u16, u32, ObjectGuid)>),
+    /// #1263 F6-8D3a-1: the phase runs on the admitted canonical store itself.
+    /// Every creature that store yields *is* the canonical incarnation the
+    /// admission fenced, so the store's own lookup is the ownership decision.
+    AdmittedCanonicalStore,
 }
 
 impl CanonicalCreatureOwnershipLikeCpp {
@@ -40,7 +44,7 @@ impl CanonicalCreatureOwnershipLikeCpp {
         guid: ObjectGuid,
     ) -> bool {
         match self {
-            Self::LegacyOnlyConfiguration => true,
+            Self::LegacyOnlyConfiguration | Self::AdmittedCanonicalStore => true,
             Self::CanonicalConfigured(incarnations) => {
                 incarnations.contains(&(map_id, instance_id, guid))
             }
@@ -50,13 +54,16 @@ impl CanonicalCreatureOwnershipLikeCpp {
     /// Whether a canonical store is configured at all. A phase refuses without
     /// touching the legacy copy in that configuration.
     pub(in crate::session) fn is_canonical_configured_like_cpp(&self) -> bool {
-        matches!(self, Self::CanonicalConfigured(_))
+        matches!(
+            self,
+            Self::CanonicalConfigured(_) | Self::AdmittedCanonicalStore
+        )
     }
 
     /// Number of creature incarnations the canonical owner actually holds.
     pub(in crate::session) fn incarnations_seen_like_cpp(&self) -> usize {
         match self {
-            Self::LegacyOnlyConfiguration => 0,
+            Self::LegacyOnlyConfiguration | Self::AdmittedCanonicalStore => 0,
             Self::CanonicalConfigured(incarnations) => incarnations.len(),
         }
     }

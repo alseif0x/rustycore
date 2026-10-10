@@ -1115,8 +1115,9 @@ pub(crate) fn build_tap_group_index_like_cpp(
 
 /// Commit creature attack-start commands through each map's single writer.
 ///
-/// The returned outcomes stay in command order so delivery can publish only
-/// transitions accepted by the canonical owner.
+/// #1263 F6-8D3a-1: the body lives in wow-world so the admitted canonical
+/// executor commits through the same transition; this adapter only takes the
+/// canonical guard for the legacy bridge.
 pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -1127,27 +1128,14 @@ pub(crate) fn apply_canonical_creature_attack_starts_like_cpp(
     let Ok(mut manager) = manager.lock() else {
         return Vec::new();
     };
-    commands
-        .iter()
-        .map(|command| {
-            manager.execute_map_command_like_cpp(
-                u32::from(command.map_id),
-                command.instance_id,
-                wow_map::MapCommandLikeCpp::CreatureAttackStart {
-                    attacker_guid: command.attacker_guid,
-                    victim_guid: command.victim_guid,
-                    previous_victim_guid: command.previous_victim_guid,
-                },
-            )
-        })
-        .collect()
+    wow_world::session::apply_creature_attack_start_commands_on_manager_like_cpp(
+        &mut manager,
+        commands,
+    )
 }
 
 /// Commit creature evade/combat-stop commands through each map's single writer.
-///
-/// C++ `Unit::CombatStop` removes every attacker and clears the corresponding
-/// `CombatReference` from both participants. Player and Creature victims now
-/// take the same map-owned path; the session command is delivery-only.
+/// The body lives in wow-world beside the start commit (#1263 F6-8D3a-1).
 pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -1158,96 +1146,13 @@ pub(crate) fn apply_canonical_creature_attack_stops_like_cpp(
     let Ok(mut manager) = manager.lock() else {
         return Vec::new();
     };
-    commands
-        .iter()
-        .map(|command| {
-            manager.execute_map_command_like_cpp(
-                u32::from(command.map_id),
-                command.instance_id,
-                wow_map::MapCommandLikeCpp::CreatureCombatStop {
-                    attacker_guid: command.attacker_guid,
-                    victim_guid: command.victim_guid,
-                },
-            )
-        })
-        .collect()
+    wow_world::session::apply_creature_attack_stop_commands_on_manager_like_cpp(
+        &mut manager,
+        commands,
+    )
 }
 
-/// Remove attack-start/stop fanout that has no committed canonical map
-/// transition behind it while retaining unrelated aggro-plan events.
-///
-/// The legacy tick still produces wire events before the transitional map
-/// command bridge runs. Exact `(source, packet)` signatures couple those two
-/// products until the legacy producer itself emits `MapCommandLikeCpp`.
-pub(crate) fn retain_committed_creature_combat_events_like_cpp(
-    plan: &mut wow_world::map_manager::RuntimePlan,
-    start_commands: &[wow_world::session::mailbox::CreatureAttackStartLikeCppCommand],
-    start_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
-    stop_commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
-    stop_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
-) {
-    use wow_packet::ServerPacket as _;
-
-    let start_signature =
-        |command: &wow_world::session::mailbox::CreatureAttackStartLikeCppCommand| {
-            (
-                command.attacker_guid,
-                wow_packet::packets::combat::AttackStart {
-                    attacker: command.attacker_guid,
-                    victim: command.victim_guid,
-                }
-                .to_bytes(),
-            )
-        };
-    let stop_signature =
-        |command: &wow_world::session::mailbox::CreatureAttackStopLikeCppCommand| {
-            (
-                command.attacker_guid,
-                wow_packet::packets::combat::SAttackStop {
-                    attacker: command.attacker_guid,
-                    victim: command.victim_guid,
-                    now_dead: false,
-                }
-                .to_bytes(),
-            )
-        };
-    // The hostile `SMSG_AI_REACTION` that precedes a creature's own attack
-    // start (C++ `Unit::Attack`) commits or drops together with it (#1344).
-    let reaction_signature =
-        |command: &wow_world::session::mailbox::CreatureAttackStartLikeCppCommand| {
-            (
-                command.attacker_guid,
-                wow_packet::packets::combat::AIReaction {
-                    unit_guid: command.attacker_guid,
-                    reaction: wow_constants::creature::AiReaction::Hostile,
-                }
-                .to_bytes(),
-            )
-        };
-    let mut all_combat_signatures: Vec<_> = start_commands.iter().map(start_signature).collect();
-    all_combat_signatures.extend(start_commands.iter().map(reaction_signature));
-    all_combat_signatures.extend(stop_commands.iter().map(stop_signature));
-    let mut applied_combat_signatures: Vec<_> = start_commands
-        .iter()
-        .zip(start_outcomes)
-        .filter(|(_, outcome)| outcome.is_applied())
-        .flat_map(|(command, _)| [start_signature(command), reaction_signature(command)])
-        .collect();
-    applied_combat_signatures.extend(
-        stop_commands
-            .iter()
-            .zip(stop_outcomes)
-            .filter(|(_, outcome)| outcome.is_applied())
-            .map(|(command, _)| stop_signature(command)),
-    );
-
-    plan.events.retain(|event| {
-        let matches = |(source_guid, packet_bytes): &(wow_core::ObjectGuid, Vec<u8>)| {
-            *source_guid == event.source_guid && *packet_bytes == event.packet_bytes
-        };
-        !all_combat_signatures.iter().any(matches) || applied_combat_signatures.iter().any(matches)
-    });
-}
+pub(crate) use wow_world::session::retain_committed_creature_combat_events_like_cpp;
 
 pub(crate) fn deliver_creature_attack_stop_commands_like_cpp(
     commands: &[wow_world::session::mailbox::CreatureAttackStopLikeCppCommand],
@@ -1488,20 +1393,14 @@ pub(crate) fn run_legacy_creature_aggro_tick_and_deliver_once_like_cpp(
     // Delivery is an adapter over committed map outcomes. A stale/missing map
     // command cannot publish a packet or ask a Session to reconstruct the
     // transition that the canonical owner rejected.
-    let applied_start_commands: Vec<_> = outcome
-        .commands
-        .iter()
-        .zip(&start_outcomes)
-        .filter(|(_, map_outcome)| map_outcome.is_applied())
-        .map(|(command, _)| command.clone())
-        .collect();
-    let applied_stop_commands: Vec<_> = outcome
-        .stop_commands
-        .iter()
-        .zip(&stop_outcomes)
-        .filter(|(_, map_outcome)| map_outcome.is_applied())
-        .map(|(command, _)| command.clone())
-        .collect();
+    let applied_start_commands = wow_world::session::committed_creature_combat_commands_like_cpp(
+        &outcome.commands,
+        &start_outcomes,
+    );
+    let applied_stop_commands = wow_world::session::committed_creature_combat_commands_like_cpp(
+        &outcome.stop_commands,
+        &stop_outcomes,
+    );
     let mut delivery =
         deliver_creature_attack_start_commands_like_cpp(&applied_start_commands, registry);
     let stop_delivery =

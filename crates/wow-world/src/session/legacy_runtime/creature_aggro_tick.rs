@@ -324,17 +324,45 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
 ) -> LegacyCreatureAggroTickOutcomeLikeCpp {
     use crate::map_manager::RuntimeTickOwner;
 
-    let mut outcome = LegacyCreatureAggroTickOutcomeLikeCpp::default();
     let mut manager = legacy_map_manager
         .write()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     let terrain = manager.terrain();
     if manager.tick_owner() != RuntimeTickOwner::GlobalLegacy {
-        outcome.skipped_owner_not_global = true;
-        return outcome;
+        return LegacyCreatureAggroTickOutcomeLikeCpp {
+            skipped_owner_not_global: true,
+            ..Default::default()
+        };
     }
+    run_creature_aggro_phase_on_store_like_cpp(
+        &mut *manager,
+        terrain.as_deref(),
+        &ownership,
+        candidates,
+        &config,
+    )
+}
 
-    let map_keys = manager.active_map_keys();
+/// The aggro/threat/assist/evade phase body, once, over any creature store.
+///
+/// #1263 F6-8D3a-1: the legacy tick runs it over the legacy `MapManager` and
+/// the admitted canonical executor runs it over the admitted canonical
+/// selection; there is one body. C++ anchors are the per-creature
+/// `Creature::Update` → `CreatureAI::UpdateAI` steps the legacy tick already
+/// pinned: taunt expiry, `AssistDelayEvent`, `UpdateVictim` (switch or
+/// `EnterEvadeMode`), `CallAssistance` and `MoveInLineOfSight`.
+pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp<S>(
+    store: &mut S,
+    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    ownership: &CanonicalCreatureOwnershipLikeCpp,
+    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
+    config: &LegacyCreatureAggroConfigLikeCpp,
+) -> LegacyCreatureAggroTickOutcomeLikeCpp
+where
+    S: CreaturePhaseStoreLikeCpp + ?Sized,
+{
+    let mut outcome = LegacyCreatureAggroTickOutcomeLikeCpp::default();
+    let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
     let owner_snapshots: HashMap<_, _> = candidates
         .iter()
@@ -370,12 +398,12 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
             .collect();
         outcome.candidates_seen += map_candidates.len();
 
-        let guids = manager.creature_guids(map_id, instance_id);
+        let guids = store.phase_creature_guids_like_cpp(map_id, instance_id);
         let mut assistance_calls = Vec::new();
         let mut owner_snapshots = owner_snapshots.clone();
         let mut creature_factions = HashMap::new();
         for owner_guid in &guids {
-            if let Some(owner) = manager.find_creature(map_id, instance_id, *owner_guid) {
+            if let Some(owner) = store.phase_creature_like_cpp(map_id, instance_id, *owner_guid) {
                 owner_snapshots.insert(
                     *owner_guid,
                     LegacyCreatureAggroOwnerSnapshotLikeCpp {
@@ -383,20 +411,16 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                         instance_id,
                         position: owner.position(),
                         phase_shift: owner.phase_shift().clone(),
-                        combat_reach: owner.creature.unit().world().combat_reach(),
+                        combat_reach: owner.unit().world().combat_reach(),
                         alive: owner.is_alive(),
                         in_water: owner
-                            .creature
                             .movement_flags_like_cpp()
                             .contains(wow_constants::movement::MovementFlag::SWIMMING),
-                        in_evade_mode: owner.creature.is_in_evade_mode_like_cpp(),
-                        unit_flags: owner.creature.unit().unit_flags_like_cpp(),
-                        faction_template_id: u32::try_from(
-                            owner.creature.unit().data().faction_template,
-                        )
-                        .ok(),
+                        in_evade_mode: owner.is_in_evade_mode_like_cpp(),
+                        unit_flags: owner.unit().unit_flags_like_cpp(),
+                        faction_template_id: u32::try_from(owner.unit().data().faction_template)
+                            .ok(),
                         school_immunity_mask: owner
-                            .creature
                             .unit()
                             .subsystems()
                             .auras
@@ -404,23 +428,16 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                                 wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
                             ),
                         damage_immunity_mask: owner
-                            .creature
                             .unit()
                             .subsystems()
                             .auras
                             .aura_school_mask_like_cpp(
                                 wow_data::spell::aura_types::SPELL_AURA_DAMAGE_IMMUNITY,
                             ),
-                        has_confuse_aura: owner
-                            .creature
-                            .unit()
-                            .subsystems()
-                            .auras
-                            .has_aura_type_like_cpp(
-                                wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE,
-                            ),
+                        has_confuse_aura: owner.unit().subsystems().auras.has_aura_type_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE,
+                        ),
                         has_breakable_stun_aura: owner
-                            .creature
                             .unit()
                             .subsystems()
                             .auras
@@ -429,8 +446,7 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                             ),
                     },
                 );
-                creature_factions
-                    .insert(*owner_guid, owner.creature.unit().data().faction_template);
+                creature_factions.insert(*owner_guid, owner.unit().data().faction_template);
             }
         }
         for guid in guids.iter().copied() {
@@ -442,7 +458,8 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                 outcome.canonical_incarnation_rejections += 1;
                 continue;
             }
-            let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
+            let Some(creature) = store.phase_creature_mut_like_cpp(map_id, instance_id, guid)
+            else {
                 continue;
             };
             let expired_taunt_slots = creature.expire_taunt_auras_if_due_like_cpp();
@@ -493,23 +510,20 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                         continue;
                     }
                     let Some(assistant) =
-                        manager.find_creature_mut(map_id, instance_id, assistant_guid)
+                        store.phase_creature_mut_like_cpp(map_id, instance_id, assistant_guid)
                     else {
                         continue;
                     };
-                    let flags = assistant.creature.unit().unit_flags_like_cpp();
+                    let flags = assistant.unit().unit_flags_like_cpp();
                     if assistant.is_alive()
-                        && !assistant.creature.is_in_combat()
-                        && !assistant.creature.is_in_evade_mode_like_cpp()
-                        && !assistant.creature.unit().has_unit_state(
+                        && !assistant.is_in_combat()
+                        && !assistant.is_in_evade_mode_like_cpp()
+                        && !assistant.unit().has_unit_state(
                             (UnitState::STUNNED | UnitState::CONFUSED | UnitState::FLEEING).bits(),
                         )
+                        && assistant.has_react_state(wow_entities::ReactState::Aggressive)
+                        && !assistant.is_civilian_like_cpp()
                         && assistant
-                            .creature
-                            .has_react_state(wow_entities::ReactState::Aggressive)
-                        && !assistant.creature.is_civilian_like_cpp()
-                        && assistant
-                            .creature
                             .unit()
                             .subsystems()
                             .control
@@ -521,23 +535,19 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                                 | UnitFlags::UNINTERACTIBLE,
                         )
                         && creature_factions.get(&guid)
-                            == Some(&assistant.creature.unit().data().faction_template)
+                            == Some(&assistant.unit().data().faction_template)
                         && (victim.is_some_and(|victim| {
                             legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
                                 victim,
                             ) && legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-                                &assistant.creature,
-                                victim,
-                                &config,
+                                assistant, victim, config,
                             )
                             .unwrap_or(false)
                         }) || victim_snapshot.is_some_and(|victim| {
                             victim.alive
                                 && !victim.in_evade_mode
                                 && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
-                                    &assistant.creature,
-                                    victim,
-                                    &config,
+                                    assistant, victim, config,
                                 )
                                 .unwrap_or(false)
                         }))
@@ -548,7 +558,6 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                         assistant.set_no_call_assistance_like_cpp();
                         assistant.enter_combat(victim_guid);
                         assistant
-                            .creature
                             .unit_mut()
                             .subsystems_mut()
                             .combat
@@ -587,19 +596,20 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     }
                 }
             }
-            let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) else {
+            let Some(creature) = store.phase_creature_mut_like_cpp(map_id, instance_id, guid)
+            else {
                 continue;
             };
             match legacy_creature_update_threat_victim_like_cpp(
-                &mut creature.creature,
+                creature,
                 &map_candidates,
-                &config,
+                config,
                 &owner_snapshots,
             ) {
                 LegacyCreatureThreatUpdateLikeCpp::Unchanged => {}
                 LegacyCreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
                     outcome.victim_switches += 1;
-                    if let Some(victim_guid) = creature.creature.ai_ownership().combat_target {
+                    if let Some(victim_guid) = creature.ai_ownership().combat_target {
                         use crate::map_manager::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
                         let recipients = RecipientRule::NearbyVisibleDurable {
@@ -716,37 +726,38 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                 assistance_calls.push((
                     guid,
                     victim_guid,
-                    creature.creature.unit().world().clone(),
-                    creature.creature.unit().data().faction_template,
+                    creature.unit().world().clone(),
+                    creature.unit().data().faction_template,
                 ));
             }
-            if creature
-                .creature
-                .unit()
-                .has_unit_state(UnitState::SIGHTLESS.bits())
-            {
+            if creature.unit().has_unit_state(UnitState::SIGHTLESS.bits()) {
                 outcome.sightless_creatures_skipped += 1;
                 continue;
             }
-            let ai_kind =
-                match legacy_creature_ai_selection_decision_like_cpp(&creature.creature, &config) {
-                    LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
-                    LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
-                        outcome.ai_selection_unrepresented += 1;
-                        continue;
-                    }
-                };
+            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, config) {
+                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+                    outcome.ai_selection_unrepresented += 1;
+                    continue;
+                }
+            };
             if !creature_ai_uses_base_move_in_line_of_sight_like_cpp(&ai_kind) {
                 outcome.ai_los_suppressed += 1;
                 continue;
             }
             for candidate in &map_candidates {
+                // Re-borrowed per candidate: the alert and spline-stop hooks
+                // below reach the store itself.
+                let Some(creature) = store.phase_creature_mut_like_cpp(map_id, instance_id, guid)
+                else {
+                    break;
+                };
                 if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
                     outcome.targetability_rejections += 1;
                     continue;
                 }
                 match legacy_creature_aggro_candidate_visibility_decision_like_cpp(
-                    &creature.creature,
+                    creature,
                     map_id,
                     instance_id,
                     candidate,
@@ -756,7 +767,7 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected => {
                         if matches!(
                             legacy_creature_aggro_candidate_visibility_decision_like_cpp(
-                                &creature.creature,
+                                creature,
                                 map_id,
                                 instance_id,
                                 candidate,
@@ -764,10 +775,29 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                             ),
                             LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
                         ) {
-                            let alert_packet = legacy_creature_try_trigger_alert_like_cpp(
-                                creature, candidate, &config,
-                            );
-                            if let Some(packet_bytes) = alert_packet {
+                            let alert = legacy_creature_alert_orientation_like_cpp(
+                                creature, candidate, config,
+                            )
+                            .map(|orientation| {
+                                store.phase_begin_alert_distract_like_cpp(
+                                    map_id,
+                                    instance_id,
+                                    guid,
+                                    orientation,
+                                )
+                            });
+                            if matches!(alert, Some(None)) {
+                                // The store does not represent `MoveDistract`
+                                // (F6-8D3a-2): refuse instead of publishing an
+                                // alert without its movement.
+                                outcome.alert_movement_unrepresented += 1;
+                            } else if matches!(alert, Some(Some(true))) {
+                                use wow_packet::ServerPacket;
+                                let packet_bytes = wow_packet::packets::combat::AIReaction {
+                                    unit_guid: guid,
+                                    reaction: wow_constants::creature::AiReaction::Alert,
+                                }
+                                .to_bytes();
                                 use crate::map_manager::{RecipientRule, RuntimeEvent};
 
                                 outcome.alert_triggers += 1;
@@ -794,9 +824,7 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     }
                 }
                 match legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-                    &creature.creature,
-                    candidate,
-                    &config,
+                    creature, candidate, config,
                 ) {
                     Some(true) => {}
                     Some(false) => {
@@ -809,21 +837,17 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     }
                 }
                 if !legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
-                    &creature.creature,
-                    candidate,
+                    creature, candidate,
                 ) {
                     outcome.accessibility_rejections += 1;
                     continue;
                 }
-                if creature.creature.is_in_evade_mode_like_cpp() {
+                if creature.is_in_evade_mode_like_cpp() {
                     outcome.attacker_evade_rejections += 1;
                     continue;
                 }
                 match legacy_creature_ai_can_attack_decision_like_cpp(
-                    &ai_kind,
-                    &creature.creature,
-                    candidate,
-                    &config,
+                    &ai_kind, creature, candidate, config,
                 ) {
                     LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed => {}
                     LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected => {
@@ -836,9 +860,9 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     }
                 }
                 match legacy_creature_can_attack_leash_decision_like_cpp(
-                    &creature.creature,
+                    creature,
                     candidate,
-                    &config,
+                    config,
                     &owner_snapshots,
                 ) {
                     LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed => {}
@@ -852,7 +876,7 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                     }
                 }
                 if check_no_gray_aggro_config_like_cpp(
-                    &config,
+                    config,
                     candidate.player_level,
                     candidate.player_gray_level,
                     creature.level(),
@@ -863,47 +887,44 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                 let effective_aggro_range =
                     creature_attack_distance_like_cpp(CreatureAttackDistanceInputLikeCpp {
                         aggro_rate: config.creature_aggro_rate,
-                        creature_combat_reach: creature.creature.unit().world().combat_reach(),
+                        creature_combat_reach: creature.unit().world().combat_reach(),
                         expansion_max_level: max_level_for_expansion_like_cpp(
-                            creature.creature.lifecycle_metadata().required_expansion,
+                            creature.lifecycle_metadata().required_expansion,
                         ),
                         max_player_level_config: config.max_player_level_config,
                         player_level_for_target: candidate.player_level,
                         creature_level_for_target: creature.level(),
                         creature_detect_range_aura_mod: creature
-                            .creature
                             .unit()
                             .total_aura_modifier_like_cpp(
                                 wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE,
                             ) as f32,
                         player_detected_range_aura_mod: candidate.player_detected_range_aura_mod,
-                    }) + creature.creature.combat_distance();
+                    }) + creature.combat_distance();
 
-                if creature
-                    .creature
-                    .try_ai_aggro_with_effective_range_like_cpp(
-                        candidate.player_guid,
-                        &candidate.position,
-                        candidate.player_combat_reach,
-                        effective_aggro_range,
-                    )
-                {
+                if creature.try_ai_aggro_with_effective_range_like_cpp(
+                    candidate.player_guid,
+                    &candidate.position,
+                    candidate.player_combat_reach,
+                    effective_aggro_range,
+                ) {
                     use wow_packet::ServerPacket;
                     use wow_packet::packets::movement::MonsterMoveStop;
 
                     creature
-                        .creature
                         .unit_mut()
                         .subsystems_mut()
                         .combat
                         .add_threat(candidate.player_guid, 0.0);
                     creature.sync_runtime_motion_master_like_cpp();
+                    let mut spline_stopped = false;
                     if creature.runtime_motion_master_current_kind_like_cpp()
                         == Some(wow_movement::MovementGeneratorType::Chase)
                         && let Some(stop) = creature.stop_move_spline_like_cpp()
                     {
                         use crate::map_manager::{RecipientRule, RuntimeEvent};
 
+                        spline_stopped = true;
                         outcome.movement_interrupts += 1;
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: guid,
@@ -955,9 +976,12 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                         assistance_calls.push((
                             guid,
                             victim_guid,
-                            creature.creature.unit().world().clone(),
-                            creature.creature.unit().data().faction_template,
+                            creature.unit().world().clone(),
+                            creature.unit().data().faction_template,
                         ));
+                    }
+                    if spline_stopped {
+                        store.phase_after_spline_stop_like_cpp(map_id, instance_id, guid);
                     }
                     break;
                 }
@@ -983,23 +1007,20 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                         continue;
                     }
                     let Some(assistant) =
-                        manager.find_creature_mut(map_id, instance_id, assistant_guid)
+                        store.phase_creature_mut_like_cpp(map_id, instance_id, assistant_guid)
                     else {
                         continue;
                     };
-                    let flags = assistant.creature.unit().unit_flags_like_cpp();
+                    let flags = assistant.unit().unit_flags_like_cpp();
                     if !assistant.is_alive()
-                        || assistant.creature.is_in_combat()
-                        || assistant.creature.is_in_evade_mode_like_cpp()
-                        || assistant.creature.unit().has_unit_state(
+                        || assistant.is_in_combat()
+                        || assistant.is_in_evade_mode_like_cpp()
+                        || assistant.unit().has_unit_state(
                             (UnitState::STUNNED | UnitState::CONFUSED | UnitState::FLEEING).bits(),
                         )
-                        || !assistant
-                            .creature
-                            .has_react_state(wow_entities::ReactState::Aggressive)
-                        || assistant.creature.is_civilian_like_cpp()
+                        || !assistant.has_react_state(wow_entities::ReactState::Aggressive)
+                        || assistant.is_civilian_like_cpp()
                         || assistant
-                            .creature
                             .unit()
                             .subsystems()
                             .control
@@ -1010,31 +1031,27 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                                 | UnitFlags::IMMUNE_TO_NPC
                                 | UnitFlags::UNINTERACTIBLE,
                         )
-                        || assistant.creature.unit().data().faction_template != caller_faction
+                        || assistant.unit().data().faction_template != caller_faction
                         || !assistant.position().is_within_dist(
                             &caller_world.position(),
                             config.family_assistance_radius,
                         )
-                        || terrain.as_ref().is_some_and(|terrain| {
+                        || terrain.is_some_and(|terrain| {
                             !terrain.is_within_los_like_cpp(
                                 u32::from(map_id),
                                 &caller_world,
-                                assistant.creature.unit().world(),
+                                assistant.unit().world(),
                             )
                         })
                         || !(victim.is_some_and(|victim| {
                             legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-                                &assistant.creature,
-                                victim,
-                                &config,
+                                assistant, victim, config,
                             )
                             .unwrap_or(false)
                         }) || victim_snapshot.is_some_and(|victim| {
                             !victim.in_evade_mode
                                 && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
-                                    &assistant.creature,
-                                    victim,
-                                    &config,
+                                    assistant, victim, config,
                                 )
                                 .unwrap_or(false)
                         }))
@@ -1050,7 +1067,7 @@ pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ow
                         continue;
                     }
                     if let Some(caller) =
-                        manager.find_creature_mut(map_id, instance_id, caller_guid)
+                        store.phase_creature_mut_like_cpp(map_id, instance_id, caller_guid)
                     {
                         caller.schedule_assistance_like_cpp(
                             victim_guid,

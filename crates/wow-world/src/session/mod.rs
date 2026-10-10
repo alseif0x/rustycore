@@ -54,11 +54,19 @@ pub use legacy_runtime::{
     run_legacy_creature_movement_tick_once_like_cpp, run_legacy_creature_spell_tick_once_like_cpp,
     run_legacy_player_melee_tick_once_like_cpp,
 };
+// #1263 F6-8D3a-1: the aggro commit is shared by the legacy bridge and the
+// admitted canonical executor, so world-server calls the same body.
+pub use legacy_runtime::{
+    apply_creature_attack_start_commands_on_manager_like_cpp,
+    apply_creature_attack_stop_commands_on_manager_like_cpp,
+    committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
+};
 // #1263 F6-8D2 exports the isolated admitted creature execution seam at the same
 // external path as the seven legacy tick entries above. Nothing in production
 // calls it: the world-server isolated adapter and the F6-8D2 regressions do, and
 // D3 owns the exclusive cutover.
 pub use legacy_runtime::{
+    AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
     CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
@@ -66,6 +74,7 @@ pub use legacy_runtime::{
     IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
     IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
     capture_admitted_creature_execution_like_cpp,
+    run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
     run_isolated_admitted_creature_execution_composition_like_cpp,
 };

@@ -38,11 +38,13 @@ use super::*;
 // (`admission`), the admitted execution itself (`execution`) and the
 // three-owner composition the acceptance evaluates (`composition`).
 mod admission;
+mod combat_phases;
 mod composition;
 mod execution;
 mod lease;
 
 pub use admission::*;
+pub use combat_phases::*;
 pub use composition::*;
 pub use execution::*;
 pub use lease::*;

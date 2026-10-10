@@ -34,7 +34,7 @@ pub(super) struct MeleeSecondaryTargetsOutcomeLikeCpp {
 /// the caller's list, so the replay at the end of the tick keeps C++'s order.
 pub(super) fn apply_secondary_targets_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
-    attacker: &wow_entities::Creature,
+    attacker: &CreatureMeleeAttackerFactsLikeCpp,
     swing: &PendingCreatureSwingLikeCpp,
     config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
     damage: u32,
@@ -61,7 +61,7 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
                     swing.victim_guid,
                     damage,
                     0x01,
-                    attacker.is_charmed_owned_by_player_or_player_like_cpp(),
+                    attacker.is_charmed_owned_by_player_or_player,
                     spell_store,
                     config.spell_misc_store.as_deref(),
                     config.spell_threat_store.as_deref(),
@@ -132,7 +132,7 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
                     .with_creature_like_cpp(swing.victim_guid, |victim| {
                         victim.calculate_damage_for_sparring_like_cpp(
                             true,
-                            attacker.is_charmed_owned_by_player_or_player_like_cpp(),
+                            attacker.is_charmed_owned_by_player_or_player,
                             damage,
                         )
                     })
@@ -156,7 +156,7 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
             swing.victim_guid,
             represented_damage_done,
             0x01,
-            attacker.is_charmed_owned_by_player_or_player_like_cpp(),
+            attacker.is_charmed_owned_by_player_or_player,
             spell_store,
             config.spell_misc_store.as_deref(),
             config.spell_threat_store.as_deref(),

@@ -7,6 +7,7 @@ use super::*;
 mod admitted_creature_execution;
 mod canonical_incarnation_ownership;
 mod creature_aggro_tick;
+mod creature_combat_commit;
 mod creature_lifecycle_tick;
 mod creature_melee_share;
 mod creature_melee_split;
@@ -15,10 +16,12 @@ mod creature_melee_threat;
 mod creature_melee_tick;
 mod creature_movement_publication;
 mod creature_movement_tick;
+mod creature_phase_store;
 mod creature_spell_tick;
 mod creature_spell_validation;
 mod creature_threat;
 mod creature_tick;
+mod player_melee_victims;
 mod player_tick;
 
 // These re-exports look unused inside this module: they are consumed through
@@ -30,6 +33,7 @@ pub(in crate::session) use canonical_incarnation_ownership::*;
 // do, and D3 owns the exclusive cutover. It is exported the same way as the
 // seven legacy tick entries so the external path stays stable.
 pub use admitted_creature_execution::{
+    AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
     CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
@@ -37,6 +41,7 @@ pub use admitted_creature_execution::{
     IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
     IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
     capture_admitted_creature_execution_like_cpp,
+    run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
     run_isolated_admitted_creature_execution_composition_like_cpp,
 };
@@ -54,6 +59,7 @@ pub(in crate::session) use creature_melee_tick::*;
 pub(in crate::session) use creature_movement_publication::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_movement_tick::*;
+pub(in crate::session) use creature_phase_store::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_spell_tick::*;
 #[allow(unused_imports)]
@@ -63,6 +69,8 @@ pub(in crate::session) use creature_threat::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_tick::*;
 #[allow(unused_imports)]
+pub(in crate::session) use player_melee_victims::*;
+#[allow(unused_imports)]
 pub(in crate::session) use player_tick::*;
 
 // The tick entry points keep their original external path,
@@ -71,6 +79,7 @@ pub(in crate::session) use player_tick::*;
 pub use creature_aggro_tick::run_legacy_creature_aggro_tick_once_like_cpp;
 pub use creature_aggro_tick::run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp;
 pub use creature_aggro_tick::run_legacy_creature_aggro_tick_once_with_config_like_cpp;
+pub use creature_combat_commit::*;
 pub use creature_lifecycle_tick::run_legacy_creature_lifecycle_tick_once_like_cpp;
 pub use creature_melee_tick::run_legacy_creature_melee_tick_once_like_cpp;
 pub use creature_movement_tick::run_legacy_creature_movement_tick_once_like_cpp;
