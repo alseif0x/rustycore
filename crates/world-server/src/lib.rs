@@ -181,6 +181,7 @@ fn item_guid_reference_cleanup_transaction_like_cpp(
 const WORLD_CONFIG_DIR: &str = "worldserver.conf.d";
 const RUSTYCORE_LEGACY_CREATURE_GLOBAL_RUNTIME_CONFIG: &str =
     "RustyCore.LegacyCreatureGlobalRuntime";
+const RUSTYCORE_CANONICAL_CREATURE_RUNTIME_CONFIG: &str = "RustyCore.CanonicalCreatureRuntime";
 const DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS: u32 = 5_000;
 const RESPAWN_DB_RETRY_INITIAL_DELAY: Duration = Duration::from_secs(1);
 const RESPAWN_DB_RETRY_MAX_DELAY: Duration = Duration::from_secs(30);

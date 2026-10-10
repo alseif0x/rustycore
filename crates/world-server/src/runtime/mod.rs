@@ -2,6 +2,11 @@
 
 use super::*;
 
+// #1263 F6-8D3b-1: the `RuntimeTickOwner::CanonicalMap` creature tick owner.
+pub(crate) mod canonical_creature_runtime;
+pub(super) use canonical_creature_runtime::{
+    CanonicalCreatureRuntimeLikeCpp, creature_tick_owner_loops_like_cpp,
+};
 mod deferred_visibility;
 mod delivery;
 mod game_events;

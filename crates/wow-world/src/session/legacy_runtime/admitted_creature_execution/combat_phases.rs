@@ -190,8 +190,32 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
             owner,
         );
     };
+    run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
+        admission,
+        &mut manager,
+        lease,
+        inputs,
+    )
+}
+
+/// [`run_admitted_creature_combat_phases_isolated_like_cpp`] on a canonical
+/// manager the caller already holds.
+///
+/// #1263 F6-8D3b-1: the production entry. The canonical map update loop calls
+/// it under the one canonical guard of its tick resume, after the session
+/// phase and before the object visitors, where C++ `Map::Update` runs
+/// `Creature::Update`. The fence, the claim and every phase are the isolated
+/// path's; only who took the guard differs, and nothing is delivered here.
+#[must_use]
+pub fn run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
+    admission: &AdmittedCreatureExecutionLikeCpp,
+    manager: &mut wow_map::MapManager,
+    lease: &SharedCreatureExecutionLeaseLikeCpp,
+    inputs: AdmittedCreatureCombatPhaseInputsLikeCpp<'_>,
+) -> AdmittedCreatureCombatPhasesOutcomeLikeCpp {
+    let owner = CreatureExecutionOwnerLikeCpp::CanonicalAdmitted;
     let admitted =
-        admit_and_claim_admitted_creature_execution_like_cpp(admission, &manager, lease, owner);
+        admit_and_claim_admitted_creature_execution_like_cpp(admission, manager, lease, owner);
     let mut outcome = AdmittedCreatureCombatPhasesOutcomeLikeCpp::refused_like_cpp(admitted, owner);
     if !admitted.is_admitted_like_cpp() {
         return outcome;
@@ -202,7 +226,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     // the creatures' own update, exactly as the legacy loop orders it.
     outcome.player_melee.attackers_seen = inputs.player_melee_attackers.len();
     let (pending, map_difficulties) = collect_player_melee_swings_on_manager_like_cpp(
-        &mut manager,
+        &mut *manager,
         inputs.player_melee_attackers,
         admission.diff_ms,
         inputs.player_melee_phase_state,
@@ -211,7 +235,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     outcome.player_melee.swings_ready = pending.len();
     for swing in pending {
         execute_player_melee_swing_on_manager_like_cpp(
-            &mut manager,
+            &mut *manager,
             &mut CanonicalPlayerMeleeCreatureVictimsLikeCpp,
             &swing,
             &map_difficulties,
@@ -234,7 +258,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
             .collect();
         let mut store = AdmittedCanonicalCreatureLifecycleStoreLikeCpp {
             store: AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
-                &mut manager,
+                &mut *manager,
                 &admission.maps,
                 &selection,
             ),
@@ -281,7 +305,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     // place. Each frame is therefore already applied and is published as is.
     {
         let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
-            &mut manager,
+            &mut *manager,
             &admission.maps,
             &selection,
         );
@@ -306,7 +330,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     // legacy bridge applies before delivery.
     {
         let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
-            &mut manager,
+            &mut *manager,
             &admission.maps,
             &selection,
         );
@@ -346,10 +370,10 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     // it. Selection over the admitted store, then the deferred `DoCast` /
     // `ScheduleEvent` drain on the canonical manager still held here.
     if let Some(spell_store) = config.spell_store.as_ref() {
-        let map_difficulties = creature_spell_map_difficulties_like_cpp(&manager);
+        let map_difficulties = creature_spell_map_difficulties_like_cpp(manager);
         let actions = {
             let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
-                &mut manager,
+                &mut *manager,
                 &admission.maps,
                 &selection,
             );
@@ -364,7 +388,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
         };
         drain_creature_spell_actions_like_cpp(
             &mut CanonicalCreatureSpellActionOwnerLikeCpp {
-                manager: &mut manager,
+                manager: &mut *manager,
             },
             &CanonicalCreatureOwnershipLikeCpp::AdmittedCanonicalStore,
             actions,
@@ -377,7 +401,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     // Creature melee (`DoMeleeAttackIfReady`) with the real attack table.
     let pending = {
         let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
-            &mut manager,
+            &mut *manager,
             &admission.maps,
             &selection,
         );
@@ -392,7 +416,7 @@ pub fn run_admitted_creature_combat_phases_isolated_like_cpp(
     let mut creature_victim_syncs = Vec::new();
     for swing in pending {
         execute_creature_melee_swing_on_manager_like_cpp(
-            &mut manager,
+            &mut *manager,
             &mut CanonicalCreatureMeleeAttackersLikeCpp,
             swing,
             config,

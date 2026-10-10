@@ -221,8 +221,8 @@ pub fn pending_respawn_from_creature_like_cpp(
             entry: creature.entry(),
             display_id: creature.display_id(),
             native_display_id: creature.display_id(),
-            display_scale: 1.0,
-            native_x_display_scale: 1.0,
+            display_scale: projection.display_scale,
+            native_x_display_scale: projection.native_x_display_scale,
             bounding_radius: creature.unit().data().bounding_radius,
             combat_reach: creature.unit().data().combat_reach,
             health: creature.max_hp() as i64,
@@ -239,7 +239,7 @@ pub fn pending_respawn_from_creature_like_cpp(
                 creature.max_hp() > 0,
             ),
             damage_school: creature.melee_damage_school_like_cpp(),
-            scale: 1.0,
+            scale: projection.scale,
             unit_class: projection.unit_class,
             display_power: projection.display_power,
             power: projection.power,
@@ -276,8 +276,8 @@ pub fn pending_respawn_from_creature_like_cpp(
             sheathe_state: creature.unit().data().sheathe_state,
             pvp_flags: creature.unit().data().pvp_flags,
             current_area_id: 0,
-            speed_walk_rate: 1.0,
-            speed_run_rate: 1.14286,
+            speed_walk_rate: projection.speed_walk_rate,
+            speed_run_rate: projection.speed_run_rate,
             ai_anim_kit_id: creature.unit().ai_anim_kit_id_like_cpp(),
             movement_anim_kit_id: creature.unit().movement_anim_kit_id_like_cpp(),
             melee_anim_kit_id: creature.unit().melee_anim_kit_id_like_cpp(),
@@ -487,6 +487,9 @@ pub fn creature_from_pending_respawn_like_cpp(
     unit.set_speed_rate_like_cpp(UnitMoveType::Run, create_data.speed_run_rate);
     unit.set_speed_rate_like_cpp(UnitMoveType::Swim, 1.0);
     unit.set_speed_rate_like_cpp(UnitMoveType::Flight, 1.0);
+    // `SetObjectScale(GetNativeObjectScale())` (`Creature.cpp:553`), the
+    // template scale the entry carries (#1263 F6-8D3b-1).
+    unit.world_mut().object_mut().set_scale(create_data.scale);
     creature.clear_data_changes();
 
     WorldCreature::install_bridge_runtime_like_cpp(&mut creature, &respawn.create_data);

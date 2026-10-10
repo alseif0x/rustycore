@@ -56,6 +56,42 @@ enum CanonicalCreatureAdmissionLikeCpp {
     Admitted(CanonicalCreatureInsertOutcomeLikeCpp),
 }
 
+/// R7b-1 under `RuntimeTickOwner::CanonicalMap` (#1263 F6-8D3b-1).
+///
+/// The legacy lifecycle tick that drains the legacy map queue never runs under
+/// that owner, so a deferred registration joins the canonical map's own
+/// respawn queue, which the admitted executor's lifecycle phase drains and
+/// admits canonically. Returns `false`, leaving the entry to the legacy queue,
+/// for every other owner and when the canonical manager has no map instance
+/// for the key yet: there is then no canonical queue to hold it. The canonical
+/// guard is taken alone, after the owner read released the legacy one.
+fn push_deferred_registration_to_canonical_queue_like_cpp(
+    canonical: Option<&SharedCanonicalMapManager>,
+    legacy: &wow_world_core::map_manager::SharedMapManager,
+    map_id: u16,
+    world_creature: &WorldCreature,
+) -> bool {
+    if wow_world_core::map_manager::shared_runtime_tick_owner_like_cpp(legacy)
+        != wow_world_core::map_manager::RuntimeTickOwner::CanonicalMap
+    {
+        return false;
+    }
+    let Some(Ok(mut canonical)) = canonical.map(|canonical| canonical.lock()) else {
+        return false;
+    };
+    let Some(map) = canonical.find_map_mut(u32::from(map_id), 0) else {
+        return false;
+    };
+    map.map_mut()
+        .creature_respawn_queue_like_cpp_mut()
+        .push_respawn(pending_respawn_from_world_creature_like_cpp(
+            world_creature,
+            std::time::Instant::now(),
+            map_id,
+        ));
+    true
+}
+
 pub fn insert_canonical_creature_map_object_on_map_like_cpp(
     manager: &SharedCanonicalMapManager,
     map_id: u32,
@@ -487,6 +523,16 @@ impl WorldEntitiesState {
                             .as_ref()
                             .and_then(|resolver| resolver(path_id))
                     });
+            }
+            if deferred
+                && push_deferred_registration_to_canonical_queue_like_cpp(
+                    hub.core.canonical_map_manager.as_ref(),
+                    manager,
+                    map_id,
+                    &world_creature,
+                )
+            {
+                return;
             }
             let mut manager = manager
                 .write()

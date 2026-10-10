@@ -578,6 +578,12 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
         calls[0].0 < spawn,
         "the owner must be set before the loop that reads it is spawned"
     );
+    // #1263 F6-8D3b-1: both creature loops derive from that one value.
+    assert!(calls[0].0 < app.find("spawn_canonical_map_update_loop(").unwrap());
+    assert_eq!(
+        app.matches("creature_tick_owner_loops_like_cpp(").count(),
+        1
+    );
 
     for source in [
         include_str!("../lib.rs"),

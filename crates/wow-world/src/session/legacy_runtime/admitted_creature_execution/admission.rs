@@ -179,6 +179,28 @@ pub fn capture_admitted_creature_execution_like_cpp(
     objects: impl IntoIterator<Item = (wow_map::MapKey, ObjectGuid)>,
 ) -> Option<AdmittedCreatureExecutionLikeCpp> {
     let manager = canonical_map_manager.lock().ok()?;
+    Some(capture_admitted_creature_execution_on_manager_like_cpp(
+        &manager,
+        coordinator_id,
+        tick_epoch,
+        diff_ms,
+        maps,
+        objects,
+    ))
+}
+
+/// [`capture_admitted_creature_execution_like_cpp`] on a canonical manager the
+/// caller already holds (#1263 F6-8D3b-1: the canonical map loop admits the
+/// creature transition under the guard its tick resume holds).
+#[must_use]
+pub fn capture_admitted_creature_execution_on_manager_like_cpp(
+    manager: &wow_map::MapManager,
+    coordinator_id: u64,
+    tick_epoch: u64,
+    diff_ms: u32,
+    maps: impl IntoIterator<Item = (wow_map::MapKey, u64)>,
+    objects: impl IntoIterator<Item = (wow_map::MapKey, ObjectGuid)>,
+) -> AdmittedCreatureExecutionLikeCpp {
     let mut admitted_maps = Vec::new();
     for (key, incarnation) in maps {
         admitted_maps.push(AdmittedCreatureExecutionMapLikeCpp {
@@ -222,14 +244,14 @@ pub fn capture_admitted_creature_execution_like_cpp(
     admitted_objects.sort_unstable();
     admitted_objects.dedup();
 
-    Some(AdmittedCreatureExecutionLikeCpp {
+    AdmittedCreatureExecutionLikeCpp {
         coordinator_id,
         tick_epoch,
         diff_ms,
         game_time_secs: wow_entities::game_time_secs_like_cpp(),
         maps: admitted_maps,
         objects: admitted_objects,
-    })
+    }
 }
 
 /// Identity of one live canonical `Creature` record.

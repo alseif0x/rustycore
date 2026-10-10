@@ -29,10 +29,9 @@ mod player_tick;
 // the Session root glob, so removing them breaks the callers.
 #[allow(unused_imports)]
 pub(in crate::session) use canonical_incarnation_ownership::*;
-// #1263 F6-8D2: the isolated admitted creature execution seam. Production does
-// not call it - the world-server isolated adapter and the F6-8D2 regressions
-// do, and D3 owns the exclusive cutover. It is exported the same way as the
-// seven legacy tick entries so the external path stays stable.
+// #1263 F6-8D2: the admitted creature execution seam, exported the same way as
+// the seven legacy tick entries. #1263 F6-8D3b-1: the world-server
+// `RuntimeTickOwner::CanonicalMap` owner calls its locked-manager entries.
 pub use admitted_creature_execution::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
@@ -42,7 +41,9 @@ pub use admitted_creature_execution::{
     IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
     IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
     capture_admitted_creature_execution_like_cpp,
+    capture_admitted_creature_execution_on_manager_like_cpp,
     run_admitted_creature_combat_phases_isolated_like_cpp,
+    run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
     run_isolated_admitted_creature_execution_composition_like_cpp,
 };

@@ -88,6 +88,43 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
     map_store: &wow_data::MapStore,
     loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
+    canonical_map_tick_resume_with_creature_owner_like_cpp(
+        manager,
+        legacy_manager,
+        plan,
+        scheduler,
+        canonical_spawn_metadata,
+        condition_store,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+        None,
+    )
+}
+
+/// The creature phase of one admitted tick, run on the locked canonical manager.
+pub(crate) type CanonicalMapCreaturePhaseLikeCpp<'a> =
+    &'a mut dyn FnMut(&mut wow_map::MapManager, &wow_map::MapTickPlanLikeCpp);
+
+/// [`canonical_map_tick_resume_like_cpp`] with the creature tick owner of
+/// `RuntimeTickOwner::CanonicalMap` (#1263 F6-8D3b-1). The creature phase runs
+/// after the respawn phase and before the object visitors, where C++
+/// `Map::Update` runs `ProcessRespawns` and then `Creature::Update`
+/// (`Maps/Map.cpp:682-735`), on the coordinator state the admission fence
+/// checks. The visitors keep `ExternalRuntime`: the executor is that external
+/// owner, so the canonical map's own partial creature visitor never ticks a
+/// creature a second time.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
+    manager: &mut wow_map::MapManager,
+    legacy_manager: Option<&SharedMapManager>,
+    plan: wow_map::MapTickPlanLikeCpp,
+    scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
+    canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
+    condition_store: &wow_data::ConditionEntriesByTypeStore,
+    map_store: &wow_data::MapStore,
+    loaded_grid_creature_respawn_caches: &LoadedGridCreatureRespawnCachesLikeCpp,
+    creature_phase: Option<CanonicalMapCreaturePhaseLikeCpp<'_>>,
+) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
     let effective_diff_ms = plan.effective_diff_ms();
     if manager.tick_coordination_like_cpp()
         != wow_map::MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch_like_cpp())
@@ -111,6 +148,9 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
         map_store,
         loaded_grid_creature_respawn_caches,
     );
+    if let Some(creature_phase) = creature_phase {
+        creature_phase(manager, &plan);
+    }
     // The canonical map still carries an intentionally incomplete Creature
     // visitor. Production behaviour is owned by the legacy/session runtime;
     // declare that owner so this tick cannot mutate and discard a shadow plan.
