@@ -113,13 +113,11 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp(
     conversion_clock: (Instant, i64),
     outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
 ) {
-    use crate::{
-        creature_respawn::creature_corpse_despawn_due_like_cpp,
-        creature_respawn::creature_from_pending_respawn_like_cpp,
-        creature_respawn::creature_respawn_at_from_death_at_game_time_like_cpp,
-        creature_respawn::pending_respawn_from_creature_like_cpp,
-        creature_respawn::respawn_time_from_instant_like_cpp,
-        creature_respawn::save_pending_respawn_time_on_queue_like_cpp,
+    use crate::creature_respawn::{
+        creature_corpse_despawn_due_like_cpp, creature_from_pending_respawn_like_cpp,
+        creature_respawn_at_from_death_at_game_time_like_cpp,
+        pending_respawn_from_creature_like_cpp, respawn_time_from_instant_like_cpp,
+        save_pending_respawn_time_on_queue_like_cpp,
     };
     use std::collections::BTreeSet;
 

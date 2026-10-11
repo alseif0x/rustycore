@@ -626,8 +626,9 @@ use crate::session_policy::{
     ReputationRatesLikeCpp,
 };
 use crate::{
-    creature_respawn::PendingRespawn, pathfinder::WorldMMapPathfinderWorkerLikeCpp,
-    runtime_plan::RecipientRule, runtime_plan::RuntimeEvent, runtime_plan::RuntimePlan,
+    creature_respawn::PendingRespawn,
+    pathfinder::WorldMMapPathfinderWorkerLikeCpp,
+    runtime_plan::{RecipientRule, RuntimeEvent, RuntimePlan},
 };
 use wow_ai::{
     CURRENT_EXPANSION_LIKE_CPP, CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp,

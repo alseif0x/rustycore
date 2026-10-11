@@ -793,3 +793,45 @@ fn canonical_creature_relocation_helper_uses_explicit_map_and_instance_like_cpp(
         assert_eq!(creature.position(), relocated);
     }
 }
+/// #1263 F6-8E-2: C++ `Cell::VisitGridObjects(_player, searcher,
+/// AELootCreatureCheck::LootDistance)` (`LootHandler.cpp:236-242`) finds only
+/// the dead creatures on the nearby grid cells within 30 yards: a live one,
+/// one just beyond the distance and one on far cells are not candidates.
+#[test]
+fn ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    let corpse = |entry: i64, x: f32, alive: bool| {
+        let guid = test_creature_guid(entry);
+        let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
+            guid,
+            9001,
+            Position::new(x, 0.0, 0.0, 0.0),
+            100,
+            1,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+        );
+        if !alive {
+            creature.die();
+        }
+        assert!(manager.lock().unwrap().add_creature(0, 0, creature));
+        guid
+    };
+    let near_dead = corpse(19_041, 10.0, false);
+    corpse(19_042, 12.0, true);
+    corpse(19_043, 31.0, false);
+    corpse(19_044, 900.0, false);
+
+    let candidates = session
+        .core
+        .nearby_dead_creature_guids_like_cpp(Position::ZERO, 30.0);
+
+    assert_eq!(candidates, vec![near_dead]);
+}

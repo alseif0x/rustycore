@@ -361,7 +361,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
             };
             let expired_taunt_slots = creature.expire_taunt_auras_if_due_like_cpp();
             if !expired_taunt_slots.is_empty() {
-                use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+                use crate::runtime_plan::{RecipientRule, RuntimeEvent};
                 use wow_packet::ServerPacket;
 
                 outcome.plan.events.push(RuntimeEvent {
@@ -454,7 +454,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                             .add_threat(victim_guid, 0.0);
                         outcome.assistance_starts += 1;
                         outcome.aggro_starts += 1;
-                        use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+                        use crate::runtime_plan::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
 
                         outcome.plan.events.push(RuntimeEvent {
@@ -500,7 +500,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                 CreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
                     outcome.victim_switches += 1;
                     if let Some(victim_guid) = creature.ai_ownership().combat_target {
-                        use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+                        use crate::runtime_plan::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
                         let recipients = RecipientRule::NearbyVisibleDurable {
                             source_guid: guid,
@@ -549,7 +549,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                     participant_guids,
                     removed_taunt_slots,
                 } => {
-                    use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+                    use crate::runtime_plan::{RecipientRule, RuntimeEvent};
                     use wow_packet::ServerPacket;
 
                     if let Some(previous_victim) = previous_victim {
@@ -682,9 +682,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                                     reaction: wow_constants::creature::AiReaction::Alert,
                                 }
                                 .to_bytes();
-                                use crate::{
-                                    runtime_plan::RecipientRule, runtime_plan::RuntimeEvent,
-                                };
+                                use crate::runtime_plan::{RecipientRule, RuntimeEvent};
 
                                 outcome.alert_triggers += 1;
                                 outcome.plan.events.push(RuntimeEvent {
@@ -807,7 +805,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         == Some(wow_movement::MovementGeneratorType::Chase)
                         && let Some(stop) = creature.stop_move_spline_like_cpp()
                     {
-                        use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+                        use crate::runtime_plan::{RecipientRule, RuntimeEvent};
 
                         outcome.movement_interrupts += 1;
                         outcome.plan.events.push(RuntimeEvent {
@@ -829,7 +827,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         });
                     }
                     outcome.aggro_starts += 1;
-                    use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+                    use crate::runtime_plan::{RecipientRule, RuntimeEvent};
                     outcome.plan.events.push(RuntimeEvent {
                         source_guid: guid,
                         recipients: RecipientRule::NearbyVisibleDurable {

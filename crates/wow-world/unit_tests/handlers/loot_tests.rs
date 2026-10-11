@@ -37,6 +37,7 @@ use super::{
     represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
+use crate::creature_projection::test_support::*;
 use crate::canonical_creature_fixtures::{self as fixtures, CanonicalCreatureFixtureLikeCpp as _};
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{

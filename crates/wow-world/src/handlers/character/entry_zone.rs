@@ -2,10 +2,7 @@ use tracing::{info, warn};
 use wow_core::Position;
 
 use crate::session::WorldSession;
-use crate::{
-    terrain::terrain_grid_area_id_for_position_like_cpp,
-    terrain::zone_and_area_for_position_like_cpp,
-};
+use crate::terrain::*;
 
 impl WorldSession {
     /// Applies the currently represented post-add zone/rest effects without publishing packets.

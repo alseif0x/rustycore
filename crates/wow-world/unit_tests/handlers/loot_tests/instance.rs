@@ -31,12 +31,9 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
     let corpse_before = first
         .mutate_world_creature(owner, |creature| {
             creature.set_corpse_delay(120, false);
-            crate::creature_projection::test_support::set_corpse_despawn_at(
-                creature,
-                Some(Instant::now() + Duration::from_secs(120)),
-            );
+            set_corpse_despawn_at(creature, Some(Instant::now() + Duration::from_secs(120)));
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
-            crate::creature_projection::test_support::corpse_despawn_at(creature)
+            corpse_despawn_at(creature)
         })
         .unwrap();
     let authority =
@@ -107,7 +104,7 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
     let corpse_after = first
         .mutate_world_creature(owner, |creature| {
             (
-                crate::creature_projection::test_support::corpse_despawn_at(creature),
+                corpse_despawn_at(creature),
                 crate::creature_projection::has_lootable_dynamic_flag_like_cpp(creature),
             )
         })

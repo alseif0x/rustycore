@@ -4,11 +4,11 @@ use std::sync::Arc;
 use tracing::warn;
 use wow_core::Position;
 use wow_entities::{CorpseCustomizationChoice, CorpseType};
-use wow_world_core::session::HubRef;
-use wow_world_core::{
-    corpse_load::LoadedMapCorpseRowLikeCpp, corpse_load::MapCorpseLoadOutcomeLikeCpp,
-    corpse_load::materialize_loaded_map_corpses_like_cpp, corpse_load::parse_corpse_items_like_cpp,
+use wow_world_core::corpse_load::{
+    LoadedMapCorpseRowLikeCpp, MapCorpseLoadOutcomeLikeCpp,
+    materialize_loaded_map_corpses_like_cpp, parse_corpse_items_like_cpp,
 };
+use wow_world_core::session::HubRef;
 
 use super::SessionLifecycleState;
 

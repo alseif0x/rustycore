@@ -930,31 +930,3 @@ async fn loot_release_ignores_active_guid_without_represented_loot_like_cpp() {
     assert!(session.loot.is_active_loot_guid(active_guid));
     assert!(send_rx.try_recv().is_err());
 }
-/// #1263 F6-8E-2: C++ `Cell::VisitGridObjects(_player, searcher,
-/// AELootCreatureCheck::LootDistance)` (`LootHandler.cpp:236-242`) finds only
-/// the dead creatures on the nearby grid cells within 30 yards; a live one,
-/// one just outside the distance and one on far cells are not candidates.
-#[test]
-fn ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp() {
-    let (mut session, _send_rx) = make_session_with_send();
-    session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    let at = |guid: ObjectGuid, alive: bool, x: f32| {
-        let mut creature = test_creature(guid, alive);
-        creature.current_pos = Position::new(x, 0.0, 0.0, 0.0);
-        creature
-    };
-    let near_dead = test_creature_guid(19_041);
-    let near_alive = test_creature_guid(19_042);
-    let beyond_distance = test_creature_guid(19_043);
-    let far_cells = test_creature_guid(19_044);
-    register_test_creature_like_cpp(&mut session, at(near_dead, false, 10.0));
-    register_test_creature_like_cpp(&mut session, at(near_alive, true, 12.0));
-    register_test_creature_like_cpp(&mut session, at(beyond_distance, false, 31.0));
-    register_test_creature_like_cpp(&mut session, at(far_cells, false, 900.0));
-
-    let candidates = session
-        .core
-        .nearby_dead_creature_guids_like_cpp(Position::ZERO, 30.0);
-
-    assert_eq!(candidates, vec![near_dead]);
-}

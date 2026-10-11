@@ -363,7 +363,7 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
     diff_ms: u32,
     outcome: &mut CreatureMovementTickOutcomeLikeCpp,
 ) {
-    use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
+    use crate::runtime_plan::{RecipientRule, RuntimeEvent};
     use wow_packet::ServerPacket;
 
     let map_keys = store.phase_map_keys_like_cpp();
