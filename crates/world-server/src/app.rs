@@ -4121,15 +4121,10 @@ async fn run_inner(
         group_load_summary.skipped_member_rows,
     );
 
-    // Shared world state (creatures/grids visible to every session on the same map).
-    // Each session gets a clone of this Arc on creation.
-    let mut legacy_map_manager = LegacyMapManager::new();
-    // Wire file-backed terrain so the live spawn/respawn path ground-snaps
-    // creatures with real `.map` heights (issue #15). DataDir-rooted, lazy.
-    legacy_map_manager.set_terrain(Arc::new(wow_world::map_manager::LiveTerrainHeights::new(
-        &data_dir,
-    )));
-    let shared_map: SharedMapManager = Arc::new(std::sync::RwLock::new(legacy_map_manager));
+    // File-backed terrain so the live spawn/respawn path ground-snaps
+    // creatures with real `.map` heights (issue #15). DataDir-rooted, lazy;
+    // shared by every session and the canonical creature runtime.
+    let live_terrain = Arc::new(wow_world::map_manager::LiveTerrainHeights::new(&data_dir));
     let instance_lock_persistence_port: Arc<
         dyn wow_persistence::InstanceLockPersistencePortLikeCpp,
     > = Arc::new(
@@ -4181,7 +4176,6 @@ async fn run_inner(
         }
     }
     register_loaded_instance_ids(
-        &shared_map,
         canonical_map_manager.as_ref(),
         &registered_instance_ids,
     );
@@ -5217,7 +5211,7 @@ async fn run_inner(
         let listener_policy = world_listener_policy;
         let resources = Arc::clone(&session_resources);
         let mgr = Arc::clone(&session_mgr);
-        let smap = Arc::clone(&shared_map);
+        let session_terrain = Arc::clone(&live_terrain);
         let canonical_map = Arc::clone(&canonical_map_manager);
         let spawn_metadata = Arc::clone(&canonical_spawn_metadata);
         let active_sessions = Arc::clone(&active_session_registry);
@@ -5235,7 +5229,7 @@ async fn run_inner(
                 move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts| {
                     let resources = Arc::clone(&resources);
                     let mgr = Arc::clone(&mgr);
-                    let smap = Arc::clone(&smap);
+                    let session_terrain = Arc::clone(&session_terrain);
                     let canonical_map = Arc::clone(&canonical_map);
                     let spawn_metadata = Arc::clone(&spawn_metadata);
                     let active_sessions = Arc::clone(&active_sessions);
@@ -5251,7 +5245,7 @@ async fn run_inner(
                         socket_timeouts,
                         resources,
                         mgr,
-                        smap,
+                        session_terrain,
                         canonical_map,
                         spawn_metadata,
                         port,
@@ -5313,18 +5307,9 @@ async fn run_inner(
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
-    // #1263 F6-8D3b-1/D3b-2: one owner value, set once before the canonical
-    // map loop spawns. Production has a single creature owner, `CanonicalMap`.
-    let creature_tick_owner = creature_tick_owner_from_config_like_cpp();
-    info!(
-        map_update_interval_ms,
-        ?creature_tick_owner,
-        "Creature tick owner selected"
-    );
-    match shared_map.write() {
-        Ok(mut manager) => manager.set_tick_owner(creature_tick_owner),
-        Err(_) => warn!("Legacy MapManager lock poisoned; cannot set the creature tick owner"),
-    }
+    // #1263 F6-8D3b-2/F6-8E: the canonical map loop is the only creature
+    // runtime; the retired owner keys only warn.
+    warn_retired_creature_tick_owner_keys_like_cpp();
     let respawn_condition_interval_ms = world_config_u32(
         &world_configs,
         "CONFIG_RESPAWN_MINCHECKINTERVALMS",
@@ -5337,7 +5322,6 @@ async fn run_inner(
         spawn_respawn_db_writer_like_cpp(Arc::clone(&respawn_persistence));
     let mut map_update_handle = spawn_canonical_map_update_loop(
         Arc::clone(&canonical_map_manager),
-        Arc::clone(&shared_map),
         map_update_interval_ms,
         respawn_condition_interval_ms,
         Arc::clone(&canonical_spawn_metadata),
@@ -5359,6 +5343,7 @@ async fn run_inner(
             mmap_pathfinder.clone(),
             legacy_creature_aggro_config.clone(),
             Some(Arc::clone(&group_registry)),
+            Some(Arc::clone(&live_terrain)),
         )),
     );
 

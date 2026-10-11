@@ -3,7 +3,7 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! #1263 F6-8D3b-1: the `RuntimeTickOwner::CanonicalMap` creature tick owner.
+//! #1263 F6-8D3b-1: the canonical map creature runtime.
 //!
 //! C++ `Map::Update` (`Maps/Map.cpp:669-760`) drives the map's sessions, runs
 //! `ProcessRespawns`, then visits the active cells and calls `Creature::Update`
@@ -15,20 +15,13 @@
 //! the canonical incarnations in place, under the one canonical guard the tick
 //! resume already holds.
 //!
-//! Exclusivity. There is one owner value, `MapManager::tick_owner()` on the
-//! shared legacy manager, set once at startup (`app.rs`); since F6-8D3b-2
-//! production sets it to `CanonicalMap` unconditionally and spawns no legacy
-//! creature loop. This owner runs only when that value is `CanonicalMap`,
-//! re-read every tick before any guard; every legacy phase body runs only when
-//! it is `GlobalLegacy`, and every session creature tick only when it is
-//! `Session` — both legacy owners are now reachable only from test fixtures
-//! that set the value themselves. The executor's single-owner lease is this
-//! owner's own: it serialises the executor's transition claims, it is not
-//! shared with the legacy bodies and is not what keeps them out.
+//! Exclusivity. This is the only creature runtime: #1263 F6-8D3b-2 stopped
+//! spawning the legacy global creature loop and F6-8E deleted it, the
+//! per-session creature ticks and the owner value that selected between them.
+//! The executor's single-owner lease serialises its own transition claims.
 //!
 //! Delivery. The executor publishes nothing itself; every output is deferred
-//! and delivered here after all guards are released, through the legacy
-//! bridge's own delivery bodies and in the legacy loop's phase order. The
+//! and delivered here after all guards are released, in phase order. The
 //! respawn statements are submitted by the loop while it still holds the
 //! respawn mutation-order gate, after the tick's canonical respawn statements.
 
@@ -43,27 +36,26 @@ pub(crate) struct CanonicalCreatureRuntimeProbeLikeCpp {
     pub(crate) executed_ticks: AtomicU64,
     /// Ticks the admission fence or the lease refused.
     pub(crate) refused_ticks: AtomicU64,
-    /// Ticks skipped because the shared owner value was not `CanonicalMap`.
-    pub(crate) owner_skipped_ticks: AtomicU64,
     /// The summed `Unit::Update` clock advancement over every creature.
     pub(crate) clock_advanced_ms: AtomicU64,
 }
 
-/// What the canonical creature owner keeps across ticks: the configuration the
-/// legacy creature loop is spawned with, the single-owner lease and the
-/// per-map player melee accumulator the loop task owns.
+/// What the canonical creature runtime keeps across ticks: its configuration,
+/// the shared terrain, the single-owner lease and the per-map player melee
+/// accumulator the loop task owns.
 pub(crate) struct CanonicalCreatureRuntimeLikeCpp {
     pub(crate) mmap_config: MMapRuntimeConfigLikeCpp,
     pub(crate) mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     pub(crate) aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
     pub(crate) group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
+    /// The file-backed terrain heights the movement and lifecycle phases read.
+    pub(crate) terrain: Option<Arc<wow_world::map_manager::LiveTerrainHeights>>,
     pub(crate) lease: wow_world::session::SharedCreatureExecutionLeaseLikeCpp,
     pub(crate) player_melee_phase_state: wow_world::session::PlayerMeleePhaseStateLikeCpp,
     pub(crate) probe: Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
 }
 
-/// The registry snapshots one tick reads, taken before any map guard exactly
-/// as the legacy bridge takes them.
+/// The registry snapshots one tick reads, taken before any map guard.
 pub(crate) struct CanonicalCreatureTickInputsLikeCpp {
     attackers: Vec<wow_world::session::PlayerMeleeAttackerSnapshotLikeCpp>,
     aggro_candidates: Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp>,
@@ -79,12 +71,14 @@ impl CanonicalCreatureRuntimeLikeCpp {
         mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
         aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
         group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
+        terrain: Option<Arc<wow_world::map_manager::LiveTerrainHeights>>,
     ) -> Self {
         Self {
             mmap_config,
             mmap_pathfinder,
             aggro_config,
             group_registry,
+            terrain,
             lease: Arc::new(Mutex::new(
                 wow_world::session::CreatureExecutionLeaseLikeCpp::new(),
             )),
@@ -93,37 +87,22 @@ impl CanonicalCreatureRuntimeLikeCpp {
         }
     }
 
-    /// Read the owner and the registry snapshots before any guard. `None` when
-    /// the shared owner value is not `CanonicalMap`: then this tick runs no
-    /// creature phase here.
+    /// Read the registry snapshots before any guard.
     pub(crate) fn collect_inputs_like_cpp(
         &self,
-        legacy_map_manager: &SharedMapManager,
         canonical_map_manager: &SharedCanonicalMapManager,
         registry: &PlayerRegistry,
-    ) -> Option<CanonicalCreatureTickInputsLikeCpp> {
-        if wow_world::map_manager::shared_runtime_tick_owner_like_cpp(legacy_map_manager)
-            != wow_world::map_manager::RuntimeTickOwner::CanonicalMap
-        {
-            self.probe
-                .owner_skipped_ticks
-                .fetch_add(1, Ordering::Relaxed);
-            return None;
-        }
-        let terrain = legacy_map_manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .terrain();
+    ) -> CanonicalCreatureTickInputsLikeCpp {
         let tap_index = build_tap_group_index_like_cpp(self.group_registry.as_ref());
-        Some(CanonicalCreatureTickInputsLikeCpp {
+        CanonicalCreatureTickInputsLikeCpp {
             attackers: collect_player_melee_attackers_like_cpp(registry, &tap_index),
             aggro_candidates: collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
                 registry,
                 Some(canonical_map_manager),
             ),
             chase_targets: collect_legacy_chase_target_snapshots_like_cpp(registry),
-            terrain,
-        })
+            terrain: self.terrain.clone(),
+        }
     }
 
     /// Admit and run every creature phase of one admitted map tick, on the
@@ -211,11 +190,9 @@ pub(crate) struct CanonicalCreatureDeliverySummaryLikeCpp {
 }
 
 /// Deliver one executor tick's deferred output, after every guard is released,
-/// in the legacy loop's order: player melee results, the lifecycle visibility
-/// refresh, the movement plan, the committed attack starts and stops, the aggro
-/// plan, the spell plan, the creature melee results and the melee plan. Each
-/// step is the legacy bridge's own delivery body, so recipients and bytes are
-/// the same. The respawn statements are not here: the loop submits them under
+/// in phase order: player melee results, the lifecycle visibility refresh, the
+/// movement plan, the committed attack starts and stops, the aggro plan, the
+/// spell plan, the creature melee results and the melee plan. The respawn statements are not here: the loop submits them under
 /// the mutation-order gate before releasing it.
 pub(crate) fn deliver_canonical_creature_phases_like_cpp(
     outcome: &wow_world::session::AdmittedCreatureCombatPhasesOutcomeLikeCpp,

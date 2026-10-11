@@ -71,8 +71,8 @@ use wow_world::session::mailbox::{
 use wow_world::{
     BattlePetAccountRegistryLikeCpp, ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp,
     ChatListenRangesLikeCpp, LootDropRatesLikeCpp, MMapRuntimeConfigLikeCpp,
-    MapManager as LegacyMapManager, PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp,
-    SharedCanonicalMapManager, SharedMapManager, WorldMMapPathfinderWorkerLikeCpp, WorldSession,
+    PacketSpoofConfigLikeCpp, ReputationRatesLikeCpp, SharedCanonicalMapManager,
+    WorldMMapPathfinderWorkerLikeCpp, WorldSession,
     conditions::{
         ConditionMapRef, ConditionMapStateSnapshot, is_spawn_group_meeting_map_conditions_like_cpp,
     },
@@ -2108,11 +2108,9 @@ use session_factory::*;
 
 mod runtime;
 use runtime::*;
-// #1263 F6-8D2: the isolated admitted creature execution adapter. Production
-// does not call it — the production owner is still `RuntimeTickOwner::GlobalLegacy`
-// and the legacy scheduler, the stores and the canonical
-// `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime` are unchanged — so it is
-// exported as composition API for the D3 cutover and the F6-8D2 regressions.
+// #1263 F6-8D2: the isolated admitted creature execution adapter, exported for
+// the F6-8D2 regressions; production runs the executor from the canonical map
+// update loop (`canonical_creature_runtime.rs`).
 pub use runtime::isolated_creature_execution::{
     IsolatedAdmittedCreatureExecutionOutcomeLikeCpp, IsolatedCreatureExecutionRefusalLikeCpp,
     run_isolated_admitted_creature_execution_for_tick_like_cpp,
