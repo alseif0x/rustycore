@@ -743,3 +743,76 @@ fn production_linked_registry_carries_the_migrated_travel_family() {
         assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
     }
 }
+
+/// The ten deliberately deferred F5 entries (#1263 F5 deferred families) must
+/// reach the production-linked registry exactly once with their reviewed
+/// tuples, and the production-linked legacy inventory drain must be empty, so
+/// all 476 registrations come from explicit area registrars.
+#[test]
+fn production_linked_registry_carries_the_migrated_deferred_families() {
+    use wow_constants::ClientOpcodes as Op;
+    use wow_handler::PacketProcessing::{Inplace, ThreadUnsafe};
+
+    let registry = world_server::compose_packet_handlers_like_cpp()
+        .expect("valid world-server packet handler composition");
+    let expected: &[(Op, &str, wow_handler::PacketProcessing)] = &[
+        (Op::UnlockVoidStorage, "handle_void_storage_unlock", Inplace),
+        (Op::QueryVoidStorage, "handle_void_storage_query", Inplace),
+        (
+            Op::VoidStorageTransfer,
+            "handle_void_storage_transfer",
+            ThreadUnsafe,
+        ),
+        (Op::SwapVoidItem, "handle_void_storage_swap_item", Inplace),
+        (
+            Op::ConfirmRespecWipe,
+            "handle_confirm_respec_wipe",
+            ThreadUnsafe,
+        ),
+        (Op::LearnTalent, "handle_learn_talent", ThreadUnsafe),
+        (
+            Op::ResurrectResponse,
+            "handle_resurrect_response",
+            ThreadUnsafe,
+        ),
+        (Op::RepopRequest, "handle_repop_request", ThreadUnsafe),
+        (Op::ReclaimCorpse, "handle_reclaim_corpse", ThreadUnsafe),
+        (
+            Op::RequestCemeteryList,
+            "handle_request_cemetery_list",
+            Inplace,
+        ),
+    ];
+    assert_eq!(expected.len(), 10, "the deferred families carry 10 entries");
+    for (opcode, handler_name, processing) in expected {
+        let matches: Vec<_> = registry
+            .iter()
+            .filter(|entry| entry.opcode == *opcode)
+            .collect();
+        assert_eq!(
+            matches.len(),
+            1,
+            "{opcode:?} must be registered exactly once"
+        );
+        assert_eq!(
+            matches[0].handler_name, *handler_name,
+            "{opcode:?} handler name"
+        );
+        assert_eq!(
+            matches[0].status,
+            wow_handler::SessionStatus::LoggedIn,
+            "{opcode:?} status"
+        );
+        assert_eq!(matches[0].processing, *processing, "{opcode:?} processing");
+    }
+
+    let mut legacy = wow_world::session::registry::WorldPacketHandlerRegistryBuilder::new();
+    wow_world::session::registry::register_remaining_handlers_like_cpp(&mut legacy)
+        .expect("the legacy inventory drain registers");
+    assert_eq!(
+        legacy.build().iter().count(),
+        0,
+        "no production-linked registration may remain in the legacy inventory"
+    );
+    assert_eq!(registry.iter().count(), 476, "476 effective registrations");
+}

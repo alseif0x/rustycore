@@ -934,6 +934,84 @@ pub(crate) const QUEST_REGISTRAR: DirectRegistrarContract = DirectRegistrarContr
     facades: QUEST_FACADES,
 };
 
+const VOID_STORAGE_ROOT_EXPORTS: &[&str] = &[
+    "VoidStorageHandlerHostLikeCpp",
+    "register_void_storage_handlers_like_cpp",
+];
+const VOID_STORAGE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "void_storage_handlers",
+    exports: VOID_STORAGE_ROOT_EXPORTS,
+}];
+
+/// The void-storage registration family (#1263 F5 deferred families).
+///
+/// Its host contract keeps inventory/money persistence (the exclusive money
+/// fence, the void-storage persistence port and its COMMIT outcome) with the
+/// World session; the legacy closures destructured `id_generators` at the
+/// registration site, so the host receives the catalog view.
+pub(crate) const VOID_STORAGE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "InventoryVoidStorage",
+    package: "wow-world-inventory",
+    module: "crate::void_storage_handlers",
+    registrar: "register_void_storage_handlers_like_cpp",
+    host_trait: "VoidStorageHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: VOID_STORAGE_FACADES,
+};
+
+const TALENT_ROOT_EXPORTS: &[&str] = &[
+    "TalentHandlerHostLikeCpp",
+    "register_talent_handlers_like_cpp",
+];
+const TALENT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "talent_handlers",
+    exports: TALENT_ROOT_EXPORTS,
+}];
+
+/// The talent registration family (#1263 F5 deferred families).
+///
+/// Its host contract keeps the talent-reset commit and its post-COMMIT
+/// publication with the World session; the legacy closures destructured
+/// `id_generators.item`, `progression.no_reset_talent_cost` and
+/// `player_bootstrap.talent_tabs`, so the host receives the catalog view.
+pub(crate) const TALENT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationTalent",
+    package: "wow-world-application",
+    module: "crate::talent_handlers",
+    registrar: "register_talent_handlers_like_cpp",
+    host_trait: "TalentHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: TALENT_FACADES,
+};
+
+const CORPSE_ROOT_EXPORTS: &[&str] = &[
+    "CorpseHandlerHostLikeCpp",
+    "register_corpse_handlers_like_cpp",
+];
+const CORPSE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "corpse_handlers",
+    exports: CORPSE_ROOT_EXPORTS,
+}];
+
+/// The death/resurrection/corpse registration family (#1263 F5 deferred
+/// families).
+///
+/// Its host contract keeps death, resurrection and the map transitions they
+/// end in with the World session; the legacy closures destructured
+/// `graveyards`, so the host receives the catalog view.
+pub(crate) const CORPSE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationCorpse",
+    package: "wow-world-application",
+    module: "crate::corpse_handlers",
+    registrar: "register_corpse_handlers_like_cpp",
+    host_trait: "CorpseHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: CORPSE_FACADES,
+};
+
 pub(crate) const NPC_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationNpc",
     package: "wow-world-application",
@@ -986,6 +1064,9 @@ pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] = &[
     TRAINER_REGISTRAR,
     CHARACTER_ACCOUNT_REGISTRAR,
     QUEST_REGISTRAR,
+    VOID_STORAGE_REGISTRAR,
+    TALENT_REGISTRAR,
+    CORPSE_REGISTRAR,
 ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]

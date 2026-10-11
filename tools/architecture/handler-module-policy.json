@@ -295,6 +295,27 @@
       "module": "crate::quest_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-inventory",
+      "module": "crate::void_storage_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::talent_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::corpse_handlers",
+      "allow_descendants": false,
+      "tracking_issue": 1263
     }
   ]
 }

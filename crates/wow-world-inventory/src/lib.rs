@@ -39,6 +39,7 @@ mod storage_slots;
 mod turnins;
 mod valuation;
 mod void_storage;
+mod void_storage_handlers;
 mod void_transfer;
 mod void_transfer_contracts;
 
@@ -100,6 +101,11 @@ pub use quest_reward::{
 pub use stats::CR_HIT_MELEE_LIKE_CPP;
 pub use storage::{CR_ARMOR_PENETRATION_LIKE_CPP, DirectInventoryStorageOverlayLikeCpp};
 pub use turnins::ExtendedCostItemTurninChange;
+// The exact void-storage owner facade the handler-contract checker requires
+// (#1263 F5 deferred families).
+pub use void_storage_handlers::{
+    VoidStorageHandlerHostLikeCpp, register_void_storage_handlers_like_cpp,
+};
 pub use void_transfer_contracts::{
     EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
 };

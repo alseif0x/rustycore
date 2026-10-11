@@ -185,6 +185,18 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
+    wow_world_inventory::register_void_storage_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_talent_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
+    wow_world_application::register_corpse_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
     register_remaining_handlers_like_cpp(&mut builder)?;
     Ok(Arc::new(builder.build()))
 }

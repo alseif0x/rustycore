@@ -2,10 +2,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! The world-session adapter for the shared packet-handler registry.
+#![allow(unused_macros, unused_imports)] // Empty checker-pinned legacy bridge (#1360).
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
-
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_constants::ClientOpcodes;
 use wow_handler::DuplicateHandlerRegistrationLikeCpp;

@@ -8,16 +8,18 @@
 //! C++ source of truth:
 //! `src/server/game/Handlers/VoidStorageHandler.cpp` and
 //! `src/server/game/Entities/Player/Player.cpp::{_Load,_Save}VoidStorage`.
+//!
+//! `#1263 F5 deferred families`: the four registrations moved unchanged to
+//! `wow_world_inventory::register_void_storage_handlers_like_cpp`; `host.rs`
+//! lends that registrar these operations.
 
 use std::collections::{HashMap, HashSet};
 
 use num_traits::FromPrimitive;
 use wow_constants::unit::NPCFlags1;
-use wow_constants::{ClientOpcodes, EnchantmentSlot, ItemContext, ItemFieldFlags, ItemModifier};
+use wow_constants::{EnchantmentSlot, ItemContext, ItemFieldFlags, ItemModifier};
 use wow_entities::INVENTORY_SLOT_BAG_0;
-use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::update::{ItemCreateData, ItemEnchantmentValuesUpdate, UpdateObject};
 use wow_packet::packets::void_storage::{
     QueryVoidStorage, SwapVoidItem, UnlockVoidStorage, VoidItemSwapResponse, VoidStorageFailed,
@@ -35,68 +37,6 @@ use wow_world_inventory::{
 
 const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
 const VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP: u64 = 10 * 10_000;
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UnlockVoidStorage,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_void_storage_unlock",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_void_storage_unlock_with_generator_like_cpp(
-                        catalogs.id_generators.item.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::QueryVoidStorage,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_void_storage_query",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_void_storage_query(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::VoidStorageTransfer,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_void_storage_transfer",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_void_storage_transfer_with_generators_like_cpp(
-                        catalogs.id_generators.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SwapVoidItem,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_void_storage_swap_item",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_void_storage_swap_item(pkt).await })
-        },
-    }
-}
 
 #[derive(Debug, Clone)]
 struct PlannedVoidDepositLikeCpp {
@@ -215,6 +155,7 @@ fn void_withdrawal_item_create_data_like_cpp(
 #[path = "../../unit_tests/handlers/void_storage_tests/mod.rs"]
 mod tests;
 
+mod host;
 mod items;
 mod publication;
 mod swap;

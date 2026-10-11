@@ -26,6 +26,7 @@ mod character_query_handlers;
 mod client_state;
 mod collections_handlers;
 mod combat_handlers;
+mod corpse_handlers;
 mod data_service_handlers;
 mod dungeon_finding_handlers;
 mod gameobject_handlers;
@@ -55,6 +56,7 @@ mod reputation;
 mod spell_acquisition;
 pub mod spell_click_values;
 mod spell_handlers;
+mod talent_handlers;
 mod trade_handlers;
 mod travel_handlers;
 mod vehicle_handlers;
@@ -258,6 +260,10 @@ pub use quest_query_handlers::{
 // requires: the two canonical exports as one use item (#1263 F5 remaining
 // families).
 pub use quest_handlers::{QuestHandlerHostLikeCpp, register_quest_handlers_like_cpp};
+// The exact `ApplicationTalent` and `ApplicationCorpse` owner facades the
+// handler-contract checker requires (#1263 F5 deferred families).
+pub use corpse_handlers::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
+pub use talent_handlers::{TalentHandlerHostLikeCpp, register_talent_handlers_like_cpp};
 // The moved quest-completion body and the two quest helpers it owns are exported
 // as a separate item so the owner's exact three-name facade above stays unchanged.
 pub use quest_query_handlers::{
