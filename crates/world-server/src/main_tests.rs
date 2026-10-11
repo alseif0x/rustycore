@@ -36,7 +36,7 @@ use super::{
     collect_legacy_creature_aggro_candidates_like_cpp,
     collect_legacy_creature_aggro_candidates_with_canonical_like_cpp,
     consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-    creature_tick_owner_from_config_like_cpp, database_pool_size_like_cpp,
+    database_pool_size_like_cpp,
     db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
     db_keepalive_sql_like_cpp, declined_names_used_for_realm_category_like_cpp,
     deliver_creature_attack_start_commands_like_cpp,
@@ -73,13 +73,8 @@ use super::{
     realm_id_like_cpp, realm_list_entry_from_row_like_cpp, repair_cost_rate_like_cpp,
     reputation_rates_like_cpp, reset_schedule_like_cpp, respawn_db_retry_delay,
     retain_committed_creature_combat_events_like_cpp,
-    run_legacy_creature_lifecycle_tick_and_refresh_once_like_cpp,
-    run_legacy_creature_melee_tick_and_deliver_once_like_cpp,
-    run_legacy_creature_movement_tick_and_deliver_once_like_cpp,
-    run_legacy_creature_runtime_tick_and_deliver_once_like_cpp,
     run_world_session_shutdown_finalize_step_like_cpp, set_realm_offline_sql_like_cpp,
-    set_realm_online_sql_like_cpp, spawn_legacy_creature_runtime_update_loop_like_cpp,
-    spawn_store_loader, stop_world_network_like_cpp, update_sessions_shutdown_flush_once_like_cpp,
+    set_realm_online_sql_like_cpp, spawn_store_loader, stop_world_network_like_cpp, update_sessions_shutdown_flush_once_like_cpp,
     world_config_bool, world_config_f32, world_config_u8, world_config_u16, world_config_u32,
     world_db_version_matches_required_like_cpp, world_db_version_mismatch_message_like_cpp,
     world_update_loop_step_like_cpp, worldserver_cli_help_like_cpp,
@@ -89,7 +84,7 @@ use std::collections::{BTreeMap, HashSet};
 use std::env;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex, RwLock};
+use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 use wow_constants::{ConditionSourceType, ConditionType, ServerOpcodes};
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
@@ -154,7 +149,7 @@ use wow_world::session::directory::{
 };
 use wow_world::session::mailbox::{SessionCommand, WorldSessionShutdownFlushResultLikeCpp};
 
-fn legacy_runtime_world_map_store_like_cpp() -> wow_data::MapStore {
+fn runtime_world_map_store_like_cpp() -> wow_data::MapStore {
     wow_data::MapStore::from_entries([wow_data::MapEntry {
         id: 0,
         instance_type: wow_data::map::MAP_COMMON,
@@ -1513,8 +1508,6 @@ mod scenarios_11;
 mod scenarios_12;
 #[path = "main_tests/scenarios_13.rs"]
 mod scenarios_13;
-#[path = "main_tests/scenarios_14.rs"]
-mod scenarios_14;
 #[path = "main_tests/scenarios_2.rs"]
 mod scenarios_2;
 #[path = "main_tests/scenarios_3.rs"]

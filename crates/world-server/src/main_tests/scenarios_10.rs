@@ -545,7 +545,7 @@ fn login_grid_load_does_not_guess_missing_faction_split_world_map_like_cpp() {
     assert!(canonical.lock().unwrap().find_map(609, 0).is_none());
 }
 #[test]
-fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp() {
+fn login_grid_load_skips_already_loaded_canonical_creature_like_cpp() {
     let spawn_id = 70_001;
     let entry = 42;
     let position = Position::new(1_000.0, 1_000.0, 0.0, 0.0);
@@ -576,7 +576,6 @@ fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp(
             .expect("test canonical creature add to map");
     }
 
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let mut store = SpawnStore::new();
     store.add_object_spawn(
         &SpawnData {
@@ -628,13 +627,6 @@ fn login_grid_load_mirrors_already_loaded_canonical_creature_to_legacy_like_cpp(
 
     assert_eq!(outcome.skipped_already_loaded, 1);
     assert_eq!(outcome.creature_records_added, 0);
-    // #1263 F6-8D3b-2: C++ has one Map object store, and so does the
-    // canonical owner now: the already-loaded creature is not copied into the
-    // legacy store, whose creature tick no longer runs.
-    assert!(
-        legacy.read().unwrap().find_creature(571, 0, guid).is_none(),
-        "no canonical->legacy mirror"
-    );
 }
 #[test]
 fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
@@ -657,7 +649,6 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
 
     let canonical: wow_world::SharedCanonicalMapManager =
         Arc::new(Mutex::new(wow_map::MapManager::default()));
-    let legacy: wow_world::SharedMapManager = Arc::new(RwLock::new(wow_world::MapManager::new()));
     let mut store = SpawnStore::new();
     store.add_object_spawn(
         &SpawnData {
@@ -751,12 +742,6 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
             .guid()
     };
     assert_eq!(guid.realm_id(), 7);
-    // #1263 F6-8D3b-2: the materialized creature lives on the canonical map
-    // only (its visibility is read from there); no legacy copy is made.
-    assert!(
-        legacy.read().unwrap().find_creature(1, 0, guid).is_none(),
-        "no canonical->legacy mirror"
-    );
 }
 #[test]
 fn login_grid_load_materializes_area_triggers_like_cpp() {

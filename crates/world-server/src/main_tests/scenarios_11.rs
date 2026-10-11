@@ -410,7 +410,7 @@ fn spawn_group_condition_update_spawn_loads_loaded_grid_creature_without_respawn
     assert_ne!(creature.guid().counter(), spawn_id as i64);
 }
 #[test]
-fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like_cpp() {
+fn spawn_group_condition_update_tick_adds_loaded_grid_creature_like_cpp() {
     let spawn_id = 54_987;
     let entry = 42;
     let mut metadata =
@@ -437,7 +437,7 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
             random_movement_type: wow_constants::CreatureRandomMovementType::Walk as u8,
             interaction_pause_timer_ms:
                 wow_entities::DEFAULT_CREATURE_INTERACTION_PAUSE_TIMER_MS_LIKE_CPP,
-            string_id: "condition-spawn-caller-legacy-mirror".to_string(),
+            string_id: "condition-spawn-caller".to_string(),
             spawn_time_secs: 120,
         },
     )]));
@@ -447,8 +447,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
         variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
             entry, 0, 0,
         );
-    let legacy: wow_world::SharedMapManager =
-        Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
     let mut manager = wow_map::MapManager::new(60_000, 1);
     let group = metadata
         .spawn_group_templates()
@@ -481,14 +479,6 @@ fn spawn_group_condition_update_tick_mirrors_loaded_grid_creature_to_legacy_like
         .expect("canonical loaded-grid creature");
     assert_eq!(creature.guid().counter(), 1);
     assert_ne!(creature.guid().counter(), spawn_id as i64);
-    assert!(
-        legacy
-            .read()
-            .unwrap()
-            .find_creature(571, 0, creature.guid())
-            .is_none(),
-        "#1263 F6-8D3b-2: C++ AddToMap has one live runtime; no canonical->legacy mirror"
-    );
 }
 #[test]
 fn loaded_grid_creature_respawn_record_vehicle_template_uses_creature_low_vehicle_high_like_cpp() {

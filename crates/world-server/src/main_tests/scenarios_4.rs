@@ -555,40 +555,33 @@ fn sessionless_tap_group_index_matches_the_session_answer_like_cpp() {
         "no registry means no tap groups, not a panic"
     );
 }
-/// The tick owner is decided once, before the loop that reads it starts.
+/// The canonical map loop is the only creature runtime.
 ///
-/// A flip after `spawn_legacy_creature_runtime_update_loop_like_cpp` is the only
-/// remaining window in which the loop and a session can both tick the same
-/// creature, so the single production call site is asserted rather than left to
-/// convention (#28).
+/// #1263 F6-8E deleted the legacy global creature loop, the per-session creature
+/// tick and the tick owner that chose between them, so no source may select or
+/// spawn another creature runtime (#28: two ticks of one creature).
 #[test]
-fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() {
+fn the_canonical_map_loop_is_the_only_creature_runtime_like_cpp() {
     let app = include_str!("../app.rs");
-    let calls: Vec<_> = app.match_indices("set_tick_owner(").collect();
-    assert_eq!(
-        calls.len(),
-        1,
-        "production must decide the tick owner exactly once, found {}",
-        calls.len()
-    );
-    // #1263 F6-8D3b-2: the owner is set before the canonical map loop, the
-    // only creature loop production spawns.
-    assert!(calls[0].0 < app.find("spawn_canonical_map_update_loop(").unwrap());
-    assert!(
-        !app.contains("spawn_legacy_creature_runtime_update_loop_like_cpp("),
-        "production no longer spawns the legacy creature loop"
-    );
-
+    assert!(app.contains("spawn_canonical_map_update_loop("));
     for source in [
+        app,
         include_str!("../lib.rs"),
         include_str!("../runtime/delivery.rs"),
         include_str!("../runtime/map.rs"),
         include_str!("../runtime/map/update_loop.rs"),
     ] {
-        assert!(
-            !source.contains("set_tick_owner("),
-            "only app.rs may decide the tick owner"
-        );
+        for retired in [
+            "set_tick_owner(",
+            "RuntimeTickOwner",
+            "spawn_legacy_creature_runtime_update_loop_like_cpp(",
+            "run_legacy_creature_",
+        ] {
+            assert!(
+                !source.contains(retired),
+                "the retired creature runtime `{retired}` must not come back"
+            );
+        }
     }
 }
 #[test]
@@ -604,9 +597,11 @@ fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     let first_runtime_write = app.find("clear_online_accounts_like_cpp(").unwrap();
     assert!(validation < first_runtime_write);
 }
+/// The two former creature runtime selection keys are retired: whatever a
+/// configuration sets them to, startup only warns and runs the canonical map
+/// loop.
 #[test]
-fn retired_creature_owner_keys_do_not_select_a_legacy_owner_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
+fn retired_creature_owner_keys_are_only_warned_like_cpp() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
     for config in [
@@ -617,12 +612,15 @@ fn retired_creature_owner_keys_do_not_select_a_legacy_owner_like_cpp() {
         "RustyCore.CanonicalCreatureRuntime = 1\n",
     ] {
         wow_config::load_config_from_str(config).expect("config should load");
-        assert_eq!(
-            creature_tick_owner_from_config_like_cpp(),
-            RuntimeTickOwner::CanonicalMap,
-            "{config:?}"
-        );
+        crate::warn_retired_creature_tick_owner_keys_like_cpp();
     }
+    let app = include_str!("../app.rs");
+    assert_eq!(
+        app.matches("warn_retired_creature_tick_owner_keys_like_cpp()")
+            .count(),
+        1
+    );
+    assert!(!app.contains("creature_tick_owner_from_config"));
 }
 #[test]
 fn legacy_creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {

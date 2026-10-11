@@ -589,7 +589,7 @@ fn spawn_group_condition_update_tick_process_respawns_unloaded_grid_queues_delet
     );
 }
 #[test]
-fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_legacy_like_cpp() {
+fn persisted_restart_timer_respawns_once_through_canonical_owner_like_cpp() {
     let spawn_id = 54_987;
     let entry = 42;
     let mut metadata =
@@ -655,8 +655,6 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
         now.saturating_sub(1)
     );
 
-    let legacy: wow_world::SharedMapManager =
-        Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
     let caches =
         variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp(
             entry, 0, 0,
@@ -690,14 +688,7 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
         .map()
         .get_creature_by_spawn_id_like_cpp(spawn_id)
         .expect("canonical restart respawn");
-    let creature_guid = creature.guid();
-    assert!(
-        legacy
-            .read()
-            .unwrap()
-            .find_creature(571, 0, creature_guid)
-            .is_none()
-    );
+    let _ = creature.guid();
     assert_eq!(
         manager
             .find_map(571, 0)
