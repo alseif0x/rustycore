@@ -12,7 +12,7 @@
 
 mod client_state;
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 mod session_shims {
     use wow_packet::WorldPacket;
     use wow_world_lifecycle::AccountDataHandlerCxLikeCpp;

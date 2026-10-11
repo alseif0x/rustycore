@@ -9,7 +9,7 @@
 //! test-only entry points so the existing scenario module can drive one
 //! handler without composing a dispatch table.
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 mod session_shims {
     use wow_packet::WorldPacket;
     use wow_world_application::ReputationHandlerCxLikeCpp;

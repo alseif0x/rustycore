@@ -9,7 +9,7 @@ pub(in crate::session) struct PreparedPlayerSave {
 }
 
 pub(in crate::session) enum SavedPlayerReceipt {
-    Owner(wow_world_core::session::PlayerSaveReceiptLikeCpp),
+    Owner,
     #[cfg(test)]
     Fixture {
         expected: PlayerCharacterCommittedGroupsLikeCpp,
@@ -53,41 +53,12 @@ impl WorldSession {
             .player_save_operation_access_like_cpp(talent_store, spell_store);
         let inputs = self.lifecycle.player_save_session_inputs_like_cpp(now);
         let captured = owner.capture_like_cpp(inputs)?;
-        let (request, header, receipt) = captured.into_parts_like_cpp();
+        let (request, header, _receipt) = captured.into_parts_like_cpp();
         Some(PreparedPlayerSave {
             request,
             header,
-            receipt: SavedPlayerReceipt::Owner(receipt),
+            receipt: SavedPlayerReceipt::Owner,
         })
-    }
-}
-
-impl SavedPlayerReceipt {
-    /// Consume the receipt only after Applied. Returned adapter flags are intersected
-    /// with the actual request, so an unrelated group can never be acknowledged.
-    pub(super) fn acknowledge(
-        self,
-        session: &mut WorldSession,
-        committed: &PlayerCharacterCommittedGroupsLikeCpp,
-    ) {
-        #[cfg(test)]
-        match self {
-            SavedPlayerReceipt::Fixture {
-                expected,
-                tutorials,
-            } => {
-                let groups = committed_groups_like_cpp(&expected, committed);
-                session.mark_current_player_save_to_db_committed_like_cpp(&groups);
-                let _ = tutorials;
-            }
-            SavedPlayerReceipt::Owner(receipt) => {
-                acknowledge_owner_like_cpp(session, receipt, committed);
-            }
-        }
-        #[cfg(not(test))]
-        if let SavedPlayerReceipt::Owner(receipt) = self {
-            acknowledge_owner_like_cpp(session, receipt, committed);
-        }
     }
 }
 
@@ -104,36 +75,5 @@ pub(in crate::session) fn committed_groups_like_cpp(
         tutorials_changed: expected.tutorials_changed && committed.tutorials_changed,
         tutorials_insert: expected.tutorials_insert && committed.tutorials_insert,
         reputation: expected.reputation && committed.reputation,
-    }
-}
-
-fn acknowledge_owner_like_cpp(
-    session: &mut WorldSession,
-    receipt: wow_world_core::session::PlayerSaveReceiptLikeCpp,
-    committed: &PlayerCharacterCommittedGroupsLikeCpp,
-) {
-    let Some(acknowledged) =
-        wow_world_core::session::PlayerSaveOwnerAccessLikeCpp::acknowledge_like_cpp(
-            &session.core,
-            receipt,
-            committed,
-        )
-    else {
-        return;
-    };
-    if let Some(saved) = acknowledged.tutorials {
-        if acknowledged.groups.tutorials_insert {
-            session
-                .lifecycle
-                .set_tutorials_loaded_from_db_like_cpp(true);
-        }
-        if acknowledged.groups.tutorials_changed
-            && session.lifecycle.tutorial_values_like_cpp() == &saved.tutorials
-        {
-            session.lifecycle.set_tutorials_changed_like_cpp(false);
-        }
-    }
-    if acknowledged.groups.player_spells || acknowledged.groups.player_skills {
-        session.sync_player_registry_state_like_cpp();
     }
 }

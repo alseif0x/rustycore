@@ -8,7 +8,9 @@
 
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
-use wow_packet::packets::character::{CharCustomize, CharacterRenameRequest};
+#[cfg(test)]
+use wow_packet::packets::character::CharCustomize;
+use wow_packet::packets::character::CharacterRenameRequest;
 
 use crate::session::WorldSession;
 
@@ -32,6 +34,18 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
+    pub async fn handle_character_rename_request(&mut self, pkt: CharacterRenameRequest) {
+        dispatch_registered_like_cpp(
+            self,
+            ClientOpcodes::CharacterRenameRequest,
+            character_rename_request_wire_like_cpp(&pkt),
+        )
+        .await;
+    }
+}
+
+#[cfg(test)]
+impl WorldSession {
     pub(crate) async fn handle_alter_appearance(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::AlterAppearance, pkt).await;
     }
@@ -42,15 +56,6 @@ impl WorldSession {
 
     pub(crate) async fn handle_set_player_declined_names(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::SetPlayerDeclinedNames, pkt).await;
-    }
-
-    pub async fn handle_character_rename_request(&mut self, pkt: CharacterRenameRequest) {
-        dispatch_registered_like_cpp(
-            self,
-            ClientOpcodes::CharacterRenameRequest,
-            character_rename_request_wire_like_cpp(&pkt),
-        )
-        .await;
     }
 
     pub(crate) async fn handle_opening_cinematic(&mut self, pkt: WorldPacket) {
@@ -79,6 +84,7 @@ impl WorldSession {
 /// `CMSG_CHAR_CUSTOMIZE` body, mirroring `CharCustomize::read` so a caller that
 /// holds the parsed request can still enter through the registered production
 /// thunk.
+#[cfg(test)]
 fn char_customize_wire_like_cpp(pkt: &CharCustomize) -> WorldPacket {
     let mut wire = WorldPacket::new_empty();
     wire.write_guid(&pkt.guid);
