@@ -4124,7 +4124,7 @@ async fn run_inner(
     // File-backed terrain so the live spawn/respawn path ground-snaps
     // creatures with real `.map` heights (issue #15). DataDir-rooted, lazy;
     // shared by every session and the canonical creature runtime.
-    let live_terrain = Arc::new(wow_world::map_manager::LiveTerrainHeights::new(&data_dir));
+    let live_terrain = Arc::new(wow_world::terrain::LiveTerrainHeights::new(&data_dir));
     let instance_lock_persistence_port: Arc<
         dyn wow_persistence::InstanceLockPersistencePortLikeCpp,
     > = Arc::new(

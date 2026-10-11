@@ -130,7 +130,6 @@ impl WorldSession {
                 .core
                 .mutate_world_creature(kill.creature_guid, |creature| {
                     creature
-                        .creature
                         .unit_mut()
                         .subsystems_mut()
                         .combat
@@ -234,7 +233,7 @@ impl WorldSession {
         // the creature's own `UpdateVictim` (aggro tick) picks it and publishes
         // `SMSG_AI_REACTION` + `SMSG_ATTACK_START` (#1344).
         let _ = self.core.mutate_world_creature(swing.victim, |creature| {
-            creature.creature.engage_with_target_like_cpp(player_guid);
+            creature.engage_with_target_like_cpp(player_guid);
         });
 
         // Unit::Attack only emits a melee start packet for new targets or a

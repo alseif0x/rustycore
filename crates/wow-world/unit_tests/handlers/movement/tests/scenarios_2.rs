@@ -272,7 +272,7 @@ fn movement_directory_rejects_replaced_recipient_generation_like_cpp() {
         0,
         0,
         Position::ZERO,
-        crate::map_manager::VISIBILITY_RADIUS,
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
     );
     let [stale] = recipients.as_slice() else {
         panic!("expected the first recipient generation");
@@ -484,11 +484,11 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
         let mover = guard
             .find_creature_mut(0, 0, mover_guid)
             .expect("controlled mover creature");
-        crate::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover.creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover.creature)
             .begin_move_spline_like_cpp(attempted_position)
             .expect("active movement spline");
         assert!(
-            !crate::map_manager::CreatureMovementQueriesLikeCpp::movement_finished(
+            !crate::creature_movement::CreatureMovementQueriesLikeCpp::movement_finished(
                 &*mover.creature
             )
         );
@@ -539,8 +539,12 @@ async fn handle_movement_does_not_broadcast_outside_visibility_range_like_cpp() 
         Default::default(),
     );
     let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-    far_info.placement.position =
-        wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
+    far_info.placement.position = wow_core::Position::new(
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 10.0,
+        0.0,
+        0.0,
+        0.0,
+    );
     registry.register_or_replace(far_guid, far_info, Default::default());
 
     let movement = MovementInfo {

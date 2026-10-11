@@ -900,8 +900,7 @@ fn insert_canonical_visibility_candidate_like_cpp(
         *carrier.creature.unit_mut().world_mut().phase_shift_mut() = phase_shift;
     }
     if with_spline {
-        carrier
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(carrier)
             .begin_move_spline_like_cpp(Position::new(position.x + 4.0, position.y, 0.0, 0.0))
             .expect("canonical runtime spline must launch");
     }

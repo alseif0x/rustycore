@@ -16,12 +16,12 @@ use tracing::info;
 /// `forceDest` — is supplied by the generator bridge at query time, so it cannot
 /// be sampled before the bridge's own state transitions.
 pub fn creature_path_request_like_cpp(
-    query: wow_world_core::map_manager::CreaturePathQueryLikeCpp,
+    query: wow_world_core::pathfinder::CreaturePathQueryLikeCpp,
     source_map_id: u32,
     source_instance_id: u32,
     phase_shift: &wow_entities::PhaseShift,
-) -> wow_world_core::map_manager::WorldMMapPathRequestLikeCpp {
-    wow_world_core::map_manager::WorldMMapPathRequestLikeCpp {
+) -> wow_world_core::pathfinder::WorldMMapPathRequestLikeCpp {
+    wow_world_core::pathfinder::WorldMMapPathRequestLikeCpp {
         start: query.start,
         destination: query.destination,
         mesh_map_id: source_map_id,
@@ -52,22 +52,22 @@ pub fn creature_path_request_like_cpp(
 /// `PATHFIND_NOPATH`), so it stays a failure and the caller retries like the
 /// C++ `!result` / `PATHFIND_NOPATH` branch.
 pub fn resolve_creature_detour_path_like_cpp(
-    mmap_pathfinder: Option<&wow_world_core::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
     guid: wow_core::ObjectGuid,
-    request: wow_world_core::map_manager::WorldMMapPathRequestLikeCpp,
+    request: wow_world_core::pathfinder::WorldMMapPathRequestLikeCpp,
 ) -> Option<wow_recastdetour::DetourPolyPath> {
     let start = request.start;
     let destination = request.destination;
     let Some(worker) = mmap_pathfinder else {
         return Some(
-            wow_world_core::map_manager::detour_path_without_navmesh_like_cpp(start, destination),
+            wow_world_core::pathfinder::detour_path_without_navmesh_like_cpp(start, destination),
         );
     };
 
     match worker.calculate_path_like_cpp(request) {
         Ok(Some(path)) => Some(path),
         Ok(None) => Some(
-            wow_world_core::map_manager::detour_path_without_navmesh_like_cpp(start, destination),
+            wow_world_core::pathfinder::detour_path_without_navmesh_like_cpp(start, destination),
         ),
         Err(error) => {
             tracing::warn!(

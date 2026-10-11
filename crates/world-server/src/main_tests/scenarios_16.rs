@@ -757,7 +757,7 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
     assert_eq!(pending.create_data.display_scale, 1.25);
     assert_eq!(pending.create_data.native_x_display_scale, 1.1);
     assert_eq!(pending.create_data.scale, 2.0);
-    let rebuilt = wow_world::map_manager::creature_from_pending_respawn_like_cpp(&pending, 0);
+    let rebuilt = wow_world::creature_respawn::creature_from_pending_respawn_like_cpp(&pending, 0);
     assert_eq!(rebuilt.unit().world().object().scale(), 2.0);
     let rates = rebuilt.unit().speed_rate();
     assert_eq!(rates[wow_constants::UnitMoveType::Run as usize], 1.5);

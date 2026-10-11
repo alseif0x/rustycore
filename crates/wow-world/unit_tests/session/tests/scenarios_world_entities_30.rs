@@ -7,7 +7,10 @@ use super::*;
 
 #[test]
 fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp() {
-    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
+    use crate::{
+        map_manager::pending_respawn_from_world_creature_like_cpp,
+        map_manager::world_to_grid_coords,
+    };
 
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
@@ -119,7 +122,10 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp() {
-    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
+    use crate::{
+        map_manager::pending_respawn_from_world_creature_like_cpp,
+        map_manager::world_to_grid_coords,
+    };
 
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
@@ -197,7 +203,10 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_like_cpp() {
-    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
+    use crate::{
+        map_manager::pending_respawn_from_world_creature_like_cpp,
+        map_manager::world_to_grid_coords,
+    };
 
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
@@ -467,13 +476,13 @@ fn step_creature_movement_chase_paths_around_real_navmesh_obstacle_like_cpp() {
     creature.creature.set_ai_home_position(start);
     creature.enter_combat(victim_guid);
 
-    let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,
         ..Default::default()
     };
-    let target = crate::map_manager::ChaseTargetSnapshotLikeCpp {
+    let target = crate::creature_movement::ChaseTargetSnapshotLikeCpp {
         guid: victim_guid,
         position: victim_position,
         combat_reach: 1.0,
@@ -579,7 +588,7 @@ fn step_creature_movement_home_paths_around_real_navmesh_obstacle_like_cpp() {
         .creature
         .set_ai_state(wow_entities::CreatureAiState::Returning);
 
-    let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,

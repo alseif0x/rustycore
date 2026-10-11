@@ -130,8 +130,7 @@ fn world_creature_motion_master_preserves_high_priority_point_above_chase_like_c
     creature
         .creature
         .set_default_movement_type_runtime_like_cpp(MovementGeneratorType::Random);
-    creature
-        .movement_like_cpp()
+    crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
         .expect("launch point spline");
     creature
@@ -157,7 +156,7 @@ fn world_creature_motion_master_preserves_high_priority_point_above_chase_like_c
         "selecting chase must not stop the higher-priority point spline"
     );
 
-    creature.movement_like_cpp().finish_move();
+    crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).finish_move();
     assert_eq!(
         creature.tick_runtime_motion_master_like_cpp(50),
         Some(RuntimeMovementGeneratorType::Chase),
@@ -169,8 +168,7 @@ fn world_creature_motion_master_expires_finite_distract_and_exposes_chase_like_c
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70_012);
     let target = ObjectGuid::create_player(1, 7012);
     let mut creature = test_creature(guid);
-    creature
-        .movement_like_cpp()
+    crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .begin_distract_movement_like_cpp(10, 1.25)
         .expect("launch finite distract");
     creature.enter_combat(target);
@@ -312,27 +310,23 @@ fn world_creature_spell_rng_tombstone_preserves_legacy_melee_and_movement() {
     );
     assert!(creature.roll_damage().is_some());
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .pick_wander_destination()
             .is_some()
     );
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .pick_random_destination_from_current_position_like_cpp(12.0)
             .is_some()
     );
-    assert!(creature.movement_like_cpp().reset_wander_timer());
+    assert!(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).reset_wander_timer());
     creature.creature.ai_ownership_mut().wander_steps_remaining = 0;
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .record_random_movement_launch_like_cpp()
     );
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .schedule_after_random_movement_like_cpp()
     );
     creature
@@ -340,8 +334,7 @@ fn world_creature_spell_rng_tombstone_preserves_legacy_melee_and_movement() {
         .set_default_movement_type_runtime_like_cpp(MovementGeneratorType::Random);
     creature.creature.ai_ownership_mut().wander_radius = 12.0;
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .initialize_default_random_movement_like_cpp()
     );
 
@@ -384,8 +377,7 @@ fn world_creature_random_spline_uses_walk_or_run_speed_like_cpp() {
     walker.creature.set_random_movement_type_runtime_like_cpp(
         wow_constants::CreatureRandomMovementType::Walk as u8,
     );
-    let (_, walk_spline) = walker
-        .movement_like_cpp()
+    let (_, walk_spline) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(walker)
         .begin_random_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
         .expect("walk random spline");
 
@@ -395,8 +387,7 @@ fn world_creature_random_spline_uses_walk_or_run_speed_like_cpp() {
     runner.creature.set_random_movement_type_runtime_like_cpp(
         wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
     );
-    let (_, run_spline) = runner
-        .movement_like_cpp()
+    let (_, run_spline) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(runner)
         .begin_random_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
         .expect("run random spline");
 
@@ -418,8 +409,7 @@ fn world_creature_default_random_initializes_generator_without_spline_like_cpp()
     creature.seed_runtime_rng_like_cpp(0x7005);
 
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .initialize_default_random_movement_like_cpp()
     );
 
@@ -462,27 +452,23 @@ fn world_creature_random_wander_steps_pause_only_after_step_batch_like_cpp() {
     creature.creature.ai_ownership_mut().wander_steps_remaining = 2;
 
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .record_random_movement_launch_like_cpp()
     );
     assert_eq!(creature.creature.ai_ownership().wander_steps_remaining, 1);
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .schedule_after_random_movement_like_cpp()
     );
     assert_eq!(creature.creature.ai_ownership().wander_delay_ms, 0);
 
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .record_random_movement_launch_like_cpp()
     );
     assert_eq!(creature.creature.ai_ownership().wander_steps_remaining, 0);
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .schedule_after_random_movement_like_cpp()
     );
     assert!(
@@ -528,8 +514,7 @@ fn world_creature_wander_rng_matches_cpp_random_movement_bounds() {
     creature.seed_runtime_rng_like_cpp(0x5757);
 
     for _ in 0..24 {
-        let dst = creature
-            .movement_like_cpp()
+        let dst = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .pick_wander_destination()
             .expect("authoritative wander destination");
         let dist = creature.home_position().distance(&dst);
@@ -540,7 +525,7 @@ fn world_creature_wander_rng_matches_cpp_random_movement_bounds() {
     }
 
     for _ in 0..24 {
-        assert!(creature.movement_like_cpp().reset_wander_timer());
+        assert!(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).reset_wander_timer());
         assert!(
             (4_000..=10_000).contains(&creature.creature.ai_ownership().wander_delay_ms),
             "C++ RandomMovementGenerator pauses with urand(4, 10) seconds"
@@ -681,8 +666,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
     creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
     let dst = Position::new(15.0, 10.0, 0.0, 0.0);
 
-    let (from, spline) = creature
-        .movement_like_cpp()
+    let (from, spline) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .begin_move_spline_like_cpp(dst)
         .expect("valid two-point spline");
 
@@ -724,7 +708,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
     let now_ms = creature.runtime_elapsed_ms_like_cpp();
     creature.creature.ai_ownership_mut().move_start_ms =
         now_ms.saturating_sub(u64::from(duration_ms / 2));
-    assert!(!creature.movement_like_cpp().update_move_spline_like_cpp());
+    assert!(!crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).update_move_spline_like_cpp());
     let mid = creature.position();
     assert!(mid.x > 10.0 && mid.x < 15.0, "mid position was {mid:?}");
     assert_eq!(
@@ -741,7 +725,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
     let now_ms = creature.runtime_elapsed_ms_like_cpp();
     creature.creature.ai_ownership_mut().move_start_ms =
         now_ms.saturating_sub(u64::from(duration_ms));
-    assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
+    assert!(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).update_move_spline_like_cpp());
     assert!(
         creature
             .creature
@@ -797,8 +781,7 @@ fn world_creature_move_spline_by_path_uses_cpp_moveby_path_bridge() {
         Position::new(15.0, 12.0, 0.0, 0.0),
     ];
 
-    let (from, spline) = creature
-        .movement_like_cpp()
+    let (from, spline) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .begin_move_spline_by_path_like_cpp(path)
         .expect("valid multi-point path spline");
 
@@ -851,8 +834,7 @@ fn world_creature_waypoint_default_initialize_stores_generator_and_stops_like_cp
         ],
     );
 
-    let action = creature
-        .movement_like_cpp()
+    let action = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .initialize_default_waypoint_movement_like_cpp(Some(path));
 
     assert_eq!(action, WaypointMovementAction::StopMoving);
@@ -884,8 +866,7 @@ fn world_creature_waypoint_default_initialize_missing_path_does_not_stop_like_cp
         0,
     );
 
-    let action = creature
-        .movement_like_cpp()
+    let action = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .initialize_default_waypoint_movement_like_cpp(None);
 
     assert_eq!(action, WaypointMovementAction::MissingPath);
@@ -915,8 +896,7 @@ fn world_creature_waypoint_default_initialize_resolves_owner_path_like_cpp() {
         vec![wow_movement::WaypointNode::new(10, 11.0, 10.0, 0.0)],
     );
 
-    let action = creature
-        .movement_like_cpp()
+    let action = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
             (path_id == path.id).then_some(path.clone())
         });

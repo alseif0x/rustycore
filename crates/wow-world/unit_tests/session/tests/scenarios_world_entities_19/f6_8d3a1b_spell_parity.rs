@@ -301,7 +301,7 @@ fn d3a1b_spell_events_like_cpp(events: &[RuntimeEvent]) -> String {
     };
     let mut events = events.to_vec();
     for event in &mut events {
-        if let crate::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+        if let crate::runtime_plan::RecipientRule::NearbyVisibleDurableSpellCast {
             basic_go_packet_bytes,
             full_go_packet_bytes,
             ..

@@ -304,7 +304,7 @@ pub(super) async fn create_session(
     socket_timeouts: SocketTimeoutsLikeCpp,
     resources: Arc<SessionResources>,
     session_mgr: Arc<SessionManager>,
-    live_terrain: Arc<wow_world::map_manager::LiveTerrainHeights>,
+    live_terrain: Arc<wow_world::terrain::LiveTerrainHeights>,
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     instance_port: u16,

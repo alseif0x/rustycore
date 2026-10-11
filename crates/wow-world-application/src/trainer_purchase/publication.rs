@@ -143,7 +143,7 @@ impl TrainerAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
         packets.send_packet_realm(&player_visual);
         packets.broadcast_to_movement_set_in_range_and_connection_like_cpp(
             player_visual.to_bytes(),
-            wow_world_core::map_manager::VISIBILITY_RADIUS,
+            wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
             true,
             #[cfg(any(test, feature = "test-fixtures"))]
             self.fixtures.registry_position,

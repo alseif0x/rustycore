@@ -93,7 +93,7 @@ impl WorldSession {
                 );
 
                 let effective_heal = {
-                    let unit = creature.creature.unit_mut();
+                    let unit = creature.unit_mut();
                     let current = unit.data().health;
                     let max = unit.data().max_health;
                     let healed = current.saturating_add(u64::from(heal_amount)).min(max);
@@ -101,7 +101,7 @@ impl WorldSession {
                     healed.saturating_sub(current).min(u64::from(u32::MAX)) as u32
                 };
 
-                Some((creature.creature.unit().values_update(), effective_heal))
+                Some((creature.unit().values_update(), effective_heal))
             })
             .ok_or("Target not found")?;
 

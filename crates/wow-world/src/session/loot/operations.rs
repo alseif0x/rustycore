@@ -56,7 +56,7 @@ impl WorldSession {
         f: F,
     ) -> Option<R>
     where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(

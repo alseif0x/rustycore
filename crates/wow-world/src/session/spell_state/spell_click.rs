@@ -348,9 +348,7 @@ impl WorldSession {
                 let represented = if self
                     .core
                     .mutate_world_creature(creature_guid, |creature| {
-                        creature
-                            .creature
-                            .record_ai_spell_click_inform(player_guid, true);
+                        creature.record_ai_spell_click_inform(player_guid, true);
                     })
                     .is_some()
                 {

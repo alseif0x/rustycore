@@ -430,7 +430,7 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
     );
 
     let attack_bytes = wow_packet::packets::combat::AttackStart { attacker, victim }.to_bytes();
-    let recipients = wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+    let recipients = wow_world::runtime_plan::RecipientRule::NearbyVisibleDurable {
         source_guid: attacker,
         map_id: 571,
         instance_id: 4,
@@ -445,19 +445,19 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
         reaction: wow_constants::creature::AiReaction::Hostile,
     }
     .to_bytes();
-    let mut plan = wow_world::map_manager::RuntimePlan {
+    let mut plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients: recipients.clone(),
                 packet_bytes: reaction_bytes,
             },
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients: recipients.clone(),
                 packet_bytes: attack_bytes,
             },
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients,
                 packet_bytes: vec![0xAA, 0x55],

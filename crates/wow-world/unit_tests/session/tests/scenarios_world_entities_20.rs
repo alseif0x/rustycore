@@ -20,8 +20,7 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
         .mutate_world_creature(creature_guid, |creature| {
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
             creature.creature.unit_mut().set_level(25);
-            creature
-                .movement_like_cpp()
+            crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("launch pre-aggro wander spline");
         })
@@ -60,7 +59,7 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
     assert_eq!(stop_event.source_guid, creature_guid);
     assert!(matches!(
         &stop_event.recipients,
-        crate::map_manager::RecipientRule::NearbyVisible {
+        crate::runtime_plan::RecipientRule::NearbyVisible {
             source_guid,
             map_id: 0,
             instance_id: 0,
@@ -76,7 +75,7 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
     let attack_event = &outcome.plan.events[1];
     assert!(matches!(
         &attack_event.recipients,
-        crate::map_manager::RecipientRule::NearbyVisibleDurable { .. }
+        crate::runtime_plan::RecipientRule::NearbyVisibleDurable { .. }
     ));
     let mut attack_packet = wow_packet::WorldPacket::from_bytes(&attack_event.packet_bytes);
     assert_eq!(
@@ -179,7 +178,7 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
     assert_eq!(switched.commands[0].previous_victim_guid, Some(tank));
     assert!(switched.plan.events.iter().all(|event| matches!(
         event.recipients,
-        crate::map_manager::RecipientRule::NearbyVisibleDurable { .. }
+        crate::runtime_plan::RecipientRule::NearbyVisibleDurable { .. }
     )));
     // C++ `Unit::Attack` (`Unit.cpp:5724-5741`): a creature attacker taking a
     // new victim always runs `SendAIReaction(AI_REACTION_HOSTILE)` before

@@ -581,7 +581,7 @@ fn respawn_rebuild_applies_template_speed_rates_to_the_unit_like_cpp() {
     );
     pending.create_data.speed_walk_rate = 0.8;
     pending.create_data.speed_run_rate = 1.5;
-    let creature = crate::map_manager::creature_from_pending_respawn_like_cpp(&pending, 0);
+    let creature = crate::creature_respawn::creature_from_pending_respawn_like_cpp(&pending, 0);
     let rates = creature.unit().speed_rate();
     assert_eq!(rates[UnitMoveType::Walk as usize], 0.8);
     assert_eq!(rates[UnitMoveType::Run as usize], 1.5);

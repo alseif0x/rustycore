@@ -81,7 +81,7 @@ pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_for_test_lik
 /// environment for the family-assistance LOS check.
 pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_with_terrain_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
     candidates: &[LegacyCreatureAggroCandidateLikeCpp],
     config: LegacyCreatureAggroConfigLikeCpp,
 ) -> LegacyCreatureAggroTickOutcomeLikeCpp {
@@ -155,8 +155,11 @@ pub(in crate::session::tests) fn run_canonical_creature_lifecycle_phase_for_test
 pub(in crate::session::tests) fn run_canonical_creature_movement_phase_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    chase_targets: &HashMap<
+        (u16, u32, ObjectGuid),
+        crate::creature_movement::ChaseTargetSnapshotLikeCpp,
+    >,
     diff_ms: u32,
 ) -> LegacyCreatureMovementTickOutcomeLikeCpp {
     let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp::default();
@@ -201,16 +204,16 @@ pub(in crate::session::tests) fn run_canonical_player_melee_phase_for_test_like_
 /// `Unit::Update(p_time)`'s spline/motion master step on that unit).
 #[allow(clippy::too_many_arguments)]
 pub(in crate::session::tests) fn step_creature_movement_like_cpp(
-    creature: &mut crate::map_manager::WorldCreature,
+    creature: &mut wow_entities::Creature,
     guid: ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
-    chase_target: Option<crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    chase_target: Option<crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> Option<Vec<u8>> {
     crate::session::step_creature_movement_on_view_like_cpp(
-        &mut crate::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(
+        &mut crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(
             &mut creature.creature,
         ),
         guid,

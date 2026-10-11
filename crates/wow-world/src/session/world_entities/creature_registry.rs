@@ -243,7 +243,7 @@ impl WorldSession {
     pub(crate) fn remove_world_creature(
         &mut self,
         guid: ObjectGuid,
-    ) -> Option<crate::map_manager::WorldCreature> {
+    ) -> Option<wow_entities::Creature> {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.remove_world_creature(&mut hub, guid)
     }

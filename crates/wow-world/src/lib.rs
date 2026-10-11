@@ -20,7 +20,10 @@ pub mod entity_update_bridge;
 pub mod handler_composition;
 pub mod handlers;
 pub mod loot_persistence;
-pub use wow_world_core::map_manager;
+pub use wow_world_core::{
+    corpse_load, creature_movement, creature_projection, creature_respawn, pathfinder,
+    runtime_plan, terrain,
+};
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 #[cfg(test)]
 #[path = "../unit_tests/canonical_creature_fixtures.rs"]
@@ -50,10 +53,8 @@ mod teleport_test_fixtures;
 #[path = "../unit_tests/vendor_trade_persistence_test_fixture.rs"]
 mod vendor_trade_persistence_test_fixture;
 
-pub use map_manager::{
-    ChaseTargetSnapshotLikeCpp, GridCoord, MapManager, SharedMapManager, WorldCreature,
-    WorldMMapPathfinderWorkerLikeCpp,
-};
+pub use creature_movement::ChaseTargetSnapshotLikeCpp;
+pub use pathfinder::WorldMMapPathfinderWorkerLikeCpp;
 pub use session::{MMapRuntimeConfigLikeCpp, SharedCanonicalMapManager, WorldSession};
 pub use session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,

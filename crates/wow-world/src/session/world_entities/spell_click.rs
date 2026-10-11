@@ -160,7 +160,7 @@ impl WorldSession {
                     return None;
                 }
                 let _died = creature.take_damage_before_death_state_like_cpp(damage_amount);
-                Some(creature.creature.unit().values_update())
+                Some(creature.unit().values_update())
             })
             .ok_or("Target creature not found")?;
         let Some(values_update) = values_update else {

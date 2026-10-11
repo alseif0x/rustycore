@@ -238,7 +238,7 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
     drop(canonical);
     assert_eq!(command.self_share_health_updates, vec![98]);
     assert!(outcome.plan.events.iter().any(|event| {
-        event.recipients == crate::map_manager::RecipientRule::ExplicitPlayer(secondary_guid)
+        event.recipients == crate::runtime_plan::RecipientRule::ExplicitPlayer(secondary_guid)
             && wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
                 == Some(ServerOpcodes::HealthUpdate)
     }));

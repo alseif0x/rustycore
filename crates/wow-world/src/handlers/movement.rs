@@ -21,13 +21,13 @@ use wow_constants::ClientOpcodes;
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::UnitStandStateType;
 
-use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
     AreaTriggerCatalogsLikeCpp, MovementTransportMembershipLikeCpp, ProgressionCatalogsLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
     SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
     WorldSession,
 };
+use crate::terrain::zone_and_area_for_position_like_cpp;
 use wow_packet::ServerPacket;
 use wow_packet::packets::movement::{
     ClientPlayerMovement, MoveSplineDone, MoveUpdate, MovementAckMessage, MovementInfo,

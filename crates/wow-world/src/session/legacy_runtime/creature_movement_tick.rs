@@ -4,7 +4,7 @@
 //! executor over the canonical map (#1263 F6-8D3a-2, F6-8E).
 
 use super::*;
-use crate::map_manager::CreatureMovementQueriesLikeCpp as _;
+use crate::creature_movement::CreatureMovementQueriesLikeCpp as _;
 
 /// The creature movement step — `Unit::Update(p_time)`'s clock,
 /// `UpdateSplineMovement` and `MotionMaster::Update` with the home, random,
@@ -15,12 +15,12 @@ use crate::map_manager::CreatureMovementQueriesLikeCpp as _;
 /// it does NOT touch any `WorldSession` state.
 #[allow(clippy::too_many_arguments)]
 pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
-    creature: &mut crate::map_manager::CreatureMovementLikeCpp<'_>,
+    creature: &mut crate::creature_movement::CreatureMovementLikeCpp<'_>,
     guid: wow_core::ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
-    chase_target: Option<crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    chase_target: Option<crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> Option<Vec<u8>> {
     use wow_packet::ServerPacket;
@@ -82,8 +82,8 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
         );
 
         return match outcome {
-            crate::map_manager::ChaseTickOutcomeLikeCpp::Idle => None,
-            crate::map_manager::ChaseTickOutcomeLikeCpp::Stopped(stop) => Some(
+            crate::creature_movement::ChaseTickOutcomeLikeCpp::Idle => None,
+            crate::creature_movement::ChaseTickOutcomeLikeCpp::Stopped(stop) => Some(
                 MonsterMoveStop {
                     mover_guid: guid,
                     current_pos: stop.position,
@@ -91,7 +91,7 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
                 }
                 .to_bytes(),
             ),
-            crate::map_manager::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+            crate::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
                 let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
                 let pkt = MonsterMove {
                     mover_guid: guid,
@@ -308,8 +308,8 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
             );
 
             match outcome {
-                crate::map_manager::ChaseTickOutcomeLikeCpp::Idle => {}
-                crate::map_manager::ChaseTickOutcomeLikeCpp::Stopped(stop) => {
+                crate::creature_movement::ChaseTickOutcomeLikeCpp::Idle => {}
+                crate::creature_movement::ChaseTickOutcomeLikeCpp::Stopped(stop) => {
                     return Some(
                         MonsterMoveStop {
                             mover_guid: guid,
@@ -319,7 +319,7 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
                         .to_bytes(),
                     );
                 }
-                crate::map_manager::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+                crate::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
                     let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
                     let pkt = MonsterMove {
                         mover_guid: guid,
@@ -353,14 +353,17 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
 /// map. Both lookups are immutable and finish before the mutable borrow.
 pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    chase_targets: &HashMap<
+        (u16, u32, ObjectGuid),
+        crate::creature_movement::ChaseTargetSnapshotLikeCpp,
+    >,
     diff_ms: u32,
     outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
 ) {
-    use crate::map_manager::{RecipientRule, RuntimeEvent};
+    use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
     use wow_packet::ServerPacket;
 
     let map_keys = store.phase_map_keys_like_cpp();
@@ -377,14 +380,16 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
                         .or_else(|| {
                             store
                                 .phase_map_creature_like_cpp(map_id, instance_id, target_guid)
-                                .map(|target| crate::map_manager::ChaseTargetSnapshotLikeCpp {
-                                    guid: target_guid,
-                                    position: target.position(),
-                                    combat_reach: target.unit().data().combat_reach.max(0.0),
-                                    in_world: target.is_alive(),
-                                    // Creature entities carry no liquid state;
-                                    // unknown, not "dry".
-                                    in_water: None,
+                                .map(|target| {
+                                    crate::creature_movement::ChaseTargetSnapshotLikeCpp {
+                                        guid: target_guid,
+                                        position: target.position(),
+                                        combat_reach: target.unit().data().combat_reach.max(0.0),
+                                        in_world: target.is_alive(),
+                                        // Creature entities carry no liquid state;
+                                        // unknown, not "dry".
+                                        in_water: None,
+                                    }
                                 })
                         })
                 });

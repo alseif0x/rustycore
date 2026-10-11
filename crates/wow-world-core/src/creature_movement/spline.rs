@@ -9,9 +9,6 @@ impl CreatureMovementLikeCpp<'_> {
     fn set_movement_flags_like_cpp(&mut self, movement_flags: MovementFlag) {
         self.creature
             .set_movement_flags_runtime_like_cpp(movement_flags);
-        if let Some(projection) = self.projection.as_deref_mut() {
-            projection.movement_flags = movement_flags.bits();
-        }
     }
 
     fn apply_launch_movement_flags_like_cpp(&mut self, movement_flags: MovementFlag) {
@@ -373,16 +370,8 @@ impl CreatureMovementLikeCpp<'_> {
     /// C++ `MoveSplineInit::Stop` through `Unit::DisableSpline`.
     ///
     /// #1263 F6-8D1 moved the operation onto canonical `Creature` ownership.
-    /// This bridge entry point keeps the legacy name and additionally mirrors
-    /// the resulting movement flags into the cached `CreatureCreateData`
-    /// packet projection, exactly as the legacy body did through
-    /// `set_movement_flags_like_cpp`.
     pub fn stop_move_spline_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
-        let stop = self.creature.stop_move_spline_like_cpp();
-        if stop.is_some() {
-            self.mirror_projection_movement_flags_like_cpp();
-        }
-        stop
+        self.creature.stop_move_spline_like_cpp()
     }
 
     pub fn finish_move(&mut self) {
@@ -400,14 +389,5 @@ impl CreatureMovementLikeCpp<'_> {
         self.creature
             .unit_mut()
             .clear_unit_state(UnitState::ROAMING_MOVE.bits());
-    }
-}
-
-impl WorldCreature {
-    /// Re-sync the cached packet projection's movement flags from the canonical
-    /// unit after a phase operation that changed them.
-    pub fn sync_create_projection_movement_flags_like_cpp(&mut self) {
-        self.movement_like_cpp()
-            .mirror_projection_movement_flags_like_cpp();
     }
 }

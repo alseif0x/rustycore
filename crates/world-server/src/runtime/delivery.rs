@@ -197,11 +197,11 @@ impl RuntimeVisibilityRefreshDeliverySummaryLikeCpp {
 /// **No guards are held during `try_send`**: candidates are collected into a
 /// `Vec` first, then commands are sent outside the DashMap iteration.
 pub(crate) fn resolve_runtime_event_candidates_like_cpp(
-    event: &wow_world::map_manager::RuntimeEvent,
+    event: &wow_world::runtime_plan::RuntimeEvent,
     registry: &wow_world::session::directory::PlayerRegistry,
     summary: &mut RuntimeDeliverySummaryLikeCpp,
 ) {
-    use wow_world::map_manager::RecipientRule;
+    use wow_world::runtime_plan::RecipientRule;
 
     match &event.recipients {
         RecipientRule::SelfOnly => {
@@ -597,7 +597,7 @@ pub(crate) fn resolve_runtime_event_candidates_like_cpp(
 /// Returns a [`RuntimeDeliverySummaryLikeCpp`] for test assertions.
 /// No blocking sends — backpressure via `try_send` only.
 pub(crate) fn deliver_runtime_plan_like_cpp(
-    plan: &wow_world::map_manager::RuntimePlan,
+    plan: &wow_world::runtime_plan::RuntimePlan,
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> RuntimeDeliverySummaryLikeCpp {
     let mut summary = RuntimeDeliverySummaryLikeCpp::default();

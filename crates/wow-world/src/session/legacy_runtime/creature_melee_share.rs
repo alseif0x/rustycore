@@ -1,7 +1,7 @@
 //! Secondary-target side of creature white-swing shared damage.
 
 use crate::entity_update_bridge::unit_values_update_to_update_object;
-use crate::map_manager::{RecipientRule, RuntimeEvent};
+use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
 

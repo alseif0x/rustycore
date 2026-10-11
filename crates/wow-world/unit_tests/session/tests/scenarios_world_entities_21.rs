@@ -9,7 +9,7 @@ use super::*;
 fn legacy_creature_call_assistance_rejects_blocked_static_vmap_los_like_cpp() {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
-    use crate::map_manager::LiveTerrainHeights;
+    use crate::terrain::LiveTerrainHeights;
 
     #[derive(Debug, Default)]
     struct BlockingAssistanceLos {
@@ -194,8 +194,7 @@ fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_c
         .mutate_world_creature(creature_guid, |creature| {
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
             creature.creature.unit_mut().set_level(25);
-            creature
-                .movement_like_cpp()
+            crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("launch high-priority point spline");
             creature
@@ -222,7 +221,7 @@ fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_c
     assert_eq!(outcome.plan.events.len(), 1);
     assert!(matches!(
         outcome.plan.events[0].recipients,
-        crate::map_manager::RecipientRule::NearbyVisibleDurable { .. }
+        crate::runtime_plan::RecipientRule::NearbyVisibleDurable { .. }
     ));
     let (runtime_kind, represented_kind, has_active_spline) = {
         let guard = manager.lock().unwrap();
@@ -624,7 +623,7 @@ fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() 
     let candidates = vec![legacy_aggro_candidate_like_cpp(
         player,
         Position::new(
-            10.0 + crate::map_manager::VISIBILITY_RADIUS + 1.0,
+            10.0 + wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
             10.0,
             0.0,
             0.0,

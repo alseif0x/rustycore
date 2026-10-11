@@ -11,17 +11,18 @@ impl SessionCore {
     /// Read one value from the session's represented creature *without*
     /// mutating it or publishing anything.
     ///
-    /// `f` observes a projection of the canonical incarnation at the session's
-    /// current map key: a clone of the incarnation and its `CreatureCreateData`
-    /// projection, taken under the canonical execution lock and released
-    /// before `f` runs, so `f` holds no guard. #1263 F6-8E: the canonical map
+    /// `f` observes a clone of the canonical incarnation at the session's
+    /// current map key, taken under the canonical execution lock and released
+    /// before `f` runs, so `f` holds no guard. A caller that needs the
+    /// `CreatureCreateData` packet projection computes it on demand
+    /// (`creature_projection::creature_create_data_like_cpp`). #1263 F6-8E: the canonical map
     /// is the only creature store.
     ///
     /// `None` means the canonical map does not hold the creature at the
     /// current map key.
     pub fn read_world_creature_like_cpp<F, R>(&self, guid: ObjectGuid, f: F) -> Option<R>
     where
-        F: FnOnce(&crate::map_manager::WorldCreature) -> R,
+        F: FnOnce(&wow_entities::Creature) -> R,
     {
         let (map_id, instance_id) = self.current_runtime_map_key_like_cpp();
         let creature = {
@@ -32,12 +33,7 @@ impl SessionCore {
                 .get_typed_creature(guid)?
                 .clone()
         };
-        let create_data =
-            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
-        Some(f(&crate::map_manager::WorldCreature {
-            creature,
-            create_data,
-        }))
+        Some(f(&creature))
     }
 
     /// Run one pure read against the canonical incarnation at the session's
@@ -68,7 +64,7 @@ impl SessionCore {
     /// [`Self::read_world_creature_like_cpp`] instead.
     pub fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
     where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         self.with_admitted_world_creature_like_cpp(guid, |creature| Some(f(creature)))
     }
@@ -97,11 +93,10 @@ impl SessionCore {
         f: F,
     ) -> Option<R>
     where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         self.with_admitted_world_creature_like_cpp(guid, |creature| {
             if !creature
-                .creature
                 .loot_authority_like_cpp()
                 .shares_storage_like_cpp(authority)
             {
@@ -128,11 +123,10 @@ impl SessionCore {
         f: F,
     ) -> Option<R>
     where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         self.with_admitted_world_creature_like_cpp(guid, |creature| {
             if !creature
-                .creature
                 .loot_authority_like_cpp()
                 .shares_storage_like_cpp(authority)
             {
@@ -153,7 +147,7 @@ impl SessionCore {
     /// spell effects) writes that object. The canonical map's incarnation is
     /// that object here (#1263 F6-8D3b-2; F6-8E deleted the legacy copy): it is
     /// moved out of its map record under the canonical execution lock, lent to
-    /// `mutation` as a [`WorldCreature`] view by value (no clone), and returned
+    /// `mutation` as `&mut Creature` (moved out, no clone), and returned
     /// to the same map before the lock is released, whatever `mutation`
     /// returned. The other units' `threatened by me` references are then
     /// brought in line with its threat list.
@@ -173,11 +167,13 @@ impl SessionCore {
     /// delivery, await or manager re-entry happens inside the guard, and the
     /// authority lock a caller's `mutation` may take stays innermost.
     ///
-    /// [`WorldCreature`]: crate::map_manager::WorldCreature
+    /// #1263 F6-8E-2: the transient `WorldCreature` view (the creature plus a
+    /// `CreatureCreateData` projection computed on the spot) is gone; the
+    /// mutation receives the canonical creature itself.
     fn with_admitted_world_creature_like_cpp<R>(
         &mut self,
         guid: ObjectGuid,
-        mutation: impl FnOnce(&mut crate::map_manager::WorldCreature) -> Option<R>,
+        mutation: impl FnOnce(&mut wow_entities::Creature) -> Option<R>,
     ) -> Option<R> {
         // #1263 C1: the guarded body copies one outcome record and returns it;
         // the event is emitted here, after the canonical guard was released.
@@ -194,7 +190,7 @@ impl SessionCore {
     fn with_admitted_world_creature_captured_like_cpp<R>(
         &mut self,
         guid: ObjectGuid,
-        mutation: impl FnOnce(&mut crate::map_manager::WorldCreature) -> Option<R>,
+        mutation: impl FnOnce(&mut wow_entities::Creature) -> Option<R>,
     ) -> (Option<R>, Option<CreatureMutationRootCaptureLikeCpp>) {
         const ROOT: &str = "SessionCore::with_admitted_world_creature_like_cpp";
         let (map_id, instance_id) = self.current_runtime_map_key_like_cpp();
@@ -228,16 +224,11 @@ impl SessionCore {
         let Some((creature, origin)) = map.lend_creature_like_cpp(guid) else {
             return (None, capture(false, "incarnation_absent", false));
         };
-        let create_data =
-            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
         let mut lent = LentIncarnationLikeCpp {
             map,
             origin,
             old_threat_guids: Some(old_threat_guids),
-            incarnation: Some(crate::map_manager::WorldCreature {
-                creature,
-                create_data,
-            }),
+            incarnation: Some(creature),
         };
         let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
             mutation(lent.incarnation.as_mut().expect("lent until returned"))
@@ -254,7 +245,7 @@ impl SessionCore {
             }
         };
         let incarnation = lent.incarnation.take().expect("lent until returned");
-        let returned = lent.return_like_cpp(incarnation.creature);
+        let returned = lent.return_like_cpp(incarnation);
         drop(lent);
         if returned != LentIncarnationReturnLikeCpp::Clean {
             return (None, capture(true, "canonical_application_refused", false));
@@ -288,7 +279,7 @@ struct LentIncarnationLikeCpp<'m> {
     map: &'m mut wow_map::ManagedMapInnerLikeCpp,
     origin: wow_map::LentCreatureOriginLikeCpp,
     old_threat_guids: Option<Vec<ObjectGuid>>,
-    incarnation: Option<crate::map_manager::WorldCreature>,
+    incarnation: Option<wow_entities::Creature>,
 }
 
 impl LentIncarnationLikeCpp<'_> {
@@ -358,7 +349,7 @@ impl Drop for LentIncarnationLikeCpp<'_> {
                 guid = ?self.origin.guid,
                 "creature mutation unwound; returning the lent incarnation to its map"
             );
-            let _ = self.return_like_cpp(incarnation.creature);
+            let _ = self.return_like_cpp(incarnation);
         }
     }
 }

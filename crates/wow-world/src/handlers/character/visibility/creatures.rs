@@ -43,7 +43,8 @@ impl WorldSession {
                 if self.core.client_visible_guids_like_cpp.contains(&guid) {
                     continue;
                 }
-                let mut create_data = creature.create_data.clone();
+                let mut create_data =
+                    crate::creature_projection::creature_create_data_like_cpp(creature);
                 create_data.health = i64::from(creature.current_hp());
                 create_data.max_health = i64::from(creature.max_hp());
                 create_data.level = creature.level();
@@ -332,7 +333,8 @@ impl WorldSession {
                 let guid = creature.guid();
                 new_visible_creatures.insert(guid);
                 if !self.core.client_visible_guids_like_cpp.contains(&guid) {
-                    let mut create_data = creature.create_data.clone();
+                    let mut create_data =
+                        crate::creature_projection::creature_create_data_like_cpp(creature);
                     create_data.health = i64::from(creature.current_hp());
                     create_data.max_health = i64::from(creature.max_hp());
                     create_data.level = creature.level();

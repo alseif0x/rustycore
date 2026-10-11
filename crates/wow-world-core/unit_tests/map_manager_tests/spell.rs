@@ -43,8 +43,7 @@ fn reversed_damage_bounds_reject_and_tombstone_only_spell_rng_authority() {
     assert!(!creature.runtime_rng_authority_complete_like_cpp());
     assert_eq!(creature.random_creature_spell_hit_roll_like_cpp(), None);
     assert!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .pick_random_destination_from_current_position_like_cpp(12.0)
             .is_some(),
         "the conservative spell-RNG tombstone must not freeze legacy movement"

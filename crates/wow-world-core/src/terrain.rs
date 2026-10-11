@@ -1,9 +1,26 @@
-//! Terrain items of mod.
-//!
-//! Separated from mod.rs under #711; every item keeps its name,
-//! signature and body.
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use super::*;
+//! File-backed terrain heights, areas and line of sight
+//! (C++ `TerrainInfo` / `TerrainMgr` callers).
+//!
+//! #1263 F6-8E-2: moved out of the deleted legacy `map_manager` module; every
+//! item keeps its name and body.
+
+use std::collections::HashMap;
+use std::fs::File;
+use std::io::{self, Read, Seek, SeekFrom};
+use std::path::{Path, PathBuf};
+use std::sync::{Arc, Mutex};
+
+use wow_entities::PhaseShift;
+use wow_map::map::MapWorldObjectEnvironment;
+use wow_map::{GridMapTerrain, SharedStaticVMapLineOfSightProvider};
+use wow_recastdetour::{
+    CENTER_GRID_ID_LIKE_CPP, MAX_NUMBER_OF_GRIDS_LIKE_CPP, SIZE_OF_GRIDS_LIKE_CPP,
+};
 
 /// TrinityCore `TerrainInfo::GetMinHeight` fallback when no terrain grid is loaded.
 ///
@@ -12,21 +29,21 @@ use super::*;
 /// inventing terrain values.
 pub const DEFAULT_MIN_HEIGHT_LIKE_CPP: f32 = -500.0;
 
-pub(super) const MAP_MAGIC_LIKE_CPP: &[u8; 4] = b"MAPS";
+pub(crate) const MAP_MAGIC_LIKE_CPP: &[u8; 4] = b"MAPS";
 
-pub(super) const MAP_AREA_MAGIC_LIKE_CPP: &[u8; 4] = b"AREA";
+pub(crate) const MAP_AREA_MAGIC_LIKE_CPP: &[u8; 4] = b"AREA";
 
-pub(super) const MAP_VERSION_MAGIC_LIKE_CPP: u32 = 10;
+pub(crate) const MAP_VERSION_MAGIC_LIKE_CPP: u32 = 10;
 
-pub(super) const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
+pub(crate) const MAP_FILE_HEADER_SIZE_LIKE_CPP: usize = 44;
 
-pub(super) const MAP_AREA_HEADER_SIZE_LIKE_CPP: usize = 8;
+pub(crate) const MAP_AREA_HEADER_SIZE_LIKE_CPP: usize = 8;
 
-pub(super) const MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP: u16 = 0x0001;
+pub(crate) const MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP: u16 = 0x0001;
 
-pub(super) const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
+pub(crate) const MAP_AREA_CELLS_PER_GRID_LIKE_CPP: usize = 16;
 
-pub(super) const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
+pub(crate) const TERRAIN_GRID_COUNT_LIKE_CPP: usize =
     MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize;
 
 pub fn terrain_grid_coords_for_wow_position_like_cpp(x: f32, y: f32) -> (i32, i32) {
@@ -216,7 +233,7 @@ impl TerrainGridFileIndexLikeCpp {
     }
 }
 
-pub(super) fn discover_grid_map_files_like_cpp(
+pub(crate) fn discover_grid_map_files_like_cpp(
     data_dir: &Path,
     map_id: u32,
 ) -> io::Result<Vec<bool>> {
@@ -247,7 +264,7 @@ pub(super) fn discover_grid_map_files_like_cpp(
     Ok(grid_file_exists)
 }
 
-pub(super) fn terrain_grid_bitset_index_like_cpp(gx: i32, gy: i32) -> Option<usize> {
+pub(crate) fn terrain_grid_bitset_index_like_cpp(gx: i32, gy: i32) -> Option<usize> {
     if !(0..MAX_NUMBER_OF_GRIDS_LIKE_CPP).contains(&gx)
         || !(0..MAX_NUMBER_OF_GRIDS_LIKE_CPP).contains(&gy)
     {
@@ -257,7 +274,7 @@ pub(super) fn terrain_grid_bitset_index_like_cpp(gx: i32, gy: i32) -> Option<usi
     Some(gx as usize * MAX_NUMBER_OF_GRIDS_LIKE_CPP as usize + gy as usize)
 }
 
-pub(super) fn terrain_grid_bitset_from_cpp_string_like_cpp(tiles_data: &[u8]) -> Vec<bool> {
+pub(crate) fn terrain_grid_bitset_from_cpp_string_like_cpp(tiles_data: &[u8]) -> Vec<bool> {
     let mut grid_file_exists = vec![false; TERRAIN_GRID_COUNT_LIKE_CPP];
     for (idx, exists) in grid_file_exists.iter_mut().enumerate() {
         let string_idx = TERRAIN_GRID_COUNT_LIKE_CPP - 1 - idx;
@@ -266,7 +283,7 @@ pub(super) fn terrain_grid_bitset_from_cpp_string_like_cpp(tiles_data: &[u8]) ->
     grid_file_exists
 }
 
-pub(super) fn exist_map_like_cpp(data_dir: &Path, map_id: u32, gx: i32, gy: i32) -> bool {
+pub(crate) fn exist_map_like_cpp(data_dir: &Path, map_id: u32, gx: i32, gy: i32) -> bool {
     let file_name = data_dir
         .join("maps")
         .join(format!("{map_id:04}_{gx:02}_{gy:02}.map"));
@@ -426,7 +443,7 @@ impl LiveTerrainHeights {
         }
     }
 
-    pub(super) fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
+    pub(crate) fn terrain_for_map(&self, map_id: u32) -> Arc<GridMapTerrain> {
         let mut per_map = self.per_map.lock().expect("live terrain cache poisoned");
         Arc::clone(per_map.entry(map_id).or_insert_with(|| {
             let terrain = GridMapTerrain::new(map_id, &self.data_dir);

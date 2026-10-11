@@ -334,7 +334,7 @@ fn residence_respawn_like_cpp(
     guid: ObjectGuid,
     hp: u32,
     now: Instant,
-) -> crate::map_manager::PendingRespawn {
+) -> crate::creature_respawn::PendingRespawn {
     let queued = crate::map_manager::WorldCreature::new(
         guid,
         9_001,

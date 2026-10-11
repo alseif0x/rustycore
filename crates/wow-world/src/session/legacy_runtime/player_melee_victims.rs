@@ -116,7 +116,7 @@ pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
     let victim_aura_state_mask = {
         let unit = creature.unit();
         unit.subsystems().auras.aura_state_mask
-            | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+            | wow_entities::Creature::health_aura_state_like_cpp(
                 creature.current_hp() as u64,
                 creature.max_hp() as u64,
                 creature.is_alive(),

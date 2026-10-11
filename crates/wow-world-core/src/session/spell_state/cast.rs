@@ -19,7 +19,7 @@ impl crate::session::HubRef<'_> {
     pub fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
         self.broadcast_to_movement_set_in_range_like_cpp(
             bytes,
-            crate::map_manager::VISIBILITY_RADIUS,
+            wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
         );
     }
 

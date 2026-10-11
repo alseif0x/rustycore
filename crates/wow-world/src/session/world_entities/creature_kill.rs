@@ -210,7 +210,7 @@ impl WorldSession {
         if self
             .core
             .read_world_creature_like_cpp(creature_guid, |creature| {
-                creature.creature.is_reputation_gain_disabled()
+                creature.is_reputation_gain_disabled()
             })
             .unwrap_or(false)
         {
@@ -310,7 +310,7 @@ impl WorldSession {
             let can_give_experience = self
                 .core
                 .read_world_creature_like_cpp(reward.creature_guid, |creature| {
-                    creature.creature.can_give_experience_like_cpp()
+                    creature.can_give_experience_like_cpp()
                 })
                 .unwrap_or(false);
             let xp = can_give_experience
@@ -462,14 +462,14 @@ impl WorldSession {
         let values_update = self
             .core
             .mutate_world_creature(creature_guid, |creature| {
-                if creature.creature.ai_state() != wow_entities::CreatureAiState::Dead
-                    || creature.creature.unit().is_dead()
+                if creature.ai_state() != wow_entities::CreatureAiState::Dead
+                    || creature.unit().is_dead()
                 {
                     return None;
                 }
                 creature.complete_death_state_after_kill_hooks_like_cpp();
                 creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
-                Some(creature.creature.unit().values_update())
+                Some(creature.unit().values_update())
             })
             .flatten()?;
         #[cfg(test)]

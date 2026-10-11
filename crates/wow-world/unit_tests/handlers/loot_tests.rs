@@ -489,7 +489,7 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
         unit_flags: creature.unit_flags,
         unit_flags2: 0,
         unit_flags3: 0,
-        aura_state: crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+        aura_state: wow_entities::Creature::health_aura_state_like_cpp(
             u64::from(creature.hp.max(1)),
             u64::from(creature.max_hp.max(1)),
             true,

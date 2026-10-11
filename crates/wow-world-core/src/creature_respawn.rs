@@ -1,31 +1,98 @@
-//! Pending respawn items of mod.
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Creature respawn entries, their persisted times and the incarnation rebuild
+//! (C++ `Map::SaveRespawnTime`, `Map::DoRespawn`, `Creature::Respawn`).
 //!
-//! Separated from mod.rs under #711; every item keeps its name,
-//! signature and body.
+//! #1263 F6-8E-2: moved out of the deleted legacy `map_manager` module
+//! (`pending_respawn.rs` and the free functions of `respawn.rs`); every item
+//! keeps its name and body. The legacy `MapInstance` queue wrappers and its
+//! reload report are deleted with that owner.
 
-use super::*;
+use std::time::{Duration, Instant};
 
-// #1263 F6-8D3a-3: the respawn entry types and the queue moved to the map
-// crate, so the canonical map owns the same queue the legacy `MapInstance`
-// owns; every legacy path keeps naming them here.
+use wow_constants::UnitMoveType;
+use wow_constants::movement::MovementFlag;
+use wow_core::Position;
+use wow_entities::creature_create::CreatureCreateData;
+use wow_entities::{
+    AllowedPositionZCaps, Creature, Z_OFFSET_FIND_HEIGHT, allowed_position_z_from_ground_like_cpp,
+};
+use wow_map::SpawnObjectType;
+use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
+
+use crate::creature_projection::{install_creature_runtime_like_cpp, power_type_from_u8_like_cpp};
+use crate::terrain::LiveTerrainHeights;
+
 pub use wow_map::creature_respawn_queue::{
-    CreatureRespawnQueueLikeCpp, LegacyRespawnTimeAddOutcomeLikeCpp, PendingRespawn,
-    PersistedRespawnRowLikeCpp,
+    CreatureRespawnQueueLikeCpp, PendingRespawn, PersistedRespawnRowLikeCpp,
+    RespawnTimeAddOutcomeLikeCpp,
 };
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct LegacyRespawnQueueReloadReportLikeCpp {
-    pub rows: usize,
-    pub timers_loaded: usize,
-    pub creature_queued: usize,
-    pub gameobject_loaded: usize,
-    pub rejected_zero_spawn_id: usize,
-    pub rejected_unsupported_type: usize,
-    pub rejected_existing_later: usize,
-    pub missing_creature_runtime: usize,
+/// Re-accredit the DB-backed respawn aura-source proofs on one creature
+/// incarnation: the runtime keeps the provenance, the aura subsystem the inert
+/// markers it enables.
+pub(crate) fn restore_respawn_aura_source_authority_like_cpp(
+    creature: &mut Creature,
+    spell_hit: bool,
+    spell_cast_log: bool,
+) {
+    creature
+        .runtime_like_cpp_mut()
+        .set_respawn_aura_source_authority_like_cpp(spell_hit, spell_cast_log);
+    let auras = &mut creature.unit_mut().subsystems_mut().auras;
+    auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
+    auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
 }
 
-pub(super) fn spawn_object_type_raw_like_cpp(object_type: SpawnObjectType) -> u16 {
+/// C++ `Creature::Update` `CORPSE` case: `m_corpseRemoveTime <= now`, on the
+/// creature-local clock (#1263 F6-8D3a-3: one body for either store).
+pub fn creature_corpse_despawn_due_like_cpp(creature: &Creature) -> bool {
+    creature
+        .ai_ownership()
+        .corpse_despawn_at_ms
+        .is_some_and(|due_at_ms| creature.runtime_elapsed_ms_like_cpp() >= due_at_ms)
+}
+
+/// The respawn deadline of a dead creature: the later of its death time plus
+/// the respawn delay and its stored `m_respawnTime`.
+pub fn creature_respawn_at_from_death_at_game_time_like_cpp(
+    creature: &Creature,
+    now: Instant,
+    game_time_secs: i64,
+) -> Instant {
+    let elapsed_ms = creature.runtime_elapsed_ms_like_cpp();
+    let death_at = creature
+        .ai_ownership()
+        .death_time_ms
+        .map(|death_ms| {
+            if death_ms <= elapsed_ms {
+                now.checked_sub(Duration::from_millis(elapsed_ms - death_ms))
+                    .unwrap_or(now)
+            } else {
+                now + Duration::from_millis(death_ms - elapsed_ms)
+            }
+        })
+        .unwrap_or(now);
+    let compatibility_corpse_delay = creature
+        .respawn_compatibility_mode()
+        .then_some(u64::from(creature.corpse_delay()))
+        .unwrap_or(0);
+    let death_based = death_at
+        + Duration::from_secs(
+            creature
+                .ai_ownership()
+                .respawn_time_secs
+                .saturating_add(compatibility_corpse_delay),
+        );
+    let stored_based =
+        instant_from_respawn_time_like_cpp(creature.respawn_time(), now, game_time_secs);
+    death_based.max(stored_based)
+}
+
+pub(crate) fn spawn_object_type_raw_like_cpp(object_type: SpawnObjectType) -> u16 {
     u16::from(object_type as u8)
 }
 
@@ -87,8 +154,7 @@ pub fn save_pending_respawn_time_on_queue_like_cpp(
         instance_id,
     };
     match queue.add_persisted_respawn_time_like_cpp(row) {
-        LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
-        | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
+        RespawnTimeAddOutcomeLikeCpp::Inserted | RespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
             Some(RespawnPersistenceMutationLikeCpp::Save {
                 key: RespawnPersistenceKeyLikeCpp {
                     object_type_raw: spawn_object_type_raw_like_cpp(row.object_type),
@@ -99,9 +165,9 @@ pub fn save_pending_respawn_time_on_queue_like_cpp(
                 respawn_time: row.respawn_time,
             })
         }
-        LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
-        | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
-        | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => None,
+        RespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
+        | RespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
+        | RespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => None,
     }
 }
 
@@ -163,22 +229,9 @@ pub fn snap_respawn_creature_to_ground_like_cpp(
     }
 }
 
-/// Build a map-owned respawn entry from the represented runtime creature.
-///
-/// Mirrors the data captured by the session-local corpse despawn path; this
-/// helper exists so the future global lifecycle driver and the legacy session
-/// path do not drift.
-pub fn pending_respawn_from_world_creature_like_cpp(
-    creature: &WorldCreature,
-    respawn_at: Instant,
-    map_id: u16,
-) -> PendingRespawn {
-    pending_respawn_from_creature_like_cpp(&creature.creature, respawn_at, map_id)
-}
-
 /// The class/power projection a respawn entry carries: the one this
 /// incarnation was built with, or — for an incarnation built without one — the
-/// unit's own fields, exactly as `WorldCreature::create_data_from_canonical_like_cpp`
+/// unit's own fields, exactly as `creature_create_data_like_cpp`
 /// projects them.
 fn respawn_create_projection_like_cpp(
     creature: &Creature,
@@ -233,7 +286,7 @@ pub fn pending_respawn_from_creature_like_cpp(
             unit_flags: creature.unit_flags(),
             unit_flags2: 0,
             unit_flags3: 0,
-            aura_state: WorldCreature::health_aura_state_like_cpp(
+            aura_state: Creature::health_aura_state_like_cpp(
                 creature.max_hp() as u64,
                 creature.max_hp() as u64,
                 creature.max_hp() > 0,
@@ -341,26 +394,10 @@ pub fn pending_respawn_create_position_like_cpp(respawn: &PendingRespawn) -> Pos
     position
 }
 
-/// Recreate a represented world creature from a map-owned respawn entry.
-///
-/// This is the session-free equivalent of `WorldSession::register_world_creature`
-/// for the global lifecycle driver. It intentionally uses the already-resolved
-/// phase shift stored in [`PendingRespawn`].
-pub fn world_creature_from_pending_respawn_like_cpp(
-    respawn: &PendingRespawn,
-    instance_id: u32,
-) -> WorldCreature {
-    WorldCreature::from_installed_canonical_like_cpp(
-        creature_from_pending_respawn_like_cpp(respawn, instance_id),
-        respawn.create_data.clone(),
-    )
-}
-
 /// Rebuild the creature incarnation of one map-owned respawn entry.
 ///
-/// #1263 F6-8D3a-3: the one rebuild body. The legacy bridge wraps the result
-/// in its packet projection; the admitted canonical executor installs it on
-/// the canonical map as is.
+/// #1263 F6-8D3a-3: the one rebuild body; the canonical lifecycle phase
+/// installs the result on the canonical map.
 pub fn creature_from_pending_respawn_like_cpp(
     respawn: &PendingRespawn,
     instance_id: u32,
@@ -492,8 +529,8 @@ pub fn creature_from_pending_respawn_like_cpp(
     unit.world_mut().object_mut().set_scale(create_data.scale);
     creature.clear_data_changes();
 
-    WorldCreature::install_bridge_runtime_like_cpp(&mut creature, &respawn.create_data);
-    super::respawn::restore_respawn_aura_source_authority_like_cpp(
+    install_creature_runtime_like_cpp(&mut creature, &respawn.create_data);
+    restore_respawn_aura_source_authority_like_cpp(
         &mut creature,
         respawn.spell_hit_aura_source_authority_like_cpp,
         respawn.spell_cast_log_aura_source_authority_like_cpp,

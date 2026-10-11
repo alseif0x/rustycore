@@ -25,7 +25,7 @@ impl WorldSession {
     pub(in crate::session) fn represented_can_receive_creature_message_to_set_like_cpp(
         &self,
         guid: ObjectGuid,
-        creature: &crate::map_manager::WorldCreature,
+        creature: &wow_entities::Creature,
         required_3d: bool,
     ) -> bool {
         if !self.core.client_visible_guids_like_cpp.contains(&guid) {
@@ -68,16 +68,8 @@ impl WorldSession {
             manager
                 .find_map(u32::from(map_id), instance_id)
                 .and_then(|map| {
-                    map.map().with_creature_like_cpp(guid, |creature| {
-                        let create_data =
-                            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
-                                creature,
-                            );
-                        crate::map_manager::WorldCreature::from_canonical(
-                            creature.clone(),
-                            create_data,
-                        )
-                    })
+                    map.map()
+                        .with_creature_like_cpp(guid, |creature| creature.clone())
                 })
         }?;
         if creature.map_id() != u32::from(map_id) || creature.instance_id() != instance_id {

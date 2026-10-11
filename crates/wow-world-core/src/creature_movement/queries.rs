@@ -1,9 +1,7 @@
 //! Read-only movement queries of a canonical creature.
 //!
 //! #1263 F6-8D3a-2: these bodies read only the canonical `Creature`, so they
-//! are written once against it and serve both the legacy `WorldCreature`
-//! bridge (through its `creature` field) and the admitted canonical executor.
-//! Each body is the former `WorldCreature` body with the owner substituted.
+//! are written once against it.
 
 use super::*;
 

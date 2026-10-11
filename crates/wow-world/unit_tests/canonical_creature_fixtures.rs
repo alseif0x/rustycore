@@ -130,14 +130,14 @@ pub(crate) trait CanonicalCreatureFixtureLikeCpp {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: crate::map_manager::PendingRespawn,
+        respawn: crate::creature_respawn::PendingRespawn,
     );
     /// Save one pending respawn's time in the map's queue (`SaveRespawnTime`).
     fn save_pending_respawn_time_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: &crate::map_manager::PendingRespawn,
+        respawn: &crate::creature_respawn::PendingRespawn,
         now: std::time::Instant,
         now_secs: i64,
     ) -> Option<wow_persistence::RespawnPersistenceMutationLikeCpp>;
@@ -229,7 +229,7 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: crate::map_manager::PendingRespawn,
+        respawn: crate::creature_respawn::PendingRespawn,
     ) {
         self.create_world_map(u32::from(map_id), instance_id)
             .map_mut()
@@ -241,11 +241,11 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: &crate::map_manager::PendingRespawn,
+        respawn: &crate::creature_respawn::PendingRespawn,
         now: std::time::Instant,
         now_secs: i64,
     ) -> Option<wow_persistence::RespawnPersistenceMutationLikeCpp> {
-        crate::map_manager::save_pending_respawn_time_on_queue_like_cpp(
+        crate::creature_respawn::save_pending_respawn_time_on_queue_like_cpp(
             self.create_world_map(u32::from(map_id), instance_id)
                 .map_mut()
                 .creature_respawn_queue_like_cpp_mut(),

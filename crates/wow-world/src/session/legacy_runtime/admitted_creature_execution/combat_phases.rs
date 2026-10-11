@@ -35,13 +35,13 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     pub aggro_candidates: &'a [LegacyCreatureAggroCandidateLikeCpp],
     /// The map environment seam the family-assistance LOS check and the
     /// movement generators' height normalization read.
-    pub terrain: Option<&'a crate::map_manager::LiveTerrainHeights>,
+    pub terrain: Option<&'a crate::terrain::LiveTerrainHeights>,
     /// The movement phase's pathfinding seam.
     pub mmap_config: &'a MMapRuntimeConfigLikeCpp,
-    pub mmap_pathfinder: Option<&'a crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
+    pub mmap_pathfinder: Option<&'a crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
     /// The player chase victims snapshotted from the registry.
     pub chase_targets:
-        &'a HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+        &'a HashMap<(u16, u32, ObjectGuid), crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
     pub config: &'a LegacyCreatureAggroConfigLikeCpp,
     /// The lifecycle phase's map catalog (which maps persist respawn times) and
     /// the tick deadline its respawn queue drains against.
@@ -304,7 +304,7 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &mut Vec<AdmittedCreatureExecutionObjectLikeCpp>,
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
     map_store: &wow_data::MapStore,
     now: Instant,
     outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
@@ -363,10 +363,13 @@ pub(in crate::session) fn run_creature_movement_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    chase_targets: &HashMap<
+        (u16, u32, ObjectGuid),
+        crate::creature_movement::ChaseTargetSnapshotLikeCpp,
+    >,
     diff_ms: u32,
     outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
 ) {
@@ -424,7 +427,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
     candidates: &[LegacyCreatureAggroCandidateLikeCpp],
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> CreatureAggroPhaseOutcomeLikeCpp {

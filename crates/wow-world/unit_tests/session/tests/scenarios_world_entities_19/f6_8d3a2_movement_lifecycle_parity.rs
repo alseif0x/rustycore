@@ -33,7 +33,7 @@ const D3A2_RUN_RATE_LIKE_CPP: f32 = 1.14286;
 pub(super) fn d3a2_chase_targets_like_cpp(
     canonical: &SharedCanonicalMapManager,
     players: &[ObjectGuid],
-) -> HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp> {
+) -> HashMap<(u16, u32, ObjectGuid), crate::creature_movement::ChaseTargetSnapshotLikeCpp> {
     let guard = canonical.lock().unwrap();
     let map = guard.find_map(0, 0).unwrap().map();
     players
@@ -42,7 +42,7 @@ pub(super) fn d3a2_chase_targets_like_cpp(
             let player = map.get_typed_player(*guid)?;
             Some((
                 (0, 0, *guid),
-                crate::map_manager::ChaseTargetSnapshotLikeCpp {
+                crate::creature_movement::ChaseTargetSnapshotLikeCpp {
                     guid: *guid,
                     position: player.unit().world().position(),
                     combat_reach: player.unit().data().combat_reach,
@@ -87,7 +87,7 @@ struct D3a2WorldLikeCpp {
 fn d3a2_world_like_cpp(
     base: i64,
     player_at: Position,
-    configure: impl FnOnce(&mut crate::map_manager::WorldCreature, ObjectGuid),
+    configure: impl FnOnce(&mut wow_entities::Creature, ObjectGuid),
     candidate: impl FnOnce(ObjectGuid) -> Option<LegacyCreatureAggroCandidateLikeCpp>,
 ) -> D3a2WorldLikeCpp {
     let canonical = shared_map_manager();
@@ -344,7 +344,7 @@ fn canonical_executor_matches_recorded_chase_movement_like_cpp() {
     );
     assert!(matches!(
         event.recipients,
-        crate::map_manager::RecipientRule::NearbyVisible { .. }
+        crate::runtime_plan::RecipientRule::NearbyVisible { .. }
     ));
     let canonical = d3a2_canonical_creature_like_cpp(&executor_world);
     assert!(canonical.contains("generator=Some(Chase)"), "{canonical}");
@@ -408,7 +408,7 @@ fn canonical_executor_matches_recorded_home_return_and_restore_like_cpp() {
     assert_eq!(restores.len(), 1, "one reached-home values update");
     assert!(matches!(
         restores[0].recipients,
-        crate::map_manager::RecipientRule::NearbyVisibleDurable { .. }
+        crate::runtime_plan::RecipientRule::NearbyVisibleDurable { .. }
     ));
     let canonical = d3a2_canonical_creature_like_cpp(&executor_world);
     assert!(canonical.contains("health=25/25"), "{canonical}");

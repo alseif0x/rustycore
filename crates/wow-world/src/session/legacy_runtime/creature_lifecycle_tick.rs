@@ -61,7 +61,7 @@ pub(in crate::session) struct ReadyRespawnCandidateLikeCpp {
     /// pushed back into the map's spawn queue unchanged, so the deferred spawn
     /// keeps its identity, its due time and its persisted-respawn bookkeeping
     /// and is retried by the next tick.
-    pending: crate::map_manager::PendingRespawn,
+    pending: crate::creature_respawn::PendingRespawn,
 }
 
 /// The canonical admission decision for one ready respawn.
@@ -113,11 +113,13 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp(
     conversion_clock: (Instant, i64),
     outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
 ) {
-    use crate::map_manager::{
-        creature_corpse_despawn_due_like_cpp, creature_from_pending_respawn_like_cpp,
-        creature_respawn_at_from_death_at_game_time_like_cpp,
-        pending_respawn_from_creature_like_cpp, respawn_time_from_instant_like_cpp,
-        save_pending_respawn_time_on_queue_like_cpp,
+    use crate::{
+        creature_respawn::creature_corpse_despawn_due_like_cpp,
+        creature_respawn::creature_from_pending_respawn_like_cpp,
+        creature_respawn::creature_respawn_at_from_death_at_game_time_like_cpp,
+        creature_respawn::pending_respawn_from_creature_like_cpp,
+        creature_respawn::respawn_time_from_instant_like_cpp,
+        creature_respawn::save_pending_respawn_time_on_queue_like_cpp,
     };
     use std::collections::BTreeSet;
 
@@ -474,7 +476,7 @@ fn remove_persisted_respawn_time_on_store_like_cpp(
     store
         .lifecycle_respawns_mut_like_cpp(map_id, instance_id)?
         .remove_persisted_respawn_time_like_cpp(wow_map::SpawnObjectType::Creature, spawn_id)?;
-    Some(crate::map_manager::respawn_delete_mutation_like_cpp(
+    Some(crate::creature_respawn::respawn_delete_mutation_like_cpp(
         wow_map::SpawnObjectType::Creature,
         spawn_id,
         map_id,
@@ -516,7 +518,7 @@ fn remove_respawn_row_after_publication_like_cpp(
 /// map's own respawn queue, and the executor's map environment.
 pub(in crate::session) struct AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'s, 'a> {
     pub(in crate::session) store: AdmittedCanonicalCreatureStoreLikeCpp<'a>,
-    pub(in crate::session) terrain: Option<&'s crate::map_manager::LiveTerrainHeights>,
+    pub(in crate::session) terrain: Option<&'s crate::terrain::LiveTerrainHeights>,
     /// Corpses taken out this tick; their canonical objects are removed by the
     /// canonical stage, after which nothing on the map holds them.
     pub(in crate::session) taken: Vec<((u16, u32), ObjectGuid)>,
@@ -608,7 +610,7 @@ impl AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_> {
         &mut self,
         map_id: u16,
         instance_id: u32,
-    ) -> Option<&mut crate::map_manager::CreatureRespawnQueueLikeCpp> {
+    ) -> Option<&mut crate::creature_respawn::CreatureRespawnQueueLikeCpp> {
         Some(
             self.store
                 .manager_mut_like_cpp()
@@ -624,7 +626,9 @@ impl AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_> {
         map_id: u16,
     ) {
         if let Some(terrain) = self.terrain {
-            crate::map_manager::snap_respawn_creature_to_ground_like_cpp(creature, map_id, terrain);
+            crate::creature_respawn::snap_respawn_creature_to_ground_like_cpp(
+                creature, map_id, terrain,
+            );
         }
     }
 

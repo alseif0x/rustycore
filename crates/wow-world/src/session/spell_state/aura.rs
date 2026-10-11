@@ -61,7 +61,7 @@ impl WorldSession {
         self.core
             .with_represented_creature_like_cpp(unit_guid, |creature| {
                 creature.unit().subsystems().auras.aura_state_mask
-                    | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                    | wow_entities::Creature::health_aura_state_like_cpp(
                         u64::from(creature.current_hp()),
                         u64::from(creature.max_hp()),
                         creature.is_alive(),

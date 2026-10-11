@@ -612,9 +612,6 @@ use crate::loot_persistence::{
     DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
     DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
 };
-use crate::map_manager::{
-    PendingRespawn, RecipientRule, RuntimeEvent, RuntimePlan, WorldMMapPathfinderWorkerLikeCpp,
-};
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
@@ -627,6 +624,10 @@ use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
     ReputationRatesLikeCpp,
+};
+use crate::{
+    creature_respawn::PendingRespawn, pathfinder::WorldMMapPathfinderWorkerLikeCpp,
+    runtime_plan::RecipientRule, runtime_plan::RuntimeEvent, runtime_plan::RuntimePlan,
 };
 use wow_ai::{
     CURRENT_EXPANSION_LIKE_CPP, CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp,

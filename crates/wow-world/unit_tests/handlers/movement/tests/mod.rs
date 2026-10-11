@@ -136,7 +136,7 @@ fn write_single_area_map_tile_like_cpp(
         bytes.extend_from_slice(&area_id.to_le_bytes());
     }
 
-    let (gx, gy) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(x, y);
+    let (gx, gy) = crate::terrain::terrain_grid_coords_for_wow_position_like_cpp(x, y);
     fs::write(
         data_dir
             .join("maps")

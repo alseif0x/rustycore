@@ -373,7 +373,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
         95
     );
     assert!(outcome.plan.events.iter().any(|event| {
-        event.recipients == crate::map_manager::RecipientRule::ExplicitPlayer(split_target_guid)
+        event.recipients == crate::runtime_plan::RecipientRule::ExplicitPlayer(split_target_guid)
             && wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
                 == Some(ServerOpcodes::HealthUpdate)
     }));

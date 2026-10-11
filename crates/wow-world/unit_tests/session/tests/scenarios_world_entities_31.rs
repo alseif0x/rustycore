@@ -13,10 +13,10 @@ fn step_creature_movement_advances_spline_and_generator_from_one_diff_like_cpp()
     let guid = test_creature_guid(200_025);
     let mut creature = make_test_world_creature(guid);
     creature.backdate_runtime_clock_for_test(Duration::from_secs(1));
-    let (_, spline) = creature
-        .movement_like_cpp()
-        .begin_move_spline_like_cpp(Position::new(20.0, 0.0, 0.0, 0.0))
-        .expect("a non-zero move must launch a spline");
+    let (_, spline) =
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+            .begin_move_spline_like_cpp(Position::new(20.0, 0.0, 0.0, 0.0))
+            .expect("a non-zero move must launch a spline");
     assert!(spline.duration_ms() > 17);
 
     let elapsed_before = creature.runtime_elapsed_ms_like_cpp();
@@ -273,8 +273,7 @@ fn step_creature_movement_walking_waypoint_launches_monster_move_like_cpp() {
     );
 
     assert_eq!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
@@ -368,13 +367,12 @@ fn step_creature_movement_waypoint_paths_around_real_navmesh_obstacle_like_cpp()
         )],
     );
     assert_eq!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
 
-    let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,
@@ -449,8 +447,7 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
         ],
     );
     assert_eq!(
-        creature
-            .movement_like_cpp()
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );

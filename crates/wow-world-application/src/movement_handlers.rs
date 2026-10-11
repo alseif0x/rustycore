@@ -106,7 +106,7 @@ impl<'a> MovementHandlerCxLikeCpp<'a> {
                         time_skipped: pkt.time_skipped,
                     }
                     .to_bytes(),
-                    wow_world_core::map_manager::VISIBILITY_RADIUS,
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
                 );
         }
     }
@@ -228,7 +228,7 @@ impl<'a> MovementHandlerCxLikeCpp<'a> {
                         force: step.force,
                     }
                     .to_bytes(),
-                    wow_world_core::map_manager::VISIBILITY_RADIUS,
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
                 );
         }
     }
@@ -279,7 +279,7 @@ impl<'a> MovementHandlerCxLikeCpp<'a> {
                         trigger_guid: step.id,
                     }
                     .to_bytes(),
-                    wow_world_core::map_manager::VISIBILITY_RADIUS,
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
                 );
         }
     }
@@ -339,7 +339,7 @@ impl<'a> MovementHandlerCxLikeCpp<'a> {
                         speed: step.speed,
                     }
                     .to_bytes(),
-                    wow_world_core::map_manager::VISIBILITY_RADIUS,
+                    wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
                 );
         }
     }

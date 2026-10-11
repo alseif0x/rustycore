@@ -7,7 +7,7 @@ use super::{
     SessionAccountState, SessionAdmissionState, SessionDirectory, SessionDriverServices,
     SessionRealmPolicy, SessionSharedFlags, SessionTransport,
 };
-use crate::map_manager::WorldMMapPathfinderWorkerLikeCpp;
+use crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp;
 use crate::player_directory::PlayerRegistry;
 use crate::session::mailbox::{SessionCommand, SharedClientVisibleGuidsLikeCpp};
 use crate::session::{
@@ -122,7 +122,7 @@ pub struct SessionCore {
     /// Shared, file-backed terrain height (`DataDir`), injected by the world
     /// server (`set_live_terrain_like_cpp`). `None` in isolated sessions, where
     /// height-dependent paths keep their no-terrain behaviour.
-    pub live_terrain: Option<std::sync::Arc<crate::map_manager::LiveTerrainHeights>>,
+    pub live_terrain: Option<std::sync::Arc<crate::terrain::LiveTerrainHeights>>,
     /// Canonical C++-style `wow-map` manager: the one map, creature and
     /// player store (#1263 F6-8E).
     pub canonical_map_manager: Option<SharedCanonicalMapManager>,

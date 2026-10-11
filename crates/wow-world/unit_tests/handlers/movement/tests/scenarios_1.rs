@@ -503,7 +503,7 @@ fn movement_under_map_applies_cpp_void_damage_and_flag() {
     assert_eq!(session.under_map_damage_events_like_cpp().len(), 1);
     assert_eq!(
         session.under_map_damage_events_like_cpp()[0].min_height,
-        crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP
+        crate::terrain::DEFAULT_MIN_HEIGHT_LIKE_CPP
     );
     assert_eq!(session.player_health_like_cpp(), 0);
     assert!(!session.player_is_alive_like_cpp());

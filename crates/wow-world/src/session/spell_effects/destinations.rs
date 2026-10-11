@@ -106,7 +106,12 @@ impl WorldSession {
             .unwrap_or_else(|| {
                 wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0)
             });
-        u16::try_from(map_key.map_id).ok()?;
+        // Session map ids are `u16`; a key outside that range has no session
+        // map, so the caster has no destination (the early return the former
+        // legacy map-id conversion performed, kept explicitly).
+        if u16::try_from(map_key.map_id).is_err() {
+            return None;
+        }
         let canonical_destination = self
             .core
             .canonical_map_manager

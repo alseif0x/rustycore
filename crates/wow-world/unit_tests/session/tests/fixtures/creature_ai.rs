@@ -473,7 +473,7 @@ pub(in crate::session::tests) fn decode_atomic_creature_spell_wire_pair_like_cpp
     CreatureSpellWireHeaderLikeCpp,
 ) {
     let basic_go_packet_bytes = match &event.recipients {
-        crate::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+        crate::runtime_plan::RecipientRule::NearbyVisibleDurableSpellCast {
             basic_go_packet_bytes,
             ..
         } => basic_go_packet_bytes,

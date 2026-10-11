@@ -81,7 +81,7 @@ pub fn committed_creature_combat_commands_like_cpp<T: Clone>(
 /// command bridge runs. Exact `(source, packet)` signatures couple those two
 /// products until the legacy producer itself emits `MapCommandLikeCpp`.
 pub fn retain_committed_creature_combat_events_like_cpp(
-    plan: &mut crate::map_manager::RuntimePlan,
+    plan: &mut crate::runtime_plan::RuntimePlan,
     start_commands: &[crate::session::mailbox::CreatureAttackStartLikeCppCommand],
     start_outcomes: &[wow_map::MapCommandOutcomeLikeCpp],
     stop_commands: &[crate::session::mailbox::CreatureAttackStopLikeCppCommand],

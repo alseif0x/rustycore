@@ -4,7 +4,8 @@ use super::*;
 
 #[test]
 fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanout_like_cpp() {
-    use crate::map_manager::{RecipientRule, VISIBILITY_RADIUS};
+    use crate::runtime_plan::RecipientRule;
+    use wow_entities::VISIBILITY_RADIUS_LIKE_CPP as VISIBILITY_RADIUS;
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -107,7 +108,7 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
 }
 #[test]
 fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp() {
-    use crate::map_manager::RecipientRule;
+    use crate::runtime_plan::RecipientRule;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let guid = test_creature_guid(90_009);
@@ -248,7 +249,7 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
         "the published packet is the canonical runtime state's projection"
     );
     match &event.recipients {
-        crate::map_manager::RecipientRule::NearbyVisible {
+        crate::runtime_plan::RecipientRule::NearbyVisible {
             source_position, ..
         } => assert_eq!(
             *source_position,

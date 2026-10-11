@@ -819,19 +819,19 @@ impl WorldSession {
         let packet = self
             .core
             .mutate_world_creature(target_guid, |creature| {
-                if creature.creature.ai_ownership().combat_target.is_some() {
+                if creature.ai_ownership().combat_target.is_some() {
                     return None;
                 }
-                if creature.creature.unit().has_unit_state(
+                if creature.unit().has_unit_state(
                     (UnitState::CONFUSED | UnitState::STUNNED | UnitState::FLEEING).bits(),
                 ) {
                     return None;
                 }
 
                 let orientation = creature.position().angle_to(&destination);
-                let (_, from, spline) = creature
-                    .movement_like_cpp()
-                    .begin_distract_movement_like_cpp(duration_ms, orientation)?;
+                let (_, from, spline) =
+                    crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+                        .begin_distract_movement_like_cpp(duration_ms, orientation)?;
                 Some(
                     MonsterMove {
                         mover_guid: target_guid,
@@ -868,7 +868,6 @@ impl WorldSession {
             self.scale_canonical_owner_threat_to_target_zero_like_cpp(owner_guid, target_guid);
             let _ = self.core.mutate_world_creature(owner_guid, |owner| {
                 owner
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat

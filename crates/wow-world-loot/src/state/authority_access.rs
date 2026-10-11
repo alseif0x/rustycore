@@ -69,7 +69,7 @@ impl LootState {
         f: F,
     ) -> Option<R>
     where
-        F: FnOnce(&mut wow_world_core::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         hub.core
             .mutate_world_creature_if_fully_looted_observation_like_cpp(
@@ -95,7 +95,7 @@ impl LootState {
         f: F,
     ) -> Option<R>
     where
-        F: FnOnce(&mut wow_world_core::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         hub.core
             .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(

@@ -1,13 +1,34 @@
-//! Pathfinder items of mod.
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! Creature path queries over the shared Detour mmap data
+//! (C++ `PathGenerator` / `MMAP::MMapManager` callers).
 //!
-//! Separated from mod.rs under #711; every item keeps its name,
-//! signature and body.
+//! #1263 F6-8E-2: moved out of the deleted legacy `map_manager` module; every
+//! item keeps its name and body.
 
-use super::*;
+use std::path::{Path, PathBuf};
+use std::sync::mpsc;
+use std::thread;
 
-pub(super) const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
+use wow_core::Position;
+use wow_entities::{Creature, PhaseShift};
+use wow_movement::{PathGenerator, PathType, RandomPathResult};
+use wow_recastdetour::{
+    DetourNavMeshQueryError, DetourOwnerCapabilitiesLikeCpp, DetourPathOptions, DetourPathType,
+    DetourPointPath, DetourPolyPath, DetourQueryFilterError, MAX_POINT_PATH_LENGTH_LIKE_CPP,
+    MMapData, MMapManager as DetourMMapManager, MMapManagerError, PathQueryFilterContext,
+    ThreadUnsafeMapData, create_path_query_filter_like_cpp,
+};
 
-pub(super) fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
+use crate::creature_movement::CreatureMovementQueriesLikeCpp;
+use crate::terrain::TerrainGridFileIndexLikeCpp;
+
+pub(crate) const SMOOTH_PATH_STEP_SIZE_LIKE_CPP: f32 = 4.0;
+
+pub(crate) fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
     let point_limit = if distance.is_sign_negative() {
         0
     } else {
@@ -16,11 +37,11 @@ pub(super) fn point_path_limit_for_distance_like_cpp(distance: f32) -> usize {
     point_limit.min(MAX_POINT_PATH_LENGTH_LIKE_CPP)
 }
 
-pub(super) fn position_from_detour_point_like_cpp(point: [f32; 3]) -> Position {
+pub(crate) fn position_from_detour_point_like_cpp(point: [f32; 3]) -> Position {
     Position::new(point[0], point[1], point[2], 0.0)
 }
 
-pub(super) fn position_to_wow_point_like_cpp(position: Position) -> [f32; 3] {
+pub(crate) fn position_to_wow_point_like_cpp(position: Position) -> [f32; 3] {
     [position.x, position.y, position.z]
 }
 
@@ -92,7 +113,7 @@ impl WorldMMapPathfinderLikeCpp {
 
     pub fn calculate_creature_path_like_cpp(
         &mut self,
-        creature: &WorldCreature,
+        creature: &Creature,
         destination: Position,
         mesh_map_id: u32,
         instance_map_id: u32,
@@ -101,7 +122,7 @@ impl WorldMMapPathfinderLikeCpp {
         force_destination: bool,
     ) -> Result<Option<DetourPolyPath>, WorldDetourPathError> {
         let creature_position = creature.position();
-        let owner = creature.creature.detour_owner_capabilities_like_cpp();
+        let owner = creature.detour_owner_capabilities_like_cpp();
         self.calculate_path_from_positions_like_cpp(
             creature_position,
             destination,
@@ -261,7 +282,7 @@ pub struct WorldMMapPathfinderWorkerLikeCpp {
 }
 
 #[derive(Debug)]
-pub(super) struct WorldMMapPathfinderMessageLikeCpp {
+pub(crate) struct WorldMMapPathfinderMessageLikeCpp {
     request: WorldMMapPathRequestLikeCpp,
     response_tx: mpsc::Sender<Result<Option<DetourPolyPath>, WorldDetourPathError>>,
 }
@@ -338,7 +359,7 @@ pub fn path_type_from_detour_like_cpp(path_type: DetourPathType) -> PathType {
     PathType::from_bits_retain(path_type.bits())
 }
 
-pub(super) fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPathResult {
+pub(crate) fn random_path_result_from_path_type_like_cpp(path_type: PathType) -> RandomPathResult {
     if path_type.contains(PathType::NOPATH) {
         RandomPathResult::NoPath
     } else if path_type.contains(PathType::SHORTCUT) {
@@ -427,7 +448,7 @@ pub fn path_generator_from_detour_with_normalizer_like_cpp(
 }
 
 pub fn calculate_creature_detour_path_like_cpp(
-    creature: &WorldCreature,
+    creature: &Creature,
     destination: Position,
     mmap_data: Option<&MMapData>,
     instance_map_id: u32,
@@ -450,7 +471,7 @@ pub fn calculate_creature_detour_path_like_cpp(
             DetourPathOptions {
                 point_path_limit: MAX_POINT_PATH_LENGTH_LIKE_CPP,
                 force_destination,
-                owner: creature.creature.detour_owner_capabilities_like_cpp(),
+                owner: creature.detour_owner_capabilities_like_cpp(),
                 ..DetourPathOptions::default()
             },
         )

@@ -38,8 +38,7 @@ fn world_creature_chase_query_failure_stops_instead_of_straight_lining_like_cpp(
     };
 
     // Pathfinding attempted and failed: no spline, and cannot-reach is set.
-    let outcome = creature
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_chase_movement_like_cpp(100, target, true, None, |_| None);
     assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
     assert!(creature.active_move_spline_like_cpp().is_none());
@@ -68,8 +67,7 @@ fn world_creature_chase_query_failure_stops_instead_of_straight_lining_like_cpp(
         0,
     );
     disabled.enter_combat(victim);
-    let outcome = disabled
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(disabled)
         .update_runtime_chase_movement_like_cpp(100, target, false, None, |_| None);
     assert!(
         matches!(outcome, ChaseTickOutcomeLikeCpp::Launched(..)),
@@ -311,8 +309,7 @@ fn world_creature_home_return_holds_evade_state_until_finalize_like_cpp() {
     creature.creature.unit_mut().set_health(17);
     assert!(!creature.creature.is_in_evade_mode_like_cpp());
 
-    let outcome = creature
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_home_movement_like_cpp(false, None, |_| None);
     assert!(
         matches!(outcome, ChaseTickOutcomeLikeCpp::Launched(..)),
@@ -331,8 +328,7 @@ fn world_creature_home_return_holds_evade_state_until_finalize_like_cpp() {
     // Advancing while the spline is still running must not drop the state,
     // and C++ only fires the reached-home payload once `DoUpdate` has seen
     // the spline finalized (it is what sets `INFORM_ENABLED`).
-    let outcome = creature
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_home_movement_like_cpp(false, None, |_| None);
     assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
     assert!(creature.creature.is_in_evade_mode_like_cpp());
@@ -350,10 +346,9 @@ fn world_creature_home_return_holds_evade_state_until_finalize_like_cpp() {
     assert!(duration_ms > 0, "the home spline must have a duration");
     creature
         .backdate_runtime_clock_for_test(Duration::from_millis(u64::from(duration_ms as u32) + 50));
-    assert!(creature.movement_like_cpp().update_move_spline_like_cpp());
+    assert!(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).update_move_spline_like_cpp());
 
-    let outcome = creature
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_home_movement_like_cpp(false, None, |_| None);
     assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
     assert!(
@@ -429,8 +424,7 @@ fn world_creature_home_query_filter_is_sampled_after_entering_evade_like_cpp() {
     assert!(!creature.creature.is_in_evade_mode_like_cpp());
 
     let mut observed = None;
-    let _ = creature
-        .movement_like_cpp()
+    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_home_movement_like_cpp(true, None, |query| {
             observed = Some(query.filter_context);
             None
@@ -491,8 +485,7 @@ fn world_creature_chase_first_query_after_victim_switch_has_no_corridor_like_cpp
     // First victim: the query produces a corridor the generator retains.
     creature.enter_combat(first);
     let mut first_query = None;
-    let _ = creature
-        .movement_like_cpp()
+    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_chase_movement_like_cpp(100, target(first, 60.0), true, None, |query| {
             first_query = Some(query.previous_poly_refs.clone());
             Some(corridor(
@@ -514,8 +507,7 @@ fn world_creature_chase_first_query_after_victim_switch_has_no_corridor_like_cpp
     // Switching victim must reset it before the next query is built.
     creature.enter_combat(second);
     let mut second_query = None;
-    let _ = creature
-        .movement_like_cpp()
+    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_chase_movement_like_cpp(100, target(second, 65.0), true, None, |query| {
             second_query = Some(query.previous_poly_refs.clone());
             None
@@ -553,8 +545,7 @@ fn world_creature_chase_finalizes_when_the_victim_leaves_the_world_like_cpp() {
 
     // A live victim far enough to trigger a launch installs the generator and
     // marks the creature chase-moving.
-    let _ = creature
-        .movement_like_cpp()
+    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_chase_movement_like_cpp(
             100,
             ChaseTargetSnapshotLikeCpp {
@@ -577,8 +568,7 @@ fn world_creature_chase_finalizes_when_the_victim_leaves_the_world_like_cpp() {
     );
 
     // The victim leaves the world: the snapshot reports `in_world: false`.
-    let _ = creature
-        .movement_like_cpp()
+    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_chase_movement_like_cpp(
             100,
             ChaseTargetSnapshotLikeCpp {
@@ -641,8 +631,7 @@ fn world_creature_home_interrupted_survives_one_frame_before_finalize_like_cpp()
 
     // Initialize frame: interrupted, but the generator must stay installed
     // and evade must be held, and the reached-home callback must NOT fire.
-    let outcome = creature
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_home_movement_like_cpp(false, None, |_| None);
     assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
     assert!(
@@ -661,8 +650,7 @@ fn world_creature_home_interrupted_survives_one_frame_before_finalize_like_cpp()
 
     // Next frame: the update path sees INTERRUPTED, sets INFORM_ENABLED and
     // finalizes, clearing evade and firing JustReachedHome.
-    let outcome = creature
-        .movement_like_cpp()
+    let outcome = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_runtime_home_movement_like_cpp(false, None, |_| None);
     assert_eq!(outcome, ChaseTickOutcomeLikeCpp::Idle);
     assert!(
@@ -706,8 +694,7 @@ fn world_creature_random_launches_cpp_shortcut_when_navmesh_is_absent() {
     // (`RandomMovementGenerator.cpp:146-153`), so the creature launches the
     // two-point path instead of retrying forever.
     let mut resolver_called = false;
-    let movement = creature
-        .movement_like_cpp()
+    let movement = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .update_default_random_movement_with_path_resolver_like_cpp(10, true, |query| {
             resolver_called = true;
             Some(detour_path_without_navmesh_like_cpp(

@@ -730,10 +730,7 @@ impl WorldSession {
             }
             crate::session::hub_mut(self).add_canonical_attacker_like_cpp(victim, player_guid);
             let _ = self.core.mutate_world_creature(victim, |victim| {
-                victim
-                    .creature
-                    .unit_mut()
-                    .add_attacker_like_cpp(player_guid);
+                victim.unit_mut().add_attacker_like_cpp(player_guid);
             });
             let _ = crate::session::hub_mut(self).begin_canonical_player_combat_ref_like_cpp(
                 player_guid,

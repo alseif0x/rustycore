@@ -216,7 +216,7 @@ fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cp
     assert_eq!(alert_event.source_guid, creature_guid);
     assert!(matches!(
         &alert_event.recipients,
-        crate::map_manager::RecipientRule::MapBroadcastVisible {
+        crate::runtime_plan::RecipientRule::MapBroadcastVisible {
             map_id: 0,
             instance_id: 0
         }

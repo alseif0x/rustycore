@@ -1288,10 +1288,10 @@ fn make_nearby_visible_event_like_cpp(
     source_position: Position,
     range: f32,
     required_3d: bool,
-) -> wow_world::map_manager::RuntimeEvent {
-    wow_world::map_manager::RuntimeEvent {
+) -> wow_world::runtime_plan::RuntimeEvent {
+    wow_world::runtime_plan::RuntimeEvent {
         source_guid: make_source_guid(),
-        recipients: wow_world::map_manager::RecipientRule::NearbyVisible {
+        recipients: wow_world::runtime_plan::RecipientRule::NearbyVisible {
             source_guid: make_source_guid(),
             map_id,
             instance_id,
@@ -1306,7 +1306,7 @@ fn make_nearby_visible_event_like_cpp(
 fn make_creature_spell_runtime_plan_like_cpp(
     target_guid: ObjectGuid,
 ) -> (
-    wow_world::map_manager::RuntimePlan,
+    wow_world::runtime_plan::RuntimePlan,
     Vec<u8>,
     Vec<u8>,
     Vec<u8>,
@@ -1367,10 +1367,10 @@ fn make_creature_spell_runtime_plan_like_cpp(
             cost: 0,
         }],
     });
-    let plan = wow_world::map_manager::RuntimePlan {
-        events: vec![wow_world::map_manager::RuntimeEvent {
+    let plan = wow_world::runtime_plan::RuntimePlan {
+        events: vec![wow_world::runtime_plan::RuntimeEvent {
             source_guid: caster_guid,
-            recipients: wow_world::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+            recipients: wow_world::runtime_plan::RecipientRule::NearbyVisibleDurableSpellCast {
                 source_guid: caster_guid,
                 map_id: 571,
                 instance_id: 0,

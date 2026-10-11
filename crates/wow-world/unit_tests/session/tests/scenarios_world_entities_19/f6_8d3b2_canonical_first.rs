@@ -136,7 +136,7 @@ fn r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp() {
     // With the instance present, a further deferral joins its queue directly.
     let second = test_creature_guid(97_011);
     let pending = crate::map_manager::pending_respawn_from_world_creature_like_cpp(
-        &crate::map_manager::WorldCreature::new(
+        &wow_entities::Creature::new(
             second,
             9001,
             Position::new(31.0, 30.0, 0.0, 0.0),

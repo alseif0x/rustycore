@@ -9,10 +9,7 @@ use super::*;
 impl WorldSession {
     /// Inject the shared, file-backed terrain heights (`DataDir`). Call once
     /// at session creation, before login.
-    pub fn set_live_terrain_like_cpp(
-        &mut self,
-        terrain: Arc<crate::map_manager::LiveTerrainHeights>,
-    ) {
+    pub fn set_live_terrain_like_cpp(&mut self, terrain: Arc<crate::terrain::LiveTerrainHeights>) {
         self.core.live_terrain = Some(terrain);
     }
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {

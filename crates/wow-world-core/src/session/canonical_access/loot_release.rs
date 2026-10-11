@@ -189,11 +189,8 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         fanout_publishes: bool,
     ) -> Option<wow_entities::UnitValuesUpdate> {
         self.core.mutate_world_creature(guid, |creature| {
-            creature.force_dynamic_flags_update_like_cpp();
-            creature::loot_release_values_for_fanout_like_cpp(
-                &mut creature.creature,
-                fanout_publishes,
-            )
+            crate::creature_projection::force_dynamic_flags_update_like_cpp(creature);
+            creature::loot_release_values_for_fanout_like_cpp(creature, fanout_publishes)
         })
     }
 }

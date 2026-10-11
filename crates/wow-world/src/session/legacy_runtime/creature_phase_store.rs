@@ -138,9 +138,9 @@ impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
         map_id: u16,
         instance_id: u32,
         guid: ObjectGuid,
-    ) -> Option<crate::map_manager::CreatureMovementLikeCpp<'_>> {
+    ) -> Option<crate::creature_movement::CreatureMovementLikeCpp<'_>> {
         self.phase_creature_mut_like_cpp(map_id, instance_id, guid)
-            .map(crate::map_manager::CreatureMovementLikeCpp::canonical_like_cpp)
+            .map(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp)
     }
 
     pub(in crate::session) fn phase_map_creature_like_cpp(

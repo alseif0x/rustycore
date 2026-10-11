@@ -10,7 +10,7 @@ use wow_constants::UnitFlags;
 use wow_core::{ObjectGuid, Position};
 use wow_data::CreatureSpellDisableDecisionLikeCpp;
 use wow_entities::{PhaseShift, UnitVisibilityDetectionStateLikeCpp};
-use wow_world_core::map_manager::RuntimePlan;
+use wow_world_core::runtime_plan::RuntimePlan;
 
 pub use wow_world_core::session::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
 pub use wow_world_core::session::LegacyCreatureAggroConfigLikeCpp;
@@ -21,7 +21,7 @@ pub struct LegacyCreatureMovementTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub movement_packets: usize,
-    pub plan: wow_world_core::map_manager::RuntimePlan,
+    pub plan: wow_world_core::runtime_plan::RuntimePlan,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -124,7 +124,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub evades_started: usize,
     pub assistance_scheduled: usize,
     pub assistance_starts: usize,
-    pub plan: wow_world_core::map_manager::RuntimePlan,
+    pub plan: wow_world_core::runtime_plan::RuntimePlan,
     pub aggro_starts: usize,
     pub commands: Vec<wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand>,
     pub stop_commands: Vec<wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand>,

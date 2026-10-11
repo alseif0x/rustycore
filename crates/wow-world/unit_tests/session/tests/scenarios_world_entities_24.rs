@@ -712,7 +712,7 @@ fn creature_spell_fanout_uses_canonical_commit_snapshot_like_cpp() {
     let [event] = cast.plan.events.as_slice() else {
         panic!("one committed creature cast expected: {cast:?}");
     };
-    let crate::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+    let crate::runtime_plan::RecipientRule::NearbyVisibleDurableSpellCast {
         source_position,
         range,
         full_go_packet_bytes,
