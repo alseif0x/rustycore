@@ -23,55 +23,58 @@ impl WorldSession {
         CharacterQueryHandlerCxLikeCpp::new(hub, std::sync::Arc::new(catalogs), lifecycle)
     }
 
-    pub async fn handle_query_creature(&mut self, query: QueryCreature) {
+    pub(crate) async fn handle_query_creature(&mut self, query: QueryCreature) {
         self.character_query_test_cx_like_cpp()
             .handle_query_creature(query)
             .await;
     }
 
-    pub async fn handle_query_game_object(&mut self, query: QueryGameObject) {
+    pub(crate) async fn handle_query_game_object(&mut self, query: QueryGameObject) {
         self.character_query_test_cx_like_cpp()
             .handle_query_game_object(query)
             .await;
     }
 
-    pub async fn handle_query_realm_name(&mut self, query: QueryRealmName) {
+    pub(crate) async fn handle_query_realm_name(&mut self, query: QueryRealmName) {
         self.character_query_test_cx_like_cpp()
             .handle_query_realm_name(query)
             .await;
     }
 
-    pub async fn handle_query_page_text(&mut self, query: QueryPageText) {
+    pub(crate) async fn handle_query_page_text(&mut self, query: QueryPageText) {
         self.character_query_test_cx_like_cpp()
             .handle_query_page_text(query)
             .await;
     }
 
-    pub async fn handle_query_pet_name(&mut self, query: QueryPetName) {
+    pub(crate) async fn handle_query_pet_name(&mut self, query: QueryPetName) {
         self.character_query_test_cx_like_cpp()
             .handle_query_pet_name(query)
             .await;
     }
 
-    pub async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
+    pub(crate) async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
         self.character_query_test_cx_like_cpp()
             .handle_query_player_names(query)
             .await;
     }
 
-    pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
+    pub(crate) async fn handle_query_corpse_location(
+        &mut self,
+        query: QueryCorpseLocationFromClient,
+    ) {
         self.character_query_test_cx_like_cpp()
             .handle_query_corpse_location(query)
             .await;
     }
 
-    pub async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
+    pub(crate) async fn handle_query_corpse_transport(&mut self, query: QueryCorpseTransport) {
         self.character_query_test_cx_like_cpp()
             .handle_query_corpse_transport(query)
             .await;
     }
 
-    pub fn realm_query_response_like_cpp(
+    pub(crate) fn realm_query_response_like_cpp(
         &self,
         virtual_realm_address: u32,
     ) -> wow_packet::packets::query::RealmQueryResponse {

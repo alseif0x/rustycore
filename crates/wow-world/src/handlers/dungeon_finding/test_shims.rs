@@ -15,25 +15,25 @@ impl WorldSession {
         DungeonFindingHandlerCxLikeCpp::new(crate::session::hub_mut(self))
     }
 
-    pub async fn handle_df_get_join_status(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_df_get_join_status(&mut self, pkt: WorldPacket) {
         self.dungeon_finding_test_cx_like_cpp()
             .handle_df_get_join_status(pkt)
             .await;
     }
 
-    pub async fn handle_request_conquest_formula_constants(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_request_conquest_formula_constants(&mut self, pkt: WorldPacket) {
         self.dungeon_finding_test_cx_like_cpp()
             .handle_request_conquest_formula_constants(pkt)
             .await;
     }
 
-    pub async fn handle_request_lfg_list_blacklist(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_request_lfg_list_blacklist(&mut self, pkt: WorldPacket) {
         self.dungeon_finding_test_cx_like_cpp()
             .handle_request_lfg_list_blacklist(pkt)
             .await;
     }
 
-    pub async fn handle_lfg_list_get_status(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_lfg_list_get_status(&mut self, pkt: WorldPacket) {
         self.dungeon_finding_test_cx_like_cpp()
             .handle_lfg_list_get_status(pkt)
             .await;

@@ -8,7 +8,7 @@ use super::*;
 pub(crate) use wow_world_entities::creature_message_to_set_target_allows_like_cpp;
 
 impl WorldSession {
-    pub fn set_canonical_creature_private_object_owner_like_cpp(
+    pub(crate) fn set_canonical_creature_private_object_owner_like_cpp(
         &mut self,
         guid: ObjectGuid,
         owner: ObjectGuid,
@@ -84,7 +84,7 @@ impl WorldSession {
         )
     }
     #[cfg(test)]
-    pub fn set_creature_health_rates_like_cpp(
+    pub(crate) fn set_creature_health_rates_like_cpp(
         &mut self,
         rates: CreatureClassificationHealthRatesLikeCpp,
     ) {

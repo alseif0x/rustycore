@@ -5,7 +5,7 @@ use wow_world_application::LootHandlerHostLikeCpp;
 
 impl WorldSession {
     /// CMSG_LOOT_MONEY — player takes money from the current loot view.
-    pub async fn handle_loot_money_with_generator_like_cpp(
+    pub(crate) async fn handle_loot_money_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
@@ -471,7 +471,7 @@ impl WorldSession {
     /// caller exercises the registered consumer and the application-owned
     /// operation dependencies it now reaches (#1263 F4).
     #[cfg(test)]
-    pub async fn handle_loot_money(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_loot_money(&mut self, pkt: wow_packet::WorldPacket) {
         let mut catalogs = crate::session::SessionHandlerCatalogsLikeCpp::default();
         catalogs.id_generators = std::sync::Arc::new(self.id_generators_for_test_like_cpp());
         let entry = crate::session::registry::registered_handler_entries_like_cpp()

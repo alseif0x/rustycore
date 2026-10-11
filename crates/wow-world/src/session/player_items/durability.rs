@@ -286,11 +286,11 @@ impl WorldSession {
         state.represented_player_in_battleground_like_cpp(hub)
     }
     /// Get the durability cost store reference.
-    pub fn durability_costs_store(&self) -> Option<&Arc<DurabilityCostsStore>> {
+    pub(crate) fn durability_costs_store(&self) -> Option<&Arc<DurabilityCostsStore>> {
         self.catalogs.durability_costs_store.as_ref()
     }
     /// Get the durability quality store reference.
-    pub fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
+    pub(crate) fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
         self.catalogs.durability_quality_store.as_ref()
     }
     /// C++ `Player::DurabilityRepair(pos, takeCost, discountMod)` for one represented item.
@@ -625,7 +625,7 @@ impl WorldSession {
         )
         .await
     }
-    pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
+    pub(crate) fn item_template_max_durability(&self, item_id: u32) -> u32 {
         self.catalogs.item_template_max_durability(item_id)
     }
 }

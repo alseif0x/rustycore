@@ -152,23 +152,33 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_represented_resting_player_flag_update_like_cpp(hub)
     }
-    pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
+    pub(crate) fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
         self.core.send_tx()
     }
     pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         self.core.send_packet(pkt)
     }
-    pub fn send_update_world_state_like_cpp(&self, variable_id: u32, value: i32, hidden: bool) {
+    pub(crate) fn send_update_world_state_like_cpp(
+        &self,
+        variable_id: u32,
+        value: i32,
+        hidden: bool,
+    ) {
         self.core
             .send_update_world_state_like_cpp(variable_id, value, hidden)
     }
-    pub fn send_raw_packet(&self, data: &[u8]) {
+    pub(crate) fn send_raw_packet(&self, data: &[u8]) {
         self.core.send_raw_packet(data)
     }
-    pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {
+    pub(crate) fn send_buy_error(
+        &self,
+        result: BuyResult,
+        creature_guid: Option<ObjectGuid>,
+        item: u32,
+    ) {
         self.core.send_buy_error(result, creature_guid, item)
     }
-    pub fn send_sell_error(
+    pub(crate) fn send_sell_error(
         &self,
         result: SellResult,
         creature_guid: Option<ObjectGuid>,

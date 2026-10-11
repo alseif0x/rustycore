@@ -19,7 +19,7 @@ use target_resolution::ResolvedSpellEffectTargetsLikeCpp;
 const REPRESENTED_CREATURE_AURA_DURATION_MS_LIKE_CPP: u32 = 30_000;
 
 impl WorldSession {
-    pub async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
+    pub(crate) async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,

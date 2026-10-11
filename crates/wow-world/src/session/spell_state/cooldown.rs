@@ -32,7 +32,7 @@ impl WorldSession {
     ///
     /// Returns true if either the global cooldown (1500ms) or the spell-specific
     /// cooldown from SpellStore is still active.
-    pub fn is_spell_on_cooldown(&self, spell_id: i32) -> bool {
+    pub(crate) fn is_spell_on_cooldown(&self, spell_id: i32) -> bool {
         let Some(last_cast) = self.last_spell_cast_time_like_cpp() else {
             return true;
         };

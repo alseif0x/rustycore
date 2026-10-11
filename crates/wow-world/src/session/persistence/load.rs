@@ -65,7 +65,7 @@ impl WorldSession {
         let _ = self.add_item_appearance_for_item_like_cpp(item_entry, 0);
         true
     }
-    pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
+    pub(crate) async fn load_instance_time_restrictions_like_cpp(&mut self) {
         crate::session::cx_lifecycle(self)
             .load_instance_time_restrictions_like_cpp()
             .await
@@ -259,7 +259,7 @@ impl WorldSession {
         self.lifecycle.set_player_loading(guid);
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
-    pub fn player_loading(&self) -> Option<ObjectGuid> {
+    pub(crate) fn player_loading(&self) -> Option<ObjectGuid> {
         self.lifecycle.player_loading()
     }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
@@ -293,7 +293,7 @@ impl WorldSession {
         self.load_account_data_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP)
             .await;
     }
-    pub async fn load_player_account_data_like_cpp(&mut self, guid: ObjectGuid) {
+    pub(crate) async fn load_player_account_data_like_cpp(&mut self, guid: ObjectGuid) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state
             .load_player_account_data_like_cpp(&mut hub, guid)
@@ -482,7 +482,7 @@ impl crate::session::LifecycleCx<'_> {
             .replace_represented_instance_reset_times_for_test_like_cpp(rows);
     }
 
-    pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
+    pub(crate) async fn load_instance_time_restrictions_like_cpp(&mut self) {
         let _ = self
             .instances
             .replace_instance_reset_times_like_cpp(&mut self.hub, []);

@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub fn set_battle_pet_purchase_persistence_port_like_cpp(
+    pub(crate) fn set_battle_pet_purchase_persistence_port_like_cpp(
         &mut self,
         store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
     ) {
@@ -41,7 +41,7 @@ impl crate::session::PetsCx<'_> {
 
     /// Install the SQLx-free Character durability port for the recoverable
     /// #161 purchase saga. The composition root owns the MariaDB adapter.
-    pub fn set_battle_pet_purchase_persistence_port_like_cpp(
+    pub(crate) fn set_battle_pet_purchase_persistence_port_like_cpp(
         &mut self,
         store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
     ) {

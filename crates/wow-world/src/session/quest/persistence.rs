@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub fn set_quest_poi_persistence_port_like_cpp(
+    pub(crate) fn set_quest_poi_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
     ) {
@@ -68,7 +68,7 @@ impl crate::session::QuestStateCxRef<'_> {
 }
 
 impl crate::session::QuestStateCx<'_> {
-    pub fn set_quest_poi_persistence_port_like_cpp(
+    pub(crate) fn set_quest_poi_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
     ) {

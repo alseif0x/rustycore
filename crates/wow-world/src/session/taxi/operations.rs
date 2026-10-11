@@ -13,7 +13,7 @@ impl WorldSession {
         self.catalogs.vehicle_seat_store = Some(store);
     }
     #[cfg(test)]
-    pub fn set_vehicle_template_store(&mut self, store: Arc<VehicleTemplateStoreLikeCpp>) {
+    pub(crate) fn set_vehicle_template_store(&mut self, store: Arc<VehicleTemplateStoreLikeCpp>) {
         self.catalogs.vehicle_template_store = Some(store);
     }
     pub fn set_vehicle_accessory_store(&mut self, store: Arc<VehicleAccessoryStoreLikeCpp>) {

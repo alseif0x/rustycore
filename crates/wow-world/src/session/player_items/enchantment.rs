@@ -13,17 +13,17 @@ impl WorldSession {
     ) {
         self.catalogs.items.random_enchantment_template_store = Some(store);
     }
-    pub fn item_random_enchantment_template_store(
+    pub(crate) fn item_random_enchantment_template_store(
         &self,
     ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
         self.catalogs.item_random_enchantment_template_store()
     }
     /// Get the item disenchant loot store reference.
     #[cfg(test)]
-    pub fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
+    pub(crate) fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
         self.catalogs.item_disenchant_loot_store.as_ref()
     }
-    pub fn apply_enchantment_random_suffix_ref(
+    pub(crate) fn apply_enchantment_random_suffix_ref(
         &self,
         random_properties_id: i32,
     ) -> Option<ApplyEnchantmentRandomSuffixRef> {
@@ -42,13 +42,13 @@ impl WorldSession {
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
     }
-    pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
+    pub(crate) fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
         self.catalogs.spell_item_enchantment_store()
     }
-    pub fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
+    pub(crate) fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
         self.catalogs.is_arena_allowed_enchantment(enchantment_id)
     }
-    pub fn apply_enchantment_template_ref(
+    pub(crate) fn apply_enchantment_template_ref(
         &self,
         enchantment_id: i32,
         required_skill_value: u16,
@@ -60,7 +60,7 @@ impl WorldSession {
             condition_fits,
         )
     }
-    pub fn apply_enchantment_effect_refs(
+    pub(crate) fn apply_enchantment_effect_refs(
         &self,
         enchantment_id: u32,
     ) -> Option<[ApplyEnchantmentEffectRef; 3]> {
@@ -135,7 +135,7 @@ impl WorldSession {
             _ => false,
         }
     }
-    pub fn send_item_enchant_time_update_plans(
+    pub(crate) fn send_item_enchant_time_update_plans(
         &self,
         owner_guid: ObjectGuid,
         updates: &[PlayerEnchantTimeUpdate],

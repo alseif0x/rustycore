@@ -22,7 +22,7 @@ impl WorldSession {
     /// Queries the world database for creatures within visibility range
     /// on the player's map, builds CreatureCreateData for each, and sends
     /// a batched UpdateObject.
-    pub async fn send_nearby_creatures_with_catalogs_like_cpp(
+    pub(crate) async fn send_nearby_creatures_with_catalogs_like_cpp(
         &mut self,
         catalogs: &CreatureSpawnCatalogsLikeCpp,
         map_id: u16,
@@ -211,7 +211,7 @@ impl WorldSession {
     ///
     /// Threshold: only triggers if the player moved more than 50 yards from
     /// the last visibility update position.
-    pub async fn update_visibility_with_catalogs_like_cpp(
+    pub(crate) async fn update_visibility_with_catalogs_like_cpp(
         &mut self,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
@@ -1018,13 +1018,18 @@ impl WorldSession {
 
 #[cfg(test)]
 impl WorldSession {
-    pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, zone_id: u32) {
+    pub(crate) async fn send_nearby_creatures(
+        &mut self,
+        map_id: u16,
+        position: &Position,
+        zone_id: u32,
+    ) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.send_nearby_creatures_with_catalogs_like_cpp(&catalogs, map_id, position, zone_id)
             .await;
     }
 
-    pub async fn update_visibility(&mut self) {
+    pub(crate) async fn update_visibility(&mut self) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.update_visibility_with_catalogs_like_cpp(&catalogs)
             .await;

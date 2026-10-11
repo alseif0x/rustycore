@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub fn set_spell_acquisition_port_like_cpp(
+    pub(crate) fn set_spell_acquisition_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
     ) {

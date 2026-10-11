@@ -9,7 +9,7 @@ use super::*;
 
 impl WorldSession {
     #[cfg(test)]
-    pub async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
+    pub(crate) async fn handle_autobank_item(&mut self, packet: AutoBankItem) {
         let generators = self.id_generators_for_test_like_cpp();
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_autobank_item_with_generator_like_cpp(
@@ -21,7 +21,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
+    pub(crate) async fn handle_autostore_bank_item(&mut self, packet: AutoStoreBankItem) {
         let generators = self.id_generators_for_test_like_cpp();
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_autostore_bank_item_with_generator_like_cpp(
@@ -40,7 +40,7 @@ impl WorldSession {
     /// CMSG_BANKER_ACTIVATE — player talks to a banker.
     /// C++ ref: `HandleBankerActivateOpcode`
     /// (`Handlers/BankHandler.cpp:60-65`) opens banker interaction UI.
-    pub async fn handle_banker_activate(&mut self, hello: Hello) {
+    pub(crate) async fn handle_banker_activate(&mut self, hello: Hello) {
         info!(
             "BankerActivate {:?} account {}",
             hello.unit, self.core.account_id
@@ -65,7 +65,7 @@ impl WorldSession {
     /// CMSG_AUTOBANK_ITEM — player moves an inventory item into bank storage.
     ///
     /// C++ ref: `WorldSession::HandleAutoBankItemOpcode`.
-    pub async fn handle_autobank_item_with_generator_like_cpp(
+    pub(crate) async fn handle_autobank_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -105,7 +105,7 @@ impl WorldSession {
     /// CMSG_AUTOSTORE_BANK_ITEM — player moves a bank item back to inventory, or inventory to bank.
     ///
     /// C++ ref: `WorldSession::HandleAutoStoreBankItemOpcode`.
-    pub async fn handle_autostore_bank_item_with_generator_like_cpp(
+    pub(crate) async fn handle_autostore_bank_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -296,7 +296,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
+    pub(crate) async fn handle_buy_bank_slot(&mut self, buy: BuyBankSlot) {
         let prices = self
             .bank_bag_slot_prices_store_for_test_like_cpp()
             .cloned()
@@ -314,7 +314,7 @@ impl WorldSession {
     ///
     /// Target Opcodes.cpp:289 registers STATUS_UNHANDLED / Handle_NULL.
     /// F5 preserves the existing Rust operation; this target difference remains F6.
-    pub async fn handle_change_bank_bag_slot_flag(&mut self, packet: ChangeBankBagSlotFlag) {
+    pub(crate) async fn handle_change_bank_bag_slot_flag(&mut self, packet: ChangeBankBagSlotFlag) {
         self.build_bank_slot_flag_handler_cx_like_cpp()
             .change_bank_bag_slot_flag_like_cpp(packet);
     }

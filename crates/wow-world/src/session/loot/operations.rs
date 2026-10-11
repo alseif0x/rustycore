@@ -68,7 +68,7 @@ impl WorldSession {
             f,
         )
     }
-    pub fn set_group_loot_money_persistence_port_like_cpp(
+    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
     ) {
@@ -83,14 +83,14 @@ impl WorldSession {
     pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
         self.config.enable_ae_loot_like_cpp()
     }
-    pub fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
+    pub(crate) fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
         self.config.loot_drop_rates_like_cpp()
     }
     /// Set the C++ LootTemplates_* foundation stores for this session.
     pub fn set_loot_stores(&mut self, stores: Arc<LootStores>) {
         self.catalogs.loot_stores = Some(stores);
     }
-    pub fn loot_stores(&self) -> Option<&Arc<LootStores>> {
+    pub(crate) fn loot_stores(&self) -> Option<&Arc<LootStores>> {
         self.catalogs.loot_stores()
     }
     pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
@@ -151,7 +151,7 @@ impl crate::session::LootCxRef<'_> {
 }
 
 impl crate::session::LootCx<'_> {
-    pub fn set_group_loot_money_persistence_port_like_cpp(
+    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
     ) {

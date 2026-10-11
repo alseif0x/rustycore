@@ -16,25 +16,25 @@ impl WorldSession {
         TravelHandlerCxLikeCpp::new(hub, lifecycle)
     }
 
-    pub async fn handle_suspend_token_response(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_suspend_token_response(&mut self, pkt: WorldPacket) {
         self.travel_test_cx_like_cpp()
             .handle_suspend_token_response(pkt)
             .await;
     }
 
-    pub async fn handle_taxi_node_status_query(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_taxi_node_status_query(&mut self, pkt: WorldPacket) {
         self.travel_test_cx_like_cpp()
             .handle_taxi_node_status_query(pkt)
             .await;
     }
 
-    pub async fn handle_update_area_trigger_visual(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_update_area_trigger_visual(&mut self, pkt: WorldPacket) {
         self.travel_test_cx_like_cpp()
             .handle_update_area_trigger_visual(pkt)
             .await;
     }
 
-    pub async fn handle_set_taxi_benchmark_mode(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_taxi_benchmark_mode(&mut self, pkt: WorldPacket) {
         let changed = self
             .travel_test_cx_like_cpp()
             .handle_set_taxi_benchmark_mode(pkt)

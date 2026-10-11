@@ -83,13 +83,13 @@ pub fn registered_handler_entries_like_cpp() -> std::vec::IntoIter<PacketHandler
 /// Check if a handler is registered for the given opcode.
 #[cfg(any(test, feature = "test-fixtures"))]
 #[must_use]
-pub fn contains_handler(opcode: ClientOpcodes) -> bool {
+pub(crate) fn contains_handler(opcode: ClientOpcodes) -> bool {
     get_handler(opcode).is_some()
 }
 
 /// Get the composed handler entry for a specific opcode.
 #[cfg(any(test, feature = "test-fixtures"))]
 #[must_use]
-pub fn get_handler(opcode: ClientOpcodes) -> Option<PacketHandlerEntry> {
+pub(crate) fn get_handler(opcode: ClientOpcodes) -> Option<PacketHandlerEntry> {
     build_dispatch_table().get(opcode).copied()
 }

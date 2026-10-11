@@ -12,7 +12,7 @@ impl WorldSession {
     ) {
         self.core.directory.game_event_quest_complete_tx = Some(sender);
     }
-    pub async fn notify_game_event_quest_complete_like_cpp(
+    pub(crate) async fn notify_game_event_quest_complete_like_cpp(
         &mut self,
         quest_id: u32,
     ) -> GameEventQuestCompleteClientOutcomeLikeCpp {

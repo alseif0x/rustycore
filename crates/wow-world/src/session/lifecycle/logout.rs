@@ -5,7 +5,9 @@ use crate::finalization::FinalizationMode;
 
 impl WorldSession {
     #[cfg(test)]
-    pub async fn save_disconnect_player_to_db_like_cpp(&mut self) -> crate::FinalizationReport {
+    pub(crate) async fn save_disconnect_player_to_db_like_cpp(
+        &mut self,
+    ) -> crate::FinalizationReport {
         let generators = self.id_generators_for_test_like_cpp();
         self.finalize_session_with_generator_like_cpp(
             FinalizationMode::Disconnect,

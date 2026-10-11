@@ -162,7 +162,7 @@ impl WorldSession {
         }
     }
     #[cfg(test)]
-    pub async fn handle_text_emote(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_text_emote(&mut self, pkt: wow_packet::WorldPacket) {
         let emotes_text = self
             .emotes_text_store_for_test_like_cpp()
             .cloned()

@@ -15,7 +15,7 @@ impl WorldSession {
         state.apply_chat_away_mode_like_cpp(&mut hub, mode, text)
     }
     #[cfg(test)]
-    pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
+    pub(crate) fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
         self.config.chat_strict_link_checking_kick_like_cpp = enabled;
     }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {

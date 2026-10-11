@@ -43,7 +43,7 @@ impl WorldSession {
     /// never sets receiver pending sharing, and never fans out packets to other sessions.
     /// If the session has no real `player_guid`, Rust records the existing evidence only and
     /// does not fabricate an empty sender GUID for `SMSG_QUEST_PUSH_RESULT`.
-    pub async fn handle_push_quest_to_party(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_push_quest_to_party(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match PushQuestToParty::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {

@@ -18,7 +18,7 @@ pub(crate) use wow_world_entities::{
 };
 
 impl WorldSession {
-    pub fn summon_private_object_owner_like_cpp(
+    pub(crate) fn summon_private_object_owner_like_cpp(
         &self,
         caster_guid: ObjectGuid,
         caster_private_object_owner: ObjectGuid,

@@ -37,12 +37,15 @@ impl WorldSession {
     /// Full `Player::ExitVehicle` requires live charm/passenger ownership. Until that runtime
     /// exists, this handler mirrors the C++ early-return shape through represented charm state,
     /// then copies the validated movement status before represented exit cleanup.
-    pub async fn handle_move_dismiss_vehicle(&mut self, mut packet: MoveDismissVehicle) {
+    pub(crate) async fn handle_move_dismiss_vehicle(&mut self, mut packet: MoveDismissVehicle) {
         self.represented_move_dismiss_vehicle_like_cpp(&mut packet.status);
     }
 
     /// C++ `HandleMoveChangeVehicleSeats`.
-    pub async fn handle_move_change_vehicle_seats(&mut self, mut packet: MoveChangeVehicleSeats) {
+    pub(crate) async fn handle_move_change_vehicle_seats(
+        &mut self,
+        mut packet: MoveChangeVehicleSeats,
+    ) {
         self.represented_move_change_vehicle_seats_like_cpp(
             &mut packet.status,
             packet.dst_vehicle,
@@ -51,12 +54,15 @@ impl WorldSession {
     }
 
     /// C++ `HandleRequestVehicleSwitchSeat`.
-    pub async fn handle_request_vehicle_switch_seat(&mut self, packet: RequestVehicleSwitchSeat) {
+    pub(crate) async fn handle_request_vehicle_switch_seat(
+        &mut self,
+        packet: RequestVehicleSwitchSeat,
+    ) {
         self.represented_request_vehicle_switch_seat_like_cpp(packet.vehicle, packet.seat_index);
     }
 
     /// C++ `HandleRideVehicleInteract`.
-    pub async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
+    pub(crate) async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
         self.represented_ride_vehicle_interact_like_cpp(packet.vehicle);
     }
 }

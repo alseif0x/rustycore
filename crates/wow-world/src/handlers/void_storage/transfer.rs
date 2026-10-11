@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub async fn handle_void_storage_transfer_with_generators_like_cpp(
+    pub(crate) async fn handle_void_storage_transfer_with_generators_like_cpp(
         &mut self,
         generators: &SessionIdGeneratorsLikeCpp,
         mut pkt: WorldPacket,
@@ -884,7 +884,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_void_storage_transfer(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_void_storage_transfer(&mut self, pkt: WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_void_storage_transfer_with_generators_like_cpp(&generators, pkt)
             .await;

@@ -105,7 +105,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     /// The deferred respawn DB statements, in the order they are submitted to
     /// the respawn writer.
     #[must_use]
-    pub fn deferred_respawn_db_mutations_like_cpp(
+    pub(crate) fn deferred_respawn_db_mutations_like_cpp(
         &self,
     ) -> &[wow_persistence::RespawnPersistenceMutationLikeCpp] {
         &self.lifecycle.respawn_db_mutations
@@ -115,7 +115,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     /// `RefreshVisibleWorldCreaturesLikeCpp` per affected map, sent to every
     /// in-world session on that map and instance.
     #[must_use]
-    pub fn deferred_visibility_refreshes_like_cpp(
+    pub(crate) fn deferred_visibility_refreshes_like_cpp(
         &self,
     ) -> Vec<crate::session::mailbox::RefreshVisibleWorldCreaturesLikeCppCommand> {
         self.lifecycle
@@ -133,7 +133,7 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     /// The deferred plan events, in phase order (movement, aggro, spell, then
     /// melee).
     #[must_use]
-    pub fn deferred_plan_events_like_cpp(&self) -> Vec<RuntimeEvent> {
+    pub(crate) fn deferred_plan_events_like_cpp(&self) -> Vec<RuntimeEvent> {
         self.movement
             .plan
             .events

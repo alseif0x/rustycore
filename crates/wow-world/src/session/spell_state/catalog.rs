@@ -114,7 +114,7 @@ impl WorldSession {
             .spell_catalogs
             .set_spell_acquisition_catalog(catalog);
     }
-    pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
+    pub(crate) fn spell_store(&self) -> Option<&Arc<SpellStore>> {
         self.catalogs.spell_store()
     }
     pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
@@ -131,7 +131,7 @@ impl WorldSession {
     pub fn set_spell_label_store(&mut self, store: Arc<wow_data::SpellLabelStore>) {
         self.catalogs.spell_catalogs.set_spell_label_store(store);
     }
-    pub fn spell_label_store(&self) -> Option<&Arc<wow_data::SpellLabelStore>> {
+    pub(crate) fn spell_label_store(&self) -> Option<&Arc<wow_data::SpellLabelStore>> {
         self.catalogs.spell_catalogs.spell_label_store()
     }
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {

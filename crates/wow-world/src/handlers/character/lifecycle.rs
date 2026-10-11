@@ -83,7 +83,7 @@ impl WorldSession {
 
     /// CMSG_HEARTH_AND_RESURRECT — battlefield hearth/resurrection escape.
     /// C++ ref: `WorldSession::HandleHearthAndResurrect`.
-    pub async fn handle_hearth_and_resurrect(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_hearth_and_resurrect(&mut self, mut pkt: wow_packet::WorldPacket) {
         if let Err(error) = HearthAndResurrect::read(&mut pkt) {
             warn!(
                 account = self.core.account_id,

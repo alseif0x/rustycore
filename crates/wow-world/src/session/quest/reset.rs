@@ -6,7 +6,10 @@
 use super::*;
 
 impl WorldSession {
-    pub fn set_quest_pool_store(&mut self, store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>) {
+    pub(crate) fn set_quest_pool_store(
+        &mut self,
+        store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>,
+    ) {
         self.catalogs.set_quest_pool_store(store)
     }
     #[cfg(test)]

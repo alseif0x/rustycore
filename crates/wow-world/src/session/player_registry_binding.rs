@@ -18,11 +18,11 @@ impl WorldSession {
         self.core.player_registry = Some(registry);
     }
 
-    pub fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
+    pub(crate) fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
         self.core.player_registry()
     }
 
-    pub fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
+    pub(crate) fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
         self.core.pending_invites()
     }
 

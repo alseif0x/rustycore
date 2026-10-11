@@ -245,7 +245,7 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_world_port_response(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_world_port_response_with_catalogs_like_cpp(
@@ -260,7 +260,7 @@ impl crate::session::WorldSession {
     /// CMSG_AREA_TRIGGER — player entered an area trigger.
     /// C++ ref: `WorldSession::HandleAreaTriggerOpcode`.
 
-    pub async fn handle_area_trigger_with_catalogs_like_cpp(
+    pub(crate) async fn handle_area_trigger_with_catalogs_like_cpp(
         &mut self,
         catalogs: &AreaTriggerCatalogsLikeCpp,
         mut pkt: wow_packet::WorldPacket,
@@ -382,7 +382,7 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_area_trigger(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_area_trigger(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         self.handle_area_trigger_with_catalogs_like_cpp(&catalogs, pkt)
             .await;
@@ -493,7 +493,7 @@ impl crate::session::WorldSession {
     /// but not `TaxiNodes.db2`, `TaxiPathGraph`, or live MotionMaster taxi
     /// flight. This handler preserves packet/dispatch and the first C++ failure
     /// reply, then records the accepted request for the future taxi runtime.
-    pub async fn handle_activate_taxi(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_activate_taxi(&mut self, mut pkt: wow_packet::WorldPacket) {
         let activate = match ActivateTaxi::read(&mut pkt) {
             Ok(activate) => activate,
             Err(error) => {

@@ -12,12 +12,12 @@ impl WorldSession {
         self.config.reset_schedule_like_cpp = schedule;
     }
 
-    pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
+    pub(crate) fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
         crate::session::hub_mut(self).set_represented_is_outdoors_like_cpp(is_outdoors)
     }
 
     #[cfg(test)]
-    pub fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
+    pub(crate) fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
         self.config.addon_channel_like_cpp = enabled;
     }
 
@@ -31,7 +31,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
+    pub(crate) fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
         self.config.characters_per_realm_like_cpp = characters_per_realm;
     }
 
@@ -41,7 +41,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_feature_system_character_undelete_enabled_like_cpp(&mut self, enabled: bool) {
+    pub(crate) fn set_feature_system_character_undelete_enabled_like_cpp(&mut self, enabled: bool) {
         self.config
             .feature_system_character_undelete_enabled_like_cpp = enabled;
     }
@@ -65,11 +65,11 @@ impl WorldSession {
         self.catalogs.disable_mgr = Some(store);
     }
 
-    pub fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
+    pub(crate) fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
         self.catalogs.disable_mgr()
     }
 
-    pub fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
+    pub(crate) fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
         self.catalogs.lock_entry_exists_like_cpp(lock_id)
     }
 
@@ -78,7 +78,10 @@ impl WorldSession {
     /// Composition calls this once after construction. A session that never
     /// receives one keeps the zero-module no-op path.
     #[cfg(test)]
-    pub fn set_module_registry_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
+    pub(crate) fn set_module_registry_like_cpp(
+        &mut self,
+        registry: Arc<wow_module_api::ModuleRegistry>,
+    ) {
         self.core.module_registry_like_cpp = Some(registry);
     }
 

@@ -76,7 +76,7 @@ impl WorldSession {
         }
     }
 
-    pub fn remove_legit_character(&mut self, guid: &ObjectGuid) {
+    pub(crate) fn remove_legit_character(&mut self, guid: &ObjectGuid) {
         crate::session::hub_mut(self).remove_legit_character(guid)
     }
 
@@ -115,7 +115,7 @@ impl WorldSession {
             .represented_calendar_remove_events_for_test_like_cpp()
     }
 
-    pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
+    pub(crate) fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         crate::session::hub_mut(self).set_player_moved_unit_guid_like_cpp(guid)
     }
 

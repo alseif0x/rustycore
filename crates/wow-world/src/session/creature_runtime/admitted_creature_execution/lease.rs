@@ -21,7 +21,7 @@ pub enum CreatureExecutionOwnerLikeCpp {
 impl CreatureExecutionOwnerLikeCpp {
     /// Stable label for refusal reporting and assertions.
     #[must_use]
-    pub const fn label_like_cpp(self) -> &'static str {
+    pub(crate) const fn label_like_cpp(self) -> &'static str {
         match self {
             Self::CanonicalAdmitted => "canonical-admitted",
         }
@@ -91,7 +91,7 @@ impl CreatureExecutionLeaseLikeCpp {
 
     /// Who holds `transition`, if anyone.
     #[must_use]
-    pub fn owner_like_cpp(
+    pub(crate) fn owner_like_cpp(
         &self,
         transition: CreatureExecutionTransitionLikeCpp,
     ) -> Option<CreatureExecutionOwnerLikeCpp> {

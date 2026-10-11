@@ -7,7 +7,7 @@
 use super::{PLAYER_FLAGS_GHOST_LIKE_CPP, WorldSession};
 
 impl WorldSession {
-    pub fn set_player_alive_like_cpp(&mut self, alive: bool) {
+    pub(crate) fn set_player_alive_like_cpp(&mut self, alive: bool) {
         let resolved = self.core.with_owned_player_mut_like_cpp(|player| {
             if !alive {
                 player

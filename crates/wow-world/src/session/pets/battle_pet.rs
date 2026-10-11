@@ -20,7 +20,7 @@ impl WorldSession {
     }
     /// Set the world-DB battle-pet breed/quality selection store (#161).
     #[cfg(test)]
-    pub fn set_battle_pet_selection_store_like_cpp(
+    pub(crate) fn set_battle_pet_selection_store_like_cpp(
         &mut self,
         store: Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
     ) {

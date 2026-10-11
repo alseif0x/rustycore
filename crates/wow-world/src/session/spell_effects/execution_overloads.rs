@@ -9,7 +9,7 @@ impl WorldSession {
     ///
     /// Called for instant-cast spells. Delegates to execute_spell_with_visual
     /// with default cast_id and visual.
-    pub async fn execute_spell_with_generator_like_cpp(
+    pub(crate) async fn execute_spell_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -32,7 +32,7 @@ impl WorldSession {
         .await
     }
     #[cfg(test)]
-    pub async fn execute_spell(
+    pub(crate) async fn execute_spell(
         &mut self,
         spell_id: i32,
         target_guid: ObjectGuid,
@@ -47,7 +47,7 @@ impl WorldSession {
         )
         .await
     }
-    pub async fn execute_spell_with_target_data_and_generator_like_cpp(
+    pub(crate) async fn execute_spell_with_target_data_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -72,7 +72,7 @@ impl WorldSession {
         .await
     }
     #[cfg(test)]
-    pub async fn execute_spell_with_target_data(
+    pub(crate) async fn execute_spell_with_target_data(
         &mut self,
         spell_id: i32,
         target_guid: ObjectGuid,
@@ -93,7 +93,7 @@ impl WorldSession {
     ///
     /// Called after cast time completes or for instant-cast spells.
     /// Supports: instakill (type 1), damage (type 2), aura application (type 6), heal (type 10).
-    pub async fn execute_spell_with_visual_and_generator_like_cpp(
+    pub(crate) async fn execute_spell_with_visual_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -119,7 +119,7 @@ impl WorldSession {
         .await
     }
     #[cfg(test)]
-    pub async fn execute_spell_with_visual(
+    pub(crate) async fn execute_spell_with_visual(
         &mut self,
         spell_id: i32,
         target_guid: ObjectGuid,
@@ -138,7 +138,7 @@ impl WorldSession {
         )
         .await
     }
-    pub async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp(
+    pub(crate) async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -161,7 +161,7 @@ impl WorldSession {
         .await
     }
     #[cfg(test)]
-    pub async fn execute_spell_with_visual_and_target_data(
+    pub(crate) async fn execute_spell_with_visual_and_target_data(
         &mut self,
         spell_id: i32,
         target_guid: ObjectGuid,
@@ -183,7 +183,7 @@ impl WorldSession {
         .await
     }
     #[cfg(test)]
-    pub async fn execute_spell_with_visual_and_target_data_with_metadata(
+    pub(crate) async fn execute_spell_with_visual_and_target_data_with_metadata(
         &mut self,
         spell_id: i32,
         target_guid: ObjectGuid,

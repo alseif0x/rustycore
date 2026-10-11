@@ -9,7 +9,7 @@ use super::*;
 
 impl WorldSession {
     #[cfg(test)]
-    pub async fn handle_swap_inv_item(&mut self, swap: SwapInvItem) {
+    pub(crate) async fn handle_swap_inv_item(&mut self, swap: SwapInvItem) {
         let generators = self.id_generators_for_test_like_cpp();
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_swap_inv_item_with_generator_like_cpp(
@@ -21,7 +21,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_auto_equip_item(&mut self, equip: AutoEquipItem) {
+    pub(crate) async fn handle_auto_equip_item(&mut self, equip: AutoEquipItem) {
         let generators = self.id_generators_for_test_like_cpp();
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_auto_equip_item_with_generator_like_cpp(
@@ -33,7 +33,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
+    pub(crate) async fn handle_auto_equip_item_slot(&mut self, equip: AutoEquipItemSlot) {
         let generators = self.id_generators_for_test_like_cpp();
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_auto_equip_item_slot_with_generator_like_cpp(
@@ -45,7 +45,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_swap_item(&mut self, swap: wow_packet::packets::item::SwapItem) {
+    pub(crate) async fn handle_swap_item(&mut self, swap: wow_packet::packets::item::SwapItem) {
         let generators = self.id_generators_for_test_like_cpp();
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_swap_item_with_generator_like_cpp(generators.item.as_ref(), &catalogs, swap)
@@ -53,7 +53,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_auto_store_bag_item(
+    pub(crate) async fn handle_auto_store_bag_item(
         &mut self,
         store: wow_packet::packets::item::AutoStoreBagItem,
     ) {
@@ -68,7 +68,7 @@ impl WorldSession {
     }
 
     /// Handle CMSG_SWAP_INV_ITEM: drag-and-drop item between two inventory slots.
-    pub async fn handle_swap_inv_item_with_generator_like_cpp(
+    pub(crate) async fn handle_swap_inv_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -109,7 +109,7 @@ impl WorldSession {
     }
 
     /// Handle CMSG_AUTO_EQUIP_ITEM: right-click to auto-equip/unequip an item.
-    pub async fn handle_auto_equip_item_with_generator_like_cpp(
+    pub(crate) async fn handle_auto_equip_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -315,7 +315,7 @@ impl WorldSession {
     /// it requires exactly one `InvUpdate` source position, verifies that the
     /// GUID still lives at that source position, rejects src==dst, then calls
     /// `Player::SwapItem` with the packed source position.
-    pub async fn handle_auto_equip_item_slot_with_generator_like_cpp(
+    pub(crate) async fn handle_auto_equip_item_slot_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -359,7 +359,7 @@ impl WorldSession {
     /// Handle CMSG_SWAP_ITEM: C++ container-aware swap between two positions.
     /// C++ ref: `WorldSession::HandleSwapItem`
     /// (`Handlers/ItemHandler.cpp:130-173`).
-    pub async fn handle_swap_item_with_generator_like_cpp(
+    pub(crate) async fn handle_swap_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -408,7 +408,7 @@ impl WorldSession {
     ///
     /// C++ ref: `WorldSession::HandleAutoStoreBagItemOpcode`
     /// (`Handlers/ItemHandler.cpp:699-743`).
-    pub async fn handle_auto_store_bag_item_with_generator_like_cpp(
+    pub(crate) async fn handle_auto_store_bag_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -483,7 +483,7 @@ impl WorldSession {
     /// Handle CMSG_CANCEL_TEMP_ENCHANTMENT.
     ///
     /// C++ ref: `WorldSession::HandleCancelTempEnchantmentOpcode`.
-    pub async fn handle_cancel_temp_enchantment(&mut self, cancel: CancelTempEnchantment) {
+    pub(crate) async fn handle_cancel_temp_enchantment(&mut self, cancel: CancelTempEnchantment) {
         self.build_item_enchantment_handler_cx_like_cpp()
             .cancel_temp_enchantment_like_cpp(cancel);
     }

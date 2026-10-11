@@ -20,7 +20,7 @@ use super::*;
 
 impl WorldSession {
     #[cfg(test)]
-    pub async fn handle_buy_item(&mut self, buy: BuyItem) {
+    pub(crate) async fn handle_buy_item(&mut self, buy: BuyItem) {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return;
         };
@@ -32,7 +32,7 @@ impl WorldSession {
     ///
     /// C++ refs: `HandleBuyItemOpcode` (`Handlers/ItemHandler.cpp:530-564`)
     /// delegates to `Player::BuyItemFromVendorSlot` (`Player.cpp:22338+`).
-    pub async fn handle_buy_item_with_generator_like_cpp(
+    pub(crate) async fn handle_buy_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         buy: BuyItem,

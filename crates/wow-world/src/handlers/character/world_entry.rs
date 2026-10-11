@@ -82,7 +82,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_logout_request(&mut self, req: LogoutRequest) {
+    pub(crate) async fn handle_logout_request(&mut self, req: LogoutRequest) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_logout_request_with_generator_like_cpp(generators.item.as_ref(), req)
             .await;

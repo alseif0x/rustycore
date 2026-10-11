@@ -16,30 +16,30 @@ impl WorldSession {
         CollectionsHandlerCxLikeCpp::new(hub, inventory)
     }
 
-    pub async fn handle_collection_item_set_favorite(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_collection_item_set_favorite(&mut self, pkt: WorldPacket) {
         self.collections_test_cx_like_cpp()
             .handle_collection_item_set_favorite(pkt)
             .await;
     }
-    pub async fn handle_mount_set_favorite(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_mount_set_favorite(&mut self, pkt: WorldPacket) {
         self.collections_test_cx_like_cpp()
             .handle_mount_set_favorite(pkt)
             .await;
     }
 
-    pub async fn handle_mount_special_anim(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_mount_special_anim(&mut self, pkt: WorldPacket) {
         self.collections_test_cx_like_cpp()
             .handle_mount_special_anim(pkt)
             .await;
     }
 
-    pub async fn handle_mount_clear_fanfare(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_mount_clear_fanfare(&mut self, pkt: WorldPacket) {
         self.collections_test_cx_like_cpp()
             .handle_mount_clear_fanfare(pkt)
             .await;
     }
 
-    pub async fn handle_toy_clear_fanfare(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_toy_clear_fanfare(&mut self, pkt: WorldPacket) {
         self.collections_test_cx_like_cpp()
             .handle_toy_clear_fanfare(pkt)
             .await;

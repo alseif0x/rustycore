@@ -17,7 +17,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_represented_support_tickets_enabled_like_cpp(&mut self, enabled: bool) {
+    pub(crate) fn set_represented_support_tickets_enabled_like_cpp(&mut self, enabled: bool) {
         self.interaction
             .set_represented_support_tickets_enabled_like_cpp(enabled);
     }

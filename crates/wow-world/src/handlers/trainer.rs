@@ -153,7 +153,7 @@ impl WorldSession {
     ///
     /// Opens the trainer window: resolves the NPC, reads the loaded trainer store,
     /// and sends SMSG_TRAINER_LIST back to the client.
-    pub async fn handle_trainer_list(&mut self, hello: wow_packet::packets::gossip::Hello) {
+    pub(crate) async fn handle_trainer_list(&mut self, hello: wow_packet::packets::gossip::Hello) {
         self.send_trainer_list_like_cpp(hello, None);
     }
 
@@ -176,7 +176,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_trainer_buy_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         let selection = self
             .battle_pet_selection_store_like_cpp()

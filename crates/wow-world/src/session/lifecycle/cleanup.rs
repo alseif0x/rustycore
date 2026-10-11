@@ -45,7 +45,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
+    pub(crate) async fn cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> FinalizationOutcome {
@@ -60,7 +60,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
+    pub(crate) async fn cleanup_shared_runtime_state_on_disconnect_like_cpp(&mut self) {
         let generators = self.id_generators_for_test_like_cpp();
         self.cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp(
             generators.item.as_ref(),

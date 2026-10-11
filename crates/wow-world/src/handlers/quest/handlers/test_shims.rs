@@ -24,7 +24,7 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
-    pub async fn handle_request_world_quest_update(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_request_world_quest_update(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
         QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
@@ -32,7 +32,7 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_query_quest_info(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_query_quest_info(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
         QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
@@ -43,25 +43,25 @@ impl WorldSession {
     /// Dispatches through the registered production thunk so the two-phase
     /// owner/host orchestration (pending-share clear, registry sync, evidence)
     /// is exercised by every caller instead of re-implemented here.
-    pub async fn handle_quest_push_result(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_quest_push_result(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::QuestPushResult, pkt).await;
     }
 
     /// Dispatches through the registered production thunk so the two-phase
     /// owner/host orchestration (status removal, DB delete, registry sync,
     /// slot update) is exercised by every caller instead of re-implemented here.
-    pub async fn handle_quest_log_remove_quest(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_quest_log_remove_quest(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::QuestLogRemoveQuest, pkt).await;
     }
 
-    pub async fn handle_quest_giver_close_quest(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_quest_giver_close_quest(&mut self, pkt: WorldPacket) {
         let quest_store = self.catalogs.quests.store.clone();
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
         QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
             .handle_quest_giver_close_quest(pkt);
     }
 
-    pub async fn handle_query_quest_completion_npcs(
+    pub(crate) async fn handle_query_quest_completion_npcs(
         &mut self,
         query: wow_packet::packets::query::QueryQuestCompletionNpcs,
     ) {
@@ -74,7 +74,7 @@ impl WorldSession {
 
     /// Delegates to the moved owner body with this session as its host; the
     /// shell-only capabilities it needs stay on the host implementation.
-    pub async fn handle_quest_giver_complete_quest(&mut self, mut pkt: WorldPacket) {
+    pub(crate) async fn handle_quest_giver_complete_quest(&mut self, mut pkt: WorldPacket) {
         wow_world_application::handle_quest_giver_complete_quest_like_cpp(self, pkt).await;
     }
 }

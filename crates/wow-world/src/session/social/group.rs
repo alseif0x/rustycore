@@ -68,7 +68,7 @@ impl WorldSession {
             .unwrap_or_default()
     }
     #[cfg(test)]
-    pub fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
+    pub(crate) fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
         self.config.allow_two_side_interaction_group_like_cpp = enabled;
     }
     #[cfg(test)]
@@ -364,7 +364,7 @@ impl WorldSession {
         self.core.directory.group_registry = Some(reg);
         self.core.directory.pending_invites = Some(invites);
     }
-    pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
+    pub(crate) fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
         self.core.group_registry()
     }
     pub(in crate::session) fn represented_player_at_group_reward_distance_like_cpp(

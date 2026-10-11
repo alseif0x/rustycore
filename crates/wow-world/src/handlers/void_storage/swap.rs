@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub async fn handle_void_storage_swap_item(&mut self, mut pkt: WorldPacket) {
+    pub(crate) async fn handle_void_storage_swap_item(&mut self, mut pkt: WorldPacket) {
         let Ok(swap) = SwapVoidItem::read(&mut pkt) else {
             return;
         };

@@ -7,7 +7,7 @@
 use super::*;
 
 impl WorldSession {
-    pub async fn load_completed_achievements_like_cpp(&mut self) {
+    pub(crate) async fn load_completed_achievements_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.load_completed_achievements_like_cpp(&mut hub).await
     }

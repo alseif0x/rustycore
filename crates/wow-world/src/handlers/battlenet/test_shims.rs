@@ -11,13 +11,13 @@ use wow_world_lifecycle::BattlenetHandlerCxLikeCpp;
 use crate::session::WorldSession;
 
 impl WorldSession {
-    pub async fn handle_battlenet_request(&mut self, req: BattlenetRequest) {
+    pub(crate) async fn handle_battlenet_request(&mut self, req: BattlenetRequest) {
         BattlenetHandlerCxLikeCpp::new(crate::session::hub_mut(self))
             .handle_battlenet_request(req)
             .await;
     }
 
-    pub async fn handle_change_realm_ticket(&mut self, ticket: ChangeRealmTicket) {
+    pub(crate) async fn handle_change_realm_ticket(&mut self, ticket: ChangeRealmTicket) {
         BattlenetHandlerCxLikeCpp::new(crate::session::hub_mut(self))
             .handle_change_realm_ticket(ticket)
             .await;

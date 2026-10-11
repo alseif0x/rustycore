@@ -211,7 +211,7 @@ impl WorldSession {
     }
 
     /// Check if the player currently has an active quest with the given ID.
-    pub fn has_quest(&self, quest_id: u32) -> bool {
+    pub(crate) fn has_quest(&self, quest_id: u32) -> bool {
         self.player_quest_gameplay_snapshot_like_cpp()
             .is_some_and(|state| state.statuses_like_cpp().contains_key(&quest_id))
     }
@@ -219,7 +219,7 @@ impl WorldSession {
     /// C++ anchor: `Player::CanTakeQuest` (Player.cpp:14090–14102).
     /// This keeps the current represented Rust gate order; `SatisfyQuestTimed`
     /// remains unrepresented, so this is not a full-parity claim.
-    pub fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
+    pub(crate) fn can_take_quest(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
         self.with_quest_eligibility_cx_like_cpp(|operation| {
             operation.can_take_quest_like_cpp(quest)
         })

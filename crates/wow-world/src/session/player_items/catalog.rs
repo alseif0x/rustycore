@@ -10,14 +10,14 @@ impl WorldSession {
     pub fn set_item_extended_cost_store(&mut self, store: Arc<ItemExtendedCostStore>) {
         self.catalogs.items.extended_cost_store = Some(store);
     }
-    pub fn item_extended_cost_store(&self) -> Option<&Arc<ItemExtendedCostStore>> {
+    pub(crate) fn item_extended_cost_store(&self) -> Option<&Arc<ItemExtendedCostStore>> {
         self.catalogs.item_extended_cost_store()
     }
     /// Set the item store for this session.
     pub fn set_item_store(&mut self, store: Arc<ItemStore>) {
         self.catalogs.items.store = Some(store);
     }
-    pub fn item_store(&self) -> Option<&Arc<ItemStore>> {
+    pub(crate) fn item_store(&self) -> Option<&Arc<ItemStore>> {
         self.catalogs.item_store()
     }
     /// Set the item search-name store for this session.
@@ -25,7 +25,7 @@ impl WorldSession {
         self.catalogs.items.search_name_store = Some(store);
     }
     /// Get the item search-name store reference.
-    pub fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
+    pub(crate) fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
         self.catalogs.items.search_name_store.as_ref()
     }
     pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
@@ -37,51 +37,51 @@ impl WorldSession {
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
         self.catalogs.items.spec_override_store = Some(store);
     }
-    pub fn item_spec_override_store(&self) -> Option<&Arc<ItemSpecOverrideStore>> {
+    pub(crate) fn item_spec_override_store(&self) -> Option<&Arc<ItemSpecOverrideStore>> {
         self.catalogs.items.spec_override_store.as_ref()
     }
     pub fn set_item_effect_store(&mut self, store: Arc<ItemEffectStore>) {
         self.catalogs.items.effect_store = Some(store);
     }
-    pub fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
+    pub(crate) fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
         self.catalogs.item_stats_store()
     }
-    pub fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
+    pub(crate) fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
         self.catalogs.items.effect_store.as_ref()
     }
-    pub fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
+    pub(crate) fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
         self.catalogs.item_template_flags(item_id)
     }
-    pub fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
+    pub(crate) fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
         self.catalogs.item_template_flags2(item_id)
     }
-    pub fn item_template_flags3(&self, item_id: u32) -> Option<u32> {
+    pub(crate) fn item_template_flags3(&self, item_id: u32) -> Option<u32> {
         self.catalogs.item_template_flags3(item_id)
     }
-    pub fn item_template_lock_id(&self, item_id: u32) -> Option<u16> {
+    pub(crate) fn item_template_lock_id(&self, item_id: u32) -> Option<u16> {
         self.catalogs.item_template_lock_id(item_id)
     }
-    pub fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
+    pub(crate) fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
         self.catalogs.item_template_start_quest_id(item_id)
     }
-    pub fn item_template_quality(&self, item_id: u32) -> Option<i8> {
+    pub(crate) fn item_template_quality(&self, item_id: u32) -> Option<i8> {
         self.catalogs.item_template_quality(item_id)
     }
-    pub fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
+    pub(crate) fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
         self.catalogs.item_storage_template(item_id)
     }
     /// Set the item random suffix store for this session.
     pub fn set_item_random_suffix_store(&mut self, store: Arc<ItemRandomSuffixStore>) {
         self.catalogs.items.random_suffix_store = Some(store);
     }
-    pub fn item_random_suffix_store(&self) -> Option<&Arc<ItemRandomSuffixStore>> {
+    pub(crate) fn item_random_suffix_store(&self) -> Option<&Arc<ItemRandomSuffixStore>> {
         self.catalogs.item_random_suffix_store()
     }
     /// Set the item random properties store for this session.
     pub fn set_item_random_properties_store(&mut self, store: Arc<ItemRandomPropertiesStore>) {
         self.catalogs.items.random_properties_store = Some(store);
     }
-    pub fn item_random_properties_store(&self) -> Option<&Arc<ItemRandomPropertiesStore>> {
+    pub(crate) fn item_random_properties_store(&self) -> Option<&Arc<ItemRandomPropertiesStore>> {
         self.catalogs.item_random_properties_store()
     }
     /// Set the QuestPackageItem store used by C++ quest package reward selection.

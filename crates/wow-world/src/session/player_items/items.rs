@@ -47,7 +47,7 @@ impl WorldSession {
 
         updates
     }
-    pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
+    pub(crate) fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
         self.catalogs.item_display_id(item_id, appearance_mod_id)
     }
     pub(crate) fn record_represented_items_set_item_like_cpp(
@@ -82,7 +82,7 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.item_drop_rate_like_cpp(hub, item_id)
     }
-    pub fn is_item_bound_account_wide(&self, item_id: u32) -> bool {
+    pub(crate) fn is_item_bound_account_wide(&self, item_id: u32) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.is_item_bound_account_wide(hub, item_id)
     }

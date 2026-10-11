@@ -11,13 +11,13 @@ use wow_world_application::CombatHandlerCxLikeCpp;
 use crate::session::WorldSession;
 
 impl WorldSession {
-    pub async fn handle_attack_stop(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_attack_stop(&mut self, pkt: WorldPacket) {
         CombatHandlerCxLikeCpp::new(crate::session::hub_mut(self))
             .handle_attack_stop(pkt)
             .await;
     }
 
-    pub fn handle_set_sheathed(&mut self, pkt: WorldPacket) {
+    pub(crate) fn handle_set_sheathed(&mut self, pkt: WorldPacket) {
         CombatHandlerCxLikeCpp::new(crate::session::hub_mut(self)).handle_set_sheathed(pkt);
     }
 }

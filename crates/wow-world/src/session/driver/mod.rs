@@ -46,7 +46,7 @@ impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).
     ///
     /// Returns the number of packets processed.
-    pub async fn update_with_catalogs_like_cpp(
+    pub(crate) async fn update_with_catalogs_like_cpp(
         &mut self,
         diff_ms: u32,
         catalogs: &SessionHandlerCatalogsLikeCpp,
@@ -224,7 +224,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn update(&mut self, diff_ms: u32) -> usize {
+    pub(crate) async fn update(&mut self, diff_ms: u32) -> usize {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.update_with_catalogs_like_cpp(diff_ms, &catalogs).await
     }
@@ -353,7 +353,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn process_pending(&mut self) {
+    pub(crate) async fn process_pending(&mut self) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.process_pending_with_catalogs_like_cpp(&catalogs).await;
     }

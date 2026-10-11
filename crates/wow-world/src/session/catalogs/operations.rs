@@ -12,7 +12,7 @@ impl WorldSession {
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
         self.catalogs.trinity_string_store = Some(store);
     }
-    pub fn trinity_string_store(&self) -> Option<&Arc<TrinityStringStoreLikeCpp>> {
+    pub(crate) fn trinity_string_store(&self) -> Option<&Arc<TrinityStringStoreLikeCpp>> {
         self.catalogs.trinity_string_store.as_ref()
     }
     /// Set the heirloom store for this session.
@@ -20,7 +20,7 @@ impl WorldSession {
         self.catalogs.heirloom_store = Some(store);
     }
     /// Get the heirloom store reference.
-    pub fn heirloom_store(&self) -> Option<&Arc<HeirloomStore>> {
+    pub(crate) fn heirloom_store(&self) -> Option<&Arc<HeirloomStore>> {
         self.catalogs.heirloom_store.as_ref()
     }
     /// Set the toy store for this session.
@@ -28,11 +28,11 @@ impl WorldSession {
         self.catalogs.toy_store = Some(store);
     }
     /// Get the toy store reference.
-    pub fn toy_store(&self) -> Option<&Arc<ToyStore>> {
+    pub(crate) fn toy_store(&self) -> Option<&Arc<ToyStore>> {
         self.catalogs.toy_store.as_ref()
     }
     #[cfg(test)]
-    pub fn set_player_create_info_store_like_cpp(
+    pub(crate) fn set_player_create_info_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoStoreLikeCpp>,
     ) {
@@ -44,7 +44,7 @@ impl WorldSession {
         self.core.admission.packet_spoof_config_like_cpp = config;
     }
     #[cfg(test)]
-    pub fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
+    pub(crate) fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
         self.config.feature_system_bpay_store_enabled_like_cpp = enabled;
     }
     pub(crate) fn update_speak_time_with_policy_like_cpp(
@@ -59,14 +59,14 @@ impl WorldSession {
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
         self.catalogs.rand_prop_points_store = Some(store);
     }
-    pub fn rand_prop_points_store(&self) -> Option<&Arc<RandPropPointsStore>> {
+    pub(crate) fn rand_prop_points_store(&self) -> Option<&Arc<RandPropPointsStore>> {
         self.catalogs.rand_prop_points_store()
     }
     /// Set the C++ ConditionMgr store loaded from the `conditions` table.
     pub fn set_condition_store(&mut self, store: Arc<ConditionEntriesByTypeStore>) {
         self.catalogs.condition_store = Some(store);
     }
-    pub fn condition_store(&self) -> Option<&Arc<ConditionEntriesByTypeStore>> {
+    pub(crate) fn condition_store(&self) -> Option<&Arc<ConditionEntriesByTypeStore>> {
         self.catalogs.condition_store()
     }
     /// Set the C++ PlayerCondition.db2 store for this session.
@@ -91,7 +91,7 @@ impl WorldSession {
     pub fn set_scaling_stat_values_store(&mut self, store: Arc<ScalingStatValuesStore>) {
         self.catalogs.scaling_stat_values_store = Some(store);
     }
-    pub fn player_condition_store(&self) -> Option<&Arc<PlayerConditionStore>> {
+    pub(crate) fn player_condition_store(&self) -> Option<&Arc<PlayerConditionStore>> {
         self.catalogs.player_condition_store()
     }
     /// Set the lock store for this session.
@@ -107,7 +107,7 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.chr.specialization_store = Some(store);
     }
-    pub fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
+    pub(crate) fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
         self.catalogs.chr_specialization_store()
     }
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
@@ -123,7 +123,7 @@ impl WorldSession {
         self.catalogs.lfg_dungeons_store.as_ref()
     }
     #[cfg(test)]
-    pub fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
+    pub(crate) fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
         self.catalogs.lfg_dungeon_store_like_cpp = Some(store);
     }
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
@@ -197,7 +197,7 @@ impl WorldSession {
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
         self.catalogs.chr.races_store = Some(store);
     }
-    pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
+    pub(crate) fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
         self.catalogs.set_cinematic_sequences_store(store)
     }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
@@ -317,7 +317,7 @@ impl WorldSession {
         self.config.max_player_level_config_like_cpp = max_player_level_config;
     }
     #[cfg(test)]
-    pub fn set_rested_xp_config_like_cpp(
+    pub(crate) fn set_rested_xp_config_like_cpp(
         &mut self,
         max_player_level_config: u32,
         rest_offline_wilderness_rate: f32,

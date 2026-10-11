@@ -319,7 +319,7 @@ impl WorldSession {
     /// represents the packet shape plus spellclick stores/conditions/visibility;
     /// executing spellclick casts, vehicle seat handling, and AI callbacks stays
     /// in the next bounded runtime slice.
-    pub async fn handle_spell_click_with_generator_like_cpp(
+    pub(crate) async fn handle_spell_click_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -373,7 +373,7 @@ impl WorldSession {
         );
     }
     #[cfg(test)]
-    pub async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_spell_click_with_generator_like_cpp(
@@ -389,7 +389,7 @@ impl WorldSession {
     /// `0xBADD` value, so `WorldSession` probes this handler from that branch
     /// and falls through to other 0xBADD packet shapes when the target does not
     /// match C++ `Player::GetUnitBeingMoved()`.
-    pub async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp(
+    pub(crate) async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
     ) -> bool {
@@ -407,7 +407,7 @@ impl WorldSession {
         true
     }
     /// Handle `CMSG_SELF_RES`.
-    pub async fn handle_self_res_with_generator_like_cpp(
+    pub(crate) async fn handle_self_res_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -457,7 +457,7 @@ impl WorldSession {
         }
     }
     #[cfg(test)]
-    pub async fn handle_self_res(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_self_res(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_self_res_with_generator_like_cpp(

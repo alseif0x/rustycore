@@ -19,7 +19,7 @@ impl WorldSession {
     /// Queries npc_vendor for the creature's items (including reference vendors, item_id < 0)
     /// and sends SMSG_VENDOR_INVENTORY. Entry is resolved from the visibility tracker or,
     /// if missing, from world.creature by GUID (fallback when NPC not in tracker).
-    pub async fn handle_list_inventory(&mut self, hello: Hello) {
+    pub(crate) async fn handle_list_inventory(&mut self, hello: Hello) {
         let vendor_guid = hello.unit;
         info!(
             "ListInventory for {:?} from account {}",
