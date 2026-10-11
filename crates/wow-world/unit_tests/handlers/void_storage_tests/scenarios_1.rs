@@ -267,6 +267,10 @@ fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
             include_str!("../../../src/handlers/void_storage.rs"),
         ),
         (
+            "void_storage/host.rs",
+            include_str!("../../../src/handlers/void_storage/host.rs"),
+        ),
+        (
             "void_storage/items.rs",
             include_str!("../../../src/handlers/void_storage/items.rs"),
         ),
