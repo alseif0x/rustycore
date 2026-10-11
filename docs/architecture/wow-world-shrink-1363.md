@@ -462,3 +462,53 @@ cargo check --locked -p wow-world --lib --profile test --message-format json  > 
 # dead_code items of the lib artifact (profile.test=false) minus those of the
 # lib-test artifact (profile.test=true) are the test-only class.
 ```
+
+## Slice 1 result (dead code and test-only production items)
+
+Branch `1363-s1-dead-code`, base `d1d0ff94d`. Re-derived from rustc on the branch
+itself rather than from the lists above (they had drifted by a few items); the same
+three builds are compared: `lib` (production), `lib` with `test-fixtures` (what
+dependents' tests link) and `lib --profile test`.
+
+| rustc `wow-world` lib warnings | base | slice 1 |
+|---|---:|---:|
+| `dead_code`, production lib | 159 | 0 |
+| `dead_code`, lib + `test-fixtures` | 165 | 0 |
+| `dead_code`, lib test | 118 | 0 |
+| `unused_imports`, production lib | 240 | 167 |
+
+- **Deleted.** Every item dead in both the production and the test build (the
+  cascade produced no second round), the test-gated items no test reached, the
+  four files and the `quest` module those deletions emptied, the dead
+  `RepresentedGameObjectLootStateLikeCpp` snapshot (its only reader wanted
+  existence, now computed directly from the same three reads), the unread hub
+  context fields, the cfg(test)-only `SavedPlayerReceipt::acknowledge` path,
+  and imports unused in all three builds (including the two `session/mod.rs`
+  test imports slice 0 left behind).
+- **Moved to the test tree.** Production methods reached only by `cfg(test)`
+  code moved verbatim into the module's `unit_tests/**/f3_shims.rs` (when the
+  module already had one) or a new `unit_tests/**/test_only.rs` child module;
+  visibility is widened to `pub(crate)` only where a sibling test calls the
+  method. Two emptied source modules (`handlers/character/stats_queries.rs`,
+  `handlers/group/ops_2.rs`) are now mounted directly from their test file.
+- **cfg(test) in place.** Test-only consts, type aliases, free functions with
+  path-sensitive callers, two context fields and the imports only those items
+  use. `test-fixtures`-gated shims no dependent crate reaches are narrowed to
+  `cfg(test)`.
+- **The 22 `pub` fns** are `pub(crate)` now; the ones that were then dead are
+  deleted and the test-only ones moved, like the rest.
+- **No test is deleted.** Every test-only entry point either delegates to the
+  live production owner (the application/lifecycle/social handler bodies) or is
+  an unregistered represented port (the `0xBADD` battle-pet bodies), so its tests
+  keep covering real behaviour; the source-scan `include_str!` list drops the
+  deleted `stats_queries.rs`.
+- **Policy.** `wow-world-test-support` is a restricted package in
+  `tools/architecture/dependency-policy.json` (its current nine workspace
+  dependencies, `flume` externally), and the fixture
+  `forbidden-test-support-to-wow-world.json` proves a `wow-world` edge is
+  rejected.
+- **Accounting.** R1 shrink of `crates/wow-world/src/` is 5,237 physical lines
+  with no charged growth (the 3,176 lines added under `unit_tests/` are
+  uncharged test trees). The hotspot ledger's production and total ceilings fall;
+  its test ceilings rise by exactly the reclassified bodies (session +2,860,
+  character +227, loot +50, quest +26), recorded as reviewed reclassification.
