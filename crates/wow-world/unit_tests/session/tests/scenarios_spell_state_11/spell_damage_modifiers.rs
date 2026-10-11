@@ -12,6 +12,11 @@ async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `register_test_creature` uses entry 9001; give it creature type 7.
     session.set_creature_template_lifecycle_store_like_cpp(Arc::new(
@@ -133,6 +138,11 @@ async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
@@ -257,6 +267,11 @@ async fn spell_school_damage_applies_damage_done_for_mechanic_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([
@@ -379,6 +394,11 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([

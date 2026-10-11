@@ -408,6 +408,11 @@ fn corpse_despawn_syncs_canonical_corpse_timer() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_005);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let despawn_at = Instant::now() + std::time::Duration::from_secs(30);
 

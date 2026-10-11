@@ -10,6 +10,11 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 2_000);
 
     session.set_spell_misc_store(Arc::new(wow_data::SpellMiscStore::from_entries([

@@ -1,41 +1,34 @@
-//! #1263 F6-8D3a-2 regressions: the admitted canonical executor runs the
-//! creature movement phase with parity to the legacy bridge.
+//! #1263 F6-8D3a-2 regressions: the admitted canonical executor's creature
+//! movement phase, against the recorded legacy-bridge expectations.
 //!
-//! Each fixture is built twice, identically: one creature and one player on
-//! map 0/0. World **L** is driven through the legacy bridge in the legacy loop
-//! order — the complete movement phase
-//! (`run_legacy_creature_movement_tick_once_like_cpp`), aggro plus its
-//! canonical start/stop commit, spell, creature melee — and world **C**
-//! through `run_admitted_creature_combat_phases_isolated_like_cpp`, which now
-//! runs the movement phase where the legacy loop runs it, on the canonical
-//! incarnation in place. The comparison covers each phase's counters (the
-//! movement `canonical_syncs` attempt count is the legacy bridge's mirror and
-//! is masked: the executor has no mirror), the `RuntimePlan` packet bytes and
-//! recipients, the commands, and the creature-owned observables: RNG position
-//! (next draws of a clone), clock, position, home, AI and unit state, health,
-//! the active `MoveSpline`, the spline id, the selected `MotionMaster`
-//! generator and the movement flags.
+//! Each fixture: one creature and one player on map 0/0, driven through
+//! `run_admitted_creature_combat_phases_isolated_like_cpp`, which runs the
+//! movement phase on the canonical incarnation in place.
+//!
+//! Until #1263 F6-8E each fixture was also driven through the legacy bridge
+//! and the two compared after every tick (F6-8D3a-2 parity). F6-8E deleted
+//! the bridge; its observables are recorded in
+//! `f6_8d3a_recorded_expectations.tsv` (see `f6_8d3a_recorded_expectations`)
+//! and checked against the executor after every tick: each phase's counters,
+//! the `RuntimePlan` packet bytes and recipients, the commands, and the
+//! creature-owned observables: RNG position (next draws of a clone), clock,
+//! position, home, AI and unit state, health, the active `MoveSpline`, the
+//! spline id, the selected `MotionMaster` generator and the movement flags.
 //!
 //! Nothing on the movement path draws from the thread RNG or reads a process
 //! clock: random and waypoint rolls come from the creature-owned runtime RNG,
 //! and every spline deadline is the creature-local `Unit::Update` clock. No
-//! field is masked.
-//!
-//! The legacy bridge launches splines from its cached `CreatureCreateData`
-//! speed rates and the canonical incarnation from `Unit::m_speed_rate`. The
-//! fixtures set the unit rates to the template defaults the projection carries
-//! (walk 1.0, run 1.14286) so both read the same C++ `GetSpeedRate`.
-//!
-//! Lifecycle (corpse despawn, respawn and its visibility refresh) is the
-//! declared F6-8D3a-2 boundary and is not part of the executor yet.
+//! field is masked. The fixtures set the unit speed rates to the template
+//! defaults (walk 1.0, run 1.14286) the recording ran with.
 
+use super::f6_8d3a_recorded_expectations::{RecordedExpectationsLikeCpp, assert_recorded_like_cpp};
 use super::*;
 
 const D3A2_SEED_LIKE_CPP: u64 = 0xD3A2_0001;
 const D3A2_RUN_RATE_LIKE_CPP: f32 = 1.14286;
 
-/// The player chase snapshots the legacy bridge takes from the registry
-/// (`collect_legacy_chase_target_snapshots_like_cpp`: position, combat reach,
+/// The player chase snapshots the map loop takes from the registry
+/// (`collect_chase_target_snapshots_like_cpp`: position, combat reach,
 /// in world, dry), read from the canonical players.
 pub(super) fn d3a2_chase_targets_like_cpp(
     canonical: &SharedCanonicalMapManager,
@@ -70,37 +63,18 @@ pub(super) fn d3a2_mmap_config_like_cpp() -> MMapRuntimeConfigLikeCpp {
     }
 }
 
-/// The complete legacy movement phase, as the world-server bridge runs it.
-pub(super) fn d3a2_legacy_movement_tick_like_cpp(
-    manager: &SharedCanonicalMapManager,
-    canonical: &SharedCanonicalMapManager,
-    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
-    diff_ms: u32,
-) -> crate::session::LegacyCreatureMovementTickOutcomeLikeCpp {
-    run_canonical_creature_movement_phase_for_test_like_cpp(
-        canonical,
-        &d3a2_mmap_config_like_cpp(),
-        None,
-        chase_targets,
-        diff_ms,
-    )
-}
-
-/// The movement counters without the legacy mirror's attempt count.
+/// The movement counters, as recorded (without the deleted legacy-owner skip
+/// flag and mirror attempt count).
 pub(super) fn d3a2_movement_counters_like_cpp(
     outcome: &crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
 ) -> String {
     format!(
-        "skipped={} maps={} creatures={} packets={}",
-        outcome.skipped_owner_not_global,
-        outcome.maps_seen,
-        outcome.creatures_seen,
-        outcome.movement_packets,
+        "maps={} creatures={} packets={}",
+        outcome.maps_seen, outcome.creatures_seen, outcome.movement_packets,
     )
 }
 
 struct D3a2WorldLikeCpp {
-    manager: SharedCanonicalMapManager,
     canonical: SharedCanonicalMapManager,
     _session: WorldSession,
     creature: ObjectGuid,
@@ -116,14 +90,13 @@ fn d3a2_world_like_cpp(
     configure: impl FnOnce(&mut crate::map_manager::WorldCreature, ObjectGuid),
     candidate: impl FnOnce(ObjectGuid) -> Option<LegacyCreatureAggroCandidateLikeCpp>,
 ) -> D3a2WorldLikeCpp {
-    let manager = shared_map_manager();
-    let canonical = Arc::clone(&manager);
+    let canonical = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature = test_creature_guid(base);
     let player = ObjectGuid::create_player(1, base + 1);
     register_test_creature_mirrored_like_cpp(
         &mut session,
-        manager.clone(),
+        canonical.clone(),
         &canonical,
         creature,
         25,
@@ -155,7 +128,6 @@ fn d3a2_world_like_cpp(
         .expect("the creature is admitted");
     let candidates = candidate(player).into_iter().collect();
     D3a2WorldLikeCpp {
-        manager,
         canonical,
         _session: session,
         creature,
@@ -164,77 +136,11 @@ fn d3a2_world_like_cpp(
     }
 }
 
-#[derive(Debug)]
-struct D3a2TickLikeCpp {
-    movement: crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
-    aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
-    spell: crate::session::LegacyCreatureSpellTickOutcomeLikeCpp,
-    melee: crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
-}
-
-/// World L: the legacy bridge in the legacy loop order.
-fn d3a2_legacy_tick_like_cpp(world: &D3a2WorldLikeCpp, diff_ms: u32) -> D3a2TickLikeCpp {
-    let config = legacy_aggro_hostile_config_like_cpp();
-    let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let _ = run_canonical_player_melee_phase_for_test_like_cpp(
-        &world.canonical,
-        &[],
-        diff_ms,
-        &mut phase_state,
-        &config,
-    );
-    let chase_targets = d3a2_chase_targets_like_cpp(&world.canonical, &[world.player]);
-    let movement = d3a2_legacy_movement_tick_like_cpp(
-        &world.manager,
-        &world.canonical,
-        &chase_targets,
-        diff_ms,
-    );
-    let mut aggro = run_canonical_creature_aggro_phase_for_test_like_cpp(
-        &world.canonical,
-        &world.candidates,
-        config.clone(),
-    );
-    {
-        let mut guard = world.canonical.lock().unwrap();
-        let starts = crate::session::apply_creature_attack_start_commands_on_manager_like_cpp(
-            &mut guard,
-            &aggro.commands,
-        );
-        let stops = crate::session::apply_creature_attack_stop_commands_on_manager_like_cpp(
-            &mut guard,
-            &aggro.stop_commands,
-        );
-        crate::session::retain_committed_creature_combat_events_like_cpp(
-            &mut aggro.plan,
-            &aggro.commands,
-            &starts,
-            &aggro.stop_commands,
-            &stops,
-        );
-    }
-    let spell = run_canonical_creature_spell_phase_for_test_like_cpp(
-        &world.canonical,
-        &config,
-    );
-    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &world.canonical,
-        &config,
-    );
-    D3a2TickLikeCpp {
-        movement,
-        aggro,
-        spell,
-        melee,
-    }
-}
-
-/// World C: one admitted canonical tick through the executor. Returns the
-/// outcome and the admitted diff, which the legacy world then replays.
+/// One admitted canonical tick through the executor.
 fn d3a2_executor_tick_like_cpp(
     world: &D3a2WorldLikeCpp,
     diff_ms: u32,
-) -> (AdmittedCreatureCombatPhasesOutcomeLikeCpp, u32) {
+) -> AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     let plan = world
         .canonical
         .lock()
@@ -284,7 +190,7 @@ fn d3a2_executor_tick_like_cpp(
         "one movement-phase clock step for the admitted creature"
     );
     let _ = world.canonical.lock().unwrap().abandon_tick_like_cpp(plan);
-    (outcome, admission.diff_ms)
+    outcome
 }
 
 /// Every movement-relevant creature-owned observable.
@@ -311,11 +217,6 @@ fn d3a2_creature_state_like_cpp(creature: &wow_entities::Creature) -> String {
     )
 }
 
-fn d3a2_legacy_creature_like_cpp(world: &D3a2WorldLikeCpp) -> String {
-    let guard = world.manager.lock().unwrap();
-    d3a2_creature_state_like_cpp(&guard.find_creature(0, 0, world.creature).unwrap().creature)
-}
-
 fn d3a2_canonical_creature_like_cpp(world: &D3a2WorldLikeCpp) -> String {
     let guard = world.canonical.lock().unwrap();
     d3a2_creature_state_like_cpp(
@@ -339,102 +240,58 @@ fn d3a2_counters_like_cpp<T: std::fmt::Debug>(outcome: &T) -> String {
     rendered[..cut].to_string()
 }
 
-/// The parity check over one tick. `Err` names every observable that differs.
-fn d3a2_parity_like_cpp(
-    legacy_world: &D3a2WorldLikeCpp,
-    legacy: &D3a2TickLikeCpp,
-    executor_world: &D3a2WorldLikeCpp,
+/// One pass over every recorded observable of one tick. `Err` names every
+/// observable that differs.
+fn d3a2_check_like_cpp(
+    expectations: &mut RecordedExpectationsLikeCpp,
+    world: &D3a2WorldLikeCpp,
     executor: &AdmittedCreatureCombatPhasesOutcomeLikeCpp,
 ) -> Result<(), Vec<String>> {
-    let mut mismatches = Vec::new();
-    let mut check = |label: &str, left: String, right: String| {
-        if left != right {
-            mismatches.push(format!("{label}:\n  legacy:   {left}\n  executor: {right}"));
-        }
-    };
-    check(
+    let mut pass = expectations.pass_like_cpp();
+    pass.check_like_cpp(
         "movement counters",
-        d3a2_movement_counters_like_cpp(&legacy.movement),
         d3a2_movement_counters_like_cpp(&executor.movement),
     );
-    check(
+    pass.check_like_cpp(
         "movement plan",
-        format!("{:?}", legacy.movement.plan.events),
         format!("{:?}", executor.movement.plan.events),
     );
-    check(
-        "aggro counters",
-        d3a2_counters_like_cpp(&legacy.aggro),
-        d3a2_counters_like_cpp(&executor.aggro),
-    );
-    check(
-        "aggro plan",
-        format!("{:?}", legacy.aggro.plan.events),
-        format!("{:?}", executor.aggro.plan.events),
-    );
-    check(
+    pass.check_like_cpp("aggro counters", d3a2_counters_like_cpp(&executor.aggro));
+    pass.check_like_cpp("aggro plan", format!("{:?}", executor.aggro.plan.events));
+    pass.check_like_cpp(
         "aggro commands",
-        format!(
-            "{:?}",
-            (&legacy.aggro.commands, &legacy.aggro.stop_commands)
-        ),
         format!(
             "{:?}",
             (&executor.aggro.commands, &executor.aggro.stop_commands)
         ),
     );
-    check(
-        "spell counters",
-        d3a2_counters_like_cpp(&legacy.spell),
-        d3a2_counters_like_cpp(&executor.spell),
-    );
-    check(
-        "melee counters",
-        d3a2_counters_like_cpp(&legacy.melee),
-        d3a2_counters_like_cpp(&executor.melee),
-    );
-    check(
-        "melee plan",
-        format!("{:?}", legacy.melee.plan.events),
-        format!("{:?}", executor.melee.plan.events),
-    );
-    check(
-        "melee commands",
-        format!("{:?}", legacy.melee.commands),
-        format!("{:?}", executor.melee.commands),
-    );
-    check(
-        "creature",
-        d3a2_legacy_creature_like_cpp(legacy_world),
-        d3a2_canonical_creature_like_cpp(executor_world),
-    );
-    if mismatches.is_empty() {
-        Ok(())
-    } else {
-        Err(mismatches)
-    }
+    pass.check_like_cpp("spell counters", d3a2_counters_like_cpp(&executor.spell));
+    pass.check_like_cpp("melee counters", d3a2_counters_like_cpp(&executor.melee));
+    pass.check_like_cpp("melee plan", format!("{:?}", executor.melee.plan.events));
+    pass.check_like_cpp("melee commands", format!("{:?}", executor.melee.commands));
+    pass.check_like_cpp("creature", d3a2_canonical_creature_like_cpp(world));
+    pass.finish_like_cpp()
 }
 
-/// Drive both worlds through `ticks` ticks of `diff_ms`, checking parity after
-/// each, and return every tick's pair of outcomes.
-fn d3a2_drive_both_like_cpp(
-    legacy_world: &D3a2WorldLikeCpp,
-    executor_world: &D3a2WorldLikeCpp,
+/// Drive the fixture through `ticks` ticks of `diff_ms`, checking each against
+/// the recorded expectations of `test`, and return every tick's outcome.
+fn d3a2_drive_like_cpp(
+    test: &'static str,
+    world: &D3a2WorldLikeCpp,
     ticks: usize,
     diff_ms: u32,
-) -> Vec<(D3a2TickLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp)> {
-    let mut outcomes = Vec::with_capacity(ticks);
-    for tick in 0..ticks {
-        let (executor, admitted_diff_ms) = d3a2_executor_tick_like_cpp(executor_world, diff_ms);
-        let legacy = d3a2_legacy_tick_like_cpp(legacy_world, admitted_diff_ms);
-        if let Err(mismatches) =
-            d3a2_parity_like_cpp(legacy_world, &legacy, executor_world, &executor)
-        {
-            panic!("tick {tick}: parity broken:\n{}", mismatches.join("\n"));
-        }
-        outcomes.push((legacy, executor));
-    }
-    outcomes
+) -> Vec<AdmittedCreatureCombatPhasesOutcomeLikeCpp> {
+    let mut expectations = RecordedExpectationsLikeCpp::for_test_like_cpp(test);
+    (0..ticks)
+        .map(|tick| {
+            let executor = d3a2_executor_tick_like_cpp(world, diff_ms);
+            assert_recorded_like_cpp(
+                &format!("tick {tick}"),
+                d3a2_check_like_cpp(&mut expectations, world, &executor),
+            );
+            executor
+        })
+        .collect()
 }
 
 fn d3a2_opcode_like_cpp(packet_bytes: &[u8]) -> u16 {
@@ -462,11 +319,15 @@ fn d3a2_chase_world_like_cpp(base: i64) -> D3a2WorldLikeCpp {
 }
 
 #[test]
-fn canonical_executor_matches_legacy_bridge_chase_movement_like_cpp() {
-    let legacy_world = d3a2_chase_world_like_cpp(96_100);
+fn canonical_executor_matches_recorded_chase_movement_like_cpp() {
     let executor_world = d3a2_chase_world_like_cpp(96_100);
-    let outcomes = d3a2_drive_both_like_cpp(&legacy_world, &executor_world, 3, 200);
-    let (legacy, executor) = &outcomes[0];
+    let outcomes = d3a2_drive_like_cpp(
+        "canonical_executor_matches_recorded_chase_movement_like_cpp",
+        &executor_world,
+        3,
+        200,
+    );
+    let executor = &outcomes[0];
     // The phase acted: one chase spline toward the player, published to the
     // creature's nearby observers.
     assert_eq!(executor.movement.creatures_seen, 1);
@@ -485,10 +346,6 @@ fn canonical_executor_matches_legacy_bridge_chase_movement_like_cpp() {
         event.recipients,
         crate::map_manager::RecipientRule::NearbyVisible { .. }
     ));
-    assert_eq!(
-        legacy.movement.plan.events[0].packet_bytes, event.packet_bytes,
-        "the same MonsterMove bytes"
-    );
     let canonical = d3a2_canonical_creature_like_cpp(&executor_world);
     assert!(canonical.contains("generator=Some(Chase)"), "{canonical}");
     // The canonical incarnation itself walked the spline toward the player.
@@ -506,7 +363,7 @@ fn canonical_executor_matches_legacy_bridge_chase_movement_like_cpp() {
 }
 
 #[test]
-fn canonical_executor_matches_legacy_bridge_home_return_and_restore_like_cpp() {
+fn canonical_executor_matches_recorded_home_return_and_restore_like_cpp() {
     let build = || {
         d3a2_world_like_cpp(
             96_200,
@@ -523,12 +380,16 @@ fn canonical_executor_matches_legacy_bridge_home_return_and_restore_like_cpp() {
             |_| None,
         )
     };
-    let legacy_world = build();
     let executor_world = build();
-    let outcomes = d3a2_drive_both_like_cpp(&legacy_world, &executor_world, 6, 500);
+    let outcomes = d3a2_drive_like_cpp(
+        "canonical_executor_matches_recorded_home_return_and_restore_like_cpp",
+        &executor_world,
+        6,
+        500,
+    );
 
     // Tick 0: `HomeMovementGenerator` launches the return to the spawn point.
-    let (_, first) = &outcomes[0];
+    let first = &outcomes[0];
     assert_eq!(first.movement.movement_packets, 1, "{:?}", first.movement);
     assert_eq!(
         d3a2_opcode_like_cpp(&first.movement.plan.events[0].packet_bytes),
@@ -538,7 +399,7 @@ fn canonical_executor_matches_legacy_bridge_home_return_and_restore_like_cpp() {
     // creature and the movement phase publishes the values update once.
     let restores: Vec<_> = outcomes
         .iter()
-        .flat_map(|(_, executor)| &executor.movement.plan.events)
+        .flat_map(|executor| &executor.movement.plan.events)
         .filter(|event| {
             d3a2_opcode_like_cpp(&event.packet_bytes)
                 == wow_constants::ServerOpcodes::UpdateObject as u16
@@ -555,7 +416,7 @@ fn canonical_executor_matches_legacy_bridge_home_return_and_restore_like_cpp() {
 }
 
 #[test]
-fn canonical_executor_matches_legacy_bridge_alert_move_distract_like_cpp() {
+fn canonical_executor_matches_recorded_alert_move_distract_like_cpp() {
     use wow_packet::ServerPacket;
 
     let build = || {
@@ -577,14 +438,17 @@ fn canonical_executor_matches_legacy_bridge_alert_move_distract_like_cpp() {
             },
         )
     };
-    let legacy_world = build();
     let executor_world = build();
-    let outcomes = d3a2_drive_both_like_cpp(&legacy_world, &executor_world, 1, 200);
-    let (legacy, executor) = &outcomes[0];
+    let outcomes = d3a2_drive_like_cpp(
+        "canonical_executor_matches_recorded_alert_move_distract_like_cpp",
+        &executor_world,
+        1,
+        200,
+    );
+    let executor = &outcomes[0];
     // `CreatureAI::TriggerAlert`: the alert reaction is published because the
     // canonical store now starts `MoveDistract` itself.
     assert_eq!(executor.aggro.alert_triggers, 1, "{:?}", executor.aggro);
-    assert_eq!(legacy.aggro.alert_triggers, 1);
     assert_eq!(executor.aggro.aggro_starts, 0);
     assert_eq!(
         executor.aggro.plan.events[0].packet_bytes,
@@ -617,12 +481,11 @@ fn canonical_executor_matches_legacy_bridge_alert_move_distract_like_cpp() {
     );
 }
 
-/// Negative control: the executor's creature stands half a yard off before the
-/// tick, which the parity check catches in the movement packet and the
-/// creature state.
+/// Negative control: the creature stands half a yard off before the tick,
+/// which the check against the recorded expectations catches in the movement
+/// packet and the creature state.
 #[test]
-fn canonical_executor_movement_parity_detects_a_perturbed_position_like_cpp() {
-    let legacy_world = d3a2_chase_world_like_cpp(96_400);
+fn canonical_executor_movement_regression_detects_a_perturbed_position_like_cpp() {
     let executor_world = d3a2_chase_world_like_cpp(96_400);
     {
         let mut guard = executor_world.canonical.lock().unwrap();
@@ -634,10 +497,12 @@ fn canonical_executor_movement_parity_detects_a_perturbed_position_like_cpp() {
             .unwrap();
         creature.set_ai_position(Position::new(10.5, 10.0, 0.0, 0.0));
     }
-    let (executor, admitted_diff_ms) = d3a2_executor_tick_like_cpp(&executor_world, 200);
-    let legacy = d3a2_legacy_tick_like_cpp(&legacy_world, admitted_diff_ms);
-    let mismatches = d3a2_parity_like_cpp(&legacy_world, &legacy, &executor_world, &executor)
-        .expect_err("a perturbed position must break parity");
+    let executor = d3a2_executor_tick_like_cpp(&executor_world, 200);
+    let mut expectations = RecordedExpectationsLikeCpp::for_test_like_cpp(
+        "canonical_executor_movement_regression_detects_a_perturbed_position_like_cpp",
+    );
+    let mismatches = d3a2_check_like_cpp(&mut expectations, &executor_world, &executor)
+        .expect_err("a perturbed position must be caught");
     assert!(
         mismatches
             .iter()

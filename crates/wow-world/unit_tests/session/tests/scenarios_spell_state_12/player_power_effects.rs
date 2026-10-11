@@ -581,6 +581,11 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     session
@@ -600,13 +605,7 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
         7,
         80,
     );
-    adopt_canonical_test_incarnation_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player_guid);

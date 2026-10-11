@@ -284,7 +284,7 @@ async fn gossip_hello_questgiver_without_db_gossip_menu_opens_quest_like_cpp() {
     let mut store = store_with_quests(&[3006]);
     store.starter_quests.entry(entry).or_default().push(3006);
     session.set_quest_store(Arc::new(store));
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         guid,
         entry,
@@ -304,7 +304,7 @@ async fn gossip_hello_questgiver_without_quest_relation_keeps_empty_gossip_fallb
     let entry = 9307;
     let guid = creature_guid(entry, 307);
     session.set_quest_store(Arc::new(store_with_quests(&[3007])));
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         guid,
         entry,
@@ -333,7 +333,7 @@ async fn gossip_hello_hostile_questgiver_fallback_is_rejected_like_cpp() {
             faction_template_entry(1, 1, 0, 0, 0),
         ]),
     ));
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         guid,
         entry,
@@ -355,7 +355,7 @@ async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
     let mut store = store_with_quests(&[9_393]);
     store.starter_quests.entry(entry).or_default().push(9_393);
     session.set_quest_store(Arc::new(store));
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         guid,
         entry,
@@ -398,7 +398,7 @@ async fn quest_giver_hello_plain_questgiver_keeps_direct_quest_open_like_cpp() {
     let mut store = store_with_quests(&[3008]);
     store.starter_quests.entry(entry).or_default().push(3008);
     session.set_quest_store(Arc::new(store));
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         guid,
         entry,

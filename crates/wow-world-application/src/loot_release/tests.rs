@@ -67,3 +67,39 @@ fn durable_fanout_viewers_survive_an_empty_committed_snapshot() {
     let viewers = durable_loot_item_fanout_viewers_like_cpp(&[], &[]);
     assert!(viewers.is_empty());
 }
+
+/// #1263 F6-8E review D-1: a refused or absent corpse lifecycle transition
+/// still publishes the forced DynamicFlags VALUES.
+#[test]
+fn fully_looted_release_publishes_the_forced_values_when_the_lifecycle_refuses() {
+    let forced = wow_entities::UnitValuesUpdate {
+        changed_object_type_mask: 1,
+        object_data: None,
+        unit_data: None,
+    };
+    let lifecycle = (
+        Some((7_u32, 0_u32)),
+        wow_entities::UnitValuesUpdate {
+            changed_object_type_mask: 2,
+            object_data: None,
+            unit_data: None,
+        },
+    );
+    assert_eq!(
+        creature::fully_looted_release_values_to_publish_like_cpp(Some(&lifecycle), Some(&forced)),
+        Some(&lifecycle.1),
+        "the lifecycle's VALUES carry the removed lootable flag"
+    );
+    assert_eq!(
+        creature::fully_looted_release_values_to_publish_like_cpp::<Option<(u32, u32)>>(
+            None,
+            Some(&forced)
+        ),
+        Some(&forced),
+        "a refused lifecycle transition still publishes the forced field"
+    );
+    assert_eq!(
+        creature::fully_looted_release_values_to_publish_like_cpp::<Option<(u32, u32)>>(None, None),
+        None
+    );
+}

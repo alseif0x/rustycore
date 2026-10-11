@@ -40,9 +40,7 @@ use std::time::Instant;
 use tracing::{debug, info};
 use wow_packet::WorldPacket;
 
-use super::{
-    ClientOpcodes, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,
-};
+use super::{ClientOpcodes, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
 impl WorldSession {
     /// Process queued packets (up to [`MAX_PACKETS_PER_UPDATE`] per call).

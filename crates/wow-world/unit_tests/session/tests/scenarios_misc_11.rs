@@ -729,7 +729,6 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
 }
 #[test]
 fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -767,8 +766,7 @@ fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_c
         spell_range_entry_like_cpp(71, 5.0, 30.0),
     ])));
 
-    let rejected =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let rejected = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(rejected.casts_ready, 0, "spell tick outcome: {rejected:?}");
     assert_eq!(rejected.spell_range_rejections, 1);

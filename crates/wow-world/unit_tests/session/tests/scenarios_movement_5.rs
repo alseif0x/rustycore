@@ -60,14 +60,12 @@ async fn teleport_to_instance_rejects_new_instance_farm_limit_before_transfer_li
 #[tokio::test]
 async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_like_cpp() {
     let (mut session, _, send_rx) = make_session();
-    let legacy_manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
     let player_registry = Arc::new(PlayerRegistry::default());
     let player_guid = ObjectGuid::create_player(1, 791);
     let selected_guid = test_creature_guid(79_101);
     let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
 
-    session.set_canonical_map_manager(Arc::clone(&legacy_manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -171,18 +169,11 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .combat
                 .is_in_combat_with(player_guid)
         );
-    }
-    {
-        let manager = legacy_manager.lock().unwrap();
-        let creature = manager.find_creature(571, 0, selected_guid).unwrap();
-        assert!(!creature.creature.unit().has_attacker_like_cpp(player_guid));
-        assert_eq!(creature.creature.ai_ownership().combat_target, None);
-        // #1263 F6-8D3b-2: the legacy copy is now the canonical incarnation's
-        // projection; ending the PvE combat reference removed its threat entry
-        // there (C++ `CombatReference::EndCombat` → `ClearThreat`).
+        assert_eq!(creature.ai_ownership().combat_target, None);
+        // Ending the PvE combat reference removed its threat entry (C++
+        // `CombatReference::EndCombat` → `ClearThreat`).
         assert_eq!(
             creature
-                .creature
                 .unit()
                 .subsystems()
                 .combat

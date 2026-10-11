@@ -58,6 +58,11 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -170,8 +175,7 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        let outcome =
-            run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
+        let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
         outcome.commands.last().expect("one swing command").clone()
     };
     let aura_slot = |session: &WorldSession, spell_id: i32| {
@@ -254,7 +258,6 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
 /// runtime reads it through the aggro config's store handle.
 #[test]
 fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -298,6 +301,11 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -403,7 +411,6 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
 /// creature aura list existed, but the melee owner discarded it for damage.
 #[test]
 fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -412,7 +419,17 @@ fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     session
         .mutate_world_creature(attacker_guid, |creature| {

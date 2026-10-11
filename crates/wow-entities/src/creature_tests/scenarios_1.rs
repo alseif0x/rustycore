@@ -459,7 +459,7 @@ fn creature_corpse_loot_flags_apply_after_death_state_like_cpp() {
 }
 
 #[test]
-fn creature_ai_ownership_respawn_aggro_and_corpse_timer() {
+fn creature_ai_ownership_aggro_and_corpse_timer() {
     let mut creature = Creature::new(false);
     let home = Position::new(10.0, 20.0, 30.0, 1.0);
     let attacker = ObjectGuid::create_player(1, 7);
@@ -486,14 +486,6 @@ fn creature_ai_ownership_respawn_aggro_and_corpse_timer() {
     creature.set_ai_corpse_despawn_at(Some(130));
     creature.set_last_damaged_time_like_cpp(1_010);
     assert_eq!(creature.ai_ownership().corpse_despawn_at_ms, Some(130));
-    creature.respawn_ai(200);
-    assert!(creature.is_alive());
-    assert_eq!(creature.current_health(), 80);
-    assert_eq!(creature.position(), home);
-    assert_eq!(creature.ai_state(), CreatureAiState::Idle);
-    assert_eq!(creature.ai_ownership().combat_target, None);
-    assert_eq!(creature.ai_ownership().corpse_despawn_at_ms, None);
-    assert_eq!(creature.last_damaged_time(), 0);
 }
 
 #[test]

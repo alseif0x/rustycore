@@ -169,10 +169,11 @@ impl crate::session::HubRef<'_> {
             return canonical;
         }
 
-        let key = self.core.current_canonical_player_map_key_like_cpp()?;
+        // The mutation root's key (the deleted legacy runtime's key too).
+        let (map_id, instance_id) = self.core.current_runtime_map_key_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
-            .find_map(key.map_id, key.instance_id)
+            .find_map(u32::from(map_id), instance_id)
             .and_then(|managed| {
                 managed
                     .map()
@@ -191,10 +192,11 @@ impl crate::session::HubRef<'_> {
             return self.player_position_like_cpp();
         }
 
-        let key = self.core.current_canonical_player_map_key_like_cpp()?;
+        // The mutation root's key (the deleted legacy runtime's key too).
+        let (map_id, instance_id) = self.core.current_runtime_map_key_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
-            .find_map(key.map_id, key.instance_id)
+            .find_map(u32::from(map_id), instance_id)
             .and_then(|managed| {
                 managed
                     .map()
@@ -223,10 +225,11 @@ impl crate::session::HubRef<'_> {
             return canonical;
         }
 
-        let key = self.core.current_canonical_player_map_key_like_cpp()?;
+        // The mutation root's key (the deleted legacy runtime's key too).
+        let (map_id, instance_id) = self.core.current_runtime_map_key_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         manager
-            .find_map(key.map_id, key.instance_id)
+            .find_map(u32::from(map_id), instance_id)
             .and_then(|managed| {
                 managed
                     .map()

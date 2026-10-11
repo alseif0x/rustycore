@@ -37,6 +37,8 @@ use super::{
     represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
@@ -119,8 +121,6 @@ use wow_persistence::{
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
 use wow_world_application::direct_item_count_after_loot_release_like_cpp;
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{

@@ -34,7 +34,17 @@ fn legacy_creature_call_assistance_rejects_blocked_static_vmap_los_like_cpp() {
     let caller_guid = test_creature_guid(91_222);
     let assistant_guid = test_creature_guid(91_223);
     let victim = ObjectGuid::create_player(1, 91_224);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), caller_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
     session
         .mutate_world_creature(caller_guid, |creature| {
@@ -72,7 +82,6 @@ fn legacy_creature_call_assistance_rejects_blocked_static_vmap_los_like_cpp() {
 }
 #[test]
 fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let assistant_guid = test_creature_guid(91_225);
@@ -81,6 +90,11 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
     let missing_first_victim = ObjectGuid::create_player(1, 91_228);
     let valid_second_victim = ObjectGuid::create_player(1, 91_229);
     for guid in [assistant_guid, first_caller_guid, second_caller_guid] {
+        let manager = session
+            .core
+            .canonical_map_manager
+            .clone()
+            .unwrap_or_else(|| manager.clone());
         register_test_creature(&mut session, manager.clone(), guid, 100);
         session
             .mutate_world_creature(guid, |creature| {
@@ -128,6 +142,11 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
             .remove_creature_any(0, 0, assistant_guid)
             .is_some()
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
     session
         .mutate_world_creature(assistant_guid, |assistant| {
@@ -162,10 +181,14 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_210);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -228,6 +251,11 @@ fn legacy_creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_018);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -275,6 +303,11 @@ fn legacy_creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_021);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -309,6 +342,11 @@ fn legacy_creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_lik
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_128);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 80);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -340,6 +378,11 @@ fn legacy_creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_134);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 75);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -527,6 +570,11 @@ fn legacy_creature_aggro_tick_once_adds_combat_distance_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_130);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 80);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -558,6 +606,11 @@ fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_023);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -593,6 +646,11 @@ fn legacy_creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_060);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -628,6 +686,11 @@ fn legacy_creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_062);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -666,6 +729,11 @@ fn legacy_creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp(
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_046);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {

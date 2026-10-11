@@ -1,5 +1,5 @@
-//! #1263 F6-8D3b-2 regressions under the production creature owner
-//! (`RuntimeTickOwner::CanonicalMap`).
+//! #1263 F6-8D3b-2 regressions of the canonical-first creature root (since
+//! #1263 F6-8E the canonical map is the only creature store).
 //!
 //! * The session mutation root is canonical-first: a registration leaves the
 //!   canonical incarnation as the creature's only representation, and a
@@ -8,7 +8,7 @@
 //!   which left a killed creature at 0 HP with no JUST_DIED.
 //! * R7b-1: a registration no canonical instance can admit yet is held on the
 //!   canonical side and joins that map's respawn queue when the instance is
-//!   created; the legacy queue is never involved.
+//!   created.
 
 use super::*;
 
@@ -49,11 +49,12 @@ fn d3b2_register_like_cpp(session: &mut WorldSession, map_id: u16, guid: ObjectG
 fn canonical_first_root_applies_a_session_mutation_after_an_executor_health_change_like_cpp() {
     let (mut session, manager, canonical) = d3b2_session_like_cpp();
     let guid = test_creature_guid(97_000);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 25);
-    assert!(
-        manager.lock().unwrap().find_creature(0, 0, guid).is_none(),
-        "the production owner publishes no legacy copy of an admitted creature"
-    );
     // The executor's player-melee phase lowers the incarnation's health in
     // place (a new health-state revision the legacy-first root refused on).
     canonical
@@ -111,8 +112,13 @@ fn r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp() {
         1,
         "the canonical manager holds the deferred registration"
     );
-    assert_eq!(manager.lock().unwrap().respawn_queue_len(1, 0), 0);
-    assert!(manager.lock().unwrap().find_creature(1, 0, guid).is_none());
+    assert!(
+        canonical
+            .lock()
+            .unwrap()
+            .find_creature(1, 0, guid)
+            .is_none()
+    );
 
     // `MapManager::CreateMap`: the instance takes the deferred entry into its
     // own respawn queue, which the executor's lifecycle phase drains.
@@ -161,22 +167,5 @@ fn r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp() {
             .creature_respawn_queue_like_cpp()
             .respawn_queue_len(),
         2
-    );
-}
-
-#[test]
-fn deprecated_legacy_owner_keeps_its_own_deferral_queue_like_cpp() {
-    // Test-fixture owners (`Session`, `GlobalLegacy`) drain the legacy queue
-    // themselves, so their deferral stays there until F6-8E deletes them.
-    let (mut session, manager, canonical) = d3b2_session_like_cpp();
-    session.set_canonical_map_manager(manager.clone());
-    d3b2_register_like_cpp(&mut session, 1, test_creature_guid(97_020));
-    assert_eq!(manager.lock().unwrap().respawn_queue_len(1, 0), 1);
-    assert_eq!(
-        canonical
-            .lock()
-            .unwrap()
-            .deferred_creature_respawn_count_like_cpp(wow_map::MapKey::new(1, 0)),
-        0
     );
 }

@@ -51,6 +51,11 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
             creature.creature.set_sparring_health_pct_like_cpp(50.0);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker, 25);
     session
         .mutate_world_creature(attacker, |creature| {
@@ -62,10 +67,8 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
         })
         .unwrap();
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -157,6 +160,11 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
         0,
         0,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker, 25);
     session
         .mutate_world_creature(attacker, |creature| {
@@ -166,10 +174,8 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
         })
         .unwrap();
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -241,7 +247,17 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
         0,
         0,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 1);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker, 25);
     session
         .mutate_world_creature(attacker, |creature| {
@@ -251,10 +267,8 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
         })
         .unwrap();
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -322,6 +336,11 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
 
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_014);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -335,10 +354,8 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
         })
         .unwrap();
 
-    let rejected = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let rejected =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(rejected.creatures_seen, 1);
     assert_eq!(rejected.swings_ready, 0);
@@ -370,6 +387,11 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
 
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_021);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -384,10 +406,8 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
         })
         .unwrap();
 
-    let rejected = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let rejected =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(rejected.creatures_seen, 1);
     assert_eq!(rejected.swings_ready, 0);
@@ -418,6 +438,11 @@ fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
 
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_016);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -431,10 +456,8 @@ fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
         })
         .unwrap();
 
-    let rejected = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let rejected =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(rejected.creatures_seen, 1);
     assert_eq!(rejected.swings_ready, 0);
@@ -478,6 +501,11 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
         0,
         0,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -492,10 +520,8 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
         })
         .unwrap();
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.melee_precondition_rejections, 0);
     assert_eq!(outcome.swings_ready, 1);
@@ -513,30 +539,7 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
     );
 }
 #[test]
-fn legacy_creature_lifecycle_tick_once_is_noop_under_session_owner_like_cpp() {
-    let manager = shared_map_manager();
-    let (mut session, _, _) = make_session();
-    let guid = test_creature_guid(90_009);
-    register_test_creature(&mut session, manager.clone(), guid, 25);
-
-    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
-        &manager,
-        &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
-        Instant::now(),
-    );
-    assert_eq!(outcome.maps_seen, 0);
-    assert_eq!(outcome.creatures_seen, 0);
-    assert_eq!(outcome.corpses_despawned, 0);
-    assert_eq!(outcome.respawns_processed, 0);
-    assert!(outcome.refresh_map_keys.is_empty());
-    assert!(
-        manager.lock().unwrap().find_creature(0, 0, guid).is_some(),
-        "default Session owner must leave the legacy creature untouched"
-    );
-}
-#[test]
 fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -576,7 +579,6 @@ fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_l
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refresh_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -584,6 +586,11 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let guid = test_creature_guid(90_010);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 10);
 
     let now = Instant::now();

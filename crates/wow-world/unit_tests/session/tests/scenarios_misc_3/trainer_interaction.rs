@@ -272,37 +272,6 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
         ),
         None
     );
-    let legacy_manager = shared_map_manager();
-    legacy_manager.lock().unwrap().add_creature(
-        571,
-        0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
-            trainer_guid,
-            500,
-            Position::new(14.0, 0.0, 0.0, 0.0),
-            100,
-            80,
-            1,
-            2,
-            0.0,
-            1,
-            35,
-            wow_constants::unit::NPCFlags1::TRAINER.bits(),
-            0,
-        ),
-    );
-    session.set_canonical_map_manager(legacy_manager);
-    assert_eq!(
-        session.represented_npc_can_interact_with_like_cpp(
-            trainer_guid,
-            wow_constants::unit::NPCFlags1::TRAINER.bits(),
-            0,
-        ),
-        None,
-        "C++ GetNPCIfCanInteractWith rejects the canonical hostile NPC; legacy mirrors must not bypass that rejection"
-    );
 
     {
         let mut canonical = canonical.lock().unwrap();

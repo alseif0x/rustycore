@@ -8,9 +8,9 @@ use wow_entities::{
     WorldObject,
 };
 
-use crate::session::{SharedCanonicalMapManager, WorldSession};
 #[allow(unused_imports)]
 use crate::canonical_creature_fixtures::*;
+use crate::session::{SharedCanonicalMapManager, WorldSession};
 
 pub(super) fn canonical_world_object(
     guid: ObjectGuid,

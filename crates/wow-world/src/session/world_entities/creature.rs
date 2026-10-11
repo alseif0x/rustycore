@@ -83,11 +83,13 @@ impl WorldSession {
         if creature.map_id() != u32::from(map_id) || creature.instance_id() != instance_id {
             return Some(false);
         }
-        Some(self.represented_can_receive_creature_message_to_set_like_cpp(
-            guid,
-            &creature,
-            required_3d,
-        ))
+        Some(
+            self.represented_can_receive_creature_message_to_set_like_cpp(
+                guid,
+                &creature,
+                required_3d,
+            ),
+        )
     }
     #[cfg(test)]
     pub fn set_creature_health_rates_like_cpp(

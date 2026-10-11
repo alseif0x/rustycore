@@ -43,6 +43,11 @@ fn combat_tick_uses_canonical_player_victim_when_session_target_is_empty_like_cp
         .unwrap();
     session.fixtures.combat.combat_target = None;
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -56,8 +61,10 @@ fn combat_tick_uses_canonical_player_victim_when_session_target_is_empty_like_cp
 
     let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
+    // #1263 F6-8E: the map-owned phase reads the canonical player's victim;
+    // the session-side combat-target mirror the retired session tick
+    // refreshed is not part of it.
     assert!(world_creature.current_hp() < 40);
-    assert_eq!(session.fixtures.combat.combat_target, Some(guid));
 }
 
 #[test]
@@ -112,6 +119,11 @@ fn combat_tick_uses_canonical_player_base_attack_timer_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = None;
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -187,6 +199,11 @@ fn combat_tick_los_failure_resets_timer_without_damage_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -276,6 +293,11 @@ fn combat_tick_canonical_player_without_victim_does_not_use_stale_session_target
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
@@ -342,6 +364,11 @@ fn combat_tick_without_melee_attacking_state_skips_update_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

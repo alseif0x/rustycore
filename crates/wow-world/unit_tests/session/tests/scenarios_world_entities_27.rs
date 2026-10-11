@@ -99,6 +99,11 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_116);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -145,6 +150,11 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_120);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -177,6 +187,11 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_012);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -216,6 +231,11 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_014);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -259,6 +279,11 @@ fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_016);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -333,6 +358,11 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
         0,
         0,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -342,10 +372,8 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
         })
         .unwrap();
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.swings_ready, 1);
@@ -380,7 +408,6 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
 }
 #[test]
 fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_hit_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_040);
@@ -429,10 +456,8 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
             .unwrap();
     }
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.swings_ready, 2);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -470,97 +495,4 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
         })
         .count();
     assert_eq!(tombstoned, 1, "only the committed hit consumes melee RNG");
-}
-#[test]
-fn legacy_creature_melee_tick_once_rejects_missing_canonical_attacker_before_side_effects_like_cpp()
-{
-
-    let manager = shared_map_manager();
-    let canonical = Arc::clone(&manager);
-    let player = ObjectGuid::create_player(1, 91_036);
-    add_canonical_test_player_on_map(
-        &canonical,
-        player,
-        Position::new(10.0, 10.0, 0.0, 0.0),
-        0,
-        0,
-    );
-    {
-        let mut guard = canonical.lock().unwrap();
-        let player = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_player_mut(player)
-            .unwrap();
-        player.unit_mut().set_max_health(100);
-        player.unit_mut().set_health(100);
-    }
-
-    let (mut session, _, _) = make_session();
-    let creature_guid = test_creature_guid(91_037);
-    let attacking_aura = wow_entities::AppliedAuraRef::new(91_038, creature_guid, 0, 0x1);
-    let seed = 0x91_037;
-    register_test_creature(&mut session, manager.clone(), creature_guid, 25);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(seed);
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .register_applied_aura(
-                    attacking_aura,
-                    None,
-                    wow_entities::SPELL_AURA_INTERRUPT_FLAG_ATTACKING_LIKE_CPP,
-                    0,
-                );
-        })
-        .unwrap();
-
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
-
-    // #1263 F6-8C: the canonical designated owner decides the swing selection,
-    // so a creature whose exact residence has no canonical incarnation is
-    // refused **before** a swing is selected. The refusal is the same fact this
-    // regression always asserted — the missing canonical attacker produces no
-    // side effect at all — now decided by ownership instead of by the later
-    // execution-time incarnation check, which is why the selection counter is 0
-    // and the ownership refusal is 1.
-    assert_eq!(outcome.swings_ready, 0);
-    assert_eq!(outcome.melee_precondition_rejections, 0);
-    assert_eq!(outcome.melee_outcomes_unrepresented, 0);
-    assert_eq!(outcome.runtime_rng_authority_rejections, 0);
-    assert_eq!(outcome.attacking_interrupt_auras_removed, 0);
-    assert!(outcome.commands.is_empty());
-    assert!(outcome.plan.events.is_empty());
-
-    let mut expected_rng = StdRng::seed_from_u64(seed);
-    let expected_first_roll = expected_rng.gen_range(0..=9_999_u32);
-    let (authoritative, swing_timer_ms, aura_still_applied, actual_first_roll) = session
-        .mutate_world_creature(creature_guid, |creature| {
-            (
-                creature.runtime_rng_authority_complete_like_cpp(),
-                creature.creature.ai_ownership().swing_timer_ms,
-                creature
-                    .creature
-                    .unit()
-                    .subsystems()
-                    .auras
-                    .has_applied(attacking_aura),
-                creature.random_creature_spell_hit_roll_like_cpp(),
-            )
-        })
-        .unwrap();
-    assert!(authoritative);
-    assert_eq!(swing_timer_ms, 0);
-    assert!(aura_still_applied);
-    assert_eq!(actual_first_roll, Some(expected_first_roll));
 }

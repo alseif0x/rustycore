@@ -37,7 +37,7 @@ impl WorldSession {
     /// one designated owner and keeps a genuinely missing authority distinct
     /// from an unreadable one (F6-7 R2/R4). This is the only shape production
     /// uses; the historical `Option` wrapper no longer exists.
-    pub(super) fn represented_owned_loot_authority_outcome_like_cpp(
+    pub(crate) fn represented_owned_loot_authority_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {

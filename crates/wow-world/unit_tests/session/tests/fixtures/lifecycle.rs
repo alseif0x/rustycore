@@ -153,6 +153,11 @@ pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(guid_counter);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 10);
 
     // Kill the creature and set corpse_despawn_at to the past so that

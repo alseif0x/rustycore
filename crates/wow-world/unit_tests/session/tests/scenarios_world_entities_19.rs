@@ -5,7 +5,7 @@
 
 use super::*;
 
-// #1263 C1: the injected stale/ABA replay capture harness.
+// #1263 C1: the creature mutation root capture.
 #[path = "scenarios_world_entities_19/c1_runtime_capture_replay.rs"]
 mod c1_runtime_capture_replay;
 #[path = "scenarios_world_entities_19/creature_movement_tick.rs"]
@@ -16,16 +16,19 @@ mod f6_8d1_canonical_execution;
 // #1263 F6-8D2: the admitted tick drives the canonical engine exactly once.
 #[path = "scenarios_world_entities_19/f6_8d2_admitted_execution.rs"]
 mod f6_8d2_admitted_execution;
-// #1263 F6-8D3a-1: the admitted canonical executor reaches combat-phase parity.
+// #1263 F6-8E: the recorded legacy-bridge expectations of the F6-8D3a tests.
+#[path = "scenarios_world_entities_19/f6_8d3a_recorded_expectations.rs"]
+mod f6_8d3a_recorded_expectations;
+// #1263 F6-8D3a-1: the executor's combat phases against recorded expectations.
 #[path = "scenarios_world_entities_19/f6_8d3a1_combat_parity.rs"]
 mod f6_8d3a1_combat_parity;
-// #1263 F6-8D3a-1b: the executor runs the creature spell phase with parity.
+// #1263 F6-8D3a-1b: the executor's spell phase against recorded expectations.
 #[path = "scenarios_world_entities_19/f6_8d3a1b_spell_parity.rs"]
 mod f6_8d3a1b_spell_parity;
-// #1263 F6-8D3a-2: the executor runs the creature movement phase with parity.
+// #1263 F6-8D3a-2: the executor's movement phase against recorded expectations.
 #[path = "scenarios_world_entities_19/f6_8d3a2_movement_lifecycle_parity.rs"]
 mod f6_8d3a2_movement_lifecycle_parity;
-// #1263 F6-8D3a-3: the executor runs the creature lifecycle phase with parity.
+// #1263 F6-8D3a-3: the executor's lifecycle phase against recorded expectations.
 #[path = "scenarios_world_entities_19/f6_8d3a3_lifecycle_parity.rs"]
 mod f6_8d3a3_lifecycle_parity;
 // #1263 F6-8D3b-2: the canonical-first root and the canonical R7b-1 deferral.

@@ -17,6 +17,8 @@ use super::{
     register_test_creature_like_cpp, represented_loot_object_guid_like_cpp,
     represented_loot_response_items_like_cpp, test_creature, test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::handlers::loot::rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp;
 use crate::session::{SharedCanonicalMapManager, WorldSession};
 use wow_loot::{
@@ -24,8 +26,6 @@ use wow_loot::{
 };
 use wow_map::MapManager;
 use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
 
 /// Test-only collapse of the explicit loot-authority lookup outcome.
 ///

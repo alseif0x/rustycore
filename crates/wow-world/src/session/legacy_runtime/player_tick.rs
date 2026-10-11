@@ -206,20 +206,24 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
         return;
     };
 
+    // C++ `Unit::AttackerStateUpdate`'s `getAutoAttackError` (`Unit.cpp:2107-2114`):
+    // `!IsWithinMeleeRange(victim)` is NotInRange; inside it, a victim within
+    // `IsWithinBoundaryRadius` needs no facing, otherwise `HasInArc(2pi/3)`
+    // decides BadFacing.
     let in_melee_range = is_within_melee_range_like_cpp(
         attacker_position,
         attacker_combat_reach,
         victim_position,
         victim_combat_reach,
-    ) && is_within_target_boundary_radius_like_cpp(
-        attacker_position,
-        attacker_combat_reach,
-        victim_position,
-        victim_combat_reach,
-        victim_bounding_radius,
     );
     let facing_target =
-        is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position);
+        is_within_target_boundary_radius_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+            victim_bounding_radius,
+        ) || is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position);
     // C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`.
     victim_outcome_facts.faces_attacker =
         is_unit_facing_target_for_melee_like_cpp(victim_position, attacker_position);

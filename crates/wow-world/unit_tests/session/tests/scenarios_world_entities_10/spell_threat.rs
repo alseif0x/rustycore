@@ -31,6 +31,11 @@ async fn spell_threat_effect_adds_creature_threat_like_cpp() {
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -100,6 +105,11 @@ async fn spell_modify_threat_percent_scales_existing_creature_threat_like_cpp() 
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -194,6 +204,11 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -329,6 +344,11 @@ async fn spell_threat_effect_skips_dead_caster_like_cpp() {
     let manager = shared_map_manager();
     session.set_player_guid(Some(player_guid));
     session.set_player_health_like_cpp(0, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(

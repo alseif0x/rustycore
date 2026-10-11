@@ -28,13 +28,13 @@ use super::{
     make_session_with_send_capacity, register_test_creature_like_cpp,
     represented_loot_object_guid_like_cpp, test_creature, test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::{SessionState, WorldSession};
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
 use wow_map::MapKey;
 use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
 
 /// Everything a rejected loot open must leave untouched: the represented loot
 /// cache and its generation, the active loot GUID, the represented viewers and

@@ -47,7 +47,6 @@ fn creature_threat_online_like_cpp(
 
 #[test]
 fn neutral_creature_engaged_by_player_stays_engaged_and_attacks_back_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -55,6 +54,11 @@ fn neutral_creature_engaged_by_player_stays_engaged_and_attacks_back_like_cpp() 
     let creature_guid = test_creature_guid(91_344);
     let victim_guid = ObjectGuid::create_player(1, 91_345);
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -126,10 +130,14 @@ fn neutral_creature_engaged_by_player_stays_engaged_and_attacks_back_like_cpp() 
 
 #[test]
 fn neutral_creature_does_not_start_aggro_on_passer_by_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_346);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -214,6 +222,11 @@ async fn attack_swing_engages_and_creature_reacts_with_ai_reaction_then_attack_s
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical attacking Player map");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
 
     let mut pkt = WorldPacket::new_empty();

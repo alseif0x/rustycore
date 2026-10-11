@@ -366,6 +366,7 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
     );
 
     session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().create_world_map(571, 0);
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
         (path_id == 77_001).then_some(path.clone())
     }));
@@ -409,7 +410,7 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
     let guard = manager.lock().unwrap();
     let creature = guard
         .find_creature(571, 0, guid)
-        .expect("creature inserted into legacy map");
+        .expect("creature inserted into the canonical map");
     assert_eq!(
         creature.creature.waypoint_path_id_like_cpp(),
         77_001,
@@ -451,6 +452,7 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
     );
 
     session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().create_world_map(571, 0);
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
         (path_id == 77_002).then_some(path.clone())
     }));
@@ -499,7 +501,7 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
     let guard = manager.lock().unwrap();
     let creature = guard
         .find_creature(571, 0, guid)
-        .expect("creature inserted into legacy map");
+        .expect("creature inserted into the canonical map");
     assert_eq!(
         creature.creature.waypoint_path_id_like_cpp(),
         77_002,
@@ -549,6 +551,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
     let guid = test_creature_guid(615);
 
     session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().create_world_map(571, 0);
     session.core.current_map_id = 571;
     session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         571,
@@ -618,7 +621,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
     let guard = manager.lock().unwrap();
     let creature = guard
         .find_creature(571, 0, guid)
-        .expect("creature inserted into legacy map");
+        .expect("creature inserted into the canonical map");
     let auras = &creature.creature.unit().subsystems().auras;
     assert_eq!(
         auras

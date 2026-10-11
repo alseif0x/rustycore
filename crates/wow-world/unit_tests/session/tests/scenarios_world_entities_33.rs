@@ -22,7 +22,17 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     for guid in [victim_guid] {
         session

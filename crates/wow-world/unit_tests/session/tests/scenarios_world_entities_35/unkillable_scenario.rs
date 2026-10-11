@@ -16,9 +16,29 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     let lethal_victim_guid = test_creature_guid(91_406);
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 4);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), zero_damage_victim_guid, 1);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), lethal_victim_guid, 4);
     for guid in [victim_guid, zero_damage_victim_guid, lethal_victim_guid] {
         session
@@ -50,10 +70,8 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
         }
     }
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     let canonical_guard = canonical.lock().unwrap();
     let (health, alive, ai_state, threat, reciprocal) = canonical_guard
         .find_map(0, 0)
@@ -152,10 +170,8 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let zero_damage = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let zero_damage =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -223,10 +239,8 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let lethal = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let lethal =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     {
         let canonical = canonical.lock().unwrap();
         let (health, threat) = canonical

@@ -484,12 +484,13 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
         let mover = guard
             .find_creature_mut(0, 0, mover_guid)
             .expect("controlled mover creature");
-        mover
-            .movement_like_cpp()
+        crate::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover.creature)
             .begin_move_spline_like_cpp(attempted_position)
             .expect("active movement spline");
         assert!(
-            !crate::map_manager::CreatureMovementQueriesLikeCpp::movement_finished(&mover.creature)
+            !crate::map_manager::CreatureMovementQueriesLikeCpp::movement_finished(
+                &*mover.creature
+            )
         );
     }
 

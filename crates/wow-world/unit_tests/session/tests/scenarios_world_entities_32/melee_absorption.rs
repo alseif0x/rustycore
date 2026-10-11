@@ -65,6 +65,11 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
             player.unit_mut().set_health(100);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -379,6 +384,11 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -619,6 +629,11 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {

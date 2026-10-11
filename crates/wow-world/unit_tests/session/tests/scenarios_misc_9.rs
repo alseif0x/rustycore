@@ -808,6 +808,11 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
         0,
     ));
     session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();
@@ -864,6 +869,11 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical attacking Player map");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();

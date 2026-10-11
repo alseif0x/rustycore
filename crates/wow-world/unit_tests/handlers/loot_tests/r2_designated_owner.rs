@@ -19,13 +19,13 @@ use super::{
     attach_canonical_creature, make_canonical_creature_for_session,
     make_session_with_send_capacity, test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::{SessionState, WorldSession};
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
 use wow_map::MapKey;
 use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
 
 const TEST_MAP_ID: u16 = 571;
 

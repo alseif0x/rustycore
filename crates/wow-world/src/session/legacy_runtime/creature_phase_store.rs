@@ -91,7 +91,11 @@ impl AdmittedCanonicalCreatureStoreLikeCpp<'_> {
         self.selection.iter().map(|(key, _)| *key).collect()
     }
 
-    pub(in crate::session) fn phase_creature_guids_like_cpp(&self, map_id: u16, instance_id: u32) -> Vec<ObjectGuid> {
+    pub(in crate::session) fn phase_creature_guids_like_cpp(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+    ) -> Vec<ObjectGuid> {
         self.selection
             .iter()
             .find(|(key, _)| *key == (map_id, instance_id))

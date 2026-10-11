@@ -491,7 +491,7 @@ async fn change_bank_bag_slot_flag_rejects_invalid_slot_like_cpp() {
 async fn gossip_banker_selection_replaces_trainer_provenance_like_cpp() {
     let (mut session, send_rx) = make_quest_status_session();
     let banker = creature_guid(15_513, 522);
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         banker,
         15_513,

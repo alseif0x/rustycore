@@ -13,10 +13,10 @@ use super::{
     attach_loot_guid_allocator_for_owner, broadcast_info, make_session,
     register_test_creature_like_cpp, test_creature, test_creature_guid,
 };
-use crate::session::WorldSession;
-use crate::session::directory::PlayerRegistry;
 #[allow(unused_imports)]
 use crate::canonical_creature_fixtures::*;
+use crate::session::WorldSession;
+use crate::session::directory::PlayerRegistry;
 
 pub(super) struct OverworldPersonalLootTestFixtureLikeCpp {
     pub(super) session: WorldSession,

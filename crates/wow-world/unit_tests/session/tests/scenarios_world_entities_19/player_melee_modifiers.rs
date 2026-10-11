@@ -13,7 +13,6 @@ use super::*;
 /// creature aura carrying `MECHANIC_STUN` drive the two terms.
 #[tokio::test]
 async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like_cpp() {
-
     const MECHANIC_STUN: i8 = 12;
     const VICTIM_MECHANIC_SPELL: i32 = 70_002;
 
@@ -59,6 +58,11 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 1_000);
     // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
     // (`Unit.cpp:2313-2360`); the attack table stays out of this damage-term
@@ -238,7 +242,6 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
 /// attacker's live armour-penetration inputs from the canonical Player.
 #[tokio::test]
 async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -281,6 +284,11 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -381,7 +389,6 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
 /// creature-aura projection the session uses.
 #[tokio::test]
 async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -424,6 +431,11 @@ async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {

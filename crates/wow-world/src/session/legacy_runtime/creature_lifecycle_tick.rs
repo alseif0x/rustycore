@@ -446,10 +446,9 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp(
         }
         // The admission installed the canonical incarnation itself; there is
         // no second representation to publish.
-        store.respawned.push((
-            (residence.map_id, residence.instance_id),
-            candidate.guid,
-        ));
+        store
+            .respawned
+            .push(((residence.map_id, residence.instance_id), candidate.guid));
         if persistent_spawn {
             // Applied here rather than in the deferred canonical phase because
             // admission already ran; the mutation, its condition (a successful
@@ -500,15 +499,14 @@ fn remove_respawn_row_after_publication_like_cpp(
         outcome.respawn_db_mutations.push(stmt);
     }
     if store.lifecycle_with_canonical_like_cpp(|manager| {
-            remove_canonical_respawn_time_on_locked_map_like_cpp(
-                manager,
-                u32::from(residence.map_id),
-                residence.instance_id,
-                wow_map::SpawnObjectType::Creature,
-                spawn_id,
-            )
-        })
-    {
+        remove_canonical_respawn_time_on_locked_map_like_cpp(
+            manager,
+            u32::from(residence.map_id),
+            residence.instance_id,
+            wow_map::SpawnObjectType::Creature,
+            spawn_id,
+        )
+    }) {
         outcome.canonical_respawn_removes += 1;
     }
 }

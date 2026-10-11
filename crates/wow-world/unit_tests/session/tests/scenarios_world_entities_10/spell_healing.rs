@@ -7,6 +7,11 @@ async fn spell_heal_syncs_canonical_creature_health_like_cpp() {
     let guid = test_creature_guid(18_003);
     session.core.player_guid = Some(ObjectGuid::create_player(1, 43));
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -32,6 +37,11 @@ async fn spell_heal_skips_dead_creature_like_cpp() {
     let guid = test_creature_guid(18_004);
     session.core.player_guid = Some(ObjectGuid::create_player(1, 45));
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -77,6 +87,11 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
     // `register_world_creature` bootstraps the legacy facade in instance
     // zero. Configure that fixture before the canonical Player makes the
     // session resolve legacy mutations through the test instance below.
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -88,13 +103,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(tank_guid);

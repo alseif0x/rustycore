@@ -100,7 +100,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
                 registry,
                 Some(canonical_map_manager),
             ),
-            chase_targets: collect_legacy_chase_target_snapshots_like_cpp(registry),
+            chase_targets: collect_chase_target_snapshots_like_cpp(registry),
             terrain: self.terrain.clone(),
         }
     }

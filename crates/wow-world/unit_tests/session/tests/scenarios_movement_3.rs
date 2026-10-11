@@ -471,7 +471,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
     );
 }
 #[test]
-fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
+fn npc_interaction_uses_player_instance_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 47);
     let questgiver_guid = test_creature_guid(18);
@@ -533,6 +533,13 @@ fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
         ),
     );
     session.set_canonical_map_manager(manager);
+    adopt_live_canonical_test_player_for_interaction_like_cpp(&mut session);
+    // C++ `DEFAULT_PLAYER_COMBAT_REACH`: a real Player is never zero-sized.
+    session
+        .mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().world_mut().set_combat_reach(1.5);
+        })
+        .expect("canonical Player");
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(

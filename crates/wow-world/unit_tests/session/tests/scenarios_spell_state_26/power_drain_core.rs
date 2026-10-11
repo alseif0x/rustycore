@@ -25,6 +25,11 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -36,13 +41,7 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -150,6 +149,11 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -161,13 +165,7 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));

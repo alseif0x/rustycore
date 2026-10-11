@@ -15,7 +15,6 @@
 //! remains, extended with the legacy → canonical synchronization and the
 //! legacy loot probes F6-8E deleted.
 
-
 /// The retired reconciliation surface, checked against the sources that owned
 /// it. The repo pins source contracts by including the file, so this test does
 /// the same for each surviving owner and additionally proves that the
@@ -115,4 +114,3 @@ fn dual_store_reconciliation_surface_is_retired_like_cpp() {
         "the retired recheck module must not be declared"
     );
 }
-

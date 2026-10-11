@@ -98,21 +98,19 @@ impl crate::session::state::SessionCore {
             // capture exists for. The guard taken inside
             // `current_canonical_player_map_key_like_cpp` is already released
             // here, so nothing is held across the emission below.
-            self.emit_runtime_location_capture_like_cpp(
-                RuntimeLocationCaptureLikeCpp {
-                    capture_id: "C2",
-                    root: "SessionCore::current_runtime_map_key_like_cpp",
-                    phase: "map_key_fallback",
-                    player_guid_counter: self.player_guid.map(|guid| guid.counter() as u32),
-                    session_state: session_state_name_like_cpp(self.state),
-                    requested_map_id: fallback_map_id,
-                    requested_instance_id: None,
-                    canonical_key_present: false,
-                    resolved_map_id: fallback_map_id,
-                    resolved_instance_id: 0,
-                    detail: "canonical_player_map_key_absent",
-                },
-            );
+            self.emit_runtime_location_capture_like_cpp(RuntimeLocationCaptureLikeCpp {
+                capture_id: "C2",
+                root: "SessionCore::current_runtime_map_key_like_cpp",
+                phase: "map_key_fallback",
+                player_guid_counter: self.player_guid.map(|guid| guid.counter() as u32),
+                session_state: session_state_name_like_cpp(self.state),
+                requested_map_id: fallback_map_id,
+                requested_instance_id: None,
+                canonical_key_present: false,
+                resolved_map_id: fallback_map_id,
+                resolved_instance_id: 0,
+                detail: "canonical_player_map_key_absent",
+            });
             return (fallback_map_id, 0);
         };
         let Ok(map_id) = u16::try_from(map_key.map_id) else {
@@ -125,10 +123,7 @@ impl crate::session::state::SessionCore {
     ///
     /// This is the only place the C2 event is written, and it is always called
     /// after the guard that produced `capture` has been released.
-    pub fn emit_runtime_location_capture_like_cpp(
-        &self,
-        capture: RuntimeLocationCaptureLikeCpp,
-    ) {
+    pub fn emit_runtime_location_capture_like_cpp(&self, capture: RuntimeLocationCaptureLikeCpp) {
         tracing::info!(
             target: "rustycore::capture::c2",
             capture_id = capture.capture_id,

@@ -1215,7 +1215,7 @@ pub(crate) fn deliver_creature_melee_damage_commands_like_cpp(
 /// step has no object accessor, so the same facts are collected here from
 /// [`PlayerRegistry`] and every DashMap guard is dropped before the canonical
 /// map lock is taken — the pattern the aggro scan already uses.
-pub(crate) fn collect_legacy_chase_target_snapshots_like_cpp(
+pub(crate) fn collect_chase_target_snapshots_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
 ) -> std::collections::HashMap<
     (u16, u32, wow_core::ObjectGuid),

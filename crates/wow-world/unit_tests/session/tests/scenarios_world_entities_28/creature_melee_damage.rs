@@ -41,7 +41,17 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
         0,
         0,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker, 25);
     session
         .mutate_world_creature(attacker, |creature| {
@@ -51,10 +61,8 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
         })
         .unwrap();
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -98,7 +106,6 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
 }
 #[test]
 fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let creatures = [test_creature_guid(91_043), test_creature_guid(91_044)];
@@ -138,10 +145,8 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
             .unwrap();
     }
 
-    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let outcome =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
 
     assert_eq!(outcome.swings_ready, 2);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
@@ -152,7 +157,6 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
     assert_eq!(outcome.plan.events.len(), 2);
 
     let canonical_guard = canonical.lock().unwrap();
-    let legacy_guard = manager.lock().unwrap();
     let mut alive = 0;
     let mut dead = 0;
     let mut tombstoned = 0;
@@ -163,15 +167,6 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
             .map()
             .with_creature_like_cpp(guid, Clone::clone)
             .unwrap();
-        let legacy_creature = legacy_guard.find_creature(0, 0, guid).unwrap();
-        assert_eq!(
-            legacy_creature.creature.unit().data().health,
-            canonical_creature.unit().data().health
-        );
-        assert_eq!(
-            legacy_creature.creature.unit().death_state(),
-            canonical_creature.unit().death_state()
-        );
         match (
             canonical_creature.unit().data().health,
             canonical_creature.unit().death_state(),
@@ -180,7 +175,7 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
             (0, wow_constants::DeathState::Corpse) => dead += 1,
             tuple => panic!("unexpected cross-kill final tuple: {tuple:?}"),
         }
-        if !legacy_creature.runtime_rng_authority_complete_like_cpp() {
+        if !canonical_creature.runtime_rng_authority_complete_like_cpp() {
             tombstoned += 1;
         }
     }
@@ -197,7 +192,6 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
 /// curve (`Unit.cpp:1646-1651`), not only in the session path.
 #[tokio::test]
 async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -240,6 +234,11 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -343,7 +342,6 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
 /// victim creature's own `GetArmor()` and damage-taken auras.
 #[test]
 fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -352,8 +350,25 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 25);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 1_000);
+    // #1263 F6-8E: the executor selects every creature of the map, so the
+    // victim would answer the attacker; this scenario's victim stays passive.
+    session
+        .mutate_world_creature(victim_guid, |creature| {
+            creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+        })
+        .unwrap();
     {
         let mut guard = canonical.lock().unwrap();
         let map = guard.find_map_mut(0, 0).unwrap().map_mut();
@@ -534,8 +549,25 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 25);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 1_000);
+    // #1263 F6-8E: the executor selects every creature of the map, so the
+    // victim would answer the attacker; this scenario's victim stays passive.
+    session
+        .mutate_world_creature(victim_guid, |creature| {
+            creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+        })
+        .unwrap();
     {
         let mut guard = canonical.lock().unwrap();
         let map = guard.find_map_mut(0, 0).unwrap().map_mut();

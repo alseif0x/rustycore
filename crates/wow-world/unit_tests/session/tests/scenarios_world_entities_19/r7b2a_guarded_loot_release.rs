@@ -540,22 +540,17 @@ fn guarded_release_refuses_unavailable_ownership_like_cpp() {
         unviewed_release_like_cpp(&mut session, guid, &lifecycle).is_none(),
         "a missing canonical object is unavailable ownership for the detached variant too"
     );
-    assert!(
-        has_lootable_flag_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        "the refused release left the legacy representation untouched"
-    );
+    let _ = manager;
 
-    // A session with no legacy representation at all.
+    // A session with no creature store at all.
     let (mut session, _, _) = make_session();
     assert!(
         viewed_release_like_cpp(&mut session, guid, &lifecycle).is_none(),
-        "a missing legacy representation is unavailable ownership"
+        "a missing creature store is unavailable ownership"
     );
     assert!(
         unviewed_release_like_cpp(&mut session, guid, &lifecycle).is_none(),
-        "a missing legacy representation refuses the detached variant too"
+        "a missing creature store refuses the detached variant too"
     );
 
     // A bound canonical manager whose map instance does not exist.

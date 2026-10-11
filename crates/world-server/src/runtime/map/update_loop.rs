@@ -269,9 +269,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 }
                 // #1263 F6-8D3b-1: the registry snapshots the creature phases
                 // read, taken before any guard.
-                let creature_inputs = canonical_creature_runtime.as_ref().map(|runtime| {
-                    runtime.collect_inputs_like_cpp(&map_manager, &player_registry)
-                });
+                let creature_inputs = canonical_creature_runtime
+                    .as_ref()
+                    .map(|runtime| runtime.collect_inputs_like_cpp(&map_manager, &player_registry));
                 // The persistence fence is re-taken for the half that produces
                 // respawn mutations, and its statements are still coalesced
                 // before it is released, so mailbox replacement order still

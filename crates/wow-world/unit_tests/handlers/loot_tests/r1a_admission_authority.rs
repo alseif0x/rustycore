@@ -36,6 +36,8 @@ use super::{
     register_test_creature_like_cpp, represented_loot_object_guid_like_cpp, test_creature,
     test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::{
     SharedCanonicalMapManager, WorldSession, insert_canonical_creature_map_object_on_map_like_cpp,
 };
@@ -43,8 +45,6 @@ use wow_core::{ObjectGuid, Position};
 use wow_entities::Creature;
 use wow_loot::{LootClaimCommitError, OwnedLootAuthority, OwnedLootAuthorityLifecycle};
 use wow_map::MapManager;
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
 
 const TEST_MAP_ID: u16 = 571;
 
@@ -476,10 +476,7 @@ fn canonical_map_absence_defers_publication_until_admission_like_cpp() {
         .expect("canonical map manager")
         .create_world_map(u32::from(TEST_MAP_ID), 0);
     assert_eq!(
-        canonical
-            .lock()
-            .unwrap()
-            .respawn_queue_len(TEST_MAP_ID, 0),
+        canonical.lock().unwrap().respawn_queue_len(TEST_MAP_ID, 0),
         1,
         "the built candidate waits for legitimate admission in the canonical map's spawn queue"
     );

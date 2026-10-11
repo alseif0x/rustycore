@@ -166,8 +166,6 @@ fn creature_loot_like_cpp(_guid: ObjectGuid, coins: u32, player: ObjectGuid) -> 
     }
 }
 
-
-
 /// The kill-hook events of one lethal completion, per named fact:
 /// `[DeathStateJustDied, ZoneScriptUnitDeath, LootFlagsApplied,
 /// CreatureOnHealthDepletedAi, CreatureJustDiedAi, ScriptMgrOnCreatureKill]`.
@@ -272,7 +270,6 @@ fn fresh_non_health_mutation_is_applied_once_to_the_incarnation_like_cpp() {
         "the mutation preserves the incarnation's loot authority"
     );
 }
-
 
 #[test]
 fn aba_health_cycle_mutates_the_incarnation_once_like_cpp() {
@@ -467,5 +464,10 @@ fn session_without_a_canonical_store_publishes_and_mutates_nothing_like_cpp() {
         "nothing was admitted, so nothing can be mutated"
     );
     assert_eq!(callback_runs, 0);
-    assert!(session.core.read_world_creature_like_cpp(guid, |_| ()).is_none());
+    assert!(
+        session
+            .core
+            .read_world_creature_like_cpp(guid, |_| ())
+            .is_none()
+    );
 }

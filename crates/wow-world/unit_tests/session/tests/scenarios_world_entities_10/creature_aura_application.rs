@@ -37,6 +37,11 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
 
     let mut spell_store = wow_data::SpellStore::new();
@@ -204,6 +209,11 @@ async fn spell_apply_aura_on_creature_keeps_each_effect_slot_amount_like_cpp() {
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
 
     let mut spell_store = wow_data::SpellStore::new();

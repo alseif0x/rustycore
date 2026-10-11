@@ -588,7 +588,7 @@ async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
             option_npc: 94,
             action_menu_id: 95,
         });
-    attach_legacy_creature(
+    attach_npc_creature(
         &mut session,
         guid,
         entry,
@@ -695,7 +695,7 @@ async fn gossip_hello_trainer_fallback_rejects_canonical_player_out_of_world_lik
         .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
         .unwrap();
     attach_map_manager(&mut session, manager);
-    attach_legacy_creature(&mut session, guid, entry, NPCFlags1::TRAINER.bits());
+    attach_npc_creature(&mut session, guid, entry, NPCFlags1::TRAINER.bits());
 
     session.handle_gossip_hello(Hello { unit: guid }).await;
 
@@ -801,7 +801,7 @@ async fn gossip_select_requires_exact_active_source_and_routes_exact_match_like_
         ),
     ] {
         let (mut session, send_rx) = make_quest_status_session();
-        attach_legacy_creature(
+        attach_npc_creature(
             &mut session,
             requested,
             15_513,

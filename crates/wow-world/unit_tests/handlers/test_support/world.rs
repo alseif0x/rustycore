@@ -302,6 +302,10 @@ pub(crate) fn register_misc_test_creature(
 ) {
     session.set_canonical_map_manager(shared_canonical_map_manager());
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_for_session_like_cpp(
+        session,
+    );
+    session.set_player_faction_template_like_cpp(1);
     session.register_world_creature(
         571,
         Position::new(12.0, 0.0, 0.0, 0.0),

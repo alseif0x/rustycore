@@ -171,4 +171,3 @@ pub enum CreatureAnimKitSlotLikeCpp {
     Movement,
     Melee,
 }
-

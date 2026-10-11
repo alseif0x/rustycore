@@ -79,7 +79,6 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
 /// apply anything again, because the swing timers were consumed.
 #[tokio::test]
 async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -128,6 +127,11 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
         // Only the first session registers the creature; both share the manager.
         if index == 0 {
             session.set_canonical_map_manager(Arc::clone(&manager));
+            let manager = session
+                .core
+                .canonical_map_manager
+                .clone()
+                .unwrap_or_else(|| manager.clone());
             register_test_creature(&mut session, manager.clone(), creature_guid, 100);
             // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
             // (`Unit.cpp:2313-2360`); both attackers must land their swing.

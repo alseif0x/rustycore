@@ -280,6 +280,11 @@ fn combat_tick_base_attack_casts_current_melee_spell_instead_of_damage_like_cpp(
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -367,6 +372,11 @@ fn combat_tick_removes_attacking_interrupt_auras_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -434,6 +444,11 @@ fn combat_tick_casting_player_skips_melee_update_without_reset_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -516,6 +531,11 @@ fn combat_tick_spell_delay_combat_timer_pauses_attack_timer_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);

@@ -7,9 +7,7 @@ use super::*;
 
 #[test]
 fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp() {
-    use crate::map_manager::{
-        pending_respawn_from_world_creature_like_cpp, world_to_grid_coords,
-    };
+    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
 
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
@@ -121,9 +119,7 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp() {
-    use crate::map_manager::{
-        pending_respawn_from_world_creature_like_cpp, world_to_grid_coords,
-    };
+    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
 
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
@@ -201,9 +197,7 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_like_cpp() {
-    use crate::map_manager::{
-        pending_respawn_from_world_creature_like_cpp, world_to_grid_coords,
-    };
+    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
 
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
@@ -282,8 +276,11 @@ fn respawn_queue_lives_in_map_not_in_session_like_cpp() {
     let map_store = canonical_player_transfer_test_map_store_like_cpp();
 
     // The lifecycle phase despawns the corpse and queues it on the MAP.
-    let outcome =
-        run_canonical_creature_lifecycle_phase_for_test_like_cpp(&canonical, &map_store, Instant::now());
+    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
+        &map_store,
+        Instant::now(),
+    );
     assert_eq!(outcome.corpses_despawned, 1);
 
     let guard = canonical.lock().unwrap();
@@ -305,8 +302,11 @@ fn single_session_respawn_rebuilds_the_incarnation_and_refreshes_its_map_like_cp
     let map_store = canonical_player_transfer_test_map_store_like_cpp();
 
     // Phase 1: despawn — removes the creature from the map and enqueues respawn.
-    let despawn =
-        run_canonical_creature_lifecycle_phase_for_test_like_cpp(&canonical, &map_store, Instant::now());
+    let despawn = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
+        &map_store,
+        Instant::now(),
+    );
     assert_eq!(despawn.corpses_despawned, 1);
     assert_eq!(despawn.refresh_map_keys, vec![(0, 0)]);
 
@@ -315,8 +315,11 @@ fn single_session_respawn_rebuilds_the_incarnation_and_refreshes_its_map_like_cp
 
     // Phase 2: respawn fires — the incarnation is back, alive, and its map is
     // refreshed.
-    let respawn =
-        run_canonical_creature_lifecycle_phase_for_test_like_cpp(&canonical, &map_store, Instant::now());
+    let respawn = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
+        &map_store,
+        Instant::now(),
+    );
     assert_eq!(respawn.respawns_processed, 1);
     assert_eq!(respawn.refresh_map_keys, vec![(0, 0)]);
     let guard = canonical.lock().unwrap();

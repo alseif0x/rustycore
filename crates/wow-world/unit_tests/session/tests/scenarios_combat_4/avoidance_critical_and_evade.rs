@@ -47,6 +47,11 @@ fn white_swing_gates_avoidance_on_the_controlled_state_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -186,6 +191,11 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -399,6 +409,11 @@ fn melee_attack_table_reads_the_dual_wield_penalty_aura_like_cpp() {
             unit.add_unit_state(UnitState::MELEE_ATTACKING.bits());
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     // The fixture trains the attacker past the dual-wield penalty; this scenario
     // needs the plain `7.5` `m_modMeleeHitChance`.
@@ -509,6 +524,11 @@ fn white_swing_publishes_an_evade_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let swing = |session: &mut WorldSession| {
         let melee_damage_bonus = session.represented_melee_damage_bonus_like_cpp();

@@ -6,6 +6,8 @@
 use super::super::{
     PlayerRegistry, SessionPlayerController, SessionState, SharedCanonicalMapManager, WorldSession,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::mailbox::{
     DestroyVisibleObjectLikeCppCommand, RefreshVisibleWorldCreaturesLikeCppCommand, SessionCommand,
 };
@@ -18,8 +20,6 @@ use wow_map::{
     PlayerVisibilityRefreshIntentLikeCpp, compute_grid_coord,
 };
 use wow_packet::{WorldPacket, packets::update::UpdateType};
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
 
 const KEY: MapKey = MapKey::new(571, 0);
 
@@ -55,7 +55,6 @@ impl Fixture {
         session.core.session_command_rx = command_rx;
         let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
         let registry = Arc::new(PlayerRegistry::new());
-        let legacy = shared_canonical_map_manager();
         let position = Position::new(10.0, 10.0, 0.0, 0.0);
         let creature_position = Position::new(12.0, 10.0, 0.0, 0.0);
         let creature = ObjectGuid::create_world_object(
@@ -69,7 +68,7 @@ impl Fixture {
         );
         let (grid_x, grid_y) =
             crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
-        legacy.lock().unwrap().add_creature(
+        canonical.lock().unwrap().add_creature(
             KEY.map_id as u16,
             KEY.instance_id,
             grid_x,
@@ -89,7 +88,6 @@ impl Fixture {
                 0,
             ),
         );
-        session.set_canonical_map_manager(legacy);
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_registry(Arc::clone(&registry));
         session.set_map_store(Arc::new(wow_data::MapStore::from_entries([

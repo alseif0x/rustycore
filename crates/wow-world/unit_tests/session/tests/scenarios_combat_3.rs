@@ -88,10 +88,9 @@ fn combat_tick_keeps_and_damages_canonical_player_victim_like_cpp() {
     let attacker_entity = map.get_typed_player(attacker).unwrap();
     let victim_entity = map.get_typed_player(victim).unwrap();
     assert_eq!(attacker_entity.unit().attacking(), Some(victim));
-    assert_eq!(
-        attacker_entity.unit().last_damaged_target_like_cpp(),
-        Some(victim)
-    );
+    // C++ sets `_lastDamagedTargetGuid` only for spell damage
+    // (`Spell.cpp:2906`); the map-owned melee swing leaves it, as C++ does
+    // (#1263 F6-8E: the retired session combat tick also set it on melee).
     assert_eq!(victim_entity.unit().data().health, 33);
     assert_eq!(session.fixtures.combat.combat_target, Some(victim));
     assert!(session.fixtures.combat.in_combat);
@@ -165,6 +164,11 @@ fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -395,7 +399,6 @@ fn chat_away_ignored_while_in_combat_like_cpp() {
 }
 #[test]
 fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -481,8 +484,7 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
         },
     ])));
 
-    let initialized =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     assert!(initialized.plan.events.is_empty());
@@ -494,10 +496,8 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
         .unwrap();
     assert!((4_750..=10_000).contains(&initial_due_in_ms));
 
-    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let melee =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(melee.melee_precondition_rejections, 1);
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);
@@ -543,6 +543,11 @@ fn legacy_turret_ai_can_attack_uses_combat_reaches_and_strict_bounds_like_cpp() 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_304);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {

@@ -679,13 +679,19 @@ pub(super) fn attach_map_manager(session: &mut WorldSession, manager: wow_map::M
     session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(manager)));
 }
 
-pub(super) fn attach_legacy_creature(
+/// Add one NPC creature on 571/0 to the session's canonical store (one is
+/// installed when the session has none).
+pub(super) fn attach_npc_creature(
     session: &mut WorldSession,
     guid: ObjectGuid,
     entry: u32,
     npc_flags: u32,
 ) {
-    let manager = shared_canonical_map_manager();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(shared_canonical_map_manager);
     manager.lock().unwrap().add_creature(
         571,
         0,

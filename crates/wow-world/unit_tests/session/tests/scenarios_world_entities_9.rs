@@ -197,6 +197,8 @@ fn register_world_creature_applies_valid_terrain_swap_visible_map_like_cpp() {
     ));
 
     session.set_canonical_map_manager(Arc::clone(&manager));
+
+    manager.lock().unwrap().create_world_map(571, 0);
     session.set_map_store(map_store);
     session.set_terrain_swap_store(terrain_swap_store);
     session.register_world_creature(
@@ -244,6 +246,8 @@ fn register_world_creature_applies_db_phase_shift_like_cpp() {
     ));
 
     session.set_canonical_map_manager(Arc::clone(&manager));
+
+    manager.lock().unwrap().create_world_map(571, 0);
     session.set_phase_store(phase_store);
     session.set_phase_group_store(phase_group_store);
     session.register_world_creature(
@@ -480,6 +484,11 @@ async fn spell_damage_syncs_canonical_creature_health() {
     let player = ObjectGuid::create_player(1, 42);
     session.core.player_guid = Some(player);
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.apply_damage(None, guid, 7).await.unwrap();
@@ -502,6 +511,11 @@ async fn spell_damage_effects_add_pct_threat_and_one_cast_bonus_like_cpp() {
     let spell_id = 18_003;
     session.core.player_guid = Some(player);
     install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     let mut damage_spell = threat_spell_info_like_cpp(
@@ -579,6 +593,11 @@ fn hostile_cast_level_threat_enters_combat_without_damage_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     let mut store = wow_data::SpellStore::new();
     store.insert(
@@ -645,6 +664,11 @@ async fn spell_damage_no_threat_attributes_skip_engage_and_threat_like_cpp() {
         let player = ObjectGuid::create_player(1, counter);
         let spell_id = counter as i32;
         session.core.player_guid = Some(player);
+        let manager = session
+            .core
+            .canonical_map_manager
+            .clone()
+            .unwrap_or_else(|| manager.clone());
         register_test_creature(&mut session, manager.clone(), guid, 40);
         let mut spell_store = wow_data::SpellStore::new();
         let mut attributes = [0; 15];
@@ -675,6 +699,11 @@ async fn spell_damage_no_threat_attributes_skip_engage_and_threat_like_cpp() {
     let player = ObjectGuid::create_player(1, 18_007);
     let spell_id = 18_007;
     session.core.player_guid = Some(player);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     let mut attributes = [0; 15];
@@ -726,6 +755,11 @@ async fn spell_damage_without_threat_row_adds_spell_level_threat_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 18_009);
     let spell_id = 18_009;
     session.core.player_guid = Some(player_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -802,6 +836,11 @@ async fn spell_damage_adds_threat_without_overwriting_current_victim_like_cpp() 
             spell_id: spell_id as u32,
         },
     ])));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -845,6 +884,11 @@ async fn spell_damage_kill_keeps_empty_creature_loot_non_lootable_like_cpp() {
     let guid = test_creature_guid(18_006);
     let player = ObjectGuid::create_player(1, 47);
     session.core.player_guid = Some(player);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.apply_damage(None, guid, 100).await.unwrap();

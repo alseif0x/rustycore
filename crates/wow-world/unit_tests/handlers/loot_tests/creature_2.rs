@@ -576,6 +576,61 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
         "C++ LootHandler::DoLootRelease removes UNIT_DYNFLAG_LOOTABLE when the creature is fully looted"
     );
 }
+/// #1263 F6-8E review D-2: the forced loot-release DynamicFlags hand their
+/// map-publication mark to the fanout only when the fanout publishes them to
+/// every viewer (it holds the object-owned authority the queued receivers
+/// check). Without it the mark stays, and `Map::SendObjectUpdates` publishes
+/// the forced field to every viewer.
+///
+/// Since F6-8E the release path cannot reach the authority-less branch with a
+/// live creature (the canonical store is the only owner, so `Absent` means no
+/// creature); this pins the seam's contract directly.
+#[tokio::test]
+async fn forced_loot_release_dynamic_flags_keep_the_map_mark_without_the_fanout_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(4);
+    let loot_guid = test_creature_guid(19_117);
+    let creature = make_canonical_creature_for_session(&session, loot_guid);
+    attach_canonical_creature(&mut session, creature);
+    register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
+    let take_mark = |session: &mut WorldSession| {
+        session
+            .mutate_world_creature(loot_guid, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .world_mut()
+                    .object_mut()
+                    .take_dynamic_flags_change_like_cpp()
+            })
+            .unwrap()
+    };
+    let _ = take_mark(&mut session);
+
+    assert!(
+        session
+            .core
+            .loot_release_owner_access_like_cpp()
+            .force_creature_loot_release_dynamic_flags_like_cpp(loot_guid, false)
+            .is_some()
+    );
+    assert!(
+        take_mark(&mut session),
+        "without the fanout the forced field stays marked for Map::SendObjectUpdates"
+    );
+
+    assert!(
+        session
+            .core
+            .loot_release_owner_access_like_cpp()
+            .force_creature_loot_release_dynamic_flags_like_cpp(loot_guid, true)
+            .is_some()
+    );
+    assert!(
+        !take_mark(&mut session),
+        "the fanout is the one publisher of the forced field"
+    );
+}
+
 #[tokio::test]
 async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();

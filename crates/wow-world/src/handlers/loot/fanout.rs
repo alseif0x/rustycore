@@ -110,14 +110,12 @@ impl WorldSession {
         // the current source object and apply C++ Visit(PlayerMapType&): same
         // phase and exact 2D visibility range before SendPacket.
         if source_guid.is_creature() {
-            match self
-                .represented_can_receive_creature_message_to_set_by_guid_like_cpp(
-                    source_guid,
-                    map_id,
-                    instance_id,
-                    false,
-                )
-            {
+            match self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+                source_guid,
+                map_id,
+                instance_id,
+                false,
+            ) {
                 Some(true) => {}
                 Some(false) => {
                     if is_monster_move {

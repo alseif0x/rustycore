@@ -16,7 +16,6 @@ const D1_REARMED_SWING_TIMER_LIKE_CPP: u64 = 2_000;
 
 #[test]
 fn ported_melee_execution_consumes_the_canonical_swing_timer_in_the_production_tick_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 94_101);
@@ -42,6 +41,11 @@ fn ported_melee_execution_consumes_the_canonical_swing_timer_in_the_production_t
     }
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(94_102);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -62,10 +66,8 @@ fn ported_melee_execution_consumes_the_canonical_swing_timer_in_the_production_t
             .ai_ownership()
             .swing_timer_ms
     };
-    let decided = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let decided =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(decided.swings_ready, 1, "{decided:?}");
     assert_eq!(
         canonical_swing_timer_like_cpp(&manager),

@@ -59,6 +59,11 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
             player.unit_mut().set_health(100);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -439,6 +444,11 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -539,8 +549,7 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
     };
     let swing = |manager: &SharedCanonicalMapManager, session: &mut WorldSession| {
         reset_swing(session);
-        let outcome =
-            run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
+        let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
         outcome.commands.last().expect("one swing command").clone()
     };
 

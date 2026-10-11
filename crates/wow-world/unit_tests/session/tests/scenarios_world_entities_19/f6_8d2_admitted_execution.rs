@@ -525,4 +525,3 @@ fn replaced_creature_record_refuses_the_admitted_transition_like_cpp() {
         "a refused transition does not advance the replacement RNG sequence"
     );
 }
-

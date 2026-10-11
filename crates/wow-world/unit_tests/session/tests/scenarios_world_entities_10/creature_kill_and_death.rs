@@ -41,6 +41,11 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
             flags2: 0,
         },
     ])));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.apply_damage(None, guid, 100).await.unwrap();
@@ -91,6 +96,11 @@ async fn creature_kill_notifies_current_tapper_pet_after_death_state_like_cpp() 
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     session.apply_damage(None, guid, 100).await.unwrap();
@@ -172,6 +182,7 @@ async fn creature_kill_sets_skinning_flags_when_skin_loot_template_exists_like_c
     stores.insert(LootStoreKind::Skinning, skinning_store);
     session.set_loot_stores(Arc::new(stores));
     session.core.player_guid = Some(player);
+    manager.lock().unwrap().create_world_map(0, 0);
     session.set_canonical_map_manager(manager);
     session.core.current_map_id = 0;
     session.register_world_creature(

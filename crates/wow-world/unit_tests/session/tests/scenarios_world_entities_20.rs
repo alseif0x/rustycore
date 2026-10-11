@@ -10,6 +10,11 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_007);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -106,12 +111,16 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
 }
 #[test]
 fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_211);
     let tank = ObjectGuid::create_player(1, 91_212);
     let challenger = ObjectGuid::create_player(1, 91_213);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -196,12 +205,16 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
 }
 #[test]
 fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_217);
     let suppressed = ObjectGuid::create_player(1, 91_218);
     let available = ObjectGuid::create_player(1, 91_219);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -314,12 +327,16 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
 }
 #[test]
 fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_220);
     let tank = ObjectGuid::create_player(1, 91_221);
     let taunter = ObjectGuid::create_player(1, 91_222);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -368,11 +385,15 @@ fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
 }
 #[test]
 fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_214);
     let vanished = ObjectGuid::create_player(1, 91_215);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -440,12 +461,21 @@ fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp
 }
 #[test]
 fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let attacker_guid = test_creature_guid(91_230);
     let victim_guid = test_creature_guid(91_231);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     session
         .mutate_world_creature(attacker_guid, |attacker| {
@@ -506,14 +536,28 @@ fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() 
 }
 #[test]
 fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let caller_guid = test_creature_guid(91_232);
     let assistant_guid = test_creature_guid(91_233);
     let victim_guid = test_creature_guid(91_234);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), caller_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     session
         .mutate_world_creature(caller_guid, |caller| {
@@ -574,7 +618,6 @@ fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp(
 }
 #[test]
 fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let caller_guid = test_creature_guid(91_216);
@@ -584,8 +627,23 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     let passive_before_due_guid = test_creature_guid(91_221);
     let defensive_assistant_guid = test_creature_guid(91_222);
     let victim = ObjectGuid::create_player(1, 91_218);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), caller_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), dead_assistant_guid, 100);
     register_test_creature(
         &mut session,
@@ -593,7 +651,17 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
         controlled_assistant_guid,
         100,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), passive_before_due_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), defensive_assistant_guid, 100);
     session
         .mutate_world_creature(caller_guid, |creature| {
@@ -656,11 +724,8 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     )];
     let config = legacy_aggro_hostile_config_with_rate_like_cpp(3.0);
 
-    let scheduled = run_canonical_creature_aggro_phase_for_test_like_cpp(
-        &manager,
-        &candidates,
-        config.clone(),
-    );
+    let scheduled =
+        run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &candidates, config.clone());
     assert_eq!(scheduled.aggro_starts, 1);
     assert_eq!(scheduled.assistance_scheduled, 3);
     assert_eq!(

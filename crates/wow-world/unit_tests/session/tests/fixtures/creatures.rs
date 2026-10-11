@@ -436,5 +436,7 @@ pub(in crate::session::tests) fn mutate_canonical_creature_for_test_like_cpp<R>(
     let mut manager = manager
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
-    manager.find_creature_mut(0, 0, guid).map(|mut creature| f(&mut creature))
+    manager
+        .find_creature_mut(0, 0, guid)
+        .map(|mut creature| f(&mut creature))
 }

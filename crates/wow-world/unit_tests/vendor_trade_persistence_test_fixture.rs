@@ -15,6 +15,9 @@ pub(crate) fn register_vendor_for_trade_test_like_cpp(
     guid: ObjectGuid,
     entry: u32,
 ) {
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_for_session_like_cpp(
+        session,
+    );
     session.register_world_creature(
         571,
         Position::new(5.0, 0.0, 0.0, 0.0),

@@ -77,7 +77,7 @@ impl NpcInteractionAccessLikeCpp<'_> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 {
                     if self.core.player_handle_like_cpp.is_some() {
-                            return None;
+                        return None;
                     }
                     *self.fixtures.player_alive && *self.fixtures.player_health > 0
                 }

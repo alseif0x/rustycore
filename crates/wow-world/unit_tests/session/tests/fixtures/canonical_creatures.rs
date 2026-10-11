@@ -44,17 +44,15 @@ pub(in crate::session::tests) fn all_canonical_creatures_selection_like_cpp(
             .filter(|guid| map.get_typed_creature(*guid).is_some())
             .collect();
         guids.sort();
-        objects.extend(
-            guids
-                .into_iter()
-                .map(|creature_guid| AdmittedCreatureExecutionObjectLikeCpp {
-                    map_id: managed.map_id(),
-                    instance_id: managed.instance_id(),
-                    incarnation: 0,
-                    creature_guid,
-                    record_identity: 0,
-                }),
-        );
+        objects.extend(guids.into_iter().map(|creature_guid| {
+            AdmittedCreatureExecutionObjectLikeCpp {
+                map_id: managed.map_id(),
+                instance_id: managed.instance_id(),
+                incarnation: 0,
+                creature_guid,
+                record_identity: 0,
+            }
+        }));
     });
     (maps, objects)
 }
@@ -89,8 +87,11 @@ pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_with_terrain
 ) -> LegacyCreatureAggroTickOutcomeLikeCpp {
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     let (maps, objects) = all_canonical_creatures_selection_like_cpp(&manager);
-    let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &maps, &objects);
-    crate::session::run_creature_aggro_phase_on_store_like_cpp(&mut store, terrain, candidates, &config)
+    let mut store =
+        AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &maps, &objects);
+    crate::session::run_creature_aggro_phase_on_store_like_cpp(
+        &mut store, terrain, candidates, &config,
+    )
 }
 
 /// The creature melee phase (`DoMeleeAttackIfReady`).
@@ -239,11 +240,15 @@ pub(in crate::session::tests) fn run_session_player_melee_phase_for_test_like_cp
         .clone()
         .expect("the player melee phase runs on the canonical map");
     let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
-    let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(8);
-    let (command_tx, _command_rx) = flume::bounded::<SessionCommand>(8);
+    // The phase reaches the session through its own outbound and command
+    // channels, as through its registry registration in production.
     let registration = PlayerRegistry::new().register_or_replace(
         player_guid,
-        broadcast_info_with_command(player_guid, send_tx, command_tx),
+        broadcast_info_with_command(
+            player_guid,
+            session.send_tx().clone(),
+            session.core.session_command_tx.clone(),
+        ),
         Default::default(),
     );
     let attackers = vec![PlayerMeleeAttackerSnapshotLikeCpp {
@@ -265,6 +270,11 @@ pub(in crate::session::tests) fn run_session_player_melee_phase_for_test_like_cp
         &mut phase_state,
         &config,
     );
+    // The registry delivers to an in-world session; its handler re-gates on
+    // `LoggedIn`, which these fixture sessions model by construction.
+    if session.state() != SessionState::LoggedIn {
+        session.set_state(SessionState::LoggedIn);
+    }
     for command in outcome.commands.clone() {
         session.handle_apply_player_melee_result_like_cpp_command_like_cpp(command);
     }

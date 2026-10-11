@@ -284,6 +284,9 @@ pub(in crate::session::tests) fn install_xp_victim_like_cpp(
     if session.player_position_like_cpp().is_none() {
         session.set_player_map_position_like_cpp(map_id, Position::new(10.0, 10.0, 0.0, 0.0));
     }
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_for_session_like_cpp(
+        session,
+    );
     session.register_world_creature(
         map_id,
         Position::new(10.0, 10.0, 0.0, 0.0),

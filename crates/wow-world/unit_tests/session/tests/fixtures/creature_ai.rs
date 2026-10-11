@@ -250,13 +250,17 @@ pub(in crate::session::tests) fn creature_spell_bound_hook_tick_fixture_like_cpp
     LegacyCreatureAggroConfigLikeCpp,
     ObjectGuid,
 ) {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(creature_counter);
     let victim_guid = ObjectGuid::create_player(1, victim_counter);
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {

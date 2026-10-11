@@ -4175,10 +4175,7 @@ async fn run_inner(
             warn!("Canonical MapManager lock poisoned; InitSpawnGroupState hook not installed")
         }
     }
-    register_loaded_instance_ids(
-        canonical_map_manager.as_ref(),
-        &registered_instance_ids,
-    );
+    register_loaded_instance_ids(canonical_map_manager.as_ref(), &registered_instance_ids);
 
     let loaded_grid_creature_respawn_caches = LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id,

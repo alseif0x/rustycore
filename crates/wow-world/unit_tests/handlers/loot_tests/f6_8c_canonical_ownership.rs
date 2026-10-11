@@ -12,10 +12,10 @@ use super::{
     attach_addressed_empty_canonical_loot_store_like_cpp, make_session_with_send_capacity,
     register_test_creature_like_cpp, test_creature, test_creature_guid,
 };
-use wow_core::{ObjectGuid, Position};
-use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 #[allow(unused_imports)]
 use crate::canonical_creature_fixtures::*;
+use wow_core::{ObjectGuid, Position};
+use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 
 const TEST_MAP_ID: u16 = 571;
 

@@ -39,8 +39,8 @@ mod summon_fixtures;
 #[path = "visibility.rs"]
 mod visibility_fixtures;
 
-pub(super) use canonical_creature_fixtures::*;
 pub(super) use crate::canonical_creature_fixtures::*;
+pub(super) use canonical_creature_fixtures::*;
 pub(super) use creature_ai_fixtures::*;
 pub(super) use creature_fixtures::*;
 pub(super) use instance_fixtures::*;

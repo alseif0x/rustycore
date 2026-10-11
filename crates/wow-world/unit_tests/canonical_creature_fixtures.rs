@@ -52,28 +52,19 @@ impl std::ops::DerefMut for CanonicalCreatureFixtureMutLikeCpp<'_> {
 
 impl CanonicalCreatureFixtureRefLikeCpp<'_> {
     /// Milliseconds until the creature's template spell `slot` is due.
-    pub(crate) fn creature_spell_due_in_ms_for_test(
-        &self,
-        slot: usize,
-    ) -> Option<u64> {
+    pub(crate) fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
         creature_spell_due_in_ms_like_cpp(self.creature, slot)
     }
 }
 
 impl CanonicalCreatureFixtureMutLikeCpp<'_> {
     /// Milliseconds until the creature's template spell `slot` is due.
-    pub(crate) fn creature_spell_due_in_ms_for_test(
-        &self,
-        slot: usize,
-    ) -> Option<u64> {
+    pub(crate) fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
         creature_spell_due_in_ms_like_cpp(self.creature, slot)
     }
 
     /// Set the creature's `Unit::Update` clock to `elapsed`.
-    pub(crate) fn backdate_runtime_clock_for_test(
-        &mut self,
-        elapsed: std::time::Duration,
-    ) {
+    pub(crate) fn backdate_runtime_clock_for_test(&mut self, elapsed: std::time::Duration) {
         self.creature
             .runtime_like_cpp_mut()
             .set_runtime_elapsed_ms_like_cpp(elapsed.as_millis().min(u128::from(u64::MAX)) as u64);
@@ -198,6 +189,8 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
             .unit_mut()
             .world_mut()
             .set_map(u32::from(map_id), instance_id);
+        // As the production registration does before the insert.
+        creature.unit_mut().world_mut().object_mut().add_to_world();
         self.create_world_map(u32::from(map_id), instance_id);
         wow_world_entities::insert_canonical_creature_map_object_on_locked_map_like_cpp(
             self,
@@ -214,9 +207,7 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         instance_id: u32,
         guid: ObjectGuid,
     ) -> Option<crate::map_manager::WorldCreature> {
-        let map = self
-            .find_map_mut(u32::from(map_id), instance_id)?
-            .map_mut();
+        let map = self.find_map_mut(u32::from(map_id), instance_id)?.map_mut();
         let creature = map.get_typed_creature(guid)?.clone();
         let _ = map.remove_from_map_like_cpp(guid, true);
         let create_data =
@@ -230,7 +221,9 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
     fn respawn_queue_len(&self, map_id: u16, instance_id: u32) -> usize {
         self.find_map(u32::from(map_id), instance_id)
             .map_or(0, |map| {
-                map.map().creature_respawn_queue_like_cpp().respawn_queue_len()
+                map.map()
+                    .creature_respawn_queue_like_cpp()
+                    .respawn_queue_len()
             })
     }
 
@@ -280,19 +273,21 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
     }
 }
 
-
-/// Give `session` a canonical creature store when it has none — with the
-/// canonical map at its runtime map key, so a creature registered through the
-/// session is admitted as a canonical incarnation. A store the session already
-/// has is left as configured (a missing map keeps deferring registrations).
+/// Give `session` a canonical creature store when it has none, and the
+/// canonical map at its runtime map key (`create_world_map` is idempotent), so
+/// a creature registered through the session is admitted as a canonical
+/// incarnation — the store the former legacy registration always provided.
 pub(crate) fn ensure_canonical_creature_store_for_session_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> SharedCanonicalMapManager {
-    if let Some(canonical) = session.core.canonical_map_manager.clone() {
-        return canonical;
-    }
-    let canonical = shared_canonical_map_manager();
-    session.set_canonical_map_manager(Arc::clone(&canonical));
+    let canonical = match session.core.canonical_map_manager.clone() {
+        Some(canonical) => canonical,
+        None => {
+            let canonical = shared_canonical_map_manager();
+            session.set_canonical_map_manager(Arc::clone(&canonical));
+            canonical
+        }
+    };
     let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     canonical
         .lock()

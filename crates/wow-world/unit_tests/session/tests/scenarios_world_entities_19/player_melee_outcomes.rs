@@ -56,6 +56,11 @@ async fn map_owned_player_melee_publishes_the_attack_table_outcome_like_cpp() {
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
 
     // A -200% `SPELL_AURA_MOD_HIT_CHANCE` guarantees the miss band, so the
@@ -200,6 +205,11 @@ async fn map_owned_player_melee_publishes_a_block_like_cpp() {
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -325,6 +335,11 @@ async fn map_owned_player_melee_applies_victim_avoidance_auras_like_cpp() {
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -470,6 +485,11 @@ async fn map_owned_player_melee_applies_victim_critical_chance_auras_like_cpp() 
         })
         .unwrap();
     session.set_canonical_map_manager(Arc::clone(&manager));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {

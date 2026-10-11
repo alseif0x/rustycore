@@ -68,6 +68,11 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -205,6 +210,11 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -371,6 +381,11 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

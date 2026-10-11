@@ -274,8 +274,13 @@ pub(in crate::session) fn run_player_melee_phase_on_manager_like_cpp(
     outcome: &mut LegacyPlayerMeleeTickOutcomeLikeCpp,
 ) {
     outcome.attackers_seen = attackers.len();
-    let (pending, map_difficulties) =
-        collect_player_melee_swings_on_manager_like_cpp(manager, attackers, diff_ms, phase_state, outcome);
+    let (pending, map_difficulties) = collect_player_melee_swings_on_manager_like_cpp(
+        manager,
+        attackers,
+        diff_ms,
+        phase_state,
+        outcome,
+    );
     outcome.swings_ready = pending.len();
     for swing in pending {
         execute_player_melee_swing_on_manager_like_cpp(
@@ -465,7 +470,8 @@ pub(in crate::session) fn run_creature_spell_phase_on_manager_like_cpp(
     };
     let map_difficulties = creature_spell_map_difficulties_like_cpp(manager);
     let actions = {
-        let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(manager, maps, selection);
+        let mut store =
+            AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(manager, maps, selection);
         collect_creature_spell_actions_on_store_like_cpp(
             &mut store,
             &map_difficulties,
@@ -491,7 +497,8 @@ pub(in crate::session) fn run_creature_melee_phase_on_manager_like_cpp(
     outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
 ) {
     let pending = {
-        let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(manager, maps, selection);
+        let mut store =
+            AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(manager, maps, selection);
         collect_creature_melee_swings_on_store_like_cpp(&mut store, outcome)
     };
     for swing in pending {

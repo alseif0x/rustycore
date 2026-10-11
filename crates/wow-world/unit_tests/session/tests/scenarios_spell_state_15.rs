@@ -397,6 +397,11 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -497,6 +502,11 @@ async fn spell_distract_effect_launches_facing_spline_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -576,6 +586,11 @@ async fn spell_distract_effect_skips_engaged_target_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -665,6 +680,11 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         0,
         80,
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session.fixtures.combat.combat_target = Some(creature_guid);
     session.fixtures.combat.in_combat = true;

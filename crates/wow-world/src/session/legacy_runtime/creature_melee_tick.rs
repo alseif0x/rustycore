@@ -680,7 +680,13 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp(
         return;
     }
 
-    let (victim_health_after, victim_health_state_revision_after, over_damage, target_level, events) = match apply(
+    let (
+        victim_health_after,
+        victim_health_state_revision_after,
+        over_damage,
+        target_level,
+        events,
+    ) = match apply(
         canonical_manager,
         &swing,
         Some(damage),

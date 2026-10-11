@@ -34,8 +34,7 @@ pub use admitted_creature_execution::{
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
     CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
     CreatureExecutionTransitionLikeCpp, IsolatedCreatureExecutionOutcomeLikeCpp,
-    SharedCreatureExecutionLeaseLikeCpp,
-    capture_admitted_creature_execution_like_cpp,
+    SharedCreatureExecutionLeaseLikeCpp, capture_admitted_creature_execution_like_cpp,
     capture_admitted_creature_execution_on_manager_like_cpp,
     run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
@@ -51,6 +50,7 @@ pub(in crate::session) use admitted_creature_execution::{
 };
 #[allow(unused_imports)]
 pub(in crate::session) use creature_aggro_tick::*;
+pub use creature_combat_commit::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_lifecycle_tick::*;
 #[allow(unused_imports)]
@@ -71,4 +71,3 @@ pub(in crate::session) use creature_tick::*;
 pub(in crate::session) use player_melee_victims::*;
 #[allow(unused_imports)]
 pub(in crate::session) use player_tick::*;
-pub use creature_combat_commit::*;

@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn legacy_only_npc_interaction_uses_combat_reach_like_cpp() {
+fn npc_interaction_uses_combat_reach_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 44);
     let questgiver_guid = test_creature_guid(15);
@@ -32,11 +32,13 @@ fn legacy_only_npc_interaction_uses_combat_reach_like_cpp() {
         0,
     );
     creature.creature.unit_mut().set_combat_reach(0.0);
-    manager
-        .lock()
-        .unwrap()
-        .add_creature(571, 0, 0, 0, creature);
+    manager.lock().unwrap().add_creature(571, 0, 0, 0, creature);
     session.set_canonical_map_manager(Arc::clone(&manager));
+    session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
+    session
+        .ensure_canonical_world_map_for_current_player_like_cpp()
+        .expect("canonical map");
+    session.set_player_faction_template_like_cpp(1);
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(

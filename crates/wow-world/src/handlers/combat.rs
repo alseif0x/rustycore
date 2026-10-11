@@ -107,6 +107,34 @@ impl WorldSession {
         }
 
         if let Some(kill) = command.killed_creature.as_ref() {
+            // C++ `Unit::setDeathState(JUST_DIED)` → `CombatStop` →
+            // `RemoveAllAttackers`: the killer runs `AttackStop`, which also
+            // clears its target and `UNIT_STATE_MELEE_ATTACKING` (#1263 F6-8E:
+            // the retired session combat tick did this; the map-owned phase
+            // only reported the kill).
+            let _ = self.core.with_owned_player_mut_like_cpp(|player| {
+                let unit = player.unit_mut();
+                if unit.attacking() == Some(kill.creature_guid) {
+                    let _ = unit.attack_stop_like_cpp();
+                }
+                unit.subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(kill.creature_guid);
+            });
+            // Both ends of the reference go together (C++ `Unit::Kill` →
+            // `CombatStop`).
+            let _ = self
+                .core
+                .mutate_world_creature(kill.creature_guid, |creature| {
+                    creature
+                        .creature
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .purge_combat_ref_like_cpp(command.attacker_guid);
+                });
+            crate::session::hub_mut(self)
+                .revalidate_canonical_player_combat_refs_like_cpp(command.attacker_guid);
             self.world_entities.queue_pending_creature_kill_like_cpp(
                 command.attacker_guid,
                 kill.creature_guid,

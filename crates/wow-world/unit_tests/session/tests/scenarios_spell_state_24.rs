@@ -345,7 +345,6 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
 }
 #[test]
 fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -399,17 +398,14 @@ fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
         assert!(creature.can_swing());
     })
     .unwrap();
-    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let melee =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);
     assert!(melee.commands.is_empty());
 }
 #[test]
 fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp() {
-
     // C++ `DoSpellAttackIfReady` gates on `IsWithinCombatRange(max +
     // combat reaches)` and only then calls `CastSpell`/`resetAttackTimer`.
     // A `disables` row makes `Spell::CheckCast` reject the cast, so the
@@ -481,8 +477,7 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
             .0,
         ));
 
-        let outcome =
-            run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+        let outcome = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
         let swing_ready =
             mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
                 creature.can_swing()
@@ -524,7 +519,6 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
 }
 #[test]
 fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();

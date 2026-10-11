@@ -7,7 +7,6 @@ use super::*;
 
 #[test]
 fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -16,6 +15,11 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     let victim_guid = ObjectGuid::create_player(1, 91_317);
     let spell_id = 15_691_i32;
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -38,8 +42,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
             represented_creature_spell_test_attributes_like_cpp(false),
         );
 
-    let initialized =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     let miss_seed = (0_u64..10_000)
         .find(|seed| {
@@ -114,8 +117,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     })
     .unwrap();
 
-    let unrepresented =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let unrepresented = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(unrepresented.casts_ready, 0);
     assert_eq!(unrepresented.spell_hit_results_unrepresented, 1);
@@ -146,8 +148,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
         creature.seed_runtime_rng_like_cpp(0xBEEF);
     })
     .unwrap();
-    let next_engagement =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let next_engagement = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(next_engagement.schedules_initialized, 1);
     assert_eq!(next_engagement.runtime_rng_authority_rejections, 1);
     assert_eq!(next_engagement.casts_ready, 0);
@@ -172,10 +173,8 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
         assert!(creature.can_swing());
     })
     .unwrap();
-    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
-        &canonical,
-        &Default::default(),
-    );
+    let melee =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(melee.runtime_rng_authority_rejections, 0);
     assert_eq!(melee.melee_outcomes_unrepresented, 1);
     assert_eq!(melee.swings_ready, 1);
@@ -185,7 +184,6 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
 }
 #[test]
 fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -322,7 +320,6 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
 }
 #[test]
 fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -331,6 +328,11 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
     let aggro_spell_id = 70_210_i32;
     let combat_spell_id = 70_211_i32;
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -431,7 +433,6 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
 }
 #[test]
 fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
@@ -447,11 +448,6 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         creature_guid,
         25,
     );
-    // Registration establishes the shared incarnation exactly as production
-    // does. Detach the session mirror afterwards so the later legacy
-    // mutations in this test cannot overwrite the canonical spell history
-    // whose cooldown deadlines it asserts.
-    session.core.canonical_map_manager = None;
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature
@@ -520,8 +516,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         })
         .unwrap();
 
-    let initialized =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     session
@@ -580,13 +575,12 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
 }
 #[test]
 fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch_rng_like_cpp() {
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_200);
     let victim_guid = ObjectGuid::create_player(1, 91_201);
     let spell_id = 70_001_i32;
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
     register_test_creature_mirrored_like_cpp(
         &mut session,
@@ -612,8 +606,7 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
         30.0,
     );
 
-    let initialized =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     assert!(initialized.plan.events.is_empty());
@@ -630,8 +623,7 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
         ));
     })
     .unwrap();
-    let before_minimum =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let before_minimum = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(before_minimum.casts_ready, 0);
 
     mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
@@ -732,8 +724,7 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
     assert!(!rng_is_authoritative);
     assert_eq!(actual_next_roll, None);
 
-    let no_retry =
-        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
+    let no_retry = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(no_retry.casts_ready, 0);
     assert!(no_retry.plan.events.is_empty());
     assert_eq!(

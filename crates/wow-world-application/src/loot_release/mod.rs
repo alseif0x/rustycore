@@ -601,7 +601,10 @@ impl LootReleaseCxLikeCpp<'_> {
             if owner_guid.is_creature_or_vehicle() {
                 let values_update = self
                     .owner
-                    .force_creature_loot_release_dynamic_flags_like_cpp(owner_guid);
+                    .force_creature_loot_release_dynamic_flags_like_cpp(
+                        owner_guid,
+                        authoritative_release.is_some(),
+                    );
                 if let Some(values_update) = values_update.as_ref() {
                     self.send_creature_loot_release_dynamic_flags_update_like_cpp(
                         owner_guid,

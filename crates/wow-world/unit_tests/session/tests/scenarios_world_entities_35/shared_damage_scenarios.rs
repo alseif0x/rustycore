@@ -126,6 +126,11 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
         recursive_guid,
         "RecursiveCaster",
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
     session
         .mutate_world_creature(attacker_guid, |creature| {
@@ -257,6 +262,11 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     for guid in [attacker_guid, victim_guid, secondary_guid, recursive_guid] {
+        let manager = session
+            .core
+            .canonical_map_manager
+            .clone()
+            .unwrap_or_else(|| manager.clone());
         register_test_creature(&mut session, manager.clone(), guid, 100);
     }
     session
@@ -573,8 +583,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let sparring =
-        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
+    let sparring = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -619,8 +628,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let unkillable =
-        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
+    let unkillable = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -644,7 +652,6 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
 /// Once that same target already has combat, a later share creates threat.
 #[test]
 fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -654,6 +661,11 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     for guid in [attacker_guid, victim_guid, secondary_guid] {
+        let manager = session
+            .core
+            .canonical_map_manager
+            .clone()
+            .unwrap_or_else(|| manager.clone());
         register_test_creature(&mut session, manager.clone(), guid, 100);
     }
     for guid in [victim_guid, secondary_guid] {
@@ -792,32 +804,19 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
         })
         .unwrap();
     let second = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
-    for threat in [
-        canonical
-            .lock()
-            .unwrap()
-            .find_map(0, 0)
-            .unwrap()
-            .map()
-            .with_creature_like_cpp(secondary_guid, |secondary| {
-                secondary
-                    .unit()
-                    .subsystems()
-                    .combat
-                    .threat_value(attacker_guid)
-            })
-            .flatten(),
-        manager
-            .lock()
-            .unwrap()
-            .find_creature(0, 0, secondary_guid)
-            .unwrap()
-            .creature
-            .unit()
-            .subsystems()
-            .combat
-            .threat_value(attacker_guid),
-    ] {
-        assert_eq!(threat, Some(5.0));
-    }
+    let threat = canonical
+        .lock()
+        .unwrap()
+        .find_map(0, 0)
+        .unwrap()
+        .map()
+        .with_creature_like_cpp(secondary_guid, |secondary| {
+            secondary
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid)
+        })
+        .flatten();
+    assert_eq!(threat, Some(5.0));
 }
