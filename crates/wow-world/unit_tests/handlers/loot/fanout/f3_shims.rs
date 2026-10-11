@@ -24,3 +24,15 @@ impl crate::session::WorldSession {
         )
     }
 }
+
+impl WorldSession {
+    pub(crate) fn send_loot_error_like_cpp(
+        &self,
+        loot_obj: ObjectGuid,
+        owner: ObjectGuid,
+        error: u8,
+    ) {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.send_loot_error_like_cpp(hub, loot_obj, owner, error)
+    }
+}

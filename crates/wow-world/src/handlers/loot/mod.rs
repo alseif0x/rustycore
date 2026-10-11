@@ -160,7 +160,6 @@ use wow_conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
     QUEST_STATUS_NONE_LIKE_CPP,
 };
-const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
@@ -173,8 +172,11 @@ const CONDITION_OBJECT_ENTRY_GUID_LIKE_CPP: i32 = 51;
 const CONDITION_TYPE_MASK_LIKE_CPP: i32 = 52;
 const TYPEID_PLAYER_LIKE_CPP: u32 = 6;
 const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
+#[cfg(test)]
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
+#[cfg(test)]
 const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
+#[cfg(test)]
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
 
 // ── Handler registrations ─────────────────────────────────────────
@@ -299,18 +301,6 @@ struct RepresentedGameObjectLootInstallObservationLikeCpp {
     authority: OwnedLootAuthority,
     object_generation: u64,
     loot_lifecycle_revision: u64,
-}
-
-#[derive(Debug, Clone, Copy)]
-struct RepresentedGameObjectLootStateLikeCpp {
-    position: Option<wow_core::Position>,
-    display_id: Option<u32>,
-    scale: f32,
-    rotation: [f32; 4],
-    go_type: Option<u8>,
-    interact_radius_override: Option<u32>,
-    lock_id: Option<u32>,
-    owner_guid: Option<ObjectGuid>,
 }
 
 // Gameobject interaction geometry is shared with the application layer's
@@ -629,19 +619,7 @@ impl<E: std::fmt::Debug> std::fmt::Debug for LootClaimPersistenceWorkerError<E> 
     }
 }
 
-fn queue_stored_item_money_indeterminate_kick_like_cpp(command_tx: &flume::Sender<SessionCommand>) {
-    let kick = SessionCommand::KickLikeCpp(KickLikeCppCommand {
-        reason: "stored Item money COMMIT outcome is unknown; relog required".to_string(),
-    });
-    if let Err(error) = command_tx.try_send(kick) {
-        let kick = error.into_inner();
-        let command_tx = command_tx.clone();
-        tokio::spawn(async move {
-            let _ = command_tx.send_async(kick).await;
-        });
-    }
-}
-
+#[cfg(test)]
 fn spawn_loot_claim_persistence_worker_like_cpp<F, E>(
     persistence: F,
     claim: Option<LootClaimLease>,

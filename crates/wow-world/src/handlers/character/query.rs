@@ -86,7 +86,10 @@ impl WorldSession {
     /// Test-only entry point for the DB2 bulk-query handler owned by
     /// `wow-world-application` (#1263 F5).
     #[cfg(test)]
-    pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
+    pub(crate) async fn handle_db_query_bulk(
+        &mut self,
+        query: wow_packet::packets::misc::DbQueryBulk,
+    ) {
         let tact_keys = self
             .tact_key_store_for_test_like_cpp()
             .cloned()
@@ -99,11 +102,6 @@ impl WorldSession {
         )
         .handle_db_query_bulk(query)
         .await;
-    }
-
-    pub(crate) async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
-        self.build_item_text_query_handler_cx_like_cpp()
-            .handle_item_text_query(query);
     }
 
     #[cfg(test)]
@@ -210,3 +208,7 @@ impl WorldSession {
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/character/query/test_only.rs"]
+mod test_only;

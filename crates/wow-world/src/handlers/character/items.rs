@@ -97,20 +97,6 @@ impl WorldSession {
         }
     }
 
-    #[cfg(test)]
-    pub(super) fn creature_virtual_items_from_row_like_cpp(
-        &mut self,
-        entry: u32,
-        persisted_equipment_id: i16,
-    ) -> CreatureEquipmentCreateFieldsLikeCpp {
-        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.creature_virtual_items_from_row_with_catalogs_like_cpp(
-            &catalogs,
-            entry,
-            persisted_equipment_id,
-        )
-    }
-
     pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.inventory_container_db_guid_like_cpp(hub, bag)

@@ -18,17 +18,6 @@ impl WorldSession {
         self.lifecycle
             .set_battle_pet_account_attachment_like_cpp(attachment);
     }
-    /// Set the world-DB battle-pet breed/quality selection store (#161).
-    #[cfg(test)]
-    pub(crate) fn set_battle_pet_selection_store_like_cpp(
-        &mut self,
-        store: Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
-    ) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_selection_store_like_cpp = Some(store);
-    }
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
         breed: u16,
@@ -599,29 +588,6 @@ impl crate::session::PetsCx<'_> {
 
         pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
         true
-    }
-
-    pub(crate) async fn battle_pet_remove_pet_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-    ) -> bool {
-        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
-            #[cfg(test)]
-            return self.battle_pet_remove_pet_like_cpp(pet_guid);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
-        match owner.try_remove_pet_like_cpp(lease, pet_guid).await {
-            Ok(()) => true,
-            Err(error) => {
-                self.hub
-                    .shared()
-                    .log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
-                false
-            }
-        }
     }
 
     /// Record the C++ `BattlePetMgr::AddPet` criteria hooks from durable

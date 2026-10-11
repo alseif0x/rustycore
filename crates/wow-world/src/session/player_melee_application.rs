@@ -162,8 +162,6 @@ pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
     processed_ready_attack.then_some((swings, base_attack_error_update))
 }
 
-pub(in crate::session) use wow_world_core::session::begin_combat_ref_on_map_like_cpp;
-
 /// Apply one player's melee swings to a canonical player victim.
 ///
 /// Lifted out of `run_combat_tick` by #28: the body was already one closure over

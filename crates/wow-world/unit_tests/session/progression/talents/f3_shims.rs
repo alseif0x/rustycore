@@ -8,12 +8,6 @@ use super::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
-    pub(in crate::session::progression::talents) fn represented_spent_talent_points_count_like_cpp(
-        &self,
-    ) -> Option<u32> {
-        crate::session::hub_ref(self).represented_spent_talent_points_count_like_cpp()
-    }
-    #[cfg(test)]
     pub(crate) fn mutate_player_talent_runtime_for_test_like_cpp<R>(
         &mut self,
         apply: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,

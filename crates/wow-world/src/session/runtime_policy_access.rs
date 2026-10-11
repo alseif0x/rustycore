@@ -4,21 +4,12 @@
 //! Runtime policy access: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, ChatFloodThrottleIndexLikeCpp, DisableMgrLikeCpp, SocketTimeoutsLikeCpp};
+use super::{Arc, DisableMgrLikeCpp, SocketTimeoutsLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldSession, registry};
 
 impl WorldSession {
     pub fn set_reset_schedule_like_cpp(&mut self, schedule: wow_instances::ResetSchedule) {
         self.config.reset_schedule_like_cpp = schedule;
-    }
-
-    pub(crate) fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
-        crate::session::hub_mut(self).set_represented_is_outdoors_like_cpp(is_outdoors)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
-        self.config.addon_channel_like_cpp = enabled;
     }
 
     pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
@@ -30,34 +21,8 @@ impl WorldSession {
         self.core.realm_policy.server_expansion_like_cpp = expansion;
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
-        self.config.characters_per_realm_like_cpp = characters_per_realm;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn declined_names_used_like_cpp(&self) -> bool {
-        self.config.declined_names_used_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_feature_system_character_undelete_enabled_like_cpp(&mut self, enabled: bool) {
-        self.config
-            .feature_system_character_undelete_enabled_like_cpp = enabled;
-    }
-
     pub fn set_waypoint_path_resolver_like_cpp(&mut self, resolver: WaypointPathResolverLikeCpp) {
         self.catalogs.waypoint_path_resolver_like_cpp = Some(resolver);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn addon_channel_like_cpp(&self) -> bool {
-        self.config.addon_channel_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
-        self.update_speak_time_with_policy_like_cpp(index, self.config.chat_flood_config_like_cpp)
     }
 
     /// Set the C++ DisableMgr store loaded from the `disables` table.
@@ -71,15 +36,6 @@ impl WorldSession {
 
     pub(crate) fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
         self.catalogs.lock_entry_exists_like_cpp(lock_id)
-    }
-
-    /// Share the process-wide trusted module registry with this session.
-    ///
-    /// Composition calls this once after construction. A session that never
-    /// receives one keeps the zero-module no-op path.
-    #[cfg(test)]
-    pub fn set_module_registry_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
-        self.core.module_registry_like_cpp = Some(registry);
     }
 
     pub(in crate::session) fn trinity_string_like_cpp(&self, entry: u32) -> &str {

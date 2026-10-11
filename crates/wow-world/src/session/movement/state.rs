@@ -47,12 +47,6 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn remove_currency(&mut self, currency_id: u32, amount: u32) -> bool {
-        let access = self.core.owned_player_currency_access_like_cpp();
-        self.inventory
-            .remove_currency_with_access_like_cpp(&access, currency_id, amount)
-    }
-
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
         self.remove_player_rest_flag_like_cpp(rest_flag)
     }
@@ -76,35 +70,9 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn remove_legit_character(&mut self, guid: &ObjectGuid) {
-        crate::session::hub_mut(self).remove_legit_character(guid)
-    }
-
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
         self.player_aura_application_cx_like_cpp()
             .remove_represented_feign_death_if_needed_like_cpp()
-    }
-
-    pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
-        let _canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_mover_fixed_position_vehicle_like_cpp(fixed);
-            })
-            .is_some();
-        #[cfg(test)]
-        if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .movement
-                .represented_mover_fixed_position_vehicle_like_cpp = fixed;
-        }
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {
-        #[cfg(test)]
-        self.social
-            .record_calendar_remove_event_for_test_like_cpp(event_id);
     }
 
     #[cfg(test)]
@@ -257,17 +225,6 @@ impl WorldSession {
                 );
         }
         true
-    }
-
-    pub(in crate::session) fn resolved_movement_force_mod_magnitude_like_cpp(&self) -> Option<f32> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            player.unit().movement_force_mod_magnitude_like_cpp()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.movement.movement_force_mod_magnitude_like_cpp);
-        }
-        canonical
     }
 
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {

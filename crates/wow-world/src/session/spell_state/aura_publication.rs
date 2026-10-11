@@ -12,14 +12,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.insert_player_visible_aura_like_cpp(&mut hub, aura)
     }
-    pub(crate) fn insert_player_visible_aura_with_provenance_like_cpp(
-        &mut self,
-        aura: AuraApplication,
-        provenance: wow_entities::AuraCastProvenanceLikeCpp,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.insert_player_visible_aura_with_provenance_like_cpp(&mut hub, aura, provenance)
-    }
     pub(in crate::session) fn next_player_visible_aura_slot_like_cpp(&self) -> Option<u8> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.next_player_visible_aura_slot_like_cpp(hub)

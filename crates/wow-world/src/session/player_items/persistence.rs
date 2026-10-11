@@ -78,19 +78,6 @@ impl WorldSession {
             item_guid,
         )
     }
-    pub(crate) fn set_stored_item_money_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
-    ) {
-        crate::session::cx_inventory(self).set_stored_item_money_persistence_port_like_cpp(port)
-    }
-    pub(crate) fn set_item_template_addon_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
-    ) {
-        crate::session::cx_inventory(self)
-            .set_item_template_addon_catalog_persistence_port_like_cpp(port)
-    }
     pub(crate) fn apply_committed_new_inventory_item_at_like_cpp(
         &mut self,
         bag: u8,
@@ -244,10 +231,6 @@ impl WorldSession {
         // the inventory object updates remain on the instance connection.
         self.send_packet_realm(&packet);
     }
-    pub(crate) fn send_item_time_update_plan(&self, update: &PlayerItemTimeUpdate) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_item_time_update_plan(hub, update)
-    }
     pub(crate) fn send_item_time_update_plans(&self, updates: &[PlayerItemTimeUpdate]) {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_item_time_update_plans(hub, updates)
@@ -255,14 +238,6 @@ impl WorldSession {
 }
 
 impl crate::session::InventoryCxRef<'_> {
-    pub(crate) fn stored_item_money_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
-        self.lifecycle
-            .stored_item_money_persistence_port_like_cpp()
-            .cloned()
-    }
-
     pub(crate) fn item_template_addon_catalog_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>> {
@@ -288,24 +263,6 @@ impl crate::session::InventoryCxRef<'_> {
         &self,
     ) -> Vec<DurableItemLootCompletionLikeCpp> {
         self.lifecycle.take_durable_item_loot_completions_like_cpp()
-    }
-}
-
-impl crate::session::InventoryCx<'_> {
-    pub(crate) fn set_stored_item_money_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_stored_item_money_persistence_port_like_cpp(port);
-    }
-
-    pub(crate) fn set_item_template_addon_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_item_template_addon_catalog_persistence_port_like_cpp(port);
     }
 }
 

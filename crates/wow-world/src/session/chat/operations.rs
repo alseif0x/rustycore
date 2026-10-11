@@ -6,40 +6,8 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn apply_chat_away_mode_like_cpp(
-        &mut self,
-        mode: PlayerAwayModeLikeCpp,
-        text: String,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.apply_chat_away_mode_like_cpp(&mut hub, mode, text)
-    }
-    #[cfg(test)]
-    pub(crate) fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
-        self.config.chat_strict_link_checking_kick_like_cpp = enabled;
-    }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
         self.core.transport.remote_address_like_cpp = address;
-    }
-    #[cfg(test)]
-    pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
-        self.config.chat_fake_message_preventing_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn chat_strict_link_checking_kick_like_cpp(&self) -> bool {
-        self.config.chat_strict_link_checking_kick_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
-        self.config.chat_level_requirements_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn chat_listen_ranges_like_cpp(&self) -> ChatListenRangesLikeCpp {
-        self.config.chat_listen_ranges_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
-        self.config.chat_flood_config_like_cpp
     }
     pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
         let canonical = self

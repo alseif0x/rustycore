@@ -289,22 +289,4 @@ impl WorldSession {
             waypoint_path_id,
         })
     }
-
-    #[cfg(test)]
-    pub(super) fn materialize_creature_spawn_row_like_cpp(
-        &mut self,
-        map_id: u16,
-        row: &wow_persistence::CreatureVisibilityPersistenceRowLikeCpp,
-        viewer_position: &Position,
-        visibility_range: f32,
-    ) -> Option<MaterializedCreatureSpawnLikeCpp> {
-        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.materialize_creature_spawn_row_with_catalogs_like_cpp(
-            &catalogs,
-            map_id,
-            row,
-            viewer_position,
-            visibility_range,
-        )
-    }
 }

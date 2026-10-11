@@ -32,6 +32,8 @@ mod tests;
 
 // Test-only re-exports: the application fixtures exercise the full seam.
 #[cfg(test)]
+pub(crate) use wow_world_application::PreparedPlayerSpellAcquisitionLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_application::{
     PlayerSpellAcquisitionPersistenceOutcomeLikeCpp, PlayerSpellAcquisitionPrepareErrorLikeCpp,
     PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
@@ -51,5 +53,5 @@ pub(crate) use wow_world_application::{
 };
 pub(crate) use wow_world_application::{
     PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp, PlayerSpellAcquisitionRuntimeLikeCpp,
-    PreparedPlayerSpellAcquisitionLikeCpp, snapshot_has_pending_durable_save_like_cpp,
+    snapshot_has_pending_durable_save_like_cpp,
 };

@@ -11,6 +11,7 @@
 //! remains in the character handler adapters.
 
 use super::*;
+#[cfg(test)]
 pub(crate) use crate::session::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use crate::session::hub_support::{
     SPELL_SCHOOL_MASK_ALL_LIKE_CPP, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
@@ -23,14 +24,6 @@ impl WorldSession {
     ) -> wow_world_application::CharacterStatsApplicationCxLikeCpp<'_> {
         let (inventory, hub) = crate::session::split_inventory_mut(self);
         wow_world_application::stats_application_cx_from_hub_like_cpp(hub, inventory)
-    }
-
-    pub(super) fn represented_player_gear_stats_like_cpp(
-        &mut self,
-        _include_represented_item_bonuses: bool,
-    ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
-        self.stats_application_cx_like_cpp()
-            .represented_player_gear_stats_like_cpp()
     }
 
     /// C++ `Player::Create` -> `InitStatsForLevel`/`UpdateMaxHealth`: the
@@ -46,10 +39,5 @@ impl WorldSession {
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
         self.stats_application_cx_like_cpp()
             .player_stat_system_projection_like_cpp(race, class, level, gear)
-    }
-
-    pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.apply_represented_shapeshift_base_attack_time_like_cpp(&mut hub)
     }
 }

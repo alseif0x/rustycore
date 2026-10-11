@@ -26,19 +26,4 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_current_buyback_slot_like_cpp(hub)
     }
-
-    #[cfg(test)]
-    pub(crate) fn buyback_price_like_cpp(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
-        self.inventory.buyback_price_for_test_like_cpp()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn buyback_timestamp_like_cpp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
-        self.inventory.buyback_timestamp_for_test_like_cpp()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn current_buyback_slot_like_cpp(&self) -> u8 {
-        self.inventory.current_buyback_slot_for_test_like_cpp()
-    }
 }

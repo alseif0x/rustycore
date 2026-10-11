@@ -9,6 +9,3 @@ pub(crate) use wow_world_core::session::{
 
 #[cfg(test)]
 pub(crate) use wow_world_core::session::is_non_durable_skill_tombstone_like_cpp;
-pub(in crate::session) use wow_world_core::session::{
-    canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
-};

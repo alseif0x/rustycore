@@ -6,9 +6,7 @@
 
 use super::WorldSession;
 
-pub(in crate::session) use wow_world_core::session::{
-    player_cuf_profile_from_packet_like_cpp, player_cuf_profile_to_packet_like_cpp,
-};
+pub(in crate::session) use wow_world_core::session::player_cuf_profile_from_packet_like_cpp;
 
 impl WorldSession {}
 

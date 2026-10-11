@@ -15,7 +15,6 @@ pub use wow_world_core::session::SessionState;
 
 pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
-pub(in crate::session) use wow_world_lifecycle::default_account_data_like_cpp;
 pub(crate) use wow_world_lifecycle::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
     PER_CHARACTER_CACHE_MASK_LIKE_CPP,
@@ -54,10 +53,6 @@ pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) 
 pub(in crate::session) use wow_world_core::session::connection_identity::unix_now;
 
 impl WorldSession {
-    pub(crate) fn set_realm_id(&mut self, realm_id: u16) {
-        self.core.set_realm_id(realm_id)
-    }
-
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
         self.core.realm_policy.realm_region = region;
         self.core.realm_policy.realm_battlegroup = battlegroup;
@@ -72,12 +67,6 @@ impl WorldSession {
             .into_iter()
             .map(|(address, actual, normalized)| (address, (actual, normalized)))
             .collect();
-    }
-
-    /// Set the GUID generator for new characters.
-    #[cfg(test)]
-    pub(crate) fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
-        self.core.guid_generator = Some(generator);
     }
 
     pub fn set_player_lifecycle_port_like_cpp(
@@ -121,10 +110,6 @@ impl WorldSession {
         self.core.set_legit_characters(guids)
     }
 
-    pub(crate) fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
-        self.core.is_legit_character(guid)
-    }
-
     /// Get the current session state.
     pub fn state(&self) -> SessionState {
         self.core.state
@@ -138,11 +123,6 @@ impl WorldSession {
         if entered_world {
             self.apply_represented_ffa_pvp_login_state_like_cpp();
         }
-    }
-
-    /// Time since the last packet was received.
-    pub(crate) fn idle_time(&self) -> std::time::Duration {
-        self.core.admission.last_packet_time.elapsed()
     }
 
     /// Whether the session is disconnecting.

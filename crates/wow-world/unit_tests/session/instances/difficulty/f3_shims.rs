@@ -25,3 +25,24 @@ impl crate::session::WorldSession {
             .current_canonical_player_map_difficulty_id_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn player_difficulty_preferences_snapshot_like_cpp(
+        &self,
+    ) -> Option<(u32, u32, u32)> {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.player_difficulty_preferences_snapshot_like_cpp(hub)
+    }
+    pub(crate) fn resolved_dungeon_difficulty_id_like_cpp(&self) -> Option<u32> {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.resolved_dungeon_difficulty_id_like_cpp(hub)
+    }
+    pub(crate) fn resolved_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
+        self.player_difficulty_preferences_snapshot_like_cpp()
+            .map(|preferences| preferences.1)
+    }
+    pub(crate) fn resolved_legacy_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
+        self.player_difficulty_preferences_snapshot_like_cpp()
+            .map(|preferences| preferences.2)
+    }
+}

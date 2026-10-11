@@ -28,54 +28,24 @@
 
 use std::sync::Arc;
 
-use wow_data::{BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp};
+#[cfg(test)]
+use wow_data::SkillLineAbilityCoverageLikeCpp;
 
 #[cfg(test)]
 use wow_packet::packets::spell::PlaySpellVisualKit;
 
 use crate::session::WorldSession;
-use wow_conditions as conditions;
+#[cfg(test)]
+use wow_world_application::TrainerAdmissionProofLikeCpp;
+#[cfg(test)]
+use wow_world_application::trainer_condition_admission_proof_like_cpp;
 use wow_world_application::{
-    TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp,
-    TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp,
-    TrainerProductLikeCpp, TrainerUnavailableReasonLikeCpp,
+    TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp,
+    TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerUnavailableReasonLikeCpp,
     finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
-    resolve_creature_trainer_like_cpp, trainer_condition_admission_proof_like_cpp,
-    trainer_list_required_npc_flags_like_cpp, trainer_price_like_cpp,
-    trainer_spell_class_race_fit_like_cpp as fit_trainer_spell_class_race_rows_like_cpp,
-    trainer_spell_product_like_cpp as classify_trainer_spell_product_like_cpp,
+    resolve_creature_trainer_like_cpp, trainer_list_required_npc_flags_like_cpp,
+    trainer_price_like_cpp,
 };
-
-fn trainer_spell_class_race_fit_like_cpp(
-    session: &WorldSession,
-    spell_id: u32,
-) -> TrainerAdmissionProofLikeCpp {
-    let Some(skills) = session.skill_store() else {
-        return TrainerAdmissionProofLikeCpp::Indeterminate;
-    };
-    let Ok(spell_id) = i32::try_from(spell_id) else {
-        return TrainerAdmissionProofLikeCpp::Indeterminate;
-    };
-    let rows = match skills.skill_line_ability_coverage_by_spell_like_cpp(spell_id) {
-        SkillLineAbilityCoverageLikeCpp::CoveredZero => {
-            return TrainerAdmissionProofLikeCpp::Proven(true);
-        }
-        SkillLineAbilityCoverageLikeCpp::Indeterminate(_) => {
-            return TrainerAdmissionProofLikeCpp::Indeterminate;
-        }
-        SkillLineAbilityCoverageLikeCpp::Rows(rows) => rows,
-    };
-    let race = crate::session::hub_ref(&session).player_race_like_cpp();
-    let class = crate::session::hub_ref(&session).player_class_like_cpp();
-    fit_trainer_spell_class_race_rows_like_cpp(skills, rows, race, class)
-}
-
-fn trainer_spell_product_like_cpp(session: &WorldSession, spell_id: u32) -> TrainerProductLikeCpp {
-    let Some(catalog) = session.catalogs.spell_catalogs.spell_acquisition_catalog() else {
-        return TrainerProductLikeCpp::InvalidOrUnsupportedWrapper;
-    };
-    classify_trainer_spell_product_like_cpp(catalog, spell_id)
-}
 
 // ── Handler registrations ─────────────────────────────────────────────────────
 
@@ -84,61 +54,6 @@ mod host;
 // ── Handler implementations ───────────────────────────────────────────────────
 
 impl WorldSession {
-    fn trainer_spell_condition_proof_like_cpp(
-        &self,
-        trainer_id: u32,
-        spell_id: u32,
-    ) -> TrainerAdmissionProofLikeCpp {
-        let Some(store) = self.condition_store() else {
-            return TrainerAdmissionProofLikeCpp::Indeterminate;
-        };
-        let Some(player_object) =
-            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
-        else {
-            return TrainerAdmissionProofLikeCpp::Indeterminate;
-        };
-        let player_condition_store = self.player_condition_store();
-        let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
-        else {
-            return TrainerAdmissionProofLikeCpp::Indeterminate;
-        };
-        let Some(player_unit_snapshot) =
-            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
-        else {
-            return TrainerAdmissionProofLikeCpp::Indeterminate;
-        };
-        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
-        let mut unsupported = false;
-        let meets = conditions::is_object_meeting_trainer_spell_conditions_like_cpp(
-            store.as_ref(),
-            trainer_id,
-            spell_id,
-            Some(&player_object),
-            |condition, source_info| {
-                source_info.set_unit_target_snapshot(0, player_unit_snapshot);
-                source_info.set_player_target_snapshot(0, player_snapshot);
-                if let Some(store) = player_condition_store {
-                    source_info.set_player_condition_store(store.as_ref());
-                    if let Some(context) = player_condition_context.as_context(self) {
-                        source_info.set_player_condition_context(0, context);
-                    }
-                }
-                match conditions::condition_meets_basic_like_cpp(
-                    condition,
-                    source_info,
-                    |current_area, required_area| current_area == required_area,
-                ) {
-                    conditions::ConditionMeetResult::Evaluated(value) => value,
-                    conditions::ConditionMeetResult::Unsupported => {
-                        unsupported = true;
-                        false
-                    }
-                }
-            },
-        );
-        trainer_condition_admission_proof_like_cpp(meets, unsupported)
-    }
-
     fn trainer_offer_decision_like_cpp(
         &mut self,
         trainer_id: u32,

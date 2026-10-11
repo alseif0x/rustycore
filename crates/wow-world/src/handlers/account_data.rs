@@ -12,7 +12,7 @@
 
 mod client_state;
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 mod session_shims {
     use wow_packet::WorldPacket;
     use wow_world_lifecycle::AccountDataHandlerCxLikeCpp;
@@ -44,10 +44,6 @@ mod session_shims {
         pub(crate) async fn handle_save_cuf_profiles(&mut self, pkt: WorldPacket) {
             self.account_data_test_cx_like_cpp()
                 .handle_save_cuf_profiles(pkt);
-        }
-
-        pub(crate) async fn handle_tutorial(&mut self, pkt: WorldPacket) {
-            self.account_data_test_cx_like_cpp().handle_tutorial(pkt);
         }
     }
 }

@@ -38,10 +38,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_load_equipment_set_packet_like_cpp(hub)
     }
-    pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.delete_represented_equipment_set_like_cpp(&mut hub, id)
-    }
     pub(crate) fn build_equipment_set_use_context_like_cpp(
         &mut self,
     ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'_> {
@@ -142,13 +138,6 @@ impl WorldSession {
     /// `EquipChildItem` to move a linked child into its visible equipment slot.
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
         self.catalogs.items.child_equipment_store = Some(store);
-    }
-    #[cfg(test)]
-    pub(crate) fn set_creature_equipment_store_like_cpp(
-        &mut self,
-        store: Arc<CreatureEquipmentStoreLikeCpp>,
-    ) {
-        self.catalogs.creature_equipment_store_like_cpp = Some(store);
     }
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
         self.catalogs.spell_catalogs.spell_equipped_items_store = Some(store);

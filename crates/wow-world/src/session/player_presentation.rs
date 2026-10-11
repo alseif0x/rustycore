@@ -4,10 +4,13 @@
 //! Player presentation: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
+use super::Player;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedForceDeselectLikeCpp;
+#[cfg(test)]
 use super::debug;
-use super::{Player, SKILL_RIDING_LIKE_CPP, SpellCastResult, WorldSession};
+use super::{SKILL_RIDING_LIKE_CPP, SpellCastResult, WorldSession};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {
@@ -20,51 +23,6 @@ impl WorldSession {
         let mut hub = crate::session::hub_mut(self);
         let (presentation, mut control) = hub.aura_removal_mount_accesses_like_cpp();
         control.update_player_collision_height_like_cpp(&presentation, cfg!(test));
-    }
-
-    /// C++ `Unit::SetShapeshiftForm`: write the canonical Unit field and keep
-    /// the transitional Player gameplay projection in sync for the fallback
-    /// readers.
-    pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) -> bool {
-        self.core.set_shapeshift_form_with_fixture_like_cpp(
-            form_id,
-            cfg!(test),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &mut self.fixtures.auras.represented_shapeshift_form_like_cpp,
-        )
-    }
-
-    pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> Option<u32> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .progression
-                    .represented_primary_specialization_id_like_cpp,
-            );
-        }
-        canonical
-    }
-
-    pub(crate) fn set_represented_primary_specialization_id_like_cpp(
-        &mut self,
-        spec_id: u32,
-    ) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.set_primary_specialization(spec_id))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .progression
-                .represented_primary_specialization_id_like_cpp = spec_id;
-            return true;
-        }
-        canonical
     }
 
     #[allow(dead_code)]
@@ -204,34 +162,6 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedForceDeselectLikeCpp] {
         self.social.represented_force_deselects_for_test_like_cpp()
-    }
-
-    pub(crate) fn apply_far_sight_like_cpp(&mut self, enable: bool) {
-        if !enable {
-            #[cfg(test)]
-            if let Some(player_guid) = self.player_guid() {
-                self.visibility
-                    .set_represented_seer_guid_fixture_like_cpp(Some(player_guid));
-            }
-            return;
-        }
-
-        let Some(target) = ({
-            let (s, h) = crate::session::split_visibility_ref(self);
-            s.current_canonical_farsight_object_like_cpp(h)
-        }) else {
-            debug!("CMSG_FAR_SIGHT enable requested with no current viewpoint");
-            return;
-        };
-        if self.canonical_map_has_seer_like_object_like_cpp(target) {
-            #[cfg(test)]
-            {
-                self.visibility
-                    .set_represented_seer_guid_fixture_like_cpp(Some(target));
-            }
-        } else {
-            debug!("CMSG_FAR_SIGHT enable target {:?} is not resoluble", target);
-        }
     }
 }
 

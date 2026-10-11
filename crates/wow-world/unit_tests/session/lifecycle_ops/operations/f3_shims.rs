@@ -58,3 +58,12 @@ impl crate::session::WorldSession {
             .account_data_times_like_cpp(player_guid, mask)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_session_account_state_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
+    ) {
+        self.lifecycle.set_session_account_state_port_like_cpp(port)
+    }
+}

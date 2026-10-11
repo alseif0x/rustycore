@@ -56,3 +56,10 @@ impl crate::session::WorldSession {
         state.clear_represented_equipment_sets_like_cpp(&mut hub)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.delete_represented_equipment_set_like_cpp(&mut hub, id)
+    }
+}

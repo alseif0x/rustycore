@@ -59,3 +59,9 @@ impl crate::session::WorldSession {
         self.catalogs.lfg_dungeon_store_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
+        self.catalogs.set_cinematic_sequences_store(store)
+    }
+}

@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_spell_acquisition_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_player_spell_acquisition_persistence_port_like_cpp(port);
-    }
     /// Install the process-wide audited static authority consumed by the
     /// immutable acquisition planner. Absence remains fail-closed.
     pub fn set_spell_acquisition_static_authority_like_cpp(
@@ -32,54 +25,6 @@ impl WorldSession {
                 std::iter::empty(),
             ),
         ));
-    }
-    /// Commit one trainer fee and its prepared spell/skill acquisition under
-    /// the same per-character money exclusion. Runtime publication remains the
-    /// caller's responsibility and must complete before the returned guard is
-    /// dropped.
-    pub(crate) async fn commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-        &mut self,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        prepared: &crate::spell_acquisition::PreparedPlayerSpellAcquisitionLikeCpp,
-        money_before: u64,
-        money_after: u64,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let fixture_result = {
-            #[cfg(test)]
-            {
-                self.lifecycle.loot_money_persistence_test_result_like_cpp()
-            }
-            #[cfg(not(test))]
-            {
-                None
-            }
-        };
-
-        let core_access = self.core.player_money_transaction_access_like_cpp();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-                &self.lifecycle,
-                core_access,
-                money_persistence,
-                prepared,
-                money_before,
-                money_after,
-                fixture_result,
-            )
-            .await;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-            &self.lifecycle,
-            core_access,
-            money_persistence,
-            prepared,
-            money_before,
-            money_after,
-        )
-        .await
     }
     pub(in crate::session) fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
         &mut self,
@@ -166,43 +111,6 @@ impl WorldSession {
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.mark_override_spells_complete_like_cpp();
         });
-    }
-
-    /// Compatibility facade for callers that already hold represented rows.
-    /// Translation, validation and canonical/fixture installation are shared
-    /// with the application runtime provider.
-    pub(crate) fn replace_complete_spell_acquisition_runtime_like_cpp(
-        &mut self,
-        spell_rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
-        traits: impl IntoIterator<Item = (i32, i32)>,
-        overrides: impl IntoIterator<Item = (i32, i32)>,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        occupied_skill_slots: u16,
-        non_durable_skill_tombstones: BTreeSet<u16>,
-    ) -> bool {
-        let owner = self.core.player_acquisition_owner_access_like_cpp();
-        let result = wow_world_application::install_represented_spell_acquisition_runtime_like_cpp(
-            &owner,
-            &mut self.spell_state,
-            spell_rows,
-            traits,
-            overrides,
-            skill_records,
-            occupied_skill_slots,
-            non_durable_skill_tombstones,
-            cfg!(test),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            (
-                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
-                &mut self.fixtures.progression.represented_enchanting_skill,
-            ),
-        );
-        if result.is_ok() {
-            self.sync_player_registry_state_like_cpp();
-            true
-        } else {
-            false
-        }
     }
 
     #[cfg(test)]

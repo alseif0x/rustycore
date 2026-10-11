@@ -97,29 +97,6 @@ impl WorldSession {
             .refresh_owned_loot_summary_like_cpp(owner_guid);
     }
 
-    #[cfg(test)]
-    pub(super) async fn store_claimed_direct_loot_item_from_owner_like_cpp(
-        &mut self,
-        loot_entry: &LootEntry,
-        dungeon_encounter_id: u32,
-        owner_guid: ObjectGuid,
-        loot_obj: ObjectGuid,
-        claim: &LootClaimLease,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        self.store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
-            generator.as_ref(),
-            loot_entry,
-            dungeon_encounter_id,
-            owner_guid,
-            loot_obj,
-            claim,
-        )
-        .await
-    }
-
     pub(super) async fn store_claimed_direct_loot_item_from_owner_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

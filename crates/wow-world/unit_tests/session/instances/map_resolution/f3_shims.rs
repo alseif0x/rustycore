@@ -11,3 +11,13 @@ impl crate::session::WorldSession {
         self.core.current_canonical_player_map_key_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(in crate::session) fn canonical_map_has_seer_like_object_like_cpp(
+        &self,
+        target: ObjectGuid,
+    ) -> bool {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.canonical_map_has_seer_like_object_like_cpp(hub, target)
+    }
+}

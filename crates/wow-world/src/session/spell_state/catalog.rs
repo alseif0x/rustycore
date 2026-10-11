@@ -34,18 +34,6 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.spell_catalogs.spell_area_store = Some(store);
     }
-    #[cfg(test)]
-    pub(in crate::session) fn store_player_spell_runtime_fixture_like_cpp(
-        &mut self,
-        runtime: RepresentedPlayerSpellRuntimeLikeCpp,
-    ) -> bool {
-        if self.core.player_handle_like_cpp.is_none() {
-            self.spell_state
-                .store_represented_spell_runtime_fixture_like_cpp(runtime);
-            return true;
-        }
-        false
-    }
 }
 
 impl WorldSession {
@@ -130,9 +118,6 @@ impl WorldSession {
     /// C++ `sSpellMgr` label authority, read by `SpellInfo::HasLabel`.
     pub fn set_spell_label_store(&mut self, store: Arc<wow_data::SpellLabelStore>) {
         self.catalogs.spell_catalogs.set_spell_label_store(store);
-    }
-    pub(crate) fn spell_label_store(&self) -> Option<&Arc<wow_data::SpellLabelStore>> {
-        self.catalogs.spell_catalogs.spell_label_store()
     }
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
         self.catalogs

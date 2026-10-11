@@ -37,12 +37,6 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.difficulty_store = Some(store);
     }
-    pub(crate) fn player_difficulty_preferences_snapshot_like_cpp(
-        &self,
-    ) -> Option<(u32, u32, u32)> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.player_difficulty_preferences_snapshot_like_cpp(hub)
-    }
     pub(in crate::session) fn replace_player_difficulty_preferences_like_cpp(
         &mut self,
         dungeon: u32,
@@ -51,18 +45,6 @@ impl WorldSession {
     ) -> bool {
         let (state, mut hub) = crate::session::split_instances_mut(self);
         state.replace_player_difficulty_preferences_like_cpp(&mut hub, dungeon, raid, legacy_raid)
-    }
-    pub(crate) fn resolved_dungeon_difficulty_id_like_cpp(&self) -> Option<u32> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.resolved_dungeon_difficulty_id_like_cpp(hub)
-    }
-    pub(crate) fn resolved_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
-        self.player_difficulty_preferences_snapshot_like_cpp()
-            .map(|preferences| preferences.1)
-    }
-    pub(crate) fn resolved_legacy_raid_difficulty_id_like_cpp(&self) -> Option<u32> {
-        self.player_difficulty_preferences_snapshot_like_cpp()
-            .map(|preferences| preferences.2)
     }
     #[cfg(test)]
     pub(crate) fn represented_raid_difficulty_id_like_cpp(&self) -> u32 {

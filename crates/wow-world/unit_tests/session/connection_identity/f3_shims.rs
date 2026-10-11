@@ -27,3 +27,12 @@ impl crate::session::WorldSession {
         self.core.guid_generator()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_realm_id(&mut self, realm_id: u16) {
+        self.core.set_realm_id(realm_id)
+    }
+    pub(crate) fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
+        self.core.is_legit_character(guid)
+    }
+}

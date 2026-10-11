@@ -6,34 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_quest_poi_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
-    ) {
-        crate::session::cx_quest_state(self).set_quest_poi_persistence_port_like_cpp(port)
-    }
-    pub(in crate::session) fn resolved_current_player_xp_persistence_request_like_cpp(
-        &self,
-        level_changed: bool,
-        rest_info_changed: bool,
-        guid_counter: u64,
-    ) -> Option<wow_persistence::PlayerXpPersistenceRequestLikeCpp> {
-        wow_world_application::QuestRewardCx::resolved_current_player_xp_persistence_request_from_access_like_cpp(
-            self.core
-                .xp_gain_access_like_cpp(&self.catalogs, &self.config),
-            &self.lifecycle,
-            cfg!(test),
-            level_changed,
-            rest_info_changed,
-            guid_counter,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.progression.player_xp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.progression.rest_mgr_test_fixture_like_cpp,
-        )
-    }
     #[cfg(test)]
     pub(in crate::session) fn current_player_xp_persistence_request_like_cpp(
         &self,
@@ -67,11 +39,6 @@ impl crate::session::QuestStateCxRef<'_> {
     }
 }
 
-impl crate::session::QuestStateCx<'_> {
-    pub(crate) fn set_quest_poi_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle.set_quest_poi_persistence_port_like_cpp(port);
-    }
-}
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/persistence/test_only.rs"]
+mod test_only;

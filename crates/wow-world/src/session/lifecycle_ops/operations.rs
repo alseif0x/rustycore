@@ -6,12 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_session_account_state_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
-    ) {
-        self.lifecycle.set_session_account_state_port_like_cpp(port)
-    }
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
         self.core.account_state.battlenet_account_id = battlenet_account_id;
     }

@@ -33,6 +33,8 @@ mod query;
 mod session_state;
 mod spell_rules;
 mod stats;
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/character/stats_queries/test_only.rs"]
 mod stats_queries;
 mod stats_update;
 mod vendor;
@@ -366,6 +368,7 @@ fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {
 }
 
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
+#[cfg(test)]
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
@@ -503,6 +506,7 @@ fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoSt
 }
 
 use wow_packet::packets::gossip::*;
+#[cfg(test)]
 use wow_packet::packets::query::*;
 
 use crate::session::{InventoryItem, WorldSession};

@@ -70,3 +70,40 @@ impl crate::session::WorldSession {
             .await
     }
 }
+
+impl crate::session::PetsCx<'_> {
+    pub(crate) async fn battle_pet_modify_name_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        name: String,
+        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
+        timestamp: i64,
+    ) -> bool {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
+            #[cfg(test)]
+            return self.battle_pet_modify_name_like_cpp(pet_guid, name, declined_names, timestamp);
+            #[cfg(not(test))]
+            return false;
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.name = name;
+                pet.name_timestamp = timestamp;
+                pet.declined_names = declined_names;
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
+                    "modify name",
+                    pet_guid,
+                    &error,
+                );
+                false
+            }
+        }
+    }
+}

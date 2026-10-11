@@ -112,26 +112,6 @@ impl WorldSession {
             &self.core.owned_inventory_access_like_cpp(),
         )
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_bank_item_move_like_cpp(
-        &mut self,
-        move_like_cpp: RepresentedBankItemMoveLikeCpp,
-    ) {
-        self.inventory
-            .record_represented_bank_item_move_like_cpp(move_like_cpp)
-    }
-    pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_bank_bag_slot_flag_like_cpp(hub, slot)
-    }
-    pub(crate) fn set_represented_bank_bag_slot_flag_like_cpp(
-        &mut self,
-        slot: usize,
-        value: u32,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_represented_bank_bag_slot_flag_like_cpp(&mut hub, slot, value)
-    }
     pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_player_bank_bag_slot_count_like_cpp(hub)

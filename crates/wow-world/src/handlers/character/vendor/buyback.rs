@@ -270,11 +270,4 @@ impl WorldSession {
             Some(new_gold),
         );
     }
-
-    #[cfg(test)]
-    pub(crate) async fn handle_buy_back_item(&mut self, buyback: BuyBackItem) {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.handle_buy_back_item_with_generator_like_cpp(generators.item.as_ref(), buyback)
-            .await;
-    }
 }

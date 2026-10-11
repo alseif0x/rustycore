@@ -39,14 +39,6 @@ impl WorldSession {
         .is_some()
     }
 
-    /// C++ `Player::RemoveActiveQuest` (`Player.cpp:15575`).
-    pub(crate) fn remove_represented_quest_status_like_cpp(&mut self, quest_id: u32) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.remove_status_like_cpp(quest_id);
-        })
-        .is_some()
-    }
-
     /// C++ `Player::m_RewardedQuests` gaining or losing one quest.
     pub(crate) fn set_represented_quest_rewarded_like_cpp(
         &mut self,
@@ -55,22 +47,6 @@ impl WorldSession {
     ) -> bool {
         self.mutate_player_quest_gameplay_like_cpp(|state| {
             state.set_rewarded_like_cpp(quest_id, rewarded);
-        })
-        .is_some()
-    }
-
-    /// Settle one rewarded quest: C++ `Player::RewardQuest` removes the active
-    /// entry and records a non-repeatable quest as rewarded.
-    pub(crate) fn settle_represented_rewarded_quest_like_cpp(
-        &mut self,
-        quest_id: u32,
-        repeatable: bool,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.remove_status_like_cpp(quest_id);
-            if !repeatable {
-                state.set_rewarded_like_cpp(quest_id, true);
-            }
         })
         .is_some()
     }
@@ -111,14 +87,6 @@ impl WorldSession {
             }
             (true, should_send)
         })
-    }
-
-    /// Ensure one seasonal event exists, without changing its quests.
-    pub(crate) fn ensure_represented_seasonal_event_like_cpp(&mut self, event_id: u16) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.ensure_seasonal_event_like_cpp(event_id);
-        })
-        .is_some()
     }
 
     /// Install the authoritative loaded quest statuses and rewarded sets
@@ -234,28 +202,6 @@ impl WorldSession {
                     .player_target_spell_is_hit_inert_like_cpp(quest.source_spell_id, difficulty_id)
         })
     }
-    pub(crate) fn spell_area_for_quest_map_bounds_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Vec<&SpellAreaLikeCpp> {
-        self.catalogs
-            .spell_catalogs
-            .spell_area_store
-            .as_ref()
-            .map(|store| store.spell_area_for_quest_map_bounds_like_cpp(quest_id))
-            .unwrap_or_default()
-    }
-    pub(crate) fn spell_area_for_quest_end_map_bounds_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Vec<&SpellAreaLikeCpp> {
-        self.catalogs
-            .spell_catalogs
-            .spell_area_store
-            .as_ref()
-            .map(|store| store.spell_area_for_quest_end_map_bounds_like_cpp(quest_id))
-            .unwrap_or_default()
-    }
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
         self.core
@@ -318,34 +264,6 @@ impl WorldSession {
                 .represented_battleground_leave_requests_like_cpp
                 .saturating_add(1);
         }
-    }
-    pub(crate) fn set_represented_resurrection_request_like_cpp(
-        &mut self,
-        request: PlayerResurrectionRequestLikeCpp,
-    ) -> bool {
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_resurrection_request_like_cpp(request)
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .combat
-                .represented_resurrection_request_like_cpp = Some(request);
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
-    }
-    pub(crate) fn represented_resurrection_requested_by_like_cpp(
-        &self,
-        resurrecter: ObjectGuid,
-    ) -> bool {
-        self.player_resurrection_state_snapshot_like_cpp()
-            .and_then(|state| state.request)
-            .is_some_and(|request| {
-                request.resurrecter != ObjectGuid::EMPTY && request.resurrecter == resurrecter
-            })
     }
     pub(crate) fn take_represented_resurrection_request_if_requested_by_like_cpp(
         &mut self,
@@ -512,20 +430,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_quest_state_ref(self);
         wow_world_application::represented_pending_quest_sharing_like_cpp(hub, state)
     }
-    pub(crate) fn set_represented_df_quest_like_cpp_for_test(
-        &mut self,
-        quest_id: u32,
-        present: bool,
-    ) {
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            if present {
-                state.set_df_quest_like_cpp(quest_id, true);
-            } else {
-                state.set_df_quest_like_cpp(quest_id, false);
-            }
-        });
-        self.sync_player_registry_state_like_cpp();
-    }
 }
 
 impl crate::session::QuestStateCxRef<'_> {
@@ -540,18 +444,6 @@ impl crate::session::QuestStateCxRef<'_> {
             .owner_like_cpp()
             .add_request_committed_like_cpp(request_key)
             .await
-    }
-}
-
-impl crate::session::QuestStateCx<'_> {
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_replicate_request_like_cpp(
-        &mut self,
-        request: RepresentedAuctionReplicateRequestLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.inventory
-            .record_represented_auction_replicate_request_like_cpp(request);
     }
 }
 

@@ -37,3 +37,44 @@ impl crate::session::WorldSession {
         state.represented_using_pvp_item_levels_like_cpp(hub)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_represented_item_level_caps_like_cpp(
+        &mut self,
+        caps: RepresentedItemLevelCapsLikeCpp,
+    ) -> bool {
+        self.set_player_item_level_caps_like_cpp(caps)
+    }
+    pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) -> bool {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_represented_using_pvp_item_levels_like_cpp(&mut hub, active)
+    }
+    pub(in crate::session) fn resolved_using_pvp_item_levels_like_cpp(&self) -> Option<bool> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_using_pvp_item_levels_like_cpp(hub)
+    }
+    pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
+        self.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
+            .unwrap_or(false)
+    }
+    pub(in crate::session) fn represented_item_level_like_cpp(
+        &self,
+        entry_id: u32,
+        runtime_item: Option<&Item>,
+    ) -> Option<u32> {
+        let valuation_access = self.core.inventory_valuation_access_like_cpp();
+        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
+        let catalogs = self.catalogs.inventory_valuation_catalog_view_like_cpp();
+        self.inventory.represented_item_level_with_access_like_cpp(
+            &valuation_access,
+            &modifier_access,
+            &catalogs,
+            entry_id,
+            runtime_item,
+            Self::MIN_ITEM_LEVEL_LIKE_CPP,
+            Self::MAX_ITEM_LEVEL_LIKE_CPP,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+        )
+    }
+}

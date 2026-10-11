@@ -67,26 +67,6 @@ impl WorldSession {
             })
             .unwrap_or_default()
     }
-    #[cfg(test)]
-    pub(crate) fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
-        self.config.allow_two_side_interaction_group_like_cpp = enabled;
-    }
-    #[cfg(test)]
-    pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
-        self.config.party_raid_warnings_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
-        self.config.allow_gm_group_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
-        self.config.allow_two_side_interaction_group_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
-        self.config.party_level_req_like_cpp
-    }
     pub(crate) fn send_player_party_type_update_like_cpp(&self, category: u8, party_type: u8) {
         let (state, hub) = crate::session::split_social_ref(self);
         state.send_player_party_type_update_like_cpp(hub, category, party_type)
@@ -268,10 +248,6 @@ impl WorldSession {
             .map(|group| group.group_guid)
     }
 
-    pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.clear_represented_group_subgroup_like_cpp(&mut hub)
-    }
     /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` resets the per-player
     /// sequence for a group category only when the loaded group guid changed.
     pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {

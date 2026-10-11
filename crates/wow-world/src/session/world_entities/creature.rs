@@ -8,20 +8,6 @@ use super::*;
 pub(crate) use wow_world_entities::creature_message_to_set_target_allows_like_cpp;
 
 impl WorldSession {
-    pub(crate) fn set_canonical_creature_private_object_owner_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        owner: ObjectGuid,
-    ) -> bool {
-        let updated = self
-            .core
-            .mutate_canonical_creature_by_guid_like_cpp(guid, |creature| {
-                creature.unit_mut().set_private_object_owner_like_cpp(owner);
-            })
-            .is_some();
-
-        updated
-    }
     pub(in crate::session) fn represented_can_receive_creature_message_to_set_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -82,52 +68,6 @@ impl WorldSession {
                 required_3d,
             ),
         )
-    }
-    #[cfg(test)]
-    pub(crate) fn set_creature_health_rates_like_cpp(
-        &mut self,
-        rates: CreatureClassificationHealthRatesLikeCpp,
-    ) {
-        self.config.creature_health_rates_like_cpp = rates;
-    }
-    #[cfg(test)]
-    pub(crate) fn creature_create_stats_like_cpp(
-        &self,
-        entry: u32,
-        level: u8,
-        unit_class: u8,
-        classification: u32,
-        regen_health: bool,
-        db_cur_health: u32,
-        db_cur_mana: u32,
-    ) -> CreatureCreateStatsLikeCpp {
-        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.creature_create_stats_with_catalogs_like_cpp(
-            &catalogs,
-            entry,
-            level,
-            unit_class,
-            classification,
-            regen_health,
-            db_cur_health,
-            db_cur_mana,
-        )
-    }
-    pub(crate) async fn talked_to_creature_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        creature_entry: u32,
-        creature_guid: wow_core::ObjectGuid,
-    ) {
-        // C++ QUEST_OBJECTIVE_TALKTO.
-        self.update_represented_storing_value_quest_objective_progress_like_cpp(
-            item_guid_generator,
-            3,
-            creature_entry as i32,
-            1,
-            creature_guid,
-        )
-        .await;
     }
     #[cfg(test)]
     pub(crate) async fn talked_to_creature_like_cpp(
@@ -213,33 +153,6 @@ impl WorldSession {
 pub(in crate::session) use wow_world_entities::RepresentedCreatureAuraLikeCpp;
 
 impl WorldSession {
-    /// C++ `Spell::EffectApplyAura` for a creature target: create the canonical
-    /// `AuraApplication` with its represented effect data, misc values and
-    /// duration, and publish `SMSG_AURA_UPDATE` to the caster and the
-    /// creature's observers.
-    ///
-    /// Boundaries of this slice: the represented model has no stack/refresh
-    /// rule (a second application of the same spell by the same caster is
-    /// refused, like the spawn-addon path), the duration comes from the
-    /// caller's represented value rather than `SpellDuration.db2`, and the
-    /// periodic effect amount is registered but not yet ticked.
-    pub(crate) fn apply_creature_aura_like_cpp(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        target_guid: ObjectGuid,
-        effect_mask: u32,
-        duration_ms: u32,
-    ) -> Result<(), &'static str> {
-        self.apply_creature_aura_with_provenance_like_cpp(
-            spell_id,
-            caster_guid,
-            target_guid,
-            effect_mask,
-            duration_ms,
-            wow_entities::AuraCastProvenanceLikeCpp::default(),
-        )
-    }
     pub(crate) fn apply_creature_aura_with_provenance_like_cpp(
         &mut self,
         spell_id: i32,

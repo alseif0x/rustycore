@@ -37,9 +37,9 @@ use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
 use wow_packet::packets::loot::{
     CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
 };
-use wow_packet::packets::spell::{
-    CancelModSpeedNoControlAuras, CastSpellRequest, OpenItem, SelfRes, SpellClick,
-};
+#[cfg(test)]
+use wow_packet::packets::spell::CancelModSpeedNoControlAuras;
+use wow_packet::packets::spell::{CastSpellRequest, OpenItem, SelfRes, SpellClick};
 
 use crate::session::{
     AreaTriggerCatalogsLikeCpp, RepresentedPendingSpellCastRequestLikeCpp, WorldSession,

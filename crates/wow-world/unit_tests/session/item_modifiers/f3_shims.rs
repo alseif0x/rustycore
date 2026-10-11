@@ -18,3 +18,9 @@ impl crate::session::WorldSession {
         state.represented_total_stat_buff_multipliers_like_cpp(hub)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
+        self.catalogs.player_stats()
+    }
+}

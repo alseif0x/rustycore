@@ -4,7 +4,6 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
-pub(crate) use wow_world_spell::RepresentedShapeshiftMutationLikeCpp;
 use wow_world_spell::shapeshift_form_of_spell_like_cpp;
 
 fn represented_aura_visual_without_caster_like_cpp(
@@ -68,14 +67,6 @@ impl WorldSession {
                     )
             })
             .unwrap_or(0)
-    }
-
-    pub(crate) fn represented_spell_has_mod_shapeshift_effect_like_cpp(
-        &self,
-        spell_id: i32,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.represented_spell_has_mod_shapeshift_effect_like_cpp(hub, spell_id)
     }
 
     pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {

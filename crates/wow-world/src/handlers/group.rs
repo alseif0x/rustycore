@@ -11,7 +11,8 @@ use crate::session::mailbox::{
     SendRealmPacketLikeCppCommand, SessionCommand,
 };
 use std::time::Duration;
-use tracing::{info, warn};
+#[cfg(test)]
+use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_core::{ObjectGuid, guid::HighGuid};
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -23,10 +24,14 @@ use wow_persistence::{
 };
 
 use crate::session::registry::PacketHandlerEntry;
+#[cfg(test)]
+use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{RandomRoll, RandomRollClient};
+#[cfg(test)]
+use wow_packet::packets::party::ClearRaidMarker;
 use wow_packet::packets::party::{
-    ClearRaidMarker, DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll,
-    LowLevelRaid1, LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
+    DoReadyCheck, GroupDecline, GroupNewLeader, GroupUninvite, InitiateRolePoll, LowLevelRaid1,
+    LowLevelRaid2, MinimapPing, MinimapPingClient, OptOutOfLoot, PartyCommandResult,
     PartyDifficultySettings, PartyInviteServer, PartyLootSettings, PartyMemberFullState,
     PartyPlayerInfo, PartyUpdate, RaidMarker, RaidMarkersChanged, ReadyCheckCompleted,
     ReadyCheckResponse, ReadyCheckResponseClient, ReadyCheckStarted, RequestPartyJoinUpdates,
@@ -35,7 +40,6 @@ use wow_packet::packets::party::{
     SetPartyAssignment, SetPartyLeader, SetRole, SilencePartyTalker, UpdateRaidTarget,
     party_result,
 };
-use wow_packet::{ClientPacket, ServerPacket};
 use wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP;
 use wow_social::group::{
     AcceptGroupInviteResultLikeCpp, CreateGroupInviteResultLikeCpp, GroupAuthorityErrorLikeCpp,
@@ -47,14 +51,14 @@ use crate::session::{GroupInvitePolicyLikeCpp, WorldSession, player_team_for_rac
 
 mod commands;
 mod ops_1;
+#[cfg(test)]
+#[path = "../../unit_tests/handlers/group/ops_2/test_only.rs"]
 mod ops_2;
 mod state;
 #[cfg(test)]
 mod test_shims;
 #[allow(unused_imports)]
 pub use ops_1::*;
-#[allow(unused_imports)]
-pub use ops_2::*;
 #[allow(unused_imports)]
 pub use state::*;
 

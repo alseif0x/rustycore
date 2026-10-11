@@ -105,24 +105,6 @@ impl WorldSession {
         )
     }
 
-    /// Apply the visible XP grant phases. The handler's async wrapper persists
-    /// the resulting projection after this operation returns.
-    pub(crate) fn give_xp_runtime_like_cpp(
-        &mut self,
-        xp: u32,
-        victim: wow_core::ObjectGuid,
-        group_rate: f32,
-    ) -> bool {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            let (mut operation, mut fixtures) = self.quest_xp_gain_context_like_cpp();
-            operation.give_xp_runtime_like_cpp(xp, victim, group_rate, &mut fixtures)
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        self.quest_xp_gain_context_like_cpp()
-            .give_xp_runtime_like_cpp(xp, victim, group_rate)
-    }
-
     /// Give XP and retain the existing persistence boundary after all runtime
     /// publication phases complete.
     pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
@@ -139,3 +121,7 @@ impl WorldSession {
             .await;
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/xp_grants/test_only.rs"]
+mod test_only;

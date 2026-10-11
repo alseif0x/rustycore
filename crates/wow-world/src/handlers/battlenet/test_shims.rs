@@ -5,18 +5,12 @@
 //! Test-only entry points for the battle.net handlers moved to
 //! `wow-world-lifecycle` (#1263 F5).
 
-use wow_packet::packets::battlenet::{BattlenetRequest, ChangeRealmTicket};
+use wow_packet::packets::battlenet::ChangeRealmTicket;
 use wow_world_lifecycle::BattlenetHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
 
 impl WorldSession {
-    pub(crate) async fn handle_battlenet_request(&mut self, req: BattlenetRequest) {
-        BattlenetHandlerCxLikeCpp::new(crate::session::hub_mut(self))
-            .handle_battlenet_request(req)
-            .await;
-    }
-
     pub(crate) async fn handle_change_realm_ticket(&mut self, ticket: ChangeRealmTicket) {
         BattlenetHandlerCxLikeCpp::new(crate::session::hub_mut(self))
             .handle_change_realm_ticket(ticket)

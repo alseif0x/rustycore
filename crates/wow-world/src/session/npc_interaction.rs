@@ -17,40 +17,9 @@ impl WorldSession {
         state.set_player_interaction_source_like_cpp(hub, source_guid)
     }
 
-    pub(crate) fn set_player_trainer_interaction_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-        trainer_id: u32,
-    ) -> bool {
-        let (state, hub) = crate::session::split_interaction(self);
-        state.set_player_trainer_interaction_like_cpp(hub, source_guid, trainer_id)
-    }
-
-    pub(crate) fn reset_player_interaction_if_source_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_interaction(self);
-        state.reset_player_interaction_if_source_like_cpp(hub, source_guid)
-    }
-
     pub(crate) fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
         let (state, hub) = crate::session::split_interaction_ref(self);
         state.player_interaction_source_guid_like_cpp(hub)
-    }
-
-    pub(crate) fn resolved_player_interaction_trainer_id_like_cpp(&self) -> Option<u32> {
-        let (state, hub) = crate::session::split_interaction_ref(self);
-        state.resolved_player_interaction_trainer_id_like_cpp(hub)
-    }
-
-    pub(crate) fn player_trainer_interaction_matches_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        trainer_id: i32,
-    ) -> bool {
-        let (state, hub) = crate::session::split_interaction_ref(self);
-        state.player_trainer_interaction_matches_like_cpp(hub, source_guid, trainer_id)
     }
 }
 

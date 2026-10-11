@@ -11,12 +11,6 @@ impl WorldSession {
         state.resolved_has_represented_aura_effect_like_cpp(hub, effect)
     }
 
-    #[cfg(test)]
-    fn has_represented_aura_effect_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> bool {
-        self.resolved_has_represented_aura_effect_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-
     pub(in crate::session) fn resolved_has_represented_aura_effect_with_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
@@ -43,14 +37,6 @@ impl WorldSession {
     ) -> Option<f32> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.resolved_total_represented_aura_multiplier_like_cpp(hub, effect)
-    }
-
-    pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.aura_has_total_stat_percentage_effect_like_cpp(hub, aura)
     }
 }
 

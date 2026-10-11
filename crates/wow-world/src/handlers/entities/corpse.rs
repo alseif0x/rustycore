@@ -11,8 +11,10 @@ use tracing::{info, warn};
 use wow_constants::ConditionType;
 
 use wow_packet::ClientPacket;
+#[cfg(test)]
+use wow_packet::packets::misc::PortGraveyard;
 use wow_packet::packets::misc::{
-    PortGraveyard, ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
+    ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
 };
 
 mod host;
@@ -261,36 +263,6 @@ impl crate::session::WorldSession {
         }
     }
 
-    /// CMSG_CLIENT_PORT_GRAVEYARD — manually teleport ghost to graveyard.
-    /// C++ ref: `WorldSession::HandlePortGraveyard`.
-    pub(crate) async fn try_handle_client_port_graveyard_like_cpp(
-        &mut self,
-        mut pkt: wow_packet::WorldPacket,
-    ) -> bool {
-        if PortGraveyard::read(&mut pkt).is_err() {
-            return false;
-        }
-
-        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(false)
-            || !crate::session::hub_ref(self).player_has_ghost_flag_like_cpp()
-        {
-            return true;
-        }
-
-        // C++ calls `Player::RepopAtGraveyard()`. Rust still represents the
-        // graveyard selection/teleport runtime as a counter seam shared with
-        // release and instance-lock decline paths.
-        #[cfg(test)]
-        {
-            self.fixtures.combat.represented_repop_at_graveyard_count = self
-                .fixtures
-                .combat
-                .represented_repop_at_graveyard_count
-                .saturating_add(1);
-        }
-        true
-    }
-
     /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
     /// C++ ref: `WorldSession::HandleReclaimCorpse`.
 
@@ -329,3 +301,7 @@ impl crate::session::WorldSession {
             .apply_represented_resurrection_percent_like_cpp(restore_percent);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/entities/corpse/test_only.rs"]
+mod test_only;

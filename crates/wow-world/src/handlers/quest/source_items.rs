@@ -8,23 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(super) async fn store_quest_source_item_like_cpp(
-        &mut self,
-        entry_id: u32,
-        quantity: u32,
-        dest: &[ItemPosCount],
-    ) -> Option<QuestSourceItemStoreOutcomeLikeCpp> {
-        let generator = self.item_guid_generator_like_cpp_for_bridge()?;
-        self.store_quest_source_item_with_generator_like_cpp(
-            generator.as_ref(),
-            entry_id,
-            quantity,
-            dest,
-        )
-        .await
-    }
-
     pub(super) async fn store_quest_source_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

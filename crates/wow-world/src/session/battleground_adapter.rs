@@ -19,8 +19,6 @@ pub(crate) use wow_world_core::session::{
     RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
 };
 
-pub(crate) use wow_world_core::session::battleground_queue_type_id_from_packed_like_cpp;
-
 pub(in crate::session) fn arena_skirmish_type_like_cpp(bg_type_id: u32, bracket_id: u32) -> u8 {
     if bg_type_id == 3 || bg_type_id == 5 {
         bg_type_id as u8

@@ -10,12 +10,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_social_mut(self);
         wow_world_application::set_represented_duel_arbiter_guid_like_cpp(&mut hub, state, guid);
     }
-    pub(crate) fn resolved_represented_duel_arbiter_guid_like_cpp(
-        &self,
-    ) -> Option<Option<ObjectGuid>> {
-        let (state, hub) = crate::session::split_social_ref(self);
-        wow_world_application::resolved_represented_duel_arbiter_guid_like_cpp(hub, state)
-    }
     fn set_represented_duel_state_like_cpp(
         &mut self,
         player_guid: ObjectGuid,

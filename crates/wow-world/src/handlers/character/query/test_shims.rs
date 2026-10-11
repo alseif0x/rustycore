@@ -7,7 +7,7 @@
 
 use wow_packet::packets::query::{
     QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature, QueryGameObject,
-    QueryPageText, QueryPetName, QueryPlayerNames, QueryRealmName,
+    QueryPageText, QueryPetName, QueryPlayerNames,
 };
 use wow_world_application::CharacterQueryHandlerCxLikeCpp;
 
@@ -35,12 +35,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_query_realm_name(&mut self, query: QueryRealmName) {
-        self.character_query_test_cx_like_cpp()
-            .handle_query_realm_name(query)
-            .await;
-    }
-
     pub(crate) async fn handle_query_page_text(&mut self, query: QueryPageText) {
         self.character_query_test_cx_like_cpp()
             .handle_query_page_text(query)
@@ -59,7 +53,10 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
+    pub(crate) async fn handle_query_corpse_location(
+        &mut self,
+        query: QueryCorpseLocationFromClient,
+    ) {
         self.character_query_test_cx_like_cpp()
             .handle_query_corpse_location(query)
             .await;

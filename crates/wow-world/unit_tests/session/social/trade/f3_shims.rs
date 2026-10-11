@@ -12,3 +12,13 @@ impl crate::session::WorldSession {
         self.social.represented_trade_cancel_statuses_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_represented_active_trade_partner_like_cpp(
+        &mut self,
+        partner_guid: Option<ObjectGuid>,
+    ) -> bool {
+        self.trade_handler_cx_like_cpp()
+            .set_represented_active_trade_partner_like_cpp(partner_guid)
+    }
+}

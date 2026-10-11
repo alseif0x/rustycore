@@ -46,7 +46,6 @@ use wow_data::{
         QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP, QuestPackageItemEntry,
     },
     quest::QuestStore,
-    reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
 pub use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
 use wow_entities::{
@@ -118,14 +117,14 @@ pub(crate) use wow_constants::quest::{
 };
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
+#[cfg(test)]
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
 #[cfg(test)]
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
 pub(crate) use wow_constants::quest::{
     QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
 };
-const QUEST_FLAGS_REMOVE_SURPLUS_ITEMS_LIKE_CPP: u32 = 0x0200_0000;
-const QUEST_FLAGS_EX_NO_ITEM_REMOVAL_LIKE_CPP: u32 = 0x0000_0001;
+#[cfg(test)]
 const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 = 3;
 
 fn read_quest_giver_query_quest_like_cpp(
@@ -171,22 +170,6 @@ pub(crate) struct QuestSourceItemBoundPreflightLikeCpp {
 #[derive(Debug, Clone)]
 pub(crate) struct QuestSourceItemBoundPersistencePlanLikeCpp {
     pub(crate) statuses: Vec<PlayerQuestStatus>,
-}
-
-fn reputation_rank_from_standing_like_cpp(standing: i32) -> u8 {
-    reputation_rank_from_standing_data_like_cpp(standing).as_u8()
-}
-
-fn calculate_pct_i32_f32_like_cpp(base: i32, pct: f32) -> i32 {
-    (base as f32 * pct / 100.0) as i32
-}
-
-fn player_quest_level_like_cpp(quest: &wow_data::quest::QuestTemplate, player_level: u8) -> i32 {
-    if quest.quest_level > 0 {
-        quest.quest_level
-    } else {
-        i32::from(player_level).min(quest.quest_max_scaling_level)
-    }
 }
 
 pub(crate) const QUEST_PUSH_REASON_BUSY_LIKE_CPP: u8 = 5;

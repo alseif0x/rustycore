@@ -48,3 +48,14 @@ impl crate::session::WorldSession {
         crate::session::hub_mut(self).set_player_emote_state_like_cpp(emote_state)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn apply_chat_away_mode_like_cpp(
+        &mut self,
+        mode: PlayerAwayModeLikeCpp,
+        text: String,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.apply_chat_away_mode_like_cpp(&mut hub, mode, text)
+    }
+}

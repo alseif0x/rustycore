@@ -1018,7 +1018,12 @@ impl WorldSession {
 
 #[cfg(test)]
 impl WorldSession {
-    pub async fn send_nearby_creatures(&mut self, map_id: u16, position: &Position, zone_id: u32) {
+    pub(crate) async fn send_nearby_creatures(
+        &mut self,
+        map_id: u16,
+        position: &Position,
+        zone_id: u32,
+    ) {
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.send_nearby_creatures_with_catalogs_like_cpp(&catalogs, map_id, position, zone_id)
             .await;

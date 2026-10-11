@@ -1,5 +1,29 @@
 use super::*;
 
+fn trainer_spell_class_race_fit_like_cpp(
+    session: &WorldSession,
+    spell_id: u32,
+) -> TrainerAdmissionProofLikeCpp {
+    let Some(skills) = session.skill_store() else {
+        return TrainerAdmissionProofLikeCpp::Indeterminate;
+    };
+    let Ok(spell_id) = i32::try_from(spell_id) else {
+        return TrainerAdmissionProofLikeCpp::Indeterminate;
+    };
+    let rows = match skills.skill_line_ability_coverage_by_spell_like_cpp(spell_id) {
+        SkillLineAbilityCoverageLikeCpp::CoveredZero => {
+            return TrainerAdmissionProofLikeCpp::Proven(true);
+        }
+        SkillLineAbilityCoverageLikeCpp::Indeterminate(_) => {
+            return TrainerAdmissionProofLikeCpp::Indeterminate;
+        }
+        SkillLineAbilityCoverageLikeCpp::Rows(rows) => rows,
+    };
+    let race = crate::session::hub_ref(&session).player_race_like_cpp();
+    let class = crate::session::hub_ref(&session).player_class_like_cpp();
+    wow_world_application::trainer_spell_class_race_fit_like_cpp(skills, rows, race, class)
+}
+
 #[test]
 fn trainer_store_resolves_selected_default_and_discards_dangling_mappings_like_cpp() {
     assert_eq!(

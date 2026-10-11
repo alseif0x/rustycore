@@ -15,20 +15,24 @@ use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
 #[cfg(test)]
+pub(crate) use wow_world_inventory::RepresentedItemSetAuraRefreshEventLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
 };
 pub(crate) use wow_world_inventory::{
-    RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
-    RepresentedItemSetSpellEventLikeCpp,
+    RepresentedItemBonusActionLikeCpp, RepresentedItemSetSpellEventLikeCpp,
 };
 
 pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
 
+#[cfg(test)]
 pub(crate) type RepresentedItemSetEffectLikeCpp = wow_entities::PlayerItemSetEffectLikeCpp;
 
+#[cfg(test)]
 pub(crate) type RepresentedItemBonusStateLikeCpp = wow_entities::PlayerItemBonusStateLikeCpp;
 
+#[cfg(test)]
 pub(crate) fn void_withdrawal_post_store_item_values_update_like_cpp(
     item: &wow_entities::Item,
     create_dynamic_flags: u32,
@@ -120,16 +124,6 @@ pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32)
 }
 
 impl WorldSession {
-    /// C++ `sImportPriceQualityStore.LookupEntry(quality + 1)`.
-    #[cfg(test)]
-    pub(crate) fn import_price_quality_factor_like_cpp(&self, quality: u32) -> Option<f32> {
-        self.item_valuation_catalogs_for_test_like_cpp()
-            .import_prices
-            .quality
-            .get(quality + 1)
-            .map(|entry| entry.data)
-    }
-
     pub fn set_shield_block_regular_game_table(
         &mut self,
         table: Arc<ShieldBlockRegularGameTableLikeCpp>,
@@ -140,10 +134,6 @@ impl WorldSession {
     /// Set the player stats store for this session.
     pub fn set_player_stats(&mut self, store: Arc<PlayerStatsStore>) {
         self.catalogs.player_stats = Some(store);
-    }
-
-    pub(crate) fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
-        self.catalogs.player_stats()
     }
 
     pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {

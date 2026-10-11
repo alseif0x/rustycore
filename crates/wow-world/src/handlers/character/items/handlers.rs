@@ -479,12 +479,8 @@ impl WorldSession {
         )
         .await;
     }
-
-    /// Handle CMSG_CANCEL_TEMP_ENCHANTMENT.
-    ///
-    /// C++ ref: `WorldSession::HandleCancelTempEnchantmentOpcode`.
-    pub(crate) async fn handle_cancel_temp_enchantment(&mut self, cancel: CancelTempEnchantment) {
-        self.build_item_enchantment_handler_cx_like_cpp()
-            .cancel_temp_enchantment_like_cpp(cancel);
-    }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/handlers/character/items/handlers/test_only.rs"]
+mod test_only;

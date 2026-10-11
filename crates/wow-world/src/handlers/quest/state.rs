@@ -68,23 +68,6 @@ impl WorldSession {
         .await
     }
 
-    #[cfg(test)]
-    pub(crate) async fn complete_represented_quest_after_objective_if_ready_like_cpp(
-        &mut self,
-        quest: &wow_data::quest::QuestTemplate,
-        ignored_objective_id: u32,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        self.complete_represented_quest_after_objective_with_generator_like_cpp(
-            generator.as_ref(),
-            quest,
-            ignored_objective_id,
-        )
-        .await
-    }
-
     pub(crate) async fn complete_represented_quest_after_objective_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -225,22 +208,6 @@ impl WorldSession {
         true
     }
 
-    pub(super) fn remove_represented_timed_quest_like_cpp(&mut self, quest_id: u32) {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let mut player = self.core.quest_reward_player_access_like_cpp(
-            &self.fixtures.identity.player_race,
-            &self.fixtures.identity.player_class,
-        );
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let mut player = self.core.quest_reward_player_access_like_cpp();
-        wow_world_application::QuestRewardCx::remove_represented_timed_quest_like_cpp(
-            &mut self.quest_state,
-            &mut player,
-            quest_id,
-            cfg!(test),
-        );
-    }
-
     pub(crate) fn first_free_quest_slot_like_cpp(&self) -> Option<u8> {
         (0..MAX_QUEST_LOG_SIZE_LIKE_CPP)
             .find(|&slot| !self.quest_slot_has_active_entry_like_cpp(slot))
@@ -263,16 +230,6 @@ impl WorldSession {
                             )
                     })
                 })
-    }
-
-    pub(crate) fn get_quest_slot_quest_id_like_cpp(&self, slot: u8) -> Option<u32> {
-        let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::get_quest_slot_quest_id_like_cpp(
-            &owner,
-            &self.quest_state,
-            slot,
-            cfg!(test),
-        )
     }
 
     pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {
@@ -308,3 +265,7 @@ impl WorldSession {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/quest/state/test_only.rs"]
+mod test_only;

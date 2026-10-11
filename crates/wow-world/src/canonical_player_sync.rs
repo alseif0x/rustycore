@@ -40,6 +40,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     Some(())
 }
 
+#[cfg(test)]
 pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status: u32) {
     let _ = session.core.mutate_canonical_player_like_cpp(|player| {
         player.set_liquid_status_like_cpp(status);

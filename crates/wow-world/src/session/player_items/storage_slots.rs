@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn represented_direct_inventory_slot_by_guid_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<(u8, InventoryItem)> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_direct_inventory_slot_by_guid_like_cpp(hub, guid)
-    }
     pub(crate) fn move_represented_direct_inventory_item_to_pos_like_cpp(
         &mut self,
         src: u8,
@@ -86,11 +79,6 @@ impl WorldSession {
     pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_player_inventory_slot_count_like_cpp(&mut hub, count)
-    }
-    #[cfg(test)]
-    pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
-        self.resolved_player_inventory_slot_count_like_cpp()
-            .expect("test Player inventory-slot owner must resolve")
     }
 }
 

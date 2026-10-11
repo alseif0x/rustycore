@@ -4,7 +4,7 @@
 //! Player registry binding: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, PendingInvites, PlayerRegistry, PlayerSessionRegistrationLikeCpp};
+use super::{Arc, PlayerRegistry, PlayerSessionRegistrationLikeCpp};
 use super::{WorldSession, debug};
 
 impl WorldSession {
@@ -20,10 +20,6 @@ impl WorldSession {
 
     pub(crate) fn player_registry(&self) -> Option<&Arc<PlayerRegistry>> {
         self.core.player_registry()
-    }
-
-    pub(crate) fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
-        self.core.pending_invites()
     }
 
     /// Register this session in the player registry.

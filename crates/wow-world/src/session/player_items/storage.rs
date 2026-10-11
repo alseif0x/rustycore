@@ -16,75 +16,6 @@ impl WorldSession {
         self.inventory
             .move_direct_inventory_item_with_access_like_cpp(&access, src, dst)
     }
-    pub(crate) fn move_represented_direct_inventory_item_with_item_mods_like_cpp(
-        &mut self,
-        src: u8,
-        dst: u8,
-    ) -> Option<bool> {
-        let inventory_access = self.core.owned_inventory_access_like_cpp();
-        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
-        let item_sets = self.core.owned_item_set_access_like_cpp(
-            self.catalogs.items.set_store.as_deref(),
-            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
-            self.catalogs.spell_catalogs.spell_store.as_deref(),
-            self.catalogs.heirloom_store.as_deref(),
-            self.catalogs.items.stats_store.as_deref(),
-            self.catalogs.curve_store.as_deref(),
-            self.catalogs.curve_point_store.as_deref(),
-            self.catalogs.content_tuning_store.as_deref(),
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self
-                .fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self
-                .fixtures
-                .progression
-                .represented_primary_specialization_id_like_cpp,
-        );
-
-        self.inventory
-            .move_direct_inventory_item_with_item_mods_for_equipment_set_like_cpp(
-                &inventory_access,
-                &modifier_access,
-                &item_sets,
-                self.catalogs.items.store.as_ref(),
-                self.catalogs.items.stats_store.as_ref(),
-                self.catalogs.scaling_stat_distribution_store.as_ref(),
-                self.catalogs.scaling_stat_values_store.as_ref(),
-                self.catalogs.shield_block_regular_game_table.as_ref(),
-                self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
-                src,
-                dst,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.identity.player_level,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                &self.fixtures.auras.represented_shapeshift_form_like_cpp,
-                cfg!(test),
-            )
-    }
-    pub(crate) fn record_destroyed_inventory_item_mod_remove_like_cpp(
-        &mut self,
-        bag: u8,
-        slot: u8,
-        item_guid: ObjectGuid,
-    ) -> bool {
-        if bag != INVENTORY_SLOT_BAG_0 || slot >= INVENTORY_SLOT_BAG_END {
-            return false;
-        }
-        if self
-            .resolved_inventory_item_object_like_cpp(item_guid)
-            .is_some_and(|item| item.is_broken())
-        {
-            return false;
-        }
-
-        self.record_represented_item_mods_like_cpp(item_guid, slot, false) != 0
-    }
     pub(crate) fn record_direct_inventory_item_set_remove_like_cpp(
         &mut self,
         bag: u8,
@@ -96,14 +27,6 @@ impl WorldSession {
         }
 
         self.record_represented_items_set_item_like_cpp(item_guid, false)
-    }
-    pub(in crate::session) fn represented_item_inventory_type_like_cpp(
-        &self,
-        item_entry: u32,
-        item_guid: ObjectGuid,
-    ) -> Option<InventoryType> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_item_inventory_type_like_cpp(hub, item_entry, item_guid)
     }
     pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
         crate::session::hub_ref(self).item_template_inventory_type(item_id)
@@ -158,12 +81,6 @@ impl WorldSession {
     ) -> InventoryResult {
         self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
     }
-    pub(in crate::session) fn direct_inventory_player_snapshot(
-        &self,
-    ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.direct_inventory_player_snapshot(hub)
-    }
     pub(crate) fn remove_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_item_duration_refs_like_cpp(&mut hub, item_guid)
@@ -171,10 +88,6 @@ impl WorldSession {
     pub(crate) fn remove_inventory_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_tradeable_item_like_cpp(&mut hub, item_guid)
-    }
-    pub(crate) fn add_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.add_inventory_item_duration_refs_like_cpp(&mut hub, item_guid)
     }
     /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
     pub(crate) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp(
@@ -238,20 +151,6 @@ impl WorldSession {
             }
         }
         applied
-    }
-    #[cfg(test)]
-    pub(crate) async fn apply_inventory_item_obtain_spells_like_cpp(
-        &mut self,
-        item_entry: u32,
-    ) -> Vec<i32> {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.apply_inventory_item_obtain_spells_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-            item_entry,
-        )
-        .await
     }
     pub(crate) fn apply_inventory_item_remove_side_effects_like_cpp(
         &mut self,

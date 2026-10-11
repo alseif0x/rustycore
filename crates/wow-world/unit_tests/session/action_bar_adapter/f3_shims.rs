@@ -29,3 +29,42 @@ impl crate::session::WorldSession {
         crate::session::hub_mut(self).mutate_active_player_update_state_like_cpp(mutate)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
+        self.lifecycle.set_tutorial_int_like_cpp(index, value)
+    }
+    pub(crate) fn apply_tutorial_action_like_cpp(
+        &mut self,
+        action: u8,
+        tutorial_bit: Option<u32>,
+    ) -> bool {
+        match action {
+            wow_packet::packets::misc::TUTORIAL_ACTION_UPDATE_LIKE_CPP => {
+                let Some(tutorial_bit) = tutorial_bit else {
+                    return false;
+                };
+                let index = (tutorial_bit >> 5) as usize;
+                if index >= self.lifecycle.tutorial_values_like_cpp().len() {
+                    return false;
+                }
+                let flag = self.lifecycle.tutorial_values_like_cpp()[index]
+                    | (1u32 << (tutorial_bit & 0x1F));
+                self.set_tutorial_int_like_cpp(index, flag)
+            }
+            wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP => {
+                for index in 0..self.lifecycle.tutorial_values_like_cpp().len() {
+                    self.set_tutorial_int_like_cpp(index, u32::MAX);
+                }
+                true
+            }
+            wow_packet::packets::misc::TUTORIAL_ACTION_RESET_LIKE_CPP => {
+                for index in 0..self.lifecycle.tutorial_values_like_cpp().len() {
+                    self.set_tutorial_int_like_cpp(index, 0);
+                }
+                true
+            }
+            _ => false,
+        }
+    }
+}

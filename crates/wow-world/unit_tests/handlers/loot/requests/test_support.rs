@@ -5,35 +5,6 @@ use super::*;
 
 impl WorldSession {
     #[cfg(test)]
-    pub(in crate::handlers::loot) async fn store_represented_disenchant_loot_winner_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        loot_obj: ObjectGuid,
-        loot_list_id: u8,
-        entry: &LootEntry,
-        winner_guid: ObjectGuid,
-        dungeon_encounter_id: u32,
-        claim: Option<&LootClaimLease>,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
-        self.store_represented_disenchant_loot_winner_with_generator_like_cpp(
-            generator.as_ref(),
-            &item_valuation,
-            owner_guid,
-            loot_obj,
-            loot_list_id,
-            entry,
-            winner_guid,
-            dungeon_encounter_id,
-            claim,
-        )
-        .await
-    }
-
-    #[cfg(test)]
     pub(in crate::handlers::loot) fn represented_on_loot_opened_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
@@ -91,48 +62,6 @@ impl WorldSession {
             generator.as_ref(),
             loot_entries,
             dungeon_encounter_id,
-            claim,
-            claim_commit_context,
-        )
-        .await
-    }
-
-    #[cfg(test)]
-    pub(in crate::handlers::loot) async fn store_direct_loot_item_from_owner_like_cpp(
-        &mut self,
-        loot_entry: &LootEntry,
-        dungeon_encounter_id: u32,
-        owner_guid: ObjectGuid,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        self.store_direct_loot_item_from_owner_with_generator_like_cpp(
-            generator.as_ref(),
-            loot_entry,
-            dungeon_encounter_id,
-            owner_guid,
-        )
-        .await
-    }
-
-    #[cfg(test)]
-    pub(in crate::handlers::loot) async fn store_direct_loot_item_with_source_like_cpp(
-        &mut self,
-        loot_entry: &LootEntry,
-        dungeon_encounter_id: u32,
-        stored_item_loot_source: Option<ObjectGuid>,
-        claim: Option<&LootClaimLease>,
-        claim_commit_context: Option<LootItemClaimCommitContextLikeCpp>,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        self.store_direct_loot_item_with_source_and_generator_like_cpp(
-            generator.as_ref(),
-            loot_entry,
-            dungeon_encounter_id,
-            stored_item_loot_source,
             claim,
             claim_commit_context,
         )

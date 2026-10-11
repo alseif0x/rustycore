@@ -140,32 +140,6 @@ fn admission_candidate_like_cpp(guid: ObjectGuid) -> wow_entities::Creature {
     creature
 }
 
-fn creature_loot_like_cpp(_guid: ObjectGuid, coins: u32, player: ObjectGuid) -> CreatureLoot {
-    CreatureLoot {
-        loot_guid: ObjectGuid::create_world_object(
-            HighGuid::LootObject,
-            0,
-            0,
-            0,
-            0,
-            0,
-            i64::from(coins),
-        ),
-        coins,
-        unlooted_count: 0,
-        loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
-        dungeon_encounter_id: 0,
-        loot_method: 0,
-        loot_master: ObjectGuid::EMPTY,
-        round_robin_player: ObjectGuid::EMPTY,
-        player_ffa_items: Vec::new(),
-        players_looting: Vec::new(),
-        allowed_looters: vec![player],
-        items: Vec::new(),
-        looted_by_player: false,
-    }
-}
-
 /// The kill-hook events of one lethal completion, per named fact:
 /// `[DeathStateJustDied, ZoneScriptUnitDeath, LootFlagsApplied,
 /// CreatureOnHealthDepletedAi, CreatureJustDiedAi, ScriptMgrOnCreatureKill]`.

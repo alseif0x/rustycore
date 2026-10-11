@@ -24,10 +24,6 @@ impl WorldSession {
     pub fn set_item_search_name_store(&mut self, store: Arc<ItemSearchNameStore>) {
         self.catalogs.items.search_name_store = Some(store);
     }
-    /// Get the item search-name store reference.
-    pub(crate) fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
-        self.catalogs.items.search_name_store.as_ref()
-    }
     pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
         self.catalogs.pvp_item_store = Some(store);
     }
@@ -37,17 +33,11 @@ impl WorldSession {
     pub fn set_item_spec_override_store(&mut self, store: Arc<ItemSpecOverrideStore>) {
         self.catalogs.items.spec_override_store = Some(store);
     }
-    pub(crate) fn item_spec_override_store(&self) -> Option<&Arc<ItemSpecOverrideStore>> {
-        self.catalogs.items.spec_override_store.as_ref()
-    }
     pub fn set_item_effect_store(&mut self, store: Arc<ItemEffectStore>) {
         self.catalogs.items.effect_store = Some(store);
     }
     pub(crate) fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
         self.catalogs.item_stats_store()
-    }
-    pub(crate) fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
-        self.catalogs.items.effect_store.as_ref()
     }
     pub(crate) fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
         self.catalogs.item_template_flags(item_id)

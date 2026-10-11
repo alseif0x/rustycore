@@ -67,3 +67,47 @@ impl crate::session::WorldSession {
         crate::session::hub_mut(self).set_player_xp_like_cpp(xp)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_championing_faction_like_cpp(faction_id);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.progression.championing_faction_like_cpp = faction_id;
+        }
+    }
+    pub(crate) async fn killed_player_credit_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        victim_guid: wow_core::ObjectGuid,
+    ) {
+        // C++ QUEST_OBJECTIVE_PLAYERKILLS with ObjectID 0.
+        self.update_represented_storing_value_quest_objective_progress_like_cpp(
+            item_guid_generator,
+            QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
+            0,
+            1,
+            victim_guid,
+        )
+        .await;
+    }
+    pub(crate) async fn kill_credit_criteria_tree_objective_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        criteria_tree_id: u32,
+    ) {
+        // C++ QUEST_OBJECTIVE_CRITERIA_TREE.
+        self.update_represented_storing_flag_quest_objective_progress_like_cpp(
+            item_guid_generator,
+            14,
+            criteria_tree_id as i32,
+            1,
+        )
+        .await;
+    }
+}

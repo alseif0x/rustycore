@@ -37,6 +37,7 @@ pub(crate) struct RepresentedPlayerConditionContextLikeCpp {
 
 /// Represented subset of C++ `Player::m_unitData` item-level cap fields
 /// consumed by `Item::GetItemLevel(Player const*)`.
+#[cfg(test)]
 pub(crate) type RepresentedItemLevelCapsLikeCpp = wow_entities::PlayerItemLevelCapsLikeCpp;
 
 impl RepresentedPlayerConditionContextLikeCpp {

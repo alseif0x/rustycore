@@ -43,3 +43,21 @@ impl crate::session::WorldSession {
         state.send_item_enchant_time_update_plan(hub, owner_guid, update)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
+        self.catalogs.is_arena_allowed_enchantment(enchantment_id)
+    }
+    pub(crate) fn apply_enchantment_template_ref(
+        &self,
+        enchantment_id: i32,
+        required_skill_value: u16,
+        condition_fits: bool,
+    ) -> Option<ApplyEnchantmentTemplateRef> {
+        self.catalogs.apply_enchantment_template_ref(
+            enchantment_id,
+            required_skill_value,
+            condition_fits,
+        )
+    }
+}

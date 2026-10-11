@@ -6,22 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
-        &mut self,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        money_before: u64,
-        money_after: u64,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state
-            .commit_exclusive_trainer_money_only_like_cpp(
-                &mut hub,
-                money_persistence,
-                money_before,
-                money_after,
-            )
-            .await
-    }
     /// Apply the already-committed void-storage unlock to runtime state and
     /// emit the same PlayerData::Flags values delta that C++ SetPlayerFlag does.
     pub(crate) fn apply_committed_void_storage_unlock_like_cpp(&mut self) {

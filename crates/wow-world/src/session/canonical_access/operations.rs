@@ -262,31 +262,6 @@ impl WorldSession {
         self.core.player_identity_bootstrap_like_cpp = None;
         true
     }
-    pub(crate) fn owned_player_cuf_profiles_like_cpp(
-        &self,
-    ) -> Option<(Vec<Option<wow_entities::PlayerCufProfile>>, bool)> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            let state = player.gameplay_state();
-            (state.cuf_profiles.clone(), state.cuf_profiles_loaded)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.fixtures
-                    .presentation
-                    .cuf_profiles_like_cpp
-                    .iter()
-                    .map(|profile| profile.clone().map(player_cuf_profile_from_packet_like_cpp))
-                    .collect(),
-                self.fixtures.presentation.cuf_profiles_loaded_like_cpp,
-            ));
-        }
-        None
-    }
 }
 
 #[cfg(test)]

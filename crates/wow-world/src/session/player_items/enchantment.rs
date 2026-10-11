@@ -13,16 +13,6 @@ impl WorldSession {
     ) {
         self.catalogs.items.random_enchantment_template_store = Some(store);
     }
-    pub(crate) fn item_random_enchantment_template_store(
-        &self,
-    ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
-        self.catalogs.item_random_enchantment_template_store()
-    }
-    /// Get the item disenchant loot store reference.
-    #[cfg(test)]
-    pub(crate) fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
-        self.catalogs.item_disenchant_loot_store.as_ref()
-    }
     pub(crate) fn apply_enchantment_random_suffix_ref(
         &self,
         random_properties_id: i32,
@@ -41,24 +31,6 @@ impl WorldSession {
         self.catalogs
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
-    }
-    pub(crate) fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
-        self.catalogs.spell_item_enchantment_store()
-    }
-    pub(crate) fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
-        self.catalogs.is_arena_allowed_enchantment(enchantment_id)
-    }
-    pub(crate) fn apply_enchantment_template_ref(
-        &self,
-        enchantment_id: i32,
-        required_skill_value: u16,
-        condition_fits: bool,
-    ) -> Option<ApplyEnchantmentTemplateRef> {
-        self.catalogs.apply_enchantment_template_ref(
-            enchantment_id,
-            required_skill_value,
-            condition_fits,
-        )
     }
     pub(crate) fn apply_enchantment_effect_refs(
         &self,
