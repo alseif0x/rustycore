@@ -21,7 +21,7 @@ async fn spell_damage_skips_dead_creature_like_cpp() {
 
     session.apply_damage(None, guid, 7).await.unwrap();
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 20);
     assert!(send_rx.try_recv().is_err());
@@ -67,7 +67,7 @@ async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
         .await
         .expect("represented instakill effect row should execute");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 0);
     assert!(

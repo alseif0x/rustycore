@@ -238,7 +238,7 @@ async fn login_known_spell_proficiencies_send_without_spell_cast_packets_like_cp
 fn combat_tick_base_attack_casts_current_melee_spell_instead_of_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_023);
     let player = ObjectGuid::create_player(1, 72);
 
@@ -289,10 +289,10 @@ fn combat_tick_base_attack_casts_current_melee_spell_instead_of_damage_like_cpp(
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -322,7 +322,7 @@ fn combat_tick_base_attack_casts_current_melee_spell_instead_of_damage_like_cpp(
 fn combat_tick_removes_attacking_interrupt_auras_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_021);
     let player = ObjectGuid::create_player(1, 70);
 
@@ -376,7 +376,7 @@ fn combat_tick_removes_attacking_interrupt_auras_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let guard = canonical.lock().unwrap();
     let player_entity = guard
@@ -391,7 +391,7 @@ fn combat_tick_removes_attacking_interrupt_auras_like_cpp() {
 fn combat_tick_casting_player_skips_melee_update_without_reset_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_033);
     let player = ObjectGuid::create_player(1, 82);
 
@@ -443,11 +443,11 @@ fn combat_tick_casting_player_skips_melee_update_without_reset_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -472,7 +472,7 @@ fn combat_tick_casting_player_skips_melee_update_without_reset_like_cpp() {
 fn combat_tick_spell_delay_combat_timer_pauses_attack_timer_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_034);
     let player = ObjectGuid::create_player(1, 85);
 
@@ -514,13 +514,11 @@ fn combat_tick_spell_delay_combat_timer_pauses_attack_timer_like_cpp() {
             unit.set_current_cast_spell(wow_entities::CurrentSpellSlot::Generic, generic_cast);
         })
         .unwrap();
-    session.view.combat_tick_last_at_like_cpp =
-        Instant::now() - std::time::Duration::from_millis(100);
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let guard = canonical.lock().unwrap();
     let player_entity = guard

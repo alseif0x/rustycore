@@ -381,7 +381,7 @@ fn canonical_visibility_uses_player_instance_cross_map_blocks_instance_zero_fall
 async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 493);
     let gameobject_seer_guid = test_gameobject_guid(4930, 4930);
     let far_creature_guid = test_creature_guid(4931);
@@ -389,7 +389,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
     let unsupported_seer_position = Position::new(3000.0, 3000.0, 0.0, 0.0);
     let far_creature_position = Position::new(3010.0, 3010.0, 0.0, 0.0);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -425,7 +425,7 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
 
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(far_creature_position.x, far_creature_position.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         grid_x,
@@ -478,7 +478,7 @@ fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
     let player_position = Position::new(10.0, 0.0, 0.0, 0.0);
     let npc_position = Position::new(14.0, 0.0, 0.0, 0.0);
     let canonical = shared_canonical_map_manager();
-    let manager = shared_map_manager();
+    let manager = Arc::clone(&canonical);
 
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -492,7 +492,7 @@ fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
     ));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 7);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -512,7 +512,7 @@ fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
             0,
         ),
     );
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         7,
         0,
@@ -532,7 +532,7 @@ fn npc_interaction_legacy_fallback_uses_player_instance_like_cpp() {
             0,
         ),
     );
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
@@ -558,7 +558,7 @@ fn npc_interaction_rejects_legacy_fallback_when_canonical_player_is_out_of_world
     let questgiver_guid = test_creature_guid(17);
     let position = Position::new(10.0, 0.0, 0.0, 0.0);
     let canonical = shared_canonical_map_manager();
-    let manager = shared_map_manager();
+    let manager = Arc::clone(&canonical);
 
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -581,7 +581,7 @@ fn npc_interaction_rejects_legacy_fallback_when_canonical_player_is_out_of_world
                 .remove_from_world();
         })
         .unwrap();
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -601,7 +601,7 @@ fn npc_interaction_rejects_legacy_fallback_when_canonical_player_is_out_of_world
             0,
         ),
     );
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(

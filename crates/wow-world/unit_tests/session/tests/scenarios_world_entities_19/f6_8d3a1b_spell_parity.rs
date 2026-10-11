@@ -36,7 +36,7 @@ const D3A1B_DIFF_MS_LIKE_CPP: u32 = 2_000;
 const D3A1B_DUE_ELAPSED_MS_LIKE_CPP: u64 = 20_000;
 
 struct D3a1bWorldLikeCpp {
-    manager: crate::map_manager::SharedMapManager,
+    manager: SharedCanonicalMapManager,
     canonical: SharedCanonicalMapManager,
     _session: WorldSession,
     caster: ObjectGuid,
@@ -93,7 +93,7 @@ fn d3a1b_config_like_cpp() -> LegacyCreatureAggroConfigLikeCpp {
 /// Build the fixture. Every call yields the same state.
 fn d3a1b_world_like_cpp(base: i64) -> D3a1bWorldLikeCpp {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let caster = test_creature_guid(base);
     let victim = ObjectGuid::create_player(1, base + 1);
@@ -139,10 +139,6 @@ fn d3a1b_world_like_cpp(base: i64) -> D3a1bWorldLikeCpp {
             creature.seed_runtime_rng_like_cpp(seed);
         })
         .expect("the caster is admitted");
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::GlobalLegacy);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
         victim,
         Position::new(14.0, 10.0, 0.0, 0.0),
@@ -170,9 +166,8 @@ struct D3a1bTickLikeCpp {
 fn d3a1b_legacy_tick_like_cpp(world: &D3a1bWorldLikeCpp, diff_ms: u32) -> D3a1bTickLikeCpp {
     let config = d3a1b_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let _ = run_legacy_player_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let _ = run_canonical_player_melee_phase_for_test_like_cpp(
+        &world.canonical,
         &[],
         diff_ms,
         &mut phase_state,
@@ -189,9 +184,8 @@ fn d3a1b_legacy_tick_like_cpp(world: &D3a1bWorldLikeCpp, diff_ms: u32) -> D3a1bT
         &chase_targets,
         diff_ms,
     );
-    let mut aggro = run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let mut aggro = run_canonical_creature_aggro_phase_for_test_like_cpp(
+        &world.canonical,
         &world.candidates,
         config.clone(),
     );
@@ -213,14 +207,12 @@ fn d3a1b_legacy_tick_like_cpp(world: &D3a1bWorldLikeCpp, diff_ms: u32) -> D3a1bT
             &stops,
         );
     }
-    let spell = run_legacy_creature_spell_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let spell = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &world.canonical,
         &config,
     );
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &world.canonical,
         &config,
     );
     D3a1bTickLikeCpp {
@@ -295,7 +287,7 @@ fn d3a1b_make_cast_due_like_cpp(
 ) {
     legacy_world
         .manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(0, 0, legacy_world.caster)
         .unwrap()
@@ -345,7 +337,7 @@ fn d3a1b_caster_state_like_cpp(
 }
 
 fn d3a1b_legacy_caster_like_cpp(world: &D3a1bWorldLikeCpp) -> String {
-    let legacy = world.manager.read().unwrap();
+    let legacy = world.manager.lock().unwrap();
     let canonical = world.canonical.lock().unwrap();
     d3a1b_caster_state_like_cpp(
         &legacy.find_creature(0, 0, world.caster).unwrap().creature,

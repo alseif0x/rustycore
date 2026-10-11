@@ -94,7 +94,7 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1012);
     let packet_bytes = vec![0xD4, 0x2D, 0xAA];
     let manager = shared_map_manager();
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -115,7 +115,7 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
         ),
     );
     session.core.state = SessionState::LoggedIn;
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session
         .core

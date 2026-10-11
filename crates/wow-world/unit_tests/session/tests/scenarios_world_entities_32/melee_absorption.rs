@@ -13,13 +13,12 @@ use super::*;
 /// absorbing and the next swing lands at full damage.
 #[test]
 fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FULL_ABSORB, HIT_INFO_PARTIAL_ABSORB,
     };
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let player = ObjectGuid::create_player(1, 91_500);
@@ -153,10 +152,6 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     session
         .apply_aura(91_510, player, 30_000, 1)
         .expect("apply hit-chance aura");
@@ -213,7 +208,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     // First swing: the 30-point shield absorbs the whole 10-point hit. C++
     // publishes the zero dealt damage with the full-absorb bit and no health
     // transition, and the shield keeps 20 points.
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(command.absorbed, 10);
@@ -234,7 +229,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
 
     // Second swing spends ten more and still publishes a full absorb.
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(outcome.commands.last().expect("command").damage, 0);
     assert_eq!(shield_amount(&session).expect("shield").1, Some(10));
 
@@ -244,7 +239,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     // aura transition (`Unit::CalcAbsorbResist`'s
     // `Remove(AURA_REMOVE_BY_ENEMY_SPELL)`).
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 10);
     assert_eq!(command.damage, 0);
@@ -294,7 +289,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         .apply_aura(91_514, player, 30_000, 1)
         .expect("apply a large elemental resistance aura");
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 0);
     assert_eq!(command.damage, 10);
@@ -310,7 +305,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
         .apply_aura(91_512, player, 30_000, 1)
         .expect("apply small absorb shield");
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 4);
     assert_eq!(command.damage, 6);
@@ -333,11 +328,10 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
 /// it can drain is finite.
 #[test]
 fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_PARTIAL_ABSORB};
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let player = ObjectGuid::create_player(1, 91_600);
@@ -454,10 +448,6 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     session
         .apply_aura(91_610, player, 30_000, 1)
         .expect("apply hit-chance aura");
@@ -517,7 +507,7 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     };
 
     // Plenty of mana: the whole hit is absorbed and the drain is published.
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 10);
     assert_eq!(command.damage, 0);
@@ -552,7 +542,7 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
         .unit_mut()
         .set_power(wow_constants::PowerType::Mana, 3);
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.mana_spent, 3);
     assert_eq!(command.absorbed, 3);
@@ -568,7 +558,7 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
 
     // No mana: the shield absorbs nothing and the full hit lands.
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.mana_spent, 0);
     assert_eq!(command.absorbed, 0);
@@ -585,11 +575,10 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
 /// `SPELL_ATTR6_ABSORB_CANNOT_BE_IGNORE`.
 #[test]
 fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_PARTIAL_ABSORB};
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let player = ObjectGuid::create_player(1, 91_800);
@@ -719,10 +708,6 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     session
         .apply_aura(91_810, player, 30_000, 1)
         .expect("apply hit-chance aura");
@@ -754,7 +739,7 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
     session
         .apply_aura(91_811, player, 30_000, 1)
         .expect("apply absorb shield");
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 5);
     assert_eq!(command.damage, 5);
@@ -771,7 +756,7 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
         .apply_aura(91_813, player, 30_000, 1)
         .expect("apply protected absorb shield");
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("command").clone();
     assert_eq!(command.absorbed, 10);
     assert_eq!(command.damage, 0);

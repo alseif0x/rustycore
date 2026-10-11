@@ -33,10 +33,10 @@ fn legacy_only_npc_interaction_uses_combat_reach_like_cpp() {
     );
     creature.creature.unit_mut().set_combat_reach(0.0);
     manager
-        .write()
+        .lock()
         .unwrap()
         .add_creature(571, 0, 0, 0, creature);
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
@@ -49,7 +49,7 @@ fn legacy_only_npc_interaction_uses_combat_reach_like_cpp() {
     );
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(571, 0, questgiver_guid)
         .unwrap()

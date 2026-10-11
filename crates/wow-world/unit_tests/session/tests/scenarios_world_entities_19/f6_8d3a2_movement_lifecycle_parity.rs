@@ -72,14 +72,13 @@ pub(super) fn d3a2_mmap_config_like_cpp() -> MMapRuntimeConfigLikeCpp {
 
 /// The complete legacy movement phase, as the world-server bridge runs it.
 pub(super) fn d3a2_legacy_movement_tick_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: &SharedCanonicalMapManager,
     chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> crate::session::LegacyCreatureMovementTickOutcomeLikeCpp {
-    run_legacy_creature_movement_tick_once_like_cpp(
-        manager,
-        Some(canonical),
+    run_canonical_creature_movement_phase_for_test_like_cpp(
+        canonical,
         &d3a2_mmap_config_like_cpp(),
         None,
         chase_targets,
@@ -101,7 +100,7 @@ pub(super) fn d3a2_movement_counters_like_cpp(
 }
 
 struct D3a2WorldLikeCpp {
-    manager: crate::map_manager::SharedMapManager,
+    manager: SharedCanonicalMapManager,
     canonical: SharedCanonicalMapManager,
     _session: WorldSession,
     creature: ObjectGuid,
@@ -118,7 +117,7 @@ fn d3a2_world_like_cpp(
     candidate: impl FnOnce(ObjectGuid) -> Option<LegacyCreatureAggroCandidateLikeCpp>,
 ) -> D3a2WorldLikeCpp {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature = test_creature_guid(base);
     let player = ObjectGuid::create_player(1, base + 1);
@@ -154,10 +153,6 @@ fn d3a2_world_like_cpp(
             configure(world_creature, player);
         })
         .expect("the creature is admitted");
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::GlobalLegacy);
     let candidates = candidate(player).into_iter().collect();
     D3a2WorldLikeCpp {
         manager,
@@ -181,9 +176,8 @@ struct D3a2TickLikeCpp {
 fn d3a2_legacy_tick_like_cpp(world: &D3a2WorldLikeCpp, diff_ms: u32) -> D3a2TickLikeCpp {
     let config = legacy_aggro_hostile_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let _ = run_legacy_player_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let _ = run_canonical_player_melee_phase_for_test_like_cpp(
+        &world.canonical,
         &[],
         diff_ms,
         &mut phase_state,
@@ -196,9 +190,8 @@ fn d3a2_legacy_tick_like_cpp(world: &D3a2WorldLikeCpp, diff_ms: u32) -> D3a2Tick
         &chase_targets,
         diff_ms,
     );
-    let mut aggro = run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let mut aggro = run_canonical_creature_aggro_phase_for_test_like_cpp(
+        &world.canonical,
         &world.candidates,
         config.clone(),
     );
@@ -220,14 +213,12 @@ fn d3a2_legacy_tick_like_cpp(world: &D3a2WorldLikeCpp, diff_ms: u32) -> D3a2Tick
             &stops,
         );
     }
-    let spell = run_legacy_creature_spell_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let spell = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &world.canonical,
         &config,
     );
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &world.canonical,
         &config,
     );
     D3a2TickLikeCpp {
@@ -321,7 +312,7 @@ fn d3a2_creature_state_like_cpp(creature: &wow_entities::Creature) -> String {
 }
 
 fn d3a2_legacy_creature_like_cpp(world: &D3a2WorldLikeCpp) -> String {
-    let guard = world.manager.read().unwrap();
+    let guard = world.manager.lock().unwrap();
     d3a2_creature_state_like_cpp(&guard.find_creature(0, 0, world.creature).unwrap().creature)
 }
 
@@ -483,14 +474,6 @@ fn canonical_executor_matches_legacy_bridge_chase_movement_like_cpp() {
         executor.movement.movement_packets, 1,
         "{:?}",
         executor.movement
-    );
-    assert_eq!(
-        executor.movement.canonical_syncs, 0,
-        "no mirror on the executor"
-    );
-    assert_eq!(
-        legacy.movement.canonical_syncs, 1,
-        "the bridge mirrors its frame"
     );
     let event = &executor.movement.plan.events[0];
     assert_eq!(event.source_guid, executor_world.creature);

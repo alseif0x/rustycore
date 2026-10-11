@@ -731,7 +731,7 @@ async fn send_if_visible_explicit_player_delivers_to_session_on_non_zero_map_lik
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1006);
     let packet_bytes = vec![0xAA, 0xBB, 0xCC];
     let manager = shared_map_manager();
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -754,7 +754,7 @@ async fn send_if_visible_explicit_player_delivers_to_session_on_non_zero_map_lik
     // Session is on map 571 (non-zero) — the same map ExplicitPlayer routing now
     // reads from the registry entry and places in the command.
     session.core.state = SessionState::LoggedIn;
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session
         .core

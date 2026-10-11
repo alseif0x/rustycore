@@ -90,15 +90,12 @@ fn legacy_creature_spell_tick_is_noop_under_session_owner_like_cpp() {
         30.0,
     );
 
-    let outcome = run_legacy_creature_spell_tick_once_like_cpp(&manager, None, &config);
-
-    assert!(outcome.skipped_owner_not_global);
+    let outcome = run_canonical_creature_spell_phase_for_test_like_cpp(&manager, &config);
     assert_eq!(outcome.maps_seen, 0);
     assert!(outcome.plan.events.is_empty());
 }
 #[test]
 fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_116);
@@ -113,10 +110,6 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
             creature.creature.set_spell(0, 7001);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let too_close = ObjectGuid::create_player(1, 91_117);
     let too_far = ObjectGuid::create_player(1, 91_118);
@@ -127,7 +120,7 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
         legacy_aggro_candidate_like_cpp(valid, Position::new(12.0, 10.0, 0.0, 0.0)),
     ];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         LegacyCreatureAggroConfigLikeCpp {
@@ -149,7 +142,6 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_120);
@@ -163,10 +155,6 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
             creature.creature.set_spell(0, 7002);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_121);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -174,7 +162,7 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
@@ -186,7 +174,6 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_012);
@@ -196,10 +183,6 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
             creature.creature.ai_ownership_mut().aggro_radius = 0.0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_013);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -207,20 +190,18 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
         Position::new(10.0, 10.0, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 1);
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -232,7 +213,6 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_014);
@@ -246,10 +226,6 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
                 .set_unit_flags_like_cpp(UnitFlags::IMMUNE_TO_PC);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_015);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -257,20 +233,18 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 1);
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -282,7 +256,6 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_016);
@@ -295,10 +268,6 @@ fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
             );
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_017);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -306,20 +275,18 @@ fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 1);
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -330,227 +297,9 @@ fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
     assert_eq!(combat_target, None);
 }
 #[test]
-fn legacy_creature_victim_sync_cas_rejects_same_guid_replacement_like_cpp() {
-    let guid = test_creature_guid(91_045);
-    let original = crate::map_manager::WorldCreature::new(
-        guid,
-        9001,
-        Position::new(10.0, 10.0, 0.0, 0.0),
-        100,
-        80,
-        10,
-        10,
-        20.0,
-        1,
-        35,
-        0,
-        0,
-    );
-    let sync = creature_melee_sync_state_for_test_like_cpp(&original, 10);
-    let mut replacement = crate::map_manager::WorldCreature::new(
-        guid,
-        9001,
-        Position::new(10.0, 10.0, 0.0, 0.0),
-        100,
-        80,
-        10,
-        10,
-        20.0,
-        1,
-        35,
-        0,
-        0,
-    );
-    let before = (
-        replacement.creature.unit().data().health,
-        replacement.creature.unit().death_state(),
-        replacement.creature.unit().health_state_revision_like_cpp(),
-        replacement.creature.loot_lifecycle_revision_like_cpp(),
-    );
-
-    assert!(!apply_creature_melee_victim_sync_to_legacy_like_cpp(
-        &mut replacement,
-        &sync,
-        wow_entities::game_time_secs_like_cpp(),
-    ));
-
-    assert_eq!(
-        (
-            replacement.creature.unit().data().health,
-            replacement.creature.unit().death_state(),
-            replacement.creature.unit().health_state_revision_like_cpp(),
-            replacement.creature.loot_lifecycle_revision_like_cpp(),
-        ),
-        before
-    );
-    assert!(
-        !replacement
-            .creature
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&sync.identity.authority)
-    );
-}
-#[test]
-fn legacy_creature_victim_sync_cas_rejects_stale_aba_health_state_like_cpp() {
-    let guid = test_creature_guid(91_046);
-    let mut victim = crate::map_manager::WorldCreature::new(
-        guid,
-        9001,
-        Position::new(10.0, 10.0, 0.0, 0.0),
-        100,
-        80,
-        10,
-        10,
-        20.0,
-        1,
-        35,
-        0,
-        0,
-    );
-    let sync = creature_melee_sync_state_for_test_like_cpp(&victim, 10);
-    victim.creature.unit_mut().set_health(90);
-    victim.creature.unit_mut().set_health(100);
-    let before = (
-        victim.creature.unit().data().health,
-        victim.creature.unit().death_state(),
-        victim.creature.unit().health_state_revision_like_cpp(),
-        victim.creature.loot_lifecycle_revision_like_cpp(),
-    );
-
-    assert!(!apply_creature_melee_victim_sync_to_legacy_like_cpp(
-        &mut victim,
-        &sync,
-        wow_entities::game_time_secs_like_cpp(),
-    ));
-
-    assert_eq!(
-        (
-            victim.creature.unit().data().health,
-            victim.creature.unit().death_state(),
-            victim.creature.unit().health_state_revision_like_cpp(),
-            victim.creature.loot_lifecycle_revision_like_cpp(),
-        ),
-        before
-    );
-    assert!(
-        victim
-            .creature
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&sync.identity.authority)
-    );
-}
-#[test]
-fn stale_legacy_creature_snapshot_cannot_replace_newer_canonical_health_like_cpp() {
-    let canonical = shared_canonical_map_manager();
-    let guid = test_creature_guid(91_049);
-    add_canonical_test_creature_on_map(&canonical, guid, 9001, Position::ZERO, 0, 0, 0);
-    let stale = canonical
-        .lock()
-        .unwrap()
-        .find_map(0, 0)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap()
-        .clone();
-    let expected = {
-        let mut guard = canonical.lock().unwrap();
-        let creature = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_creature_mut(guid)
-            .unwrap();
-        creature.unit_mut().set_health(90);
-        (
-            creature.unit().data().health,
-            creature.unit().death_state(),
-            creature.unit().health_state_revision_like_cpp(),
-        )
-    };
-
-    assert!(sync_canonical_creature_entity_on_map_like_cpp(&canonical, 0, 0, stale).is_some());
-
-    let guard = canonical.lock().unwrap();
-    let creature = guard
-        .find_map(0, 0)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap();
-    assert_eq!(
-        (
-            creature.unit().data().health,
-            creature.unit().death_state(),
-            creature.unit().health_state_revision_like_cpp(),
-        ),
-        expected
-    );
-}
-#[test]
-fn stale_legacy_creature_snapshot_cannot_erase_canonical_death_lifecycle_like_cpp() {
-    let canonical = shared_canonical_map_manager();
-    let guid = test_creature_guid(91_105);
-    let target = ObjectGuid::create_player(1, 91_106);
-    add_canonical_test_creature_on_map(&canonical, guid, 9001, Position::ZERO, 0, 0, 0);
-    let stale = {
-        let mut guard = canonical.lock().unwrap();
-        let creature = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_creature_mut(guid)
-            .unwrap();
-        creature.enter_ai_combat(target);
-        creature.clone()
-    };
-    let expected = {
-        let mut guard = canonical.lock().unwrap();
-        let creature = guard
-            .find_map_mut(0, 0)
-            .unwrap()
-            .map_mut()
-            .get_typed_creature_mut(guid)
-            .unwrap();
-        assert!(
-            creature.apply_ai_damage_before_death_state_at_game_time_like_cpp(100, 1_000, 1_000,)
-        );
-        creature.set_death_state_runtime(wow_constants::DeathState::JustDied, 1_000);
-        creature.unit_mut().set_health(0);
-        creature.clone()
-    };
-    assert_eq!(
-        stale.ai_ownership().state,
-        wow_entities::CreatureAiState::InCombat
-    );
-    assert_eq!(
-        expected.ai_ownership().state,
-        wow_entities::CreatureAiState::Dead
-    );
-    assert!(expected.runtime_state().save_respawn_requested);
-    assert!(expected.corpse_remove_time() > 1_000);
-    assert!(expected.respawn_time() > 1_000);
-    assert!(expected.loot_lifecycle_revision_like_cpp() > stale.loot_lifecycle_revision_like_cpp());
-
-    assert!(sync_canonical_creature_entity_on_map_like_cpp(&canonical, 0, 0, stale).is_some());
-
-    let guard = canonical.lock().unwrap();
-    let stored = guard
-        .find_map(0, 0)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap();
-    assert_eq!(
-        stored, expected,
-        "a rejected stale snapshot must preserve every canonical kill hook"
-    );
-}
-#[test]
 fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_003);
     add_canonical_test_player_on_map(
         &canonical,
@@ -592,18 +341,11 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
             creature.seed_runtime_rng_like_cpp(0x91_004);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.swings_ready, 1);
@@ -626,7 +368,7 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
         .health;
     assert_eq!(health, 100 - u64::from(outcome.commands[0].damage));
     assert_eq!(outcome.commands[0].victim_health_after, health);
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert!(!creature.runtime_rng_authority_complete_like_cpp());
     assert_eq!(
@@ -638,10 +380,9 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
 }
 #[test]
 fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_hit_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_040);
     add_canonical_test_player_on_map(
         &canonical,
@@ -687,14 +428,9 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
             })
             .unwrap();
     }
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -724,7 +460,7 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
     );
     drop(canonical_guard);
 
-    let legacy_guard = manager.read().unwrap();
+    let legacy_guard = manager.lock().unwrap();
     let tombstoned = attackers
         .into_iter()
         .filter(|attacker| {
@@ -738,10 +474,9 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
 #[test]
 fn legacy_creature_melee_tick_once_rejects_missing_canonical_attacker_before_side_effects_like_cpp()
 {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_036);
     add_canonical_test_player_on_map(
         &canonical,
@@ -786,14 +521,9 @@ fn legacy_creature_melee_tick_once_rejects_missing_canonical_attacker_before_sid
                 );
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -805,7 +535,6 @@ fn legacy_creature_melee_tick_once_rejects_missing_canonical_attacker_before_sid
     // execution-time incarnation check, which is why the selection counter is 0
     // and the ownership refusal is 1.
     assert_eq!(outcome.swings_ready, 0);
-    assert_eq!(outcome.canonical_incarnation_rejections, 1);
     assert_eq!(outcome.melee_precondition_rejections, 0);
     assert_eq!(outcome.melee_outcomes_unrepresented, 0);
     assert_eq!(outcome.runtime_rng_authority_rejections, 0);

@@ -218,14 +218,25 @@ fn stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_state(SessionState::LoggedIn);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
+    let registered = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .expect("the registration configured a canonical store");
     let canonical_creature = make_canonical_creature_for_session(&session, owner_guid);
     attach_canonical_creature(&mut session, canonical_creature);
 
     let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let map_key = wow_map::MapKey::new(u32::from(map_id), instance_id);
-    let legacy_before = session
-        .read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
-        .expect("the legacy creature owns its pristine authority");
+    let registered_authority = || {
+        registered
+            .lock()
+            .unwrap()
+            .find_creature(map_id, instance_id, owner_guid)
+            .map(|creature| creature.loot_authority_like_cpp().clone())
+    };
+    let legacy_before =
+        registered_authority().expect("the registered creature owns its pristine authority");
     let canonical_before = session
         .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
         .expect("the canonical creature owns a separate pristine authority");
@@ -240,9 +251,7 @@ fn stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp() {
         "a logged-in player between maps must fail closed as unreadable, not absent"
     );
 
-    let legacy_after = session
-        .read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
-        .unwrap();
+    let legacy_after = registered_authority().unwrap();
     let canonical_after = session
         .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
         .unwrap();
@@ -250,7 +259,7 @@ fn stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp() {
     assert!(canonical_after.shares_storage_like_cpp(&canonical_before));
     assert!(
         !legacy_after.shares_storage_like_cpp(&canonical_after),
-        "reconciliation must not mutate either stale-map mirror"
+        "the lookup must not mutate either stale-map allocation"
     );
 }
 #[tokio::test]

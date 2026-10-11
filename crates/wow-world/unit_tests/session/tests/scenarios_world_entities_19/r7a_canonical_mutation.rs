@@ -3,14 +3,12 @@
 //!
 //! R7a gated the single mutation root `SessionCore::mutate_world_creature`
 //! by admitting the legacy representation against the current canonical
-//! incarnation. #1263 F6-8D3b-2 inverted the root to canonical-first: it
-//! mutates the incarnation itself and only projects it over the legacy copy,
-//! so the former refusals (stale snapshot, ABA replay, destroyed incarnation,
-//! competing used allocation) have no subject. The same fixtures now prove
-//! the inverted contract: the callback runs once on the GUID's current
-//! incarnation, the incarnation's own state and authority are never
-//! overwritten by a stale or foreign copy, and the copy is refreshed from the
-//! incarnation, never the reverse.
+//! incarnation. #1263 F6-8D3b-2 inverted the root to canonical-first and
+//! F6-8E deleted the legacy copy, so the former refusals (stale snapshot,
+//! competing used allocation) have no subject. The surviving regressions prove
+//! the canonical contract: the callback runs once on the GUID's current
+//! incarnation (also after an ABA health cycle and a recreation), its state and
+//! authority are kept, and a missing owner refuses before invocation.
 //!
 //! These tests drive the production root and two of its direct production
 //! consumers (the represented creature kill-hook completion and the looted
@@ -31,30 +29,30 @@ pub(super) fn canonical_creature_like_cpp(
         .with_creature_like_cpp(guid, Clone::clone)
 }
 
-/// The legacy representation for `guid`, if any.
+/// The creature for `guid` as the session's store holds it (#1263 F6-8E: the
+/// canonical incarnation; the name is kept for the sibling fixtures).
 pub(super) fn legacy_creature_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     guid: ObjectGuid,
 ) -> Option<wow_entities::Creature> {
     manager
-        .read()
+        .lock()
         .ok()?
         .find_creature(0, 0, guid)
         .map(|world_creature| world_creature.creature.clone())
 }
 
-/// A registered creature whose legacy representation and canonical incarnation
-/// are one incarnation, which is what production registration produces.
+/// A creature registered through the session's canonical registration path.
 pub(super) fn mirrored_session_like_cpp(
     guid: ObjectGuid,
     hp: u32,
 ) -> (
     WorldSession,
-    crate::map_manager::SharedMapManager,
+    SharedCanonicalMapManager,
     SharedCanonicalMapManager,
 ) {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     register_test_creature_mirrored_like_cpp(&mut session, manager.clone(), &canonical, guid, hp);
     (session, manager, canonical)
@@ -168,31 +166,7 @@ fn creature_loot_like_cpp(_guid: ObjectGuid, coins: u32, player: ObjectGuid) -> 
     }
 }
 
-/// A used (non-pristine) allocation that has already owned a loot lifetime.
-fn used_allocation_like_cpp(guid: ObjectGuid, player: ObjectGuid) -> wow_loot::OwnedLootAuthority {
-    let authority = wow_loot::OwnedLootAuthority::new();
-    let _ = authority.initialize_shared_like_cpp(creature_loot_like_cpp(guid, 11, player));
-    authority
-}
 
-/// Install `authority` on the legacy representation, displacing only that
-/// representation's own allocation.
-fn install_legacy_authority_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
-    guid: ObjectGuid,
-    authority: wow_loot::OwnedLootAuthority,
-) {
-    let mut guard = manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let creature = guard
-        .find_creature_mut(0, 0, guid)
-        .expect("legacy representation");
-    assert!(
-        creature.creature.rebind_loot_authority_like_cpp(authority),
-        "the legacy representation adopts the competing allocation"
-    );
-}
 
 /// The kill-hook events of one lethal completion, per named fact:
 /// `[DeathStateJustDied, ZoneScriptUnitDeath, LootFlagsApplied,
@@ -239,7 +213,7 @@ pub(super) fn lethal_event_counts_like_cpp(session: &WorldSession, guid: ObjectG
 }
 
 #[test]
-fn fresh_same_incarnation_non_health_mutation_is_applied_once_to_both_like_cpp() {
+fn fresh_non_health_mutation_is_applied_once_to_the_incarnation_like_cpp() {
     let guid = test_creature_guid(91_600);
     let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
     let legacy_before = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
@@ -299,62 +273,6 @@ fn fresh_same_incarnation_non_health_mutation_is_applied_once_to_both_like_cpp()
     );
 }
 
-/// **Negative control (R7a).** Executed against the original bridge at
-/// `40042c0cd` it fails: the stale non-health mutation is applied to the legacy
-/// representation and reported as success while the canonical incarnation keeps
-/// its earlier state. It passes once the gate admits ownership before invoking
-/// the mutation.
-#[test]
-fn stale_legacy_copy_cannot_overwrite_the_incarnation_like_cpp() {
-    let guid = test_creature_guid(91_601);
-    let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
-    let canonical_before = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
-    let legacy_before = observables_like_cpp(
-        &legacy_creature_like_cpp(&manager, guid).expect("legacy representation"),
-    );
-    // The canonical incarnation advances without the representation: the
-    // representation is now a stale snapshot of the same incarnation.
-    advance_canonical_max_health_like_cpp(&canonical, guid, 140);
-    let canonical_stale =
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical"));
-    assert_ne!(
-        canonical_stale.max_health, legacy_before.max_health,
-        "the canonical incarnation is ahead of the representation"
-    );
-
-    let mut callback_runs = 0_usize;
-    assert!(
-        session
-            .mutate_world_creature(guid, |creature| {
-                callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_0099;
-            })
-            .is_some(),
-        "the canonical-first root mutates the current incarnation"
-    );
-    assert_eq!(callback_runs, 1);
-    let canonical_after = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
-    assert_eq!(canonical_after.ai_ownership().npc_flags, 0x0000_0099);
-    let mut expected = canonical_stale;
-    expected.npc_flags = 0x0000_0099;
-    assert_eq!(
-        observables_like_cpp(&canonical_after),
-        expected,
-        "the incarnation's own advanced state is kept, not overwritten by a stale copy"
-    );
-    assert!(
-        canonical_before
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(canonical_after.loot_authority_like_cpp()),
-        "the incarnation keeps its authority"
-    );
-    assert_eq!(
-        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy projection")),
-        expected,
-        "the legacy copy is refreshed from the incarnation, never the reverse"
-    );
-    let _ = legacy_before;
-}
 
 #[test]
 fn aba_health_cycle_mutates_the_incarnation_once_like_cpp() {
@@ -467,104 +385,10 @@ fn destroyed_incarnation_copy_cannot_reach_the_replacement_like_cpp() {
 }
 
 #[test]
-fn competing_legacy_allocation_cannot_reach_the_incarnation_like_cpp() {
-    let guid = test_creature_guid(91_604);
-    let player = ObjectGuid::create_player(1, 91_605);
-    let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
-    canonical.lock().unwrap().create_world_map(0, 0);
-    let (mut session, _, _) = make_session();
-    // A legacy-only registration, then an independently constructed canonical
-    // incarnation for the same GUID that shares nothing but the GUID.
-    register_test_creature(&mut session, manager.clone(), guid, 100);
-    let canonical_authority = used_allocation_like_cpp(guid, player);
-    let mut candidate = admission_candidate_like_cpp(guid);
-    candidate.rebind_loot_authority_like_cpp(canonical_authority.clone());
-    let admitted =
-        insert_canonical_creature_map_object_on_map_like_cpp(&canonical, 0, 0, candidate)
-            .expect("the independent canonical incarnation is admitted");
-    assert!(
-        admitted
-            .loot_authority
-            .shares_storage_like_cpp(&canonical_authority)
-    );
-    // Give the representation the same health timeline but a competing used
-    // allocation, so the only reason to refuse is the competing pool.
-    {
-        let canonical_creature = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
-        let mut guard = manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let legacy = guard
-            .find_creature_mut(0, 0, guid)
-            .expect("legacy representation");
-        legacy
-            .creature
-            .unit_mut()
-            .preserve_authoritative_health_state_for_snapshot_like_cpp(canonical_creature.unit());
-    }
-    let competing = used_allocation_like_cpp(guid, player);
-    install_legacy_authority_like_cpp(&manager, guid, competing.clone());
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    let legacy_before = observables_like_cpp(
-        &legacy_creature_like_cpp(&manager, guid).expect("legacy representation"),
-    );
-    let canonical_before =
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical"));
-    assert!(
-        !legacy_creature_like_cpp(&manager, guid)
-            .expect("legacy representation")
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(
-                canonical_creature_like_cpp(&canonical, guid)
-                    .expect("canonical")
-                    .loot_authority_like_cpp()
-            ),
-        "the representation carries a competing used allocation, not the incarnation's"
-    );
-
-    let mut callback_runs = 0_usize;
-    assert!(
-        session
-            .mutate_world_creature(guid, |creature| {
-                callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AD;
-            })
-            .is_some(),
-        "the canonical-first root mutates the current incarnation"
-    );
-    assert_eq!(callback_runs, 1);
-    let canonical_after = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
-    assert_eq!(canonical_after.ai_ownership().npc_flags, 0x0000_00AD);
-    let mut expected = canonical_before;
-    expected.npc_flags = 0x0000_00AD;
-    assert_eq!(observables_like_cpp(&canonical_after), expected);
-    assert!(
-        canonical_after
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&canonical_authority),
-        "the competing pool is never reconciled into the incarnation"
-    );
-    assert!(
-        legacy_creature_like_cpp(&manager, guid)
-            .expect("legacy projection")
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&canonical_authority),
-        "the legacy copy now projects the incarnation's own allocation"
-    );
-    assert_eq!(
-        competing.lifecycle_like_cpp(),
-        wow_loot::OwnedLootAuthorityLifecycle::Active,
-        "the competing pool is neither quarantined nor retired"
-    );
-    let _ = legacy_before;
-}
-
-#[test]
 fn missing_manager_map_or_object_refuses_before_invocation_like_cpp() {
     let guid = test_creature_guid(91_606);
 
-    // No legacy manager at all.
+    // No canonical manager at all.
     let (mut session, _, _) = make_session();
     let mut callback_runs = 0_usize;
     assert!(
@@ -573,18 +397,12 @@ fn missing_manager_map_or_object_refuses_before_invocation_like_cpp() {
                 callback_runs += 1;
             })
             .is_none(),
-        "a missing legacy manager has no representation to mutate"
+        "a session without a creature store has nothing to mutate"
     );
     assert_eq!(callback_runs, 0);
 
     // A bound canonical manager whose map instance does not exist.
-    let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
-    let (mut session, _, _) = make_session();
-    register_test_creature(&mut session, manager.clone(), guid, 100);
-    let legacy_before = observables_like_cpp(
-        &legacy_creature_like_cpp(&manager, guid).expect("legacy representation"),
-    );
+    let canonical = shared_map_manager();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     assert!(
         session
@@ -609,41 +427,45 @@ fn missing_manager_map_or_object_refuses_before_invocation_like_cpp() {
         "a missing canonical object is unavailable ownership"
     );
     assert_eq!(callback_runs, 0);
-    assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        legacy_before,
-        "every refusal left the representation untouched"
-    );
 }
 
-/// Documented R7a boundary: a session with **no** canonical map manager owns no
-/// canonical incarnation store to diverge from, which is the same compatibility
-/// contract R1a's registration already keeps for that configuration. The
-/// mutation stays legacy-only instead of being refused.
+/// #1263 F6-8E: a session with **no** canonical map manager has no creature
+/// store at all. Registration admits nothing and the root refuses; there is no
+/// legacy-only path any more.
 #[test]
-fn session_without_a_canonical_store_keeps_the_legacy_only_path_like_cpp() {
+fn session_without_a_canonical_store_publishes_and_mutates_nothing_like_cpp() {
     let guid = test_creature_guid(91_607);
-    let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
-    register_test_creature(&mut session, manager.clone(), guid, 100);
+    session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
+    session.register_world_creature(
+        0,
+        Position::new(10.0, 10.0, 0.0, 0.0),
+        test_creature_create_data(guid, 9_001, 100),
+        3,
+        5,
+        20.0,
+        0,
+        0,
+        0,
+        0,
+        None,
+        0,
+        0,
+        0,
+        0,
+        -1,
+    );
 
     let mut callback_runs = 0_usize;
-    let applied = session
-        .mutate_world_creature(guid, |creature| {
-            callback_runs += 1;
-            creature.creature.ai_ownership_mut().npc_flags = 0x0000_00B0;
-        })
-        .is_some();
-
-    assert!(applied);
-    assert_eq!(callback_runs, 1);
-    assert_eq!(
-        legacy_creature_like_cpp(&manager, guid)
-            .expect("legacy representation")
-            .ai_ownership()
-            .npc_flags,
-        0x0000_00B0
+    assert!(
+        session
+            .mutate_world_creature(guid, |creature| {
+                callback_runs += 1;
+                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00B0;
+            })
+            .is_none(),
+        "nothing was admitted, so nothing can be mutated"
     );
+    assert_eq!(callback_runs, 0);
+    assert!(session.core.read_world_creature_like_cpp(guid, |_| ()).is_none());
 }

@@ -17,14 +17,13 @@ use super::*;
 /// publishes zero dealt damage and no health transition.
 #[test]
 fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_CRITICAL_HIT, HIT_INFO_MISS, VICTIM_STATE_DODGE,
         VICTIM_STATE_HIT, VICTIM_STATE_INTACT, VICTIM_STATE_PARRY,
     };
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let player = ObjectGuid::create_player(1, 91_140);
@@ -148,10 +147,6 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let victim_health = |canonical: &SharedCanonicalMapManager| {
         canonical
@@ -193,7 +188,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     session
         .apply_aura(91_150, player, 30_000, 1)
         .expect("apply hit-chance aura");
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(outcome.swings_ready, 1);
     // The represented table resolves every outcome, so nothing is left to the
     // pre-table bridge.
@@ -210,7 +205,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         .apply_aura(91_151, player, 30_000, 1)
         .expect("apply miss aura");
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(
         outcome.melee_outcomes_unrepresented, 0,
@@ -233,7 +228,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         .apply_aura(91_153, player, 30_000, 1)
         .expect("apply school-immunity aura");
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands[0].clone();
     assert_eq!(outcome.canonical_hits, 0, "an immune swing commits no hit");
     assert_eq!(command.damage, 0);
@@ -284,7 +279,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     // C++ `GetUnitDodgeChance` reads the victim's published `DodgePercentage`.
     set_victim_avoidance(&mut session, 100.0, 0.0);
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = last_command(&outcome);
     assert_eq!(outcome.canonical_hits, 0);
     assert_eq!(command.damage, 0);
@@ -296,7 +291,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     // C++ `GetUnitParryChance` uses the published `ParryPercentage`.
     set_victim_avoidance(&mut session, 0.0, 100.0);
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = last_command(&outcome);
     assert_eq!(outcome.canonical_hits, 0);
     assert_eq!(command.damage, 0);
@@ -320,7 +315,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         })
         .unwrap();
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = last_command(&outcome);
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(command.damage, 10);
@@ -347,7 +342,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         })
         .unwrap();
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = last_command(&outcome);
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(command.damage, 20);
@@ -376,7 +371,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         .apply_aura(91_152, player, 30_000, 1)
         .expect("apply crit-vs-health aura");
     reset_swing(&mut session);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = last_command(&outcome);
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(command.damage, 20);
@@ -399,11 +394,10 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
 /// effects the attacker cast (`Unit.cpp:1631-1637`).
 #[test]
 fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let player = ObjectGuid::create_player(1, 91_160);
@@ -521,10 +515,6 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
         spell_store: Some(spell_store),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let victim_health = |canonical: &SharedCanonicalMapManager| {
         canonical
@@ -547,10 +537,10 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
             })
             .unwrap();
     };
-    let swing = |manager: &crate::map_manager::SharedMapManager, session: &mut WorldSession| {
+    let swing = |manager: &SharedCanonicalMapManager, session: &mut WorldSession| {
         reset_swing(session);
         let outcome =
-            run_legacy_creature_melee_tick_once_like_cpp(manager, Some(&canonical), &config);
+            run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
         outcome.commands.last().expect("one swing command").clone()
     };
 

@@ -37,7 +37,7 @@ const D3A3_RUN_RATE_LIKE_CPP: f32 = 1.14286;
 const D3A3_DIFF_MS_LIKE_CPP: u32 = 500;
 
 struct D3a3WorldLikeCpp {
-    manager: crate::map_manager::SharedMapManager,
+    manager: SharedCanonicalMapManager,
     canonical: SharedCanonicalMapManager,
     _session: WorldSession,
     observer: WorldSession,
@@ -51,7 +51,7 @@ struct D3a3WorldLikeCpp {
 /// as production does (world L), or the canonical map alone (world C).
 async fn d3a3_world_like_cpp(base: i64, legacy_observer: bool) -> D3a3WorldLikeCpp {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature = test_creature_guid(base);
     register_test_creature_mirrored_like_cpp(
@@ -75,15 +75,11 @@ async fn d3a3_world_like_cpp(base: i64, legacy_observer: bool) -> D3a3WorldLikeC
             assert!(world_creature.take_damage(25), "the creature dies");
         })
         .expect("the creature is admitted");
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::GlobalLegacy);
 
     let (mut observer, _, observer_rx) = make_session();
     let observer_guid = ObjectGuid::create_player(1, base + 2);
     if legacy_observer {
-        observer.set_map_manager(Arc::clone(&manager));
+        observer.set_canonical_map_manager(Arc::clone(&manager));
     }
     observer.set_canonical_map_manager(Arc::clone(&canonical));
     observer.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
@@ -159,17 +155,15 @@ async fn d3a3_legacy_tick_like_cpp(
 ) -> D3a3TickLikeCpp {
     let config = legacy_aggro_hostile_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let _ = run_legacy_player_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let _ = run_canonical_player_melee_phase_for_test_like_cpp(
+        &world.canonical,
         &[],
         diff_ms,
         &mut phase_state,
         &config,
     );
-    let lifecycle = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let lifecycle = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &world.canonical,
         &world.map_store,
         now,
     );
@@ -179,9 +173,8 @@ async fn d3a3_legacy_tick_like_cpp(
         &HashMap::new(),
         diff_ms,
     );
-    let mut aggro = run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let mut aggro = run_canonical_creature_aggro_phase_for_test_like_cpp(
+        &world.canonical,
         &[],
         config.clone(),
     );
@@ -203,14 +196,12 @@ async fn d3a3_legacy_tick_like_cpp(
             &stops,
         );
     }
-    let _ = run_legacy_creature_spell_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let _ = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &world.canonical,
         &config,
     );
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
+    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &world.canonical,
         &config,
     );
     let refreshes = lifecycle
@@ -391,7 +382,7 @@ fn d3a3_creature_state_like_cpp(creature: Option<&wow_entities::Creature>) -> St
 }
 
 fn d3a3_legacy_creature_like_cpp(world: &D3a3WorldLikeCpp) -> String {
-    let guard = world.manager.read().unwrap();
+    let guard = world.manager.lock().unwrap();
     d3a3_creature_state_like_cpp(
         guard
             .find_creature(0, 0, world.creature)
@@ -419,7 +410,7 @@ fn d3a3_respawn_timers_like_cpp(
     let map = guard.find_map(0, 0).unwrap().map();
     let canonical_store = map.get_respawn_time_like_cpp(creature_type, D3A3_SPAWN_ID_LIKE_CPP);
     if legacy_store {
-        let legacy = world.manager.read().unwrap();
+        let legacy = world.manager.lock().unwrap();
         (
             legacy.respawn_queue_len(0, 0),
             legacy.persisted_respawn_time_like_cpp(0, 0, creature_type, D3A3_SPAWN_ID_LIKE_CPP),
@@ -660,7 +651,7 @@ async fn canonical_executor_matches_legacy_bridge_death_corpse_respawn_like_cpp(
         "{canonical}"
     );
     {
-        let guard = legacy_world.manager.read().unwrap();
+        let guard = legacy_world.manager.lock().unwrap();
         let projection = &guard
             .find_creature(0, 0, legacy_world.creature)
             .expect("the legacy bridge republished the respawn")

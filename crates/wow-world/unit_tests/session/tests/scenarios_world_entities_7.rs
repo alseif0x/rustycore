@@ -232,7 +232,7 @@ async fn send_nearby_creatures_empty_map_source_without_world_db_clears_stale_li
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let stale_creature = test_creature_guid(44);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session
         .core
         .client_visible_guids_like_cpp
@@ -514,7 +514,7 @@ fn npc_interaction_falls_back_to_legacy_creature_like_cpp() {
         80,
         0,
     ));
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -534,7 +534,7 @@ fn npc_interaction_falls_back_to_legacy_creature_like_cpp() {
             0,
         ),
     );
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(

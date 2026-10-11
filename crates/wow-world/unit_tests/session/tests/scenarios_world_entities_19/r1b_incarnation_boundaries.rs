@@ -1,12 +1,11 @@
 //! F6-7 R1b regressions for the synchronization and admission boundaries.
 //!
-//! R1b seals the boundaries that select an incarnation's authority: a coexisting
-//! representation may only synchronize an incarnation it belongs to and may only
-//! carry that incarnation's allocation or an unused pristine candidate.
-//! Synchronization across incarnations, or from a competing used allocation, is
-//! refused *before* any authority is selected, so the canonical object is never
-//! mutated, reconciled or quarantined by such a snapshot. The reconciliation
-//! helper itself is unchanged and stays the compatibility repair for R3.
+//! R1b seals the boundaries that select an incarnation's authority: an
+//! admission may only carry the incarnation's allocation or an unused pristine
+//! candidate, a recreated object is a new incarnation, and a creature with no
+//! admitted owner is not published. #1263 F6-8E deleted the coexisting legacy
+//! representation and its synchronization, whose refusals these regressions
+//! also pinned.
 
 use super::*;
 
@@ -69,18 +68,18 @@ fn canonical_creature_like_cpp(
 /// The legacy store's representation of `guid` at the exact `(0, 0)` residence
 /// the lifecycle fixtures use.
 fn legacy_creature_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     guid: ObjectGuid,
 ) -> Option<wow_entities::Creature> {
     manager
-        .read()
+        .lock()
         .ok()?
         .find_creature(0, 0, guid)
         .map(|world_creature| world_creature.creature.clone())
 }
 
 #[test]
-fn canonical_creature_sync_refuses_a_stale_incarnation_snapshot_like_cpp() {
+fn recreated_canonical_creature_gets_a_new_incarnation_like_cpp() {
     let canonical = shared_canonical_map_manager();
     canonical.lock().unwrap().create_world_map(0, 0);
     let guid = test_creature_guid(91_400);
@@ -88,9 +87,6 @@ fn canonical_creature_sync_refuses_a_stale_incarnation_snapshot_like_cpp() {
     let first = admission_candidate_like_cpp(guid);
     let first_authority = first.loot_authority_like_cpp().clone();
     let first_timeline = first.unit().health_state_revision_authority_like_cpp();
-    // A delayed transport snapshot of the incarnation that is about to be
-    // destroyed, taken exactly the way the legacy consumers take it.
-    let stale_snapshot = first.clone();
     let admitted = insert_canonical_creature_map_object_on_map_like_cpp(&canonical, 0, 0, first)
         .expect("fresh admission installs the incarnation");
     assert!(
@@ -121,33 +117,6 @@ fn canonical_creature_sync_refuses_a_stale_incarnation_snapshot_like_cpp() {
     assert!(
         !replacement_timeline.shares_storage_like_cpp(&first_timeline),
         "a destroyed/recreated creature gets a new health timeline"
-    );
-    let replacement_stamp = replacement.loot_authority.stamp_like_cpp();
-
-    // A stale snapshot of the destroyed incarnation cannot alter the
-    // replacement: it belongs to another timeline and carries a competing used
-    // allocation, so it is refused before any authority is selected.
-    assert!(
-        sync_canonical_creature_entity_on_map_like_cpp(&canonical, 0, 0, stale_snapshot).is_none(),
-        "a stale incarnation snapshot must be refused"
-    );
-
-    let stored = canonical_creature_like_cpp(&canonical, guid).expect("replacement survives");
-    assert!(
-        stored
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&replacement.loot_authority)
-    );
-    assert_eq!(
-        stored.loot_authority_like_cpp().stamp_like_cpp(),
-        replacement_stamp,
-        "the replacement's lifetime is untouched by the stale publication attempt"
-    );
-    assert!(
-        stored
-            .unit()
-            .shares_health_state_revision_authority_like_cpp(&replacement_timeline),
-        "the replacement keeps its own health timeline"
     );
 }
 
@@ -243,9 +212,9 @@ fn canonical_admission_refuses_a_competing_retired_candidate_like_cpp() {
 fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it_like_cpp() {
     let guid = test_creature_guid(91_608);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
-    session.set_map_manager(manager.clone());
+    session.set_canonical_map_manager(manager.clone());
     session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     assert!(
@@ -273,19 +242,13 @@ fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it
         -1,
     );
     assert!(
-        manager.read().unwrap().find_creature(0, 0, guid).is_none(),
+        manager.lock().unwrap().find_creature(0, 0, guid).is_none(),
         "a configured canonical manager with no instance must not publish a representation it cannot admit"
     );
     assert!(
         canonical_creature_like_cpp(&canonical, guid).is_none(),
         "the missing instance means no canonical incarnation was admitted"
     );
-    assert_eq!(
-        manager.read().unwrap().respawn_queue_len(0, 0),
-        1,
-        "the built candidate waits for legitimate admission in the map spawn queue"
-    );
-
     // The gate is therefore never handed an un-admitted representation: there is
     // no legacy representation for this GUID at all, and the callback does not
     // run.
@@ -305,25 +268,25 @@ fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it
     // production global lifecycle tick publishes the deferred creature with the
     // one admission decision, and the one mutation root admits it.
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::GlobalLegacy);
-    let _ = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    assert_eq!(
+        manager.lock().unwrap().respawn_queue_len(0, 0),
+        1,
+        "the built candidate waited on the canonical side and joins the map's spawn queue"
+    );
+    let _ = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         Instant::now(),
     );
     assert_eq!(
-        manager.read().unwrap().respawn_queue_len(0, 0),
+        manager.lock().unwrap().respawn_queue_len(0, 0),
         0,
         "the deferred publication is no longer waiting"
     );
     let canonical_creature = canonical_creature_like_cpp(&canonical, guid)
         .expect("the incarnation is admitted once the instance exists");
     let legacy_creature = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .map(|world_creature| world_creature.creature.clone())
@@ -368,14 +331,14 @@ fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it
 /// Queue one ready respawn at an exact residence and run the production global
 /// lifecycle tick once.
 fn run_residence_respawn_tick_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: Option<&SharedCanonicalMapManager>,
     residence: (u16, u32),
     guid: ObjectGuid,
     hp: u32,
     now: Instant,
 ) -> crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp {
-    use crate::map_manager::{RuntimeTickOwner, pending_respawn_from_world_creature_like_cpp};
+    use crate::map_manager::pending_respawn_from_world_creature_like_cpp;
 
     let queued = crate::map_manager::WorldCreature::new(
         guid,
@@ -398,14 +361,12 @@ fn run_residence_respawn_tick_like_cpp(
     );
     {
         let mut guard = manager
-            .write()
+            .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
         guard.push_respawn(residence.0, residence.1, pending);
     }
-    run_legacy_creature_lifecycle_tick_once_like_cpp(
+    run_canonical_creature_lifecycle_phase_for_test_like_cpp(
         manager,
-        canonical,
         &lifecycle_test_map_store_like_cpp(u32::from(residence.0), wow_data::map::MAP_COMMON, 0),
         now,
     )
@@ -424,7 +385,7 @@ fn run_residence_respawn_tick_like_cpp(
 #[test]
 fn lifecycle_respawn_publishes_only_after_canonical_insertion_at_the_exact_residence_like_cpp() {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let now = Instant::now();
     let guid = test_creature_guid(91_609);
     let residence = (0_u16, 7_u32);
@@ -439,7 +400,7 @@ fn lifecycle_respawn_publishes_only_after_canonical_insertion_at_the_exact_resid
     assert_eq!(deferred.respawn_publications_deferred_like_cpp, 1);
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .respawn_queue_len(residence.0, residence.1),
         1,
@@ -447,7 +408,7 @@ fn lifecycle_respawn_publishes_only_after_canonical_insertion_at_the_exact_resid
     );
     assert!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(residence.0, residence.1, guid)
             .is_none(),
@@ -482,7 +443,7 @@ fn lifecycle_respawn_publishes_only_after_canonical_insertion_at_the_exact_resid
     );
     assert!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(residence.0, residence.1, guid)
             .is_none()
@@ -518,7 +479,7 @@ fn lifecycle_respawn_publishes_only_after_canonical_insertion_at_the_exact_resid
     );
     assert!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(residence.0, residence.1, guid)
             .is_some(),
@@ -546,20 +507,15 @@ fn lifecycle_respawn_publishes_only_after_canonical_insertion_at_the_exact_resid
 /// refused as a stale generation.
 #[tokio::test]
 async fn lifecycle_respawn_invalidates_the_pre_respawn_lease_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let (mut session, _pkt_tx, _send_rx) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let guid = test_creature_guid(91_610);
     let player = ObjectGuid::create_player(1, 91_610);
     register_test_creature(&mut session, manager.clone(), guid, 25);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let pre_respawn_authority = legacy_creature_like_cpp(&manager, guid)
         .expect("the registered incarnation is published")
@@ -582,16 +538,15 @@ async fn lifecycle_respawn_invalidates_the_pre_respawn_lease_like_cpp() {
         })
         .unwrap();
 
-    let despawned = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let despawned = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         now,
     );
     assert_eq!(despawned.corpses_despawned, 1);
     assert_eq!(despawned.respawns_processed, 0);
     assert!(
-        manager.read().unwrap().find_creature(0, 0, guid).is_none(),
+        manager.lock().unwrap().find_creature(0, 0, guid).is_none(),
         "the corpse is removed from the legacy store"
     );
     assert!(
@@ -599,9 +554,8 @@ async fn lifecycle_respawn_invalidates_the_pre_respawn_lease_like_cpp() {
         "the dead incarnation's allocation is retired before it is dropped"
     );
 
-    let respawned = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let respawned = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         now + Duration::from_secs(2),
     );

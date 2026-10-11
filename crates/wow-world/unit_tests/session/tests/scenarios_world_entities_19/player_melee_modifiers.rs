@@ -13,18 +13,13 @@ use super::*;
 /// creature aura carrying `MECHANIC_STUN` drive the two terms.
 #[tokio::test]
 async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     const MECHANIC_STUN: i8 = 12;
     const VICTIM_MECHANIC_SPELL: i32 = 70_002;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let creature_guid = test_creature_guid(99_931);
     let player_guid = ObjectGuid::create_player(1, 5_201);
@@ -63,7 +58,7 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
             unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
         })
         .unwrap();
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     register_test_creature(&mut session, manager.clone(), creature_guid, 1_000);
     // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
     // (`Unit.cpp:2313-2360`); the attack table stays out of this damage-term
@@ -147,20 +142,19 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
         ..Default::default()
     };
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let tick = |manager: &crate::map_manager::SharedMapManager,
+    let tick = |manager: &SharedCanonicalMapManager,
                 phase_state: &mut crate::session::PlayerMeleePhaseStateLikeCpp| {
-        crate::session::run_legacy_player_melee_tick_once_like_cpp(
-            manager,
-            Some(&canonical),
+        run_canonical_player_melee_phase_for_test_like_cpp(
+            &canonical,
             &attackers,
             2_000,
             phase_state,
             &config,
         )
     };
-    let health = |manager: &crate::map_manager::SharedMapManager| {
+    let health = |manager: &SharedCanonicalMapManager| {
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -170,7 +164,6 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
     // Baseline: no aura and a healthy victim, so both terms are neutral.
     let before = health(&manager);
     let outcome = tick(&manager, &mut phase_state);
-    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
     assert_eq!(outcome.creature_hits, 1);
     assert_eq!(before - health(&manager), 5, "weapon damage alone");
 
@@ -245,15 +238,10 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
 /// attacker's live armour-penetration inputs from the canonical Player.
 #[tokio::test]
 async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let creature_guid = test_creature_guid(99_932);
     let player_guid = ObjectGuid::create_player(1, 5_202);
@@ -292,7 +280,7 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
             unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
         })
         .unwrap();
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -334,20 +322,19 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
         ..Default::default()
     };
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let tick = |manager: &crate::map_manager::SharedMapManager,
+    let tick = |manager: &SharedCanonicalMapManager,
                 phase_state: &mut crate::session::PlayerMeleePhaseStateLikeCpp| {
-        crate::session::run_legacy_player_melee_tick_once_like_cpp(
-            manager,
-            Some(&canonical),
+        run_canonical_player_melee_phase_for_test_like_cpp(
+            &canonical,
             &attackers,
             2_000,
             phase_state,
             &config,
         )
     };
-    let health = |manager: &crate::map_manager::SharedMapManager| {
+    let health = |manager: &SharedCanonicalMapManager| {
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -356,7 +343,6 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
 
     let before = health(&manager);
     let outcome = tick(&manager, &mut phase_state);
-    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
     assert_eq!(outcome.creature_hits, 1);
     assert_eq!(
         before - health(&manager),
@@ -395,15 +381,10 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
 /// creature-aura projection the session uses.
 #[tokio::test]
 async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let creature_guid = test_creature_guid(99_935);
     let player_guid = ObjectGuid::create_player(1, 5_205);
@@ -442,7 +423,7 @@ async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
             unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
         })
         .unwrap();
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -502,26 +483,24 @@ async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
     };
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
     let health_before = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
         .current_hp();
 
-    let outcome = crate::session::run_legacy_player_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_player_melee_phase_for_test_like_cpp(
+        &canonical,
         &attackers,
         2_000,
         &mut phase_state,
         &config,
     );
-    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
     assert_eq!(outcome.creature_hits, 1, "the swing resolves");
     assert_eq!(
         health_before
             - manager
-                .read()
+                .lock()
                 .unwrap()
                 .find_creature(0, 0, creature_guid)
                 .unwrap()

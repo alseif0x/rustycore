@@ -9,12 +9,12 @@ use super::*;
 async fn force_update_visibility_repopulates_client_guids_after_login_clear_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 74_330);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(74_331);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -36,7 +36,7 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         grid_x,
@@ -88,7 +88,7 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
 async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 492);
     let seer_guid = test_creature_guid(4920);
     let visible_creature_guid = test_creature_guid(4921);
@@ -97,7 +97,7 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
     let seer_position = Position::new(3000.0, 3000.0, 0.0, 0.0);
     let visible_position = Position::new(3010.0, 3010.0, 0.0, 0.0);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -127,7 +127,7 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
 
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(visible_position.x, visible_position.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         grid_x,
@@ -199,12 +199,12 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
 async fn far_sight_update_visibility_canonical_clear_resets_session_seer_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 49_800);
     let stale_dynamic_object_guid = test_dynamic_object_guid(49_801, 49_801);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,

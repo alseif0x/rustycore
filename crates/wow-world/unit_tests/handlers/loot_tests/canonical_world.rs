@@ -8,7 +8,9 @@ use wow_entities::{
     WorldObject,
 };
 
-use crate::session::WorldSession;
+use crate::session::{SharedCanonicalMapManager, WorldSession};
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 
 pub(super) fn canonical_world_object(
     guid: ObjectGuid,
@@ -63,35 +65,30 @@ pub(super) fn attach_loot_guid_allocator_for_owner(
     );
 }
 
-/// Re-seat the canonical record for `guid` on the session's registered legacy
-/// creature, so the fixture keeps ONE admitted incarnation.
+/// Re-seat the canonical record for `guid` from the store the session
+/// registered it in onto the canonical map instance a fixture attached later,
+/// so the fixture keeps ONE admitted incarnation.
 ///
-/// F6-7 R7a. `attach_loot_guid_allocator_for_owner` attaches a canonical map
-/// instance *after* `register_world_creature` published the legacy
-/// representation, and it installs a separately constructed object for the same
-/// GUID (a plain `WorldObject` record, not a typed `Creature`). The two sides
-/// therefore belong to different incarnations — or the canonical side is not a
-/// creature at all — so the R7 gate correctly refuses every owner mutation on
-/// that creature. This helper derives the canonical record from the registered
-/// legacy incarnation (same health-state revision authority, same loot
-/// allocation, same entity state) and asserts the shared ownership it
+/// `attach_loot_guid_allocator_for_owner` attaches a new canonical store
+/// *after* `register_world_creature` admitted the creature, and it installs a
+/// separately constructed object for the same GUID (a plain `WorldObject`
+/// record, not a typed `Creature`). This helper copies the registered
+/// incarnation (same health-state revision authority, same loot allocation,
+/// same entity state) over that placeholder and asserts the shared ownership it
 /// establishes.
-///
-/// Independently constructed canonical creatures remain the subject of the
-/// rejection tests, which must not call this helper.
 pub(super) fn adopt_registered_creature_as_canonical_incarnation_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    registered: &SharedCanonicalMapManager,
     canonical: &crate::session::SharedCanonicalMapManager,
     guid: ObjectGuid,
     map_id: u32,
     instance_id: u32,
 ) {
-    let legacy_map_id = u16::try_from(map_id).expect("test map id fits the legacy key");
-    let legacy = manager
-        .read()
+    let registered_map_id = u16::try_from(map_id).expect("test map id fits a u16");
+    let registered_creature = registered
+        .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .find_creature(legacy_map_id, instance_id, guid)
-        .expect("the fixture registered the legacy representation")
+        .find_creature(registered_map_id, instance_id, guid)
+        .expect("the fixture registered the creature")
         .creature
         .clone();
     let mut guard = canonical
@@ -102,7 +99,7 @@ pub(super) fn adopt_registered_creature_as_canonical_incarnation_like_cpp(
         .expect("the fixture attached the canonical map instance");
     map.map_mut()
         .insert_map_object_record(
-            wow_entities::MapObjectRecord::new_creature(legacy.clone())
+            wow_entities::MapObjectRecord::new_creature(registered_creature.clone())
                 .expect("the registered creature is a valid canonical record"),
         )
         .expect("the registered creature replaces the fixture's placeholder record");
@@ -111,7 +108,7 @@ pub(super) fn adopt_registered_creature_as_canonical_incarnation_like_cpp(
         .with_creature_like_cpp(guid, Clone::clone)
         .expect("the canonical record is a typed creature");
     assert!(
-        legacy
+        registered_creature
             .unit()
             .shares_health_state_revision_authority_like_cpp(
                 &owner.unit().health_state_revision_authority_like_cpp()
@@ -119,7 +116,7 @@ pub(super) fn adopt_registered_creature_as_canonical_incarnation_like_cpp(
         "the canonical record must share the registered health timeline"
     );
     assert!(
-        legacy
+        registered_creature
             .loot_authority_like_cpp()
             .shares_storage_like_cpp(owner.loot_authority_like_cpp()),
         "the canonical record must share the registered loot allocation"

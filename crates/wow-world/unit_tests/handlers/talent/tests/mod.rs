@@ -23,6 +23,8 @@ use crate::session::{
     AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP, SessionPlayerController,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 
 fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
@@ -455,7 +457,7 @@ fn register_test_trainer_with_class(
     npc_flags: u32,
     trainer_class: u8,
 ) {
-    session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_player_position_like_cpp(Position::new(0.0, 0.0, 0.0, 0.0));

@@ -6,7 +6,7 @@ fn white_swing_gates_avoidance_on_the_controlled_state_like_cpp() {
 
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_041);
     let player = ObjectGuid::create_player(1, 99);
 
@@ -144,7 +144,7 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
 
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_039);
     let player = ObjectGuid::create_player(1, 96);
     let foreign_caster = ObjectGuid::create_player(1, 97);
@@ -363,7 +363,7 @@ fn melee_attack_table_reads_the_dual_wield_penalty_aura_like_cpp() {
 
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_040);
     let player = ObjectGuid::create_player(1, 98);
 
@@ -468,7 +468,7 @@ fn white_swing_publishes_an_evade_like_cpp() {
 
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_042);
     let player = ObjectGuid::create_player(1, 100);
 

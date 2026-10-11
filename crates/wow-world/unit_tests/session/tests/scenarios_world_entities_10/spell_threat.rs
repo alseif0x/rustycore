@@ -8,7 +8,7 @@ async fn spell_threat_effect_adds_creature_threat_like_cpp() {
     let creature_guid = test_creature_guid(18_787);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -49,7 +49,7 @@ async fn spell_threat_effect_adds_creature_threat_like_cpp() {
         .expect("represented EffectThreat should execute");
 
     let legacy_threat = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
@@ -77,7 +77,7 @@ async fn spell_modify_threat_percent_scales_existing_creature_threat_like_cpp() 
     let creature_guid = test_creature_guid(18_788);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -133,7 +133,7 @@ async fn spell_modify_threat_percent_scales_existing_creature_threat_like_cpp() 
         .expect("represented EffectModifyThreatPercent should execute");
 
     let legacy_threat = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
@@ -162,7 +162,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
     let creature_guid = test_creature_guid(18_793);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let registry = Arc::new(PlayerRegistry::default());
     let (observer_tx, _observer_rx) = flume::bounded(4);
     let (observer_command_tx, observer_command_rx) = flume::bounded(4);
@@ -276,7 +276,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
         "the taunt Aura retains its parent Spell Cast ID without allocating a second ID"
     );
 
-    let manager_guard = manager.read().unwrap();
+    let manager_guard = manager.lock().unwrap();
     let combat = &manager_guard
         .find_creature(0, 0, creature_guid)
         .unwrap()
@@ -347,7 +347,7 @@ async fn spell_threat_effect_skips_dead_caster_like_cpp() {
         .expect("dead caster EffectThreat should execute as C++ no-op");
 
     let legacy_threat = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()

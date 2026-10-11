@@ -11,7 +11,7 @@ async fn creature_negative_damage_taken_aura_registers_a_reduction_like_cpp() {
     let creature_guid = test_creature_guid(19_314);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,

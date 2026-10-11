@@ -36,14 +36,14 @@ struct FullyLootedLifecycleLikeCpp {
 /// incarnation, with the viewed and unviewed lifecycle observations a release
 /// captures before calling the guarded roots.
 fn install_fully_looted_lifecycle_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
     viewer: ObjectGuid,
 ) -> FullyLootedLifecycleLikeCpp {
     let (authority, viewed_object_generation, viewed_lifecycle_revision) =
         observed_fully_looted_authority_like_cpp(guid, viewer);
-    rebind_legacy_authority_like_cpp(manager, guid, authority.clone());
+    let _ = manager;
     rebind_canonical_authority_like_cpp(canonical, guid, authority.clone());
     let unviewed = authority
         .fully_looted_unviewed_lifecycle_observation_like_cpp()
@@ -61,7 +61,7 @@ fn install_fully_looted_lifecycle_like_cpp(
 /// `remove_lootable_dynamic_flag_like_cpp` is observable.
 fn mark_incarnation_lootable_like_cpp(
     session: &mut WorldSession,
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     guid: ObjectGuid,
 ) {
     session
@@ -133,7 +133,7 @@ fn guarded_release_refuses_a_replacement_incarnation_like_cpp() {
     // The representation was destroyed with its incarnation: the refusal must
     // not create a legacy representation for the recreated one either.
     manager
-        .write()
+        .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner())
         .remove_creature_any(0, 0, guid)
         .expect("the fixture registered the legacy representation");
@@ -220,7 +220,7 @@ fn release_fixture_like_cpp(
     viewer: ObjectGuid,
 ) -> (
     WorldSession,
-    crate::map_manager::SharedMapManager,
+    SharedCanonicalMapManager,
     SharedCanonicalMapManager,
     FullyLootedLifecycleLikeCpp,
 ) {

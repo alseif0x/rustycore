@@ -221,7 +221,7 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
         }]))),
         ..legacy_aggro_hostile_config_like_cpp()
     };
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     let mut candidate = legacy_aggro_candidate_like_cpp(
         ObjectGuid::create_player(1, 91_307),

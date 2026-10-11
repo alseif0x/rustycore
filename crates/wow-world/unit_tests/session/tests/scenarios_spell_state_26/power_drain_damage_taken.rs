@@ -12,7 +12,7 @@ async fn spell_power_drain_ignores_victim_school_damage_taken_aura_for_direct_da
     let creature_guid = test_creature_guid(19_306);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -36,7 +36,7 @@ async fn spell_power_drain_ignores_victim_school_damage_taken_aura_for_direct_da
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -125,7 +125,7 @@ async fn spell_power_drain_ignores_stacked_damage_taken_terms_for_direct_damage_
     let creature_guid = test_creature_guid(19_311);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -149,7 +149,7 @@ async fn spell_power_drain_ignores_stacked_damage_taken_terms_for_direct_damage_
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -249,7 +249,7 @@ async fn spell_power_drain_ignores_cheat_death_taken_term_for_direct_damage_like
     let creature_guid = test_creature_guid(19_307);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -273,7 +273,7 @@ async fn spell_power_drain_ignores_cheat_death_taken_term_for_direct_damage_like
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -359,7 +359,7 @@ async fn spell_power_drain_ignores_caster_school_damage_taken_aura_for_direct_da
     let creature_guid = test_creature_guid(19_308);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -383,7 +383,7 @@ async fn spell_power_drain_ignores_caster_school_damage_taken_aura_for_direct_da
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -470,7 +470,7 @@ async fn spell_power_drain_ignores_mechanic_damage_taken_aura_for_direct_damage_
     let creature_guid = test_creature_guid(19_309);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -494,7 +494,7 @@ async fn spell_power_drain_ignores_mechanic_damage_taken_aura_for_direct_damage_
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -582,7 +582,7 @@ async fn spell_power_drain_ignores_caster_spell_damage_taken_aura_for_direct_dam
     let creature_guid = test_creature_guid(19_310);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -606,7 +606,7 @@ async fn spell_power_drain_ignores_caster_spell_damage_taken_aura_for_direct_dam
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -712,7 +712,7 @@ async fn spell_power_drain_ignores_caster_label_damage_taken_aura_for_direct_dam
     let creature_guid = test_creature_guid(19_312);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -736,7 +736,7 @@ async fn spell_power_drain_ignores_caster_label_damage_taken_aura_for_direct_dam
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,

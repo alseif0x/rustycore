@@ -120,7 +120,7 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(loot_owner);
     install_limited_test_item_template(&mut session, 700, 1);
     session.insert_inventory_item_like_cpp(
@@ -204,7 +204,7 @@ async fn master_loot_item_self_target_success_marks_removed_like_cpp() {
     let loot_object = represented_loot_object_guid_like_cpp(loot_owner);
 
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut session);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
         CreatureLoot {
@@ -295,7 +295,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     master_session.set_player_registry(Arc::clone(&player_registry));
     master_session.set_player_guid(Some(master_guid));
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut master_session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut master_session);
     master_session.loot.set_active_loot_guid(loot_owner);
     master_session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,
@@ -416,7 +416,7 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     master_session.set_player_registry(player_registry);
     master_session.set_player_guid(Some(master_guid));
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut master_session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut master_session);
     master_session.loot.set_active_loot_guid(loot_owner);
     master_session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,

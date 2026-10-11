@@ -7,7 +7,6 @@ use super::*;
 
 #[test]
 fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_007);
@@ -22,10 +21,6 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
                 .expect("launch pre-aggro wander spline");
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_008);
     let candidates = vec![
@@ -36,13 +31,11 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
         legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0)),
     ];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 2);
@@ -86,7 +79,7 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
         ServerOpcodes::AttackStart as u16
     );
     let (combat_target, runtime_kind, has_active_spline) = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, creature_guid).unwrap();
         assert_eq!(
             creature
@@ -113,7 +106,6 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
 }
 #[test]
 fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -129,16 +121,12 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
             combat.add_threat(challenger, 109.0);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let candidates = vec![
         legacy_aggro_candidate_like_cpp(tank, Position::new(10.5, 10.0, 0.0, 0.0)),
         legacy_aggro_candidate_like_cpp(challenger, Position::new(10.5, 10.0, 0.0, 0.0)),
     ];
 
-    let held = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let held = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
@@ -146,7 +134,7 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
     assert_eq!(held.victim_switches, 0);
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -167,7 +155,7 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
                 .add_threat(challenger, 2.0);
         })
         .unwrap();
-    let switched = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let switched = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
@@ -208,7 +196,6 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
 }
 #[test]
 fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -224,10 +211,6 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
             combat.add_threat(available, 10.0);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let mut suppressed_candidate =
         legacy_aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0));
     suppressed_candidate.player_school_immunity_mask = 0x1;
@@ -238,14 +221,14 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
         legacy_aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
     ];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.victim_switches, 1);
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(
         creature.creature.ai_ownership().combat_target,
@@ -267,7 +250,7 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
         legacy_aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0)),
         legacy_aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
     ];
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates_without_suppression,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
@@ -276,7 +259,7 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
         outcome.victim_switches, 0,
         "C++ EvaluateSuppressed(false) does not reactivate a reference merely because its suppressing aura disappeared"
     );
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(
         creature.creature.ai_ownership().combat_target,
@@ -295,7 +278,7 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
     drop(guard);
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(0, 0, creature_guid)
         .unwrap()
@@ -304,7 +287,7 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
         .subsystems_mut()
         .combat
         .add_threat(suppressed, 1.0);
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates_without_suppression,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
@@ -313,7 +296,7 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
         outcome.victim_switches, 1,
         "C++ AddThreat reactivates a formerly suppressed target once ShouldBeSuppressed clears"
     );
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(
         creature.creature.ai_ownership().combat_target,
@@ -331,7 +314,6 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
 }
 #[test]
 fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -350,10 +332,6 @@ fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
                 .expect("apply represented taunt");
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let mut taunter_candidate =
         legacy_aggro_candidate_like_cpp(taunter, Position::new(10.5, 10.0, 0.0, 0.0));
     taunter_candidate.player_damage_immunity_mask = 0x1;
@@ -364,14 +342,14 @@ fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
         taunter_candidate,
     ];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.victim_switches, 1);
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(
         creature.creature.ai_ownership().combat_target,
@@ -390,7 +368,6 @@ fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
 }
 #[test]
 fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -416,12 +393,8 @@ fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp
             creature.creature.set_tapped_by_player(vanished, &[]);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[],
         legacy_aggro_hostile_config_like_cpp(),
@@ -446,7 +419,7 @@ fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp
         ServerOpcodes::AttackStop as u16,
         "C++ CombatStop broadcasts SMSG_ATTACK_STOP before returning home"
     );
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(creature.state(), wow_entities::CreatureAiState::Returning);
     assert_eq!(
@@ -467,7 +440,6 @@ fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp
 }
 #[test]
 fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -492,19 +464,15 @@ fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() 
             victim.creature.set_faction(1);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[],
         legacy_aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.evades_started, 0);
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let attacker = guard.find_creature(0, 0, attacker_guid).unwrap();
     assert_eq!(
         attacker.creature.ai_ownership().combat_target,
@@ -526,7 +494,7 @@ fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() 
             victim.creature.set_faction(14);
         })
         .unwrap();
-    let invalidated = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let invalidated = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[],
         legacy_aggro_hostile_config_like_cpp(),
@@ -538,7 +506,6 @@ fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() 
 }
 #[test]
 fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -578,28 +545,24 @@ fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp(
                 .set_react_state(wow_entities::ReactState::Passive);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let config = legacy_aggro_hostile_config_with_rate_like_cpp(3.0);
 
     let scheduled =
-        run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &[], config.clone());
+        run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &[], config.clone());
     assert_eq!(scheduled.assistance_scheduled, 1);
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(0, 0, caller_guid)
         .unwrap()
         .backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
-    let assisted = run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &[], config);
+    let assisted = run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &[], config);
 
     assert_eq!(assisted.assistance_starts, 1);
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, assistant_guid)
             .unwrap()
@@ -611,7 +574,6 @@ fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp(
 }
 #[test]
 fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -688,17 +650,13 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
                 .set_react_state(wow_entities::ReactState::Defensive);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
         victim,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
     let config = legacy_aggro_hostile_config_with_rate_like_cpp(3.0);
 
-    let scheduled = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let scheduled = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         config.clone(),
@@ -707,7 +665,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     assert_eq!(scheduled.assistance_scheduled, 3);
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, defensive_assistant_guid)
             .unwrap()
@@ -719,7 +677,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, assistant_guid)
             .unwrap()
@@ -731,14 +689,14 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     );
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(0, 0, caller_guid)
         .unwrap()
         .backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
     {
-        let mut manager = manager.write().unwrap();
-        let dead_assistant = manager
+        let mut manager = manager.lock().unwrap();
+        let mut dead_assistant = manager
             .find_creature_mut(0, 0, dead_assistant_guid)
             .unwrap();
         dead_assistant.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
@@ -746,14 +704,14 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
             .creature
             .unit_mut()
             .set_death_state(wow_constants::DeathState::JustDied);
-        let passive = manager
+        let mut passive = manager
             .find_creature_mut(0, 0, passive_before_due_guid)
             .unwrap();
         passive.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
         passive
             .creature
             .set_react_state(wow_entities::ReactState::Passive);
-        let controlled = manager
+        let mut controlled = manager
             .find_creature_mut(0, 0, controlled_assistant_guid)
             .unwrap();
         controlled.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
@@ -763,7 +721,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
             .clear_unit_state(wow_constants::UnitState::STUNNED.bits());
     }
     let assisted =
-        run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
+        run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &candidates, config);
     assert_eq!(assisted.assistance_starts, 1);
     assert_eq!(
         assisted
@@ -786,7 +744,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, assistant_guid)
             .unwrap()
@@ -797,7 +755,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, dead_assistant_guid)
             .unwrap()
@@ -809,7 +767,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, passive_before_due_guid)
             .unwrap()
@@ -821,7 +779,7 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, controlled_assistant_guid)
             .unwrap()

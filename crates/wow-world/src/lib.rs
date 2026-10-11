@@ -23,6 +23,9 @@ pub mod loot_persistence;
 pub use wow_world_core::map_manager;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 #[cfg(test)]
+#[path = "../unit_tests/canonical_creature_fixtures.rs"]
+pub(crate) mod canonical_creature_fixtures;
+#[cfg(test)]
 #[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;
 mod player;

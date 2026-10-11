@@ -5,11 +5,10 @@ use super::*;
 /// while canonical health, death and the compatibility mirror retain 1 HP.
 #[test]
 fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_398);
     let victim_guid = test_creature_guid(91_399);
@@ -50,14 +49,9 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
                 .set_static_flags_runtime_like_cpp(static_flags);
         }
     }
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
     let canonical_guard = canonical.lock().unwrap();
@@ -98,9 +92,8 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     assert!(reciprocal);
     drop(canonical_guard);
     assert_eq!(outcome.canonical_creature_hits, 1);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 1);
     {
-        let manager = manager.read().unwrap();
+        let manager = manager.lock().unwrap();
         assert_eq!(
             manager
                 .find_creature(0, 0, victim_guid)
@@ -159,12 +152,10 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let zero_damage = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let zero_damage = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
-    assert_eq!(zero_damage.legacy_creature_victim_syncs, 1);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -197,7 +188,7 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
         );
     }
     {
-        let manager = manager.read().unwrap();
+        let manager = manager.lock().unwrap();
         let victim = manager
             .find_creature(0, 0, zero_damage_victim_guid)
             .unwrap();
@@ -232,12 +223,10 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let lethal = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let lethal = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
-    assert_eq!(lethal.legacy_creature_victim_syncs, 1);
     {
         let canonical = canonical.lock().unwrap();
         let (health, threat) = canonical
@@ -262,7 +251,7 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
         );
     }
     {
-        let manager = manager.read().unwrap();
+        let manager = manager.lock().unwrap();
         let victim = manager.find_creature(0, 0, lethal_victim_guid).unwrap();
         assert_eq!(victim.creature.unit().data().health, 0);
         assert_eq!(

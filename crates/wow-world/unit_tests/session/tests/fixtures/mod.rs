@@ -6,6 +6,8 @@
 
 use super::*;
 
+#[path = "canonical_creatures.rs"]
+mod canonical_creature_fixtures;
 #[path = "creature_ai.rs"]
 mod creature_ai_fixtures;
 #[path = "creatures.rs"]
@@ -37,6 +39,8 @@ mod summon_fixtures;
 #[path = "visibility.rs"]
 mod visibility_fixtures;
 
+pub(super) use canonical_creature_fixtures::*;
+pub(super) use crate::canonical_creature_fixtures::*;
 pub(super) use creature_ai_fixtures::*;
 pub(super) use creature_fixtures::*;
 pub(super) use instance_fixtures::*;

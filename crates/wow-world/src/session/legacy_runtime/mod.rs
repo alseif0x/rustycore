@@ -41,6 +41,14 @@ pub use admitted_creature_execution::{
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
 };
+// The single-phase entries the executor composes; the unit tests drive one
+// phase at a time through them.
+#[allow(unused_imports)]
+pub(in crate::session) use admitted_creature_execution::{
+    run_creature_aggro_phase_on_manager_like_cpp, run_creature_lifecycle_phase_on_manager_like_cpp,
+    run_creature_melee_phase_on_manager_like_cpp, run_creature_movement_phase_on_manager_like_cpp,
+    run_creature_spell_phase_on_manager_like_cpp, run_player_melee_phase_on_manager_like_cpp,
+};
 #[allow(unused_imports)]
 pub(in crate::session) use creature_aggro_tick::*;
 #[allow(unused_imports)]

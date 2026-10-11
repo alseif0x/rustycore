@@ -14,7 +14,7 @@ async fn spell_sanctuary_in_dungeon_scales_player_threat_to_zero_like_cpp() {
     let creature_guid = test_creature_guid(18_792);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -86,7 +86,7 @@ async fn spell_sanctuary_in_dungeon_scales_player_threat_to_zero_like_cpp() {
         Some(0.0)
     );
     let legacy_threat = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
@@ -176,9 +176,9 @@ fn combat_tick_damage_syncs_canonical_creature_health() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert!(world_creature.current_hp() < 40);
 
@@ -311,7 +311,7 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     assert!(session.loot.cached_loot_for_owner_like_cpp(guid).is_none());
     assert_eq!(
@@ -340,7 +340,7 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
         crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
     );
     assert_eq!(quest.objective_counts, vec![1]);
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert!(world_creature.creature.is_tapped_by(player));
     assert!(
@@ -403,7 +403,7 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
 fn combat_tick_damage_adds_creature_threat_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_024);
     let player = ObjectGuid::create_player(1, 73);
 
@@ -453,11 +453,11 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
         .unwrap();
     assert!(session.mirror_canonical_creature_threat_from_attacker_like_cpp(guid, player, 3.0));
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     // #1263 F6-8D3b-2: the legacy copy is a projection of the canonical
     // incarnation, whose threat (asserted below) is the authority.
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let world_creature = guard.find_creature(0, 0, guid).unwrap();
     assert!(world_creature.creature.is_tapped_by(player));
     assert!(world_creature.creature.has_loot_recipient());
@@ -528,7 +528,7 @@ async fn attack_stop_preserves_creature_combat_state_like_cpp() {
         .handle_attack_stop(WorldPacket::from_bytes(&[]))
         .await;
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(
         world_creature.creature.ai_state(),
@@ -543,7 +543,7 @@ async fn attack_stop_preserves_creature_combat_state_like_cpp() {
 fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let attacker = ObjectGuid::create_player(1, 75);
     let victim = test_creature_guid(18_026);
 
@@ -574,7 +574,7 @@ fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
 
     session.start_player_attack_like_cpp(victim);
     {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, victim).unwrap();
         assert!(creature.creature.unit().has_attacker_like_cpp(attacker));
     }
@@ -583,7 +583,7 @@ fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
         crate::session::hub_mut(&mut session).stop_player_attack_like_cpp(),
         Some(victim)
     );
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, victim).unwrap();
     assert!(!creature.creature.unit().has_attacker_like_cpp(attacker));
 }
@@ -615,12 +615,12 @@ fn give_xp_runtime_rejects_creature_without_loot_recipient_like_cpp() {
 fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 50);
     let victim = test_creature_guid(18_008);
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -711,12 +711,12 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
 fn player_attack_dead_typed_creature_is_rejected_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 51);
     let victim = test_creature_guid(18_009);
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -784,12 +784,12 @@ fn player_attack_dead_typed_creature_is_rejected_like_cpp() {
 fn player_attack_unseen_phase_creature_is_rejected_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 151);
     let victim = test_creature_guid(18_109);
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {

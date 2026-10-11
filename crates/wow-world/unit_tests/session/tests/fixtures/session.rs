@@ -79,17 +79,17 @@ pub(in crate::session::tests) fn make_session() -> (
 /// F6-7 R2 correction: the designated-owner lookup answers `Unavailable` when
 /// no owner store is configured, because missing lookup infrastructure is not
 /// proof of absence. A represented fixture that needs the proven-absence path
-/// configures an addressed, readable legacy store that holds no such object.
-pub(in crate::session::tests) fn attach_addressed_empty_legacy_loot_store_like_cpp(
+/// configures an addressed, readable canonical store that holds no such object.
+pub(in crate::session::tests) fn attach_addressed_empty_creature_loot_store_like_cpp(
     session: &mut WorldSession,
 ) {
     let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
-    let manager = Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()));
+    let manager = shared_canonical_map_manager();
     manager
-        .write()
+        .lock()
         .expect("the fixture store is uncontended")
-        .get_or_create_map(map_id, instance_id);
-    session.set_map_manager(manager);
+        .create_world_map(u32::from(map_id), instance_id);
+    session.set_canonical_map_manager(manager);
 }
 
 pub(in crate::session::tests) fn make_session_with_give_player_xp_hook() -> (

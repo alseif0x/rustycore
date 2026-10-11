@@ -273,7 +273,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
         None
     );
     let legacy_manager = shared_map_manager();
-    legacy_manager.write().unwrap().add_creature(
+    legacy_manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -293,7 +293,7 @@ fn npc_interaction_resolves_canonical_trainer_like_cpp() {
             0,
         ),
     );
-    session.set_map_manager(legacy_manager);
+    session.set_canonical_map_manager(legacy_manager);
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
             trainer_guid,

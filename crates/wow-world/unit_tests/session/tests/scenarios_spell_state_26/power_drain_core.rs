@@ -12,7 +12,7 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
     let creature_guid = test_creature_guid(19_304);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -36,7 +36,7 @@ async fn spell_power_drain_on_an_empty_creature_pool_logs_zero_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -137,7 +137,7 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
     let creature_guid = test_creature_guid(19_305);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -161,7 +161,7 @@ async fn spell_power_drain_pre_scales_with_spell_damage_bonus_done_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,

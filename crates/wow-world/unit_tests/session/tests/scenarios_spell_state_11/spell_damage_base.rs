@@ -36,7 +36,7 @@ async fn spell_effect_school_damage_negative_amount_is_noop_like_cpp() {
         .await
         .expect("negative represented damage should execute as C++ no-op effect");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 40);
     let opcodes = drain_server_opcodes(&send_rx);
@@ -94,7 +94,7 @@ async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
         .await
         .expect("represented direct effects should execute per SpellEffectInfo row");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(
         world_creature.current_hp(),
@@ -179,7 +179,7 @@ async fn spell_school_damage_applies_spell_power_coefficient_like_cpp() {
         .expect("represented school damage should scale with spell power");
 
     let current_hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -254,7 +254,7 @@ async fn spell_school_damage_uses_max_damage_done_percent_like_cpp() {
         .expect("represented school damage should use the school percentage");
 
     let current_hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()

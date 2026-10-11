@@ -67,11 +67,11 @@ fn canonical_creature_like_cpp(
 
 /// The legacy creature for `guid`, if any.
 fn legacy_creature_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     guid: ObjectGuid,
 ) -> Option<wow_entities::Creature> {
     manager
-        .read()
+        .lock()
         .ok()?
         .find_creature(0, 0, guid)
         .map(|world_creature| world_creature.creature.clone())
@@ -80,13 +80,13 @@ fn legacy_creature_like_cpp(
 /// Queue one ready respawn for `guid` and run the production global lifecycle
 /// tick once.
 fn run_respawn_tick_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: Option<&SharedCanonicalMapManager>,
     guid: ObjectGuid,
     hp: u32,
     now: Instant,
 ) -> crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp {
-    use crate::map_manager::{RuntimeTickOwner, pending_respawn_from_world_creature_like_cpp};
+    use crate::map_manager::pending_respawn_from_world_creature_like_cpp;
 
     let queued = crate::map_manager::WorldCreature::new(
         guid,
@@ -105,14 +105,12 @@ fn run_respawn_tick_like_cpp(
     let pending = pending_respawn_from_world_creature_like_cpp(&queued, now, 0);
     {
         let mut guard = manager
-            .write()
+            .lock()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
-        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
         guard.push_respawn(0, 0, pending);
     }
-    run_legacy_creature_lifecycle_tick_once_like_cpp(
+    run_canonical_creature_lifecycle_phase_for_test_like_cpp(
         manager,
-        canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         now + Duration::from_secs(1),
     )
@@ -123,7 +121,7 @@ fn run_respawn_tick_like_cpp(
 /// as the likeliest silent break — authority aliases agree but health timelines
 /// differ, so later valid synchronization is rejected.
 fn setup_pristine_duplicate_respawn_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
     canonical_health: u64,
@@ -149,7 +147,7 @@ fn setup_pristine_duplicate_respawn_like_cpp(
 #[test]
 fn lifecycle_respawn_pristine_duplicate_adopts_the_admitted_incarnation_like_cpp() {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let now = Instant::now();
     let guid = test_creature_guid(91_300);
@@ -220,7 +218,7 @@ fn lifecycle_respawn_pristine_duplicate_adopts_the_admitted_incarnation_like_cpp
 #[test]
 fn lifecycle_respawn_fresh_incarnation_allocates_one_incarnation_like_cpp() {
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let now = Instant::now();
     let guid = test_creature_guid(91_301);
@@ -284,7 +282,7 @@ fn lifecycle_respawn_without_canonical_incarnation_defers_publication_like_cpp()
     // publish a legacy representation the R7 gate would refuse for its whole
     // life; the built candidate is held until legitimate admission.
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let now = Instant::now();
     let guid = test_creature_guid(91_302);
 
@@ -309,7 +307,7 @@ fn lifecycle_respawn_without_canonical_incarnation_defers_publication_like_cpp()
         "no canonical incarnation was admitted"
     );
     assert_eq!(
-        manager.read().unwrap().respawn_queue_len(0, 0),
+        manager.lock().unwrap().respawn_queue_len(0, 0),
         1,
         "the built respawn candidate waits for legitimate admission in the map spawn queue"
     );
@@ -319,14 +317,13 @@ fn lifecycle_respawn_without_canonical_incarnation_defers_publication_like_cpp()
     // admission decision a ready respawn consumes — one allocation and one health
     // timeline across both representations.
     canonical.lock().unwrap().create_world_map(0, 0);
-    let second = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let second = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         now + Duration::from_secs(2),
     );
     assert_eq!(
-        manager.read().unwrap().respawn_queue_len(0, 0),
+        manager.lock().unwrap().respawn_queue_len(0, 0),
         0,
         "the deferred respawn is no longer waiting"
     );
@@ -364,10 +361,9 @@ fn lifecycle_respawn_without_canonical_incarnation_defers_publication_like_cpp()
 
 #[test]
 fn respawn_adopted_incarnation_accepts_creature_melee_damage_sync_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let now = Instant::now();
     let victim = test_creature_guid(91_303);
@@ -404,26 +400,13 @@ fn respawn_adopted_incarnation_accepts_creature_melee_damage_sync_like_cpp() {
             ai.max_damage = 30;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
     assert_eq!(melee.swings_ready, 1, "the attacker swings once");
     assert_eq!(melee.canonical_creature_hits, 1);
-    assert_eq!(
-        melee.legacy_creature_victim_syncs, 1,
-        "the damage commit must mirror into the respawned incarnation"
-    );
-    assert_eq!(
-        melee.legacy_creature_victim_sync_cas_rejections, 0,
-        "an authority-only respawn adoption would leave another health timeline and reject this sync"
-    );
 
     let canonical_health = canonical_creature_like_cpp(&canonical, victim)
         .unwrap()
@@ -444,10 +427,9 @@ fn respawn_adopted_incarnation_accepts_creature_melee_damage_sync_like_cpp() {
 
 #[test]
 fn respawn_adopted_incarnation_syncs_movement_to_canonical_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let now = Instant::now();
     let guid = test_creature_guid(91_305);
@@ -462,8 +444,7 @@ fn respawn_adopted_incarnation_syncs_movement_to_canonical_like_cpp() {
     assert_eq!(outcome.respawns_processed, 1);
 
     {
-        let mut guard = manager.write().unwrap();
-        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut guard = manager.lock().unwrap();
         let creature = guard.find_creature_mut(0, 0, guid).unwrap();
         creature
             .creature
@@ -482,15 +463,13 @@ fn respawn_adopted_incarnation_syncs_movement_to_canonical_like_cpp() {
         enabled: false,
         ..Default::default()
     };
-    let movement = run_legacy_creature_movement_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let movement = run_canonical_creature_movement_phase_for_test_like_cpp(
+        &canonical,
         &mmap_config,
         None,
         &HashMap::new(),
         10,
     );
-    assert_eq!(movement.canonical_syncs, 1);
     assert_eq!(
         canonical_creature_like_cpp(&canonical, guid)
             .expect("canonical creature")
@@ -502,10 +481,9 @@ fn respawn_adopted_incarnation_syncs_movement_to_canonical_like_cpp() {
 
 #[tokio::test]
 async fn respawn_adopted_incarnation_accepts_player_melee_mirror_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let now = Instant::now();
     let victim = test_creature_guid(91_306);
@@ -569,25 +547,16 @@ async fn respawn_adopted_incarnation_accepts_player_melee_mirror_like_cpp() {
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
 
-    let player_melee = crate::session::run_legacy_player_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let player_melee = run_canonical_player_melee_phase_for_test_like_cpp(
+        &canonical,
         &attackers,
         2_000,
         &mut phase_state,
         &Default::default(),
     );
     assert_eq!(player_melee.creature_hits, 1, "the player swing resolves");
-    assert_eq!(
-        player_melee.canonical_mirror_rejections, 0,
-        "the respawned victim must share the admitted incarnation, so the mirror is accepted"
-    );
 }
 
 #[tokio::test]

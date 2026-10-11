@@ -3,6 +3,8 @@
 //! Separated from the character_tests root under #662; every fixture is unchanged.
 
 use super::*;
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 
 pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, slot: u8) {
     let player_guid = session.player_guid().expect("player guid");
@@ -683,8 +685,8 @@ pub(super) fn attach_legacy_creature(
     entry: u32,
     npc_flags: u32,
 ) {
-    let manager = Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()));
-    manager.write().unwrap().add_creature(
+    let manager = shared_canonical_map_manager();
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -704,7 +706,7 @@ pub(super) fn attach_legacy_creature(
             0,
         ),
     );
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
 }
 
 pub(super) fn mark_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGuid) {

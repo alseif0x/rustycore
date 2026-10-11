@@ -10,11 +10,10 @@ use super::*;
 /// This production-shaped player-victim path proves the latter independently.
 #[test]
 fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::VICTIM_STATE_IS_IMMUNE;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let player = ObjectGuid::create_player(1, 91_340);
     let creature_guid = test_creature_guid(91_341);
@@ -125,11 +124,7 @@ fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
         spell_store: Some(spell_store),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(outcome.melee_outcomes_unrepresented, 0);
     assert_eq!(outcome.canonical_hits, 0);
@@ -157,11 +152,10 @@ fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
 /// the live aura caster before publishing the primary attacker-state result.
 #[test]
 fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let player = ObjectGuid::create_player(1, 91_360);
     let attacker_guid = test_creature_guid(91_361);
@@ -315,11 +309,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
         spell_store: Some(spell_store),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.last().expect("primary victim command");
     assert_eq!((command.damage, command.absorbed), (5, 5));
     assert_eq!(command.split_combat_log_packets.len(), 1);
@@ -372,7 +362,6 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
             .health,
         95
     );
-    assert_eq!(outcome.legacy_creature_victim_syncs, 0);
     assert!(outcome.plan.events.iter().any(|event| {
         event.recipients == crate::map_manager::RecipientRule::ExplicitPlayer(split_target_guid)
             && wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
@@ -400,7 +389,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let missing = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let missing = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(
         (missing.commands[0].damage, missing.commands[0].absorbed),
         (10, 0)
@@ -432,7 +421,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let immune = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let immune = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(
         (immune.commands[0].damage, immune.commands[0].absorbed),
         (5, 5)
@@ -464,11 +453,10 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
 /// `AttackerStateUpdate` in the map runtime plan.
 #[test]
 fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_370);
     let victim_guid = test_creature_guid(91_371);
@@ -589,11 +577,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         spell_store: Some(spell_store),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(0, 0).unwrap().map();
@@ -642,7 +626,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         assert!(threatened_by.contains(&split_target_guid));
     }
     {
-        let manager = manager.read().unwrap();
+        let manager = manager.lock().unwrap();
         for target_guid in [victim_guid, split_target_guid] {
             assert_eq!(
                 manager
@@ -707,7 +691,6 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         .position(|opcode| *opcode == ServerOpcodes::AttackerStateUpdate as u16)
         .expect("primary attacker state");
     assert!(split_log < primary);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 2);
 
     // `DealDamageMods` runs after the split has been absorbed from the
     // primary victim. An evading secondary creature therefore takes no health
@@ -727,7 +710,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let evading = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let evading = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(0, 0).unwrap().map();
@@ -744,7 +727,6 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
             95
         );
     }
-    assert_eq!(evading.legacy_creature_victim_syncs, 1);
     assert!(evading.plan.events.iter().any(|event| {
         wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
             == Some(ServerOpcodes::SpellNonMeleeDamageLog)
@@ -770,7 +752,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         })
         .unwrap();
     let sparring =
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(0, 0).unwrap().map();
@@ -835,7 +817,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         })
         .unwrap();
     let unkillable =
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let manager = canonical.lock().unwrap();
         let map = manager.find_map(0, 0).unwrap().map();
@@ -858,7 +840,6 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         assert!(alive);
         assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
     }
-    assert_eq!(unkillable.legacy_creature_victim_syncs, 2);
     assert!(unkillable.plan.events.iter().any(|event| {
         wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
             == Some(ServerOpcodes::SpellNonMeleeDamageLog)

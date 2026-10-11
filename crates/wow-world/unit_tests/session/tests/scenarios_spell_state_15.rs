@@ -374,7 +374,7 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
     let creature_guid = test_creature_guid(18_794);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -444,7 +444,7 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
         .expect("represented EffectTaunt current-victim gate should execute as no-op");
 
     let legacy_threat = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
@@ -456,7 +456,7 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
     assert_eq!(legacy_threat, Some(5.0));
     assert!(
         !manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -524,7 +524,7 @@ async fn spell_distract_effect_launches_facing_spline_like_cpp() {
         .await
         .expect("represented EffectDistract should execute");
 
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     let generator = creature
         .creature
@@ -608,7 +608,7 @@ async fn spell_distract_effect_skips_engaged_target_like_cpp() {
         .await
         .expect("represented EffectDistract engaged target gate should execute as no-op");
 
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert!(
         !creature
@@ -631,7 +631,7 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
     let creature_guid = test_creature_guid(18_790);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -721,7 +721,7 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         );
     }
     let world_combat_target = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()

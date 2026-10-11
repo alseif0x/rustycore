@@ -360,7 +360,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
     );
     let manager = shared_map_manager();
     {
-        let mut manager_guard = manager.write().unwrap();
+        let mut manager_guard = manager.lock().unwrap();
         for (copy_instance_id, position) in [
             (0_u32, base_map_copy_position),
             (instance_id, stale_instance_copy_position),
@@ -388,7 +388,7 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
             ));
         }
     }
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
         spell_id,

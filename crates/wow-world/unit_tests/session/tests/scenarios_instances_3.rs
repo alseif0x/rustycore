@@ -845,7 +845,7 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
     let creature_guid = test_creature_guid(61_706);
     let position = Position::new(15.0, 25.0, 35.0, 1.5);
 
-    session.set_map_manager(Arc::clone(&legacy));
+    session.set_canonical_map_manager(Arc::clone(&legacy));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -912,7 +912,7 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
     };
     let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
     {
-        let mut manager = legacy.write().unwrap();
+        let mut manager = legacy.lock().unwrap();
         assert!(manager.add_creature(571, 0, grid_x, grid_y, make_creature(0, 100)));
         assert!(manager.add_creature(571, 7, grid_x, grid_y, make_creature(7, 700)));
     }
@@ -948,7 +948,7 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
         assert_eq!(creature.position(), canonical_position);
     }
 
-    let manager = legacy.read().unwrap();
+    let manager = legacy.lock().unwrap();
     assert_eq!(
         manager
             .find_creature(571, 0, creature_guid)

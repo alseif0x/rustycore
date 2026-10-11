@@ -7,7 +7,6 @@ use super::*;
 
 #[test]
 fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_018);
@@ -18,10 +17,6 @@ fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
             creature.creature.unit_mut().set_level(25);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let gray_player = ObjectGuid::create_player(1, 91_019);
     let allowed_player = ObjectGuid::create_player(1, 91_020);
@@ -33,7 +28,7 @@ fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
         allowed_candidate,
     ];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         LegacyCreatureAggroConfigLikeCpp {
@@ -42,8 +37,6 @@ fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
             ..legacy_aggro_hostile_config_like_cpp()
         },
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 2);
@@ -52,7 +45,7 @@ fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
     assert_eq!(outcome.commands.len(), 1);
     assert_eq!(outcome.commands[0].victim_guid, allowed_player);
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -64,7 +57,6 @@ fn legacy_creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_untargetable_players_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_021);
@@ -75,10 +67,6 @@ fn legacy_creature_aggro_tick_once_rejects_untargetable_players_like_cpp() {
             creature.creature.unit_mut().set_level(25);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let good_player = ObjectGuid::create_player(1, 91_026);
     let mut non_attackable = legacy_aggro_candidate_like_cpp(
@@ -115,13 +103,11 @@ fn legacy_creature_aggro_tick_once_rejects_untargetable_players_like_cpp() {
         legacy_aggro_candidate_like_cpp(good_player, Position::new(10.5, 10.5, 0.0, 0.0)),
     ];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 6);
@@ -130,7 +116,7 @@ fn legacy_creature_aggro_tick_once_rejects_untargetable_players_like_cpp() {
     assert_eq!(outcome.commands.len(), 1);
     assert_eq!(outcome.commands[0].victim_guid, good_player);
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -142,7 +128,6 @@ fn legacy_creature_aggro_tick_once_rejects_untargetable_players_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_invisible_player_without_detection_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_034);
@@ -153,10 +138,6 @@ fn legacy_creature_aggro_tick_once_rejects_invisible_player_without_detection_li
             creature.creature.unit_mut().set_level(25);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let invisible_player = ObjectGuid::create_player(1, 91_035);
     let visible_player = ObjectGuid::create_player(1, 91_036);
@@ -167,7 +148,7 @@ fn legacy_creature_aggro_tick_once_rejects_invisible_player_without_detection_li
     invisible_candidate.player_visibility_detection =
         invisible_unit.visibility_detection_like_cpp().clone();
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[
             invisible_candidate,
@@ -183,7 +164,6 @@ fn legacy_creature_aggro_tick_once_rejects_invisible_player_without_detection_li
 }
 #[test]
 fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_041);
@@ -194,10 +174,6 @@ fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cp
             creature.creature.unit_mut().set_level(80);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let stealthed_player = ObjectGuid::create_player(1, 91_042);
     let mut candidate =
@@ -206,7 +182,7 @@ fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cp
     stealthed_unit.set_stealth_like_cpp(0, 408);
     candidate.player_visibility_detection = stealthed_unit.visibility_detection_like_cpp().clone();
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[candidate],
         legacy_aggro_hostile_config_like_cpp(),
@@ -242,7 +218,7 @@ fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cp
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
     let (combat_target, has_distract_generator) = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, creature_guid).unwrap();
         (
             creature.creature.ai_ownership().combat_target,
@@ -261,7 +237,6 @@ fn legacy_creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cp
 }
 #[test]
 fn legacy_creature_aggro_tick_once_fails_closed_without_visibility_snapshot_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_039);
@@ -272,17 +247,13 @@ fn legacy_creature_aggro_tick_once_fails_closed_without_visibility_snapshot_like
             creature.creature.unit_mut().set_level(25);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_040);
     let mut candidate =
         legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
     candidate.player_visibility_represented = false;
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[candidate],
         legacy_aggro_hostile_config_like_cpp(),
@@ -295,7 +266,6 @@ fn legacy_creature_aggro_tick_once_fails_closed_without_visibility_snapshot_like
 }
 #[test]
 fn legacy_creature_aggro_tick_once_allows_invisible_player_when_creature_detects_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_037);
@@ -310,10 +280,6 @@ fn legacy_creature_aggro_tick_once_allows_invisible_player_when_creature_detects
                 .set_invisibility_detect_like_cpp(0, 100);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let invisible_player = ObjectGuid::create_player(1, 91_038);
     let mut invisible_candidate =
@@ -323,7 +289,7 @@ fn legacy_creature_aggro_tick_once_allows_invisible_player_when_creature_detects
     invisible_candidate.player_visibility_detection =
         invisible_unit.visibility_detection_like_cpp().clone();
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[invisible_candidate],
         legacy_aggro_hostile_config_like_cpp(),
@@ -336,7 +302,6 @@ fn legacy_creature_aggro_tick_once_allows_invisible_player_when_creature_detects
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_027);
@@ -347,10 +312,6 @@ fn legacy_creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() 
             creature.creature.unit_mut().set_level(25);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let rejected_player = ObjectGuid::create_player(1, 91_028);
     let allowed_player = ObjectGuid::create_player(1, 91_029);
@@ -373,16 +334,14 @@ fn legacy_creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() 
     let candidates = vec![rejected, allowed];
 
     let outcome =
-        run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &candidates, config);
-
-    assert!(!outcome.skipped_owner_not_global);
+        run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &candidates, config);
     assert_eq!(outcome.candidates_seen, 2);
     assert_eq!(outcome.hostility_rejections, 1);
     assert_eq!(outcome.aggro_starts, 1);
     assert_eq!(outcome.commands.len(), 1);
     assert_eq!(outcome.commands[0].victim_guid, allowed_player);
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -394,7 +353,6 @@ fn legacy_creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() 
 }
 #[test]
 fn legacy_creature_aggro_tick_once_honors_forced_reputation_rank_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_034);
@@ -404,10 +362,6 @@ fn legacy_creature_aggro_tick_once_honors_forced_reputation_rank_like_cpp() {
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let friendly_forced_player = ObjectGuid::create_player(1, 91_035);
     let hostile_forced_player = ObjectGuid::create_player(1, 91_036);
@@ -423,13 +377,11 @@ fn legacy_creature_aggro_tick_once_honors_forced_reputation_rank_like_cpp() {
         vec![(72, wow_data::reputation::ReputationRankLikeCpp::Hostile)];
     let candidates = vec![friendly_forced, hostile_forced];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.hostility_rejections, 1);
     assert_eq!(outcome.aggro_starts, 1);
     assert_eq!(outcome.commands.len(), 1);
@@ -437,7 +389,6 @@ fn legacy_creature_aggro_tick_once_honors_forced_reputation_rank_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_ignores_reputation_when_unit_flag2_says_so_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_037);
@@ -447,10 +398,6 @@ fn legacy_creature_aggro_tick_once_ignores_reputation_when_unit_flag2_says_so_li
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_038);
     let mut candidate =
@@ -459,13 +406,11 @@ fn legacy_creature_aggro_tick_once_ignores_reputation_when_unit_flag2_says_so_li
     candidate.player_reputation_standings = vec![(72, -6_000)];
     candidate.player_reputation_state_flags = vec![(72, 0)];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[candidate],
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.hostility_rejections, 0);
     assert_eq!(outcome.aggro_starts, 1);
     assert_eq!(outcome.commands.len(), 1);
@@ -473,7 +418,6 @@ fn legacy_creature_aggro_tick_once_ignores_reputation_when_unit_flag2_says_so_li
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_unrepresented_faction_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_039);
@@ -483,28 +427,21 @@ fn legacy_creature_aggro_tick_once_rejects_unrepresented_faction_like_cpp() {
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_040);
     let candidate = legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[candidate],
         LegacyCreatureAggroConfigLikeCpp::default(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.hostility_unrepresented, 1);
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
 }
 #[test]
 fn legacy_creature_aggro_tick_once_rejects_friendly_faction_templates_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_030);
@@ -514,10 +451,6 @@ fn legacy_creature_aggro_tick_once_rejects_friendly_faction_templates_like_cpp()
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_031);
     let mut candidate =
@@ -530,16 +463,13 @@ fn legacy_creature_aggro_tick_once_rejects_friendly_faction_templates_like_cpp()
     );
 
     let outcome =
-        run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &[candidate], config);
-
-    assert!(!outcome.skipped_owner_not_global);
+        run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &[candidate], config);
     assert_eq!(outcome.hostility_rejections, 1);
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
 }
 #[test]
 fn legacy_creature_aggro_tick_once_prefers_hostile_static_reaction_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_032);
@@ -549,10 +479,6 @@ fn legacy_creature_aggro_tick_once_prefers_hostile_static_reaction_like_cpp() {
             creature.creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_033);
     let mut candidate =
@@ -574,9 +500,7 @@ fn legacy_creature_aggro_tick_once_prefers_hostile_static_reaction_like_cpp() {
     );
 
     let outcome =
-        run_legacy_creature_aggro_tick_once_with_config_like_cpp(&manager, &[candidate], config);
-
-    assert!(!outcome.skipped_owner_not_global);
+        run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &[candidate], config);
     assert_eq!(outcome.hostility_rejections, 0);
     assert_eq!(outcome.aggro_starts, 1);
     assert_eq!(outcome.commands.len(), 1);
@@ -584,7 +508,6 @@ fn legacy_creature_aggro_tick_once_prefers_hostile_static_reaction_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_respects_react_state_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_010);
@@ -597,10 +520,6 @@ fn legacy_creature_aggro_tick_once_respects_react_state_like_cpp() {
                 .set_react_state(wow_entities::ReactState::Passive);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_011);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -608,20 +527,18 @@ fn legacy_creature_aggro_tick_once_respects_react_state_like_cpp() {
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.candidates_seen, 1);
     assert_eq!(outcome.aggro_starts, 0);
     assert!(outcome.commands.is_empty());
     let combat_target = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         guard
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -633,7 +550,6 @@ fn legacy_creature_aggro_tick_once_respects_react_state_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_suppresses_empty_los_ai_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_112);
@@ -646,10 +562,6 @@ fn legacy_creature_aggro_tick_once_suppresses_empty_los_ai_like_cpp() {
                 .set_ai_identity_names_runtime_like_cpp("ReactorAI", String::new());
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_113);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -657,7 +569,7 @@ fn legacy_creature_aggro_tick_once_suppresses_empty_los_ai_like_cpp() {
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),
@@ -669,7 +581,6 @@ fn legacy_creature_aggro_tick_once_suppresses_empty_los_ai_like_cpp() {
 }
 #[test]
 fn legacy_creature_aggro_tick_once_fails_closed_for_script_ai_registry_gap_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_114);
@@ -682,10 +593,6 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_script_ai_registry_gap_like_
                 .set_ai_identity_names_runtime_like_cpp(String::new(), "npc_scripted_ai");
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let player = ObjectGuid::create_player(1, 91_115);
     let candidates = vec![legacy_aggro_candidate_like_cpp(
@@ -693,7 +600,7 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_script_ai_registry_gap_like_
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
 
-    let outcome = run_legacy_creature_aggro_tick_once_with_config_like_cpp(
+    let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
         legacy_aggro_hostile_config_like_cpp(),

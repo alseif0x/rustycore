@@ -288,7 +288,7 @@ async fn spell_direct_heal_scales_by_creature_missing_health_like_cpp() {
     // `int32(100 * 1.5) = 150`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()

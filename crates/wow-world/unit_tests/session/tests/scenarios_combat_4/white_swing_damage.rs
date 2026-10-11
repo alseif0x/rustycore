@@ -20,7 +20,7 @@ fn white_swing_roll_bounds_follow_calculate_damage_like_cpp() {
 fn white_swing_damage_rolls_the_published_range_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_033);
     let player = ObjectGuid::create_player(1, 87);
 
@@ -176,7 +176,7 @@ fn armor_reduction_matches_calc_armor_reduced_damage_like_cpp() {
 fn white_swing_applies_victim_armor_mitigation_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_034);
     let player = ObjectGuid::create_player(1, 88);
 

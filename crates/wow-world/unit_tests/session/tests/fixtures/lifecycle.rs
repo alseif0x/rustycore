@@ -85,10 +85,10 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
     managed_kind: wow_map::ManagedMapKind,
     spawn_id: u64,
 ) {
-    use crate::map_manager::{RuntimeTickOwner, world_to_grid_coords};
+    use crate::map_manager::world_to_grid_coords;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical
         .lock()
         .unwrap()
@@ -116,14 +116,12 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
     creature.set_corpse_despawn_at(Some(Instant::now() - Duration::from_secs(1)));
     let (grid_x, grid_y) = world_to_grid_coords(creature.position().x, creature.position().y);
     {
-        let mut guard = manager.write().unwrap();
-        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+        let mut guard = manager.lock().unwrap();
         assert!(guard.add_creature(map_id, instance_id, grid_x, grid_y, creature));
     }
 
-    let outcome = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(u32::from(map_id), instance_type, flags1),
         Instant::now(),
     );
@@ -134,7 +132,7 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
         "C++ Map::SaveRespawnInfoDB returns for Instanceable maps"
     );
     assert_eq!(
-        manager.read().unwrap().persisted_respawn_time_like_cpp(
+        manager.lock().unwrap().persisted_respawn_time_like_cpp(
             map_id,
             instance_id,
             wow_map::SpawnObjectType::Creature,
@@ -147,8 +145,8 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
 // ── Slice 4A.2b — respawn queue ownership migrated to MapInstance ──────
 
 /// Prepare a dead creature whose corpse timer has already elapsed.
-/// Returns the session and the creature GUID so the caller can drive
-/// `run_creatures_tick` to trigger the despawn-then-respawn path.
+/// Returns the session and the creature GUID so the caller can drive the
+/// canonical lifecycle phase through the despawn-then-respawn path.
 pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
     guid_counter: i64,
 ) -> (WorldSession, flume::Receiver<Vec<u8>>, ObjectGuid) {
@@ -158,7 +156,7 @@ pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
     register_test_creature(&mut session, manager.clone(), guid, 10);
 
     // Kill the creature and set corpse_despawn_at to the past so that
-    // the very next run_creatures_tick triggers despawn.
+    // the very next lifecycle phase despawns it.
     let past = Instant::now() - Duration::from_secs(1);
     session
         .mutate_world_creature(guid, |c| {
@@ -174,19 +172,22 @@ pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
 }
 
 /// After despawn, force the pending respawn entry to be immediately ready
-/// by rewriting its `respawn_at` to the past via the map's queue.
+/// by rewriting its `respawn_at` to the past in the canonical map's queue.
 pub(in crate::session::tests) fn force_respawn_ready(session: &mut WorldSession) {
-    let map_id = session.core.player_map_id_like_cpp();
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let past = Instant::now() - Duration::from_secs(1);
-    // Drain whatever is in the queue, rewrite respawn_at, push back.
-    if let Some(manager) = &session.core.map_manager {
-        let mut mgr = manager.write().unwrap_or_else(|p| p.into_inner());
-        let entries =
-            mgr.drain_ready_respawns(map_id, 0, Instant::now() + Duration::from_secs(9999));
-        for mut r in entries {
-            r.respawn_at = past;
-            mgr.push_respawn(map_id, 0, r);
-        }
+    let Some(manager) = session.core.canonical_map_manager.clone() else {
+        return;
+    };
+    let mut manager = manager.lock().unwrap_or_else(|p| p.into_inner());
+    let Some(map) = manager.find_map_mut(u32::from(map_id), instance_id) else {
+        return;
+    };
+    let queue = map.map_mut().creature_respawn_queue_like_cpp_mut();
+    let entries = queue.drain_ready_respawns(Instant::now() + Duration::from_secs(9999));
+    for mut r in entries {
+        r.respawn_at = past;
+        queue.push_respawn(r);
     }
 }
 

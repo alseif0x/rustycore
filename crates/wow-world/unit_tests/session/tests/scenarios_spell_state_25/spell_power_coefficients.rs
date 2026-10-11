@@ -45,7 +45,7 @@ async fn spell_school_damage_applies_bonus_coefficient_from_ap_like_cpp() {
         .expect("school damage without an AP coefficient");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -60,7 +60,7 @@ async fn spell_school_damage_applies_bonus_coefficient_from_ap_like_cpp() {
     // `100 + int32(3.0 * 100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -112,7 +112,7 @@ async fn spell_direct_heal_applies_bonus_coefficient_from_ap_like_cpp() {
     // `100 + int32(2.0 * 100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -167,7 +167,7 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
     // `100 + int32(100 * 0.5)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -182,7 +182,7 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
     // C++ returns before the flat advertised benefit as well.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()

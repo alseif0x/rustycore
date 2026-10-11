@@ -119,6 +119,8 @@ use wow_persistence::{
     StoredItemMoneyPersistenceRequestLikeCpp,
 };
 use wow_world_application::direct_item_count_after_loot_release_like_cpp;
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 #[path = "loot_tests/canonical_world.rs"]
 mod canonical_world;
 use canonical_world::{
@@ -198,8 +200,8 @@ fn make_visible_creature_spell_session_like_cpp()
     let (mut session, send_rx) = make_session_with_send_capacity(2);
     let source_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 91_500);
-    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
-    manager.write().unwrap().add_creature(
+    let manager = shared_canonical_map_manager();
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -220,7 +222,7 @@ fn make_visible_creature_spell_session_like_cpp()
         ),
     );
     session.set_state(SessionState::LoggedIn);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session
         .core
@@ -469,9 +471,9 @@ fn test_creature(guid: ObjectGuid, is_alive: bool) -> CreatureAI {
 }
 
 fn register_test_creature_like_cpp(session: &mut WorldSession, creature: CreatureAI) {
-    if session.core.map_manager.is_none() {
-        session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
-    }
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_for_session_like_cpp(
+        session,
+    );
 
     let create_data = CreatureCreateData {
         guid: creature.guid,
@@ -553,17 +555,17 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
 /// F6-7 R2 correction: the designated-owner lookup answers `Unavailable` when
 /// no owner store is configured, because missing lookup infrastructure is not
 /// proof of absence. A represented fixture that needs the proven-absence path
-/// therefore configures an addressed, readable legacy store that holds no such
-/// object: the map instance exists for the resolved legacy key, so the store was
+/// therefore configures an addressed, readable canonical store that holds no
+/// such object: the map instance exists for the resolved key, so the store was
 /// genuinely consulted, and it contains no creature for the owner GUID.
-fn attach_addressed_empty_legacy_loot_store_like_cpp(session: &mut WorldSession) {
+fn attach_addressed_empty_creature_loot_store_like_cpp(session: &mut WorldSession) {
+    let manager = crate::canonical_creature_fixtures::shared_canonical_map_manager();
     let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
-    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
     manager
-        .write()
+        .lock()
         .expect("the fixture store is uncontended")
-        .get_or_create_map(map_id, instance_id);
-    session.set_map_manager(manager);
+        .create_world_map(u32::from(map_id), instance_id);
+    session.set_canonical_map_manager(manager);
 }
 
 /// The canonical counterpart of the helper above. The GameObject resolver is

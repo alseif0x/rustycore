@@ -14,7 +14,7 @@ async fn spell_apply_aura_on_creature_target_lands_on_the_creature_like_cpp() {
     let creature_guid = test_creature_guid(18_795);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -181,7 +181,7 @@ async fn spell_apply_aura_on_creature_keeps_each_effect_slot_amount_like_cpp() {
     let creature_guid = test_creature_guid(18_796);
     let position = Position::new(10.0, 10.0, 0.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,

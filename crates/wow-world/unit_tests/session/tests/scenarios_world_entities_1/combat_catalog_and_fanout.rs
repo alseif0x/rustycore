@@ -109,7 +109,7 @@ fn creature_realm_fanout_uses_validated_position_without_canonical_mirror() {
     );
 
     let command = observer_command_rx.try_recv().expect("observer fanout");
-    let SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) = command else {
+    let SessionCommand::SendRealmIfVisibleLikeCpp(command) = command else {
         panic!("creature visual must use the Realm-visible command");
     };
     assert_eq!(command.source_guid, creature);

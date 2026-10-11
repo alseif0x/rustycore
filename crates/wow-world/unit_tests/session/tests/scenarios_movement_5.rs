@@ -67,7 +67,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
     let selected_guid = test_creature_guid(79_101);
     let destination = Position::new(5791.0, 2091.0, 637.0, 3.2);
 
-    session.set_map_manager(Arc::clone(&legacy_manager));
+    session.set_canonical_map_manager(Arc::clone(&legacy_manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -173,7 +173,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         );
     }
     {
-        let manager = legacy_manager.read().unwrap();
+        let manager = legacy_manager.lock().unwrap();
         let creature = manager.find_creature(571, 0, selected_guid).unwrap();
         assert!(!creature.creature.unit().has_attacker_like_cpp(player_guid));
         assert_eq!(creature.creature.ai_ownership().combat_target, None);

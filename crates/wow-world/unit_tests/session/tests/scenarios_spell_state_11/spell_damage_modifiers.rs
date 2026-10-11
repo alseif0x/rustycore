@@ -96,7 +96,7 @@ async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
         .expect("school damage with an unrelated versus aura");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -114,7 +114,7 @@ async fn spell_school_damage_applies_damage_done_versus_like_cpp() {
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -219,7 +219,7 @@ async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
         .expect("school damage with an unrelated aurastate aura");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -237,7 +237,7 @@ async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -341,7 +341,7 @@ async fn spell_school_damage_applies_damage_done_for_mechanic_like_cpp() {
         .expect("school damage with a non-matching mechanic aura");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -359,7 +359,7 @@ async fn spell_school_damage_applies_damage_done_for_mechanic_like_cpp() {
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -496,7 +496,7 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
         .expect("school damage against an unrelated victim mechanic");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -521,7 +521,7 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()

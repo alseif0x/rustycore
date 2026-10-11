@@ -7,9 +7,8 @@ use super::*;
 
 #[test]
 fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let victim = test_creature_guid(91_030);
     add_canonical_test_creature_on_map(
         &canonical,
@@ -62,22 +61,15 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
             creature.creature.ai_ownership_mut().max_damage = 52;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
     assert_eq!(outcome.canonical_creature_hits, 1);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 1);
-    assert_eq!(outcome.legacy_creature_victim_sync_cas_rejections, 0);
     assert_eq!(outcome.plan.events.len(), 2);
     let mut packet =
         wow_packet::world_packet::WorldPacket::from_bytes(&outcome.plan.events[0].packet_bytes);
@@ -113,7 +105,7 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
     assert_eq!(health, 50);
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, victim)
             .unwrap()
@@ -126,10 +118,9 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
 }
 #[test]
 fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FAKE_DAMAGE};
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let victim = test_creature_guid(91_032);
     add_canonical_test_creature_on_map(
         &canonical,
@@ -174,14 +165,9 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -218,9 +204,8 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
 }
 #[test]
 fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let victim = test_creature_guid(91_034);
     add_canonical_test_creature_on_map(
         &canonical,
@@ -265,21 +250,15 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
     assert_eq!(outcome.swings_ready, 1);
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
     assert_eq!(outcome.canonical_creature_hits, 1);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 1);
     assert_eq!(outcome.plan.events.len(), 2);
     let guard = canonical.lock().unwrap();
     let creature = guard
@@ -294,7 +273,7 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
         wow_constants::DeathState::Corpse
     );
     drop(guard);
-    let legacy_guard = manager.read().unwrap();
+    let legacy_guard = manager.lock().unwrap();
     let legacy_creature = legacy_guard.find_creature(0, 0, victim).unwrap();
     assert_eq!(legacy_creature.creature.unit().data().health, 0);
     assert_eq!(
@@ -330,9 +309,8 @@ fn legacy_creature_melee_los_gate_delegates_to_map_environment_like_cpp() {
 }
 #[test]
 fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_013);
     add_canonical_test_player_on_map(
         &canonical,
@@ -356,14 +334,9 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
                 .add_unit_state(UnitState::CHARGING.bits());
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let rejected = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -373,7 +346,7 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
     assert_eq!(rejected.canonical_hits, 0);
     assert!(rejected.commands.is_empty());
     {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, creature_guid).unwrap();
         assert_eq!(
             creature.creature.ai_ownership().swing_timer_ms,
@@ -384,9 +357,8 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
 }
 #[test]
 fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_020);
     add_canonical_test_player_on_map(
         &canonical,
@@ -411,14 +383,9 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
                 .set_static_flags_runtime_like_cpp(static_flags);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let rejected = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -427,7 +394,7 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
     assert_eq!(rejected.melee_precondition_rejections, 1);
     assert_eq!(rejected.canonical_hits, 0);
     assert!(rejected.commands.is_empty());
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     assert!(
         creature.runtime_rng_authority_complete_like_cpp(),
@@ -438,9 +405,8 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
 }
 #[test]
 fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_015);
     add_canonical_test_player_on_map(
         &canonical,
@@ -464,14 +430,9 @@ fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
             );
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let rejected = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let rejected = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -483,9 +444,8 @@ fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
 }
 #[test]
 fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 91_018);
     add_canonical_test_player_on_map(
         &canonical,
@@ -531,14 +491,9 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
             );
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -550,7 +505,7 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
     assert!(outcome.plan.events.is_empty());
     assert!(
         !manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()
@@ -564,30 +519,26 @@ fn legacy_creature_lifecycle_tick_once_is_noop_under_session_owner_like_cpp() {
     let guid = test_creature_guid(90_009);
     register_test_creature(&mut session, manager.clone(), guid, 25);
 
-    let outcome = run_legacy_creature_lifecycle_tick_once_like_cpp(
+    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
         &manager,
-        None,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         Instant::now(),
     );
-
-    assert!(outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 0);
     assert_eq!(outcome.creatures_seen, 0);
     assert_eq!(outcome.corpses_despawned, 0);
     assert_eq!(outcome.respawns_processed, 0);
     assert!(outcome.refresh_map_keys.is_empty());
     assert!(
-        manager.read().unwrap().find_creature(0, 0, guid).is_some(),
+        manager.lock().unwrap().find_creature(0, 0, guid).is_some(),
         "default Session owner must leave the legacy creature untouched"
     );
 }
 #[test]
 fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -600,16 +551,11 @@ fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_l
             assert!(creature.take_damage(10));
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let before_unix = unix_now();
     let stale_tick_now = Instant::now() - Duration::from_secs(10);
-    let outcome = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         stale_tick_now,
     );
@@ -630,10 +576,9 @@ fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_l
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refresh_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let (mut session, _, _) = make_session();
@@ -650,19 +595,12 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
             creature.set_corpse_despawn_at(Some(past));
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         now,
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.corpses_despawned, 1);
@@ -683,7 +621,7 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
     assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
 
     {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         assert!(
             guard.find_creature(0, 0, guid).is_none(),
             "corpse must be removed from the legacy map"
@@ -747,15 +685,11 @@ fn legacy_creature_lifecycle_tick_once_does_not_persist_garrison_respawn_like_cp
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_like_cpp() {
-    use crate::map_manager::{RuntimeTickOwner, pending_respawn_from_world_creature_like_cpp};
+    use crate::map_manager::pending_respawn_from_world_creature_like_cpp;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let now = Instant::now();
     let guid = test_creature_guid(90_011);
@@ -820,19 +754,16 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
             });
     }
     {
-        let mut guard = manager.write().unwrap();
+        let mut guard = manager.lock().unwrap();
         guard.save_pending_respawn_time_like_cpp(0, 0, &pending, now, unix_now());
         guard.push_respawn(0, 0, pending);
     }
 
-    let outcome = run_legacy_creature_lifecycle_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
+        &canonical,
         &lifecycle_test_map_store_like_cpp(0, wow_data::map::MAP_COMMON, 0),
         now,
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.corpses_despawned, 0);
     assert_eq!(outcome.respawns_processed, 1);
@@ -848,7 +779,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
     assert_eq!(outcome.refresh_map_keys, vec![(0, 0)]);
 
     let legacy_addon_provenance = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard
             .find_creature(0, 0, guid)
             .expect("ready respawn must re-add the legacy creature");

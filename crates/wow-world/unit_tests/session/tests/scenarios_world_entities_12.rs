@@ -9,7 +9,7 @@ use super::*;
 fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 153);
     let victim = test_creature_guid(18_110);
 
@@ -90,7 +90,7 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
 fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 154);
     let victim = test_creature_guid(18_111);
 
@@ -179,7 +179,7 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
 fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 155);
     let victim = test_creature_guid(18_112);
 
@@ -257,7 +257,7 @@ fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
 fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 156);
     let victim = test_creature_guid(18_113);
 
@@ -334,12 +334,12 @@ fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cp
 fn player_attack_evading_typed_creature_is_rejected_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 54);
     let victim = test_creature_guid(18_010);
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -418,9 +418,9 @@ fn corpse_despawn_syncs_canonical_corpse_timer() {
         })
         .unwrap();
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
-    assert!(world_creature.corpse_despawn_at().is_some());
+    assert!(world_creature.ai_ownership().corpse_despawn_at_ms.is_some());
     assert_eq!(world_creature.current_hp(), 0);
 }
 #[tokio::test]

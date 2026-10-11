@@ -89,7 +89,7 @@ async fn send_if_visible_command_sent_when_source_visible_like_cpp() {
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1002);
     let packet_bytes = vec![0x44, 0x55, 0x66];
     let manager = shared_map_manager();
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -110,7 +110,7 @@ async fn send_if_visible_command_sent_when_source_visible_like_cpp() {
         ),
     );
     session.core.state = SessionState::LoggedIn;
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session
         .core
@@ -137,84 +137,6 @@ async fn send_if_visible_command_sent_when_source_visible_like_cpp() {
         packet_bytes
     );
     assert!(send_rx.try_recv().is_err());
-}
-#[tokio::test]
-async fn send_realm_if_visible_uses_legacy_source_when_canonical_mirror_is_missing_like_cpp() {
-    let (mut session, _, instance_rx) = make_session();
-    let (realm_tx, realm_rx) = flume::bounded::<Vec<u8>>(8);
-    session.install_realm_send_channel_for_test(realm_tx);
-    let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1013);
-    let packet_bytes = vec![0x44, 0x55, 0x67];
-    let manager = shared_map_manager();
-    manager.write().unwrap().add_creature(
-        571,
-        0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
-            source_guid,
-            777,
-            Position::ZERO,
-            100,
-            80,
-            1,
-            2,
-            0.0,
-            1,
-            35,
-            0,
-            0,
-        ),
-    );
-    let canonical = shared_canonical_map_manager();
-    canonical.lock().unwrap().create_world_map(571, 0);
-    session.core.state = SessionState::LoggedIn;
-    session.set_map_manager(manager);
-    session.set_canonical_map_manager(canonical);
-    session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session
-        .core
-        .client_visible_guids_like_cpp
-        .insert(source_guid);
-
-    session
-        .session_command_tx()
-        .try_send(SessionCommand::SendRealmIfVisibleLikeCpp(
-            SendIfVisibleLikeCppCommand {
-                queued_at: Instant::now(),
-                source_guid,
-                map_id: 571,
-                instance_id: 0,
-                packet_bytes: packet_bytes.clone(),
-            },
-        ))
-        .expect("ordinary realm-visible command queued");
-    session
-        .process_represented_session_commands_like_cpp()
-        .await;
-    assert!(
-        realm_rx.try_recv().is_err(),
-        "only provenance-marked legacy-source commands may cross the map-manager boundary"
-    );
-
-    session
-        .session_command_tx()
-        .try_send(SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(
-            SendIfVisibleLikeCppCommand {
-                queued_at: Instant::now(),
-                source_guid,
-                map_id: 571,
-                instance_id: 0,
-                packet_bytes: packet_bytes.clone(),
-            },
-        ))
-        .expect("realm-visible command queued");
-    session
-        .process_represented_session_commands_like_cpp()
-        .await;
-
-    assert_eq!(realm_rx.try_recv().expect("realm packet"), packet_bytes);
-    assert!(instance_rx.try_recv().is_err());
 }
 /// (5) Packet is NOT sent when session is not LoggedIn.
 /// Mirrors C++ player-object-required guard at the top of dispatch.

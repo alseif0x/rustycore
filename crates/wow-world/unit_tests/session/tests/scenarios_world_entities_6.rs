@@ -514,7 +514,7 @@ fn gameobject_interaction_resolves_canonical_map_object_like_cpp() {
 fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 26_820);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let visible_guid = test_creature_guid(20);
@@ -522,7 +522,7 @@ fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
     let visible_pos = Position::new(20.0, 20.0, 0.0, 0.0);
     let far_pos = Position::new(5000.0, 5000.0, 0.0, 0.0);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -540,7 +540,7 @@ fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
         .expect("canonical viewer map");
     for (guid, position) in [(visible_guid, visible_pos), (far_guid, far_pos)] {
         let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-        manager.write().unwrap().add_creature(
+        manager.lock().unwrap().add_creature(
             571,
             0,
             grid_x,
@@ -562,13 +562,13 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
 
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 76_010);
     let creature_guid = test_creature_guid(76_011);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -658,7 +658,7 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager
-        .write()
+        .lock()
         .unwrap()
         .add_creature(571, 0, grid_x, grid_y, legacy_creature);
 
@@ -680,36 +680,6 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
             .contains(MovementFlag::FORWARD),
         "the canonical active spline carries C++ MoveSplineInit::Launch movement flags into CREATE"
     );
-}
-#[test]
-fn active_creature_update_guids_use_cpp_cell_activation_area() {
-    let (mut session, _pkt_tx, _send_rx) = make_session();
-    let manager = shared_map_manager();
-    let active_guid = test_creature_guid(40);
-    let inactive_guid = test_creature_guid(41);
-
-    session.set_map_manager(Arc::clone(&manager));
-    session.set_player_map_position_like_cpp(571, Position::new(0.0, 0.0, 0.0, 0.0));
-
-    for (guid, position) in [
-        (active_guid, Position::new(40.0, 40.0, 0.0, 0.0)),
-        (inactive_guid, Position::new(260.0, 260.0, 0.0, 0.0)),
-    ] {
-        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-        manager.write().unwrap().add_creature(
-            571,
-            0,
-            grid_x,
-            grid_y,
-            crate::map_manager::WorldCreature::new(
-                guid, 900, position, 100, 80, 1, 2, 0.0, 1, 35, 0, 0,
-            ),
-        );
-    }
-
-    let active = session.active_world_creature_guids_for_update_like_cpp();
-
-    assert_eq!(active, vec![active_guid]);
 }
 #[test]
 fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like_cpp() {

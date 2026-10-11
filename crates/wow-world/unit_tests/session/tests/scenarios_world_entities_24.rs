@@ -275,9 +275,8 @@ fn creature_spell_runtime_hook_authority_rejects_every_binding_source_like_cpp()
 fn creature_spell_runtime_hooks_block_all_three_ai_cast_paths_like_cpp() {
     let (aggro_manager, aggro_canonical, aggro_config, _) =
         creature_spell_bound_hook_tick_fixture_like_cpp("CombatAI", true, 70_203, 91_320, 91_321);
-    let aggro = run_legacy_creature_spell_tick_once_like_cpp(
-        &aggro_manager,
-        Some(&aggro_canonical),
+    let aggro = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &aggro_canonical,
         &aggro_config,
     );
     assert_eq!(aggro.spell_runtime_hooks_unrepresented, 1);
@@ -286,22 +285,20 @@ fn creature_spell_runtime_hooks_block_all_three_ai_cast_paths_like_cpp() {
 
     let (combat_manager, combat_canonical, combat_config, combat_creature_guid) =
         creature_spell_bound_hook_tick_fixture_like_cpp("CombatAI", false, 70_204, 91_322, 91_323);
-    let initialized = run_legacy_creature_spell_tick_once_like_cpp(
-        &combat_manager,
-        Some(&combat_canonical),
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &combat_canonical,
         &combat_config,
     );
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.spell_runtime_hooks_unrepresented, 0);
     combat_manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(0, 0, combat_creature_guid)
         .unwrap()
         .backdate_runtime_clock_for_test(Duration::from_secs(60));
-    let combat = run_legacy_creature_spell_tick_once_like_cpp(
-        &combat_manager,
-        Some(&combat_canonical),
+    let combat = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &combat_canonical,
         &combat_config,
     );
     assert_eq!(combat.spell_runtime_hooks_unrepresented, 1);
@@ -309,7 +306,7 @@ fn creature_spell_runtime_hooks_block_all_three_ai_cast_paths_like_cpp() {
     assert!(combat.plan.events.is_empty());
     assert!(
         combat_manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, combat_creature_guid)
             .unwrap()
@@ -320,9 +317,8 @@ fn creature_spell_runtime_hooks_block_all_three_ai_cast_paths_like_cpp() {
 
     let (turret_manager, turret_canonical, turret_config, _) =
         creature_spell_bound_hook_tick_fixture_like_cpp("TurretAI", false, 70_205, 91_324, 91_325);
-    let turret = run_legacy_creature_spell_tick_once_like_cpp(
-        &turret_manager,
-        Some(&turret_canonical),
+    let turret = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &turret_canonical,
         &turret_config,
     );
     assert_eq!(turret.spell_runtime_hooks_unrepresented, 1);
@@ -355,9 +351,8 @@ fn creature_spell_runtime_blocks_required_area_and_aura_restrictions_like_cpp() 
             },
         ]),
     ));
-    let area = run_legacy_creature_spell_tick_once_like_cpp(
-        &area_manager,
-        Some(&area_canonical),
+    let area = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &area_canonical,
         &area_config,
     );
     assert_eq!(area.spell_casting_requirements_unrepresented, 1);
@@ -391,9 +386,8 @@ fn creature_spell_runtime_blocks_required_area_and_aura_restrictions_like_cpp() 
             },
         ]),
     ));
-    let aura = run_legacy_creature_spell_tick_once_like_cpp(
-        &aura_manager,
-        Some(&aura_canonical),
+    let aura = run_canonical_creature_spell_phase_for_test_like_cpp(
+        &aura_canonical,
         &aura_config,
     );
     assert_eq!(aura.spell_effects_unrepresented, 1);
@@ -418,7 +412,7 @@ fn creature_spell_disable_row_blocks_runtime_plan_like_cpp() {
     assert_eq!(report.loaded_count, 1);
     config.disable_mgr = Some(Arc::new(disable_mgr));
 
-    let outcome = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(outcome.spells_disabled, 1);
     assert_eq!(outcome.casts_ready, 0);
     assert!(outcome.plan.events.is_empty());
@@ -637,10 +631,9 @@ fn represented_creature_melee_spell_hit_profile_fails_closed_on_incomplete_metad
 }
 #[test]
 fn creature_spell_fanout_uses_canonical_commit_snapshot_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_318);
     let victim_guid = ObjectGuid::create_player(1, 91_319);
@@ -722,17 +715,13 @@ fn creature_spell_fanout_uses_canonical_commit_snapshot_like_cpp() {
             armor: 444,
         });
     }
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         true,
         30.0,
     );
 
-    let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let cast = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(cast.canonical_cast_preconditions_passed, 1);
     let [event] = cast.plan.events.as_slice() else {

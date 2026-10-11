@@ -13,13 +13,13 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
     let (mut session1, _pkt_tx1, _send_rx1) = make_session();
     let (mut session2, _pkt_tx2, _send_rx2) = make_session();
 
-    session1.set_map_manager(Arc::clone(&manager));
-    session2.set_map_manager(Arc::clone(&manager));
+    session1.set_canonical_map_manager(Arc::clone(&manager));
+    session2.set_canonical_map_manager(Arc::clone(&manager));
 
     let creature_guid = test_creature_guid(99901);
     let pos = Position::new(10.0, 10.0, 0.0, 0.0);
     let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(pos.x, pos.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         0,
         0,
         grid_x,
@@ -41,7 +41,7 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
     );
 
     let hp_before = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .expect("creature must exist before mutation")
@@ -53,7 +53,7 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
     });
 
     let hp_after = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .expect("creature must exist after mutation")
@@ -79,15 +79,10 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
 /// apply anything again, because the swing timers were consumed.
 #[tokio::test]
 async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let creature_guid = test_creature_guid(99_930);
     let map_store = Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
@@ -132,7 +127,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
             .unwrap();
         // Only the first session registers the creature; both share the manager.
         if index == 0 {
-            session.set_map_manager(Arc::clone(&manager));
+            session.set_canonical_map_manager(Arc::clone(&manager));
             register_test_creature(&mut session, manager.clone(), creature_guid, 100);
             // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
             // (`Unit.cpp:2313-2360`); both attackers must land their swing.
@@ -164,23 +159,20 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
     }
 
     let health_before = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
         .current_hp();
 
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let first = crate::session::run_legacy_player_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let first = run_canonical_player_melee_phase_for_test_like_cpp(
+        &canonical,
         &attackers,
         2_000,
         &mut phase_state,
         &crate::session::LegacyCreatureAggroConfigLikeCpp::default(),
     );
-
-    assert!(!first.skipped_owner_not_global, "the map owns this tick");
     assert_eq!(first.attackers_seen, 2);
     assert_eq!(
         first.victims_resolved, 2,
@@ -192,7 +184,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
     );
 
     let health_after_first = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, creature_guid)
         .unwrap()
@@ -204,9 +196,8 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
 
     // A second pass with no time elapsed must apply nothing: the swing timers
     // were consumed by the first. This is the double-tick guard.
-    let second = crate::session::run_legacy_player_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let second = run_canonical_player_melee_phase_for_test_like_cpp(
+        &canonical,
         &attackers,
         0,
         &mut phase_state,
@@ -218,7 +209,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()

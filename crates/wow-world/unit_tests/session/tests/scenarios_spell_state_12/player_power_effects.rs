@@ -568,7 +568,7 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
     let energize_spell_id = 18_247;
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -600,7 +600,7 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,

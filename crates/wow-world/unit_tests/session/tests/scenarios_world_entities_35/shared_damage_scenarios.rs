@@ -83,11 +83,10 @@ fn set_player_aura_caster_like_cpp(session: &mut WorldSession, spell_id: i32, ca
 /// recursively triggers a share aura on the secondary target (`NODAMAGE`).
 #[test]
 fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let victim_guid = ObjectGuid::create_player(1, 91_380);
     let secondary_guid = ObjectGuid::create_player(1, 91_381);
@@ -200,11 +199,7 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
         spell_store: Some(spells),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     let command = outcome.commands.first().expect("primary player command");
     assert_eq!((command.damage, command.absorbed), (5, 5));
     assert_eq!(command.split_combat_log_packets.len(), 1);
@@ -237,7 +232,6 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
     );
     drop(canonical);
     assert_eq!(command.self_share_health_updates, vec![98]);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 0);
     assert!(outcome.plan.events.iter().any(|event| {
         event.recipients == crate::map_manager::RecipientRule::ExplicitPlayer(secondary_guid)
             && wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
@@ -251,11 +245,10 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
 /// auras each use the same base, including a self-targeting aura.
 #[test]
 fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_390);
     let victim_guid = test_creature_guid(91_391);
@@ -403,11 +396,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         })),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -463,7 +452,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         assert!(threatened_by.contains(&secondary_guid));
     }
     {
-        let manager = manager.read().unwrap();
+        let manager = manager.lock().unwrap();
         assert_eq!(
             manager
                 .find_creature(0, 0, victim_guid)
@@ -497,7 +486,6 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         assert!(threatened_by.contains(&victim_guid));
         assert!(threatened_by.contains(&secondary_guid));
     }
-    assert_eq!(outcome.legacy_creature_victim_syncs, 3);
     assert!(!outcome.plan.events.iter().any(|event| {
         wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
             == Some(ServerOpcodes::SpellNonMeleeDamageLog)
@@ -543,7 +531,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let evading = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let evading = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -566,7 +554,6 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             100
         );
     }
-    assert_eq!(evading.legacy_creature_victim_syncs, 2);
 
     // Outer `DealDamage` sparring modifies `damageDone` before the share loop.
     // At the threshold, neither share target nor primary loses health even
@@ -587,7 +574,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         })
         .unwrap();
     let sparring =
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -604,7 +591,6 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             95
         );
     }
-    assert_eq!(sparring.legacy_creature_victim_syncs, 0);
 
     // A recursive `NODAMAGE` share still traverses the Creature unkillable
     // branch in `DealDamage`. It does not reduce the primary hit or add a
@@ -634,7 +620,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         })
         .unwrap();
     let unkillable =
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -651,7 +637,6 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         assert!(alive);
         assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
     }
-    assert_eq!(unkillable.legacy_creature_victim_syncs, 3);
 }
 
 /// `SPELL_ATTR2_NO_INITIAL_THREAT` does not prevent the recursive share
@@ -659,10 +644,9 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
 /// Once that same target already has combat, a later share creates threat.
 #[test]
 fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_401);
     let victim_guid = test_creature_guid(91_402);
@@ -755,13 +739,8 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
         spell_store: Some(spells),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let first = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
-    assert_eq!(first.legacy_creature_victim_syncs, 2);
+    let first = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     {
         let canonical = canonical.lock().unwrap();
         let map = canonical.find_map(0, 0).unwrap().map();
@@ -812,8 +791,7 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let second = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
-    assert_eq!(second.legacy_creature_victim_syncs, 2);
+    let second = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     for threat in [
         canonical
             .lock()
@@ -830,7 +808,7 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
             })
             .flatten(),
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, secondary_guid)
             .unwrap()

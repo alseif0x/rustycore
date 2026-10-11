@@ -7,10 +7,9 @@ use super::*;
 
 #[test]
 fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let creature_guid = test_creature_guid(91_316);
@@ -27,10 +26,6 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let mut config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         false,
@@ -44,7 +39,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
         );
 
     let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     let miss_seed = (0_u64..10_000)
         .find(|seed| {
@@ -60,13 +55,13 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     assert!(expected_rng.gen_range(0..=9_999_u32) < 500);
     let expected_repeat_delay = expected_rng.gen_range(6_000_u64..=12_000_u64);
     let expected_next_roll = expected_rng.gen_range(0..=9_999_u32);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.seed_runtime_rng_like_cpp(miss_seed);
         creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
     })
     .unwrap();
 
-    let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let cast = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
     assert_eq!(cast.spell_hits, 0);
@@ -85,7 +80,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
         )]
     );
     let (repeat_due_in_ms, actual_next_roll) =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0).unwrap(),
                 creature.random_creature_spell_hit_roll_like_cpp(),
@@ -110,7 +105,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
         .subsystems_mut()
         .auras
         .invalidate_spell_hit_aura_authority_like_cpp();
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.seed_runtime_rng_like_cpp(0xA11_C105ED);
         creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
         creature.creature.ai_ownership_mut().last_swing_ms = 0;
@@ -120,14 +115,14 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     .unwrap();
 
     let unrepresented =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(unrepresented.casts_ready, 0);
     assert_eq!(unrepresented.spell_hit_results_unrepresented, 1);
     assert_eq!(unrepresented.runtime_rng_authority_rejections, 1);
     assert!(unrepresented.plan.events.is_empty());
     let (repeat_due_in_ms, rng_is_authoritative, actual_next_roll) =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0),
                 creature.runtime_rng_authority_complete_like_cpp(),
@@ -139,26 +134,26 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     assert!(!rng_is_authoritative);
     assert_eq!(actual_next_roll, None);
     assert!(
-        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
+        !mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
             .can_swing())
         .unwrap(),
         "a fail-closed hit result still follows C++ Spell::ResetCombatTimers"
     );
 
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         let _ = creature.reset_combat();
         creature.enter_combat(victim_guid);
         creature.seed_runtime_rng_like_cpp(0xBEEF);
     })
     .unwrap();
     let next_engagement =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(next_engagement.schedules_initialized, 1);
     assert_eq!(next_engagement.runtime_rng_authority_rejections, 1);
     assert_eq!(next_engagement.casts_ready, 0);
     assert!(next_engagement.plan.events.is_empty());
     let (rng_is_authoritative, due) =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.runtime_rng_authority_complete_like_cpp(),
                 creature.creature_spell_due_in_ms_for_test(0),
@@ -171,15 +166,14 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     );
     assert_eq!(due, None);
 
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.creature.ai_ownership_mut().last_swing_ms = 0;
         creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         assert!(creature.can_swing());
     })
     .unwrap();
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let melee = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
     assert_eq!(melee.runtime_rng_authority_rejections, 0);
@@ -191,10 +185,9 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
 }
 #[test]
 fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_318);
     let victim_guid = ObjectGuid::create_player(1, 91_319);
@@ -218,10 +211,6 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let aggro_spell = creature_ai_test_spell_info_like_cpp(aggro_spell_id, 6, 0);
     let combat_spell = creature_ai_test_spell_info_like_cpp(combat_spell_id, 6, 0);
@@ -305,12 +294,12 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
     assert!(expected_rng.gen_range(0..=9_999_u32) < 500);
     let expected_initial_delay = expected_rng.gen_range(6_000_u64..=12_000_u64);
     let expected_next_roll = expected_rng.gen_range(0..=9_999_u32);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.seed_runtime_rng_like_cpp(seed);
     })
     .unwrap();
 
-    let engaged = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let engaged = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(engaged.schedules_initialized, 1);
     assert_eq!(engaged.casts_ready, 1, "spell tick outcome: {engaged:?}");
@@ -318,7 +307,7 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
     assert_eq!(engaged.spell_misses, 1);
     assert_eq!(engaged.plan.events.len(), 1);
     let (initial_due_in_ms, actual_next_roll) =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(1).unwrap(),
                 creature.random_creature_spell_hit_roll_like_cpp(),
@@ -333,10 +322,9 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
 }
 #[test]
 fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_330);
     let victim_guid = ObjectGuid::create_player(1, 91_331);
@@ -357,10 +345,6 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
             assert!(creature.can_swing());
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let mut aggro_spell = creature_ai_test_spell_info_like_cpp(aggro_spell_id, 6, 0);
     aggro_spell.effect_type = wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA;
@@ -411,7 +395,7 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
         },
     ])));
 
-    let first = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let first = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(first.schedules_initialized, 1);
     assert_eq!(first.spell_effects_unrepresented, 1);
     assert_eq!(first.casts_ready, 0);
@@ -433,7 +417,7 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
         "CastSpell rearms BASE_ATTACK even when CheckCast fails"
     );
 
-    let next = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let next = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(next.casts_ready, 0);
     assert!(next.plan.events.is_empty());
     assert_eq!(
@@ -447,10 +431,9 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
 }
 #[test]
 fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_332);
     let victim_guid = ObjectGuid::create_player(1, 91_333);
@@ -478,10 +461,6 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let mut config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
@@ -542,7 +521,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         .unwrap();
 
     let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     session
@@ -551,7 +530,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         })
         .unwrap();
 
-    let first = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let first = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(first.casts_ready, 1, "spell tick outcome: {first:?}");
     assert_eq!(first.spell_misses, 1);
     assert_eq!(first.canonical_cast_cooldown_rejections, 0);
@@ -584,7 +563,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
             creature.backdate_runtime_clock_for_test(Duration::from_secs(40));
         })
         .unwrap();
-    let blocked = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let blocked = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(blocked.casts_ready, 0, "spell tick outcome: {blocked:?}");
     assert_eq!(blocked.canonical_cast_cooldown_rejections, 1);
     assert_eq!(blocked.spell_misses, 0);
@@ -601,7 +580,6 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
 }
 #[test]
 fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch_rng_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -628,10 +606,6 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         false,
@@ -639,28 +613,28 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
     );
 
     let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     assert!(initialized.plan.events.is_empty());
     let first_due_in_ms =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.creature_spell_due_in_ms_for_test(0).unwrap()
         })
         .unwrap();
     assert!((6_000..=12_000).contains(&first_due_in_ms));
 
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_millis(
             first_due_in_ms.saturating_sub(1),
         ));
     })
     .unwrap();
     let before_minimum =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(before_minimum.casts_ready, 0);
 
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
         creature
             .creature
@@ -668,11 +642,11 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
             .add_unit_state(UnitState::CASTING.bits());
     })
     .unwrap();
-    let casting = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let casting = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(casting.unit_state_casting_skips, 1);
     assert_eq!(casting.casts_ready, 0);
     assert!(casting.plan.events.is_empty());
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature
             .creature
             .unit_mut()
@@ -685,11 +659,11 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
             cpp_order.gen_range(0..=9_999_u32) < 500
         })
         .unwrap();
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.seed_runtime_rng_like_cpp(guaranteed_seed);
     })
     .unwrap();
-    let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let cast = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
     assert_eq!(cast.canonical_cast_preconditions_passed, 1);
     assert_eq!(cast.spell_hits, 1);
@@ -746,7 +720,7 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
     );
 
     let (repeat_due_in_ms, rng_is_authoritative, actual_next_roll) =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0),
                 creature.runtime_rng_authority_complete_like_cpp(),
@@ -759,7 +733,7 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
     assert_eq!(actual_next_roll, None);
 
     let no_retry =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(no_retry.casts_ready, 0);
     assert!(no_retry.plan.events.is_empty());
     assert_eq!(

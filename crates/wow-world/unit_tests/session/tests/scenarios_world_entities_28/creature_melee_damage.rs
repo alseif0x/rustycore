@@ -4,9 +4,8 @@ use super::*;
 
 #[test]
 fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let victim = test_creature_guid(91_028);
     add_canonical_test_creature_on_map(
         &canonical,
@@ -51,14 +50,9 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -66,7 +60,6 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
     assert_eq!(outcome.melee_outcomes_unrepresented, 1);
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(outcome.canonical_creature_hits, 1);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 1);
     assert!(outcome.commands.is_empty());
     assert_eq!(outcome.plan.events.len(), 2);
     let health = canonical
@@ -82,7 +75,7 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
         .health;
     assert!(health < 100);
     let legacy_health = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, victim)
         .unwrap()
@@ -96,7 +89,7 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
     );
     assert!(
         !manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, attacker)
             .unwrap()
@@ -105,10 +98,9 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
 }
 #[test]
 fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let creatures = [test_creature_guid(91_043), test_creature_guid(91_044)];
     for creature_guid in creatures {
         add_canonical_test_creature_on_map(
@@ -145,14 +137,9 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
             })
             .unwrap();
     }
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(
+        &canonical,
         &Default::default(),
     );
 
@@ -161,13 +148,11 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
     assert_eq!(outcome.canonical_hits, 1);
     assert_eq!(outcome.canonical_creature_hits, 1);
     assert_eq!(outcome.melee_precondition_rejections, 1);
-    assert_eq!(outcome.legacy_creature_victim_syncs, 1);
-    assert_eq!(outcome.legacy_creature_victim_sync_cas_rejections, 0);
     assert!(outcome.commands.is_empty());
     assert_eq!(outcome.plan.events.len(), 2);
 
     let canonical_guard = canonical.lock().unwrap();
-    let legacy_guard = manager.read().unwrap();
+    let legacy_guard = manager.lock().unwrap();
     let mut alive = 0;
     let mut dead = 0;
     let mut tombstoned = 0;
@@ -212,15 +197,10 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
 /// curve (`Unit.cpp:1646-1651`), not only in the session path.
 #[tokio::test]
 async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let creature_guid = test_creature_guid(99_933);
     let player_guid = ObjectGuid::create_player(1, 5_203);
@@ -259,7 +239,7 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
             unit.reset_attack_timer_like_cpp(WeaponAttackType::BaseAttack);
         })
         .unwrap();
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -330,24 +310,22 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
         ..Default::default()
     };
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let health = |manager: &crate::map_manager::SharedMapManager| {
+    let health = |manager: &SharedCanonicalMapManager| {
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, creature_guid)
             .unwrap()
             .current_hp()
     };
     let before = health(&manager);
-    let outcome = crate::session::run_legacy_player_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_player_melee_phase_for_test_like_cpp(
+        &canonical,
         &attackers,
         2_000,
         &mut phase_state,
         &config,
     );
-    assert!(!outcome.skipped_owner_not_global, "the map owns this tick");
     assert_eq!(outcome.creature_hits, 1);
     assert_eq!(
         before - health(&manager),
@@ -365,10 +343,9 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
 /// victim creature's own `GetArmor()` and damage-taken auras.
 #[test]
 fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_200);
     let victim_guid = test_creature_guid(91_201);
@@ -458,10 +435,6 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
         spell_store: Some(Arc::new(spell_store)),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     // The victim's `+5` restricts the flat 5.0 miss band to zero, so the
     // mitigation stages stay deterministic.
@@ -494,7 +467,7 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config)
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)
     };
 
     // Baseline: 5,000 armour at level 80 -> `ceil(10 * 0.752873) = 8`.
@@ -551,11 +524,10 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
 /// (`Unit.cpp:1348-1355`).
 #[test]
 fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_MISS};
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_210);
     let victim_guid = test_creature_guid(91_211);
@@ -705,7 +677,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config)
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)
     };
     let wire_hit_info = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
         let event = outcome
@@ -805,11 +777,6 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
         info.read_uint32().expect("melee spell id");
         info.read_int32().expect("blocked")
     };
-
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     // `+5` cancels the flat 5.0, so the mitigated `ceil(10 * 0.752873) = 8`
     // lands.

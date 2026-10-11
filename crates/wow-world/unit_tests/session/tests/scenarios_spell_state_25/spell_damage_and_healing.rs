@@ -73,7 +73,7 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -87,7 +87,7 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
         .expect("school damage with the ignore-damage-modifiers attribute");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -101,7 +101,7 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
         .expect("school damage with the ignore-caster-modifiers attribute");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -136,7 +136,7 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
         .expect("Ice Lance against a target that is not frozen");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -161,7 +161,7 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
     // `100 * 3`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -198,7 +198,7 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
         .expect("Drain Soul from a healthy caster");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -214,7 +214,7 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     // `100 * 2`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -273,7 +273,7 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -337,7 +337,7 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     // `(100 + 100 * 0.5) * 1.5`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -353,7 +353,7 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     // benefit still applies, so `(100 + 100 * 0.5) * 1.0`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()

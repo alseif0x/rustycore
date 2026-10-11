@@ -9,7 +9,7 @@ use super::*;
 fn combat_tick_charging_player_skips_melee_update_without_reset_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_027);
     let player = ObjectGuid::create_player(1, 76);
 
@@ -59,11 +59,11 @@ fn combat_tick_charging_player_skips_melee_update_without_reset_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -88,7 +88,7 @@ fn combat_tick_charging_player_skips_melee_update_without_reset_like_cpp() {
 fn combat_tick_pacified_player_resets_timer_without_damage_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_020);
     let player = ObjectGuid::create_player(1, 69);
 
@@ -138,10 +138,10 @@ fn combat_tick_pacified_player_resets_timer_without_damage_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -165,7 +165,7 @@ fn combat_tick_pacified_player_resets_timer_without_damage_like_cpp() {
 fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_019);
     let player = ObjectGuid::create_player(1, 68);
 
@@ -236,10 +236,10 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -295,7 +295,7 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
 fn combat_tick_out_of_range_sets_short_retry_timer_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_017);
     let player = ObjectGuid::create_player(1, 66);
 
@@ -343,10 +343,10 @@ fn combat_tick_out_of_range_sets_short_retry_timer_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -375,7 +375,7 @@ fn combat_tick_out_of_range_sets_short_retry_timer_like_cpp() {
 fn combat_tick_bad_facing_sets_short_retry_timer_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_018);
     let player = ObjectGuid::create_player(1, 67);
 
@@ -428,10 +428,10 @@ fn combat_tick_bad_facing_sets_short_retry_timer_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -460,7 +460,7 @@ fn combat_tick_bad_facing_sets_short_retry_timer_like_cpp() {
 fn combat_tick_melee_range_uses_combat_reach_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_019);
     let player = ObjectGuid::create_player(1, 68);
 
@@ -512,10 +512,10 @@ fn combat_tick_melee_range_uses_combat_reach_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -529,7 +529,7 @@ fn combat_tick_melee_range_uses_combat_reach_like_cpp() {
 fn combat_tick_boundary_radius_suppresses_bad_facing_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_020);
     let player = ObjectGuid::create_player(1, 69);
 
@@ -581,10 +581,10 @@ fn combat_tick_boundary_radius_suppresses_bad_facing_like_cpp() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -598,7 +598,7 @@ fn combat_tick_boundary_radius_suppresses_bad_facing_like_cpp() {
 fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_015);
     let player = ObjectGuid::create_player(1, 64);
 
@@ -648,10 +648,10 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
         .unwrap();
     assert!(session.mirror_canonical_creature_threat_from_attacker_like_cpp(guid, player, 1.0));
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     {
-        let manager = manager.read().unwrap();
+        let manager = manager.lock().unwrap();
         let world_creature = manager.find_creature(0, 0, guid).unwrap();
         assert_eq!(world_creature.current_hp(), 0);
         assert!(
@@ -732,7 +732,7 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
 fn combat_tick_reports_cpp_like_over_damage_on_killing_swing() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_025);
     let player = ObjectGuid::create_player(1, 74);
 
@@ -781,7 +781,7 @@ fn combat_tick_reports_cpp_like_over_damage_on_killing_swing() {
         })
         .unwrap();
 
-    session.tick_combat_sync();
+    let _ = run_session_player_melee_phase_for_test_like_cpp(&mut session, 100);
 
     let sent = send_rx.try_recv().unwrap();
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);

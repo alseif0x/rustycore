@@ -3,6 +3,8 @@
 //! Moved out of the movement.rs root under #654; every test is unchanged.
 
 use super::*;
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 
 #[test]
 fn validate_movement_info_strips_each_cpp_incompatible_pair() {
@@ -306,7 +308,7 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     let player_position = Position::new(1.0, 2.0, 3.0, 0.5);
     let mover_start = Position::new(10.0, 10.0, 0.0, 0.0);
     let moved_position = Position::new(12.0, 13.0, 1.0, 1.25);
-    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
+    let manager = shared_canonical_map_manager();
     let registry = Arc::new(crate::session::directory::PlayerRegistry::default());
     let (self_tx, _self_rx) = flume::bounded(1);
     let (other_tx, other_rx) = flume::bounded(1);
@@ -318,11 +320,11 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     session.set_player_position_like_cpp(player_position);
     crate::session::hub_mut(&mut session).set_player_movement_time_like_cpp(7_777);
     session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_player_registry(Arc::clone(&registry));
 
     let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         0,
         0,
         grid_x,
@@ -370,7 +372,7 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
         MovementFlag::SWIMMING
     );
     let (creature_position, creature_flags, creature_time) = {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard
             .find_creature(0, 0, mover_guid)
             .expect("controlled mover creature");
@@ -426,7 +428,7 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     session
         .handle_movement_info_like_cpp(Some(ClientOpcodes::MoveHeartbeat), stale_transport_movement)
         .await;
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     assert_eq!(
         guard
             .find_creature(0, 0, mover_guid)
@@ -449,15 +451,15 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
     let player_position = Position::new(1.0, 2.0, 3.0, 0.5);
     let mover_start = Position::new(10.0, 10.0, 0.0, 0.0);
     let attempted_position = Position::new(12.0, 13.0, 1.0, 1.25);
-    let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
+    let manager = shared_canonical_map_manager();
 
     session.set_player_guid(Some(player_guid));
     session.set_player_moved_unit_guid_like_cpp(mover_guid);
     session.set_player_position_like_cpp(player_position);
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
 
     let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         0,
         0,
         grid_x,
@@ -478,7 +480,7 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
         ),
     );
     {
-        let mut guard = manager.write().unwrap();
+        let mut guard = manager.lock().unwrap();
         let mover = guard
             .find_creature_mut(0, 0, mover_guid)
             .expect("controlled mover creature");
@@ -506,7 +508,7 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
 
     assert_eq!(session.player_position_like_cpp(), Some(player_position));
     assert_eq!(session.player_movement_time_like_cpp(), 0);
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let mover = guard
         .find_creature(0, 0, mover_guid)
         .expect("controlled mover creature");

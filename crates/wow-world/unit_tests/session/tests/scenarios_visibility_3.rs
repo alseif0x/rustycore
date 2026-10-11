@@ -9,7 +9,7 @@ use super::*;
 fn player_attack_uses_canonical_invisibility_detection_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let attacker = ObjectGuid::create_player(1, 95);
     let victim = test_creature_guid(18_095);
 
@@ -800,7 +800,7 @@ fn refresh_preserves_combined_scan_publication_and_stale_refusal() {
 fn visible_creatures_select_canonical_state_first_and_keep_phase_and_range_filters_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 77_010);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let canonical_guid = test_creature_guid(77_011);
@@ -808,7 +808,7 @@ fn visible_creatures_select_canonical_state_first_and_keep_phase_and_range_filte
     let out_of_range_guid = test_creature_guid(77_013);
     let phase_mismatch_guid = test_creature_guid(77_014);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -860,7 +860,7 @@ fn visible_creatures_select_canonical_state_first_and_keep_phase_and_range_filte
 
     // Legacy-only representation for a GUID the canonical store does not hold.
     let (legacy_grid_x, legacy_grid_y) = crate::map_manager::world_to_grid_coords(22.0, 22.0);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         legacy_grid_x,
@@ -876,7 +876,7 @@ fn visible_creatures_select_canonical_state_first_and_keep_phase_and_range_filte
     // Legacy duplicate of the canonical GUID: no spline and a different level,
     // so it can neither be selected nor decide the projection.
     let (duplicate_grid_x, duplicate_grid_y) = crate::map_manager::world_to_grid_coords(20.0, 20.0);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         duplicate_grid_x,

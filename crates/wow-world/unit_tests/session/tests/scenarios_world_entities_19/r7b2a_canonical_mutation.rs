@@ -1,18 +1,11 @@
-//! F6-7 R7b-2a regressions: the creature entity synchronization root.
+//! F6-7 R7b-2a fixtures shared by `r7b2a_guarded_loot_release`.
 //!
-//! The slice gates `SessionCore::sync_canonical_creature_entity_like_cpp` with
-//! the same mechanism the R7a gate uses: the R7a admission predicate
-//! (`creature_representation_is_admitted_like_cpp`) evaluated against the
-//! current canonical incarnation, canonical→legacy lock order, and the
-//! canonical application under its execution lock before any success is
-//! exposed. This root used to expose the successful **legacy-authority rebind**
-//! for a transported representation the incarnation had *not* applied.
-//!
-//! This module also owns the fixtures the sibling
-//! `r7b2a_guarded_loot_release` module shares: the complete lifecycle
-//! observable, the allocation rebinds, the fully looted pool and observation
-//! builders, and the one-incarnation assertion. Every fixture is `pub(super)`
-//! and every case drives the production roots, not a double.
+//! The slice also gated the legacy → canonical creature entity synchronization
+//! root; #1263 F6-8E deleted that root with the legacy store, and with it the
+//! regressions this module held for it. What remains are the fixtures the
+//! guarded loot-release module shares: the complete lifecycle observable, the
+//! allocation rebind, the fully looted pool and observation builders, and the
+//! one-incarnation assertion.
 
 use super::r7a_canonical_mutation::*;
 use super::*;
@@ -45,7 +38,7 @@ pub(super) fn loot_lifecycle_state_like_cpp(
 }
 
 pub(super) fn session_loot_lifecycle_state_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
 ) -> (LootLifecycleStateLikeCpp, LootLifecycleStateLikeCpp) {
@@ -61,7 +54,7 @@ pub(super) fn session_loot_lifecycle_state_like_cpp(
 
 /// One incarnation: one loot allocation and one health-state revision timeline.
 pub(super) fn assert_one_incarnation_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
+    manager: &SharedCanonicalMapManager,
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
 ) {
@@ -89,21 +82,6 @@ pub(super) fn has_lootable_flag_like_cpp(creature: &wow_entities::Creature) -> b
         .world()
         .object()
         .has_dynamic_flag(UnitDynFlags::Lootable as u32)
-}
-
-/// Replace the allocation the **legacy** representation holds.
-pub(super) fn rebind_legacy_authority_like_cpp(
-    manager: &crate::map_manager::SharedMapManager,
-    guid: ObjectGuid,
-    authority: wow_loot::OwnedLootAuthority,
-) {
-    let mut guard = manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let creature = guard
-        .find_creature_mut(0, 0, guid)
-        .expect("legacy representation");
-    creature.creature.rebind_loot_authority_like_cpp(authority);
 }
 
 /// Replace the allocation the **canonical incarnation** holds.
@@ -188,326 +166,4 @@ pub(super) fn admission_candidate_like_cpp(guid: ObjectGuid) -> wow_entities::Cr
     creature.unit_mut().set_max_health(100);
     creature.unit_mut().set_health(100);
     creature
-}
-
-/// The former `SessionCore::sync_canonical_creature_entity_like_cpp` root,
-/// which #1263 F6-8D3b-2 deleted (production never transports a legacy
-/// representation into the incarnation any more): the session's key and the
-/// representation's own authority, through the shared map-level gate the legacy
-/// runtime bodies still use until F6-8E.
-fn sync_canonical_creature_entity_like_cpp(
-    session: &WorldSession,
-    creature: wow_entities::Creature,
-) -> bool {
-    let expected = creature.loot_authority_like_cpp().clone();
-    let stamp = expected.stamp_like_cpp();
-    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
-    let Some(manager) = session.core.canonical_map_manager.as_ref().cloned() else {
-        return false;
-    };
-    crate::session::sync_admitted_creature_representation_on_map_like_cpp(
-        &manager,
-        session.core.map_manager.as_ref(),
-        map_id,
-        instance_id,
-        creature,
-        &expected,
-        stamp,
-    )
-}
-
-// ---------------------------------------------------------------------------
-// Root 1: `SessionCore::sync_canonical_creature_entity_like_cpp`
-// ---------------------------------------------------------------------------
-
-/// A session whose legacy representation and canonical incarnation are one
-/// admitted incarnation, but whose **allocation is split**: the representation
-/// carries a pristine candidate while the incarnation owns a used one. That is
-/// the shape in which this root's legacy synchronization is observable: the
-/// transported pristine candidate is admitted, and the root must move the
-/// legacy alias onto the incarnation's allocation.
-fn split_allocation_session_like_cpp(
-    guid: ObjectGuid,
-    player: ObjectGuid,
-) -> (
-    WorldSession,
-    crate::map_manager::SharedMapManager,
-    SharedCanonicalMapManager,
-    wow_loot::OwnedLootAuthority,
-    wow_loot::OwnedLootAuthority,
-) {
-    let (session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
-    let pristine = wow_loot::OwnedLootAuthority::new();
-    let incarnation = observed_fully_looted_authority_like_cpp(guid, player).0;
-    rebind_canonical_authority_like_cpp(&canonical, guid, incarnation.clone());
-    rebind_legacy_authority_like_cpp(&manager, guid, pristine.clone());
-    (session, manager, canonical, pristine, incarnation)
-}
-
-#[test]
-fn fresh_sync_applies_to_the_incarnation_and_synchronizes_the_legacy_alias_like_cpp() {
-    let guid = test_creature_guid(92_100);
-    let player = ObjectGuid::create_player(1, 92_101);
-    let (mut session, manager, canonical, pristine, incarnation) =
-        split_allocation_session_like_cpp(guid, player);
-    let mut transported = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    assert!(
-        transported
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&pristine),
-        "the transported representation carries the representation's own allocation"
-    );
-    transported.ai_ownership_mut().npc_flags = 0x0001_0002;
-
-    let applied = sync_canonical_creature_entity_like_cpp(&session, transported);
-
-    assert!(
-        applied,
-        "a fresh same-incarnation representation is admitted and applied"
-    );
-    let owner = canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation");
-    assert_eq!(
-        owner.ai_ownership().npc_flags,
-        0x0001_0002,
-        "the canonical incarnation carries the transported state"
-    );
-    let legacy = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    assert!(
-        legacy
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(owner.loot_authority_like_cpp()),
-        "the legacy alias is synchronized onto the incarnation's allocation"
-    );
-    assert!(
-        !legacy
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&pristine),
-        "the legacy alias no longer holds the displaced candidate"
-    );
-    assert!(
-        owner
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&incarnation),
-        "the incarnation keeps the allocation it owns"
-    );
-    assert_one_incarnation_like_cpp(&manager, &canonical, guid);
-}
-
-/// **Negative control (R7b-2a primary).** Executed against the root's pre-slice
-/// body it fails: the stale representation is applied to neither entity state,
-/// yet the old root exposed success and moved the legacy alias onto the
-/// incarnation's allocation. It passes once the gate admits ownership before the
-/// application is invoked.
-#[test]
-fn stale_sync_is_refused_before_application_and_leaves_both_stores_like_cpp() {
-    let guid = test_creature_guid(92_102);
-    let player = ObjectGuid::create_player(1, 92_103);
-    let (mut session, manager, canonical, pristine, _) =
-        split_allocation_session_like_cpp(guid, player);
-    let transported = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    // The canonical incarnation advances without the representation.
-    advance_canonical_max_health_like_cpp(&canonical, guid, 140);
-    let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
-
-    let applied = sync_canonical_creature_entity_like_cpp(&session, transported);
-
-    assert!(
-        !applied,
-        "a stale representation must not be reported as a successful synchronization"
-    );
-    assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid),
-        before,
-        "a refused synchronization writes neither representation"
-    );
-    let legacy = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    assert!(
-        legacy
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&pristine),
-        "a refused synchronization does not move the legacy alias"
-    );
-    assert!(
-        !legacy.loot_authority_like_cpp().shares_storage_like_cpp(
-            canonical_creature_like_cpp(&canonical, guid)
-                .expect("canonical incarnation")
-                .loot_authority_like_cpp()
-        ),
-        "the legacy alias is not silently pointed at a snapshot the incarnation rejected"
-    );
-}
-
-#[test]
-fn aba_sync_is_refused_before_application_like_cpp() {
-    let guid = test_creature_guid(92_104);
-    let player = ObjectGuid::create_player(1, 92_105);
-    let (mut session, manager, canonical, pristine, _) =
-        split_allocation_session_like_cpp(guid, player);
-    // Health leaves and returns to the same tuple while the revision advances.
-    {
-        let mut guard = canonical.lock().unwrap();
-        let map = guard.find_map_mut(0, 0).expect("canonical map instance");
-        map.map_mut()
-            .with_creature_mut_like_cpp(guid, |creature| {
-                creature.unit_mut().set_health(60);
-                creature.unit_mut().set_health(100);
-            })
-            .expect("canonical incarnation");
-    }
-    let transported = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
-
-    assert!(
-        !sync_canonical_creature_entity_like_cpp(&session, transported),
-        "an ABA replay is a stale representation, not a fresh one"
-    );
-    assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid),
-        before
-    );
-    assert!(
-        legacy_creature_like_cpp(&manager, guid)
-            .expect("legacy representation")
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&pristine)
-    );
-}
-
-#[test]
-fn different_incarnation_and_competing_allocation_refuse_the_sync_like_cpp() {
-    // (a) The canonical object is destroyed and recreated under the same GUID.
-    let guid = test_creature_guid(92_106);
-    let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
-    let destroyed = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    remove_canonical_creature_map_object_on_map_like_cpp(&canonical, 0, 0, guid);
-    let _ = insert_canonical_creature_map_object_on_map_like_cpp(
-        &canonical,
-        0,
-        0,
-        admission_candidate_like_cpp(guid),
-    )
-    .expect("the recreation is admitted");
-    let replacement_before = loot_lifecycle_state_like_cpp(
-        &canonical_creature_like_cpp(&canonical, guid).expect("replacement"),
-    );
-    assert!(
-        !sync_canonical_creature_entity_like_cpp(&session, destroyed),
-        "a representation of a destroyed incarnation must not replace the recreation"
-    );
-    assert_eq!(
-        loot_lifecycle_state_like_cpp(
-            &canonical_creature_like_cpp(&canonical, guid).expect("replacement")
-        ),
-        replacement_before,
-        "the replacement keeps its own state and lifetime"
-    );
-
-    // (b) The representation carries a competing used allocation for the same
-    // incarnation: neither store may be reconciled or displaced.
-    let guid = test_creature_guid(92_107);
-    let player = ObjectGuid::create_player(1, 92_108);
-    let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
-    let competing = observed_fully_looted_authority_like_cpp(guid, player).0;
-    rebind_legacy_authority_like_cpp(&manager, guid, competing.clone());
-    let transported = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    let before = session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid);
-    let canonical_authority = canonical_creature_like_cpp(&canonical, guid)
-        .expect("canonical incarnation")
-        .loot_authority_like_cpp()
-        .clone();
-
-    assert!(
-        !sync_canonical_creature_entity_like_cpp(&session, transported),
-        "a competing used allocation must not be reconciled into the incarnation"
-    );
-    assert_eq!(
-        session_loot_lifecycle_state_like_cpp(&manager, &canonical, guid),
-        before,
-        "the refused representation keeps its own competing allocation"
-    );
-    assert_eq!(
-        competing.lifecycle_like_cpp(),
-        wow_loot::OwnedLootAuthorityLifecycle::Active,
-        "the competing pool is neither quarantined nor retired"
-    );
-    assert!(
-        canonical_creature_like_cpp(&canonical, guid)
-            .expect("canonical incarnation")
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&canonical_authority),
-        "the canonical incarnation keeps its own allocation"
-    );
-}
-
-#[test]
-fn unavailable_sync_ownership_is_refused_before_application_like_cpp() {
-    let guid = test_creature_guid(92_109);
-    let manager = shared_map_manager();
-    let (mut session, _, _) = make_session();
-    register_test_creature(&mut session, manager.clone(), guid, 100);
-    let transported = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    let before = loot_lifecycle_state_like_cpp(
-        &legacy_creature_like_cpp(&manager, guid).expect("legacy representation"),
-    );
-
-    // No canonical manager at all: there is no incarnation to synchronize into.
-    assert!(
-        !sync_canonical_creature_entity_like_cpp(&session, transported.clone()),
-        "a session without a canonical store has no incarnation to synchronize"
-    );
-
-    // A bound canonical manager whose map instance does not exist.
-    let canonical = shared_canonical_map_manager();
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    assert!(
-        !sync_canonical_creature_entity_like_cpp(&session, transported.clone()),
-        "a missing canonical map instance is unavailable ownership"
-    );
-
-    // A canonical map instance without the incarnation for this GUID.
-    canonical.lock().unwrap().create_world_map(0, 0);
-    assert!(
-        !sync_canonical_creature_entity_like_cpp(&session, transported.clone()),
-        "a missing canonical object is unavailable ownership"
-    );
-    assert!(
-        canonical_creature_like_cpp(&canonical, guid).is_none(),
-        "the refused synchronization created no incarnation"
-    );
-    assert_eq!(
-        loot_lifecycle_state_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        before,
-        "every refusal left the representation untouched"
-    );
-}
-
-/// Documented boundary: this root's ownership is the **canonical incarnation**,
-/// so the absence of a legacy mirror does not refuse the canonical application —
-/// the legacy synchronization is an expected-authority compare-and-exchange that
-/// simply has no representation to update.
-#[test]
-fn sync_without_a_legacy_representation_still_applies_to_the_incarnation_like_cpp() {
-    let guid = test_creature_guid(92_110);
-    let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
-    let mut transported = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
-    transported.ai_ownership_mut().npc_flags = 0x0001_0003;
-    manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .remove_creature_any(0, 0, guid)
-        .expect("the fixture registered the legacy representation");
-
-    assert!(
-        sync_canonical_creature_entity_like_cpp(&session, transported),
-        "the canonical incarnation is the ownership this root resolves"
-    );
-    assert_eq!(
-        canonical_creature_like_cpp(&canonical, guid)
-            .expect("canonical incarnation")
-            .ai_ownership()
-            .npc_flags,
-        0x0001_0003
-    );
 }

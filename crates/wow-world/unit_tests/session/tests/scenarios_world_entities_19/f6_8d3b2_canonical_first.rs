@@ -14,15 +14,11 @@ use super::*;
 
 fn d3b2_session_like_cpp() -> (
     WorldSession,
-    crate::map_manager::SharedMapManager,
+    SharedCanonicalMapManager,
     SharedCanonicalMapManager,
 ) {
     let manager = shared_map_manager();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::CanonicalMap);
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     (session, manager, canonical)
@@ -55,7 +51,7 @@ fn canonical_first_root_applies_a_session_mutation_after_an_executor_health_chan
     let guid = test_creature_guid(97_000);
     register_test_creature(&mut session, manager.clone(), guid, 25);
     assert!(
-        manager.read().unwrap().find_creature(0, 0, guid).is_none(),
+        manager.lock().unwrap().find_creature(0, 0, guid).is_none(),
         "the production owner publishes no legacy copy of an admitted creature"
     );
     // The executor's player-melee phase lowers the incarnation's health in
@@ -101,7 +97,7 @@ fn canonical_first_root_applies_a_session_mutation_after_an_executor_health_chan
 #[test]
 fn r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp() {
     let (mut session, manager, canonical) = d3b2_session_like_cpp();
-    session.set_map_manager(manager.clone());
+    session.set_canonical_map_manager(manager.clone());
     let guid = test_creature_guid(97_010);
     let key = wow_map::MapKey::new(1, 0);
     // No canonical instance for map 1 yet: admission defers.
@@ -115,8 +111,8 @@ fn r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp() {
         1,
         "the canonical manager holds the deferred registration"
     );
-    assert_eq!(manager.read().unwrap().respawn_queue_len(1, 0), 0);
-    assert!(manager.read().unwrap().find_creature(1, 0, guid).is_none());
+    assert_eq!(manager.lock().unwrap().respawn_queue_len(1, 0), 0);
+    assert!(manager.lock().unwrap().find_creature(1, 0, guid).is_none());
 
     // `MapManager::CreateMap`: the instance takes the deferred entry into its
     // own respawn queue, which the executor's lifecycle phase drains.
@@ -173,13 +169,9 @@ fn deprecated_legacy_owner_keeps_its_own_deferral_queue_like_cpp() {
     // Test-fixture owners (`Session`, `GlobalLegacy`) drain the legacy queue
     // themselves, so their deferral stays there until F6-8E deletes them.
     let (mut session, manager, canonical) = d3b2_session_like_cpp();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::Session);
-    session.set_map_manager(manager.clone());
+    session.set_canonical_map_manager(manager.clone());
     d3b2_register_like_cpp(&mut session, 1, test_creature_guid(97_020));
-    assert_eq!(manager.read().unwrap().respawn_queue_len(1, 0), 1);
+    assert_eq!(manager.lock().unwrap().respawn_queue_len(1, 0), 1);
     assert_eq!(
         canonical
             .lock()

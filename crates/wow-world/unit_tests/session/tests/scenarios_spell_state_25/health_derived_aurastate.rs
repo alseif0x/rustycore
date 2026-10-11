@@ -82,7 +82,7 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
         .expect("school damage against a healthy target");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -104,7 +104,7 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
