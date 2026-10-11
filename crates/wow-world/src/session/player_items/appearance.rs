@@ -14,9 +14,6 @@ impl WorldSession {
     pub fn set_item_modified_appearance_store(&mut self, store: Arc<ItemModifiedAppearanceStore>) {
         self.catalogs.items.modified_appearance_store = Some(store);
     }
-    pub fn item_modified_appearance_store(&self) -> Option<&Arc<ItemModifiedAppearanceStore>> {
-        self.catalogs.item_modified_appearance_store()
-    }
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.catalogs.transmog_set_item_store = Some(store);
@@ -321,10 +318,6 @@ impl WorldSession {
                     .item_appearances_like_cpp()
                     .contains(&item_modified_appearance_id)
             })
-    }
-    pub fn has_item_appearance_like_cpp(&self, item_modified_appearance_id: u32) -> (bool, bool) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.has_item_appearance_like_cpp(hub, item_modified_appearance_id)
     }
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
         &mut self,

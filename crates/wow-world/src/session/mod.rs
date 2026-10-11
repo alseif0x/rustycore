@@ -109,7 +109,6 @@ mod world_state;
 
 mod action_bar_adapter;
 use action_bar_adapter::make_action_button_like_cpp;
-use action_bar_adapter::set_active_player_update_bit_like_cpp;
 use action_bar_adapter::{action_button_action_like_cpp, action_button_type_like_cpp};
 #[cfg(test)]
 mod auction_contracts;
@@ -258,8 +257,6 @@ use creature_spell_metadata::creature_ai_spell_repeat_cooldown_like_cpp;
 #[cfg(test)]
 use creature_spell_metadata::creature_ai_spell_x_spell_visual_id_like_cpp;
 use creature_spell_metadata::{CreatureAiSpellTargetLikeCpp, creature_ai_spell_target_like_cpp};
-#[cfg(test)]
-pub(crate) use wow_entities::UnitVisibilityDetectionStateLikeCpp;
 mod creature_spell_planning;
 use creature_spell_planning::CreatureAiSpellRepresentationRejectionLikeCpp;
 use creature_spell_planning::creature_ai_spell_plan_like_cpp;
@@ -700,11 +697,11 @@ use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerDb2Store,
     AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore, BattlemasterListStore,
     ChrSpecializationStore, CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore,
-    CreatureAddonStoreLikeCpp, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
-    CreatureModelDataStore, CreatureSpellDisableDecisionLikeCpp,
-    CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
-    CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
-    DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
+    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureModelDataStore,
+    CreatureSpellDisableDecisionLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
+    CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry, CurrencyTypesStore,
+    DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore, DisableMgrLikeCpp,
+    DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
     DurabilityQualityStore, EmotesStore, EmotesTextStore, FishingBaseSkillStoreLikeCpp,
     GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore,
     GlyphPropertiesStore, GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache,

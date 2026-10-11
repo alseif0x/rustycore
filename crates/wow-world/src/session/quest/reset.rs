@@ -6,9 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub fn set_quest_pool_store(&mut self, store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>) {
-        self.catalogs.set_quest_pool_store(store)
-    }
     #[cfg(test)]
     pub(crate) fn seasonal_quest_bucket_like_cpp(
         &self,
@@ -32,3 +29,7 @@ impl WorldSession {
             .seasonal_quest_changed_like_cpp()
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/reset/test_only.rs"]
+mod test_only;

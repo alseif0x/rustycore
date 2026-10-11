@@ -32,7 +32,10 @@ impl WorldSession {
             .await;
     }
 
-    pub fn represented_request_adjacent_vehicle_seat_like_cpp(&mut self, next: bool) -> bool {
+    pub(crate) fn represented_request_adjacent_vehicle_seat_like_cpp(
+        &mut self,
+        next: bool,
+    ) -> bool {
         self.vehicle_test_cx_like_cpp()
             .represented_request_adjacent_vehicle_seat_like_cpp(next)
     }

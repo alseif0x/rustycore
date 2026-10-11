@@ -53,7 +53,10 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_query_corpse_location(&mut self, query: QueryCorpseLocationFromClient) {
+    pub(crate) async fn handle_query_corpse_location(
+        &mut self,
+        query: QueryCorpseLocationFromClient,
+    ) {
         self.character_query_test_cx_like_cpp()
             .handle_query_corpse_location(query)
             .await;

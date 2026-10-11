@@ -165,3 +165,13 @@ impl WorldSession {
         state.items_providing_temporary_appearance_like_cpp(hub, item_modified_appearance_id)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn has_item_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> (bool, bool) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.has_item_appearance_like_cpp(hub, item_modified_appearance_id)
+    }
+}
