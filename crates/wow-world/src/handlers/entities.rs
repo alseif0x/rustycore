@@ -12,6 +12,7 @@
 
 mod corpse;
 mod gameobject;
+#[cfg(test)]
 mod player;
 
 fn represented_gameobject_icon_allows_interaction_like_cpp(icon_name: &str) -> bool {

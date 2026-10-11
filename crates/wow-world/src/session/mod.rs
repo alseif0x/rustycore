@@ -583,6 +583,7 @@ pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatus
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectWildSessionOutcomeLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectWildSessionStatusLikeCpp;
 pub(crate) use wow_world_spell::RepresentedSpellFocusObjectLikeCpp;
+#[cfg(test)]
 mod support_features;
 mod taxi_contracts;
 pub(crate) use taxi_contracts::RepresentedActivateTaxiLikeCpp;

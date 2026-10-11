@@ -33,6 +33,8 @@ mod query;
 mod session_state;
 mod spell_rules;
 mod stats;
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/character/stats_queries/test_only.rs"]
 mod stats_queries;
 mod stats_update;
 mod vendor;

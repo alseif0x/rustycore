@@ -47,14 +47,14 @@ use crate::session::{GroupInvitePolicyLikeCpp, WorldSession, player_team_for_rac
 
 mod commands;
 mod ops_1;
+#[cfg(test)]
+#[path = "../../unit_tests/handlers/group/ops_2/test_only.rs"]
 mod ops_2;
 mod state;
 #[cfg(test)]
 mod test_shims;
 #[allow(unused_imports)]
 pub use ops_1::*;
-#[allow(unused_imports)]
-pub use ops_2::*;
 #[allow(unused_imports)]
 pub use state::*;
 
