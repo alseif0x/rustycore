@@ -2,18 +2,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! The world-session adapter for the shared packet-handler registry.
-//!
-//! Since `#1263 F5 deferred families` no source invokes the legacy
-//! `register_packet_handler_like_cpp!` bridge: all 476 registrations come from
-//! explicit area registrars and the drain below contributes nothing. The bridge,
-//! its collector and its drain stay in their exact checker-pinned form until
-//! their retirement slice; these two lints are the only consequence of the
-//! bridge being unused, and the checker forbids item-level attributes on it.
-#![allow(unused_macros, unused_imports)]
+#![allow(unused_macros, unused_imports)] // Empty checker-pinned legacy bridge (#1360).
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
-
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_constants::ClientOpcodes;
 use wow_handler::DuplicateHandlerRegistrationLikeCpp;
