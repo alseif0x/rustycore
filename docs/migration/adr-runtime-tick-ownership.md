@@ -17,6 +17,15 @@ production spawns no legacy creature loop and the `RustyCore.LegacyCreatureGloba
 state before that change. See §8 of the
 [distribution plan](../architecture/wow-world-distribution-plan.md) (F6-8D3b-2).
 
+**2026-10-11 update (#1263 F6-8E-1):** `RuntimeTickOwner` itself is deleted, together with every
+runtime it selected besides the canonical map loop: the per-session creature and combat ticks,
+the legacy global creature loop and its `run_legacy_*_and_deliver_once_like_cpp` delivery, the
+legacy phase entries and every legacy↔canonical mirror. The canonical map update loop is the only
+creature runtime and the canonical map the only creature store; the two retired configuration keys
+only warn. The legacy `wow_world::MapManager` type and `wow-world-core/src/map_manager/**` survive
+only as test compatibility and shared utilities until F6-8E-2. The single-writer and phase
+invariants below are unchanged.
+
 ## Context (verified)
 
 The bounded review confirms these source paths, not full runtime parity:

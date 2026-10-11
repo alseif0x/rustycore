@@ -194,7 +194,7 @@ The config layer is process-internal — it does not originate packets. It does,
 - ✅ Canonical TC semicolon DB strings (`LoginDatabaseInfo = "host;port;user;pass;db[;ssl]"`) are parsed by `get_database_info_default`.
 - ✅ BNet TLS uses configured `CertificatesFile` and `PrivateKeyFile` paths with C++ defaults.
 - ✅ RustyCore-only runtime flags can be read ad hoc; they are intentionally not part of TrinityCore config parity.
-- ✅ Creature tick owner (#1263 F6-8D3b-2): production always runs `RuntimeTickOwner::CanonicalMap` — the canonical map update loop runs the admitted canonical creature executor inside each admitted map tick (C++ `Map::Update` → `Creature::Update`), no legacy creature loop is spawned and session creature ticks are skipped. The two former selection keys, `RustyCore.LegacyCreatureGlobalRuntime` (legacy global loop / per-session tick) and `RustyCore.CanonicalCreatureRuntime` (F6-8D3b-1 opt-in), are **retired**: a configuration that still sets either gets a startup warning and the key has no effect. Neither is kept as a rollback knob: the legacy owners tick the legacy compatibility store, which production no longer fills (no registry copy, no loaded-grid mirror), so selecting them would leave every creature unticked. Rolling back means reverting the change.
+- ✅ Creature tick owner (#1263 F6-8D3b-2): production always runs `RuntimeTickOwner::CanonicalMap` — the canonical map update loop runs the admitted canonical creature executor inside each admitted map tick (C++ `Map::Update` → `Creature::Update`), no legacy creature loop is spawned and session creature ticks are skipped (#1263 F6-8E-1 deleted the tick owner, the legacy loop and the session creature ticks altogether). The two former selection keys, `RustyCore.LegacyCreatureGlobalRuntime` (legacy global loop / per-session tick) and `RustyCore.CanonicalCreatureRuntime` (F6-8D3b-1 opt-in), are **retired**: a configuration that still sets either gets a startup warning and the key has no effect. Neither is kept as a rollback knob: the legacy owners tick the legacy compatibility store, which production no longer fills (no registry copy, no loaded-grid mirror), so selecting them would leave every creature unticked. Rolling back means reverting the change.
 
 **What's missing vs C++:**
 
@@ -320,7 +320,7 @@ The config layer is process-internal — it does not originate packets. It does,
 | `LoginDatabaseInfo = "host;port;user;pass;db;ssl"` | `wow_config::get_database_info_default("Login", ...)` | TC semicolon schema represented; #CONFIG.3 |
 | `CertificatesFile` / `PrivateKeyFile` | `bnet-server::load_tls_acceptors(cert, key)` | PEM chain + private key, matching current C++ `SslContext.cpp` |
 | `Bot.AccountPrefix` | `wow_config::get_string_default("Bot.AccountPrefix", "")` | RustyCore-specific key (not in TC) |
-| `RustyCore.LegacyCreatureGlobalRuntime` | `wow_config::get_value::<u8>("RustyCore.LegacyCreatureGlobalRuntime").map(|value| value != 0).unwrap_or(true)` | RustyCore-specific runtime key (not in TC); absent/default enabled |
+| `RustyCore.LegacyCreatureGlobalRuntime` | `warn_retired_creature_tick_owner_keys_like_cpp()` warns when set; the value is ignored | RustyCore-specific runtime key (not in TC); retired by #1263 F6-8D3b-2, the runtime it selected deleted by F6-8E-1 |
 | `[worldserver]` / `[bnetserver]` section header | flattened by parser | #CONFIG.1 represented |
 | `0`/`1` boolean values | `get_value::<bool>` / `WorldConfigSet` bool parser | #CONFIG.2 represented |
 | `.reload config` GM command | (no equivalent) | #CONFIG.5 |
