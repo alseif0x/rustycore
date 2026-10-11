@@ -158,24 +158,14 @@ impl WorldSession {
     pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         self.core.send_packet(pkt)
     }
-    pub(crate) fn send_update_world_state_like_cpp(
-        &self,
-        variable_id: u32,
-        value: i32,
-        hidden: bool,
-    ) {
+    pub fn send_update_world_state_like_cpp(&self, variable_id: u32, value: i32, hidden: bool) {
         self.core
             .send_update_world_state_like_cpp(variable_id, value, hidden)
     }
     pub(crate) fn send_raw_packet(&self, data: &[u8]) {
         self.core.send_raw_packet(data)
     }
-    pub(crate) fn send_buy_error(
-        &self,
-        result: BuyResult,
-        creature_guid: Option<ObjectGuid>,
-        item: u32,
-    ) {
+    pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {
         self.core.send_buy_error(result, creature_guid, item)
     }
     pub(crate) fn send_sell_error(

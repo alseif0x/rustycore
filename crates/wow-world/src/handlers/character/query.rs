@@ -86,10 +86,7 @@ impl WorldSession {
     /// Test-only entry point for the DB2 bulk-query handler owned by
     /// `wow-world-application` (#1263 F5).
     #[cfg(test)]
-    pub(crate) async fn handle_db_query_bulk(
-        &mut self,
-        query: wow_packet::packets::misc::DbQueryBulk,
-    ) {
+    pub async fn handle_db_query_bulk(&mut self, query: wow_packet::packets::misc::DbQueryBulk) {
         let tact_keys = self
             .tact_key_store_for_test_like_cpp()
             .cloned()

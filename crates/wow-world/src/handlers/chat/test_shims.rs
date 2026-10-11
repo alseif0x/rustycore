@@ -56,10 +56,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) async fn handle_chat_channel_player_command(
-        &mut self,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
+    pub async fn handle_chat_channel_player_command(&mut self, mut pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
         let (social, hub) = crate::session::split_social_mut(self);
         wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)
@@ -99,10 +96,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) async fn handle_chat_register_addon_prefixes(
-        &mut self,
-        mut pkt: wow_packet::WorldPacket,
-    ) {
+    pub async fn handle_chat_register_addon_prefixes(&mut self, mut pkt: wow_packet::WorldPacket) {
         let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
         let (social, hub) = crate::session::split_social_mut(self);
         wow_world_social::ChatHandlerCxLikeCpp::new(hub, social, &chat_policy)

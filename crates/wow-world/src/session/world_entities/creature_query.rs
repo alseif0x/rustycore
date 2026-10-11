@@ -161,10 +161,7 @@ impl WorldSession {
         self.catalogs.creatures.model_info_store = Some(store);
     }
     #[cfg(test)]
-    pub(crate) fn set_creature_addon_store_like_cpp(
-        &mut self,
-        store: Arc<CreatureAddonStoreLikeCpp>,
-    ) {
+    pub fn set_creature_addon_store_like_cpp(&mut self, store: Arc<CreatureAddonStoreLikeCpp>) {
         self.catalogs.creature_addon_store_like_cpp = Some(store);
     }
     #[cfg(test)]

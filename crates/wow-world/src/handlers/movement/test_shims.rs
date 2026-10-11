@@ -124,10 +124,7 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn handle_move_apply_movement_force_ack(
-        &mut self,
-        pkt: MoveApplyMovementForceAck,
-    ) {
+    pub async fn handle_move_apply_movement_force_ack(&mut self, pkt: MoveApplyMovementForceAck) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::MoveApplyMovementForceAck,
@@ -136,10 +133,7 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn handle_move_remove_movement_force_ack(
-        &mut self,
-        pkt: MoveRemoveMovementForceAck,
-    ) {
+    pub async fn handle_move_remove_movement_force_ack(&mut self, pkt: MoveRemoveMovementForceAck) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::MoveRemoveMovementForceAck,

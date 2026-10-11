@@ -42,10 +42,7 @@ impl WorldSession {
     }
 
     /// C++ `HandleMoveChangeVehicleSeats`.
-    pub(crate) async fn handle_move_change_vehicle_seats(
-        &mut self,
-        mut packet: MoveChangeVehicleSeats,
-    ) {
+    pub async fn handle_move_change_vehicle_seats(&mut self, mut packet: MoveChangeVehicleSeats) {
         self.represented_move_change_vehicle_seats_like_cpp(
             &mut packet.status,
             packet.dst_vehicle,
@@ -54,10 +51,7 @@ impl WorldSession {
     }
 
     /// C++ `HandleRequestVehicleSwitchSeat`.
-    pub(crate) async fn handle_request_vehicle_switch_seat(
-        &mut self,
-        packet: RequestVehicleSwitchSeat,
-    ) {
+    pub async fn handle_request_vehicle_switch_seat(&mut self, packet: RequestVehicleSwitchSeat) {
         self.represented_request_vehicle_switch_seat_like_cpp(packet.vehicle, packet.seat_index);
     }
 

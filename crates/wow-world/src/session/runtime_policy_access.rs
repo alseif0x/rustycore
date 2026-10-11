@@ -78,10 +78,7 @@ impl WorldSession {
     /// Composition calls this once after construction. A session that never
     /// receives one keeps the zero-module no-op path.
     #[cfg(test)]
-    pub(crate) fn set_module_registry_like_cpp(
-        &mut self,
-        registry: Arc<wow_module_api::ModuleRegistry>,
-    ) {
+    pub fn set_module_registry_like_cpp(&mut self, registry: Arc<wow_module_api::ModuleRegistry>) {
         self.core.module_registry_like_cpp = Some(registry);
     }
 
