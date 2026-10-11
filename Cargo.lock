@@ -3485,6 +3485,7 @@ dependencies = [
  "wow-world-loot",
  "wow-world-social",
  "wow-world-spell",
+ "wow-world-test-support",
  "wow-world-visibility",
 ]
 
@@ -3699,6 +3700,22 @@ dependencies = [
  "wow-spell-acquisition",
  "wow-world-core",
  "wow-world-spell",
+]
+
+[[package]]
+name = "wow-world-test-support"
+version = "0.1.0"
+dependencies = [
+ "flume",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-packet",
+ "wow-persistence",
+ "wow-world-core",
+ "wow-world-entities",
 ]
 
 [[package]]

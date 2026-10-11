@@ -12,7 +12,8 @@
     "crates/wow-world-loot/src/",
     "crates/wow-world-social/src/",
     "crates/wow-world-interaction/src/",
-    "crates/wow-world-visibility/src/"
+    "crates/wow-world-visibility/src/",
+    "crates/wow-world-test-support/src/"
   ],
   "reviewed_new_code": {
     "budget": 661,

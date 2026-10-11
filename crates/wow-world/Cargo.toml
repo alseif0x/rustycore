@@ -83,6 +83,8 @@ wow-world-loot = { workspace = true, features = ["test-fixtures"] }
 wow-world-spell = { workspace = true, features = ["test-fixtures"] }
 wow-world-visibility = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
+# #1363 slice 0: session-free fixtures shared by the unit tests (dev-only crate).
+wow-world-test-support = { workspace = true }
 # Keep WorldSession fixture fields cfg-aligned with Core while tests borrow Hub views.
 # Core feature unification alone does not set wow-world's test-fixtures cfg.
 wow-world = { workspace = true, features = ["test-fixtures"] }

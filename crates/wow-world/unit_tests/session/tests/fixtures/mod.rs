@@ -56,3 +56,9 @@ pub(super) use session_fixtures::*;
 pub(super) use spell_catalog_fixtures::*;
 pub(super) use summon_fixtures::*;
 pub(super) use visibility_fixtures::*;
+// #1363 slice 0: the session-free builders of these modules live in the dev-only
+// `wow-world-test-support` crate; the scenario modules keep reaching them here.
+pub(super) use wow_world_test_support::creature_ai::*;
+pub(super) use wow_world_test_support::map_objects::*;
+pub(super) use wow_world_test_support::packets::*;
+pub(super) use wow_world_test_support::spell_catalog::*;
