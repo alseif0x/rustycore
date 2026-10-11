@@ -461,10 +461,12 @@ pub(crate) fn split_quest_state_lifecycle_mut(
 
 /// Capped group context (#1241 F3): the `inventory` state, sibling states and hub members its
 /// moved fns read, borrowed from disjoint WorldSession fields.
+#[cfg(test)]
 pub(crate) struct InventoryCx<'a> {
     pub(crate) lifecycle: &'a mut SessionLifecycleState,
 }
 
+#[cfg(test)]
 pub(crate) fn cx_inventory(s: &mut WorldSession) -> InventoryCx<'_> {
     InventoryCx {
         lifecycle: &mut s.lifecycle,
@@ -524,6 +526,7 @@ pub(crate) fn cx_lifecycle_ref(s: &WorldSession) -> LifecycleCxRef<'_> {
 /// Capped group context (#1241 F3): the `loot` state, sibling states and hub members its
 /// moved fns read, borrowed from disjoint WorldSession fields.
 pub(crate) struct LootCx<'a> {
+    #[cfg(test)]
     pub(crate) lifecycle: &'a mut SessionLifecycleState,
     pub(crate) world_entities: &'a mut WorldEntitiesState,
     pub(crate) hub: HubMut<'a>,
@@ -531,6 +534,7 @@ pub(crate) struct LootCx<'a> {
 
 pub(crate) fn cx_loot(s: &mut WorldSession) -> LootCx<'_> {
     LootCx {
+        #[cfg(test)]
         lifecycle: &mut s.lifecycle,
         world_entities: &mut s.world_entities,
         hub: HubMut {
@@ -611,12 +615,14 @@ pub(crate) fn cx_pets_ref(s: &WorldSession) -> PetsCxRef<'_> {
 /// Capped group context (#1241 F3): the `quest_state` state, sibling states and hub members its
 /// moved fns read, borrowed from disjoint WorldSession fields.
 pub(crate) struct QuestStateCx<'a> {
+    #[cfg(test)]
     pub(crate) lifecycle: &'a mut SessionLifecycleState,
     pub(crate) world_entities: &'a mut WorldEntitiesState,
 }
 
 pub(crate) fn cx_quest_state(s: &mut WorldSession) -> QuestStateCx<'_> {
     QuestStateCx {
+        #[cfg(test)]
         lifecycle: &mut s.lifecycle,
         world_entities: &mut s.world_entities,
     }

@@ -25,10 +25,13 @@ pub(crate) use wow_world_inventory::{
 
 pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
 
+#[cfg(test)]
 pub(crate) type RepresentedItemSetEffectLikeCpp = wow_entities::PlayerItemSetEffectLikeCpp;
 
+#[cfg(test)]
 pub(crate) type RepresentedItemBonusStateLikeCpp = wow_entities::PlayerItemBonusStateLikeCpp;
 
+#[cfg(test)]
 pub(crate) fn void_withdrawal_post_store_item_values_update_like_cpp(
     item: &wow_entities::Item,
     create_dynamic_flags: u32,

@@ -172,8 +172,11 @@ const CONDITION_OBJECT_ENTRY_GUID_LIKE_CPP: i32 = 51;
 const CONDITION_TYPE_MASK_LIKE_CPP: i32 = 52;
 const TYPEID_PLAYER_LIKE_CPP: u32 = 6;
 const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
+#[cfg(test)]
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
+#[cfg(test)]
 const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
+#[cfg(test)]
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
 
 // ── Handler registrations ─────────────────────────────────────────
@@ -616,6 +619,7 @@ impl<E: std::fmt::Debug> std::fmt::Debug for LootClaimPersistenceWorkerError<E> 
     }
 }
 
+#[cfg(test)]
 fn spawn_loot_claim_persistence_worker_like_cpp<F, E>(
     persistence: F,
     claim: Option<LootClaimLease>,

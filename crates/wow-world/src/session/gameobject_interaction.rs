@@ -4,11 +4,6 @@
 //! Gameobject interaction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::ObjectGuid;
-use super::SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP;
-use super::WorldSession;
-use super::{SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP, SummonPropertiesEntry};
-
 #[cfg(test)]
 pub(crate) use wow_world_entities::RepresentedGameObjectCriteriaEvent;
 pub(crate) use wow_world_entities::{

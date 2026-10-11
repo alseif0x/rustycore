@@ -5,6 +5,10 @@
 
 #[allow(unused_imports)]
 use super::*;
+use crate::session::{
+    ObjectGuid, SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP,
+    SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP, SummonPropertiesEntry, WorldSession,
+};
 
 impl crate::session::WorldSession {
     pub(crate) fn release_canonical_fishing_hole_like_cpp(

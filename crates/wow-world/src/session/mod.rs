@@ -331,10 +331,12 @@ pub(crate) use item_modifiers::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedCombatStatRecalculationLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemBonusActionLikeCpp;
+#[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemBonusStateLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemModsReapplyEventLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemSetAuraRefreshEventLikeCpp;
+#[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemSetEffectLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemSetSpellEventLikeCpp;
 use item_modifiers::is_represented_bag_slot;
@@ -342,6 +344,7 @@ pub(crate) use item_modifiers::item_storage_fields_values_update_like_cpp;
 use item_modifiers::player_class_by_armor_subclass_like_cpp;
 use item_modifiers::player_class_mask_for_transmog_like_cpp;
 use item_modifiers::represented_player_stat_changes_like_cpp;
+#[cfg(test)]
 pub(crate) use item_modifiers::void_withdrawal_post_store_item_values_update_like_cpp;
 pub(crate) use player_items::item_push_result_from_send_new_item_plan;
 mod loot_delivery_contracts;
@@ -412,6 +415,7 @@ use player_binding::PlayerIdentityBootstrapLikeCpp;
 pub(crate) use player_binding::SessionPlayerController;
 mod player_bootstrap;
 mod player_condition_values;
+#[cfg(test)]
 pub(crate) use player_condition_values::RepresentedItemLevelCapsLikeCpp;
 pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp;
 mod player_load_values;
@@ -557,20 +561,22 @@ pub(crate) use state::VisibilityState;
 pub(crate) use state::WorldEntitiesState;
 pub use state::WorldSession;
 pub(crate) use state::{
-    HubMut, HubRef, InventoryCx, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef,
-    PetsCx, PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory, cx_inventory_ref, cx_lifecycle,
-    cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
-    cx_quest_state_ref, hub_mut, hub_ref, hub_support, split_battle_pet_handler_mut,
-    split_battleground_mut, split_character_handler_mut, split_group_handler_states_mut,
-    split_guild_bank_mut, split_instances_mut, split_instances_ref, split_interaction,
-    split_interaction_ref, split_interaction_world_entities_mut,
-    split_inventory_lifecycle_shared_hub_mut, split_inventory_mut, split_inventory_ref,
-    split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
-    split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
-    split_quest_state_ref, split_social_mut, split_social_ref, split_spell_state_mut,
-    split_spell_state_ref, split_trade_mut, split_visibility_mut, split_visibility_ref,
-    split_world_entities_mut, split_world_entities_ref,
+    HubMut, HubRef, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef, PetsCx,
+    PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref,
+    cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state, cx_quest_state_ref, hub_mut,
+    hub_ref, hub_support, split_battle_pet_handler_mut, split_battleground_mut,
+    split_character_handler_mut, split_group_handler_states_mut, split_guild_bank_mut,
+    split_instances_mut, split_instances_ref, split_interaction, split_interaction_ref,
+    split_interaction_world_entities_mut, split_inventory_lifecycle_shared_hub_mut,
+    split_inventory_mut, split_inventory_ref, split_lifecycle_mut, split_lifecycle_ref,
+    split_loot_mut, split_loot_ref, split_player_handler_states_mut,
+    split_quest_state_lifecycle_mut, split_quest_state_mut, split_quest_state_ref,
+    split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
+    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
+#[cfg(test)]
+pub(crate) use state::{InventoryCx, cx_inventory};
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;
@@ -854,13 +860,18 @@ use wow_social::group::{
 
 const QUEST_OBJECTIVE_ITEM_LIKE_CPP: u8 = 1;
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
+#[cfg(test)]
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
+#[cfg(test)]
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
 pub(crate) use wow_world_lifecycle::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
+#[cfg(test)]
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
+#[cfg(test)]
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
+#[cfg(test)]
 const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
 #[cfg(test)]
 const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
@@ -907,9 +918,12 @@ const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
 use wow_world_instances::{
     DIFFICULTY_10_N_LIKE_CPP, DIFFICULTY_NORMAL_LIKE_CPP, DIFFICULTY_NORMAL_RAID_LIKE_CPP,
 };
+#[cfg(test)]
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
+#[cfg(test)]
 const MAP_RAID_LIKE_CPP: u8 = 2;
 use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
+#[cfg(test)]
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 pub(crate) use wow_world_social::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP;
@@ -917,6 +931,7 @@ const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
 const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
 const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
+#[cfg(test)]
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
 use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
@@ -943,7 +958,9 @@ pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x
 const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
 const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
 const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
+#[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
+#[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP: u32 = 0x0001_0000;
 
 const QUEST_MENU_ICON_TURN_IN_LIKE_CPP: u8 = 0;

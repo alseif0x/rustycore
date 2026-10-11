@@ -117,12 +117,14 @@ pub(crate) use wow_constants::quest::{
 };
 pub(crate) const QUEST_PUSH_REASON_INVALID_LIKE_CPP: u8 = 1;
 pub(crate) const QUEST_PUSH_REASON_INVALID_TO_RECIPIENT_LIKE_CPP: u8 = 2;
+#[cfg(test)]
 const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL: u8 = 4;
 #[cfg(test)]
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP_LOCAL: u8 = 8;
 pub(crate) use wow_constants::quest::{
     QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
 };
+#[cfg(test)]
 const CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP: i32 = 3;
 
 fn read_quest_giver_query_quest_like_cpp(

@@ -41,32 +41,7 @@ use wow_world_application::{
     prepare_trainer_offer_like_cpp, resolve_creature_trainer_like_cpp,
     trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
     trainer_price_like_cpp,
-    trainer_spell_class_race_fit_like_cpp as fit_trainer_spell_class_race_rows_like_cpp,
 };
-
-fn trainer_spell_class_race_fit_like_cpp(
-    session: &WorldSession,
-    spell_id: u32,
-) -> TrainerAdmissionProofLikeCpp {
-    let Some(skills) = session.skill_store() else {
-        return TrainerAdmissionProofLikeCpp::Indeterminate;
-    };
-    let Ok(spell_id) = i32::try_from(spell_id) else {
-        return TrainerAdmissionProofLikeCpp::Indeterminate;
-    };
-    let rows = match skills.skill_line_ability_coverage_by_spell_like_cpp(spell_id) {
-        SkillLineAbilityCoverageLikeCpp::CoveredZero => {
-            return TrainerAdmissionProofLikeCpp::Proven(true);
-        }
-        SkillLineAbilityCoverageLikeCpp::Indeterminate(_) => {
-            return TrainerAdmissionProofLikeCpp::Indeterminate;
-        }
-        SkillLineAbilityCoverageLikeCpp::Rows(rows) => rows,
-    };
-    let race = crate::session::hub_ref(&session).player_race_like_cpp();
-    let class = crate::session::hub_ref(&session).player_class_like_cpp();
-    fit_trainer_spell_class_race_rows_like_cpp(skills, rows, race, class)
-}
 
 // ── Handler registrations ─────────────────────────────────────────────────────
 
