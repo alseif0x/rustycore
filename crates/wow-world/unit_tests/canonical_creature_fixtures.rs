@@ -13,7 +13,10 @@ use crate::session::SharedCanonicalMapManager;
 /// The session-free canonical store fixtures now live in the dev-only
 /// `wow-world-test-support` crate (#1363 slice 0); this module keeps their
 /// established `crate::canonical_creature_fixtures` path for the tests.
-pub(crate) use wow_world_test_support::canonical_creatures::*;
+pub(crate) use wow_world_test_support::canonical_creatures::{
+    CanonicalCreatureFixtureLikeCpp, CanonicalCreatureFixtureMutLikeCpp,
+    shared_canonical_map_manager,
+};
 
 /// Give `session` a canonical creature store when it has none — with the
 /// canonical map at its runtime map key, so a creature registered through the
