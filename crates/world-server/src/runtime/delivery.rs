@@ -701,21 +701,21 @@ pub(crate) fn deliver_refresh_visible_world_creatures_like_cpp(
 /// collects cheap, copyable receiver state from [`PlayerRegistry`] and drops
 /// DashMap guards before the canonical map lock is taken.
 #[cfg(test)]
-pub(crate) fn collect_legacy_creature_aggro_candidates_like_cpp(
+pub(crate) fn collect_creature_aggro_candidates_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
-) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
-    collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(registry, None)
+) -> Vec<wow_world::session::CreatureAggroCandidateLikeCpp> {
+    collect_creature_aggro_candidates_with_canonical_like_cpp(registry, None)
 }
 
-pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+pub(crate) fn collect_creature_aggro_candidates_with_canonical_like_cpp(
     registry: &wow_world::session::directory::PlayerRegistry,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
-) -> Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp> {
+) -> Vec<wow_world::session::CreatureAggroCandidateLikeCpp> {
     let mut candidates: Vec<_> = registry
-        .legacy_aggro_candidates()
+        .aggro_candidates()
         .into_iter()
         .map(
-            |snapshot| wow_world::session::LegacyCreatureAggroCandidateLikeCpp {
+            |snapshot| wow_world::session::CreatureAggroCandidateLikeCpp {
                 player_guid: snapshot.player_guid,
                 map_id: snapshot.map_id,
                 instance_id: snapshot.instance_id,
@@ -812,32 +812,32 @@ pub(crate) fn collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
     candidates
 }
 
-pub(crate) fn legacy_creature_aggro_config_like_cpp(
+pub(crate) fn creature_aggro_config_like_cpp(
     configs: &WorldConfigSet,
-) -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+) -> wow_world::session::CreatureAggroConfigLikeCpp {
     let creature_aggro_rate = world_config_f32(configs, "RATE_CREATURE_AGGRO", 1.0);
-    wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+    wow_world::session::CreatureAggroConfigLikeCpp {
         expected_stat_store: None,
         no_gray_aggro_above: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_ABOVE", 0),
         no_gray_aggro_below: world_config_u32(configs, "CONFIG_NO_GRAY_AGGRO_BELOW", 0),
         creature_aggro_rate,
         max_player_level_config: world_config_u32(configs, "CONFIG_MAX_PLAYER_LEVEL", 80),
-        visibility_distance_continents: legacy_visibility_distance_like_cpp(
+        visibility_distance_continents: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.Continents",
             wow_entities::DEFAULT_VISIBILITY_DISTANCE,
             creature_aggro_rate,
         ),
-        visibility_distance_instances: legacy_visibility_distance_like_cpp(
+        visibility_distance_instances: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.Instances",
             wow_entities::DEFAULT_VISIBILITY_INSTANCE,
             creature_aggro_rate,
         ),
-        visibility_distance_battlegrounds: legacy_visibility_distance_like_cpp(
+        visibility_distance_battlegrounds: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.BG",
             533.0,
             creature_aggro_rate,
         ),
-        visibility_distance_arenas: legacy_visibility_distance_like_cpp(
+        visibility_distance_arenas: creature_aggro_visibility_distance_like_cpp(
             "Visibility.Distance.Arenas",
             533.0,
             creature_aggro_rate,
@@ -881,7 +881,7 @@ pub(crate) fn legacy_creature_aggro_config_like_cpp(
     }
 }
 
-pub(crate) fn legacy_visibility_distance_like_cpp(
+pub(crate) fn creature_aggro_visibility_distance_like_cpp(
     key: &str,
     default: f32,
     creature_aggro_rate: f32,

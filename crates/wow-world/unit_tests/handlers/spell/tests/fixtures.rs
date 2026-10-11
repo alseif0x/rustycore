@@ -74,8 +74,8 @@ pub(super) fn install_canonical_player(
     add_canonical_test_player_on_map(canonical, player_guid, position, 571, 0);
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     session.set_player_moved_unit_guid_like_cpp(player_guid);
-    session.set_legacy_creature_aggro_config_like_cpp(
-        crate::session::LegacyCreatureAggroConfigLikeCpp {
+    session.set_creature_aggro_config_like_cpp(
+        crate::session::CreatureAggroConfigLikeCpp {
             spell_x_spell_visual_store: Some(Arc::new(
                 wow_data::SpellXSpellVisualStore::from_entries([]),
             )),

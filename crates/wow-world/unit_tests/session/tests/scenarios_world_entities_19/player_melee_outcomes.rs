@@ -111,7 +111,7 @@ async fn map_owned_player_melee_publishes_the_attack_table_outcome_like_cpp() {
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -238,7 +238,7 @@ async fn map_owned_player_melee_publishes_a_block_like_cpp() {
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::new(wow_data::SpellStore::new())),
         ..Default::default()
     };
@@ -392,7 +392,7 @@ async fn map_owned_player_melee_applies_victim_avoidance_auras_like_cpp() {
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -546,7 +546,7 @@ async fn map_owned_player_melee_applies_victim_critical_chance_auras_like_cpp() 
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };

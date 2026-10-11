@@ -488,7 +488,7 @@
   },
   {
    "file": "crates/wow-world/src/session/creature_aggro_contracts.rs",
-   "name": "LegacyCreatureAggroConfigLikeCpp",
+   "name": "CreatureAggroConfigLikeCpp",
    "kind": "struct"
   },
   {
@@ -1147,7 +1147,7 @@
   },
   {
    "file": "crates/wow-world/src/session/creature_aggro_contracts.rs",
-   "self": "LegacyCreatureAggroConfigLikeCpp"
+   "self": "CreatureAggroConfigLikeCpp"
   },
   {
    "file": "crates/wow-world/src/session/map_admission.rs",

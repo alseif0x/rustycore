@@ -31,7 +31,7 @@ const D3B_PLAYER_HP_LIKE_CPP: u64 = 1_000;
 const D3B_SPAWN_ID_LIKE_CPP: u64 = 96_301;
 const D3B_CREATURE_GOLD_LIKE_CPP: u32 = 7;
 
-fn d3b_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+fn d3b_aggro_config_like_cpp() -> wow_world::session::CreatureAggroConfigLikeCpp {
     let template = |id, faction, enemies| wow_data::progression_rewards::FactionTemplateEntry {
         id,
         faction,
@@ -42,7 +42,7 @@ fn d3b_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfigL
         enemies,
         friend: [0; 8],
     };
-    wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+    wow_world::session::CreatureAggroConfigLikeCpp {
         faction_template_store: Some(Arc::new(
             wow_data::progression_rewards::FactionTemplateStore::from_entries([
                 template(14, 72, [930, 0, 0, 0, 0, 0, 0, 0]),

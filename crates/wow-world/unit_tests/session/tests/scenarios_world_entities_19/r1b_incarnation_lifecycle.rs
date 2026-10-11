@@ -72,7 +72,7 @@ fn run_respawn_tick_like_cpp(
     guid: ObjectGuid,
     hp: u32,
     now: Instant,
-) -> crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp {
+) -> crate::session::CreatureLifecycleTickOutcomeLikeCpp {
     use crate::map_manager::pending_respawn_from_world_creature_like_cpp;
 
     let queued = crate::map_manager::WorldCreature::new(

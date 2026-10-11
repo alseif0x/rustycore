@@ -38,13 +38,13 @@ struct D3a1WorldLikeCpp {
     striker: ObjectGuid,
     defender: ObjectGuid,
     attackers: Vec<crate::session::PlayerMeleeAttackerSnapshotLikeCpp>,
-    candidates: Vec<LegacyCreatureAggroCandidateLikeCpp>,
+    candidates: Vec<CreatureAggroCandidateLikeCpp>,
 }
 
 /// Faction template 14 is hostile to the player template 1 (enemy faction
 /// 930); template 15 has the shape of 3.4.3 `FactionTemplate` 7: neutral.
-fn d3a1_config_like_cpp() -> LegacyCreatureAggroConfigLikeCpp {
-    LegacyCreatureAggroConfigLikeCpp {
+fn d3a1_config_like_cpp() -> CreatureAggroConfigLikeCpp {
+    CreatureAggroConfigLikeCpp {
         faction_template_store: Some(Arc::new(
             wow_data::progression_rewards::FactionTemplateStore::from_entries([
                 faction_template_entry(14, 72, 0, 0, 930),
@@ -167,8 +167,8 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
         tap_group_guids: Vec::new(),
     }];
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(striker, Position::new(11.0, 10.0, 0.0, 0.0)),
-        legacy_aggro_candidate_like_cpp(defender, Position::new(11.0, 10.2, 0.0, 0.0)),
+        aggro_candidate_like_cpp(striker, Position::new(11.0, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(defender, Position::new(11.0, 10.2, 0.0, 0.0)),
     ];
     D3a1WorldLikeCpp {
         canonical,

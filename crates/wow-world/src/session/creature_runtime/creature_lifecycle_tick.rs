@@ -111,7 +111,7 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp(
     map_store: &wow_data::MapStore,
     now: Instant,
     conversion_clock: (Instant, i64),
-    outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
 ) {
     use crate::{
         creature_respawn::creature_corpse_despawn_due_like_cpp,
@@ -490,7 +490,7 @@ fn remove_respawn_row_after_publication_like_cpp(
     store: &mut AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_>,
     residence: LifecycleResidenceLikeCpp,
     spawn_id: u64,
-    outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
 ) {
     if let Some(stmt) = remove_persisted_respawn_time_on_store_like_cpp(
         store,

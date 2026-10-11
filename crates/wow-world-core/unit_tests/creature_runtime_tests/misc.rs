@@ -60,7 +60,7 @@ fn test_player_enter_leave() {
 /// `drain_ready_respawns` returns only entries whose `respawn_at <= now`.
 #[test]
 fn drain_returns_only_ready_entries_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let now = Instant::now();
     let past = now - Duration::from_secs(5);
     let future = now + Duration::from_secs(60);
@@ -75,7 +75,7 @@ fn drain_returns_only_ready_entries_like_cpp() {
 /// Entries that are not yet ready remain in the queue after drain.
 #[test]
 fn future_entries_remain_after_drain_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let future = Instant::now() + Duration::from_secs(60);
 
     map.push_respawn(make_pending_respawn(future));
@@ -87,7 +87,7 @@ fn future_entries_remain_after_drain_like_cpp() {
 /// Ready entries are returned in insertion order.
 #[test]
 fn drain_preserves_insertion_order_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let t0 = Instant::now() - Duration::from_secs(10);
     let t1 = Instant::now() - Duration::from_secs(5);
     let t2 = Instant::now() - Duration::from_secs(1);

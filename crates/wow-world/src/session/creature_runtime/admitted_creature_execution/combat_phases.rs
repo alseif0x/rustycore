@@ -32,7 +32,7 @@ use super::*;
 pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     pub player_melee_attackers: &'a [PlayerMeleeAttackerSnapshotLikeCpp],
     pub player_melee_phase_state: &'a mut PlayerMeleePhaseStateLikeCpp,
-    pub aggro_candidates: &'a [LegacyCreatureAggroCandidateLikeCpp],
+    pub aggro_candidates: &'a [CreatureAggroCandidateLikeCpp],
     /// The map environment seam the family-assistance LOS check and the
     /// movement generators' height normalization read.
     pub terrain: Option<&'a crate::terrain::LiveTerrainHeights>,
@@ -42,7 +42,7 @@ pub struct AdmittedCreatureCombatPhaseInputsLikeCpp<'a> {
     /// The player chase victims snapshotted from the registry.
     pub chase_targets:
         &'a HashMap<(u16, u32, ObjectGuid), crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
-    pub config: &'a LegacyCreatureAggroConfigLikeCpp,
+    pub config: &'a CreatureAggroConfigLikeCpp,
     /// The lifecycle phase's map catalog (which maps persist respawn times) and
     /// the tick deadline its respawn queue drains against.
     pub map_store: &'a wow_data::MapStore,
@@ -56,23 +56,23 @@ pub struct AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     pub owner: CreatureExecutionOwnerLikeCpp,
     /// The one `Unit::Update` clock advancement of the transition.
     pub clock_advanced_ms: u64,
-    pub player_melee: LegacyPlayerMeleeTickOutcomeLikeCpp,
+    pub player_melee: PlayerMeleeTickOutcomeLikeCpp,
     /// The lifecycle phase outcome (F6-8D3a-3), with its deferred respawn DB
     /// statements and refresh map keys.
-    pub lifecycle: LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    pub lifecycle: CreatureLifecycleTickOutcomeLikeCpp,
     /// The movement phase outcome (F6-8D3a-2), driven on the canonical
     /// incarnation in place.
-    pub movement: LegacyCreatureMovementTickOutcomeLikeCpp,
+    pub movement: CreatureMovementTickOutcomeLikeCpp,
     /// The aggro phase outcome. Its plan is already reduced to the committed
     /// combat events.
-    pub aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
+    pub aggro: CreatureAggroTickOutcomeLikeCpp,
     pub aggro_committed_starts: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
     pub aggro_committed_stops: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
     /// Whether the spell phase ran (F6-8D3a-1b). Its outcome carries the
     /// START/GO plan.
     pub spell_phase_executed: bool,
-    pub spell: LegacyCreatureSpellTickOutcomeLikeCpp,
-    pub melee: LegacyCreatureMeleeTickOutcomeLikeCpp,
+    pub spell: CreatureSpellTickOutcomeLikeCpp,
+    pub melee: CreatureMeleeTickOutcomeLikeCpp,
 }
 
 impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
@@ -84,15 +84,15 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
             admission,
             owner,
             clock_advanced_ms: 0,
-            player_melee: LegacyPlayerMeleeTickOutcomeLikeCpp::default(),
-            lifecycle: LegacyCreatureLifecycleTickOutcomeLikeCpp::default(),
-            movement: LegacyCreatureMovementTickOutcomeLikeCpp::default(),
-            aggro: LegacyCreatureAggroTickOutcomeLikeCpp::default(),
+            player_melee: PlayerMeleeTickOutcomeLikeCpp::default(),
+            lifecycle: CreatureLifecycleTickOutcomeLikeCpp::default(),
+            movement: CreatureMovementTickOutcomeLikeCpp::default(),
+            aggro: CreatureAggroTickOutcomeLikeCpp::default(),
             aggro_committed_starts: Vec::new(),
             aggro_committed_stops: Vec::new(),
             spell_phase_executed: false,
-            spell: LegacyCreatureSpellTickOutcomeLikeCpp::default(),
-            melee: LegacyCreatureMeleeTickOutcomeLikeCpp::default(),
+            spell: CreatureSpellTickOutcomeLikeCpp::default(),
+            melee: CreatureMeleeTickOutcomeLikeCpp::default(),
         }
     }
 
@@ -270,8 +270,8 @@ pub(in crate::session) fn run_player_melee_phase_on_manager_like_cpp(
     attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
     diff_ms: u32,
     phase_state: &mut PlayerMeleePhaseStateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyPlayerMeleeTickOutcomeLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
 ) {
     outcome.attackers_seen = attackers.len();
     let (pending, map_difficulties) = collect_player_melee_swings_on_manager_like_cpp(
@@ -307,7 +307,7 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_manager_like_cpp(
     terrain: Option<&crate::terrain::LiveTerrainHeights>,
     map_store: &wow_data::MapStore,
     now: Instant,
-    outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
 ) {
     let map_keys = maps
         .iter()
@@ -371,7 +371,7 @@ pub(in crate::session) fn run_creature_movement_phase_on_manager_like_cpp(
         crate::creature_movement::ChaseTargetSnapshotLikeCpp,
     >,
     diff_ms: u32,
-    outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
+    outcome: &mut CreatureMovementTickOutcomeLikeCpp,
 ) {
     // #1263 F6-8D3b-3: the generators write the new position in place; C++
     // `Unit::UpdatePosition` then runs `Map::CreatureRelocation`
@@ -413,7 +413,7 @@ pub(in crate::session) fn run_creature_movement_phase_on_manager_like_cpp(
 
 /// The aggro phase's outcome with its committed start/stop commands.
 pub(in crate::session) struct CreatureAggroPhaseOutcomeLikeCpp {
-    pub(in crate::session) outcome: LegacyCreatureAggroTickOutcomeLikeCpp,
+    pub(in crate::session) outcome: CreatureAggroTickOutcomeLikeCpp,
     pub(in crate::session) committed_starts:
         Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
     pub(in crate::session) committed_stops:
@@ -428,8 +428,8 @@ pub(in crate::session) fn run_creature_aggro_phase_on_manager_like_cpp(
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
     terrain: Option<&crate::terrain::LiveTerrainHeights>,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    candidates: &[CreatureAggroCandidateLikeCpp],
+    config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureAggroPhaseOutcomeLikeCpp {
     let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(manager, maps, selection);
     let mut outcome =
@@ -465,8 +465,8 @@ pub(in crate::session) fn run_creature_spell_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyCreatureSpellTickOutcomeLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut CreatureSpellTickOutcomeLikeCpp,
 ) {
     let Some(spell_store) = config.spell_store.as_ref() else {
         return;
@@ -496,8 +496,8 @@ pub(in crate::session) fn run_creature_melee_phase_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     maps: &[AdmittedCreatureExecutionMapLikeCpp],
     selection: &[AdmittedCreatureExecutionObjectLikeCpp],
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut CreatureMeleeTickOutcomeLikeCpp,
 ) {
     let pending = {
         let mut store =

@@ -69,11 +69,11 @@ fn legacy_creature_call_assistance_rejects_blocked_static_vmap_los_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_with_terrain_for_test_like_cpp(
         &manager,
         Some(&terrain),
-        &[legacy_aggro_candidate_like_cpp(
+        &[aggro_candidate_like_cpp(
             victim,
             Position::new(10.5, 10.5, 0.0, 0.0),
         )],
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.aggro_starts, 1);
@@ -158,11 +158,11 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
-        &[legacy_aggro_candidate_like_cpp(
+        &[aggro_candidate_like_cpp(
             valid_second_victim,
             Position::new(10.5, 10.5, 0.0, 0.0),
         )],
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.assistance_starts, 1);
@@ -180,7 +180,7 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
     );
 }
 #[test]
-fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_cpp() {
+fn creature_aggro_preserves_high_priority_point_spline_above_chase_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_210);
@@ -209,11 +209,11 @@ fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_c
     let player = ObjectGuid::create_player(1, 91_211);
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
-        &[legacy_aggro_candidate_like_cpp(
+        &[aggro_candidate_like_cpp(
             player,
             Position::new(10.5, 10.5, 0.0, 0.0),
         )],
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.aggro_starts, 1);
@@ -246,7 +246,7 @@ fn legacy_creature_aggro_preserves_high_priority_point_spline_above_chase_like_c
     assert!(has_active_spline);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
+fn creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_018);
@@ -267,17 +267,17 @@ fn legacy_creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
     let high_player = ObjectGuid::create_player(1, 91_019);
     let allowed_player = ObjectGuid::create_player(1, 91_020);
     let mut allowed_by_reach =
-        legacy_aggro_candidate_like_cpp(allowed_player, Position::new(10.5, 10.5, 4.0, 0.0));
+        aggro_candidate_like_cpp(allowed_player, Position::new(10.5, 10.5, 4.0, 0.0));
     allowed_by_reach.player_combat_reach = 1.0;
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(high_player, Position::new(10.5, 10.5, 3.1, 0.0)),
+        aggro_candidate_like_cpp(high_player, Position::new(10.5, 10.5, 3.1, 0.0)),
         allowed_by_reach,
     ];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
@@ -298,7 +298,7 @@ fn legacy_creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
     assert_eq!(combat_target, Some(allowed_player));
 }
 #[test]
-fn legacy_creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
+fn creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_021);
@@ -320,7 +320,7 @@ fn legacy_creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_022);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 3.1, 0.0),
     )];
@@ -328,7 +328,7 @@ fn legacy_creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.aggro_starts, 1);
@@ -337,7 +337,7 @@ fn legacy_creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_like_cpp() {
+fn creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_128);
@@ -357,7 +357,7 @@ fn legacy_creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_lik
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_129);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(56.0, 10.0, 0.0, 0.0),
     )];
@@ -365,7 +365,7 @@ fn legacy_creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_lik
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.home_range_rejections, 0);
@@ -373,7 +373,7 @@ fn legacy_creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_lik
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
+fn creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_134);
@@ -404,14 +404,14 @@ fn legacy_creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
 
     let player = ObjectGuid::create_player(1, 91_135);
     let mut candidate =
-        legacy_aggro_candidate_like_cpp(player, Position::new(29.0, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(player, Position::new(29.0, 10.0, 0.0, 0.0));
     candidate.player_detected_range_aura_mod = 2.0;
     let candidates = vec![candidate];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(
@@ -422,7 +422,7 @@ fn legacy_creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp() {
+fn creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp() {
     use crate::map_manager::WorldCreature;
     use wow_entities::{
         CreatureCreateLifecycleRecord, CreatureLifecycleStats, CreatureSpawnLifecycleRecord,
@@ -547,7 +547,7 @@ fn legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp
     }
 
     let player = ObjectGuid::create_player(1, 91_133);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(27.0, 10.0, 0.0, 0.0),
     )];
@@ -555,7 +555,7 @@ fn legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(
@@ -565,7 +565,7 @@ fn legacy_creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_tick_once_adds_combat_distance_like_cpp() {
+fn creature_aggro_tick_once_adds_combat_distance_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_130);
@@ -585,7 +585,7 @@ fn legacy_creature_aggro_tick_once_adds_combat_distance_like_cpp() {
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_131);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(31.5, 10.0, 0.0, 0.0),
     )];
@@ -593,7 +593,7 @@ fn legacy_creature_aggro_tick_once_adds_combat_distance_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.aggro_starts, 1);
@@ -601,7 +601,7 @@ fn legacy_creature_aggro_tick_once_adds_combat_distance_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() {
+fn creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_023);
@@ -620,7 +620,7 @@ fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() 
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_024);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(
             10.0 + wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
@@ -633,7 +633,7 @@ fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.home_range_rejections, 1);
@@ -641,7 +641,7 @@ fn legacy_creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() 
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
+fn creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_060);
@@ -660,7 +660,7 @@ fn legacy_creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_061);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(
             10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE,
@@ -673,7 +673,7 @@ fn legacy_creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.home_range_rejections, 1);
@@ -681,7 +681,7 @@ fn legacy_creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
+fn creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_062);
@@ -703,7 +703,7 @@ fn legacy_creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_063);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(
             10.0 + wow_entities::DEFAULT_VISIBILITY_DISTANCE,
@@ -716,7 +716,7 @@ fn legacy_creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.home_range_rejections, 1);
@@ -724,7 +724,7 @@ fn legacy_creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp() {
+fn creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_046);
@@ -743,7 +743,7 @@ fn legacy_creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp(
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_047);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -751,7 +751,7 @@ fn legacy_creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp(
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.sightless_creatures_skipped, 1);

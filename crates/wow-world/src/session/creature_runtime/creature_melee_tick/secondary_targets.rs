@@ -34,7 +34,7 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     attacker: &CreatureMeleeAttackerFactsLikeCpp,
     swing: &PendingCreatureSwingLikeCpp,
-    config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
+    config: &crate::session::CreatureAggroConfigLikeCpp,
     damage: u32,
     state: &mut MeleeSwingStateLikeCpp,
 ) -> MeleeSecondaryTargetsOutcomeLikeCpp {

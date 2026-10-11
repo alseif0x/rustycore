@@ -304,7 +304,7 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -446,7 +446,7 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
             },
         );
     }
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::new(spell_store)),
         ..Default::default()
     };
@@ -674,7 +674,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
             }],
         },
     );
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::new(spell_store)),
         ..Default::default()
     };
@@ -711,7 +711,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
             .unwrap();
         run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)
     };
-    let wire_hit_info = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let wire_hit_info = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         let event = outcome
             .plan
             .events
@@ -751,7 +751,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
 
     // Decode `victimState` sequentially: hitInfo, both packed guids, damage,
     // original, over, the sub-damage block and then the victim state.
-    let wire_victim_state = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let wire_victim_state = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         let event = outcome
             .plan
             .events
@@ -780,7 +780,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
 
     // Decode the appended `int32(BlockAmount)` exactly like the packet
     // writer's own block test.
-    let wire_blocked = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let wire_blocked = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         let event = outcome
             .plan
             .events

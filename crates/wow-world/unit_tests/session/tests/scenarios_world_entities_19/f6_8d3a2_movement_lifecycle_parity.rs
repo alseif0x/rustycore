@@ -66,7 +66,7 @@ pub(super) fn d3a2_mmap_config_like_cpp() -> MMapRuntimeConfigLikeCpp {
 /// The movement counters, as recorded (without the deleted legacy-owner skip
 /// flag and mirror attempt count).
 pub(super) fn d3a2_movement_counters_like_cpp(
-    outcome: &crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
+    outcome: &crate::session::CreatureMovementTickOutcomeLikeCpp,
 ) -> String {
     format!(
         "maps={} creatures={} packets={}",
@@ -79,7 +79,7 @@ struct D3a2WorldLikeCpp {
     _session: WorldSession,
     creature: ObjectGuid,
     player: ObjectGuid,
-    candidates: Vec<LegacyCreatureAggroCandidateLikeCpp>,
+    candidates: Vec<CreatureAggroCandidateLikeCpp>,
 }
 
 /// Build one fixture: the creature at (10, 10) and the player at `player_at`.
@@ -88,7 +88,7 @@ fn d3a2_world_like_cpp(
     base: i64,
     player_at: Position,
     configure: impl FnOnce(&mut wow_entities::Creature, ObjectGuid),
-    candidate: impl FnOnce(ObjectGuid) -> Option<LegacyCreatureAggroCandidateLikeCpp>,
+    candidate: impl FnOnce(ObjectGuid) -> Option<CreatureAggroCandidateLikeCpp>,
 ) -> D3a2WorldLikeCpp {
     let canonical = shared_map_manager();
     let (mut session, _, _) = make_session();
@@ -161,7 +161,7 @@ fn d3a2_executor_tick_like_cpp(
     )
     .expect("the canonical owner is readable");
     assert_eq!(admission.objects.len(), 1, "the creature is admitted");
-    let config = legacy_aggro_hostile_config_like_cpp();
+    let config = aggro_hostile_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
     let lease = std::sync::Arc::new(std::sync::Mutex::new(CreatureExecutionLeaseLikeCpp::new()));
     let chase_targets = d3a2_chase_targets_like_cpp(&world.canonical, &[world.player]);
@@ -314,7 +314,7 @@ fn d3a2_chase_world_like_cpp(base: i64) -> D3a2WorldLikeCpp {
                 .combat
                 .add_threat(player, 5.0);
         },
-        |player| Some(legacy_aggro_candidate_like_cpp(player, player_at)),
+        |player| Some(aggro_candidate_like_cpp(player, player_at)),
     )
 }
 
@@ -429,7 +429,7 @@ fn canonical_executor_matches_recorded_alert_move_distract_like_cpp() {
                 creature.creature.unit_mut().set_level(80);
             },
             |player| {
-                let mut candidate = legacy_aggro_candidate_like_cpp(player, player_at);
+                let mut candidate = aggro_candidate_like_cpp(player, player_at);
                 let mut stealthed = Unit::new(true);
                 stealthed.set_stealth_like_cpp(0, 408);
                 candidate.player_visibility_detection =

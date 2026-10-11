@@ -1,19 +1,54 @@
-//! Behaviour tests for [`super`].
+//! Behaviour tests for the creature runtime utilities that outlived the legacy
+//! `map_manager` module: terrain, pathfinder, creature movement, respawn,
+//! create projection and runtime plans.
 //!
-//! Extracted from `map_manager.rs`, which was 12,935 lines of which
-//! 6,328 — 49% — were this one `mod tests`. The production code and its
-//! module boundaries are untouched: moving tests moves no invariant. Dedenting by
-//! one level lets rustfmt collapse some argument lists onto a single line, which
-//! drops their trailing commas; that is the only difference from the original text.
+//! #1263 F6-8E-2: moved with those modules out of the deleted
+//! `map_manager_tests`; the tests that exercised only the legacy
+//! `MapManager`/`MapInstance`/`Grid` owner are deleted with it, and the
+//! `WorldCreature` tests run on the canonical `Creature`.
 
 #![cfg(test)]
 
-use super::*;
+use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::time::{SystemTime, UNIX_EPOCH};
-use wow_constants::{Class, CreatureFlagsExtra, DeathState, PowerType};
+use std::path::PathBuf;
+use std::sync::Arc;
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
+
+use wow_constants::movement::MovementFlag;
+use wow_constants::{
+    Class, CreatureFlagsExtra, DeathState, PowerType, UnitDynFlags, UnitFlags2, UnitMoveType,
+    UnitStandStateType, UnitState, WeaponAttackType,
+};
 use wow_core::guid::HighGuid;
+use wow_core::{ObjectGuid, Position};
+use wow_entities::creature_create::CreatureCreateData;
+use wow_entities::{
+    AllowedPositionZCaps, Creature, CreatureAiState, DistractMovementAction, MovementGeneratorKind,
+    MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
+    game_time_secs_like_cpp,
+};
 use wow_map::map::MapWorldObjectEnvironment;
+use wow_map::{GridMapTerrain, SpawnObjectType};
+use wow_movement::{
+    ChaseMovementGenerator, MoveSpline, MoveSplineFlag, MoveSplineInit, MovementGenerator,
+    PathGenerator, PathType, RandomMovementAction, RandomMovementGenerator, RandomPathResult,
+    WaypointAnimation, WaypointMovementAction, WaypointMovementGenerator, WaypointPath,
+    WaypointRandomAtPathEnd,
+};
+use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
+use wow_recastdetour::{
+    DetourPathType, DetourPointPath, DetourPolyPath, MAX_POINT_PATH_LENGTH_LIKE_CPP,
+    PathQueryFilterContext,
+};
+
+use crate::corpse_load::*;
+use crate::creature_movement::*;
+use crate::creature_projection::*;
+use crate::creature_respawn::*;
+use crate::pathfinder::*;
+use crate::runtime_plan::*;
+use crate::terrain::*;
 
 fn unique_temp_data_dir(test_name: &str) -> PathBuf {
     let unique = SystemTime::now()
@@ -61,8 +96,11 @@ fn test_area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTa
     }
 }
 
-fn test_creature(guid: ObjectGuid) -> WorldCreature {
-    WorldCreature::new(
+/// The former `WorldCreature::new` fixture on the canonical creature. Its
+/// cached projection launched splines at the projection's run rate (1.14286);
+/// the canonical unit now carries that rate itself.
+fn test_creature(guid: ObjectGuid) -> Creature {
+    let mut creature = new_runtime_creature_like_cpp(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -75,7 +113,11 @@ fn test_creature(guid: ObjectGuid) -> WorldCreature {
         35,
         0,
         0,
-    )
+    );
+    creature
+        .unit_mut()
+        .set_speed_rate_like_cpp(UnitMoveType::Run, 1.14286);
+    creature
 }
 
 fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
@@ -197,7 +239,7 @@ fn make_pending_respawn(respawn_at: Instant) -> PendingRespawn {
             unit_flags: 0,
             unit_flags2: 0,
             unit_flags3: 0,
-            aura_state: WorldCreature::health_aura_state_like_cpp(100, 100, true),
+            aura_state: Creature::health_aura_state_like_cpp(100, 100, true),
             damage_school: wow_constants::spell::SpellSchools::Normal as u8,
             scale: 1.0,
             unit_class: 1,
@@ -309,33 +351,33 @@ fn temp_dir_with_constant_tile(map_id: u32, gx: i32, gy: i32, height: f32) -> Pa
     dir
 }
 
-#[path = "map_manager_tests/combat.rs"]
+#[path = "creature_runtime_tests/combat.rs"]
 mod combat;
-#[path = "map_manager_tests/creature_1.rs"]
+#[path = "creature_runtime_tests/creature_1.rs"]
 mod creature_1;
-#[path = "map_manager_tests/creature_2.rs"]
+#[path = "creature_runtime_tests/creature_2.rs"]
 mod creature_2;
-#[path = "map_manager_tests/creature_3.rs"]
+#[path = "creature_runtime_tests/creature_3.rs"]
 mod creature_3;
-#[path = "map_manager_tests/creature_4.rs"]
+#[path = "creature_runtime_tests/creature_4.rs"]
 mod creature_4;
-#[path = "map_manager_tests/creature_5.rs"]
+#[path = "creature_runtime_tests/creature_5.rs"]
 mod creature_5;
-#[path = "map_manager_tests/f6_8d1_phase_engine.rs"]
+#[path = "creature_runtime_tests/f6_8d1_phase_engine.rs"]
 mod f6_8d1_phase_engine;
-#[path = "map_manager_tests/gameobject.rs"]
+#[path = "creature_runtime_tests/gameobject.rs"]
 mod gameobject;
-#[path = "map_manager_tests/instance.rs"]
+#[path = "creature_runtime_tests/instance.rs"]
 mod instance;
-#[path = "map_manager_tests/misc.rs"]
+#[path = "creature_runtime_tests/misc.rs"]
 mod misc;
-#[path = "map_manager_tests/movement.rs"]
+#[path = "creature_runtime_tests/movement.rs"]
 mod movement;
-#[path = "map_manager_tests/persistence.rs"]
+#[path = "creature_runtime_tests/persistence.rs"]
 mod persistence;
-#[path = "map_manager_tests/spawn.rs"]
+#[path = "creature_runtime_tests/spawn.rs"]
 mod spawn;
-#[path = "map_manager_tests/spell.rs"]
+#[path = "creature_runtime_tests/spell.rs"]
 mod spell;
-#[path = "map_manager_tests/visibility.rs"]
+#[path = "creature_runtime_tests/visibility.rs"]
 mod visibility;

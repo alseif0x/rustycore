@@ -125,7 +125,7 @@ fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
         .apply_aura(91_351, player, 30_000, 1)
         .expect("apply damage-immunity aura");
 
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -315,7 +315,7 @@ fn legacy_creature_melee_tick_once_splits_player_victim_damage_like_cpp() {
         })
         .unwrap();
 
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -588,7 +588,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
         );
     }
 
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };

@@ -8,7 +8,7 @@
 use wow_constants::{UnitFlags, UnitState};
 use wow_core::ObjectGuid;
 use wow_world_core::session::{
-    LegacyCreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
+    CreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
 };
 
 use crate::creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
@@ -46,7 +46,7 @@ pub fn creature_spell_target_is_valid_attack_target_like_cpp(
     caster: &wow_entities::Creature,
     victim: &wow_entities::Player,
     spell_attributes: &[u32; 15],
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     if !caster.unit().world().object().is_in_world()
         || !victim.unit().world().object().is_in_world()
@@ -143,7 +143,7 @@ pub fn creature_spell_target_is_valid_attack_target_like_cpp(
 pub fn creature_ai_effective_spell_range_like_cpp<'a>(
     spell_id: u32,
     difficulty_id: u8,
-    config: &'a LegacyCreatureAggroConfigLikeCpp,
+    config: &'a CreatureAggroConfigLikeCpp,
 ) -> Option<&'a wow_data::SpellRangeEntry> {
     let misc = config
         .spell_misc_store
@@ -223,7 +223,7 @@ pub fn apply_turret_rejected_cast_attempt_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
     casters: &mut CanonicalCreatureSpellCastersLikeCpp,
     attempt: &TurretRejectedCastAttemptLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     let still_engaged = casters.with_spell_caster_like_cpp(
         manager,

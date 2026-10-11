@@ -31,7 +31,7 @@ pub(in crate::session) fn validate_and_append_creature_spell_cast_on_manager_lik
     command: &CreatureSpellCastPlanLikeCpp,
     difficulty_id: u8,
     turret_ai: bool,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
     plan: &mut RuntimePlan,
 ) -> CreatureSpellCastValidationResultLikeCpp {
     const SPELL_RANGE_MELEE_LIKE_CPP: u8 = 0x01;

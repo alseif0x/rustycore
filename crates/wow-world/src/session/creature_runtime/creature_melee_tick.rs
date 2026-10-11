@@ -199,7 +199,7 @@ impl MeleeSwingStateLikeCpp {
 /// victim (#1263 F6-8D3a-1).
 pub(super) fn collect_creature_melee_swings_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
-    outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
+    outcome: &mut CreatureMeleeTickOutcomeLikeCpp,
 ) -> Vec<PendingCreatureSwingLikeCpp> {
     use wow_entities::CurrentSpellSlot;
 
@@ -364,7 +364,7 @@ enum CreatureMeleeRearmLikeCpp {
 /// Map a non-hit apply result to its counter and timer consequence.
 fn creature_melee_apply_rejection_like_cpp(
     result: &CreatureMeleeApplyResultLikeCpp,
-    outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
+    outcome: &mut CreatureMeleeTickOutcomeLikeCpp,
 ) -> CreatureMeleeRearmLikeCpp {
     match result {
         CreatureMeleeApplyResultLikeCpp::OutOfRange => {
@@ -408,8 +408,8 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     attackers: &mut CanonicalCreatureMeleeAttackersLikeCpp,
     mut swing: PendingCreatureSwingLikeCpp,
-    config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
+    config: &crate::session::CreatureAggroConfigLikeCpp,
+    outcome: &mut CreatureMeleeTickOutcomeLikeCpp,
 ) {
     use wow_entities::CurrentSpellSlot;
 

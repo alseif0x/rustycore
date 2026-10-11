@@ -89,7 +89,7 @@ impl SessionSpellState {
         attribute_word: usize,
         attribute: u32,
     ) -> bool {
-        let config = &hub.config.legacy_creature_aggro_config_like_cpp;
+        let config = &hub.config.creature_aggro_config_like_cpp;
         config.spell_store.as_ref().is_some_and(|store| {
             store.has_attribute_for_difficulty_like_cpp(
                 spell_id,
@@ -103,7 +103,7 @@ impl SessionSpellState {
 
     /// C++ `SPELL_ATTR0_CU_NEEDS_AMMO_DATA`, a `SpellMgr` custom attribute.
     fn represented_cast_needs_ammo_data_like_cpp(&self, hub: HubRef<'_>, spell_id: i32) -> bool {
-        let config = &hub.config.legacy_creature_aggro_config_like_cpp;
+        let config = &hub.config.creature_aggro_config_like_cpp;
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return false;
         };

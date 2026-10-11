@@ -119,7 +119,7 @@ fn creature_spell_canonical_targetability_rechecks_full_cpp_state() {
     let creature_guid = test_creature_guid(91_334);
     let victim_guid = ObjectGuid::create_player(1, 91_335);
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-    let config = legacy_aggro_hostile_config_like_cpp();
+    let config = aggro_hostile_config_like_cpp();
     let attributes = [0_u32; 15];
 
     let target_is_valid = |canonical: &SharedCanonicalMapManager| {

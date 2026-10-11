@@ -14,10 +14,10 @@
 use super::*;
 use crate::session::{
     AdmittedCanonicalCreatureStoreLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
-    AdmittedCreatureExecutionObjectLikeCpp, LegacyCreatureAggroCandidateLikeCpp,
-    LegacyCreatureAggroTickOutcomeLikeCpp, LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    LegacyCreatureMeleeTickOutcomeLikeCpp, LegacyCreatureMovementTickOutcomeLikeCpp,
-    LegacyCreatureSpellTickOutcomeLikeCpp, LegacyPlayerMeleeTickOutcomeLikeCpp,
+    AdmittedCreatureExecutionObjectLikeCpp, CreatureAggroCandidateLikeCpp,
+    CreatureAggroTickOutcomeLikeCpp, CreatureLifecycleTickOutcomeLikeCpp,
+    CreatureMeleeTickOutcomeLikeCpp, CreatureMovementTickOutcomeLikeCpp,
+    CreatureSpellTickOutcomeLikeCpp, PlayerMeleeTickOutcomeLikeCpp,
     PlayerMeleeAttackerSnapshotLikeCpp, PlayerMeleePhaseStateLikeCpp,
 };
 
@@ -69,9 +69,9 @@ fn lock_canonical_for_test_like_cpp(
 /// attack start/stop commit.
 pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
+    candidates: &[CreatureAggroCandidateLikeCpp],
+    config: CreatureAggroConfigLikeCpp,
+) -> CreatureAggroTickOutcomeLikeCpp {
     run_canonical_creature_aggro_phase_with_terrain_for_test_like_cpp(
         canonical, None, candidates, config,
     )
@@ -82,9 +82,9 @@ pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_for_test_lik
 pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_with_terrain_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
     terrain: Option<&crate::terrain::LiveTerrainHeights>,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
+    candidates: &[CreatureAggroCandidateLikeCpp],
+    config: CreatureAggroConfigLikeCpp,
+) -> CreatureAggroTickOutcomeLikeCpp {
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     let (maps, objects) = all_canonical_creatures_selection_like_cpp(&manager);
     let mut store =
@@ -97,9 +97,9 @@ pub(in crate::session::tests) fn run_canonical_creature_aggro_phase_with_terrain
 /// The creature melee phase (`DoMeleeAttackIfReady`).
 pub(in crate::session::tests) fn run_canonical_creature_melee_phase_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureMeleeTickOutcomeLikeCpp {
-    let mut outcome = LegacyCreatureMeleeTickOutcomeLikeCpp::default();
+    config: &CreatureAggroConfigLikeCpp,
+) -> CreatureMeleeTickOutcomeLikeCpp {
+    let mut outcome = CreatureMeleeTickOutcomeLikeCpp::default();
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     let (maps, objects) = all_canonical_creatures_selection_like_cpp(&manager);
     crate::session::run_creature_melee_phase_on_manager_like_cpp(
@@ -115,9 +115,9 @@ pub(in crate::session::tests) fn run_canonical_creature_melee_phase_for_test_lik
 /// The creature spell phase (`CombatAI`/`TurretAI::UpdateAI`).
 pub(in crate::session::tests) fn run_canonical_creature_spell_phase_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureSpellTickOutcomeLikeCpp {
-    let mut outcome = LegacyCreatureSpellTickOutcomeLikeCpp::default();
+    config: &CreatureAggroConfigLikeCpp,
+) -> CreatureSpellTickOutcomeLikeCpp {
+    let mut outcome = CreatureSpellTickOutcomeLikeCpp::default();
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     let (maps, objects) = all_canonical_creatures_selection_like_cpp(&manager);
     crate::session::run_creature_spell_phase_on_manager_like_cpp(
@@ -135,8 +135,8 @@ pub(in crate::session::tests) fn run_canonical_creature_lifecycle_phase_for_test
     canonical: &SharedCanonicalMapManager,
     map_store: &wow_data::MapStore,
     now: Instant,
-) -> LegacyCreatureLifecycleTickOutcomeLikeCpp {
-    let mut outcome = LegacyCreatureLifecycleTickOutcomeLikeCpp::default();
+) -> CreatureLifecycleTickOutcomeLikeCpp {
+    let mut outcome = CreatureLifecycleTickOutcomeLikeCpp::default();
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     let (maps, mut objects) = all_canonical_creatures_selection_like_cpp(&manager);
     crate::session::run_creature_lifecycle_phase_on_manager_like_cpp(
@@ -161,8 +161,8 @@ pub(in crate::session::tests) fn run_canonical_creature_movement_phase_for_test_
         crate::creature_movement::ChaseTargetSnapshotLikeCpp,
     >,
     diff_ms: u32,
-) -> LegacyCreatureMovementTickOutcomeLikeCpp {
-    let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp::default();
+) -> CreatureMovementTickOutcomeLikeCpp {
+    let mut outcome = CreatureMovementTickOutcomeLikeCpp::default();
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     let (maps, objects) = all_canonical_creatures_selection_like_cpp(&manager);
     crate::session::run_creature_movement_phase_on_manager_like_cpp(
@@ -185,9 +185,9 @@ pub(in crate::session::tests) fn run_canonical_player_melee_phase_for_test_like_
     attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
     diff_ms: u32,
     phase_state: &mut PlayerMeleePhaseStateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyPlayerMeleeTickOutcomeLikeCpp {
-    let mut outcome = LegacyPlayerMeleeTickOutcomeLikeCpp::default();
+    config: &CreatureAggroConfigLikeCpp,
+) -> PlayerMeleeTickOutcomeLikeCpp {
+    let mut outcome = PlayerMeleeTickOutcomeLikeCpp::default();
     let mut manager = lock_canonical_for_test_like_cpp(canonical);
     crate::session::run_player_melee_phase_on_manager_like_cpp(
         &mut manager,
@@ -233,7 +233,7 @@ pub(in crate::session::tests) fn step_creature_movement_like_cpp(
 pub(in crate::session::tests) fn run_session_player_melee_phase_for_test_like_cpp(
     session: &mut WorldSession,
     diff_ms: u32,
-) -> LegacyPlayerMeleeTickOutcomeLikeCpp {
+) -> PlayerMeleeTickOutcomeLikeCpp {
     let player_guid = session
         .player_guid()
         .expect("the player melee phase needs a player");
@@ -264,7 +264,7 @@ pub(in crate::session::tests) fn run_session_player_melee_phase_for_test_like_cp
             .unwrap_or(false),
         tap_group_guids: Vec::new(),
     }];
-    let config = session.config.legacy_creature_aggro_config_like_cpp.clone();
+    let config = session.config.creature_aggro_config_like_cpp.clone();
     let mut phase_state = PlayerMeleePhaseStateLikeCpp::default();
     let outcome = run_canonical_player_melee_phase_for_test_like_cpp(
         &canonical,

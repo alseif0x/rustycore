@@ -361,7 +361,7 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
         crate::creature_movement::ChaseTargetSnapshotLikeCpp,
     >,
     diff_ms: u32,
-    outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
+    outcome: &mut CreatureMovementTickOutcomeLikeCpp,
 ) {
     use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
     use wow_packet::ServerPacket;

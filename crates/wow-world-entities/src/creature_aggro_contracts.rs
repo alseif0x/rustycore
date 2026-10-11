@@ -13,11 +13,11 @@ use wow_entities::{PhaseShift, UnitVisibilityDetectionStateLikeCpp};
 use wow_world_core::runtime_plan::RuntimePlan;
 
 pub use wow_world_core::session::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
-pub use wow_world_core::session::LegacyCreatureAggroConfigLikeCpp;
+pub use wow_world_core::session::CreatureAggroConfigLikeCpp;
 pub use wow_world_core::session::spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp;
 
 #[derive(Debug, Clone, Default)]
-pub struct LegacyCreatureMovementTickOutcomeLikeCpp {
+pub struct CreatureMovementTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub movement_packets: usize,
@@ -25,7 +25,7 @@ pub struct LegacyCreatureMovementTickOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
+pub struct CreatureLifecycleTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub corpses_despawned: usize,
@@ -49,7 +49,7 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LegacyCreatureAggroCandidateLikeCpp {
+pub struct CreatureAggroCandidateLikeCpp {
     pub player_guid: ObjectGuid,
     pub map_id: u16,
     pub instance_id: u32,
@@ -80,7 +80,7 @@ pub struct LegacyCreatureAggroCandidateLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq)]
-pub struct LegacyCreatureAggroOwnerSnapshotLikeCpp {
+pub struct CreatureAggroOwnerSnapshotLikeCpp {
     pub map_id: u16,
     pub instance_id: u32,
     pub position: Position,
@@ -98,7 +98,7 @@ pub struct LegacyCreatureAggroOwnerSnapshotLikeCpp {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
+pub struct CreatureAggroTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub sightless_creatures_skipped: usize,
@@ -131,7 +131,7 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegacyCreatureThreatUpdateLikeCpp {
+pub enum CreatureThreatUpdateLikeCpp {
     Unchanged,
     Switched {
         previous_victim: ObjectGuid,
@@ -144,7 +144,7 @@ pub enum LegacyCreatureThreatUpdateLikeCpp {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
+pub struct CreatureMeleeTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub swings_ready: usize,
@@ -164,7 +164,7 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
+pub struct CreatureSpellTickOutcomeLikeCpp {
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub ai_selection_unrepresented: usize,
@@ -203,7 +203,7 @@ pub fn creature_ai_spell_disable_decision_like_cpp(
     spell_id: u32,
     map_id: u16,
     creature: &wow_entities::Creature,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureSpellDisableDecisionLikeCpp {
     let Some(disable_mgr) = config.disable_mgr.as_deref() else {
         return CreatureSpellDisableDecisionLikeCpp::ContextUnrepresented;
@@ -230,7 +230,7 @@ pub enum CreatureSpellTargetHitResultLikeCpp {
 }
 
 pub fn check_no_gray_aggro_config_like_cpp(
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
     player_level: u8,
     player_gray_level: u8,
     creature_level: u8,
@@ -250,27 +250,27 @@ pub fn check_no_gray_aggro_config_like_cpp(
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LegacyCreatureAggroVisibilityDecisionLikeCpp {
+pub enum CreatureAggroVisibilityDecisionLikeCpp {
     Allowed,
     Rejected,
     Unrepresented,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum LegacyCreatureAiSelectionDecisionLikeCpp {
+pub enum CreatureAiSelectionDecisionLikeCpp {
     Selected(CreatureAiKindLikeCpp),
     ScriptRegistryUnrepresented,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LegacyCreatureAiCanAttackDecisionLikeCpp {
+pub enum CreatureAiCanAttackDecisionLikeCpp {
     Allowed,
     Rejected,
     Unrepresented,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LegacyCreatureCanAttackLeashDecisionLikeCpp {
+pub enum CreatureCanAttackLeashDecisionLikeCpp {
     Allowed,
     OwnerPositionUnrepresented,
     HomeRangeRejected,

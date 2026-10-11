@@ -10,7 +10,7 @@ use wow_world_spell::shapeshift_form_of_spell_like_cpp;
 fn represented_aura_visual_without_caster_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> u32 {
     let Some(store) = config.spell_x_spell_visual_store.as_ref() else {
         return 0;
@@ -230,7 +230,7 @@ impl WorldSession {
             let spell_visual_id = represented_aura_visual_without_caster_like_cpp(
                 row.spell_id,
                 row.difficulty,
-                &self.config.legacy_creature_aggro_config_like_cpp,
+                &self.config.creature_aggro_config_like_cpp,
             );
             let provenance = wow_entities::AuraCastProvenanceLikeCpp {
                 cast_id,

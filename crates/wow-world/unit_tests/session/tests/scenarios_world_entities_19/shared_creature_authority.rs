@@ -173,7 +173,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
         &attackers,
         2_000,
         &mut phase_state,
-        &crate::session::LegacyCreatureAggroConfigLikeCpp::default(),
+        &crate::session::CreatureAggroConfigLikeCpp::default(),
     );
     assert_eq!(first.attackers_seen, 2);
     assert_eq!(
@@ -203,7 +203,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
         &attackers,
         0,
         &mut phase_state,
-        &crate::session::LegacyCreatureAggroConfigLikeCpp::default(),
+        &crate::session::CreatureAggroConfigLikeCpp::default(),
     );
     assert_eq!(
         second.creature_hits, 0,

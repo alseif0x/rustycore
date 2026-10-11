@@ -200,7 +200,7 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
         .unwrap();
     set_player_aura_caster_like_cpp(&mut secondary_session, 91_387, recursive_guid);
 
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spells),
         ..Default::default()
     };
@@ -392,7 +392,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
             ));
     }
 
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spells),
         spell_threat_store: Some(Arc::new(wow_data::SpellThreatStoreLikeCpp {
             entries_by_spell_id: std::collections::HashMap::from([(
@@ -747,7 +747,7 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
             0,
             1,
         ));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spells),
         ..Default::default()
     };

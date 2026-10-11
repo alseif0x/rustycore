@@ -4,7 +4,7 @@
 //! Shared immutable world configuration consumed by the World session shell.
 
 use crate::session::MMapRuntimeConfigLikeCpp;
-use crate::session::creature_aggro_contracts::LegacyCreatureAggroConfigLikeCpp;
+use crate::session::creature_aggro_contracts::CreatureAggroConfigLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
@@ -34,7 +34,7 @@ pub struct SessionWorldConfig {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub feature_system_character_undelete_enabled_like_cpp: bool,
 
-    pub legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
+    pub creature_aggro_config_like_cpp: CreatureAggroConfigLikeCpp,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub give_player_xp_script_dispatcher_like_cpp: Option<GivePlayerXpScriptDispatcherLikeCpp>,
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -125,7 +125,7 @@ impl Default for SessionWorldConfig {
             #[cfg(any(test, feature = "test-fixtures"))]
             feature_system_character_undelete_enabled_like_cpp: false,
 
-            legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
+            creature_aggro_config_like_cpp: CreatureAggroConfigLikeCpp::default(),
             #[cfg(any(test, feature = "test-fixtures"))]
             give_player_xp_script_dispatcher_like_cpp: None,
             #[cfg(any(test, feature = "test-fixtures"))]

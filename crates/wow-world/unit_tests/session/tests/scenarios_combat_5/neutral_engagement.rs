@@ -14,8 +14,8 @@ use super::*;
 /// Creature faction template 14 shaped like 3.4.3 `FactionTemplate` 7, the
 /// template of the paired-run creature entry 15271: no groups, no enemies, no
 /// friends, no flags, on a faction without reputation (neutral to all).
-fn neutral_creature_config_like_cpp() -> LegacyCreatureAggroConfigLikeCpp {
-    legacy_aggro_relation_config_like_cpp(
+fn neutral_creature_config_like_cpp() -> CreatureAggroConfigLikeCpp {
+    aggro_relation_config_like_cpp(
         faction_template_entry(14, 7, 0, 0, 0),
         faction_template_entry(1, 930, 0, 0, 0),
         FactionEntry::for_test_like_cpp(7, -1),
@@ -74,7 +74,7 @@ fn neutral_creature_engaged_by_player_stays_engaged_and_attacks_back_like_cpp() 
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         victim_guid,
         Position::new(11.0, 10.0, 0.0, 0.0),
     )];
@@ -146,7 +146,7 @@ fn neutral_creature_does_not_start_aggro_on_passer_by_like_cpp() {
         })
         .unwrap();
     let passer_by = ObjectGuid::create_player(1, 91_347);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         passer_by,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -241,7 +241,7 @@ async fn attack_swing_engages_and_creature_reacts_with_ai_reaction_then_attack_s
         (None, true),
         "Player::Attack publishes nothing for the creature and presets no victim"
     );
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(11.0, 10.0, 0.0, 0.0),
     )];

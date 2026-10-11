@@ -183,7 +183,7 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     assert!(melee.plan.events.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
+fn creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();

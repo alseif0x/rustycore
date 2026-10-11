@@ -7,6 +7,9 @@ pub mod corpse_load;
 pub mod creature_movement;
 pub mod creature_projection;
 pub mod creature_respawn;
+#[cfg(test)]
+#[path = "../unit_tests/creature_runtime_tests.rs"]
+mod creature_runtime_tests;
 pub mod entity_update_bridge;
 pub mod loot_persistence;
 pub mod pathfinder;

@@ -12,23 +12,23 @@ fn never_respawn_time_saturates_to_future_instant_instead_of_ready_now_like_cpp(
 
     assert!(deadline > now);
 }
-/// A newly created `MapInstance` starts with an empty respawn queue.
+/// A new map respawn queue starts empty.
 #[test]
 fn respawn_queue_starts_empty_like_cpp() {
-    let map = MapInstance::new(0, 0);
+    let map = CreatureRespawnQueueLikeCpp::default();
     assert_eq!(map.respawn_queue_len(), 0);
 }
 /// Pushing one entry increments the length to 1.
 #[test]
 fn push_respawn_increments_len_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let now = Instant::now();
     map.push_respawn(make_pending_respawn(now));
     assert_eq!(map.respawn_queue_len(), 1);
 }
 #[test]
 fn push_respawn_replaces_later_duplicate_spawn_id_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let now = Instant::now();
     let later = now + Duration::from_secs(60);
     let earlier = now + Duration::from_secs(10);
@@ -48,7 +48,7 @@ fn push_respawn_replaces_later_duplicate_spawn_id_like_cpp() {
 }
 #[test]
 fn push_respawn_ignores_later_duplicate_spawn_id_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let now = Instant::now();
     let earlier = now + Duration::from_secs(10);
     let later = now + Duration::from_secs(60);

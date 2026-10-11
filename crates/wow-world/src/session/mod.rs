@@ -39,22 +39,22 @@ mod effect_learning;
 mod instance_handler_contexts;
 mod instances;
 mod inventory_handler_contexts;
-mod legacy_runtime;
+mod creature_runtime;
 mod reputation_handler_contexts;
 mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
-use legacy_runtime::*;
+use creature_runtime::*;
 // #1263 F6-8D3a-1: the aggro commit of the admitted canonical executor;
 // world-server calls the same body.
-pub use legacy_runtime::{
+pub use creature_runtime::{
     apply_creature_attack_start_commands_on_manager_like_cpp,
     apply_creature_attack_stop_commands_on_manager_like_cpp,
     committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
 };
 // #1263 F6-8D2/D3b-1: the admitted creature executor; the world-server
 // canonical map loop calls it.
-pub use legacy_runtime::{
+pub use creature_runtime::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
@@ -197,19 +197,19 @@ mod construction;
 mod creature_aggro_contracts;
 use creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
 use creature_aggro_contracts::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
-pub use creature_aggro_contracts::LegacyCreatureAggroCandidateLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureAggroConfigLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAggroOwnerSnapshotLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureAggroTickOutcomeLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAggroVisibilityDecisionLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAiCanAttackDecisionLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAiSelectionDecisionLikeCpp;
-use creature_aggro_contracts::LegacyCreatureCanAttackLeashDecisionLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureLifecycleTickOutcomeLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureMeleeTickOutcomeLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureMovementTickOutcomeLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureSpellTickOutcomeLikeCpp;
-use creature_aggro_contracts::LegacyCreatureThreatUpdateLikeCpp;
+pub use creature_aggro_contracts::CreatureAggroCandidateLikeCpp;
+pub use creature_aggro_contracts::CreatureAggroConfigLikeCpp;
+use creature_aggro_contracts::CreatureAggroOwnerSnapshotLikeCpp;
+pub use creature_aggro_contracts::CreatureAggroTickOutcomeLikeCpp;
+use creature_aggro_contracts::CreatureAggroVisibilityDecisionLikeCpp;
+use creature_aggro_contracts::CreatureAiCanAttackDecisionLikeCpp;
+use creature_aggro_contracts::CreatureAiSelectionDecisionLikeCpp;
+use creature_aggro_contracts::CreatureCanAttackLeashDecisionLikeCpp;
+pub use creature_aggro_contracts::CreatureLifecycleTickOutcomeLikeCpp;
+pub use creature_aggro_contracts::CreatureMeleeTickOutcomeLikeCpp;
+pub use creature_aggro_contracts::CreatureMovementTickOutcomeLikeCpp;
+pub use creature_aggro_contracts::CreatureSpellTickOutcomeLikeCpp;
+use creature_aggro_contracts::CreatureThreatUpdateLikeCpp;
 use creature_aggro_contracts::check_no_gray_aggro_config_like_cpp;
 use creature_aggro_contracts::creature_ai_spell_disable_decision_like_cpp;
 use creature_aggro_contracts::spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp;
@@ -416,7 +416,7 @@ mod player_load_values;
 use player_load_values::{gender_from_u8, unix_secs_to_ms_like_cpp};
 use player_load_values::{player_team_id_for_race_cpp, represented_pet_aura_slot_like_cpp};
 mod player_melee_application;
-pub use player_melee_application::LegacyPlayerMeleeTickOutcomeLikeCpp;
+pub use player_melee_application::PlayerMeleeTickOutcomeLikeCpp;
 use player_melee_application::PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
 use player_melee_application::PendingPlayerSwingLikeCpp;
 pub(crate) use player_melee_application::PlayerAttackStartLikeCppResult;

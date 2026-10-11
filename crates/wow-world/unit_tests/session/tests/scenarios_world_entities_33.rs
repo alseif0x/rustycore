@@ -169,7 +169,7 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
         })
         .unwrap();
 
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -202,7 +202,7 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
             })
             .unwrap()
     };
-    let event_opcodes = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let event_opcodes = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         outcome
             .plan
             .events
@@ -213,7 +213,7 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
             })
             .collect::<Vec<_>>()
     };
-    let event_victim_state = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let event_victim_state = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         let event = outcome
             .plan
             .events

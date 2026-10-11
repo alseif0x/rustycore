@@ -641,9 +641,9 @@ impl PlayerRegistry {
         })
     }
 
-    /// Snapshot only live player facts needed by the legacy aggro compatibility cut.
+    /// Snapshot only the live player facts the creature aggro phase needs.
     #[must_use]
-    pub fn legacy_aggro_candidates(&self) -> Vec<PlayerAggroCandidateSnapshot> {
+    pub fn aggro_candidates(&self) -> Vec<PlayerAggroCandidateSnapshot> {
         let candidates: Vec<_> = self
             .entries
             .iter()

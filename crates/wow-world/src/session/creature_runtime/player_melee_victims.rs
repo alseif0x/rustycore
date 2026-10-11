@@ -105,7 +105,7 @@ pub(in crate::session) struct PlayerMeleeCreatureVictimFactsLikeCpp {
 /// Read one creature victim for a player swing. `None` for a dead victim.
 pub(in crate::session) fn player_melee_creature_victim_facts_like_cpp(
     creature: &wow_entities::Creature,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
     map_difficulty_id: u8,
     attacker_guid: ObjectGuid,
 ) -> Option<PlayerMeleeCreatureVictimFactsLikeCpp> {

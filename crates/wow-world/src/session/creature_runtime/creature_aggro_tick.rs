@@ -6,8 +6,8 @@
 use super::*;
 use wow_data::reputation::ReputationRankLikeCpp;
 
-pub(in crate::session) fn legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+pub(in crate::session) fn creature_aggro_candidate_is_targetable_for_attack_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
 ) -> bool {
     let player_flags = UnitFlags::from_bits_truncate(candidate.player_unit_flags);
     let player_state = UnitState::from_bits_truncate(candidate.player_unit_state);
@@ -38,8 +38,8 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_targetable_for_atta
             | UnitFlags::IMMUNE_TO_NPC,
     )
 }
-fn legacy_creature_aggro_candidate_unit_snapshot_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+fn creature_aggro_candidate_unit_snapshot_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
 ) -> Unit {
     let mut unit = Unit::new(true);
     unit.world_mut().object_mut().create(candidate.player_guid);
@@ -57,7 +57,7 @@ fn legacy_creature_aggro_candidate_unit_snapshot_like_cpp(
     let _ = unit.add_to_world_like_cpp();
     unit
 }
-fn legacy_creature_aggro_creature_unit_snapshot_like_cpp(
+fn creature_aggro_creature_unit_snapshot_like_cpp(
     creature: &wow_entities::Creature,
     map_id: u16,
     instance_id: u32,
@@ -79,32 +79,32 @@ fn legacy_creature_aggro_creature_unit_snapshot_like_cpp(
     let _ = unit.add_to_world_like_cpp();
     unit
 }
-pub(in crate::session) fn legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+pub(in crate::session) fn creature_aggro_candidate_visibility_decision_like_cpp(
     creature: &wow_entities::Creature,
     map_id: u16,
     instance_id: u32,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    candidate: &CreatureAggroCandidateLikeCpp,
     check_alert: bool,
-) -> LegacyCreatureAggroVisibilityDecisionLikeCpp {
+) -> CreatureAggroVisibilityDecisionLikeCpp {
     if !candidate.player_visibility_represented {
-        return LegacyCreatureAggroVisibilityDecisionLikeCpp::Unrepresented;
+        return CreatureAggroVisibilityDecisionLikeCpp::Unrepresented;
     }
 
-    let seer = legacy_creature_aggro_creature_unit_snapshot_like_cpp(creature, map_id, instance_id);
-    let target = legacy_creature_aggro_candidate_unit_snapshot_like_cpp(candidate);
+    let seer = creature_aggro_creature_unit_snapshot_like_cpp(creature, map_id, instance_id);
+    let target = creature_aggro_candidate_unit_snapshot_like_cpp(candidate);
     if seer.can_see_or_detect_unit_like_cpp(&target, false, false, check_alert) {
-        LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
+        CreatureAggroVisibilityDecisionLikeCpp::Allowed
     } else {
-        LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected
+        CreatureAggroVisibilityDecisionLikeCpp::Rejected
     }
 }
-pub(in crate::session) fn legacy_creature_aggro_candidate_has_stealth_aura_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+pub(in crate::session) fn creature_aggro_candidate_has_stealth_aura_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
 ) -> bool {
-    legacy_creature_aggro_candidate_unit_snapshot_like_cpp(candidate).has_stealth_aura_like_cpp()
+    creature_aggro_candidate_unit_snapshot_like_cpp(candidate).has_stealth_aura_like_cpp()
 }
-fn legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+fn creature_aggro_candidate_has_reputation_state_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
     faction_id: u32,
 ) -> bool {
     candidate
@@ -112,8 +112,8 @@ fn legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
         .iter()
         .any(|(candidate_faction_id, _)| *candidate_faction_id == faction_id)
 }
-fn legacy_creature_aggro_candidate_is_at_war_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+fn creature_aggro_candidate_is_at_war_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
     faction_id: u32,
 ) -> bool {
     candidate
@@ -124,8 +124,8 @@ fn legacy_creature_aggro_candidate_is_at_war_like_cpp(
         })
         .is_some_and(|flags| flags & wow_entities::REPUTATION_FLAG_AT_WAR_LIKE_CPP != 0)
 }
-fn legacy_creature_aggro_candidate_reputation_standing_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+fn creature_aggro_candidate_reputation_standing_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
     faction_id: u32,
 ) -> i32 {
     candidate
@@ -136,8 +136,8 @@ fn legacy_creature_aggro_candidate_reputation_standing_like_cpp(
         })
         .unwrap_or(0)
 }
-fn legacy_creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+fn creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
+    candidate: &CreatureAggroCandidateLikeCpp,
     faction_id: u32,
 ) -> Option<wow_data::reputation::ReputationRankLikeCpp> {
     candidate
@@ -148,21 +148,21 @@ fn legacy_creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
         })
 }
 /// C++ `Creature::IsHostileTo(player)`: `GetReactionTo(player) <= REP_HOSTILE`.
-pub(in crate::session) fn legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+pub(in crate::session) fn creature_aggro_candidate_is_hostile_to_creature_like_cpp(
     creature: &wow_entities::Creature,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    candidate: &CreatureAggroCandidateLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<bool> {
-    legacy_creature_reaction_to_candidate_like_cpp(creature, candidate, config)
+    creature_reaction_to_candidate_like_cpp(creature, candidate, config)
         .map(|rank| rank <= ReputationRankLikeCpp::Hostile)
 }
 /// C++ `WorldObject::GetFactionReactionTo(creatureTemplate, player)`, the
 /// branch `WorldObject::GetReactionTo` takes for a creature looking at a
 /// player. `None` keeps the unrepresented forced-reputation case explicit.
-pub(in crate::session) fn legacy_creature_reaction_to_candidate_like_cpp(
+pub(in crate::session) fn creature_reaction_to_candidate_like_cpp(
     creature: &wow_entities::Creature,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    candidate: &CreatureAggroCandidateLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<ReputationRankLikeCpp> {
     let faction_template_store = config.faction_template_store.as_ref()?;
     let creature_faction_template_id = creature.unit().data().faction_template.max(0) as u32;
@@ -183,7 +183,7 @@ pub(in crate::session) fn legacy_creature_reaction_to_candidate_like_cpp(
     let creature_faction_id = u32::from(creature_faction_template.faction);
     if creature_faction_id != 0 {
         if let Some(forced_rank) =
-            legacy_creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
+            creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
                 candidate,
                 creature_faction_id,
             )
@@ -202,13 +202,13 @@ pub(in crate::session) fn legacy_creature_reaction_to_candidate_like_cpp(
             && let Some(faction_store) = config.faction_store.as_ref()
             && let Some(faction_entry) = faction_store.get(creature_faction_id)
             && faction_entry.can_have_reputation_like_cpp()
-            && legacy_creature_aggro_candidate_has_reputation_state_like_cpp(
+            && creature_aggro_candidate_has_reputation_state_like_cpp(
                 candidate,
                 creature_faction_id,
             )
         {
             let rank = wow_data::reputation::reputation_rank_from_standing_like_cpp(
-                legacy_creature_aggro_candidate_reputation_standing_like_cpp(
+                creature_aggro_candidate_reputation_standing_like_cpp(
                     candidate,
                     creature_faction_id,
                 ),
@@ -218,7 +218,7 @@ pub(in crate::session) fn legacy_creature_reaction_to_candidate_like_cpp(
             // `ReputationMgr` forces AtWar for ranks <= hostile
             // (`ReputationMgr.cpp:549-550,777-778`), so a not-at-war rank is at
             // least unfriendly; the represented state keeps that invariant.
-            if !legacy_creature_aggro_candidate_is_at_war_like_cpp(candidate, creature_faction_id) {
+            if !creature_aggro_candidate_is_at_war_like_cpp(candidate, creature_faction_id) {
                 return Some(rank.max(ReputationRankLikeCpp::Unfriendly));
             }
             return Some(rank.min(ReputationRankLikeCpp::Neutral));
@@ -238,9 +238,9 @@ pub(in crate::session) fn legacy_creature_reaction_to_candidate_like_cpp(
     }
     Some(ReputationRankLikeCpp::Neutral)
 }
-pub(in crate::session) fn legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
+pub(in crate::session) fn creature_aggro_candidate_is_accessible_for_creature_like_cpp(
     creature: &wow_entities::Creature,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
+    candidate: &CreatureAggroCandidateLikeCpp,
 ) -> bool {
     let victim_is_in_water = candidate.player_liquid_status_like_cpp
         & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP)
@@ -264,10 +264,10 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_accessible_for_crea
 pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     terrain: Option<&crate::terrain::LiveTerrainHeights>,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
-    let mut outcome = LegacyCreatureAggroTickOutcomeLikeCpp::default();
+    candidates: &[CreatureAggroCandidateLikeCpp],
+    config: &CreatureAggroConfigLikeCpp,
+) -> CreatureAggroTickOutcomeLikeCpp {
+    let mut outcome = CreatureAggroTickOutcomeLikeCpp::default();
     let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
     let owner_snapshots: HashMap<_, _> = candidates
@@ -275,7 +275,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
         .map(|candidate| {
             (
                 candidate.player_guid,
-                LegacyCreatureAggroOwnerSnapshotLikeCpp {
+                CreatureAggroOwnerSnapshotLikeCpp {
                     map_id: candidate.map_id,
                     instance_id: candidate.instance_id,
                     position: candidate.position,
@@ -312,7 +312,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
             if let Some(owner) = store.phase_creature_like_cpp(map_id, instance_id, *owner_guid) {
                 owner_snapshots.insert(
                     *owner_guid,
-                    LegacyCreatureAggroOwnerSnapshotLikeCpp {
+                    CreatureAggroOwnerSnapshotLikeCpp {
                         map_id,
                         instance_id,
                         position: owner.position(),
@@ -430,16 +430,16 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         && creature_factions.get(&guid)
                             == Some(&assistant.unit().data().faction_template)
                         && (victim.is_some_and(|victim| {
-                            legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(
+                            creature_aggro_candidate_is_targetable_for_attack_like_cpp(
                                 victim,
-                            ) && legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                            ) && creature_aggro_candidate_is_hostile_to_creature_like_cpp(
                                 assistant, victim, config,
                             )
                             .unwrap_or(false)
                         }) || victim_snapshot.is_some_and(|victim| {
                             victim.alive
                                 && !victim.in_evade_mode
-                                && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
+                                && creature_snapshot_is_hostile_to_creature_like_cpp(
                                     assistant, victim, config,
                                 )
                                 .unwrap_or(false)
@@ -493,14 +493,14 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
             else {
                 continue;
             };
-            match legacy_creature_update_threat_victim_like_cpp(
+            match creature_update_threat_victim_like_cpp(
                 creature,
                 &map_candidates,
                 config,
                 &owner_snapshots,
             ) {
-                LegacyCreatureThreatUpdateLikeCpp::Unchanged => {}
-                LegacyCreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
+                CreatureThreatUpdateLikeCpp::Unchanged => {}
+                CreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
                     outcome.victim_switches += 1;
                     if let Some(victim_guid) = creature.ai_ownership().combat_target {
                         use crate::{runtime_plan::RecipientRule, runtime_plan::RuntimeEvent};
@@ -547,7 +547,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         );
                     }
                 }
-                LegacyCreatureThreatUpdateLikeCpp::Evade {
+                CreatureThreatUpdateLikeCpp::Evade {
                     previous_victim,
                     participant_guids,
                     removed_taunt_slots,
@@ -627,9 +627,9 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                 outcome.sightless_creatures_skipped += 1;
                 continue;
             }
-            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, config) {
-                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
-                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+            let ai_kind = match creature_ai_selection_decision_like_cpp(creature, config) {
+                CreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                CreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
                     outcome.ai_selection_unrepresented += 1;
                     continue;
                 }
@@ -645,30 +645,30 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                 else {
                     break;
                 };
-                if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
+                if !creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
                     outcome.targetability_rejections += 1;
                     continue;
                 }
-                match legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+                match creature_aggro_candidate_visibility_decision_like_cpp(
                     creature,
                     map_id,
                     instance_id,
                     candidate,
                     false,
                 ) {
-                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed => {}
-                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Rejected => {
+                    CreatureAggroVisibilityDecisionLikeCpp::Allowed => {}
+                    CreatureAggroVisibilityDecisionLikeCpp::Rejected => {
                         if matches!(
-                            legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+                            creature_aggro_candidate_visibility_decision_like_cpp(
                                 creature,
                                 map_id,
                                 instance_id,
                                 candidate,
                                 true,
                             ),
-                            LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
+                            CreatureAggroVisibilityDecisionLikeCpp::Allowed
                         ) {
-                            let alert = legacy_creature_alert_orientation_like_cpp(
+                            let alert = creature_alert_orientation_like_cpp(
                                 creature, candidate, config,
                             )
                             .map(|orientation| {
@@ -708,12 +708,12 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         outcome.visibility_rejections += 1;
                         continue;
                     }
-                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Unrepresented => {
+                    CreatureAggroVisibilityDecisionLikeCpp::Unrepresented => {
                         outcome.visibility_unrepresented += 1;
                         continue;
                     }
                 }
-                match legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                match creature_aggro_candidate_is_hostile_to_creature_like_cpp(
                     creature, candidate, config,
                 ) {
                     Some(true) => {}
@@ -726,7 +726,7 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         continue;
                     }
                 }
-                if !legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
+                if !creature_aggro_candidate_is_accessible_for_creature_like_cpp(
                     creature, candidate,
                 ) {
                     outcome.accessibility_rejections += 1;
@@ -736,31 +736,31 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                     outcome.attacker_evade_rejections += 1;
                     continue;
                 }
-                match legacy_creature_ai_can_attack_decision_like_cpp(
+                match creature_ai_can_attack_decision_like_cpp(
                     &ai_kind, creature, candidate, config,
                 ) {
-                    LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed => {}
-                    LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected => {
+                    CreatureAiCanAttackDecisionLikeCpp::Allowed => {}
+                    CreatureAiCanAttackDecisionLikeCpp::Rejected => {
                         outcome.ai_can_attack_rejections += 1;
                         continue;
                     }
-                    LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented => {
+                    CreatureAiCanAttackDecisionLikeCpp::Unrepresented => {
                         outcome.ai_can_attack_unrepresented += 1;
                         continue;
                     }
                 }
-                match legacy_creature_can_attack_leash_decision_like_cpp(
+                match creature_can_attack_leash_decision_like_cpp(
                     creature,
                     candidate,
                     config,
                     &owner_snapshots,
                 ) {
-                    LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed => {}
-                    LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented => {
+                    CreatureCanAttackLeashDecisionLikeCpp::Allowed => {}
+                    CreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented => {
                         outcome.owner_position_unrepresented += 1;
                         continue;
                     }
-                    LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected => {
+                    CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected => {
                         outcome.home_range_rejections += 1;
                         continue;
                     }
@@ -923,13 +923,13 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                             )
                         })
                         || !(victim.is_some_and(|victim| {
-                            legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                            creature_aggro_candidate_is_hostile_to_creature_like_cpp(
                                 assistant, victim, config,
                             )
                             .unwrap_or(false)
                         }) || victim_snapshot.is_some_and(|victim| {
                             !victim.in_evade_mode
-                                && legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
+                                && creature_snapshot_is_hostile_to_creature_like_cpp(
                                     assistant, victim, config,
                                 )
                                 .unwrap_or(false)

@@ -153,7 +153,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -454,7 +454,7 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -719,7 +719,7 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
     spell_store.insert_spell_misc_attributes_like_cpp(91_813, attributes);
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };

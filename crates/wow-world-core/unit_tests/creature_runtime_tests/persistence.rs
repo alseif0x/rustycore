@@ -336,7 +336,7 @@ fn pending_respawn_save_load_roundtrip_uses_cpp_respawn_table_statement() {
 }
 #[test]
 fn push_respawn_keeps_persistent_and_synthetic_id_namespaces_separate_like_cpp() {
-    let mut map = MapInstance::new(0, 0);
+    let mut map = CreatureRespawnQueueLikeCpp::default();
     let now = Instant::now();
 
     let mut persistent = make_pending_respawn(now);

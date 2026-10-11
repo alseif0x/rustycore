@@ -66,7 +66,7 @@ impl CanonicalCreatureSpellActionOwnerLikeCpp<'_> {
     fn turret_rejected_attempt_like_cpp(
         &mut self,
         attempt: &TurretRejectedCastAttemptLikeCpp,
-        config: &LegacyCreatureAggroConfigLikeCpp,
+        config: &CreatureAggroConfigLikeCpp,
     ) -> bool {
         apply_turret_rejected_cast_attempt_on_manager_like_cpp(
             self.manager,
@@ -80,7 +80,7 @@ impl CanonicalCreatureSpellActionOwnerLikeCpp<'_> {
     fn validate_cast_like_cpp(
         &mut self,
         cast: &PendingCreatureSpellCastLikeCpp,
-        config: &LegacyCreatureAggroConfigLikeCpp,
+        config: &CreatureAggroConfigLikeCpp,
         plan: &mut RuntimePlan,
     ) -> CreatureSpellCastValidationResultLikeCpp {
         validate_and_append_creature_spell_cast_on_manager_like_cpp(
@@ -108,8 +108,8 @@ enum CreatureSpellScheduleDrainLikeCpp {
 pub(super) fn drain_creature_spell_actions_like_cpp(
     owner: &mut CanonicalCreatureSpellActionOwnerLikeCpp<'_>,
     pending_actions: Vec<PendingCreatureSpellActionLikeCpp>,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyCreatureSpellTickOutcomeLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut CreatureSpellTickOutcomeLikeCpp,
 ) {
     for pending_action in pending_actions {
         let pending_cast = match pending_action {

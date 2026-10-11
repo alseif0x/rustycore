@@ -150,7 +150,7 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -379,7 +379,7 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        let config = crate::session::CreatureAggroConfigLikeCpp {
             spell_store: Some(Arc::clone(&spell_store)),
             expected_stat_store,
             ..Default::default()
@@ -539,7 +539,7 @@ fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp
                 ));
         })
         .unwrap();
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         creature_template_lifecycle_store: Some(Arc::new(
             wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([

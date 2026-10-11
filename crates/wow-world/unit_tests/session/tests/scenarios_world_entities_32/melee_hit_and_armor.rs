@@ -148,7 +148,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -277,7 +277,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         .flatten()
         .expect("miss aura slot");
     session.remove_aura(miss_slot).expect("remove miss aura");
-    let last_command = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let last_command = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         outcome.commands.last().expect("one swing command").clone()
     };
 
@@ -521,7 +521,7 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
     );
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };

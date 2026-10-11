@@ -46,7 +46,7 @@ pub(crate) struct CanonicalCreatureRuntimeProbeLikeCpp {
 pub(crate) struct CanonicalCreatureRuntimeLikeCpp {
     pub(crate) mmap_config: MMapRuntimeConfigLikeCpp,
     pub(crate) mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
-    pub(crate) aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    pub(crate) aggro_config: wow_world::session::CreatureAggroConfigLikeCpp,
     pub(crate) group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
     /// The file-backed terrain heights the movement and lifecycle phases read.
     pub(crate) terrain: Option<Arc<wow_world::terrain::LiveTerrainHeights>>,
@@ -58,7 +58,7 @@ pub(crate) struct CanonicalCreatureRuntimeLikeCpp {
 /// The registry snapshots one tick reads, taken before any map guard.
 pub(crate) struct CanonicalCreatureTickInputsLikeCpp {
     attackers: Vec<wow_world::session::PlayerMeleeAttackerSnapshotLikeCpp>,
-    aggro_candidates: Vec<wow_world::session::LegacyCreatureAggroCandidateLikeCpp>,
+    aggro_candidates: Vec<wow_world::session::CreatureAggroCandidateLikeCpp>,
     chase_targets:
         std::collections::HashMap<(u16, u32, ObjectGuid), wow_world::ChaseTargetSnapshotLikeCpp>,
     terrain: Option<Arc<wow_world::terrain::LiveTerrainHeights>>,
@@ -69,7 +69,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
     pub(crate) fn new_like_cpp(
         mmap_config: MMapRuntimeConfigLikeCpp,
         mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
-        aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+        aggro_config: wow_world::session::CreatureAggroConfigLikeCpp,
         group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
         terrain: Option<Arc<wow_world::terrain::LiveTerrainHeights>>,
     ) -> Self {
@@ -96,7 +96,7 @@ impl CanonicalCreatureRuntimeLikeCpp {
         let tap_index = build_tap_group_index_like_cpp(self.group_registry.as_ref());
         CanonicalCreatureTickInputsLikeCpp {
             attackers: collect_player_melee_attackers_like_cpp(registry, &tap_index),
-            aggro_candidates: collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+            aggro_candidates: collect_creature_aggro_candidates_with_canonical_like_cpp(
                 registry,
                 Some(canonical_map_manager),
             ),

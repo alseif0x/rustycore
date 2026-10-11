@@ -28,8 +28,8 @@ pub(super) fn collect_creature_spell_actions_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     map_difficulties: &HashMap<(u16, u32), u8>,
     spell_store: &wow_data::SpellStore,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyCreatureSpellTickOutcomeLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut CreatureSpellTickOutcomeLikeCpp,
 ) -> Vec<PendingCreatureSpellActionLikeCpp> {
     let mut pending_actions = Vec::new();
     let map_keys = store.phase_map_keys_like_cpp();
@@ -57,9 +57,9 @@ pub(super) fn collect_creature_spell_actions_on_store_like_cpp(
                 continue;
             }
 
-            let ai_kind = match legacy_creature_ai_selection_decision_like_cpp(creature, config) {
-                LegacyCreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
-                LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
+            let ai_kind = match creature_ai_selection_decision_like_cpp(creature, config) {
+                CreatureAiSelectionDecisionLikeCpp::Selected(ai_kind) => ai_kind,
+                CreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented => {
                     outcome.ai_selection_unrepresented += 1;
                     continue;
                 }

@@ -5,14 +5,14 @@
 use super::*;
 use wow_data::reputation::ReputationRankLikeCpp;
 
-pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
+pub(in crate::session) fn creature_update_threat_victim_like_cpp(
     creature: &mut wow_entities::Creature,
-    candidates: &[&LegacyCreatureAggroCandidateLikeCpp],
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    owner_snapshots: &HashMap<ObjectGuid, LegacyCreatureAggroOwnerSnapshotLikeCpp>,
-) -> LegacyCreatureThreatUpdateLikeCpp {
+    candidates: &[&CreatureAggroCandidateLikeCpp],
+    config: &CreatureAggroConfigLikeCpp,
+    owner_snapshots: &HashMap<ObjectGuid, CreatureAggroOwnerSnapshotLikeCpp>,
+) -> CreatureThreatUpdateLikeCpp {
     if creature.state() != wow_entities::CreatureAiState::InCombat {
-        return LegacyCreatureThreatUpdateLikeCpp::Unchanged;
+        return CreatureThreatUpdateLikeCpp::Unchanged;
     }
 
     let old_victim = creature.ai_ownership().combat_target;
@@ -51,32 +51,32 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
     let mut eligible_candidate_guids: HashSet<_> = candidates
         .iter()
         .filter(|candidate| {
-            legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate)
+            creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate)
                 && target_acceptable(
                     candidate.player_guid,
-                    legacy_creature_reaction_to_candidate_like_cpp(creature, candidate, config),
+                    creature_reaction_to_candidate_like_cpp(creature, candidate, config),
                 )
-                && legacy_creature_aggro_candidate_is_accessible_for_creature_like_cpp(
+                && creature_aggro_candidate_is_accessible_for_creature_like_cpp(
                     creature, candidate,
                 )
                 && matches!(
-                    legacy_creature_aggro_candidate_visibility_decision_like_cpp(
+                    creature_aggro_candidate_visibility_decision_like_cpp(
                         creature,
                         creature.map_id() as u16,
                         creature.instance_id(),
                         candidate,
                         false,
                     ),
-                    LegacyCreatureAggroVisibilityDecisionLikeCpp::Allowed
+                    CreatureAggroVisibilityDecisionLikeCpp::Allowed
                 )
                 && matches!(
-                    legacy_creature_can_attack_leash_decision_like_cpp(
+                    creature_can_attack_leash_decision_like_cpp(
                         creature,
                         candidate,
                         config,
                         owner_snapshots,
                     ),
-                    LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+                    CreatureCanAttackLeashDecisionLikeCpp::Allowed
                 )
         })
         .map(|candidate| candidate.player_guid)
@@ -99,7 +99,7 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
             )
             && target_acceptable(
                 *guid,
-                legacy_creature_reaction_to_snapshot_like_cpp(creature, snapshot, config),
+                creature_reaction_to_snapshot_like_cpp(creature, snapshot, config),
             )
             && if snapshot.in_water {
                 creature.can_enter_water_like_cpp()
@@ -107,13 +107,13 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
                 creature.can_walk_like_cpp() || creature.can_fly_like_cpp()
             }
             && matches!(
-                legacy_creature_can_attack_snapshot_leash_decision_like_cpp(
+                creature_can_attack_snapshot_leash_decision_like_cpp(
                     creature,
                     snapshot,
                     config,
                     owner_snapshots,
                 ),
-                LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+                CreatureCanAttackLeashDecisionLikeCpp::Allowed
             ))
         .then_some(*guid)
     }));
@@ -201,7 +201,7 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         creature.unit_mut().add_unit_state(UnitState::EVADE.bits());
         creature.clear_tap_list_for_evade();
         let removed_taunt_slots = creature.reset_combat();
-        return LegacyCreatureThreatUpdateLikeCpp::Evade {
+        return CreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,
             participant_guids,
             removed_taunt_slots,
@@ -230,7 +230,7 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         let participant_guids = creature.unit().subsystems().combat.sorted_threat_guids();
         creature.unit_mut().add_unit_state(UnitState::EVADE.bits());
         let removed_taunt_slots = creature.reset_combat();
-        return LegacyCreatureThreatUpdateLikeCpp::Evade {
+        return CreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,
             participant_guids,
             removed_taunt_slots,
@@ -240,7 +240,7 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
         let participant_guids = creature.unit().subsystems().combat.sorted_threat_guids();
         creature.unit_mut().add_unit_state(UnitState::EVADE.bits());
         let removed_taunt_slots = creature.reset_combat();
-        return LegacyCreatureThreatUpdateLikeCpp::Evade {
+        return CreatureThreatUpdateLikeCpp::Evade {
             previous_victim: old_victim,
             participant_guids,
             removed_taunt_slots,
@@ -249,10 +249,10 @@ pub(in crate::session) fn legacy_creature_update_threat_victim_like_cpp(
 
     if old_victim != Some(selected) {
         creature.enter_combat(selected);
-        LegacyCreatureThreatUpdateLikeCpp::Switched {
+        CreatureThreatUpdateLikeCpp::Switched {
             previous_victim: old_victim.unwrap_or(ObjectGuid::EMPTY),
         }
     } else {
-        LegacyCreatureThreatUpdateLikeCpp::Unchanged
+        CreatureThreatUpdateLikeCpp::Unchanged
     }
 }

@@ -8,7 +8,7 @@
 
 use wow_core::ObjectGuid;
 use wow_data::spell_duration_ms_like_cpp;
-use wow_world_core::session::LegacyCreatureAggroConfigLikeCpp;
+use wow_world_core::session::CreatureAggroConfigLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CreatureAiSpellTargetLikeCpp {
@@ -40,7 +40,7 @@ pub fn creature_ai_spell_target_like_cpp(
     spell_id: u32,
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureAiSpellTargetLikeCpp {
     const TARGET_UNIT_TARGET_ENEMY_LIKE_CPP: u32 = 6;
     const TARGET_UNIT_DEST_AREA_ENEMY_LIKE_CPP: u32 = 16;
@@ -103,7 +103,7 @@ pub enum CreatureAiSpellConditionLikeCpp {
 pub fn creature_ai_spell_condition_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> CreatureAiSpellConditionLikeCpp {
     const SPELL_ATTR0_ALLOW_CAST_WHILE_DEAD_LIKE_CPP: u32 = 0x0080_0000;
     if i32::try_from(spell_id).ok().is_some_and(|spell_id| {
@@ -145,7 +145,7 @@ pub use wow_world_core::session::creature_ai_spell_difficulty_chain_like_cpp;
 pub fn creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     // C++ resolves one effective `SpellTargetRestrictions` row through the
     // active difficulty fallback chain before `CheckTargetCreatureType`.
@@ -176,7 +176,7 @@ pub fn creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
 pub fn creature_ai_spell_cooldowns_entry_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<&wow_data::SpellCooldownsEntry> {
     let store = config.spell_cooldowns_store.as_ref()?;
     creature_ai_spell_difficulty_chain_like_cpp(difficulty_id, config)
@@ -201,7 +201,7 @@ pub struct CreatureSpellCooldownProfileLikeCpp {
 pub fn creature_ai_spell_cooldown_profile_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<CreatureSpellCooldownProfileLikeCpp> {
     let signed_spell_id = i32::try_from(spell_id).ok()?;
     let spell_store = config.spell_store.as_deref()?;
@@ -227,7 +227,7 @@ pub fn creature_ai_spell_cooldown_profile_like_cpp(
 pub fn creature_ai_spell_has_represented_cooldown_semantics_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     const SPELL_ATTR0_COOLDOWN_ON_EVENT_LIKE_CPP: u32 = 0x0200_0000;
     const SPELL_CATEGORY_FLAG_COOLDOWN_STARTS_ON_EVENT_LIKE_CPP: i32 = 0x04;
@@ -277,7 +277,7 @@ pub fn creature_ai_spell_has_represented_cooldown_semantics_like_cpp(
 pub fn creature_ai_spell_is_combat_forbidden_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     i32::try_from(spell_id).ok().is_none_or(|spell_id| {
         config.spell_store.as_ref().is_none_or(|store| {
@@ -295,7 +295,7 @@ pub fn creature_ai_spell_is_combat_forbidden_like_cpp(
 pub fn creature_ai_effective_spell_info_like_cpp(
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> wow_data::SpellInfo {
     let mut effective = spell.clone();
     if let Some(effects) = config.spell_store.as_ref().and_then(|store| {
@@ -313,7 +313,7 @@ pub fn creature_ai_effective_spell_info_like_cpp(
 pub fn creature_ai_has_temporally_unrepresented_noninstant_spell_like_cpp(
     spells: &[u32],
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     // M2.6 has no cast-completion/cancellation state. If one template slot
     // could start a non-instant Aggro/Combat cast, merely dropping that slot
@@ -348,7 +348,7 @@ pub fn creature_ai_spell_initial_cooldown_like_cpp(
     spell_id: u32,
     _spell: &wow_data::SpellInfo,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> u64 {
     // C++ `AISpellInfoType` starts at AI_DEFAULT_COOLDOWN=5000 and
     // `FillAISpellInfo` raises it with raw `RecoveryTime`, deliberately not
@@ -364,7 +364,7 @@ pub fn creature_ai_spell_repeat_cooldown_like_cpp(
     spell_id: u32,
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> u64 {
     // C++ `CombatAI::UpdateAI` re-schedules in [cooldown, cooldown*2].
     creature_ai_spell_initial_cooldown_like_cpp(spell_id, spell, difficulty_id, config)
@@ -373,7 +373,7 @@ pub fn creature_ai_spell_repeat_cooldown_like_cpp(
 pub fn creature_ai_spell_x_spell_visual_id_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Result<u32, ()> {
     // C++ falls back only when the current difficulty has no visual rows at
     // all. It then orders the selected vector by caster-player condition and
@@ -408,7 +408,7 @@ pub fn creature_ai_spell_x_spell_visual_id_like_cpp(
 pub fn creature_ai_spell_go_cast_flags_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> u32 {
     const CAST_FLAG_UNKNOWN_9_LIKE_CPP: u32 = 0x0000_0100;
     const CAST_FLAG_NO_GCD_LIKE_CPP: u32 = 0x0004_0000;

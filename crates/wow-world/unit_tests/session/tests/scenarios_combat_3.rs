@@ -555,63 +555,63 @@ fn legacy_turret_ai_can_attack_uses_combat_reaches_and_strict_bounds_like_cpp() 
             creature.creature.unit_mut().set_combat_reach(1.0);
         })
         .unwrap();
-    let config = LegacyCreatureAggroConfigLikeCpp {
+    let config = CreatureAggroConfigLikeCpp {
         spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
             spell_misc_entry_like_cpp(8_301, 7_003, 71),
         ]))),
         spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
             spell_range_entry_like_cpp(71, 1.0, 5.0),
         ]))),
-        ..legacy_aggro_hostile_config_like_cpp()
+        ..aggro_hostile_config_like_cpp()
     };
     let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     let mut candidate =
-        legacy_aggro_candidate_like_cpp(ObjectGuid::create_player(1, 91_305), Position::default());
+        aggro_candidate_like_cpp(ObjectGuid::create_player(1, 91_305), Position::default());
     candidate.player_combat_reach = 1.0;
 
     candidate.position = Position::new(16.0, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+        CreatureAiCanAttackDecisionLikeCpp::Allowed,
         "center distance 6 is inside max 5 + reaches 1 + 1"
     );
     candidate.position = Position::new(17.0, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected,
+        CreatureAiCanAttackDecisionLikeCpp::Rejected,
         "IsWithinCombatRange is strict at max + reaches"
     );
     candidate.position = Position::new(12.5, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected,
+        CreatureAiCanAttackDecisionLikeCpp::Rejected,
         "center distance 2.5 is inside min 1 + reaches 1 + 1"
     );
     candidate.position = Position::new(13.0, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+        CreatureAiCanAttackDecisionLikeCpp::Allowed,
         "the min + reaches boundary itself is not within strict range"
     );
 }

@@ -5157,47 +5157,47 @@ async fn run_inner(
 
     info!("Starting realm listener on {realm_addr}");
     info!("Starting instance listener on {instance_addr}");
-    let mut legacy_creature_aggro_config = legacy_creature_aggro_config_like_cpp(&world_configs);
-    legacy_creature_aggro_config.expected_stat_store =
+    let mut creature_aggro_config = creature_aggro_config_like_cpp(&world_configs);
+    creature_aggro_config.expected_stat_store =
         wow_data::ExpectedStatStore::load(&data_dir, &locale)
             .ok()
             .map(Arc::new);
-    legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
-    legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
-    legacy_creature_aggro_config.map_store = Some(Arc::clone(&map_store));
-    legacy_creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
-    legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
-    legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
-    legacy_creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
-    legacy_creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
-    legacy_creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
-    legacy_creature_aggro_config.spell_x_spell_visual_store =
+    creature_aggro_config.faction_template_store = Some(Arc::clone(&faction_template_store));
+    creature_aggro_config.faction_store = Some(Arc::clone(&progression_faction_store));
+    creature_aggro_config.map_store = Some(Arc::clone(&map_store));
+    creature_aggro_config.disable_mgr = Some(Arc::clone(&disable_mgr));
+    creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_misc_store));
+    creature_aggro_config.spell_range_store = Some(Arc::clone(&spell_range_store));
+    creature_aggro_config.spell_duration_store = Some(Arc::clone(&spell_duration_store));
+    creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(&spell_cooldowns_store));
+    creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_category_store));
+    creature_aggro_config.spell_x_spell_visual_store =
         Some(Arc::clone(&spell_x_spell_visual_store));
-    legacy_creature_aggro_config.spell_target_restrictions_store =
+    creature_aggro_config.spell_target_restrictions_store =
         Some(Arc::clone(&spell_target_restrictions_store));
-    legacy_creature_aggro_config.spell_casting_requirements_store =
+    creature_aggro_config.spell_casting_requirements_store =
         Some(Arc::clone(&spell_casting_requirements_store));
-    legacy_creature_aggro_config.spell_aura_restrictions_store =
+    creature_aggro_config.spell_aura_restrictions_store =
         Some(Arc::clone(&spell_aura_restrictions_store));
-    legacy_creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
-    legacy_creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
-    legacy_creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
-    legacy_creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
-    legacy_creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));
-    legacy_creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
+    creature_aggro_config.spell_store = Some(Arc::clone(&spell_store));
+    creature_aggro_config.spell_threat_store = Some(Arc::clone(&spell_threat_store));
+    creature_aggro_config.spell_chain_store = Some(Arc::clone(&spell_chain_store));
+    creature_aggro_config.spell_linked_store = Some(Arc::clone(&spell_linked_store));
+    creature_aggro_config.spell_condition_store = Some(Arc::clone(&condition_store));
+    creature_aggro_config.spell_script_exact_spell_ids_like_cpp =
         Some(Arc::clone(&spell_script_exact_spell_ids));
-    legacy_creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
+    creature_aggro_config.spell_script_all_rank_root_spell_ids_like_cpp =
         Some(Arc::clone(&spell_script_all_rank_root_spell_ids));
-    legacy_creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
+    creature_aggro_config.legacy_spell_script_spell_ids_like_cpp =
         Some(Arc::clone(&legacy_spell_script_spell_ids));
-    legacy_creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
+    creature_aggro_config.spell_linked_rejected_trigger_spell_ids_like_cpp =
         Some(Arc::clone(&spell_linked_rejected_trigger_spell_ids));
-    legacy_creature_aggro_config.spell_custom_attribute_store =
+    creature_aggro_config.spell_custom_attribute_store =
         Some(Arc::clone(&spell_custom_attribute_store));
-    legacy_creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
-    legacy_creature_aggro_config.creature_template_lifecycle_store =
+    creature_aggro_config.difficulty_store = Some(Arc::clone(&difficulty_store));
+    creature_aggro_config.creature_template_lifecycle_store =
         Some(Arc::clone(&creature_template_lifecycle_store));
-    legacy_creature_aggro_config.chr_races_store = Some(Arc::clone(&chr_races_store));
+    creature_aggro_config.chr_races_store = Some(Arc::clone(&chr_races_store));
 
     let (realm_listener_ready_tx, realm_listener_ready_rx) = tokio::sync::oneshot::channel();
     let (instance_listener_ready_tx, instance_listener_ready_rx) = tokio::sync::oneshot::channel();
@@ -5217,7 +5217,7 @@ async fn run_inner(
         let port = instance_port;
         let mmap_config = mmap_runtime_config.clone();
         let mmap_pathfinder = mmap_pathfinder.clone();
-        let session_aggro_config = legacy_creature_aggro_config.clone();
+        let session_aggro_config = creature_aggro_config.clone();
         async move {
             wow_network::start_world_listener(
                 realm_addr,
@@ -5338,7 +5338,7 @@ async fn run_inner(
         Some(CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
             mmap_runtime_config.clone(),
             mmap_pathfinder.clone(),
-            legacy_creature_aggro_config.clone(),
+            creature_aggro_config.clone(),
             Some(Arc::clone(&group_registry)),
             Some(Arc::clone(&live_terrain)),
         )),

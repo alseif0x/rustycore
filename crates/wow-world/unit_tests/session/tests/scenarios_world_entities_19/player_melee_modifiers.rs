@@ -141,7 +141,7 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -325,7 +325,7 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
     }];
     // The attacker-side `SPELL_AURA_MOD_TARGET_RESISTANCE` sum is resolved from
     // the same spell store the melee bonus uses.
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::new(wow_data::SpellStore::new())),
         ..Default::default()
     };
@@ -489,7 +489,7 @@ async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
         in_combat_mirror: true,
         tap_group_guids: Vec::new(),
     }];
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };

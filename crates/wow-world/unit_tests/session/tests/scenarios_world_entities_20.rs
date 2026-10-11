@@ -6,7 +6,7 @@
 use super::*;
 
 #[test]
-fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() {
+fn creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_007);
@@ -28,17 +28,17 @@ fn legacy_creature_aggro_tick_once_enters_combat_and_returns_command_like_cpp() 
 
     let player = ObjectGuid::create_player(1, 91_008);
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(
+        aggro_candidate_like_cpp(
             ObjectGuid::create_player(1, 91_009),
             Position::new(50.0, 50.0, 0.0, 0.0),
         ),
-        legacy_aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0)),
+        aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0)),
     ];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
@@ -130,14 +130,14 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
         })
         .unwrap();
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(tank, Position::new(10.5, 10.0, 0.0, 0.0)),
-        legacy_aggro_candidate_like_cpp(challenger, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(tank, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(challenger, Position::new(10.5, 10.0, 0.0, 0.0)),
     ];
 
     let held = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
     assert_eq!(held.victim_switches, 0);
     assert_eq!(
@@ -166,7 +166,7 @@ fn legacy_creature_threat_switches_only_above_cpp_melee_threshold() {
     let switched = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
     assert_eq!(switched.victim_switches, 1);
     assert_eq!(switched.commands.len(), 1);
@@ -224,19 +224,19 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
         })
         .unwrap();
     let mut suppressed_candidate =
-        legacy_aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0));
     suppressed_candidate.player_school_immunity_mask = 0x1;
     suppressed_candidate.player_has_confuse_aura = true;
     suppressed_candidate.player_has_breakable_stun_aura = true;
     let candidates = vec![
         suppressed_candidate,
-        legacy_aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
     ];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.victim_switches, 1);
@@ -259,13 +259,13 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
     drop(guard);
 
     let candidates_without_suppression = vec![
-        legacy_aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0)),
-        legacy_aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(suppressed, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(available, Position::new(10.5, 10.0, 0.0, 0.0)),
     ];
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates_without_suppression,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
     assert_eq!(
         outcome.victim_switches, 0,
@@ -302,7 +302,7 @@ fn legacy_creature_suppresses_unattackable_threat_reference_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates_without_suppression,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
     assert_eq!(
         outcome.victim_switches, 1,
@@ -349,19 +349,19 @@ fn legacy_creature_never_suppresses_taunting_victim_like_cpp() {
         })
         .unwrap();
     let mut taunter_candidate =
-        legacy_aggro_candidate_like_cpp(taunter, Position::new(10.5, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(taunter, Position::new(10.5, 10.0, 0.0, 0.0));
     taunter_candidate.player_damage_immunity_mask = 0x1;
     taunter_candidate.player_has_confuse_aura = true;
     taunter_candidate.player_has_breakable_stun_aura = true;
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(tank, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(tank, Position::new(10.5, 10.0, 0.0, 0.0)),
         taunter_candidate,
     ];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(3.0),
+        aggro_hostile_config_with_rate_like_cpp(3.0),
     );
 
     assert_eq!(outcome.victim_switches, 1);
@@ -417,7 +417,7 @@ fn legacy_creature_without_online_threat_enters_evade_and_clears_combat_like_cpp
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[],
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.evades_started, 1);
@@ -497,7 +497,7 @@ fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[],
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.evades_started, 0);
@@ -526,7 +526,7 @@ fn legacy_creature_threat_keeps_represented_non_player_victim_online_like_cpp() 
     let invalidated = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &[],
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
     assert_eq!(
         invalidated.evades_started, 1,
@@ -588,7 +588,7 @@ fn legacy_creature_call_assistance_accepts_represented_creature_victim_like_cpp(
                 .set_react_state(wow_entities::ReactState::Passive);
         })
         .unwrap();
-    let config = legacy_aggro_hostile_config_with_rate_like_cpp(3.0);
+    let config = aggro_hostile_config_with_rate_like_cpp(3.0);
 
     let scheduled =
         run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &[], config.clone());
@@ -717,11 +717,11 @@ fn legacy_creature_call_assistance_engages_same_faction_after_delay_like_cpp() {
                 .set_react_state(wow_entities::ReactState::Defensive);
         })
         .unwrap();
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         victim,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
-    let config = legacy_aggro_hostile_config_with_rate_like_cpp(3.0);
+    let config = aggro_hostile_config_with_rate_like_cpp(3.0);
 
     let scheduled =
         run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &candidates, config.clone());

@@ -19,7 +19,7 @@ pub(in crate::session) fn collect_player_melee_swings_on_manager_like_cpp(
     attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
     diff_ms: u32,
     phase_state: &mut PlayerMeleePhaseStateLikeCpp,
-    outcome: &mut LegacyPlayerMeleeTickOutcomeLikeCpp,
+    outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
 ) -> (Vec<PendingPlayerSwingLikeCpp>, HashMap<(u16, u32), u8>) {
     let mut pending: Vec<PendingPlayerSwingLikeCpp> = Vec::new();
     let mut map_difficulties: HashMap<(u16, u32), u8> = HashMap::new();
@@ -110,8 +110,8 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
     swing: &PendingPlayerSwingLikeCpp,
     map_difficulties: &HashMap<(u16, u32), u8>,
     diff_ms: u32,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    outcome: &mut LegacyPlayerMeleeTickOutcomeLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
 ) {
     let attacker = &swing.attacker;
     let Some(managed) =

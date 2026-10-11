@@ -19,7 +19,7 @@ pub(super) fn creature_victim_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     attacker: &CreatureMeleeAttackerFactsLikeCpp,
     swing: &PendingCreatureSwingLikeCpp,
-    config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
+    config: &crate::session::CreatureAggroConfigLikeCpp,
     damage: u32,
     swing_state: &mut MeleeSwingStateLikeCpp,
 ) -> u32 {

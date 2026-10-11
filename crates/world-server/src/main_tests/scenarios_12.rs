@@ -133,7 +133,7 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     }
     assert!(registry.bind_canonical_map_manager(canonical));
 
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    let candidates = collect_creature_aggro_candidates_like_cpp(&registry);
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].player_guid, in_world);
@@ -224,7 +224,7 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
     }
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
 
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+    let candidates = collect_creature_aggro_candidates_with_canonical_like_cpp(
         &registry,
         Some(&canonical),
     );
@@ -292,7 +292,7 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
         player.set_forced_reputation_rank_like_cpp(87, true);
     }
 
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
+    let candidates = collect_creature_aggro_candidates_with_canonical_like_cpp(
         &registry,
         Some(&canonical),
     );
@@ -324,7 +324,7 @@ fn collect_legacy_creature_aggro_candidates_skips_unknown_canonical_owner_like_c
     let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
     registry.register_or_replace(player_guid, info, Default::default());
 
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    let candidates = collect_creature_aggro_candidates_like_cpp(&registry);
 
     assert!(candidates.is_empty());
 }

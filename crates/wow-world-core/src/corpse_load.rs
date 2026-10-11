@@ -158,3 +158,7 @@ pub fn materialize_loaded_map_corpses_like_cpp(
     map.mark_corpse_data_loaded_like_cpp();
     outcome
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/creature_runtime_tests/corpse_load.rs"]
+mod tests;

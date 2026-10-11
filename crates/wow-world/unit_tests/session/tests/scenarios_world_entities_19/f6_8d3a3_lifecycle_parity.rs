@@ -113,10 +113,10 @@ async fn d3a3_world_like_cpp(base: i64) -> D3a3WorldLikeCpp {
 
 /// One tick's comparable output on either side.
 struct D3a3TickLikeCpp {
-    lifecycle: crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    movement: crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
-    aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
-    melee: crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
+    lifecycle: crate::session::CreatureLifecycleTickOutcomeLikeCpp,
+    movement: crate::session::CreatureMovementTickOutcomeLikeCpp,
+    aggro: CreatureAggroTickOutcomeLikeCpp,
+    melee: crate::session::CreatureMeleeTickOutcomeLikeCpp,
     /// The packets the observer session sent for this tick's visibility
     /// refresh commands.
     visibility: Vec<Vec<u8>>,
@@ -166,7 +166,7 @@ async fn d3a3_executor_tick_like_cpp(
         [(key, world.creature)],
     )
     .expect("the canonical owner is readable");
-    let config = legacy_aggro_hostile_config_like_cpp();
+    let config = aggro_hostile_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
     let lease = std::sync::Arc::new(std::sync::Mutex::new(CreatureExecutionLeaseLikeCpp::new()));
     let mmap_config = super::f6_8d3a2_movement_lifecycle_parity::d3a2_mmap_config_like_cpp();
@@ -205,7 +205,7 @@ async fn d3a3_executor_tick_like_cpp(
 
 /// The lifecycle counters, without the two lists compared on their own.
 fn d3a3_lifecycle_counters_like_cpp(
-    outcome: &crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    outcome: &crate::session::CreatureLifecycleTickOutcomeLikeCpp,
 ) -> String {
     format!(
         "maps={} creatures={} despawned={} respawned={} canonical_removes={} \

@@ -1112,7 +1112,7 @@ fn login_identity_hydrates_race_faction_into_registry_and_canonical_player_like_
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     session.register_in_player_registry();
 
-    assert_eq!(registry.legacy_aggro_candidates()[0].faction_template_id, 1);
+    assert_eq!(registry.aggro_candidates()[0].faction_template_id, 1);
     let manager = canonical.lock().unwrap();
     let player = manager
         .find_map(571, 0)

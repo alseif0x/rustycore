@@ -6,20 +6,20 @@
 use super::*;
 use wow_core::{position_is_in_dist_strict_2d_like_cpp, position_is_in_dist_strict_3d_like_cpp};
 
-pub(in crate::session) fn legacy_creature_snapshot_is_hostile_to_creature_like_cpp(
+pub(in crate::session) fn creature_snapshot_is_hostile_to_creature_like_cpp(
     creature: &wow_entities::Creature,
-    target: &LegacyCreatureAggroOwnerSnapshotLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    target: &CreatureAggroOwnerSnapshotLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<bool> {
-    legacy_creature_reaction_to_snapshot_like_cpp(creature, target, config)
+    creature_reaction_to_snapshot_like_cpp(creature, target, config)
         .map(|rank| rank <= wow_data::reputation::ReputationRankLikeCpp::Hostile)
 }
 /// C++ `WorldObject::GetFactionReactionTo` common faction branch for a
 /// represented unit snapshot.
-pub(in crate::session) fn legacy_creature_reaction_to_snapshot_like_cpp(
+pub(in crate::session) fn creature_reaction_to_snapshot_like_cpp(
     creature: &wow_entities::Creature,
-    target: &LegacyCreatureAggroOwnerSnapshotLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    target: &CreatureAggroOwnerSnapshotLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<wow_data::reputation::ReputationRankLikeCpp> {
     use wow_data::reputation::ReputationRankLikeCpp;
     let faction_templates = config.faction_template_store.as_ref()?;
@@ -41,16 +41,16 @@ pub(in crate::session) fn legacy_creature_reaction_to_snapshot_like_cpp(
         ReputationRankLikeCpp::Neutral
     })
 }
-pub(in crate::session) fn legacy_creature_ai_selection_decision_like_cpp(
+pub(in crate::session) fn creature_ai_selection_decision_like_cpp(
     creature: &wow_entities::Creature,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAiSelectionDecisionLikeCpp {
+    config: &CreatureAggroConfigLikeCpp,
+) -> CreatureAiSelectionDecisionLikeCpp {
     let metadata = creature.lifecycle_metadata();
     let is_pet = creature.guid().is_pet();
 
     // C++ pet override runs before ScriptName and AIName.
     if !is_pet && !metadata.script_name.is_empty() {
-        return LegacyCreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented;
+        return CreatureAiSelectionDecisionLikeCpp::ScriptRegistryUnrepresented;
     }
 
     let flags_extra = CreatureFlagsExtra::from_bits_truncate(metadata.flags_extra);
@@ -81,22 +81,22 @@ pub(in crate::session) fn legacy_creature_ai_selection_decision_like_cpp(
             .is_some_and(|guid| guid.is_player()),
     };
 
-    LegacyCreatureAiSelectionDecisionLikeCpp::Selected(select_creature_ai_like_cpp(&input))
+    CreatureAiSelectionDecisionLikeCpp::Selected(select_creature_ai_like_cpp(&input))
 }
-pub(in crate::session) fn legacy_creature_ai_can_attack_decision_like_cpp(
+pub(in crate::session) fn creature_ai_can_attack_decision_like_cpp(
     ai_kind: &CreatureAiKindLikeCpp,
     creature: &wow_entities::Creature,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAiCanAttackDecisionLikeCpp {
+    candidate: &CreatureAggroCandidateLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+) -> CreatureAiCanAttackDecisionLikeCpp {
     let mut input = CreatureAiCanAttackInputLikeCpp::default();
     if matches!(ai_kind, CreatureAiKindLikeCpp::TurretAI) {
         let first_spell_id = creature.spells()[0];
         let Some(misc_store) = config.spell_misc_store.as_ref() else {
-            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+            return CreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
         let Some(range_store) = config.spell_range_store.as_ref() else {
-            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+            return CreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
         // `TurretAI` caches GetMin/MaxRange from the active map difficulty in
         // its constructor (CombatAI.cpp:196-199).
@@ -105,10 +105,10 @@ pub(in crate::session) fn legacy_creature_ai_can_attack_decision_like_cpp(
             candidate.map_difficulty_id,
             config.difficulty_store.as_deref(),
         ) else {
-            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+            return CreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
         let Some(range) = range_store.get(u32::from(misc.range_index)) else {
-            return LegacyCreatureAiCanAttackDecisionLikeCpp::Unrepresented;
+            return CreatureAiCanAttackDecisionLikeCpp::Unrepresented;
         };
         // `Unit::IsWithinCombatRange` compares squared center distance with
         // `(requested range + both combat reaches)^2` using strict `<`.
@@ -123,22 +123,22 @@ pub(in crate::session) fn legacy_creature_ai_can_attack_decision_like_cpp(
     }
 
     if creature_ai_can_attack_like_cpp(ai_kind, &input) {
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed
+        CreatureAiCanAttackDecisionLikeCpp::Allowed
     } else {
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected
+        CreatureAiCanAttackDecisionLikeCpp::Rejected
     }
 }
-pub(in crate::session) fn legacy_creature_can_attack_leash_decision_like_cpp(
+pub(in crate::session) fn creature_can_attack_leash_decision_like_cpp(
     creature: &wow_entities::Creature,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    owner_snapshots: &HashMap<ObjectGuid, LegacyCreatureAggroOwnerSnapshotLikeCpp>,
-) -> LegacyCreatureCanAttackLeashDecisionLikeCpp {
+    candidate: &CreatureAggroCandidateLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    owner_snapshots: &HashMap<ObjectGuid, CreatureAggroOwnerSnapshotLikeCpp>,
+) -> CreatureCanAttackLeashDecisionLikeCpp {
     let charmer_or_owner_guid = creature.unit().subsystems().control.charmer_or_owner_guid();
     let charmer_or_owner_is_player = charmer_or_owner_guid.is_some_and(|guid| guid.is_player());
 
     if !charmer_or_owner_is_player && config.map_is_dungeon_like_cpp(candidate.map_id) {
-        return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
+        return CreatureCanAttackLeashDecisionLikeCpp::Allowed;
     }
     if !charmer_or_owner_is_player
         && !creature.is_world_boss_like_cpp()
@@ -149,7 +149,7 @@ pub(in crate::session) fn legacy_creature_can_attack_leash_decision_like_cpp(
                 .auras
                 .has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT))
     {
-        return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
+        return CreatureCanAttackLeashDecisionLikeCpp::Allowed;
     }
 
     let mut max_home_distance = config
@@ -163,10 +163,10 @@ pub(in crate::session) fn legacy_creature_can_attack_leash_decision_like_cpp(
     // equivalent.
     if let Some(owner_guid) = charmer_or_owner_guid {
         let Some(owner) = owner_snapshots.get(&owner_guid) else {
-            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+            return CreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
         };
         if owner.map_id != candidate.map_id || owner.instance_id != candidate.instance_id {
-            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+            return CreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
         }
 
         max_home_distance += candidate.player_combat_reach.max(0.0) + owner.combat_reach.max(0.0);
@@ -175,9 +175,9 @@ pub(in crate::session) fn legacy_creature_can_attack_leash_decision_like_cpp(
             &owner.position,
             max_home_distance,
         ) {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+            CreatureCanAttackLeashDecisionLikeCpp::Allowed
         } else {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+            CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
         };
     }
 
@@ -193,31 +193,31 @@ pub(in crate::session) fn legacy_creature_can_attack_leash_decision_like_cpp(
             &home_position,
             max_home_distance,
         ) {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+            CreatureCanAttackLeashDecisionLikeCpp::Allowed
         } else {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+            CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
         }
     } else if position_is_in_dist_strict_3d_like_cpp(
         &candidate.position,
         &home_position,
         max_home_distance,
     ) {
-        LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+        CreatureCanAttackLeashDecisionLikeCpp::Allowed
     } else {
-        LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+        CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
     }
 }
-pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_like_cpp(
+pub(in crate::session) fn creature_can_attack_snapshot_leash_decision_like_cpp(
     creature: &wow_entities::Creature,
-    target: &LegacyCreatureAggroOwnerSnapshotLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    owner_snapshots: &HashMap<ObjectGuid, LegacyCreatureAggroOwnerSnapshotLikeCpp>,
-) -> LegacyCreatureCanAttackLeashDecisionLikeCpp {
+    target: &CreatureAggroOwnerSnapshotLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
+    owner_snapshots: &HashMap<ObjectGuid, CreatureAggroOwnerSnapshotLikeCpp>,
+) -> CreatureCanAttackLeashDecisionLikeCpp {
     let charmer_or_owner_guid = creature.unit().subsystems().control.charmer_or_owner_guid();
     let charmer_or_owner_is_player = charmer_or_owner_guid.is_some_and(|guid| guid.is_player());
 
     if !charmer_or_owner_is_player && config.map_is_dungeon_like_cpp(target.map_id) {
-        return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
+        return CreatureCanAttackLeashDecisionLikeCpp::Allowed;
     }
     if !charmer_or_owner_is_player
         && !creature.is_world_boss_like_cpp()
@@ -228,7 +228,7 @@ pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_lik
                 .auras
                 .has_aura_type_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT))
     {
-        return LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed;
+        return CreatureCanAttackLeashDecisionLikeCpp::Allowed;
     }
 
     let mut max_home_distance = config
@@ -236,10 +236,10 @@ pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_lik
         .min(SIZE_OF_GRID_CELL * 2.0);
     if let Some(owner_guid) = charmer_or_owner_guid {
         let Some(owner) = owner_snapshots.get(&owner_guid) else {
-            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+            return CreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
         };
         if owner.map_id != target.map_id || owner.instance_id != target.instance_id {
-            return LegacyCreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
+            return CreatureCanAttackLeashDecisionLikeCpp::OwnerPositionUnrepresented;
         }
 
         max_home_distance += target.combat_reach.max(0.0) + owner.combat_reach.max(0.0);
@@ -248,9 +248,9 @@ pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_lik
             &owner.position,
             max_home_distance,
         ) {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+            CreatureCanAttackLeashDecisionLikeCpp::Allowed
         } else {
-            LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+            CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
         };
     }
 
@@ -264,9 +264,9 @@ pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_lik
         position_is_in_dist_strict_3d_like_cpp(&target.position, &home_position, max_home_distance)
     };
     if in_range {
-        LegacyCreatureCanAttackLeashDecisionLikeCpp::Allowed
+        CreatureCanAttackLeashDecisionLikeCpp::Allowed
     } else {
-        LegacyCreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
+        CreatureCanAttackLeashDecisionLikeCpp::HomeRangeRejected
     }
 }
 /// The decision half of C++ `CreatureAI::TriggerAlert` after
@@ -274,12 +274,12 @@ pub(in crate::session) fn legacy_creature_can_attack_snapshot_leash_decision_lik
 /// an alive, non-engaged, non-controlled aggressive creature. Returns the
 /// `MoveDistract` facing; the caller runs the distract movement on its store
 /// and then sends `SMSG_AI_REACTION` (alert) to the visible set.
-pub(in crate::session) fn legacy_creature_alert_orientation_like_cpp(
+pub(in crate::session) fn creature_alert_orientation_like_cpp(
     creature: &wow_entities::Creature,
-    candidate: &LegacyCreatureAggroCandidateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    candidate: &CreatureAggroCandidateLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Option<f32> {
-    if !legacy_creature_aggro_candidate_has_stealth_aura_like_cpp(candidate) {
+    if !creature_aggro_candidate_has_stealth_aura_like_cpp(candidate) {
         return None;
     }
     if creature.ai_ownership().combat_target.is_some() {
@@ -296,10 +296,10 @@ pub(in crate::session) fn legacy_creature_alert_orientation_like_cpp(
     ) {
         return None;
     }
-    if !legacy_creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
+    if !creature_aggro_candidate_is_targetable_for_attack_like_cpp(candidate) {
         return None;
     }
-    if !legacy_creature_aggro_candidate_is_hostile_to_creature_like_cpp(creature, candidate, config)
+    if !creature_aggro_candidate_is_hostile_to_creature_like_cpp(creature, candidate, config)
         .unwrap_or(false)
     {
         return None;

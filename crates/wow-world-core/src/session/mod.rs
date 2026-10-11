@@ -159,7 +159,7 @@ pub use taxi_contracts::{PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP, RepresentedActiva
 
 mod creature_aggro_contracts;
 pub use creature_aggro_contracts::{
-    DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP, LegacyCreatureAggroConfigLikeCpp,
+    DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP, CreatureAggroConfigLikeCpp,
     spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp,
 };
 

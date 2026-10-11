@@ -486,7 +486,7 @@ fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
     assert!(repeated.plan.events.is_empty());
 }
 #[test]
-fn legacy_creature_ai_target_classifier_uses_target_a_and_nonzero_range_like_cpp() {
+fn creature_ai_target_classifier_uses_target_a_and_nonzero_range_like_cpp() {
     let spell_id = 70_003_u32;
     let target_b_only = creature_ai_test_spell_info_like_cpp(spell_id as i32, 0, 6);
     let ranged = creature_ai_spell_test_config_like_cpp(target_b_only.clone(), false, 30.0);
