@@ -311,7 +311,7 @@ impl QuestObjectiveProgressCx<'_, '_> {
         )
     }
 
-    pub(super) fn represented_gameobject_dynamic_flags_for_player_like_cpp(
+    pub(in crate::quest) fn represented_gameobject_dynamic_flags_for_player_like_cpp(
         &self,
         eligibility: &QuestEligibilityCx<'_>,
         gameobject_entry: u32,

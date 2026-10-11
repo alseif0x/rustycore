@@ -55,6 +55,89 @@ impl<'a> QuestRewardItemPlanningFixtureRefsLikeCpp<'a> {
         self.spell_state
     }
 
+    pub(in crate::quest) fn race_class_refs_like_cpp(&self) -> (&u8, &u8) {
+        (self.race, self.class)
+    }
+
+    /// The selected Player-condition fixture inputs, shared by item planning
+    /// and the completion visibility refresh.
+    pub(in crate::quest) fn player_condition_fixture_refs_like_cpp<'b>(
+        &'b self,
+        level: &'b u8,
+        vitals: (&'b u32, &'b u32, &'b bool),
+    ) -> wow_world_core::session::PlayerConditionFixtureRefsLikeCpp<'b> {
+        wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
+            self.race,
+            self.class,
+            level,
+            self.gender,
+            self.specialization,
+            self.position,
+            self.zone,
+            self.area,
+            self.zone_authority,
+            self.pvp_hostile,
+            self.pvp_end,
+            self.contested_pvp,
+            self.outdoors,
+            vitals.0,
+            vitals.1,
+            vitals.2,
+            self.taxi_destinations,
+            self.taxi_flight,
+            self.taxi_flags,
+            self.taxi_mounted,
+            self.visible_auras,
+            self.aura_authority,
+            self.aura_tombstone,
+            self.threat_auras,
+            self.skills,
+        )
+    }
+
+    /// The selected NPC-interaction fixture inputs of the spell-click filter.
+    pub(in crate::quest) fn npc_interaction_fixture_refs_like_cpp<'b>(
+        &'b self,
+        faction_template: &'b Option<u32>,
+        vitals: (&'b u32, &'b u32, &'b bool),
+        reputation: &'b wow_entities::PlayerReputationStateLikeCpp,
+    ) -> wow_world_core::session::NpcInteractionFixtureRefsLikeCpp<'b> {
+        wow_world_core::session::NpcInteractionFixtureRefsLikeCpp::new(
+            self.position,
+            faction_template,
+            self.race,
+            self.class,
+            vitals.0,
+            vitals.1,
+            vitals.2,
+            reputation,
+            self.taxi_destinations,
+            self.taxi_flight,
+            self.taxi_flags,
+            self.taxi_mounted,
+        )
+    }
+
+    pub(in crate::quest) fn condition_projection_fixtures_like_cpp(
+        &self,
+    ) -> (
+        &wow_world_spell::SessionSpellState,
+        &wow_world_instances::InstanceState,
+        &wow_world_core::session::BattlegroundState,
+        &Option<u8>,
+        &bool,
+        &bool,
+    ) {
+        (
+            self.spell_state,
+            self.instances,
+            self.battleground,
+            self.battleground_status,
+            self.skills_complete,
+            self.in_combat,
+        )
+    }
+
     pub fn new_like_cpp(
         race: &'a u8,
         class: &'a u8,
@@ -138,60 +221,14 @@ impl QuestRewardCx<'_> {
     )> {
         let player = self.player.item_planning_condition_access_like_cpp(
             #[cfg(any(test, feature = "test-fixtures"))]
-            wow_world_core::session::PlayerConditionFixtureRefsLikeCpp::new(
-                fixtures.race,
-                fixtures.class,
-                &*self.player_level,
-                fixtures.gender,
-                fixtures.specialization,
-                fixtures.position,
-                fixtures.zone,
-                fixtures.area,
-                fixtures.zone_authority,
-                fixtures.pvp_hostile,
-                fixtures.pvp_end,
-                fixtures.contested_pvp,
-                fixtures.outdoors,
-                vitals.0,
-                vitals.1,
-                vitals.2,
-                fixtures.taxi_destinations,
-                fixtures.taxi_flight,
-                fixtures.taxi_flags,
-                fixtures.taxi_mounted,
-                fixtures.visible_auras,
-                fixtures.aura_authority,
-                fixtures.aura_tombstone,
-                fixtures.threat_auras,
-                fixtures.skills,
-            ),
+            fixtures.player_condition_fixture_refs_like_cpp(&*self.player_level, vitals),
         );
-        let conditions = crate::PlayerConditionProjectionCxLikeCpp::new(
+        let conditions = self.condition_projection_like_cpp(
             player,
-            self.inventory,
-            self.social,
-            self.catalogs
-                .chr_specialization_store()
-                .map(std::sync::Arc::as_ref),
             #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures.spell_state,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.quest_state,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures.instances,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures.battleground,
-            self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+            fixtures,
             #[cfg(any(test, feature = "test-fixtures"))]
             reputation,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures.battleground_status,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures.skills_complete,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            fixtures.in_combat,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            self.world_test_consumer,
         );
         conditions.plan_store_direct_inventory_item_like_cpp(
             self.player.item_planning_realm_id_like_cpp(),
@@ -203,6 +240,48 @@ impl QuestRewardCx<'_> {
             false,
             &[],
             &[],
+        )
+    }
+
+    /// The selected Player-condition projection over this operation's split
+    /// borrows; item planning and the completion visibility refresh share it.
+    pub(in crate::quest) fn condition_projection_like_cpp<'b>(
+        &'b self,
+        player: wow_world_core::session::PlayerConditionAccessLikeCpp<'b>,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixtures: &'b QuestRewardItemPlanningFixtureRefsLikeCpp<'_>,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        reputation: &'b wow_entities::PlayerReputationStateLikeCpp,
+    ) -> crate::PlayerConditionProjectionCxLikeCpp<'b> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let (spell_state, instances, battleground, battleground_status, skills_complete, in_combat) =
+            fixtures.condition_projection_fixtures_like_cpp();
+        crate::PlayerConditionProjectionCxLikeCpp::new(
+            player,
+            &*self.inventory,
+            self.social,
+            self.catalogs
+                .chr_specialization_store()
+                .map(std::sync::Arc::as_ref),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            spell_state,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &*self.quest_state,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            instances,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            battleground,
+            self.catalogs.inventory_valuation_catalog_view_like_cpp(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            reputation,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            battleground_status,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            skills_complete,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            in_combat,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            self.world_test_consumer,
         )
     }
 }

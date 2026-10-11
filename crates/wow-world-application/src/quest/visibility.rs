@@ -11,7 +11,8 @@ mod refresh;
 pub use self::quest_eligibility::QuestEligibilityCx;
 
 pub use self::refresh::{
-    VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp, update_visible_gameobjects_like_cpp,
+    VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp,
+    represented_gameobject_dynamic_flags_update_like_cpp, update_visible_gameobjects_like_cpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
 };
 

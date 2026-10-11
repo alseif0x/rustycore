@@ -1,0 +1,238 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! World adapter for the App quest-objective drain (#1263 F4 LootMoney
+//! dependency 8) and the reward fixture split it shares with the App reward.
+
+use super::*;
+
+/// Test-build inputs of the App reward operation, split from the session
+/// fixtures once so the reward and the objective drain lend the same fields.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) struct QuestRewardFixtureRefsLikeCpp<'a> {
+    pub(crate) xp: wow_world_application::QuestXpGainFixtureRefsLikeCpp<'a>,
+    pub(crate) planning: wow_world_application::QuestRewardItemPlanningFixtureRefsLikeCpp<'a>,
+    pub(crate) reputation: wow_world_application::QuestRewardReputationFixtureRefsLikeCpp<'a>,
+    pub(crate) teleport: &'a mut wow_world_core::session::state::TeleportState,
+    pub(crate) transport:
+        &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
+    pub(crate) vehicle_and_pet: (
+        &'a Option<wow_entities::Vehicle>,
+        &'a Option<i32>,
+        &'a Option<u32>,
+        &'a Option<ObjectGuid>,
+    ),
+    pub(crate) race: &'a u8,
+    pub(crate) class: &'a u8,
+    pub(crate) level: &'a mut u8,
+    pub(crate) game_master: &'a bool,
+    pub(crate) faction_template: &'a Option<u32>,
+    pub(crate) position: &'a Option<wow_core::Position>,
+    pub(crate) spell_state: &'a wow_world_spell::SessionSpellState,
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
+    fixtures: &'a mut crate::session::state::SessionFixtures,
+    spell_state: &'a wow_world_spell::SessionSpellState,
+    instances: &'a wow_world_instances::InstanceState,
+) -> QuestRewardFixtureRefsLikeCpp<'a> {
+    let xp = wow_world_application::QuestXpGainFixtureRefsLikeCpp::new_like_cpp(
+        wow_world_core::session::CoreXPGainFixtureRefsLikeCpp::new_like_cpp(
+            &mut fixtures.progression.player_xp,
+            &mut fixtures.progression.player_next_level_xp,
+            &fixtures.movement.player_position,
+            &fixtures.battleground.player_battleground_type_id_like_cpp,
+            &fixtures.battleground.player_battleground_map_id_like_cpp,
+            &fixtures
+                .battleground
+                .represented_battleground_status_like_cpp,
+            &fixtures
+                .battleground
+                .represented_battleground_queue_slots_like_cpp,
+            &fixtures
+                .battleground
+                .represented_arena_team_id_invited_like_cpp,
+            &mut fixtures.progression.rest_mgr_test_fixture_like_cpp,
+            &fixtures.auras.player_aura_authority_complete_like_cpp,
+            &fixtures
+                .auras
+                .player_spell_hit_aura_authority_tombstoned_like_cpp,
+            &fixtures.auras.visible_auras,
+            &fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+        ),
+        &mut fixtures.progression.player_character_points_like_cpp,
+        &fixtures
+            .progression
+            .represented_gray_level_script_overrides_like_cpp,
+        &fixtures.progression.represented_talents_like_cpp,
+        &fixtures
+            .progression
+            .represented_active_talent_group_like_cpp,
+        wow_world_core::session::StatsFixtureRefs::new_like_cpp(
+            wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
+                &mut fixtures.combat.player_health_like_cpp,
+                &mut fixtures.combat.player_max_health_like_cpp,
+                &mut fixtures.combat.player_alive_like_cpp,
+                &mut fixtures.combat.represented_player_powers_like_cpp[0],
+                &mut fixtures.combat.represented_player_max_powers_like_cpp[0],
+                &mut fixtures.combat.represented_player_base_mana_like_cpp,
+            ),
+            wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
+                &fixtures.auras.represented_shapeshift_form_like_cpp,
+                &fixtures.auras.player_aura_authority_complete_like_cpp,
+                &fixtures
+                    .auras
+                    .player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &fixtures.auras.visible_auras,
+                &fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+            ),
+        ),
+    );
+    let planning = wow_world_application::QuestRewardItemPlanningFixtureRefsLikeCpp::new_like_cpp(
+        &fixtures.identity.player_race,
+        &fixtures.identity.player_class,
+        &fixtures.identity.player_gender,
+        &fixtures
+            .progression
+            .represented_primary_specialization_id_like_cpp,
+        &fixtures.movement.player_position,
+        &fixtures.identity.player_zone_id_like_cpp,
+        &fixtures.identity.player_area_id_like_cpp,
+        &fixtures
+            .identity
+            .player_zone_area_authority_complete_like_cpp,
+        &fixtures.combat.player_pvp_hostile_like_cpp,
+        &fixtures.combat.player_pvp_end_timer_like_cpp,
+        &fixtures.combat.player_contested_pvp_timer_like_cpp,
+        &fixtures.identity.represented_is_outdoors_like_cpp,
+        &fixtures.vehicles.taxi_destinations_like_cpp,
+        &fixtures.vehicles.taxi_flight_state_like_cpp,
+        &fixtures.vehicles.taxi_unit_flags_like_cpp,
+        &fixtures.vehicles.taxi_mounted_like_cpp,
+        &fixtures.auras.visible_auras,
+        &fixtures.auras.player_aura_authority_complete_like_cpp,
+        &fixtures
+            .auras
+            .player_spell_hit_aura_authority_tombstoned_like_cpp,
+        &fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+        &fixtures
+            .progression
+            .player_skill_test_fixture_like_cpp
+            .player_skill_records_like_cpp,
+        spell_state,
+        instances,
+        &fixtures.battleground,
+        &fixtures
+            .battleground
+            .represented_battleground_status_like_cpp,
+        &fixtures
+            .progression
+            .player_skill_test_fixture_like_cpp
+            .player_skill_records_complete_like_cpp,
+        &fixtures.combat.in_combat,
+    );
+    let reputation = wow_world_application::QuestRewardReputationFixtureRefsLikeCpp::new_like_cpp(
+        &mut fixtures.progression.reputation_state_like_cpp,
+        &fixtures
+            .progression
+            .represented_gray_level_script_overrides_like_cpp,
+        &fixtures.movement.player_position,
+        &fixtures.auras.player_aura_authority_complete_like_cpp,
+        &fixtures
+            .auras
+            .player_spell_hit_aura_authority_tombstoned_like_cpp,
+        &fixtures.auras.visible_auras,
+        &fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+    );
+    QuestRewardFixtureRefsLikeCpp {
+        xp,
+        planning,
+        reputation,
+        teleport: &mut fixtures.teleport,
+        transport: &fixtures.vehicles.player_transport_login_state_like_cpp,
+        vehicle_and_pet: (
+            &fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+            &fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+            &fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+            &fixtures.pets.represented_pet_guid_like_cpp,
+        ),
+        race: &fixtures.identity.player_race,
+        class: &fixtures.identity.player_class,
+        level: &mut fixtures.identity.player_level,
+        game_master: &fixtures.combat.player_game_master_like_cpp,
+        faction_template: &fixtures.identity.player_faction_template_like_cpp,
+        position: &fixtures.movement.player_position,
+        spell_state,
+    }
+}
+
+impl WorldSession {
+    /// C++ `Player::MoneyChanged` / `CurrencyChanged` / `ReputationChanged` →
+    /// `UpdateQuestObjectiveProgress` (`Player.cpp:16162`–`:16176`), drained in
+    /// recorded order by the App owner
+    /// `QuestObjectiveProgressCx::drain_represented_quest_objective_progress_like_cpp`,
+    /// whose completions run the `SendQuestUpdate` visibility refresh themselves.
+    /// This adapter only lends the selected owners.
+    pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+    ) {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let mut fixtures = quest_reward_fixture_refs_like_cpp(
+            &mut self.fixtures,
+            &self.spell_state,
+            &self.instances,
+        );
+        let player = self.core.quest_reward_player_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures.race,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures.class,
+        );
+        let mut reward = wow_world_application::QuestRewardCx::new(
+            &mut self.inventory,
+            &mut self.lifecycle,
+            &mut self.quest_state,
+            player,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures.level,
+            &self.catalogs,
+            &self.config,
+            &self.social,
+            self.catalogs.currency_types_store.as_deref(),
+            self.catalogs.quests.xp_store.as_deref(),
+            cfg!(test),
+        );
+        let mut progress = wow_world_application::QuestObjectiveProgressCx::new(
+            &mut reward,
+            &self.loot,
+            &self.world_entities,
+            item_guid_generator,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut fixtures.reputation,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &mut fixtures.xp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures.teleport,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &fixtures.planning,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixtures.game_master,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_application::QuestObjectiveRegistryFixtureRefsLikeCpp::new(
+                fixtures.spell_state,
+                fixtures.position,
+                fixtures.faction_template,
+                fixtures.transport,
+                fixtures.vehicle_and_pet.0,
+                fixtures.vehicle_and_pet.1,
+                fixtures.vehicle_and_pet.2,
+                fixtures.vehicle_and_pet.3,
+            ),
+        );
+        progress
+            .drain_represented_quest_objective_progress_like_cpp()
+            .await;
+    }
+}

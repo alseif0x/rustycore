@@ -62,19 +62,6 @@ impl VisibilityRefreshHostLikeCpp for WorldSession {
         self.represented_gameobject_dynamic_flags_for_player_like_cpp(gameobject_entry, state)
     }
 
-    fn visibility_refresh_gameobject_values_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_id: u16,
-        dynamic_flags: u32,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        crate::session::represented_gameobject_dynamic_flags_update_like_cpp(
-            guid,
-            map_id,
-            dynamic_flags,
-        )
-    }
-
     fn visibility_refresh_unit_npc_flags_update_like_cpp(
         &self,
         guid: ObjectGuid,

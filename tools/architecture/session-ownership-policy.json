@@ -44481,17 +44481,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "update_represented_currency_quest_objective_progress_like_cpp",
-          "visibility": "private",
-          "signature": "async fn update_represented_currency_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , currency_id : u32 , change : i32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "update_represented_flight_flags_for_flight_aura_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn update_represented_flight_flags_for_flight_aura_like_cpp (& mut self , apply : bool ,)",
@@ -44542,17 +44531,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "update_represented_money_quest_objective_progress_like_cpp",
-          "visibility": "private",
-          "signature": "async fn update_represented_money_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , old_money : u64 , new_money : u64 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "update_represented_online_xp_rest_bonus_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn update_represented_online_xp_rest_bonus_like_cpp (& mut self , now_secs : u64 ,) -> (f32 , u8)",
@@ -44576,17 +44554,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_reputation_quest_objective_progress_like_cpp",
-          "visibility": "private",
-          "signature": "async fn update_represented_reputation_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , objective_type : u8 , faction_id : u32 , change : i32 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -46627,19 +46594,6 @@
           "name": "visibility_refresh_gameobject_dynamic_flags_like_cpp",
           "visibility": "private",
           "signature": "fn visibility_refresh_gameobject_dynamic_flags_like_cpp (& self , gameobject_entry : u32 , state : & RepresentedGameObjectUseState ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "VisibilityRefreshHostLikeCpp",
-          "kind": "method",
-          "name": "visibility_refresh_gameobject_values_update_like_cpp",
-          "visibility": "private",
-          "signature": "fn visibility_refresh_gameobject_values_update_like_cpp (& self , guid : ObjectGuid , map_id : u16 , dynamic_flags : u32 ,) -> Option < wow_packet :: packets :: update :: UpdateObject >",
           "cfg": [],
           "source_class": "production",
           "guards": [

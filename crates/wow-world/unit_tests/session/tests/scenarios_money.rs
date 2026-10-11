@@ -759,3 +759,5 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     assert_eq!(money_notify.read_uint64().unwrap(), 37);
     assert!(send_rx.try_recv().is_err());
 }
+#[path = "f4_loot_money_quest_drain.rs"]
+mod f4_loot_money_quest_drain;
