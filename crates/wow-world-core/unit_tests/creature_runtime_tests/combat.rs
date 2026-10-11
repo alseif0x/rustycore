@@ -25,7 +25,7 @@ fn create_data_from_canonical_clamps_zero_base_attack_time_like_cpp() {
         "precondition: bare canonical creature has 0 base attack speed"
     );
 
-    let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+    let create_data = creature_create_data_like_cpp(&creature);
 
     assert_eq!(
         create_data.base_attack_time, BASE_ATTACK_TIME_LIKE_CPP,
@@ -50,7 +50,7 @@ fn create_data_from_canonical_preserves_nonzero_base_attack_time_like_cpp() {
         .unit_mut()
         .set_base_attack_time_like_cpp(WeaponAttackType::RangedAttack, 1800);
 
-    let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+    let create_data = creature_create_data_like_cpp(&creature);
 
     assert_eq!(create_data.base_attack_time, 1500);
     assert_eq!(create_data.ranged_attack_time, 1800);
@@ -59,7 +59,7 @@ fn create_data_from_canonical_preserves_nonzero_base_attack_time_like_cpp() {
 fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 45);
     let seed = test_creature(guid);
-    let mut canonical = seed.creature;
+    let mut canonical = seed;
     canonical.set_spawn_id(45);
     canonical.unit_mut().set_class(Class::Hunter as u8);
     canonical.set_power_type(PowerType::Focus);
@@ -72,22 +72,18 @@ fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_c
         armor: 444,
     };
     canonical.set_combat_log_stats_like_cpp(combat_log_stats);
-    let mut loaded_grid = WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+    let mut loaded_grid = loaded_grid_creature_like_cpp(canonical, |_| None);
 
     assert!(
         loaded_grid
-            .creature
             .unit()
             .subsystems()
             .auras
             .has_complete_spell_cast_log_aura_authority_like_cpp()
     );
-    loaded_grid
-        .creature
-        .set_death_state_runtime(DeathState::JustDied, 0);
+    loaded_grid.set_death_state_runtime(DeathState::JustDied, 0);
     assert!(
         !loaded_grid
-            .creature
             .unit()
             .subsystems()
             .auras
@@ -95,7 +91,7 @@ fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_c
         "death cleanup must revoke the live marker before respawn"
     );
 
-    let pending = pending_respawn_from_world_creature_like_cpp(&loaded_grid, Instant::now(), 0);
+    let pending = pending_respawn_from_creature_like_cpp(&loaded_grid, Instant::now(), 0);
     assert_eq!(pending.create_data.unit_class, Class::Hunter as u8);
     assert_eq!(pending.create_data.display_power, PowerType::Focus as u8);
     assert_eq!(pending.create_data.power[0], 37);
@@ -103,9 +99,9 @@ fn pending_respawn_preserves_combat_log_state_across_legacy_and_canonical_like_c
     assert!(pending.spell_hit_aura_source_authority_like_cpp);
     assert!(pending.spell_cast_log_aura_source_authority_like_cpp);
 
-    let legacy = world_creature_from_pending_respawn_like_cpp(&pending, 0);
-    let canonical_mirror = legacy.creature.clone();
-    for creature in [&legacy.creature, &canonical_mirror] {
+    let legacy = creature_from_pending_respawn_like_cpp(&pending, 0);
+    let canonical_mirror = legacy.clone();
+    for creature in [&legacy, &canonical_mirror] {
         assert_eq!(creature.unit().data().class_id, Class::Hunter as u8);
         assert_eq!(creature.power_type(), PowerType::Focus);
         assert_eq!(creature.unit().get_power(PowerType::Focus), 37);

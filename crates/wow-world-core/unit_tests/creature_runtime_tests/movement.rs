@@ -173,7 +173,7 @@ fn world_mmap_pathfinder_falls_back_when_runtime_tile_missing_like_cpp() {
     std::fs::write(root.join("mmaps/0001.mmap"), params.to_bytes()).unwrap();
 
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54326);
-    let creature = WorldCreature::new(
+    let creature = fixture_creature(
         guid,
         1,
         Position::new(0.0, 0.0, 0.0, 0.0),
@@ -261,10 +261,10 @@ fn pending_respawn_rebuild_preserves_random_movement_type_like_cpp() {
     let mut pending = make_pending_respawn(Instant::now());
     pending.random_movement_type = wow_constants::CreatureRandomMovementType::AlwaysRun as u8;
 
-    let creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+    let creature = creature_from_pending_respawn_like_cpp(&pending, 0);
 
     assert_eq!(
-        creature.creature.random_movement_type_like_cpp(),
+        creature.random_movement_type_like_cpp(),
         wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
         "C++ respawn keeps using Creature::GetMovementTemplate(); Rust respawn must preserve the captured Random movement metadata"
     );
@@ -275,15 +275,15 @@ fn pending_respawn_rebuild_preserves_default_movement_and_path_like_cpp() {
     pending.default_movement_type = MovementGeneratorType::Waypoint;
     pending.waypoint_path_id = 9_002;
 
-    let creature = world_creature_from_pending_respawn_like_cpp(&pending, 0);
+    let creature = creature_from_pending_respawn_like_cpp(&pending, 0);
 
     assert_eq!(
-        creature.creature.default_movement_type(),
+        creature.default_movement_type(),
         MovementGeneratorType::Waypoint,
         "C++ respawn reload path uses Creature::LoadFromDB/LoadCreaturesAddon and keeps the selected default motion"
     );
     assert_eq!(
-        creature.creature.waypoint_path_id_like_cpp(),
+        creature.waypoint_path_id_like_cpp(),
         9_002,
         "C++ Creature::LoadCreaturesAddon preserves nonzero PathId for waypoint movement after respawn"
     );

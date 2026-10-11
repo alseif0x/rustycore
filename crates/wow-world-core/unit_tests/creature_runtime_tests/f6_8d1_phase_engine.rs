@@ -4,7 +4,7 @@
 //! and taunt entries, the damage and death transitions, the `CombatAI::_events`
 //! spell deadline slots and engagement epoch, the melee swing timer and the
 //! creature-owned RNG draws — onto canonical
-//! `Creature`/`CreatureRuntimeLikeCpp` ownership. The legacy `WorldCreature`
+//! `Creature`/`CreatureRuntimeLikeCpp` ownership. The legacy `Creature`
 //! keeps delegating entry points only.
 //!
 //! Two contracts are asserted here:
@@ -34,8 +34,8 @@ const D1_SEED_LIKE_CPP: u64 = 0x1263_D1;
 /// value in `Aura`/`SpellEffects`.
 const D1_TAUNT_AURA_TYPE_LIKE_CPP: i32 = wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT;
 
-fn d1_creature_like_cpp(guid: i64, min_dmg: u32, max_dmg: u32) -> WorldCreature {
-    let mut creature = WorldCreature::new(
+fn d1_creature_like_cpp(guid: i64, min_dmg: u32, max_dmg: u32) -> Creature {
+    let mut creature = fixture_creature(
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, guid),
         12_630,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -49,7 +49,7 @@ fn d1_creature_like_cpp(guid: i64, min_dmg: u32, max_dmg: u32) -> WorldCreature 
         0,
         0,
     );
-    creature.seed_runtime_rng_like_cpp(D1_SEED_LIKE_CPP);
+    seed_runtime_rng_like_cpp(&mut creature, D1_SEED_LIKE_CPP);
     creature
 }
 
@@ -110,11 +110,11 @@ fn pre_d1_record_swing_timer_like_cpp(
 fn canonical_creature_phase_engine_decides_and_mutates_through_canonical_ownership_like_cpp() {
     let victim = ObjectGuid::create_player(1, 12_631);
     let mut legacy = d1_creature_like_cpp(12_632, 7, 9);
-    let projection_before = legacy.create_data.clone();
+    let projection_before = creature_create_data_like_cpp(&legacy).clone();
 
     // A detached legacy-only copy: the same bytes the bridge holds, but not the
     // object the canonical owner holds.
-    let mut detached = legacy.creature.clone();
+    let mut detached = legacy.clone();
     detached.enter_combat(victim);
     detached.advance_runtime_clock_like_cpp(2_000);
     detached.record_swing();
@@ -133,55 +133,49 @@ fn canonical_creature_phase_engine_decides_and_mutates_through_canonical_ownersh
     );
 
     assert_eq!(
-        legacy.creature.ai_ownership().combat_target,
+        legacy.ai_ownership().combat_target,
         None,
         "a legacy-only copy decides nothing for the canonical owner"
     );
     assert_eq!(
-        legacy
-            .creature
-            .runtime_like_cpp()
-            .runtime_elapsed_ms_like_cpp(),
+        legacy.runtime_like_cpp().runtime_elapsed_ms_like_cpp(),
         0,
         "a legacy-only copy advances no canonical clock"
     );
     assert_eq!(
-        legacy.creature.ai_ownership().last_swing_ms,
+        legacy.ai_ownership().last_swing_ms,
         0,
         "a legacy-only copy records no canonical swing"
     );
     assert_eq!(
-        legacy.creature.creature_spell_engagement_epoch_like_cpp(),
+        legacy.creature_spell_engagement_epoch_like_cpp(),
         0,
         "a legacy-only copy opens no canonical engagement epoch"
     );
 
     // The canonical entity is the state the operations read and write.
-    legacy.creature.enter_combat(victim);
-    legacy.creature.advance_runtime_clock_like_cpp(2_000);
-    legacy.creature.record_swing();
+    legacy.enter_combat(victim);
+    legacy.advance_runtime_clock_like_cpp(2_000);
+    legacy.record_swing();
 
     assert_eq!(
-        legacy.creature.ai_ownership().combat_target,
+        legacy.ai_ownership().combat_target,
         Some(victim),
         "the canonical owner's object is the one that enters combat"
     );
     assert_eq!(legacy.state(), wow_entities::CreatureAiState::InCombat);
     assert_eq!(
-        legacy
-            .creature
-            .runtime_like_cpp()
-            .runtime_elapsed_ms_like_cpp(),
+        legacy.runtime_like_cpp().runtime_elapsed_ms_like_cpp(),
         2_000,
         "the creature-local clock lives on the canonical runtime state"
     );
     assert_eq!(
-        legacy.creature.ai_ownership().last_swing_ms,
+        legacy.ai_ownership().last_swing_ms,
         2_000,
         "the swing record lands on the canonical AI ownership"
     );
     assert_eq!(
-        legacy.creature.ai_ownership().swing_timer_ms,
+        legacy.ai_ownership().swing_timer_ms,
         u64::from(wow_entities::BASE_ATTACK_TIME_LIKE_CPP),
         "the canonical swing timer is rearmed from the unit's base attack time"
     );
@@ -190,30 +184,34 @@ fn canonical_creature_phase_engine_decides_and_mutates_through_canonical_ownersh
         "the canonical swing timer consumption is what the bridge observes"
     );
     assert_eq!(
-        legacy.creature.creature_spell_engagement_epoch_like_cpp(),
+        legacy.creature_spell_engagement_epoch_like_cpp(),
         1,
         "entering a new engagement opens exactly one canonical epoch"
     );
     assert_eq!(
-        legacy.create_data.movement_flags, projection_before.movement_flags,
+        creature_create_data_like_cpp(&legacy).movement_flags,
+        projection_before.movement_flags,
         "the phase operations keep no movement state on the packet projection"
     );
     assert_eq!(
-        legacy.create_data.health, projection_before.health,
+        creature_create_data_like_cpp(&legacy).health,
+        projection_before.health,
         "the phase operations keep no health state on the packet projection"
     );
     assert_eq!(
-        legacy.create_data.base_attack_time, projection_before.base_attack_time,
+        creature_create_data_like_cpp(&legacy).base_attack_time,
+        projection_before.base_attack_time,
         "the phase operations keep no swing-timer state on the packet projection"
     );
 }
 
 // ── (2) state and RNG continuity ──────────────────────────────────────────────
 
-/// One full phase-operation sequence, driven through the legacy bridge entry
-/// points.
-fn d1_drive_legacy_path_like_cpp(
-    creature: &mut WorldCreature,
+/// One full phase-operation sequence, driven through the application entry
+/// points (the former bridge entries; the taunt entry supplies
+/// `SPELL_AURA_MOD_TAUNT`).
+fn d1_drive_application_entry_path_like_cpp(
+    creature: &mut Creature,
     victim: ObjectGuid,
     caster: ObjectGuid,
 ) -> Vec<Option<u64>> {
@@ -241,7 +239,7 @@ fn d1_drive_legacy_path_like_cpp(
     creature.advance_runtime_clock_like_cpp(1_000);
     let _ = creature.first_due_creature_spell_slot_like_cpp();
     creature.record_swing();
-    let _ = creature.apply_taunt_aura_like_cpp(caster, 100, 1, 2_000);
+    let _ = apply_taunt_aura_like_cpp(creature, caster, 100, 1, 2_000);
     let _ = creature.schedule_assistance_like_cpp(victim, vec![caster], 750);
     creature.advance_runtime_clock_like_cpp(1_000);
     let _ = creature.take_due_assistance_like_cpp();
@@ -337,7 +335,7 @@ fn canonical_phase_engine_preserves_state_and_rng_continuity_like_cpp() {
     let victim = ObjectGuid::create_player(1, 12_640);
     let caster = ObjectGuid::create_player(1, 12_641);
     let mut legacy = d1_creature_like_cpp(12_642, 7, 11);
-    let mut canonical = legacy.creature.clone();
+    let mut canonical = legacy.clone();
     canonical
         .runtime_like_cpp_mut()
         .seed_runtime_rng_like_cpp(D1_SEED_LIKE_CPP);
@@ -345,10 +343,10 @@ fn canonical_phase_engine_preserves_state_and_rng_continuity_like_cpp() {
     // The two paths start from the same canonical state and the same stream.
     assert_eq!(
         d1_observables_like_cpp(&canonical),
-        d1_observables_like_cpp(&legacy.creature)
+        d1_observables_like_cpp(&legacy)
     );
 
-    let legacy_draws = d1_drive_legacy_path_like_cpp(&mut legacy, victim, caster);
+    let legacy_draws = d1_drive_application_entry_path_like_cpp(&mut legacy, victim, caster);
     let canonical_draws = d1_drive_canonical_path_like_cpp(&mut canonical, victim, caster);
 
     assert_eq!(
@@ -357,7 +355,7 @@ fn canonical_phase_engine_preserves_state_and_rng_continuity_like_cpp() {
     );
     assert_eq!(
         d1_observables_like_cpp(&canonical),
-        d1_observables_like_cpp(&legacy.creature),
+        d1_observables_like_cpp(&legacy),
         "the ported engine must consume the same timers and land the same state"
     );
 }
@@ -389,7 +387,7 @@ fn canonical_phase_engine_reproduces_the_pre_d1_draw_sequence_like_cpp() {
         )));
     }
 
-    let mut canonical = d1_creature_like_cpp(12_650, 7, 11).creature;
+    let mut canonical = d1_creature_like_cpp(12_650, 7, 11);
     canonical
         .runtime_like_cpp_mut()
         .seed_runtime_rng_like_cpp(D1_SEED_LIKE_CPP);
@@ -440,15 +438,14 @@ fn canonical_swing_timer_resolution_matches_the_pre_d1_projection_rule_like_cpp(
     // with the C++ 0 -> BASE_ATTACK_TIME clamp.
     let mut loaded = d1_creature_like_cpp(12_660, 5, 9);
     loaded
-        .creature
         .unit_mut()
         .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 1_400);
-    let projection = WorldCreature::create_data_from_canonical_like_cpp(&loaded.creature);
+    let projection = creature_create_data_like_cpp(&loaded);
     assert_eq!(
-        loaded.creature.base_attack_time_like_cpp(),
+        loaded.base_attack_time_like_cpp(),
         pre_d1_record_swing_timer_like_cpp(
             projection.base_attack_time,
-            loaded.creature.ai_ownership().swing_timer_ms
+            loaded.ai_ownership().swing_timer_ms
         ),
         "a loaded base attack time resolves identically on both paths"
     );
@@ -456,23 +453,23 @@ fn canonical_swing_timer_resolution_matches_the_pre_d1_projection_rule_like_cpp(
     // The bare canonical default is 0; the C++ clamp resolves it to
     // BASE_ATTACK_TIME on both paths, because the projection clamps it too.
     let mut bare = d1_creature_like_cpp(12_661, 5, 9);
-    let projection = WorldCreature::create_data_from_canonical_like_cpp(&bare.creature);
+    let projection = creature_create_data_like_cpp(&bare);
     assert_eq!(
         projection.base_attack_time,
         wow_entities::BASE_ATTACK_TIME_LIKE_CPP
     );
     assert_eq!(
-        bare.creature.base_attack_time_like_cpp(),
+        bare.base_attack_time_like_cpp(),
         pre_d1_record_swing_timer_like_cpp(
             projection.base_attack_time,
-            bare.creature.ai_ownership().swing_timer_ms
+            bare.ai_ownership().swing_timer_ms
         ),
         "the zero-base default resolves through the same clamp"
     );
     // Consume the rule once so the projection is demonstrably the read source.
     bare.record_swing();
     assert_eq!(
-        bare.creature.ai_ownership().swing_timer_ms,
+        bare.ai_ownership().swing_timer_ms,
         u64::from(wow_entities::BASE_ATTACK_TIME_LIKE_CPP)
     );
 }

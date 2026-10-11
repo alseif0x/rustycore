@@ -9,7 +9,7 @@ use wow_movement::MovementGeneratorFlags as RuntimeMovementGeneratorFlags;
 #[test]
 fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 30.0, 0.0),
@@ -24,12 +24,11 @@ fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap
         wow_constants::UnitFlags::CAN_SWIM.bits(),
     );
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    backdate_runtime_clock_for_test(&mut creature, Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, 30.0, 0.0);
@@ -44,7 +43,7 @@ fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap
         end_far_from_poly: false,
     };
 
-    let (_from, spline, path) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let (_from, spline, path) = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&elevated_path),
@@ -65,7 +64,7 @@ fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap
         spline.final_destination(),
         Some(Position::new(15.0, 12.0, 30.0, 0.0))
     );
-    assert!(creature.creature.can_swim_like_cpp());
+    assert!(creature.can_swim_like_cpp());
     assert!(
         spline.flags().contains(MoveSplineFlag::CAN_SWIM),
         "MoveSplineInit must snapshot Unit::CanSwim like C++"
@@ -76,7 +75,7 @@ fn world_creature_detour_path_bridge_preserves_elevated_mmap_points_without_vmap
 #[test]
 fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfaces() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54353);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 30.0, 0.0),
@@ -91,12 +90,11 @@ fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfac
         0,
     );
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    backdate_runtime_clock_for_test(&mut creature, Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, 30.0, 0.0);
@@ -111,7 +109,7 @@ fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfac
         end_far_from_poly: false,
     };
 
-    let (_from, spline, path) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let (_from, spline, path) = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&projected_path),
@@ -139,7 +137,7 @@ fn world_creature_detour_path_bridge_does_not_join_unproven_flat_elevated_surfac
 #[test]
 fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54354);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 30.0, 0.0),
@@ -154,12 +152,11 @@ fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
         0,
     );
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    backdate_runtime_clock_for_test(&mut creature, Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 2.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, 34.0, 0.0);
@@ -174,7 +171,7 @@ fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
         end_far_from_poly: false,
     };
 
-    let (_from, spline, path) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let (_from, spline, path) = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&projected_path),
@@ -202,7 +199,7 @@ fn world_creature_detour_path_bridge_does_not_invent_a_sloped_vmap_surface() {
 #[test]
 fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, -5.0, 0.0),
@@ -217,12 +214,11 @@ fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_
         0,
     );
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(1, 0)
         .expect("bind test creature to terrain map");
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    backdate_runtime_clock_for_test(&mut creature, Duration::from_secs(10));
     let data_dir = temp_dir_with_constant_tile(1, 31, 31, 50.0);
     let terrain = LiveTerrainHeights::new(&data_dir);
     let dst = Position::new(15.0, 12.0, -5.0, 0.0);
@@ -237,7 +233,7 @@ fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_
         end_far_from_poly: false,
     };
 
-    let (_from, spline, path) = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let (_from, spline, path) = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .begin_random_move_spline_with_detour_path_and_terrain_like_cpp(
             dst,
             Some(&far_below_path),
@@ -266,7 +262,7 @@ fn world_creature_detour_path_bridge_keeps_far_below_points_without_ground_like_
 #[test]
 fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54327);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -280,7 +276,7 @@ fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
         0,
         0,
     );
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    backdate_runtime_clock_for_test(&mut creature, Duration::from_secs(10));
     let dst = Position::new(20.0, 10.0, 0.0, 0.0);
 
     for path_type in [DetourPathType::NOPATH, DetourPathType::SHORTCUT] {
@@ -296,7 +292,7 @@ fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
         };
 
         assert!(
-            crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+            CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
                 .begin_random_move_spline_with_detour_path_like_cpp(dst, Some(&detour_path), false)
                 .is_none(),
             "C++ RandomMovementGenerator retries later instead of launching {:?} paths",
@@ -308,7 +304,7 @@ fn world_creature_random_detour_rejects_nopath_and_shortcut_like_cpp() {
 #[test]
 fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54340);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -323,14 +319,13 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
         0,
     );
     creature
-        .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
-    creature.creature.ai_ownership_mut().wander_radius = 8.0;
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
-    creature.seed_runtime_rng_like_cpp(0x24_5A0);
+    creature.ai_ownership_mut().wander_radius = 8.0;
+    backdate_runtime_clock_for_test(&mut creature, Duration::from_secs(10));
+    seed_runtime_rng_like_cpp(&mut creature, 0x24_5A0);
 
     let mut resolver_called = false;
-    let movement = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let movement = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_default_random_movement_with_path_resolver_like_cpp(10, true, |_query| {
             resolver_called = true;
             None
@@ -344,7 +339,6 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
     assert!(creature.active_move_spline_like_cpp().is_none());
     assert_eq!(
         creature
-            .creature
             .runtime_like_cpp_mut()
             .active_random_generator
             .as_ref()
@@ -361,7 +355,7 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
 fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54350);
     let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 77);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -375,14 +369,13 @@ fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
         0,
         0,
     );
-    creature.creature.set_ground_movement_type_runtime_like_cpp(
+    creature.set_ground_movement_type_runtime_like_cpp(
         wow_constants::CreatureGroundMovementType::Run as u8,
     );
-    creature.creature.set_swim_allowed_runtime_like_cpp(false);
+    creature.set_swim_allowed_runtime_like_cpp(false);
 
-    let idle =
-        create_path_query_filter_like_cpp(creature.creature.path_query_filter_context_like_cpp())
-            .expect("filter");
+    let idle = create_path_query_filter_like_cpp(creature.path_query_filter_context_like_cpp())
+        .expect("filter");
     assert_eq!(
         idle.include_flags(),
         wow_recastdetour::NavTerrainFlag::GROUND.bits(),
@@ -391,12 +384,11 @@ fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
 
     creature.enter_combat(victim);
     assert!(
-        creature.creature.is_in_combat(),
+        creature.is_in_combat(),
         "enter_combat must leave a runtime combat signal the filter can read"
     );
-    let engaged =
-        create_path_query_filter_like_cpp(creature.creature.path_query_filter_context_like_cpp())
-            .expect("filter");
+    let engaged = create_path_query_filter_like_cpp(creature.path_query_filter_context_like_cpp())
+        .expect("filter");
     assert_eq!(
         engaged.include_flags(),
         (wow_recastdetour::NavTerrainFlag::GROUND | wow_recastdetour::NavTerrainFlag::GROUND_STEEP)
@@ -412,7 +404,7 @@ fn world_creature_chase_filter_includes_ground_steep_while_engaged_like_cpp() {
 fn world_creature_chase_unknown_water_does_not_block_an_aquatic_chaser_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54351);
     let victim_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54352);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -427,15 +419,15 @@ fn world_creature_chase_unknown_water_does_not_block_an_aquatic_chaser_like_cpp(
         0,
     );
     // A swim-only creature: no ground movement, no flight.
-    creature.creature.set_ground_movement_type_runtime_like_cpp(
+    creature.set_ground_movement_type_runtime_like_cpp(
         wow_constants::CreatureGroundMovementType::None as u8,
     );
-    creature.creature.set_swim_allowed_runtime_like_cpp(true);
-    creature.creature.set_flight_movement_type_runtime_like_cpp(
+    creature.set_swim_allowed_runtime_like_cpp(true);
+    creature.set_flight_movement_type_runtime_like_cpp(
         wow_constants::CreatureFlightMovementType::None as u8,
     );
-    assert!(!creature.creature.can_walk_like_cpp());
-    assert!(creature.creature.can_enter_water_like_cpp());
+    assert!(!creature.can_walk_like_cpp());
+    assert!(creature.can_enter_water_like_cpp());
 
     let target = |in_water| ChaseTargetSnapshotLikeCpp {
         guid: victim_guid,
@@ -447,21 +439,18 @@ fn world_creature_chase_unknown_water_does_not_block_an_aquatic_chaser_like_cpp(
 
     assert!(
         creature
-            .creature
             .chase_unit_snapshot_like_cpp(target(None))
             .target_accessible,
         "an unknown water state must not block a chaser that can enter water"
     );
     assert!(
         creature
-            .creature
             .chase_unit_snapshot_like_cpp(target(Some(true)))
             .target_accessible,
         "C++ takes the water branch and asks CanEnterWater()"
     );
     assert!(
         !creature
-            .creature
             .chase_unit_snapshot_like_cpp(target(Some(false)))
             .target_accessible,
         "C++ takes the else branch and asks CanWalk() || CanFly()"
@@ -476,7 +465,7 @@ fn world_creature_chase_rebuilds_the_generator_when_the_victim_changes_like_cpp(
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54353);
     let first = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 91);
     let second = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 92);
-    let mut creature = WorldCreature::new(
+    let mut creature = fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -500,7 +489,7 @@ fn world_creature_chase_rebuilds_the_generator_when_the_victim_changes_like_cpp(
     };
 
     creature.enter_combat(first);
-    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let _ = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(100, target(first, 40.0), false, None, |_| None);
     assert_eq!(
         creature
@@ -510,7 +499,7 @@ fn world_creature_chase_rebuilds_the_generator_when_the_victim_changes_like_cpp(
     );
 
     creature.enter_combat(second);
-    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let _ = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(100, target(second, 45.0), false, None, |_| None);
     assert_eq!(
         creature
@@ -531,7 +520,7 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
     let mut creature = test_creature(guid);
     creature.enter_combat(victim);
 
-    let launched = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let launched = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             1,
             test_chase_target(victim, 60.0),
@@ -551,7 +540,7 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
             .moving_towards()
     );
 
-    let launched = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let launched = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             1,
             test_chase_target(victim, 65.0),
@@ -565,7 +554,7 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
     assert!(matches!(launched, ChaseTickOutcomeLikeCpp::Launched(..)));
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[201, 202]);
 
-    let launched = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let launched = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             1,
             test_chase_target(victim, 10.5),
@@ -588,7 +577,7 @@ fn world_creature_chase_direction_flip_resets_corridor_and_same_direction_reuses
     );
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[301, 302]);
 
-    let launched = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let launched = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             1,
             test_chase_target(victim, 70.0),
@@ -619,7 +608,7 @@ fn world_creature_failed_direction_flip_does_not_publish_unlaunched_direction() 
     creature.enter_combat(victim);
 
     assert!(matches!(
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .update_runtime_chase_movement_like_cpp(
                 1,
                 test_chase_target(victim, 60.0),
@@ -631,7 +620,7 @@ fn world_creature_failed_direction_flip_does_not_publish_unlaunched_direction() 
     ));
     assert_eq!(creature.active_chase_path_poly_refs_like_cpp(), &[501, 502]);
 
-    let failed = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let failed = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             1,
             test_chase_target(victim, 10.5),
@@ -673,7 +662,7 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
     creature.enter_combat(victim);
 
     assert!(matches!(
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .update_runtime_chase_movement_like_cpp(
                 1,
                 test_chase_target(victim, 60.0),
@@ -688,10 +677,14 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
         .active_move_spline_like_cpp()
         .expect("chase spline")
         .duration_ms();
-    creature
-        .backdate_runtime_clock_for_test(Duration::from_millis(u64::from(duration_ms as u32) + 50));
-    assert!(crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).update_move_spline_like_cpp());
-    let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    backdate_runtime_clock_for_test(
+        &mut creature,
+        Duration::from_millis(u64::from(duration_ms as u32) + 50),
+    );
+    assert!(
+        CreatureMovementLikeCpp::canonical_like_cpp(&mut creature).update_move_spline_like_cpp()
+    );
+    let _ = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             100,
             test_chase_target(victim, 60.0),
@@ -706,11 +699,11 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
             .has_flag(RuntimeMovementGeneratorFlags::INFORM_ENABLED)
     );
     assert!(
-        creature.creature.take_ai_movement_inform().is_some(),
+        creature.take_ai_movement_inform().is_some(),
         "the successful spline arrival must consume and publish its inform"
     );
 
-    let failed = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    let failed = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
         .update_runtime_chase_movement_like_cpp(
             1,
             test_chase_target(victim, 100.0),
@@ -744,9 +737,7 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
         in_world: true,
         in_water: Some(false),
     };
-    let snapshot = creature
-        .creature
-        .chase_unit_snapshot_like_cpp(in_range_target);
+    let snapshot = creature.chase_unit_snapshot_like_cpp(in_range_target);
     let bounds = creature
         .active_chase_generator_like_cpp()
         .expect("chase generator")
@@ -763,14 +754,14 @@ fn world_creature_nopath_after_arrival_does_not_reenable_consumed_inform_like_cp
          snapshot={snapshot:?}, bounds={bounds:?}"
     );
     assert_eq!(
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .update_runtime_chase_movement_like_cpp(100, in_range_target, true, None, |_| panic!(
                 "an in-range target must not calculate another path"
             ),),
         ChaseTickOutcomeLikeCpp::Idle
     );
     assert!(
-        creature.creature.take_ai_movement_inform().is_none(),
+        creature.take_ai_movement_inform().is_none(),
         "a route that never launched must not publish a duplicate arrival inform"
     );
 }
@@ -783,7 +774,7 @@ fn world_creature_chase_passes_can_fly_as_force_destination_like_cpp() {
     let victim = ObjectGuid::create_world_object(HighGuid::Player, 0, 1, 0, 0, 0, 93);
 
     for can_fly in [false, true] {
-        let mut creature = WorldCreature::new(
+        let mut creature = fixture_creature(
             guid,
             1,
             Position::new(10.0, 10.0, 0.0, 0.0),
@@ -797,18 +788,16 @@ fn world_creature_chase_passes_can_fly_as_force_destination_like_cpp() {
             0,
             0,
         );
-        creature
-            .creature
-            .set_flight_movement_type_runtime_like_cpp(if can_fly {
-                wow_constants::CreatureFlightMovementType::CanFly as u8
-            } else {
-                wow_constants::CreatureFlightMovementType::None as u8
-            });
-        assert_eq!(creature.creature.can_fly_like_cpp(), can_fly);
+        creature.set_flight_movement_type_runtime_like_cpp(if can_fly {
+            wow_constants::CreatureFlightMovementType::CanFly as u8
+        } else {
+            wow_constants::CreatureFlightMovementType::None as u8
+        });
+        assert_eq!(creature.can_fly_like_cpp(), can_fly);
         creature.enter_combat(victim);
 
         let mut observed = None;
-        let _ = crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        let _ = CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .update_runtime_chase_movement_like_cpp(
                 100,
                 ChaseTargetSnapshotLikeCpp {

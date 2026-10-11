@@ -5,7 +5,7 @@
 //! #1263 F6-8E-2: moved with those modules out of the deleted
 //! `map_manager_tests`; the tests that exercised only the legacy
 //! `MapManager`/`MapInstance`/`Grid` owner are deleted with it, and the
-//! `WorldCreature` tests run on the canonical `Creature`.
+//! `Creature` tests run on the canonical `Creature`.
 
 #![cfg(test)]
 
@@ -17,32 +17,31 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use wow_constants::movement::MovementFlag;
 use wow_constants::{
-    Class, CreatureFlagsExtra, DeathState, PowerType, UnitDynFlags, UnitFlags2, UnitMoveType,
-    UnitStandStateType, UnitState, WeaponAttackType,
+    Class, CreatureFlagsExtra, DeathState, PowerType, UnitMoveType, UnitStandStateType, UnitState,
+    WeaponAttackType,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
-use wow_entities::creature_create::CreatureCreateData;
 use wow_entities::{
-    AllowedPositionZCaps, Creature, CreatureAiState, DistractMovementAction, MovementGeneratorKind,
-    MovementGeneratorType, MovementSlot, PhaseShift, PointMovementAction, PointMovementInform,
-    game_time_secs_like_cpp,
+    Creature, CreatureAiState, DistractMovementAction, EVENT_CHARGE_PREPATH, GenericMovementInform,
+    INVALID_HEIGHT, MovementGeneratorKind, MovementGeneratorType, PhaseShift, PointMovementAction,
+    PointMovementInform, Z_OFFSET_FIND_HEIGHT,
 };
+use wow_map::SharedStaticVMapLineOfSightProvider;
+use wow_map::SpawnObjectType;
 use wow_map::map::MapWorldObjectEnvironment;
-use wow_map::{GridMapTerrain, SpawnObjectType};
+use wow_movement::MovementGeneratorType as RuntimeMovementGeneratorType;
 use wow_movement::{
-    ChaseMovementGenerator, MoveSpline, MoveSplineFlag, MoveSplineInit, MovementGenerator,
-    PathGenerator, PathType, RandomMovementAction, RandomMovementGenerator, RandomPathResult,
-    WaypointAnimation, WaypointMovementAction, WaypointMovementGenerator, WaypointPath,
-    WaypointRandomAtPathEnd,
+    MoveSpline, MoveSplineFlag, MovementGenerator, PathType, RandomPathResult,
+    WaypointMovementAction, WaypointMovementGenerator, WaypointPath, WaypointRandomAtPathEnd,
 };
 use wow_persistence::{RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp};
 use wow_recastdetour::{
-    DetourPathType, DetourPointPath, DetourPolyPath, MAX_POINT_PATH_LENGTH_LIKE_CPP,
-    PathQueryFilterContext,
+    DetourOwnerCapabilitiesLikeCpp, DetourPathType, DetourPointPath, DetourPolyPath,
+    MAX_POINT_PATH_LENGTH_LIKE_CPP, MMapData, PathQueryFilterContext, SIZE_OF_GRIDS_LIKE_CPP,
+    create_path_query_filter_like_cpp,
 };
 
-use crate::corpse_load::*;
 use crate::creature_movement::*;
 use crate::creature_projection::*;
 use crate::creature_respawn::*;
@@ -99,8 +98,43 @@ fn test_area_entry(id: u32, parent_area_id: u16, flags: u32) -> wow_data::AreaTa
 /// The former `WorldCreature::new` fixture on the canonical creature. Its
 /// cached projection launched splines at the projection's run rate (1.14286);
 /// the canonical unit now carries that rate itself.
-fn test_creature(guid: ObjectGuid) -> Creature {
+#[allow(clippy::too_many_arguments)]
+fn fixture_creature(
+    guid: ObjectGuid,
+    entry: u32,
+    pos: Position,
+    hp: u32,
+    level: u8,
+    min_dmg: u32,
+    max_dmg: u32,
+    aggro_radius: f32,
+    display_id: u32,
+    faction: u32,
+    npc_flags: u32,
+    unit_flags: u32,
+) -> Creature {
     let mut creature = new_runtime_creature_like_cpp(
+        guid,
+        entry,
+        pos,
+        hp,
+        level,
+        min_dmg,
+        max_dmg,
+        aggro_radius,
+        display_id,
+        faction,
+        npc_flags,
+        unit_flags,
+    );
+    creature
+        .unit_mut()
+        .set_speed_rate_like_cpp(UnitMoveType::Run, 1.14286);
+    creature
+}
+
+fn test_creature(guid: ObjectGuid) -> Creature {
+    fixture_creature(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -113,11 +147,25 @@ fn test_creature(guid: ObjectGuid) -> Creature {
         35,
         0,
         0,
-    );
+    )
+}
+
+// The former `WorldCreature` test accessors, over the canonical creature.
+
+fn seed_runtime_rng_like_cpp(creature: &mut Creature, seed: u64) {
     creature
-        .unit_mut()
-        .set_speed_rate_like_cpp(UnitMoveType::Run, 1.14286);
+        .runtime_like_cpp_mut()
+        .seed_runtime_rng_like_cpp(seed);
+}
+
+fn backdate_runtime_clock_for_test(creature: &mut Creature, elapsed: Duration) {
     creature
+        .runtime_like_cpp_mut()
+        .set_runtime_elapsed_ms_like_cpp(elapsed.as_millis().min(u128::from(u64::MAX)) as u64);
+}
+
+fn corpse_despawn_deadline_ms_like_cpp(creature: &Creature) -> Option<u64> {
+    creature.ai_ownership().corpse_despawn_at_ms
 }
 
 fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {
@@ -365,8 +413,6 @@ mod creature_4;
 mod creature_5;
 #[path = "creature_runtime_tests/f6_8d1_phase_engine.rs"]
 mod f6_8d1_phase_engine;
-#[path = "creature_runtime_tests/gameobject.rs"]
-mod gameobject;
 #[path = "creature_runtime_tests/instance.rs"]
 mod instance;
 #[path = "creature_runtime_tests/misc.rs"]

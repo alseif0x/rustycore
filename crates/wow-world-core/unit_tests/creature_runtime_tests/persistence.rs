@@ -6,33 +6,6 @@
 use super::*;
 
 #[test]
-fn test_should_unload() {
-    let mut grid = Grid::new(0, 0);
-    grid.last_player_time = Instant::now() - Duration::from_secs(400);
-    assert!(grid.should_unload(Duration::from_secs(300)));
-}
-#[test]
-fn test_should_not_unload_with_player() {
-    let mut grid = Grid::new(0, 0);
-    let player = ObjectGuid::create_player(1, 1);
-    grid.player_enter(player);
-    grid.last_player_time = Instant::now() - Duration::from_secs(400);
-    assert!(!grid.should_unload(Duration::from_secs(300)));
-}
-#[test]
-fn instance_id_allocator_registers_loaded_ids_in_order_like_cpp() {
-    let mut manager = MapManager::new();
-    manager.init_instance_ids_from_max(5);
-
-    manager.register_instance_id(1);
-    manager.register_instance_id(2);
-    manager.register_instance_id(4);
-
-    assert_eq!(manager.generate_instance_id(), Some(3));
-    assert_eq!(manager.generate_instance_id(), Some(5));
-    assert_eq!(manager.generate_instance_id(), Some(6));
-}
-#[test]
 fn loaded_grid_canonical_bridge_preserves_level_and_stats_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 29_715, 97_932);
     let position = Position::new(5875.25, 609.063, 650.368, 1.676);
@@ -141,26 +114,27 @@ fn loaded_grid_canonical_bridge_preserves_level_and_stats_like_cpp() {
         },
     );
 
-    let bridged = WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+    let bridged = loaded_grid_creature_like_cpp(canonical, |_| None);
+    let create_data = creature_create_data_like_cpp(&bridged);
 
     assert_eq!(bridged.level(), 75);
     assert_eq!(bridged.current_hp(), 4_652);
     assert_eq!(bridged.max_hp(), 4_652);
-    assert_eq!(bridged.create_data.level, 75);
-    assert_eq!(bridged.create_data.health, 4_652);
-    assert_eq!(bridged.create_data.max_health, 4_652);
-    assert_eq!(bridged.create_data.display_id, 26_441);
-    assert_eq!(bridged.create_data.npc_flags, 0x280);
+    assert_eq!(create_data.level, 75);
+    assert_eq!(create_data.health, 4_652);
+    assert_eq!(create_data.max_health, 4_652);
+    assert_eq!(create_data.display_id, 26_441);
+    assert_eq!(create_data.npc_flags, 0x280);
     assert_eq!(
-        bridged.create_data.unit_flags2,
+        create_data.unit_flags2,
         wow_constants::UnitFlags2::REGENERATE_POWER.bits()
     );
-    assert_eq!(bridged.create_data.speed_walk_rate, 1.0);
-    assert_eq!(bridged.create_data.speed_run_rate, 1.14286);
-    assert_eq!(bridged.creature.ai_ownership().loot_id, 21_779);
-    assert_eq!(bridged.creature.ai_ownership().skin_loot_id, 21_780);
-    assert_eq!(bridged.creature.ai_ownership().gold_min, 13);
-    assert_eq!(bridged.creature.ai_ownership().gold_max, 31);
+    assert_eq!(create_data.speed_walk_rate, 1.0);
+    assert_eq!(create_data.speed_run_rate, 1.14286);
+    assert_eq!(bridged.ai_ownership().loot_id, 21_779);
+    assert_eq!(bridged.ai_ownership().skin_loot_id, 21_780);
+    assert_eq!(bridged.ai_ownership().gold_min, 13);
+    assert_eq!(bridged.ai_ownership().gold_max, 31);
 }
 #[test]
 fn loaded_grid_canonical_bridge_only_sets_vehicle_create_flag_for_real_vehicle_kit_like_cpp() {
@@ -274,22 +248,22 @@ fn loaded_grid_canonical_bridge_only_sets_vehicle_create_flag_for_real_vehicle_k
     assert_eq!(canonical.lifecycle_metadata().vehicle_id, Some(909));
     assert!(canonical.unit().subsystems().vehicle.kit.is_none());
 
-    let bridged = WorldCreature::from_loaded_grid_canonical_like_cpp(canonical, |_| None);
+    let bridged = loaded_grid_creature_like_cpp(canonical, |_| None);
 
-    assert_eq!(bridged.create_data.vehicle_id, 0);
+    assert_eq!(creature_create_data_like_cpp(&bridged).vehicle_id, 0);
 }
 #[test]
-fn pending_respawn_save_load_roundtrip_uses_cpp_respawn_table_statement() {
-    let mut manager = MapManager::new();
+fn pending_respawn_save_uses_cpp_respawn_table_statement() {
+    let mut queue = CreatureRespawnQueueLikeCpp::default();
     let now = Instant::now();
     let now_secs = 1_700_000_000;
     let mut pending = make_pending_respawn(now + Duration::from_secs(45));
     pending.spawn_id = u64::from(u32::MAX) + 17;
     pending.map_id = 571;
 
-    let mutation = manager
-        .save_pending_respawn_time_like_cpp(571, 0, &pending, now, now_secs)
-        .expect("future creature respawn should queue CHAR_REP_RESPAWN");
+    let mutation =
+        save_pending_respawn_time_on_queue_like_cpp(&mut queue, 571, 0, &pending, now, now_secs)
+            .expect("future creature respawn should queue CHAR_REP_RESPAWN");
 
     assert_eq!(
         mutation,
@@ -305,34 +279,12 @@ fn pending_respawn_save_load_roundtrip_uses_cpp_respawn_table_statement() {
     );
 
     assert_eq!(
-        manager.persisted_respawn_time_like_cpp(
-            571,
-            0,
-            SpawnObjectType::Creature,
-            pending.spawn_id
-        ),
+        queue.persisted_respawn_time_like_cpp(SpawnObjectType::Creature, pending.spawn_id),
         Some(now_secs + 45)
     );
-
-    let rows = manager.persisted_respawn_rows_like_cpp(571, 0);
-    let mut restarted = MapManager::new();
-    let report =
-        restarted.load_persisted_respawns_into_queue_like_cpp(rows, now, now_secs, |_row, at| {
-            Some(make_pending_respawn(at))
-        });
-
-    assert_eq!(report.rows, 1);
-    assert_eq!(report.timers_loaded, 1);
-    assert_eq!(report.creature_queued, 1);
-    assert_eq!(restarted.respawn_queue_len(571, 0), 1);
-    assert!(
-        restarted
-            .drain_ready_respawns(571, 0, now + Duration::from_secs(44))
-            .is_empty()
-    );
-    let ready = restarted.drain_ready_respawns(571, 0, now + Duration::from_secs(45));
-    assert_eq!(ready.len(), 1);
-    assert_eq!(ready[0].spawn_id, pending.spawn_id);
+    let rows = queue.persisted_respawn_rows_like_cpp();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].respawn_time, now_secs + 45);
 }
 #[test]
 fn push_respawn_keeps_persistent_and_synthetic_id_namespaces_separate_like_cpp() {

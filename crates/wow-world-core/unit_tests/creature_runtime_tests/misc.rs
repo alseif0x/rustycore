@@ -17,7 +17,7 @@ fn create_data_from_canonical_keeps_base_mana_distinct_from_non_mana_power_like_
     creature.unit_mut().set_max_power(PowerType::Focus, 100);
     creature.unit_mut().set_power(PowerType::Focus, 25);
 
-    let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
+    let create_data = creature_create_data_like_cpp(&creature);
 
     assert_eq!(create_data.display_power, PowerType::Focus as u8);
     assert_eq!(create_data.base_mana, 600);
@@ -29,9 +29,9 @@ fn equal_rng_bounds_still_consume_shared_runtime_draws_like_cpp() {
     let seed = 0xE011_A1_u64;
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70008);
     let mut creature = test_creature(guid);
-    creature.seed_runtime_rng_like_cpp(seed);
-    creature.creature.ai_ownership_mut().min_damage = 7;
-    creature.creature.ai_ownership_mut().max_damage = 7;
+    seed_runtime_rng_like_cpp(&mut creature, seed);
+    creature.ai_ownership_mut().min_damage = 7;
+    creature.ai_ownership_mut().max_damage = 7;
     let mut expected_rng = StdRng::seed_from_u64(seed);
 
     assert_eq!(
@@ -45,17 +45,6 @@ fn equal_rng_bounds_still_consume_shared_runtime_draws_like_cpp() {
         creature.random_creature_spell_hit_roll_like_cpp(),
         Some(expected_rng.gen_range(0..=9_999))
     );
-}
-#[test]
-fn test_player_enter_leave() {
-    let mut grid = Grid::new(0, 0);
-    let player = ObjectGuid::create_player(1, 1);
-
-    grid.player_enter(player);
-    assert!(grid.player_guids.contains(&player));
-
-    grid.player_leave(player);
-    assert!(!grid.player_guids.contains(&player));
 }
 /// `drain_ready_respawns` returns only entries whose `respawn_at <= now`.
 #[test]

@@ -118,9 +118,6 @@ fn terrain_grid_file_index_resolves_root_and_visible_child_map_like_cpp() {
     );
     fs::remove_dir_all(data_dir).expect("remove test dir");
 }
-#[test]
-#[test]
-#[test]
 /// Smoke: `RecipientRule::NearbyVisible` stores all its fields correctly.
 #[test]
 fn recipient_rule_nearby_visible_stores_fields() {
