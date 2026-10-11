@@ -11,12 +11,6 @@ pub(crate) use wow_world_core::session::{
     ReputationGainSourceLikeCpp,
 };
 
-impl WorldSession {
-    pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
-        self.config.reset_schedule_like_cpp()
-    }
-}
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/faction_reactions/f3_shims.rs"]
 mod f3_shims;

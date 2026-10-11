@@ -133,22 +133,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_has_item_fit_to_spell_requirements_like_cpp(hub, equipped)
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_remove_item_like_cpp(
-        &mut self,
-        remove: RepresentedAuctionRemoveItemLikeCpp,
-    ) {
-        self.inventory
-            .record_represented_auction_remove_item_like_cpp(remove)
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_sell_item_like_cpp(
-        &mut self,
-        sell: RepresentedAuctionSellItemLikeCpp,
-    ) {
-        self.inventory
-            .record_represented_auction_sell_item_like_cpp(sell)
-    }
     pub(in crate::session) fn record_represented_offhand_item_mod_remove_like_cpp(
         &mut self,
         item_guid: ObjectGuid,

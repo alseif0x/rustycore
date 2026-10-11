@@ -131,9 +131,6 @@ impl WorldSession {
     pub fn set_spell_label_store(&mut self, store: Arc<wow_data::SpellLabelStore>) {
         self.catalogs.spell_catalogs.set_spell_label_store(store);
     }
-    pub(crate) fn spell_label_store(&self) -> Option<&Arc<wow_data::SpellLabelStore>> {
-        self.catalogs.spell_catalogs.spell_label_store()
-    }
     pub fn set_spell_learn_spell_store(&mut self, store: Arc<SpellLearnSpellStoreLikeCpp>) {
         self.catalogs
             .spell_catalogs

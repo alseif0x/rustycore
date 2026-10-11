@@ -255,14 +255,6 @@ impl WorldSession {
 }
 
 impl crate::session::InventoryCxRef<'_> {
-    pub(crate) fn stored_item_money_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
-        self.lifecycle
-            .stored_item_money_persistence_port_like_cpp()
-            .cloned()
-    }
-
     pub(crate) fn item_template_addon_catalog_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>> {

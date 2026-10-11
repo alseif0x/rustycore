@@ -38,15 +38,6 @@ impl WorldSession {
             registry.connected_player_has_achievement(leader_guid, achievement_id)
         })
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_place_bid_like_cpp(
-        &mut self,
-        bid: RepresentedAuctionPlaceBidLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.inventory
-            .record_represented_auction_place_bid_like_cpp(bid);
-    }
     #[cfg(test)]
     pub(crate) fn represented_auction_place_bids_like_cpp(
         &self,

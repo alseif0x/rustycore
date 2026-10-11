@@ -25,14 +25,6 @@ impl WorldSession {
         wow_world_application::stats_application_cx_from_hub_like_cpp(hub, inventory)
     }
 
-    pub(super) fn represented_player_gear_stats_like_cpp(
-        &mut self,
-        _include_represented_item_bonuses: bool,
-    ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
-        self.stats_application_cx_like_cpp()
-            .represented_player_gear_stats_like_cpp()
-    }
-
     /// C++ `Player::Create` -> `InitStatsForLevel`/`UpdateMaxHealth`: the
     /// creation body moved to the `wow-world-application` character owner
     /// (#1263 F5); the character scenarios still call this entry point.
@@ -46,10 +38,5 @@ impl WorldSession {
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
         self.stats_application_cx_like_cpp()
             .player_stat_system_projection_like_cpp(race, class, level, gear)
-    }
-
-    pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.apply_represented_shapeshift_base_attack_time_like_cpp(&mut hub)
     }
 }

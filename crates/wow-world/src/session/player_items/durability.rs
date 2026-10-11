@@ -29,10 +29,6 @@ impl WorldSession {
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
         self.config.stats_limits_like_cpp = limits;
     }
-    #[must_use]
-    pub(crate) fn stats_limits_like_cpp(&self) -> wow_data::StatsLimitsLikeCpp {
-        self.config.stats_limits_like_cpp()
-    }
     /// C++ `Player::DurabilityLossAll` (`Player.cpp:4522-4544`).
     ///
     /// Equipment is always processed; `inventory` additionally walks the
@@ -284,14 +280,6 @@ impl WorldSession {
     pub(crate) fn represented_player_in_battleground_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_player_in_battleground_like_cpp(hub)
-    }
-    /// Get the durability cost store reference.
-    pub(crate) fn durability_costs_store(&self) -> Option<&Arc<DurabilityCostsStore>> {
-        self.catalogs.durability_costs_store.as_ref()
-    }
-    /// Get the durability quality store reference.
-    pub(crate) fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
-        self.catalogs.durability_quality_store.as_ref()
     }
     /// C++ `Player::DurabilityRepair(pos, takeCost, discountMod)` for one represented item.
     pub(crate) async fn repair_inventory_item_durability_with_generator_like_cpp(

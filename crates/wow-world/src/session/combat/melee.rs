@@ -70,39 +70,6 @@ impl RepresentedArmorMitigationLikeCpp {
 }
 
 impl WorldSession {
-    pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
-        &mut self,
-        diff_ms: u32,
-        in_melee_range: bool,
-        facing_target: bool,
-        within_los: bool,
-    ) -> Option<(Vec<RepresentedMeleeSwingLikeCpp>, Option<Option<u8>>)> {
-        // C++ `CalculateMeleeDamage` resolves the victim-dependent terms per
-        // swing; the session computes them for the victim the canonical Player
-        // is attacking and hands them to the shared swing function. All of them
-        // are hoisted: resolving them inside the mutable owner borrow would
-        // re-enter the canonical manager lock.
-        let melee_damage_bonus = self.represented_melee_damage_bonus_like_cpp();
-        let armor_mitigation = self.represented_melee_armor_mitigation_like_cpp();
-        let outcome_facts = self.represented_melee_outcome_facts_like_cpp();
-        let damage_taken = self.represented_melee_damage_taken_like_cpp();
-        self.core
-            .mutate_canonical_player_like_cpp(|player| {
-                take_canonical_player_attack_swings_like_cpp(
-                    player,
-                    diff_ms,
-                    in_melee_range,
-                    facing_target,
-                    within_los,
-                    melee_damage_bonus,
-                    armor_mitigation,
-                    outcome_facts,
-                    damage_taken,
-                )
-            })
-            .flatten()
-    }
-
     /// C++ `Unit::MeleeDamageBonusTaken` (`Unit.cpp:1687-1759`) inputs for the
     /// canonical Player's current melee victim: the creature's applied-aura
     /// effects and the attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` sum for

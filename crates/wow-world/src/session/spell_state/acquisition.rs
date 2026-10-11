@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_spell_acquisition_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_player_spell_acquisition_persistence_port_like_cpp(port);
-    }
     /// Install the process-wide audited static authority consumed by the
     /// immutable acquisition planner. Absence remains fail-closed.
     pub fn set_spell_acquisition_static_authority_like_cpp(
@@ -32,54 +25,6 @@ impl WorldSession {
                 std::iter::empty(),
             ),
         ));
-    }
-    /// Commit one trainer fee and its prepared spell/skill acquisition under
-    /// the same per-character money exclusion. Runtime publication remains the
-    /// caller's responsibility and must complete before the returned guard is
-    /// dropped.
-    pub(crate) async fn commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-        &mut self,
-        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
-        prepared: &crate::spell_acquisition::PreparedPlayerSpellAcquisitionLikeCpp,
-        money_before: u64,
-        money_after: u64,
-    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let fixture_result = {
-            #[cfg(test)]
-            {
-                self.lifecycle.loot_money_persistence_test_result_like_cpp()
-            }
-            #[cfg(not(test))]
-            {
-                None
-            }
-        };
-
-        let core_access = self.core.player_money_transaction_access_like_cpp();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            return wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-                &self.lifecycle,
-                core_access,
-                money_persistence,
-                prepared,
-                money_before,
-                money_after,
-                fixture_result,
-            )
-            .await;
-        }
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-            &self.lifecycle,
-            core_access,
-            money_persistence,
-            prepared,
-            money_before,
-            money_after,
-        )
-        .await
     }
     pub(in crate::session) fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
         &mut self,

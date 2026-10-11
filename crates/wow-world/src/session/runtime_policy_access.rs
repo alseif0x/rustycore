@@ -55,11 +55,6 @@ impl WorldSession {
         self.config.addon_channel_like_cpp
     }
 
-    #[cfg(test)]
-    pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
-        self.update_speak_time_with_policy_like_cpp(index, self.config.chat_flood_config_like_cpp)
-    }
-
     /// Set the C++ DisableMgr store loaded from the `disables` table.
     pub fn set_disable_mgr(&mut self, store: Arc<DisableMgrLikeCpp>) {
         self.catalogs.disable_mgr = Some(store);

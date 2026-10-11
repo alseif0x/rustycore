@@ -46,43 +46,11 @@ impl WorldSession {
             .set_player_quest_reward_persistence_port_like_cpp(port)
     }
 
-    pub(crate) fn set_stored_item_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_stored_item_persistence_port_like_cpp(port);
-    }
-
     pub fn set_character_administration_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
     ) {
         self.lifecycle
             .set_character_administration_persistence_port_like_cpp(port)
-    }
-
-    pub(crate) fn set_loot_template_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_loot_template_catalog_persistence_port_like_cpp(port);
-    }
-
-    pub(crate) fn set_vendor_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_vendor_catalog_persistence_port_like_cpp(port);
-    }
-
-    pub(crate) fn set_visibility_spawn_catalog_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_visibility_spawn_catalog_persistence_port_like_cpp(port);
     }
 }

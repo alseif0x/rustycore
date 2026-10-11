@@ -8,38 +8,6 @@ use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp, RepresentedGameObjec
 use super::{WorldSession, quest};
 
 impl WorldSession {
-    /// World facade over the single App provider so query/refresh paths and the
-    /// ActivateToQuest/DynamicFlags consumers share one authority.
-    pub(in crate::session) fn represented_has_quest_for_gameobject_like_cpp(
-        &self,
-        gameobject_entry: u32,
-    ) -> bool {
-        let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::represented_has_quest_for_gameobject_like_cpp(
-            &owner,
-            &self.catalogs,
-            &self.quest_state,
-            gameobject_entry,
-            cfg!(test),
-        )
-    }
-
-    pub(in crate::session) fn represented_gameobject_is_for_quests_like_cpp(
-        &self,
-        gameobject_entry: u32,
-        state: &RepresentedGameObjectUseState,
-    ) -> bool {
-        let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::represented_gameobject_is_for_quests_like_cpp(
-            &self.catalogs,
-            &owner,
-            &self.quest_state,
-            gameobject_entry,
-            state,
-            cfg!(test),
-        )
-    }
-
     pub(in crate::session) fn represented_gameobject_activate_to_quest_like_cpp(
         &self,
         gameobject_entry: u32,

@@ -28,36 +28,6 @@ impl WorldSession {
             category_end_unix_secs,
         )
     }
-    /// Check if a spell is on cooldown (global or per-spell).
-    ///
-    /// Returns true if either the global cooldown (1500ms) or the spell-specific
-    /// cooldown from SpellStore is still active.
-    pub(crate) fn is_spell_on_cooldown(&self, spell_id: i32) -> bool {
-        let Some(last_cast) = self.last_spell_cast_time_like_cpp() else {
-            return true;
-        };
-        let Some(last_cast) = last_cast else {
-            return false; // Never casted
-        };
-
-        let elapsed_ms = last_cast.elapsed().as_millis() as u32;
-
-        // Global cooldown: 1500ms
-        if elapsed_ms < 1500 {
-            return true;
-        }
-
-        // Per-spell cooldown (if exists in SpellStore)
-        if let Some(store) = &self.catalogs.spell_catalogs.spell_store {
-            if let Some(spell_info) = store.get(spell_id) {
-                if elapsed_ms < spell_info.cooldown_ms {
-                    return true;
-                }
-            }
-        }
-
-        false
-    }
     /// Login snapshot of spell-history + charge packet entries
     /// (see `record_login_spell_history_packets_like_cpp`).
     #[cfg(test)]

@@ -9,9 +9,6 @@ impl WorldSession {
     pub fn set_reputation_rates_like_cpp(&mut self, rates: ReputationRatesLikeCpp) {
         self.config.reputation_rates = rates;
     }
-    pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
-        self.config.reputation_rates_like_cpp()
-    }
     #[allow(dead_code)]
     pub(crate) fn reputation_rank_like_cpp(
         &self,

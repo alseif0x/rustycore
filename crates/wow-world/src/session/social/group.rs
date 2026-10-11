@@ -268,10 +268,6 @@ impl WorldSession {
             .map(|group| group.group_guid)
     }
 
-    pub(crate) fn clear_represented_group_subgroup_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.clear_represented_group_subgroup_like_cpp(&mut hub)
-    }
     /// C++ `Player::ResetGroupUpdateSequenceIfNeeded` resets the per-player
     /// sequence for a group category only when the loaded group guid changed.
     pub(crate) fn reset_group_update_sequence_if_needed_like_cpp(&mut self) -> bool {

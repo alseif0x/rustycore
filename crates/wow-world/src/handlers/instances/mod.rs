@@ -39,20 +39,6 @@ impl crate::session::WorldSession {
         wow_world_application::handle_reset_instances_like_cpp(&mut cx, pkt).await;
     }
 
-    pub(crate) async fn reset_represented_instances_like_cpp(
-        &mut self,
-        reset_owner_guid: wow_core::ObjectGuid,
-        method: RepresentedInstanceResetMethodLikeCpp,
-    ) -> bool {
-        let mut cx = self.build_instance_lock_operations_handler_cx_like_cpp();
-        wow_world_application::reset_represented_instances_like_cpp(
-            &mut cx,
-            reset_owner_guid,
-            method,
-        )
-        .await
-    }
-
     pub(crate) async fn handle_instance_lock_response(&mut self, pkt: wow_packet::WorldPacket) {
         let mut cx = self.build_instance_lock_operations_handler_cx_like_cpp();
         let _ = wow_world_application::handle_instance_lock_response_like_cpp(&mut cx, pkt).await;

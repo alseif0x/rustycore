@@ -10,10 +10,6 @@ impl WorldSession {
     pub fn set_item_appearance_store(&mut self, store: Arc<ItemAppearanceStore>) {
         self.catalogs.items.appearance_store = Some(store);
     }
-    /// Get the item appearance store reference.
-    pub(crate) fn item_appearance_store(&self) -> Option<&Arc<ItemAppearanceStore>> {
-        self.catalogs.items.appearance_store.as_ref()
-    }
     /// Set the item modified appearance store for this session.
     pub fn set_item_modified_appearance_store(&mut self, store: Arc<ItemModifiedAppearanceStore>) {
         self.catalogs.items.modified_appearance_store = Some(store);
@@ -24,10 +20,6 @@ impl WorldSession {
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
         self.catalogs.transmog_set_item_store = Some(store);
-    }
-    /// Get the transmog set item store reference.
-    pub(crate) fn transmog_set_item_store(&self) -> Option<&Arc<TransmogSetItemStore>> {
-        self.catalogs.transmog_set_item_store.as_ref()
     }
     pub(crate) fn add_item_appearance_like_cpp(
         &mut self,

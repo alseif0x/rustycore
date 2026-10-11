@@ -58,10 +58,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_instances_mut(self);
         state.set_represented_player_recent_instance_like_cpp(&mut hub, map_id, instance_id)
     }
-    pub(in crate::session) fn current_map_instanceable_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.current_map_instanceable_like_cpp(hub)
-    }
 }
 
 #[cfg(test)]

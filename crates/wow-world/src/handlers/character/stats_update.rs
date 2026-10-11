@@ -33,12 +33,6 @@ impl WorldSession {
             .send_stat_update_like_cpp()
     }
 
-    /// C++ `HandleModTotalPercentStat` application entrypoint.
-    pub(crate) fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
-        self.stats_application_cx_like_cpp()
-            .send_total_stat_percentage_update_like_cpp(preserve_health_pct);
-    }
-
     /// C++ `Player::GiveLevel` stat refill and publication entrypoint.
     pub(crate) fn send_level_up_stat_update_like_cpp(&mut self) {
         self.stats_application_cx_like_cpp()

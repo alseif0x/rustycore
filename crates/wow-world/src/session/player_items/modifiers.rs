@@ -266,15 +266,6 @@ impl WorldSession {
         state.initial_loaded_item_mods_can_apply_like_cpp(hub, item_guid)
     }
 
-    pub(in crate::session) fn represented_can_use_attack_type_like_cpp(
-        &self,
-        slot: u8,
-        inventory_type: Option<InventoryType>,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_can_use_attack_type_like_cpp(hub, slot, inventory_type)
-    }
-
     pub(crate) fn represented_item_reputation_rank_like_cpp(
         &self,
         required_reputation_faction: u32,

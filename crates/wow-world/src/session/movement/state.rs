@@ -100,13 +100,6 @@ impl WorldSession {
         }
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {
-        #[cfg(test)]
-        self.social
-            .record_calendar_remove_event_for_test_like_cpp(event_id);
-    }
-
     #[cfg(test)]
     pub(crate) fn represented_calendar_remove_events_like_cpp(
         &self,

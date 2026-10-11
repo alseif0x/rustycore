@@ -154,12 +154,9 @@ impl WorldSession {
 }
 
 impl crate::session::LootCxRef<'_> {
-    fn represented_gameobject_loot_state_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectLootStateLikeCpp> {
+    pub(super) fn represented_gameobject_exists_for_loot_like_cpp(&self, guid: ObjectGuid) -> bool {
         if !guid.is_game_object() {
-            return None;
+            return false;
         }
 
         let canonical_position = self.loot.canonical_map_object_position_for_loot_like_cpp(
@@ -170,39 +167,12 @@ impl crate::session::LootCxRef<'_> {
                 AccessorObjectKind::Transport,
             ],
         );
-        let canonical_owner = self
-            .loot
-            .canonical_gameobject_owner_for_loot_like_cpp(self.hub, guid);
         let represented_state = self
             .world_entities
             .represented_gameobject_use_state_like_cpp(guid);
-        if canonical_position.is_none()
-            && represented_state.and_then(|state| state.position).is_none()
-            && !self.hub.core.client_visible_guids_like_cpp.contains(&guid)
-        {
-            return None;
-        }
-
-        Some(RepresentedGameObjectLootStateLikeCpp {
-            position: canonical_position
-                .or_else(|| represented_state.and_then(|state| state.position)),
-            display_id: represented_state.and_then(|state| state.display_id),
-            scale: represented_state.map(|state| state.scale).unwrap_or(1.0),
-            rotation: represented_state
-                .map(|state| state.rotation)
-                .unwrap_or([0.0, 0.0, 0.0, 1.0]),
-            go_type: represented_state.and_then(|state| state.go_type),
-            interact_radius_override: represented_state
-                .and_then(|state| state.interact_radius_override),
-            lock_id: represented_state.and_then(|state| state.lock_id),
-            owner_guid: canonical_owner
-                .or_else(|| represented_state.and_then(|state| state.owner_guid)),
-        })
-    }
-
-    pub(super) fn represented_gameobject_exists_for_loot_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.represented_gameobject_loot_state_like_cpp(guid)
-            .is_some()
+        canonical_position.is_some()
+            || represented_state.and_then(|state| state.position).is_some()
+            || self.hub.core.client_visible_guids_like_cpp.contains(&guid)
     }
 }
 

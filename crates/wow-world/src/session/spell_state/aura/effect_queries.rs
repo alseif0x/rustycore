@@ -44,14 +44,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.resolved_total_represented_aura_multiplier_like_cpp(hub, effect)
     }
-
-    pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.aura_has_total_stat_percentage_effect_like_cpp(hub, aura)
-    }
 }
 
 #[cfg(test)]

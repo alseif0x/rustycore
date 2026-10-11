@@ -13,11 +13,6 @@ impl WorldSession {
     ) {
         self.catalogs.items.random_enchantment_template_store = Some(store);
     }
-    pub(crate) fn item_random_enchantment_template_store(
-        &self,
-    ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
-        self.catalogs.item_random_enchantment_template_store()
-    }
     /// Get the item disenchant loot store reference.
     #[cfg(test)]
     pub(crate) fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
@@ -41,9 +36,6 @@ impl WorldSession {
         self.catalogs
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
-    }
-    pub(crate) fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
-        self.catalogs.spell_item_enchantment_store()
     }
     pub(crate) fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
         self.catalogs.is_arena_allowed_enchantment(enchantment_id)

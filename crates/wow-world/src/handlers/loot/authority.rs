@@ -80,31 +80,6 @@ impl WorldSession {
         });
     }
 
-    pub(super) fn represented_master_loot_target_exists_like_cpp(
-        &self,
-        target: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.represented_master_loot_target_exists_like_cpp(hub, target)
-    }
-
-    pub(super) fn represented_master_loot_target_eligible_like_cpp(
-        &self,
-        target: ObjectGuid,
-    ) -> bool {
-        let Some(group_guid) = self.resolved_group_guid_like_cpp() else {
-            return false;
-        };
-
-        let Some(group_registry) = self.group_registry() else {
-            return false;
-        };
-
-        group_registry
-            .get(&group_guid)
-            .is_some_and(|group| group.members.contains(&target))
-    }
-
     pub(super) fn represented_master_loot_can_store_error_like_cpp(
         &self,
         target: ObjectGuid,

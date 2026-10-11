@@ -70,14 +70,6 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
-    pub(crate) fn represented_spell_has_mod_shapeshift_effect_like_cpp(
-        &self,
-        spell_id: i32,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.represented_spell_has_mod_shapeshift_effect_like_cpp(hub, spell_id)
-    }
-
     pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_cast_speed_multiplier_like_cpp(hub)

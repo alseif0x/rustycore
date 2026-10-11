@@ -41,27 +41,6 @@ impl crate::session::WorldSession {
     /// paths before applying changes. This Rust slice only represents the
     /// client packet and keeps gameplay state unchanged.
 
-    pub(crate) async fn handle_transmogrify_items(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let request = match TransmogrifyItems::read_like_cpp(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "TransmogrifyItems parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        debug!(
-            account = self.core.account_id,
-            npc = ?request.npc,
-            item_count = request.items.len(),
-            current_spec_only = request.current_spec_only,
-            "TransmogrifyItems parsed; full C++ transmogrification application is pending"
-        );
-    }
-
     /// CMSG_USE_TOY — bounded C++ guard path before spell execution.
     ///
     /// C++ `HandleUseToy` validates item template, `CollectionMgr::HasToy`,

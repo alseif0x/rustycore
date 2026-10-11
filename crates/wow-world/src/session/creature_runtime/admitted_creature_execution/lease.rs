@@ -18,16 +18,6 @@ pub enum CreatureExecutionOwnerLikeCpp {
     CanonicalAdmitted,
 }
 
-impl CreatureExecutionOwnerLikeCpp {
-    /// Stable label for refusal reporting and assertions.
-    #[must_use]
-    pub(crate) const fn label_like_cpp(self) -> &'static str {
-        match self {
-            Self::CanonicalAdmitted => "canonical-admitted",
-        }
-    }
-}
-
 /// One execution owner's claim over one admitted transition.
 ///
 /// The identity is the tuple the admission already froze: the map coordinator,

@@ -97,14 +97,6 @@ impl WorldSession {
 
         self.record_represented_items_set_item_like_cpp(item_guid, false)
     }
-    pub(in crate::session) fn represented_item_inventory_type_like_cpp(
-        &self,
-        item_entry: u32,
-        item_guid: ObjectGuid,
-    ) -> Option<InventoryType> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_item_inventory_type_like_cpp(hub, item_entry, item_guid)
-    }
     pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
         crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
@@ -158,12 +150,6 @@ impl WorldSession {
     ) -> InventoryResult {
         self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
     }
-    pub(in crate::session) fn direct_inventory_player_snapshot(
-        &self,
-    ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.direct_inventory_player_snapshot(hub)
-    }
     pub(crate) fn remove_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_item_duration_refs_like_cpp(&mut hub, item_guid)
@@ -171,10 +157,6 @@ impl WorldSession {
     pub(crate) fn remove_inventory_tradeable_item_like_cpp(&mut self, item_guid: ObjectGuid) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_tradeable_item_like_cpp(&mut hub, item_guid)
-    }
-    pub(crate) fn add_inventory_item_duration_refs_like_cpp(&mut self, item_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.add_inventory_item_duration_refs_like_cpp(&mut hub, item_guid)
     }
     /// C++ `Player::ApplyItemObtainSpells(item, true)` after `_StoreItem`.
     pub(crate) async fn apply_inventory_item_obtain_spells_with_generator_like_cpp(

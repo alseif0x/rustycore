@@ -112,27 +112,6 @@ impl WorldSession {
         }
     }
 
-    /// Project the quest's durable status without writing it.
-    ///
-    /// Shared by the standalone save below and by the quest-reward operation,
-    /// which carries the same row inside its own closing transaction rather
-    /// than committing it separately.
-    pub(crate) fn plan_quest_status_save_like_cpp(
-        &self,
-        quest_id: u32,
-        status: u8,
-    ) -> Option<wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp> {
-        let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::plan_quest_status_save_like_cpp(
-            &owner,
-            &self.quest_state,
-            &self.catalogs,
-            quest_id,
-            status,
-            cfg!(test),
-        )
-    }
-
     pub(super) async fn save_quest_to_db(&self, quest_id: u32, status: u8) {
         let owner = self.core.quest_objective_access_like_cpp();
         wow_world_application::save_quest_to_db_like_cpp(

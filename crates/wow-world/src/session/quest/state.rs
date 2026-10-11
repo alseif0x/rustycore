@@ -39,14 +39,6 @@ impl WorldSession {
         .is_some()
     }
 
-    /// C++ `Player::RemoveActiveQuest` (`Player.cpp:15575`).
-    pub(crate) fn remove_represented_quest_status_like_cpp(&mut self, quest_id: u32) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.remove_status_like_cpp(quest_id);
-        })
-        .is_some()
-    }
-
     /// C++ `Player::m_RewardedQuests` gaining or losing one quest.
     pub(crate) fn set_represented_quest_rewarded_like_cpp(
         &mut self,
@@ -55,22 +47,6 @@ impl WorldSession {
     ) -> bool {
         self.mutate_player_quest_gameplay_like_cpp(|state| {
             state.set_rewarded_like_cpp(quest_id, rewarded);
-        })
-        .is_some()
-    }
-
-    /// Settle one rewarded quest: C++ `Player::RewardQuest` removes the active
-    /// entry and records a non-repeatable quest as rewarded.
-    pub(crate) fn settle_represented_rewarded_quest_like_cpp(
-        &mut self,
-        quest_id: u32,
-        repeatable: bool,
-    ) -> bool {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.remove_status_like_cpp(quest_id);
-            if !repeatable {
-                state.set_rewarded_like_cpp(quest_id, true);
-            }
         })
         .is_some()
     }
@@ -540,18 +516,6 @@ impl crate::session::QuestStateCxRef<'_> {
             .owner_like_cpp()
             .add_request_committed_like_cpp(request_key)
             .await
-    }
-}
-
-impl crate::session::QuestStateCx<'_> {
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_replicate_request_like_cpp(
-        &mut self,
-        request: RepresentedAuctionReplicateRequestLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.inventory
-            .record_represented_auction_replicate_request_like_cpp(request);
     }
 }
 

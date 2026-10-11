@@ -567,10 +567,9 @@ pub(crate) use state::{
     split_inventory_lifecycle_shared_hub_mut, split_inventory_mut, split_inventory_ref,
     split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,
     split_player_handler_states_mut, split_quest_state_lifecycle_mut, split_quest_state_mut,
-    split_quest_state_ref, split_social_inventory_mut, split_social_lifecycle_mut,
-    split_social_mut, split_social_ref, split_spell_state_mut, split_spell_state_ref,
-    split_trade_mut, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
-    split_world_entities_ref,
+    split_quest_state_ref, split_social_mut, split_social_ref, split_spell_state_mut,
+    split_spell_state_ref, split_trade_mut, split_visibility_mut, split_visibility_ref,
+    split_world_entities_mut, split_world_entities_ref,
 };
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
@@ -971,8 +970,6 @@ const TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP: u32 = 16;
 const CLASS_DEATH_KNIGHT_LIKE_CPP: u8 = 6;
 const DEATH_KNIGHT_START_MAP_LIKE_CPP: u16 = 609;
 const DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP: i32 = 50977;
-const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
-const MAP_ARENA_LIKE_CPP: i8 = 4;
 pub(crate) use wow_world_social::GROUP_XP_DISTANCE_LIKE_CPP;
 const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.

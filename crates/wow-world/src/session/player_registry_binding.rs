@@ -22,10 +22,6 @@ impl WorldSession {
         self.core.player_registry()
     }
 
-    pub(crate) fn pending_invites(&self) -> Option<&Arc<PendingInvites>> {
-        self.core.pending_invites()
-    }
-
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {

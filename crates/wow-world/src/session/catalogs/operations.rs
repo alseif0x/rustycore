@@ -12,24 +12,13 @@ impl WorldSession {
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
         self.catalogs.trinity_string_store = Some(store);
     }
-    pub(crate) fn trinity_string_store(&self) -> Option<&Arc<TrinityStringStoreLikeCpp>> {
-        self.catalogs.trinity_string_store.as_ref()
-    }
     /// Set the heirloom store for this session.
     pub fn set_heirloom_store(&mut self, store: Arc<HeirloomStore>) {
         self.catalogs.heirloom_store = Some(store);
     }
-    /// Get the heirloom store reference.
-    pub(crate) fn heirloom_store(&self) -> Option<&Arc<HeirloomStore>> {
-        self.catalogs.heirloom_store.as_ref()
-    }
     /// Set the toy store for this session.
     pub fn set_toy_store(&mut self, store: Arc<ToyStore>) {
         self.catalogs.toy_store = Some(store);
-    }
-    /// Get the toy store reference.
-    pub(crate) fn toy_store(&self) -> Option<&Arc<ToyStore>> {
-        self.catalogs.toy_store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn set_player_create_info_store_like_cpp(
@@ -47,20 +36,9 @@ impl WorldSession {
     pub(crate) fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
         self.config.feature_system_bpay_store_enabled_like_cpp = enabled;
     }
-    pub(crate) fn update_speak_time_with_policy_like_cpp(
-        &mut self,
-        index: ChatFloodThrottleIndexLikeCpp,
-        config: ChatFloodConfigLikeCpp,
-    ) {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.update_speak_time_with_policy_like_cpp(&mut hub, index, config)
-    }
     /// Set the random property points store for this session.
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
         self.catalogs.rand_prop_points_store = Some(store);
-    }
-    pub(crate) fn rand_prop_points_store(&self) -> Option<&Arc<RandPropPointsStore>> {
-        self.catalogs.rand_prop_points_store()
     }
     /// Set the C++ ConditionMgr store loaded from the `conditions` table.
     pub fn set_condition_store(&mut self, store: Arc<ConditionEntriesByTypeStore>) {
@@ -107,9 +85,6 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.chr.specialization_store = Some(store);
     }
-    pub(crate) fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
-        self.catalogs.chr_specialization_store()
-    }
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
         self.catalogs.world_safe_loc_store_like_cpp = Some(store);
     }
@@ -118,9 +93,6 @@ impl WorldSession {
     }
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
         self.catalogs.lfg_dungeons_store = Some(store);
-    }
-    pub(crate) fn lfg_dungeons_store(&self) -> Option<&Arc<LfgDungeonsStore>> {
-        self.catalogs.lfg_dungeons_store.as_ref()
     }
     #[cfg(test)]
     pub(crate) fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {

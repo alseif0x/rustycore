@@ -140,11 +140,6 @@ impl WorldSession {
         }
     }
 
-    /// Time since the last packet was received.
-    pub(crate) fn idle_time(&self) -> std::time::Duration {
-        self.core.admission.last_packet_time.elapsed()
-    }
-
     /// Whether the session is disconnecting.
     pub fn is_disconnecting(&self) -> bool {
         self.core.state == SessionState::Disconnecting

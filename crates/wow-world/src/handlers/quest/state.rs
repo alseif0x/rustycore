@@ -225,22 +225,6 @@ impl WorldSession {
         true
     }
 
-    pub(super) fn remove_represented_timed_quest_like_cpp(&mut self, quest_id: u32) {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let mut player = self.core.quest_reward_player_access_like_cpp(
-            &self.fixtures.identity.player_race,
-            &self.fixtures.identity.player_class,
-        );
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let mut player = self.core.quest_reward_player_access_like_cpp();
-        wow_world_application::QuestRewardCx::remove_represented_timed_quest_like_cpp(
-            &mut self.quest_state,
-            &mut player,
-            quest_id,
-            cfg!(test),
-        );
-    }
-
     pub(crate) fn first_free_quest_slot_like_cpp(&self) -> Option<u8> {
         (0..MAX_QUEST_LOG_SIZE_LIKE_CPP)
             .find(|&slot| !self.quest_slot_has_active_entry_like_cpp(slot))

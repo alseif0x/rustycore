@@ -15,22 +15,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.represented_money_loot_with_rate_like_cpp(&mut hub, min_amount, max_amount, rate)
     }
-    pub(in crate::session) fn represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-        &self,
-        loot_ids: impl IntoIterator<Item = u32>,
-    ) -> bool {
-        let owner = self.core.quest_objective_access_like_cpp();
-        let inventory_access = self.core.owned_inventory_access_like_cpp();
-        wow_world_application::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-            &owner,
-            &inventory_access,
-            &self.catalogs,
-            &self.inventory,
-            &self.quest_state,
-            loot_ids,
-            cfg!(test),
-        )
-    }
     pub(crate) fn read_canonical_creature_loot_authority_on_map_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -38,35 +22,6 @@ impl WorldSession {
     ) -> Option<OwnedLootAuthority> {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.read_canonical_creature_loot_authority_on_map_like_cpp(hub, guid, map_key)
-    }
-    pub(crate) fn read_canonical_gameobject_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.read_canonical_gameobject_loot_authority_on_map_like_cpp(hub, guid, map_key)
-    }
-    pub(crate) fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        f: F,
-    ) -> Option<R>
-    where
-        F: FnOnce(&mut wow_entities::Creature) -> R,
-    {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
-            &mut hub,
-            guid,
-            authority,
-            object_generation,
-            lifecycle_revision,
-            f,
-        )
     }
     pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
         &mut self,
@@ -79,9 +34,6 @@ impl WorldSession {
     }
     pub fn set_enable_ae_loot_like_cpp(&mut self, enabled: bool) {
         self.config.enable_ae_loot_like_cpp = enabled;
-    }
-    pub(crate) fn enable_ae_loot_like_cpp(&self) -> bool {
-        self.config.enable_ae_loot_like_cpp()
     }
     pub(crate) fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
         self.config.loot_drop_rates_like_cpp()
@@ -132,14 +84,6 @@ impl WorldSession {
 }
 
 impl crate::session::LootCxRef<'_> {
-    pub(crate) fn group_loot_money_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>> {
-        self.lifecycle
-            .group_loot_money_persistence_port_like_cpp()
-            .cloned()
-    }
-
     pub(crate) fn durable_loot_money_persistence_tracker_like_cpp(
         &self,
     ) -> Arc<DurableLootMoneyPersistenceTrackerLikeCpp> {
