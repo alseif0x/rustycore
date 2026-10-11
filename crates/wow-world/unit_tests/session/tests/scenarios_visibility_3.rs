@@ -882,25 +882,16 @@ fn insert_canonical_visibility_candidate_like_cpp(
     phase_shift: Option<PhaseShift>,
     with_spline: bool,
 ) {
-    let mut carrier = crate::map_manager::WorldCreature::new(
+    let mut carrier = crate::creature_projection::new_runtime_creature_like_cpp(
         guid, entry, position, 100, level, 1, 2, 0.0, 1, 35, 0, 0,
     );
-    carrier
-        .creature
-        .unit_mut()
-        .world_mut()
-        .set_map(571, 0)
-        .unwrap();
-    carrier
-        .creature
-        .unit_mut()
-        .world_mut()
-        .set_combat_reach(1.0);
+    carrier.unit_mut().world_mut().set_map(571, 0).unwrap();
+    carrier.unit_mut().world_mut().set_combat_reach(1.0);
     if let Some(phase_shift) = phase_shift {
-        *carrier.creature.unit_mut().world_mut().phase_shift_mut() = phase_shift;
+        *carrier.unit_mut().world_mut().phase_shift_mut() = phase_shift;
     }
     if with_spline {
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(carrier)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut carrier)
             .begin_move_spline_like_cpp(Position::new(position.x + 4.0, position.y, 0.0, 0.0))
             .expect("canonical runtime spline must launch");
     }
@@ -911,7 +902,7 @@ fn insert_canonical_visibility_candidate_like_cpp(
         .expect("canonical viewer map instance")
         .map_mut()
         .add_map_object_record_to_map_like_cpp(
-            wow_entities::MapObjectRecord::new_creature(carrier.creature).unwrap(),
+            wow_entities::MapObjectRecord::new_creature(carrier).unwrap(),
         )
         .unwrap();
 }

@@ -34,14 +34,10 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             creature_guid,
             901,
             creature_position,
@@ -125,14 +121,10 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
         .expect("canonical player map");
     add_canonical_test_creature(&canonical, seer_guid, 4920, seer_position, 0);
 
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(visible_position.x, visible_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             visible_creature_guid,
             4921,
             visible_position,

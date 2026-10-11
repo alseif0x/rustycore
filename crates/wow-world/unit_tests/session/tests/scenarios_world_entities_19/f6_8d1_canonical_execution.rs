@@ -50,9 +50,9 @@ fn ported_melee_execution_consumes_the_canonical_swing_timer_in_the_production_t
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(0x94_102);
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x94_102);
         })
         .unwrap();
 

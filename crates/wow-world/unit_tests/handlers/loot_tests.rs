@@ -203,9 +203,7 @@ fn make_visible_creature_spell_session_like_cpp()
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             source_guid,
             777,
             Position::ZERO,
@@ -544,7 +542,7 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
     );
     if !is_alive {
         let _ = session.mutate_world_creature(guid, |world_creature| {
-            world_creature.creature.mark_ai_dead(0);
+            world_creature.mark_ai_dead(0);
         });
     }
 }
@@ -622,9 +620,7 @@ fn tap_test_creature_like_cpp(
     player_guid: ObjectGuid,
 ) {
     let _ = session.mutate_world_creature(creature_guid, |world_creature| {
-        world_creature
-            .creature
-            .set_tapped_by_player(player_guid, &[]);
+        world_creature.set_tapped_by_player(player_guid, &[]);
     });
 }
 

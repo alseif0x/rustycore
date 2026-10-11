@@ -198,20 +198,18 @@ fn white_swing_publishes_the_attack_table_outcome_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             // This test needs the real table, so it seeds the fixture's
             // creature avoidance and the untrained player's zero hit rating:
             // the C++ 5% miss, 3% dodge and 6% parry bands.
-            creature
-                .creature
-                .set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
-                    dodge_pct: 3.0,
-                    parry_pct: 6.0,
-                    // Block has its own scenario; this one covers the
-                    // damage-zeroing bands.
-                    block_pct: 0.0,
-                });
+            creature.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                dodge_pct: 3.0,
+                parry_pct: 6.0,
+                // Block has its own scenario; this one covers the
+                // damage-zeroing bands.
+                block_pct: 0.0,
+            });
         })
         .unwrap();
     session
@@ -374,17 +372,15 @@ fn white_swing_publishes_a_block_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             // Dodge and parry stay zero, so the 100% block band is the first
             // non-empty band after the (fixture-inert) miss band.
-            creature
-                .creature
-                .set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
-                    dodge_pct: 0.0,
-                    parry_pct: 0.0,
-                    block_pct: 100.0,
-                });
+            creature.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                dodge_pct: 0.0,
+                parry_pct: 0.0,
+                block_pct: 100.0,
+            });
         })
         .unwrap();
 

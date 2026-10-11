@@ -147,7 +147,6 @@ async fn spell_school_damage_applies_damage_done_versus_aurastate_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -503,7 +502,6 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -527,7 +525,6 @@ async fn spell_school_damage_applies_damage_percent_done_by_target_aura_mechanic
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras

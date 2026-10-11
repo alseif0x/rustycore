@@ -57,8 +57,7 @@ pub(in crate::session::tests) fn aggro_relation_config_like_cpp(
     }
 }
 
-pub(in crate::session::tests) fn aggro_hostile_config_like_cpp()
--> CreatureAggroConfigLikeCpp {
+pub(in crate::session::tests) fn aggro_hostile_config_like_cpp() -> CreatureAggroConfigLikeCpp {
     aggro_relation_config_like_cpp(
         faction_template_entry(14, 72, 0, 0, 930),
         faction_template_entry(1, 930, 0, 0, 0),
@@ -264,15 +263,11 @@ pub(in crate::session::tests) fn creature_spell_bound_hook_tick_fixture_like_cpp
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp(ai_name, String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp(ai_name, String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 

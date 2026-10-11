@@ -56,12 +56,11 @@ fn white_swing_gates_avoidance_on_the_controlled_state_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             // A +100% `SPELL_AURA_MOD_DODGE_PERCENT` pushes the dodge band past
             // the roll, so the swing is guaranteed to be dodged.
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -128,7 +127,6 @@ fn white_swing_gates_avoidance_on_the_controlled_state_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .add_unit_state(UnitState::CONTROLLED.bits());
         })
@@ -200,8 +198,8 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -291,7 +289,6 @@ fn white_swing_applies_victim_critical_chance_auras_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 creature
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .auras
@@ -562,7 +559,7 @@ fn white_swing_publishes_an_evade_like_cpp() {
     // C++ `IsEvadingAttacks()` returns `MELEE_HIT_EVADE` before any band.
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.set_in_evade_mode_like_cpp(true);
+            creature.set_in_evade_mode_like_cpp(true);
         })
         .unwrap();
     let facts = session.represented_melee_outcome_facts_like_cpp();

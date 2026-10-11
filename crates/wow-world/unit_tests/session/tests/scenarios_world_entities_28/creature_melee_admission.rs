@@ -38,13 +38,11 @@ fn legacy_creature_melee_tick_once_rejects_out_of_range_victim_like_cpp() {
     let seed = 0x91_006;
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(seed);
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, seed);
         })
         .unwrap();
 
@@ -114,12 +112,10 @@ fn legacy_creature_melee_tick_once_rejects_bad_facing_victim_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -180,8 +176,8 @@ fn legacy_creature_melee_tick_once_failed_auto_attack_uses_retry_timer_like_cpp(
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -250,10 +246,10 @@ fn legacy_creature_melee_tick_once_invalid_damage_roll_rearms_base_timer_like_cp
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 5;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 5;
         })
         .unwrap();
 
@@ -321,8 +317,8 @@ fn legacy_creature_melee_tick_once_checks_range_before_dead_victim_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -374,10 +370,9 @@ fn legacy_creature_melee_tick_once_attacker_state_rejection_consumes_swing_like_
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             creature
-                .creature
                 .unit_mut()
                 .set_unit_flags_like_cpp(UnitFlags::PACIFIED);
         })
@@ -469,10 +464,9 @@ fn legacy_creature_melee_tick_once_removes_attacking_auras_on_compatibility_hit_
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -483,7 +477,6 @@ fn legacy_creature_melee_tick_once_removes_attacking_auras_on_compatibility_hit_
                     0,
                 );
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras

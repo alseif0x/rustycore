@@ -355,8 +355,12 @@ fn world_creature_random_movement_walk_rule_matches_cpp() {
 fn world_creature_random_spline_uses_walk_or_run_speed_like_cpp() {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 70004);
     let mut walker = test_creature(guid);
-    walker.unit_mut().set_speed_rate_like_cpp(UnitMoveType::Walk, 1.0);
-    walker.unit_mut().set_speed_rate_like_cpp(UnitMoveType::Run, 1.0);
+    walker
+        .unit_mut()
+        .set_speed_rate_like_cpp(UnitMoveType::Walk, 1.0);
+    walker
+        .unit_mut()
+        .set_speed_rate_like_cpp(UnitMoveType::Run, 1.0);
     walker.set_random_movement_type_runtime_like_cpp(
         wow_constants::CreatureRandomMovementType::Walk as u8,
     );
@@ -365,8 +369,12 @@ fn world_creature_random_spline_uses_walk_or_run_speed_like_cpp() {
         .expect("walk random spline");
 
     let mut runner = test_creature(guid);
-    runner.unit_mut().set_speed_rate_like_cpp(UnitMoveType::Walk, 1.0);
-    runner.unit_mut().set_speed_rate_like_cpp(UnitMoveType::Run, 1.0);
+    runner
+        .unit_mut()
+        .set_speed_rate_like_cpp(UnitMoveType::Walk, 1.0);
+    runner
+        .unit_mut()
+        .set_speed_rate_like_cpp(UnitMoveType::Run, 1.0);
     runner.set_random_movement_type_runtime_like_cpp(
         wow_constants::CreatureRandomMovementType::AlwaysRun as u8,
     );

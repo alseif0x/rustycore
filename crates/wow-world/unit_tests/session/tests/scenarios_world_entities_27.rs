@@ -107,12 +107,10 @@ fn creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 100.0;
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature.creature.set_spell(0, 7001);
+            creature.ai_ownership_mut().aggro_radius = 100.0;
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, 7001);
         })
         .unwrap();
 
@@ -158,11 +156,9 @@ fn creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature.creature.set_spell(0, 7002);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, 7002);
         })
         .unwrap();
 
@@ -195,7 +191,7 @@ fn creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 0.0;
+            creature.ai_ownership_mut().aggro_radius = 0.0;
         })
         .unwrap();
 
@@ -239,9 +235,8 @@ fn creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
             creature
-                .creature
                 .unit_mut()
                 .set_unit_flags_like_cpp(UnitFlags::IMMUNE_TO_PC);
         })
@@ -287,8 +282,8 @@ fn creature_aggro_tick_once_rejects_civilian_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::CIVILIAN.bits(),
             );
         })
@@ -367,8 +362,8 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(0x91_004);
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x91_004);
         })
         .unwrap();
 
@@ -448,10 +443,10 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
         session
             .mutate_world_creature(attacker, |creature| {
                 creature.enter_combat(player);
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-                creature.creature.ai_ownership_mut().min_damage = 1;
-                creature.creature.ai_ownership_mut().max_damage = 1;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().min_damage = 1;
+                creature.ai_ownership_mut().max_damage = 1;
             })
             .unwrap();
     }

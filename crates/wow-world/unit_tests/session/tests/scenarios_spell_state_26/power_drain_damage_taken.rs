@@ -52,7 +52,7 @@ async fn spell_power_drain_ignores_victim_school_damage_taken_aura_for_direct_da
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);
@@ -164,7 +164,7 @@ async fn spell_power_drain_ignores_stacked_damage_taken_terms_for_direct_damage_
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 400);
@@ -287,7 +287,7 @@ async fn spell_power_drain_ignores_cheat_death_taken_term_for_direct_damage_like
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);
@@ -396,7 +396,7 @@ async fn spell_power_drain_ignores_caster_school_damage_taken_aura_for_direct_da
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);
@@ -506,7 +506,7 @@ async fn spell_power_drain_ignores_mechanic_damage_taken_aura_for_direct_damage_
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);
@@ -617,7 +617,7 @@ async fn spell_power_drain_ignores_caster_spell_damage_taken_aura_for_direct_dam
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);
@@ -746,7 +746,7 @@ async fn spell_power_drain_ignores_caster_label_damage_taken_aura_for_direct_dam
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 200);

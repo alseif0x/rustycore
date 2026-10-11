@@ -213,13 +213,11 @@ async fn map_owned_player_melee_publishes_a_block_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 100_000);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
-                    dodge_pct: 0.0,
-                    parry_pct: 0.0,
-                    block_pct: 100.0,
-                });
+            creature.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
+                dodge_pct: 0.0,
+                parry_pct: 0.0,
+                block_pct: 100.0,
+            });
         })
         .unwrap();
 
@@ -344,7 +342,6 @@ async fn map_owned_player_melee_applies_victim_avoidance_auras_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -494,7 +491,6 @@ async fn map_owned_player_melee_applies_victim_critical_chance_auras_like_cpp() 
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras

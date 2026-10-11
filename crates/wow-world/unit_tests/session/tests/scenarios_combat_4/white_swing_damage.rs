@@ -70,8 +70,8 @@ fn white_swing_damage_rolls_the_published_range_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -231,24 +231,20 @@ fn white_swing_applies_victim_armor_mitigation_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             // C++ `Creature::UpdateLevelDependantStats` seeds
             // `UNIT_MOD_ARMOR` from `CreatureBaseStats::GenerateArmor`.
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.set_combat_log_stats_like_cpp(
-                wow_entities::CreatureCombatLogStatsLikeCpp {
-                    armor: 5_000,
-                    ..Default::default()
-                },
-            );
+            creature.unit_mut().set_level(80);
+            creature.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                armor: 5_000,
+                ..Default::default()
+            });
         })
         .unwrap();
 
     let armor_before = session
-        .mutate_world_creature(guid, |creature| {
-            creature.creature.combat_log_stats_like_cpp().armor
-        })
+        .mutate_world_creature(guid, |creature| creature.combat_log_stats_like_cpp().armor)
         .unwrap();
     assert_eq!(armor_before, 5_000, "fixture armour must persist");
 

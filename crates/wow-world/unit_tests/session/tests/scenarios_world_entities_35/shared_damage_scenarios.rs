@@ -134,18 +134,16 @@ fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -271,15 +269,15 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -325,28 +323,12 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     session.set_spell_store(Arc::clone(&spells));
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    91_394,
-                    attacker_guid,
-                    0,
-                    1,
-                ));
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    91_398,
-                    attacker_guid,
-                    1,
-                    1,
-                ));
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(91_394, attacker_guid, 0, 1),
+            );
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(91_398, attacker_guid, 1, 1),
+            );
         })
         .unwrap();
     {
@@ -537,8 +519,8 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     let evading = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
@@ -579,8 +561,8 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
         .set_sparring_health_pct_like_cpp(100.0);
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     let sparring = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
@@ -606,7 +588,7 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     // combat-log frame, but its own health transition stops at one.
     session
         .mutate_world_creature(secondary_guid, |creature| {
-            creature.creature.unit_mut().set_health(4);
+            creature.unit_mut().set_health(4);
         })
         .unwrap();
     {
@@ -624,8 +606,8 @@ fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     let unkillable = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
@@ -673,20 +655,20 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
             .mutate_world_creature(guid, |creature| {
                 // #1263 F6-8D3b-3: a fresh creature now swings on its first ready
                 // update (C++ `m_attackTimer = {}`); this scenario's victims stay passive.
-                creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+                creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
             })
             .unwrap();
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -717,17 +699,9 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
     let spells = Arc::new(spells);
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    hit_spell_id as u32,
-                    attacker_guid,
-                    0,
-                    1,
-                ));
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(hit_spell_id as u32, attacker_guid, 0, 1),
+            );
         })
         .unwrap();
     canonical
@@ -790,7 +764,6 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
     session
         .mutate_world_creature(secondary_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
@@ -799,8 +772,8 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
         .unwrap();
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     let second = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);

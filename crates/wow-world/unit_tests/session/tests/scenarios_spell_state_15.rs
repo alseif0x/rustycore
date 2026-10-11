@@ -405,7 +405,7 @@ async fn spell_taunt_effect_current_victim_is_ineffective_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            let combat = &mut creature.unit_mut().subsystems_mut().combat;
             combat.add_threat(player_guid, 5.0);
             combat.add_threat(other_player_guid, 120.0);
             combat.current_victim_guid = Some(player_guid);
@@ -594,7 +594,7 @@ async fn spell_distract_effect_skips_engaged_target_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().combat_target = Some(player_guid);
+            creature.ai_ownership_mut().combat_target = Some(player_guid);
         })
         .unwrap();
     let mut spell_store = wow_data::SpellStore::new();
@@ -699,7 +699,6 @@ async fn spell_sanctuary_outside_dungeon_stops_player_pve_combat_like_cpp() {
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player_guid);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat

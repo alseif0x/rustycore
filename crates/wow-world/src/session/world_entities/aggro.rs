@@ -42,10 +42,7 @@ impl WorldSession {
             threat_value,
         )
     }
-    pub fn set_creature_aggro_config_like_cpp(
-        &mut self,
-        config: CreatureAggroConfigLikeCpp,
-    ) {
+    pub fn set_creature_aggro_config_like_cpp(&mut self, config: CreatureAggroConfigLikeCpp) {
         self.config.creature_aggro_config_like_cpp = config;
     }
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {

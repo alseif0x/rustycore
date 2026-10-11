@@ -466,3 +466,87 @@ pub fn has_lootable_dynamic_flag_like_cpp(creature: &Creature) -> bool {
         .object()
         .has_dynamic_flag(UnitDynFlags::Lootable as u32)
 }
+
+/// Test accessors of the canonical creature (the former `WorldCreature`
+/// fixture methods).
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod test_support {
+    use std::time::{Duration, Instant};
+
+    use wow_entities::{Creature, game_time_secs_like_cpp};
+
+    use crate::creature_respawn::creature_respawn_at_from_death_at_game_time_like_cpp;
+
+    /// Seed the creature-owned runtime RNG.
+    pub fn seed_runtime_rng_like_cpp(creature: &mut Creature, seed: u64) {
+        creature
+            .runtime_like_cpp_mut()
+            .seed_runtime_rng_like_cpp(seed);
+    }
+
+    /// Set the creature-local clock to `elapsed`.
+    pub fn backdate_runtime_clock_for_test(creature: &mut Creature, elapsed: Duration) {
+        creature
+            .runtime_like_cpp_mut()
+            .set_runtime_elapsed_ms_like_cpp(elapsed.as_millis().min(u128::from(u64::MAX)) as u64);
+    }
+
+    /// Milliseconds until one creature spell slot is due, if scheduled.
+    pub fn creature_spell_due_in_ms_for_test(creature: &Creature, slot: usize) -> Option<u64> {
+        creature
+            .runtime_like_cpp()
+            .creature_spell_due_at_ms_like_cpp
+            .get(slot)
+            .copied()
+            .flatten()
+            .map(|due_at| due_at.saturating_sub(creature.runtime_elapsed_ms_like_cpp()))
+    }
+
+    /// The corpse despawn deadline on the creature-local clock.
+    pub const fn corpse_despawn_deadline_ms_like_cpp(creature: &Creature) -> Option<u64> {
+        creature.ai_ownership().corpse_despawn_at_ms
+    }
+
+    /// The corpse despawn deadline as a wall-clock instant.
+    pub fn corpse_despawn_at(creature: &Creature) -> Option<Instant> {
+        let now = Instant::now();
+        let elapsed_ms = creature.runtime_elapsed_ms_like_cpp();
+        creature
+            .ai_ownership()
+            .corpse_despawn_at_ms
+            .map(|due_at_ms| now + Duration::from_millis(due_at_ms.saturating_sub(elapsed_ms)))
+    }
+
+    /// Set the corpse despawn deadline from a wall-clock instant.
+    pub fn set_corpse_despawn_at(creature: &mut Creature, when: Option<Instant>) {
+        let now = Instant::now();
+        let now_ms = creature.runtime_elapsed_ms_like_cpp();
+        let at_ms = when.map(|instant| {
+            if instant <= now {
+                now_ms
+            } else {
+                now_ms.saturating_add(
+                    instant
+                        .duration_since(now)
+                        .as_millis()
+                        .min(u128::from(u64::MAX)) as u64,
+                )
+            }
+        });
+        creature.set_ai_corpse_despawn_at(at_ms);
+    }
+
+    /// The respawn deadline at the current game time.
+    pub fn respawn_at_from_death_like_cpp(creature: &Creature) -> Instant {
+        creature_respawn_at_from_death_at_game_time_like_cpp(
+            creature,
+            Instant::now(),
+            game_time_secs_like_cpp(),
+        )
+    }
+
+    /// Whether the dead creature's respawn is due on its local clock.
+    pub fn should_respawn(creature: &Creature) -> bool {
+        creature.should_ai_respawn(creature.runtime_elapsed_ms_like_cpp())
+    }
+}

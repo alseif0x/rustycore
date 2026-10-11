@@ -423,14 +423,10 @@ async fn far_sight_update_visibility_falls_back_for_unsupported_seer_like_cpp() 
         3,
     );
 
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(far_creature_position.x, far_creature_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             far_creature_guid,
             4931,
             far_creature_position,
@@ -495,9 +491,7 @@ fn npc_interaction_uses_player_instance_like_cpp() {
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             questgiver_guid,
             999,
             npc_position,
@@ -515,9 +509,7 @@ fn npc_interaction_uses_player_instance_like_cpp() {
     manager.lock().unwrap().add_creature(
         571,
         7,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             questgiver_guid,
             508,
             npc_position,
@@ -591,9 +583,7 @@ fn npc_interaction_rejects_legacy_fallback_when_canonical_player_is_out_of_world
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             questgiver_guid,
             507,
             Position::new(14.0, 0.0, 0.0, 0.0),

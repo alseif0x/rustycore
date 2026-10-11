@@ -48,18 +48,17 @@ fn legacy_creature_call_assistance_rejects_blocked_static_vmap_los_like_cpp() {
     register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
     session
         .mutate_world_creature(caller_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.set_faction(14);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
+            creature.set_faction(14);
         })
         .unwrap();
     session
         .mutate_world_creature(assistant_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 0.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.set_faction(14);
+            creature.ai_ownership_mut().aggro_radius = 0.0;
+            creature.unit_mut().set_level(25);
+            creature.set_faction(14);
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .relocate(Position::new(12.0, 10.0, 0.0, 0.0));
@@ -98,9 +97,9 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
         register_test_creature(&mut session, manager.clone(), guid, 100);
         session
             .mutate_world_creature(guid, |creature| {
-                creature.creature.ai_ownership_mut().aggro_radius = 0.0;
-                creature.creature.unit_mut().set_level(25);
-                creature.creature.set_faction(14);
+                creature.ai_ownership_mut().aggro_radius = 0.0;
+                creature.unit_mut().set_level(25);
+                creature.set_faction(14);
             })
             .unwrap();
     }
@@ -111,7 +110,10 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
                 vec![assistant_guid],
                 1_500,
             ));
-            caller.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                caller,
+                ASSISTANCE_DELAY_ELAPSED_LIKE_CPP,
+            );
         })
         .unwrap();
     session
@@ -121,7 +123,10 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
                 vec![assistant_guid],
                 1_500,
             ));
-            caller.backdate_runtime_clock_for_test(ASSISTANCE_DELAY_ELAPSED_LIKE_CPP);
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                caller,
+                ASSISTANCE_DELAY_ELAPSED_LIKE_CPP,
+            );
         })
         .unwrap();
     session
@@ -150,9 +155,9 @@ fn legacy_creature_overlapping_assistance_uses_later_valid_event_like_cpp() {
     register_test_creature(&mut session, manager.clone(), assistant_guid, 100);
     session
         .mutate_world_creature(assistant_guid, |assistant| {
-            assistant.creature.ai_ownership_mut().aggro_radius = 0.0;
-            assistant.creature.unit_mut().set_level(25);
-            assistant.creature.set_faction(14);
+            assistant.ai_ownership_mut().aggro_radius = 0.0;
+            assistant.unit_mut().set_level(25);
+            assistant.set_faction(14);
         })
         .unwrap();
 
@@ -192,17 +197,12 @@ fn creature_aggro_preserves_high_priority_point_spline_above_chase_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
             crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("launch high-priority point spline");
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .motion
-                .move_charge(42);
+            creature.unit_mut().subsystems_mut().motion.move_charge(42);
         })
         .unwrap();
 
@@ -258,9 +258,9 @@ fn creature_aggro_tick_once_rejects_excessive_z_distance_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
 
@@ -310,10 +310,10 @@ fn creature_aggro_tick_once_honors_can_fly_z_exemption_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 50.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_flight_movement_type_runtime_like_cpp(
+            creature.ai_ownership_mut().aggro_radius = 50.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_flight_movement_type_runtime_like_cpp(
                 wow_constants::CreatureFlightMovementType::DisableGravity as u8,
             );
         })
@@ -349,10 +349,10 @@ fn creature_aggro_tick_once_uses_get_attack_distance_not_fixed_radius_like_cpp()
     register_test_creature(&mut session, manager.clone(), creature_guid, 80);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 500.0;
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_combat_distance_like_cpp(0.0);
+            creature.ai_ownership_mut().aggro_radius = 500.0;
+            creature.unit_mut().set_level(80);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_combat_distance_like_cpp(0.0);
         })
         .unwrap();
 
@@ -385,12 +385,11 @@ fn creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 75);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 500.0;
-            creature.creature.unit_mut().set_level(75);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_combat_distance_like_cpp(0.0);
+            creature.ai_ownership_mut().aggro_radius = 500.0;
+            creature.unit_mut().set_level(75);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_combat_distance_like_cpp(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -403,8 +402,7 @@ fn creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_135);
-    let mut candidate =
-        aggro_candidate_like_cpp(player, Position::new(29.0, 10.0, 0.0, 0.0));
+    let mut candidate = aggro_candidate_like_cpp(player, Position::new(29.0, 10.0, 0.0, 0.0));
     candidate.player_detected_range_aura_mod = 2.0;
     let candidates = vec![candidate];
 
@@ -423,7 +421,6 @@ fn creature_aggro_tick_once_uses_detect_range_aura_modifiers_like_cpp() {
 }
 #[test]
 fn creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp() {
-    use crate::map_manager::WorldCreature;
     use wow_entities::{
         CreatureCreateLifecycleRecord, CreatureLifecycleStats, CreatureSpawnLifecycleRecord,
         CreatureTemplateLifecycleRecord, MovementGeneratorType,
@@ -523,27 +520,22 @@ fn creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp() {
         ignore_corpse_decay_ratio: false,
         addon: None,
     });
-    let mut world_creature = WorldCreature::from_canonical(
-        creature,
-        test_creature_create_data(creature_guid, 9001, 100),
+    let mut world_creature = creature;
+    crate::creature_projection::install_creature_runtime_like_cpp(
+        &mut world_creature,
+        &test_creature_create_data(creature_guid, 9001, 100),
     );
-    world_creature.creature.configure_ai_runtime(
-        Position::new(10.0, 10.0, 0.0, 0.0),
-        500.0,
-        0.0,
-        30,
-    );
+    world_creature.configure_ai_runtime(Position::new(10.0, 10.0, 0.0, 0.0), 500.0, 0.0, 30);
     world_creature
-        .creature
         .unit_mut()
         .world_mut()
         .object_mut()
         .set_entry(9001);
-    world_creature.creature.unit_mut().set_level(80);
-    world_creature.creature.unit_mut().set_combat_reach(0.0);
+    world_creature.unit_mut().set_level(80);
+    world_creature.unit_mut().set_combat_reach(0.0);
     {
         let mut guard = manager.lock().unwrap();
-        guard.add_creature(0, 0, 0, 0, world_creature);
+        guard.add_creature(0, 0, world_creature);
     }
 
     let player = ObjectGuid::create_player(1, 91_133);
@@ -577,10 +569,10 @@ fn creature_aggro_tick_once_adds_combat_distance_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 80);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 500.0;
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_combat_distance_like_cpp(2.0);
+            creature.ai_ownership_mut().aggro_radius = 500.0;
+            creature.unit_mut().set_level(80);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_combat_distance_like_cpp(2.0);
         })
         .unwrap();
 
@@ -613,9 +605,9 @@ fn creature_aggro_tick_once_rejects_targets_beyond_home_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
 
@@ -653,9 +645,9 @@ fn creature_aggro_home_range_rejects_exact_3d_edge_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
 
@@ -693,10 +685,10 @@ fn creature_aggro_home_range_rejects_exact_2d_flight_edge_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_flight_movement_type_runtime_like_cpp(
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_flight_movement_type_runtime_like_cpp(
                 wow_constants::CreatureFlightMovementType::CanFly as u8,
             );
         })
@@ -736,9 +728,9 @@ fn creature_aggro_tick_once_skips_evading_attacker_as_sightless_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 50.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.set_in_evade_mode_like_cpp(true);
+            creature.ai_ownership_mut().aggro_radius = 50.0;
+            creature.unit_mut().set_level(25);
+            creature.set_in_evade_mode_like_cpp(true);
         })
         .unwrap();
 

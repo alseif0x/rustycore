@@ -182,12 +182,10 @@ pub(in crate::session) fn creature_reaction_to_candidate_like_cpp(
 
     let creature_faction_id = u32::from(creature_faction_template.faction);
     if creature_faction_id != 0 {
-        if let Some(forced_rank) =
-            creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
-                candidate,
-                creature_faction_id,
-            )
-        {
+        if let Some(forced_rank) = creature_aggro_candidate_has_forced_reputation_rank_like_cpp(
+            candidate,
+            creature_faction_id,
+        ) {
             return Some(forced_rank);
         }
         if candidate
@@ -430,12 +428,11 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                         && creature_factions.get(&guid)
                             == Some(&assistant.unit().data().faction_template)
                         && (victim.is_some_and(|victim| {
-                            creature_aggro_candidate_is_targetable_for_attack_like_cpp(
-                                victim,
-                            ) && creature_aggro_candidate_is_hostile_to_creature_like_cpp(
-                                assistant, victim, config,
-                            )
-                            .unwrap_or(false)
+                            creature_aggro_candidate_is_targetable_for_attack_like_cpp(victim)
+                                && creature_aggro_candidate_is_hostile_to_creature_like_cpp(
+                                    assistant, victim, config,
+                                )
+                                .unwrap_or(false)
                         }) || victim_snapshot.is_some_and(|victim| {
                             victim.alive
                                 && !victim.in_evade_mode
@@ -668,17 +665,16 @@ pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
                             ),
                             CreatureAggroVisibilityDecisionLikeCpp::Allowed
                         ) {
-                            let alert = creature_alert_orientation_like_cpp(
-                                creature, candidate, config,
-                            )
-                            .map(|orientation| {
-                                store.phase_begin_alert_distract_like_cpp(
-                                    map_id,
-                                    instance_id,
-                                    guid,
-                                    orientation,
-                                )
-                            });
+                            let alert =
+                                creature_alert_orientation_like_cpp(creature, candidate, config)
+                                    .map(|orientation| {
+                                        store.phase_begin_alert_distract_like_cpp(
+                                            map_id,
+                                            instance_id,
+                                            guid,
+                                            orientation,
+                                        )
+                                    });
                             if alert == Some(true) {
                                 use wow_packet::ServerPacket;
                                 let packet_bytes = wow_packet::packets::combat::AIReaction {

@@ -17,10 +17,9 @@ async fn spell_damage_skips_dead_creature_like_cpp() {
         .mutate_world_creature(guid, |creature| {
             creature.take_damage(20);
             creature
-                .creature
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Corpse);
-            creature.creature.clear_data_changes();
+            creature.clear_data_changes();
         })
         .unwrap();
 

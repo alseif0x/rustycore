@@ -56,8 +56,8 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_creature_damage_like_
     session
         .mutate_world_creature(attacker, |creature| {
             creature.enter_combat(victim);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -137,10 +137,10 @@ fn legacy_creature_melee_tick_once_prevents_postmortem_cross_kill_like_cpp() {
         session
             .mutate_world_creature(attacker, |creature| {
                 creature.enter_combat(victim);
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-                creature.creature.ai_ownership_mut().min_damage = 1;
-                creature.creature.ai_ownership_mut().max_damage = 1;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().min_damage = 1;
+                creature.ai_ownership_mut().max_damage = 1;
             })
             .unwrap();
     }
@@ -244,16 +244,12 @@ async fn map_owned_player_melee_applies_attacker_ignore_target_resist_like_cpp()
         .mutate_world_creature(creature_guid, |creature| {
             // `Unit::IsTotem()` zeroes the victim's dodge, parry and block, so the
             // swing cannot be avoided and the damage term is isolated.
-            creature
-                .creature
-                .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.set_combat_log_stats_like_cpp(
-                wow_entities::CreatureCombatLogStatsLikeCpp {
-                    armor: 5_000,
-                    ..Default::default()
-                },
-            );
+            creature.add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
+            creature.unit_mut().set_level(80);
+            creature.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                armor: 5_000,
+                ..Default::default()
+            });
         })
         .unwrap();
 
@@ -366,7 +362,7 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
     // victim would answer the attacker; this scenario's victim stays passive.
     session
         .mutate_world_creature(victim_guid, |creature| {
-            creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+            creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
         })
         .unwrap();
     {
@@ -389,17 +385,17 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
             // The stages assert exact mitigated damage, so the attacker's flat
             // 5% critical band stays off.
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -478,8 +474,8 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
     let tick = |session: &mut WorldSession| {
         session
             .mutate_world_creature(attacker_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
         run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)
@@ -513,7 +509,6 @@ fn legacy_creature_melee_tick_once_mitigates_creature_victim_like_cpp() {
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -565,7 +560,7 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     // victim would answer the attacker; this scenario's victim stays passive.
     session
         .mutate_world_creature(victim_guid, |creature| {
-            creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+            creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
         })
         .unwrap();
     {
@@ -588,18 +583,18 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
             // The landed and dodge stages assert exact numbers, so the flat 5%
             // critical band is disabled; the critical stage supplies its own
             // `+100` victim aura.
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -705,8 +700,8 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
     let tick = |session: &mut WorldSession| {
         session
             .mutate_world_creature(attacker_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
         run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)

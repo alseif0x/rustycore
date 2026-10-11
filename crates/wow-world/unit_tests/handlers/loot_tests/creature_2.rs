@@ -15,13 +15,11 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     session.loot.set_active_loot_guid(loot_guid);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let _ = session.mutate_world_creature(loot_guid, |world_creature| {
-        world_creature
-            .creature
-            .set_personal_loot_like_cpp(player_guid, CreatureOwnedLoot::new(0, 1));
+        world_creature.set_personal_loot_like_cpp(player_guid, CreatureOwnedLoot::new(0, 1));
     });
     let corpse_despawn_before = session
         .mutate_world_creature(loot_guid, |creature| {
-            creature.corpse_despawn_deadline_ms_like_cpp()
+            crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(creature)
         })
         .unwrap()
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
@@ -82,7 +80,9 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     assert_eq!(
         session
             .mutate_world_creature(loot_guid, |creature| {
-                creature.corpse_despawn_deadline_ms_like_cpp()
+                crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(
+                    creature,
+                )
             })
             .unwrap(),
         Some(corpse_despawn_before),
@@ -102,7 +102,7 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let corpse_despawn_before = session
         .mutate_world_creature(loot_guid, |creature| {
-            creature.corpse_despawn_deadline_ms_like_cpp()
+            crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(creature)
         })
         .unwrap()
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
@@ -156,7 +156,9 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     assert_eq!(
         session
             .mutate_world_creature(loot_guid, |creature| {
-                creature.corpse_despawn_deadline_ms_like_cpp()
+                crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(
+                    creature,
+                )
             })
             .unwrap(),
         Some(corpse_despawn_before),
@@ -178,11 +180,11 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
     });
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let _ = session.mutate_world_creature(loot_guid, |creature| {
-        creature.creature.set_corpse_delay(120, false);
+        creature.set_corpse_delay(120, false);
     });
     assert_eq!(
         session
-            .mutate_world_creature(loot_guid, |creature| creature.corpse_delay_secs_like_cpp())
+            .mutate_world_creature(loot_guid, |creature| creature.corpse_delay())
             .unwrap(),
         120
     );
@@ -219,7 +221,9 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
     );
     assert!(canonical.is_fully_looted_like_cpp());
     let corpse_despawn_at = session
-        .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+        .mutate_world_creature(loot_guid, |creature| {
+            crate::creature_projection::test_support::corpse_despawn_at(creature)
+        })
         .unwrap()
         .expect("fully looted corpse should start decay timer");
     let remaining = corpse_despawn_at.saturating_duration_since(Instant::now());
@@ -269,10 +273,13 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     });
     let corpse_deadline_before = session
         .mutate_world_creature(owner_guid, |creature| {
-            creature.creature.set_corpse_delay(120, false);
+            creature.set_corpse_delay(120, false);
             let deadline = Instant::now() + Duration::from_secs(120);
-            creature.set_corpse_despawn_at(Some(deadline));
-            creature.corpse_despawn_deadline_ms_like_cpp()
+            crate::creature_projection::test_support::set_corpse_despawn_at(
+                creature,
+                Some(deadline),
+            );
+            crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(creature)
         })
         .flatten()
         .expect("dead creature should already own its normal corpse deadline");
@@ -299,7 +306,9 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     assert_eq!(
         session
             .mutate_world_creature(owner_guid, |creature| {
-                creature.corpse_despawn_deadline_ms_like_cpp()
+                crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(
+                    creature,
+                )
             })
             .flatten(),
         Some(corpse_deadline_before),
@@ -334,8 +343,7 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     assert!(authority.is_fully_looted_like_cpp());
     let (corpse_deadline_after, runtime_elapsed_ms) = session
         .mutate_world_creature(owner_guid, |creature| {
-            creature
-                .corpse_despawn_deadline_ms_like_cpp()
+            crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(creature)
                 .map(|deadline| (deadline, creature.runtime_elapsed_ms_like_cpp()))
         })
         .flatten()
@@ -467,16 +475,22 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
     let expired = Instant::now() - Duration::from_secs(1);
     let deadline_before = session
         .mutate_world_creature(loot_guid, |creature| {
-            creature.creature.set_corpse_delay(0, false);
-            creature.creature.mark_ai_dead(0);
-            creature.creature.set_corpse_delay(120, false);
-            creature.set_corpse_despawn_at(Some(expired));
-            creature.corpse_despawn_deadline_ms_like_cpp().unwrap()
+            creature.set_corpse_delay(0, false);
+            creature.mark_ai_dead(0);
+            creature.set_corpse_delay(120, false);
+            crate::creature_projection::test_support::set_corpse_despawn_at(
+                creature,
+                Some(expired),
+            );
+            crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(creature)
+                .unwrap()
         })
         .unwrap();
     assert!(
         session
-            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_due_like_cpp())
+            .mutate_world_creature(loot_guid, |creature| {
+                crate::creature_respawn::creature_corpse_despawn_due_like_cpp(creature)
+            })
             .unwrap()
     );
     session.loot.insert_cached_loot_for_owner_like_cpp(
@@ -506,14 +520,16 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
     assert!(!session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     let deadline_after = session
         .mutate_world_creature(loot_guid, |creature| {
-            creature.corpse_despawn_deadline_ms_like_cpp()
+            crate::creature_projection::test_support::corpse_despawn_deadline_ms_like_cpp(creature)
         })
         .unwrap()
         .expect("expired corpse must retain its existing lifecycle deadline");
     assert_eq!(deadline_after, deadline_before);
     assert!(
         session
-            .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_due_like_cpp())
+            .mutate_world_creature(loot_guid, |creature| {
+                crate::creature_respawn::creature_corpse_despawn_due_like_cpp(creature)
+            })
             .unwrap()
     );
 }
@@ -533,8 +549,9 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
     });
     assert!(
         session
-            .mutate_world_creature(loot_guid, |creature| creature
-                .has_lootable_dynamic_flag_like_cpp())
+            .mutate_world_creature(loot_guid, |creature| {
+                crate::creature_projection::has_lootable_dynamic_flag_like_cpp(creature)
+            })
             .unwrap()
     );
     session.loot.insert_cached_loot_for_owner_like_cpp(
@@ -570,8 +587,9 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
     );
     assert!(
         !session
-            .mutate_world_creature(loot_guid, |creature| creature
-                .has_lootable_dynamic_flag_like_cpp())
+            .mutate_world_creature(loot_guid, |creature| {
+                crate::creature_projection::has_lootable_dynamic_flag_like_cpp(creature)
+            })
             .unwrap(),
         "C++ LootHandler::DoLootRelease removes UNIT_DYNFLAG_LOOTABLE when the creature is fully looted"
     );
@@ -596,7 +614,6 @@ async fn forced_loot_release_dynamic_flags_keep_the_map_mark_without_the_fanout_
         session
             .mutate_world_creature(loot_guid, |creature| {
                 creature
-                    .creature
                     .unit_mut()
                     .world_mut()
                     .object_mut()
@@ -646,7 +663,7 @@ async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
     });
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let _ = session.mutate_world_creature(loot_guid, |creature| {
-        creature.creature.set_corpse_delay(120, false);
+        creature.set_corpse_delay(120, false);
     });
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
@@ -673,7 +690,9 @@ async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
 
     assert!(send_rx.try_recv().is_ok());
     let corpse_despawn_at = session
-        .mutate_world_creature(loot_guid, |creature| creature.corpse_despawn_at())
+        .mutate_world_creature(loot_guid, |creature| {
+            crate::creature_projection::test_support::corpse_despawn_at(creature)
+        })
         .unwrap()
         .expect("skinned corpse should start decay timer");
     let remaining = corpse_despawn_at.saturating_duration_since(Instant::now());

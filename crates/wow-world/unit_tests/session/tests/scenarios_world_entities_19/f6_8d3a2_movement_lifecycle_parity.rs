@@ -119,10 +119,13 @@ fn d3a2_world_like_cpp(
     }
     session
         .mutate_world_creature(creature, |world_creature| {
-            let unit = world_creature.creature.unit_mut();
+            let unit = world_creature.unit_mut();
             unit.set_speed_rate_like_cpp(wow_constants::UnitMoveType::Walk, 1.0);
             unit.set_speed_rate_like_cpp(wow_constants::UnitMoveType::Run, D3A2_RUN_RATE_LIKE_CPP);
-            world_creature.seed_runtime_rng_like_cpp(D3A2_SEED_LIKE_CPP);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(
+                world_creature,
+                D3A2_SEED_LIKE_CPP,
+            );
             configure(world_creature, player);
         })
         .expect("the creature is admitted");
@@ -308,7 +311,6 @@ fn d3a2_chase_world_like_cpp(base: i64) -> D3a2WorldLikeCpp {
         |creature, player| {
             creature.enter_combat(player);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
@@ -369,13 +371,9 @@ fn canonical_executor_matches_recorded_home_return_and_restore_like_cpp() {
             96_200,
             Position::new(40.0, 40.0, 0.0, 0.0),
             |creature, _| {
-                creature
-                    .creature
-                    .set_ai_position(Position::new(16.0, 10.0, 0.0, 0.0));
-                creature.creature.unit_mut().set_health(10);
-                creature
-                    .creature
-                    .set_ai_state(wow_entities::CreatureAiState::Returning);
+                creature.set_ai_position(Position::new(16.0, 10.0, 0.0, 0.0));
+                creature.unit_mut().set_health(10);
+                creature.set_ai_state(wow_entities::CreatureAiState::Returning);
             },
             |_| None,
         )
@@ -425,8 +423,8 @@ fn canonical_executor_matches_recorded_alert_move_distract_like_cpp() {
             96_300,
             player_at,
             |creature, _| {
-                creature.creature.ai_ownership_mut().aggro_radius = 9.0;
-                creature.creature.unit_mut().set_level(80);
+                creature.ai_ownership_mut().aggro_radius = 9.0;
+                creature.unit_mut().set_level(80);
             },
             |player| {
                 let mut candidate = aggro_candidate_like_cpp(player, player_at);

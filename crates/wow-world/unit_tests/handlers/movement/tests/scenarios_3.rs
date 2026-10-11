@@ -192,14 +192,10 @@ async fn move_time_skipped_updates_and_routes_from_controlled_mover_like_cpp() {
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&manager));
 
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(mover_position.x, mover_position.y);
     manager.lock().unwrap().add_creature(
         0,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             mover_guid,
             779,
             mover_position,
@@ -275,9 +271,7 @@ async fn movement_force_acks_validate_and_route_from_controlled_mover_like_cpp()
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&manager));
 
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(mover_position.x, mover_position.y);
-    let mut mover = crate::map_manager::WorldCreature::new(
+    let mut mover = crate::creature_projection::new_runtime_creature_like_cpp(
         mover_guid,
         780,
         mover_position,
@@ -292,13 +286,9 @@ async fn movement_force_acks_validate_and_route_from_controlled_mover_like_cpp()
         0,
     );
     mover
-        .creature
         .unit_mut()
         .set_movement_force_mod_magnitude_like_cpp(1.25);
-    manager
-        .lock()
-        .unwrap()
-        .add_creature(0, 0, grid_x, grid_y, mover);
+    manager.lock().unwrap().add_creature(0, 0, mover);
 
     let mut self_info = broadcast_info_with_command(player_guid, self_tx, self_command_tx);
     self_info.placement.position = player_position;

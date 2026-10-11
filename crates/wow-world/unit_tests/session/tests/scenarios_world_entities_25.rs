@@ -23,10 +23,8 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature.creature.set_spell(0, spell_id as u32);
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, spell_id as u32);
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -201,11 +199,9 @@ fn creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature.creature.set_spell(0, aggro_spell_id as u32);
-            creature.creature.set_spell(1, combat_spell_id as u32);
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, aggro_spell_id as u32);
+            creature.set_spell(1, combat_spell_id as u32);
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -336,14 +332,12 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature.creature.set_spell(0, aggro_spell_id as u32);
-            creature.creature.set_spell(1, combat_spell_id as u32);
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, aggro_spell_id as u32);
+            creature.set_spell(1, combat_spell_id as u32);
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             assert!(creature.can_swing());
         })
         .unwrap();
@@ -405,7 +399,9 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
     let (later_due, can_swing) = session
         .mutate_world_creature(creature_guid, |creature| {
             (
-                creature.creature_spell_due_in_ms_for_test(1),
+                crate::creature_projection::test_support::creature_spell_due_in_ms_for_test(
+                    creature, 1,
+                ),
                 creature.can_swing(),
             )
         })
@@ -425,7 +421,9 @@ fn legacy_creature_unrepresented_aggro_spell_stops_later_slots_and_melee_like_cp
     assert_eq!(
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature_spell_due_in_ms_for_test(1)
+                crate::creature_projection::test_support::creature_spell_due_in_ms_for_test(
+                    creature, 1,
+                )
             })
             .unwrap(),
         None
@@ -450,10 +448,8 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature.creature.set_spell(0, spell_id as u32);
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, spell_id as u32);
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -512,7 +508,7 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.seed_runtime_rng_like_cpp(seed);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, seed);
         })
         .unwrap();
 
@@ -521,7 +517,10 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
     assert_eq!(initialized.casts_ready, 0);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.backdate_runtime_clock_for_test(Duration::from_secs(20));
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                creature,
+                Duration::from_secs(20),
+            );
         })
         .unwrap();
 
@@ -532,7 +531,8 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
     assert_eq!(first.plan.events.len(), 1);
     let repeat_due = session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature_spell_due_in_ms_for_test(0).unwrap()
+            crate::creature_projection::test_support::creature_spell_due_in_ms_for_test(creature, 0)
+                .unwrap()
         })
         .unwrap();
     assert!((5_000..=10_000).contains(&repeat_due));
@@ -555,7 +555,10 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
 
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.backdate_runtime_clock_for_test(Duration::from_secs(40));
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                creature,
+                Duration::from_secs(40),
+            );
         })
         .unwrap();
     let blocked = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
@@ -566,7 +569,9 @@ fn legacy_creature_combat_ai_rearms_raw_schedule_but_obeys_category_cooldown_lik
     assert!(
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature_spell_due_in_ms_for_test(0)
+                crate::creature_projection::test_support::creature_spell_due_in_ms_for_test(
+                    creature, 0,
+                )
             })
             .unwrap()
             .is_some(),
@@ -591,12 +596,8 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();

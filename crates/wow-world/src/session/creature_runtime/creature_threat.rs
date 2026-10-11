@@ -56,9 +56,7 @@ pub(in crate::session) fn creature_update_threat_victim_like_cpp(
                     candidate.player_guid,
                     creature_reaction_to_candidate_like_cpp(creature, candidate, config),
                 )
-                && creature_aggro_candidate_is_accessible_for_creature_like_cpp(
-                    creature, candidate,
-                )
+                && creature_aggro_candidate_is_accessible_for_creature_like_cpp(creature, candidate)
                 && matches!(
                     creature_aggro_candidate_visibility_decision_like_cpp(
                         creature,

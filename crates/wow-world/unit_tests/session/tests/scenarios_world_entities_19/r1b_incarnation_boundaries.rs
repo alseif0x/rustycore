@@ -75,7 +75,7 @@ fn stored_creature_like_cpp(
         .lock()
         .ok()?
         .find_creature(0, 0, guid)
-        .map(|world_creature| world_creature.creature.clone())
+        .map(|world_creature| world_creature.clone())
 }
 
 #[test]
@@ -257,7 +257,7 @@ fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00B1;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00B1;
             })
             .is_none(),
         "a deferred creature has no admitted incarnation to mutate"
@@ -289,7 +289,7 @@ fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it
         .lock()
         .unwrap()
         .find_creature(0, 0, guid)
-        .map(|world_creature| world_creature.creature.clone())
+        .map(|world_creature| world_creature.clone())
         .expect("the deferred creature is published once it can be admitted");
     assert!(
         legacy_creature
@@ -301,7 +301,7 @@ fn missing_canonical_instance_defers_the_representation_instead_of_publishing_it
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00B1;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00B1;
             })
             .is_some(),
         "a creature deferred at registration becomes mutable once it is admitted"
@@ -335,7 +335,7 @@ fn residence_respawn_like_cpp(
     hp: u32,
     now: Instant,
 ) -> crate::creature_respawn::PendingRespawn {
-    let queued = crate::map_manager::WorldCreature::new(
+    let queued = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9_001,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -349,7 +349,7 @@ fn residence_respawn_like_cpp(
         0,
         0,
     );
-    crate::map_manager::pending_respawn_from_world_creature_like_cpp(
+    crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &queued,
         now - Duration::from_secs(1),
         residence.0,
@@ -500,9 +500,12 @@ async fn lifecycle_respawn_invalidates_the_pre_respawn_lease_like_cpp() {
     let now = Instant::now();
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.ai_ownership_mut().respawn_time_secs = 0;
+            creature.ai_ownership_mut().respawn_time_secs = 0;
             assert!(creature.take_damage(25));
-            creature.set_corpse_despawn_at(Some(now - Duration::from_secs(1)));
+            crate::creature_projection::test_support::set_corpse_despawn_at(
+                creature,
+                Some(now - Duration::from_secs(1)),
+            );
         })
         .unwrap();
 

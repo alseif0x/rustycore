@@ -18,8 +18,8 @@ fn creature_aggro_tick_once_respects_no_gray_aggro_config_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
         })
         .unwrap();
 
@@ -73,8 +73,8 @@ fn creature_aggro_tick_once_rejects_untargetable_players_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
         })
         .unwrap();
 
@@ -149,8 +149,8 @@ fn creature_aggro_tick_once_rejects_invisible_player_without_detection_like_cpp(
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
         })
         .unwrap();
 
@@ -190,8 +190,8 @@ fn creature_aggro_tick_once_alerts_stealthed_player_without_aggro_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 9.0;
-            creature.creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().aggro_radius = 9.0;
+            creature.unit_mut().set_level(80);
         })
         .unwrap();
 
@@ -268,14 +268,13 @@ fn creature_aggro_tick_once_fails_closed_without_visibility_snapshot_like_cpp() 
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_040);
-    let mut candidate =
-        aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+    let mut candidate = aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
     candidate.player_visibility_represented = false;
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
@@ -302,12 +301,9 @@ fn creature_aggro_tick_once_allows_invisible_player_when_creature_detects_like_c
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
-            creature
-                .creature
-                .unit_mut()
-                .set_invisibility_detect_like_cpp(0, 100);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_invisibility_detect_like_cpp(0, 100);
         })
         .unwrap();
 
@@ -343,8 +339,8 @@ fn creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
         })
         .unwrap();
 
@@ -355,8 +351,7 @@ fn creature_aggro_tick_once_rejects_reputation_without_at_war_like_cpp() {
     rejected.player_faction_template_id = 1;
     rejected.player_reputation_standings = vec![(72, -6_000)];
     rejected.player_reputation_state_flags = vec![(72, 0)];
-    let mut allowed =
-        aggro_candidate_like_cpp(allowed_player, Position::new(10.5, 10.5, 0.0, 0.0));
+    let mut allowed = aggro_candidate_like_cpp(allowed_player, Position::new(10.5, 10.5, 0.0, 0.0));
     allowed.player_faction_template_id = 1;
     allowed.player_reputation_standings = vec![(72, -6_000)];
     allowed.player_reputation_state_flags =
@@ -399,16 +394,14 @@ fn creature_aggro_tick_once_honors_forced_reputation_rank_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
 
     let friendly_forced_player = ObjectGuid::create_player(1, 91_035);
     let hostile_forced_player = ObjectGuid::create_player(1, 91_036);
-    let mut friendly_forced = aggro_candidate_like_cpp(
-        friendly_forced_player,
-        Position::new(10.5, 10.5, 0.0, 0.0),
-    );
+    let mut friendly_forced =
+        aggro_candidate_like_cpp(friendly_forced_player, Position::new(10.5, 10.5, 0.0, 0.0));
     friendly_forced.player_forced_reputation_ranks =
         vec![(72, wow_data::reputation::ReputationRankLikeCpp::Friendly)];
     let mut hostile_forced =
@@ -440,13 +433,12 @@ fn creature_aggro_tick_once_ignores_reputation_when_unit_flag2_says_so_like_cpp(
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_038);
-    let mut candidate =
-        aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+    let mut candidate = aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
     candidate.player_unit_flags2 = UnitFlags2::IGNORE_REPUTATION.bits();
     candidate.player_reputation_standings = vec![(72, -6_000)];
     candidate.player_reputation_state_flags = vec![(72, 0)];
@@ -474,7 +466,7 @@ fn creature_aggro_tick_once_rejects_unrepresented_faction_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
 
@@ -503,13 +495,12 @@ fn creature_aggro_tick_once_rejects_friendly_faction_templates_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_031);
-    let mut candidate =
-        aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+    let mut candidate = aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
     candidate.player_faction_template_id = 1;
     let config = aggro_relation_config_like_cpp(
         faction_template_entry(14, 72, 0, 1, 0),
@@ -536,13 +527,12 @@ fn creature_aggro_tick_once_prefers_hostile_static_reaction_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_033);
-    let mut candidate =
-        aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
+    let mut candidate = aggro_candidate_like_cpp(player, Position::new(10.5, 10.5, 0.0, 0.0));
     candidate.player_faction_template_id = 1;
     let config = aggro_relation_config_like_cpp(
         wow_data::progression_rewards::FactionTemplateEntry {
@@ -579,10 +569,8 @@ fn creature_aggro_tick_once_respects_react_state_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature
-                .creature
-                .set_react_state(wow_entities::ReactState::Passive);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_react_state(wow_entities::ReactState::Passive);
         })
         .unwrap();
 
@@ -626,10 +614,8 @@ fn creature_aggro_tick_once_suppresses_empty_los_ai_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("ReactorAI", String::new());
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_ai_identity_names_runtime_like_cpp("ReactorAI", String::new());
         })
         .unwrap();
 
@@ -662,10 +648,8 @@ fn creature_aggro_tick_once_fails_closed_for_script_ai_registry_gap_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp(String::new(), "npc_scripted_ai");
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_ai_identity_names_runtime_like_cpp(String::new(), "npc_scripted_ai");
         })
         .unwrap();
 

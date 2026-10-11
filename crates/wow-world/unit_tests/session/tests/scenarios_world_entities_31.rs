@@ -12,9 +12,12 @@ use super::*;
 fn step_creature_movement_advances_spline_and_generator_from_one_diff_like_cpp() {
     let guid = test_creature_guid(200_025);
     let mut creature = make_test_world_creature(guid);
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(1));
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
+        Duration::from_secs(1),
+    );
     let (_, spline) =
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .begin_move_spline_like_cpp(Position::new(20.0, 0.0, 0.0, 0.0))
             .expect("a non-zero move must launch a spline");
     assert!(spline.duration_ms() > 17);
@@ -35,16 +38,7 @@ fn step_creature_movement_advances_spline_and_generator_from_one_diff_like_cpp()
     let _ = step_creature_movement_like_cpp(&mut creature, guid, &config, None, None, None, 17);
 
     assert_eq!(creature.runtime_elapsed_ms_like_cpp(), elapsed_before + 17);
-    assert_eq!(
-        creature
-            .creature
-            .unit()
-            .subsystems()
-            .motion
-            .spline
-            .progress_ms,
-        17
-    );
+    assert_eq!(creature.unit().subsystems().motion.spline.progress_ms, 17);
     assert_eq!(
         creature.runtime_motion_master_ticks_like_cpp(),
         motion_ticks_before + 1
@@ -64,16 +58,18 @@ fn step_creature_movement_random_keeps_wandering_over_many_ticks_like_cpp() {
     let guid = test_creature_guid(200_024);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 5.0;
     }
-    creature.seed_runtime_rng_like_cpp(0x1234);
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(3600));
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x1234);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
+        Duration::from_secs(3600),
+    );
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -121,16 +117,18 @@ fn step_creature_movement_random_rearms_next_leg_after_spline_finalizes_like_cpp
     let guid = test_creature_guid(200_021);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    creature.seed_runtime_rng_like_cpp(0x5757);
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
+        Duration::from_secs(10),
+    );
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false, // straight-line spline (no pathfinding)
         ..Default::default()
@@ -140,19 +138,14 @@ fn step_creature_movement_random_rearms_next_leg_after_spline_finalizes_like_cpp
     // duration.
     let leg1 = step_creature_movement_like_cpp(&mut creature, guid, &config, None, None, None, 200);
     assert!(leg1.is_some(), "leg 1 must launch a wander spline");
-    let duration = creature
-        .creature
-        .unit()
-        .subsystems()
-        .motion
-        .spline
-        .duration_ms;
+    let duration = creature.unit().subsystems().motion.spline.duration_ms;
     assert!(duration > 0, "leg 1 spline must have a positive duration");
     let duration_u = duration as u32;
 
     // Advance the creature clock past the spline duration so the next
     // `update_move_spline_like_cpp` finalizes it (mirrors real time passing).
-    creature.backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
         Duration::from_secs(10) + Duration::from_millis(u64::from(duration_u) + 1),
     );
 
@@ -193,16 +186,18 @@ fn step_creature_movement_random_waits_when_diff_undershoots_spline_duration_lik
     let guid = test_creature_guid(200_022);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    creature.seed_runtime_rng_like_cpp(0x5757);
-    creature.backdate_runtime_clock_for_test(Duration::from_secs(10));
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
+        Duration::from_secs(10),
+    );
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -210,13 +205,7 @@ fn step_creature_movement_random_waits_when_diff_undershoots_spline_duration_lik
 
     let leg1 = step_creature_movement_like_cpp(&mut creature, guid, &config, None, None, None, 200);
     assert!(leg1.is_some());
-    let duration = creature
-        .creature
-        .unit()
-        .subsystems()
-        .motion
-        .spline
-        .duration_ms;
+    let duration = creature.unit().subsystems().motion.spline.duration_ms;
     assert!(
         duration > 10,
         "spline must be longer than the undershooting per-tick diff"
@@ -224,7 +213,8 @@ fn step_creature_movement_random_waits_when_diff_undershoots_spline_duration_lik
     let duration_u = duration as u32;
 
     // Finalize the spline by the real clock...
-    creature.backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
         Duration::from_secs(10) + Duration::from_millis(u64::from(duration_u) + 1),
     );
     // ...but feed only a tiny constant diff (the buggy loop behavior). The
@@ -242,11 +232,9 @@ fn step_creature_movement_walking_random_finished_returns_none_and_state_idle() 
     let mut creature = make_test_world_creature(guid);
     // Put creature into WalkingRandom with no active spline and no move_target
     // so that movement_finished() == true.
-    creature
-        .creature
-        .set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
+    creature.set_ai_state(wow_entities::CreatureAiState::WalkingRandom);
     // Ensure no move_target (movement_finished returns true when None).
-    creature.creature.ai_ownership_mut().move_target = None;
+    creature.ai_ownership_mut().move_target = None;
 
     let config = MMapRuntimeConfigLikeCpp::default();
 
@@ -273,7 +261,7 @@ fn step_creature_movement_walking_waypoint_launches_monster_move_like_cpp() {
     );
 
     assert_eq!(
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
@@ -349,13 +337,12 @@ fn step_creature_movement_waypoint_paths_around_real_navmesh_obstacle_like_cpp()
     let guid = test_creature_guid(200_024);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(MAP_ID, 0)
         .expect("bind the fixture map");
-    creature.creature.set_ai_position(start);
-    creature.creature.set_ai_home_position(start);
+    creature.set_ai_position(start);
+    creature.set_ai_home_position(start);
 
     let path = wow_movement::WaypointPath::new(
         77,
@@ -367,7 +354,7 @@ fn step_creature_movement_waypoint_paths_around_real_navmesh_obstacle_like_cpp()
         )],
     );
     assert_eq!(
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
@@ -438,7 +425,10 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
     let guid = test_creature_guid(200_023);
     let mut creature = make_test_world_creature(guid);
     let mut clock_elapsed = Duration::from_secs(10);
-    creature.backdate_runtime_clock_for_test(clock_elapsed);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+        &mut creature,
+        clock_elapsed,
+    );
     let path = wow_movement::WaypointPath::new(
         7,
         vec![
@@ -447,7 +437,7 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
         ],
     );
     assert_eq!(
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
@@ -474,7 +464,6 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
     // feeding the *real* elapsed diff. The patrol must reach node 2.
     for _ in 0..6 {
         let duration = creature
-            .creature
             .unit()
             .subsystems()
             .motion
@@ -482,7 +471,10 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
             .duration_ms
             .max(1) as u32;
         clock_elapsed += Duration::from_millis(u64::from(duration) + 1);
-        creature.backdate_runtime_clock_for_test(clock_elapsed);
+        crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+            &mut creature,
+            clock_elapsed,
+        );
         let _ = step_creature_movement_like_cpp(
             &mut creature,
             guid,
@@ -512,15 +504,15 @@ fn step_creature_movement_dead_ready_respawn_waits_for_lifecycle_owner_like_cpp(
     let mut creature = make_test_world_creature(guid);
     // Kill the creature: death_time_ms=0, respawn_time_secs=0 so
     // should_respawn() is true immediately (now_ms >= 0 + 0*1000 = 0).
-    creature.creature.mark_ai_dead(0);
-    creature.creature.ai_ownership_mut().respawn_time_secs = 0;
+    creature.mark_ai_dead(0);
+    creature.ai_ownership_mut().respawn_time_secs = 0;
 
     assert!(
         !creature.is_alive(),
         "creature must be dead before the call"
     );
     assert!(
-        creature.should_respawn(),
+        crate::creature_projection::test_support::should_respawn(&creature),
         "creature must be ready to respawn"
     );
 

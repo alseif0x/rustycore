@@ -67,7 +67,6 @@ fn mark_incarnation_lootable_like_cpp(
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .object_mut()
@@ -469,7 +468,7 @@ fn guarded_mutator_roots_invoke_their_callback_exactly_once_like_cpp() {
             lifecycle.viewed_lifecycle_revision,
             |creature| {
                 viewed_runs += 1;
-                has_lootable_flag_like_cpp(&creature.creature)
+                has_lootable_flag_like_cpp(&creature)
             },
         );
     assert_eq!(
@@ -489,7 +488,7 @@ fn guarded_mutator_roots_invoke_their_callback_exactly_once_like_cpp() {
             lifecycle.unviewed_lifecycle_revision,
             |creature| {
                 unviewed_runs += 1;
-                has_lootable_flag_like_cpp(&creature.creature)
+                has_lootable_flag_like_cpp(&creature)
             },
         );
     assert_eq!(unviewed, Some(true));
@@ -516,7 +515,7 @@ fn guarded_mutator_roots_invoke_their_callback_exactly_once_like_cpp() {
                 advanced_lifecycle.viewed_lifecycle_revision,
                 |creature| {
                     advanced_runs += 1;
-                    creature.creature.max_health()
+                    creature.max_health()
                 },
             ),
         Some(140)

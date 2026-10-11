@@ -67,9 +67,7 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
         "C++ Player::IsAtGroupRewardDistance suppresses TARGET_DIES proc for far tappers"
     );
     let authority = session
-        .mutate_world_creature(guid, |creature| {
-            creature.creature.loot_authority_like_cpp().clone()
-        })
+        .mutate_world_creature(guid, |creature| creature.loot_authority_like_cpp().clone())
         .expect("dead creature retains its object-owned loot authority");
     assert!(
         authority.personal_snapshot_like_cpp(far_member).is_some(),

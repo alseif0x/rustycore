@@ -361,15 +361,11 @@ fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             assert!(creature.can_swing());
         })
         .unwrap();
@@ -430,13 +426,11 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
         );
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature
-                    .creature
-                    .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-                creature.creature.set_spell(0, SPELL_ID);
+                creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+                creature.set_spell(0, SPELL_ID);
                 creature.enter_combat(victim_guid);
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
                 assert!(creature.can_swing());
             })
             .unwrap();
@@ -536,18 +530,12 @@ fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(turret_spell_id).unwrap());
-            creature
-                .creature
-                .set_spell(1, u32::try_from(ignored_spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, u32::try_from(turret_spell_id).unwrap());
+            creature.set_spell(1, u32::try_from(ignored_spell_id).unwrap());
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             assert!(creature.can_swing());
         })
         .unwrap();

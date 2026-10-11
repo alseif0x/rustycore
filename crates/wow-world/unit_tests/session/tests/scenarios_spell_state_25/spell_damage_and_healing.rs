@@ -21,7 +21,6 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -157,7 +156,6 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -256,9 +254,8 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(100);
+            creature.unit_mut().set_health(100);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -321,7 +318,7 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(100);
+            creature.unit_mut().set_health(100);
         })
         .expect("wounded creature");
     // `SpellHealingPctDone`: `ModHealingDonePercent = 1.5`.

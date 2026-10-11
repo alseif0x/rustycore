@@ -213,8 +213,8 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -307,7 +307,6 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 creature
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .auras

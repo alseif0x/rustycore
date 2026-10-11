@@ -202,8 +202,8 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.set_spell(0, 7_004);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.set_spell(0, 7_004);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
     let mut active_misc = spell_misc_entry_like_cpp(8_303, 7_004, 72);

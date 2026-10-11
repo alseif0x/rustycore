@@ -382,7 +382,7 @@ fn player_attack_evading_typed_creature_is_rejected_like_cpp() {
     );
     session
         .mutate_world_creature(victim, |creature| {
-            creature.creature.set_in_evade_mode_like_cpp(true);
+            creature.set_in_evade_mode_like_cpp(true);
         })
         .unwrap();
 
@@ -419,7 +419,10 @@ fn corpse_despawn_syncs_canonical_corpse_timer() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.take_damage(40);
-            creature.set_corpse_despawn_at(Some(despawn_at));
+            crate::creature_projection::test_support::set_corpse_despawn_at(
+                creature,
+                Some(despawn_at),
+            );
         })
         .unwrap();
 

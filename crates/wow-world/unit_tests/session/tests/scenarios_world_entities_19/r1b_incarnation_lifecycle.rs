@@ -73,9 +73,7 @@ fn run_respawn_tick_like_cpp(
     hp: u32,
     now: Instant,
 ) -> crate::session::CreatureLifecycleTickOutcomeLikeCpp {
-    use crate::map_manager::pending_respawn_from_world_creature_like_cpp;
-
-    let queued = crate::map_manager::WorldCreature::new(
+    let queued = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9001,
         test_position_like_cpp(),
@@ -89,7 +87,7 @@ fn run_respawn_tick_like_cpp(
         0,
         0,
     );
-    let pending = pending_respawn_from_world_creature_like_cpp(&queued, now, 0);
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(&queued, now, 0);
     {
         let mut guard = manager
             .lock()

@@ -77,8 +77,8 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -219,8 +219,8 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     // Template creature type 7 (undead) and the matching `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS`
@@ -390,8 +390,8 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -500,7 +500,7 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
     // below 20% health; 7/40 is below it.
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(7);
+            creature.unit_mut().set_health(7);
         })
         .expect("wounded victim");
     let wounded = session.represented_melee_damage_bonus_like_cpp();
@@ -511,17 +511,9 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
     // FREEZE-misc aura does not.
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    VICTIM_MECHANIC_SPELL as u32,
-                    player,
-                    0,
-                    0,
-                ));
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(VICTIM_MECHANIC_SPELL as u32, player, 0, 0),
+            );
         })
         .expect("victim mechanic aura");
     let stunned = session.represented_melee_damage_bonus_like_cpp();

@@ -414,14 +414,10 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             creature_guid,
             901,
             creature_position,
@@ -556,14 +552,10 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             creature_guid,
             901,
             creature_position,

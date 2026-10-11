@@ -45,17 +45,17 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
             .mutate_world_creature(guid, |creature| {
                 // #1263 F6-8D3b-3: a fresh creature now swings on its first ready
                 // update (C++ `m_attackTimer = {}`); this scenario's victims stay passive.
-                creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+                creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
             })
             .unwrap();
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     {
@@ -166,8 +166,8 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.enter_combat(zero_damage_victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     let zero_damage =
@@ -235,8 +235,8 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.enter_combat(lethal_victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     let lethal =

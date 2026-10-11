@@ -21,17 +21,18 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x9008);
-            creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x9008);
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                creature,
+                Duration::from_millis(10),
+            );
         })
         .unwrap();
 
@@ -120,18 +121,15 @@ fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x5757);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x5757);
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .set_visibility_distance_override_like_cpp(
@@ -188,17 +186,18 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x9011);
-            creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x9011);
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                creature,
+                Duration::from_millis(10),
+            );
         })
         .unwrap();
 

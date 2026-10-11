@@ -69,8 +69,8 @@ fn canonical_first_root_applies_a_session_mutation_after_an_executor_health_chan
     let mut runs = 0_usize;
     let applied = session.mutate_world_creature(guid, |creature| {
         runs += 1;
-        creature.creature.ai_ownership_mut().npc_flags = 0x42;
-        creature.creature.current_hp()
+        creature.ai_ownership_mut().npc_flags = 0x42;
+        creature.current_hp()
     });
 
     assert_eq!(applied, Some(5), "the mutation sees the executor's health");
@@ -135,8 +135,8 @@ fn r7b1_deferred_registration_waits_on_the_canonical_side_like_cpp() {
 
     // With the instance present, a further deferral joins its queue directly.
     let second = test_creature_guid(97_011);
-    let pending = crate::map_manager::pending_respawn_from_world_creature_like_cpp(
-        &wow_entities::Creature::new(
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
+        &crate::creature_projection::new_runtime_creature_like_cpp(
             second,
             9001,
             Position::new(31.0, 30.0, 0.0, 0.0),

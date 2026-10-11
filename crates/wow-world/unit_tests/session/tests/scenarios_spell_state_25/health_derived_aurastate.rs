@@ -99,7 +99,7 @@ async fn spell_school_damage_applies_damage_done_versus_health_aurastate_like_cp
     // below 20% health; the creature's aura subsystem owns no such bit.
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(300);
+            creature.unit_mut().set_health(300);
         })
         .expect("wounded creature");
     session

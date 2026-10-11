@@ -639,36 +639,23 @@ fn creature_spell_fanout_uses_canonical_commit_snapshot_like_cpp() {
         .mutate_world_creature(creature_guid, |creature| {
             assert_eq!(creature.position(), legacy_position);
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .set_visibility_distance_override_like_cpp(
                     wow_entities::VisibilityDistanceTypeLikeCpp::Tiny,
                 );
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature.creature.unit_mut().set_health(17);
-            creature.creature.set_power_type(PowerType::Energy);
-            creature
-                .creature
-                .unit_mut()
-                .set_max_power(PowerType::Energy, 100);
-            creature
-                .creature
-                .unit_mut()
-                .set_power(PowerType::Energy, 19);
-            creature.creature.set_combat_log_stats_like_cpp(
-                wow_entities::CreatureCombatLogStatsLikeCpp {
-                    attack_power: 911,
-                    ranged_attack_power: 922,
-                    spell_power: 933,
-                    armor: 944,
-                },
-            );
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.unit_mut().set_health(17);
+            creature.set_power_type(PowerType::Energy);
+            creature.unit_mut().set_max_power(PowerType::Energy, 100);
+            creature.unit_mut().set_power(PowerType::Energy, 19);
+            creature.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                attack_power: 911,
+                ranged_attack_power: 922,
+                spell_power: 933,
+                armor: 944,
+            });
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();

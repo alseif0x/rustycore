@@ -341,12 +341,15 @@ async fn disconnect_runs_full_creature_release_lifecycle_after_persistence_like_
     });
     let before = session
         .mutate_world_creature(owner_guid, |creature| {
-            creature.creature.set_corpse_delay(120, false);
-            creature.set_corpse_despawn_at(Some(Instant::now() + Duration::from_secs(120)));
+            creature.set_corpse_delay(120, false);
+            crate::creature_projection::test_support::set_corpse_despawn_at(
+                creature,
+                Some(Instant::now() + Duration::from_secs(120)),
+            );
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
             (
-                creature.corpse_despawn_at(),
-                creature.has_lootable_dynamic_flag_like_cpp(),
+                crate::creature_projection::test_support::corpse_despawn_at(creature),
+                crate::creature_projection::has_lootable_dynamic_flag_like_cpp(creature),
             )
         })
         .unwrap();
@@ -359,8 +362,8 @@ async fn disconnect_runs_full_creature_release_lifecycle_after_persistence_like_
     let after = session
         .mutate_world_creature(owner_guid, |creature| {
             (
-                creature.corpse_despawn_at(),
-                creature.has_lootable_dynamic_flag_like_cpp(),
+                crate::creature_projection::test_support::corpse_despawn_at(creature),
+                crate::creature_projection::has_lootable_dynamic_flag_like_cpp(creature),
             )
         })
         .unwrap();
@@ -540,7 +543,7 @@ async fn cmsg_loot_unit_never_regenerates_after_creature_clear_loot_like_cpp() {
     fixture
         .session
         .mutate_world_creature(fixture.owner_guid, |creature| {
-            creature.creature.clear_loot_like_cpp();
+            creature.clear_loot_like_cpp();
         });
     let retired_generation = authority.generation_like_cpp();
 
@@ -585,13 +588,9 @@ fn stale_kill_generator_cannot_install_after_creature_lifecycle_aba_like_cpp() {
     fixture
         .session
         .mutate_world_creature(fixture.owner_guid, |creature| {
-            creature.creature.clear_loot_like_cpp();
-            creature
-                .creature
-                .set_death_state_runtime(wow_constants::DeathState::JustRespawned, 0);
-            creature
-                .creature
-                .set_death_state_runtime(wow_constants::DeathState::JustDied, 0);
+            creature.clear_loot_like_cpp();
+            creature.set_death_state_runtime(wow_constants::DeathState::JustRespawned, 0);
+            creature.set_death_state_runtime(wow_constants::DeathState::JustDied, 0);
         });
 
     assert!(

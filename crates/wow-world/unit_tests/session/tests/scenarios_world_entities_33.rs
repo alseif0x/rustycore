@@ -39,27 +39,27 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
             .mutate_world_creature(guid, |creature| {
                 // #1263 F6-8D3b-3: a fresh creature now swings on its first ready
                 // update (C++ `m_attackTimer = {}`); this scenario's victims stay passive.
-                creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+                creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
             })
             .unwrap();
     }
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     session
         .mutate_world_creature(victim_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.unit_mut().set_level(80);
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
         })
@@ -135,7 +135,6 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
         .mutate_world_creature(attacker_guid, |creature| {
             let aura = wow_entities::AppliedAuraRef::new(hit_spell_id as u32, attacker_guid, 0, 1);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -253,8 +252,8 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
     let tick = |session: &mut WorldSession| {
         session
             .mutate_world_creature(attacker_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
         run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)

@@ -113,7 +113,6 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         .mutate_world_creature(selected_guid, |creature| {
             creature.enter_combat(player_guid);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat

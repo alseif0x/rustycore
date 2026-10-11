@@ -69,9 +69,7 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
     // assertion.
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
+            creature.add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
         })
         .unwrap();
 
@@ -174,7 +172,7 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
     // C++ `Unit::Update` sets `AURA_STATE_WOUNDED_20_PERCENT` below 20% health.
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.unit_mut().set_health(100);
+            creature.unit_mut().set_health(100);
         })
         .unwrap();
     session
@@ -199,17 +197,9 @@ async fn map_owned_player_melee_applies_victim_aurastate_and_mechanic_bonus_like
     // The victim's applied STUN aura completes `HasAuraWithMechanic(1 << 12)`.
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    VICTIM_MECHANIC_SPELL as u32,
-                    player_guid,
-                    0,
-                    0,
-                ));
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(VICTIM_MECHANIC_SPELL as u32, player_guid, 0, 0),
+            );
         })
         .unwrap();
     session
@@ -295,16 +285,12 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
             // C++ `Unit::IsTotem()` zeroes the victim's dodge, parry and block
             // (`Unit.cpp:2313-2360`), isolating the damage term under test from
             // the attack table.
-            creature
-                .creature
-                .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.set_combat_log_stats_like_cpp(
-                wow_entities::CreatureCombatLogStatsLikeCpp {
-                    armor: 5_000,
-                    ..Default::default()
-                },
-            );
+            creature.add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
+            creature.unit_mut().set_level(80);
+            creature.set_combat_log_stats_like_cpp(wow_entities::CreatureCombatLogStatsLikeCpp {
+                armor: 5_000,
+                ..Default::default()
+            });
         })
         .unwrap();
 
@@ -362,9 +348,7 @@ async fn map_owned_player_melee_applies_victim_armor_mitigation_like_cpp() {
     // difference.
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_combat_log_stats_like_cpp(Default::default());
+            creature.set_combat_log_stats_like_cpp(Default::default());
         })
         .unwrap();
     session
@@ -440,7 +424,6 @@ async fn map_owned_player_melee_applies_victim_melee_damage_taken_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras

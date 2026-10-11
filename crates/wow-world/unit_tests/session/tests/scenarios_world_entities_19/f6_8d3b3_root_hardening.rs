@@ -65,7 +65,7 @@ fn a_panicking_mutation_leaves_the_incarnation_in_its_map_and_cell_like_cpp() {
 
     let unwound = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
         session.mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(7);
+            creature.unit_mut().set_health(7);
             panic!("F6-8D3b-3: injected mutation panic");
         })
     }));
@@ -85,7 +85,7 @@ fn a_panicking_mutation_leaves_the_incarnation_in_its_map_and_cell_like_cpp() {
         "and its GUID is still in the cell it is in"
     );
     assert_eq!(
-        session.mutate_world_creature(guid, |creature| creature.creature.current_hp()),
+        session.mutate_world_creature(guid, |creature| creature.current_hp()),
         Some(7),
         "the root keeps working on the same incarnation"
     );
@@ -100,12 +100,8 @@ fn a_mutation_that_rebinds_the_map_is_refused_and_the_incarnation_restored_like_
     // `WorldObject::world_relocate` rebinds the object's map: the record it
     // left can no longer take it back (`MapObjectStoreError::WrongMap`).
     let refused = session.mutate_world_creature(guid, |creature| {
-        creature.creature.unit_mut().set_health(9);
-        creature
-            .creature
-            .unit_mut()
-            .world_mut()
-            .world_relocate(1, origin);
+        creature.unit_mut().set_health(9);
+        creature.unit_mut().world_mut().world_relocate(1, origin);
     });
 
     assert_eq!(refused, None, "the rebinding mutation is refused loudly");
@@ -122,7 +118,7 @@ fn a_mutation_that_rebinds_the_map_is_refused_and_the_incarnation_restored_like_
     assert_eq!(health, 9);
     assert!(d3b3_cell_holds_like_cpp(&canonical, guid, origin));
     assert_eq!(
-        session.mutate_world_creature(guid, |creature| creature.creature.current_hp()),
+        session.mutate_world_creature(guid, |creature| creature.current_hp()),
         Some(9)
     );
 }
@@ -139,7 +135,7 @@ fn a_position_change_through_the_root_relocates_the_creature_cell_like_cpp() {
 
     assert!(
         session
-            .mutate_world_creature(guid, |creature| creature.creature.set_ai_position(moved))
+            .mutate_world_creature(guid, |creature| creature.set_ai_position(moved))
             .is_some()
     );
 
@@ -169,7 +165,7 @@ fn a_position_change_through_the_root_relocates_the_creature_cell_like_cpp() {
     // An orientation-only change stays in the cell and is applied in place.
     let turned = Position::new(moved.x, moved.y, moved.z, 3.0);
     session
-        .mutate_world_creature(guid, |creature| creature.creature.set_ai_position(turned))
+        .mutate_world_creature(guid, |creature| creature.set_ai_position(turned))
         .unwrap();
     assert_eq!(
         d3b3_creature_like_cpp(&canonical, guid, |creature| creature.position()),

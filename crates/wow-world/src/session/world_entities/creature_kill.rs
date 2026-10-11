@@ -386,9 +386,7 @@ impl WorldSession {
         };
         let mut tappers = self
             .core
-            .read_world_creature_like_cpp(creature_guid, |creature| {
-                creature.creature.tap_list().to_vec()
-            })
+            .read_world_creature_like_cpp(creature_guid, |creature| creature.tap_list().to_vec())
             .unwrap_or_default();
         if tappers.is_empty() {
             tappers.push(attacker_guid);

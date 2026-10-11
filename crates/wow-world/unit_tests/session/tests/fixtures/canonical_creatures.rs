@@ -17,8 +17,8 @@ use crate::session::{
     AdmittedCreatureExecutionObjectLikeCpp, CreatureAggroCandidateLikeCpp,
     CreatureAggroTickOutcomeLikeCpp, CreatureLifecycleTickOutcomeLikeCpp,
     CreatureMeleeTickOutcomeLikeCpp, CreatureMovementTickOutcomeLikeCpp,
-    CreatureSpellTickOutcomeLikeCpp, PlayerMeleeTickOutcomeLikeCpp,
-    PlayerMeleeAttackerSnapshotLikeCpp, PlayerMeleePhaseStateLikeCpp,
+    CreatureSpellTickOutcomeLikeCpp, PlayerMeleeAttackerSnapshotLikeCpp,
+    PlayerMeleePhaseStateLikeCpp, PlayerMeleeTickOutcomeLikeCpp,
 };
 
 /// Every map of the canonical manager and every creature on it, sorted by
@@ -213,9 +213,7 @@ pub(in crate::session::tests) fn step_creature_movement_like_cpp(
     diff_ms: u32,
 ) -> Option<Vec<u8>> {
     crate::session::step_creature_movement_on_view_like_cpp(
-        &mut crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(
-            &mut creature.creature,
-        ),
+        &mut crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature),
         guid,
         mmap_config,
         mmap_pathfinder,

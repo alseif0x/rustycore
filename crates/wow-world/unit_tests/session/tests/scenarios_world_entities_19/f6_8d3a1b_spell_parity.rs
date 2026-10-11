@@ -117,27 +117,20 @@ fn d3a1b_world_like_cpp(base: i64) -> D3a1bWorldLikeCpp {
     let seed = d3a1b_hit_seed_like_cpp();
     session
         .mutate_world_creature(caster, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, D3A1B_SPELL_ID_LIKE_CPP as u32);
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, D3A1B_SPELL_ID_LIKE_CPP as u32);
             creature.enter_combat(victim);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
                 .add_threat(victim, 5.0);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             let mut static_flags = [0; 8];
             static_flags[0] = wow_constants::creature::CreatureStaticFlags::NO_MELEE_FLEE.bits();
-            creature
-                .creature
-                .set_static_flags_runtime_like_cpp(static_flags);
-            creature.seed_runtime_rng_like_cpp(seed);
+            creature.set_static_flags_runtime_like_cpp(static_flags);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, seed);
         })
         .expect("the caster is admitted");
     let candidates = vec![aggro_candidate_like_cpp(

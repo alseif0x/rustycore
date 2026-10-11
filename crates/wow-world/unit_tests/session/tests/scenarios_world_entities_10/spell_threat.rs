@@ -114,7 +114,6 @@ async fn spell_modify_threat_percent_scales_existing_creature_threat_like_cpp() 
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
@@ -212,7 +211,7 @@ async fn spell_taunt_effect_matches_caster_threat_to_highest_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            let combat = &mut creature.unit_mut().subsystems_mut().combat;
             combat.add_threat(other_player_guid, 120.0);
             combat.add_threat(player_guid, 5.0);
         })

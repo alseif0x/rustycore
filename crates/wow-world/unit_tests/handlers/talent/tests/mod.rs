@@ -485,9 +485,7 @@ fn register_test_trainer_with_class(
     );
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_trainer_class_runtime_like_cpp(trainer_class);
+            creature.set_trainer_class_runtime_like_cpp(trainer_class);
         })
         .expect("test trainer exists");
 }

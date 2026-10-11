@@ -323,13 +323,10 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_player_registry(Arc::clone(&registry));
 
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
     manager.lock().unwrap().add_creature(
         0,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             mover_guid,
             777,
             mover_start,
@@ -378,8 +375,8 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
             .expect("controlled mover creature");
         (
             creature.position(),
-            creature.creature.unit().movement_flags_like_cpp(),
-            creature.creature.unit().movement_time_like_cpp(),
+            creature.unit().movement_flags_like_cpp(),
+            creature.unit().movement_time_like_cpp(),
         )
     };
     assert_eq!(creature_position, moved_position);
@@ -458,13 +455,10 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
     session.set_player_position_like_cpp(player_position);
     session.set_canonical_map_manager(Arc::clone(&manager));
 
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
     manager.lock().unwrap().add_creature(
         0,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             mover_guid,
             778,
             mover_start,
@@ -481,16 +475,14 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
     );
     {
         let mut guard = manager.lock().unwrap();
-        let mover = guard
+        let mut mover = guard
             .find_creature_mut(0, 0, mover_guid)
             .expect("controlled mover creature");
-        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover.creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover)
             .begin_move_spline_like_cpp(attempted_position)
             .expect("active movement spline");
         assert!(
-            !crate::creature_movement::CreatureMovementQueriesLikeCpp::movement_finished(
-                &*mover.creature
-            )
+            !crate::creature_movement::CreatureMovementQueriesLikeCpp::movement_finished(&*mover)
         );
     }
 
@@ -515,7 +507,7 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
         .expect("controlled mover creature");
     assert_eq!(mover.position(), mover_start);
     assert_eq!(
-        mover.creature.unit().movement_flags_like_cpp(),
+        mover.unit().movement_flags_like_cpp(),
         MovementFlag::empty()
     );
 }

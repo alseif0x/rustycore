@@ -43,6 +43,7 @@ use wow_recastdetour::{
 };
 
 use crate::creature_movement::*;
+use crate::creature_projection::test_support::*;
 use crate::creature_projection::*;
 use crate::creature_respawn::*;
 use crate::pathfinder::*;
@@ -148,24 +149,6 @@ fn test_creature(guid: ObjectGuid) -> Creature {
         0,
         0,
     )
-}
-
-// The former `WorldCreature` test accessors, over the canonical creature.
-
-fn seed_runtime_rng_like_cpp(creature: &mut Creature, seed: u64) {
-    creature
-        .runtime_like_cpp_mut()
-        .seed_runtime_rng_like_cpp(seed);
-}
-
-fn backdate_runtime_clock_for_test(creature: &mut Creature, elapsed: Duration) {
-    creature
-        .runtime_like_cpp_mut()
-        .set_runtime_elapsed_ms_like_cpp(elapsed.as_millis().min(u128::from(u64::MAX)) as u64);
-}
-
-fn corpse_despawn_deadline_ms_like_cpp(creature: &Creature) -> Option<u64> {
-    creature.ai_ownership().corpse_despawn_at_ms
 }
 
 fn test_chase_target(victim: ObjectGuid, x: f32) -> ChaseTargetSnapshotLikeCpp {

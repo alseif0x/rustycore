@@ -82,7 +82,7 @@ impl WorldSession {
         let tapper_has_current_player = self
             .core
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.tap_list().contains(&player_guid)
+                creature.tap_list().contains(&player_guid)
             })
             .unwrap_or(true);
         if !tapper_has_current_player {

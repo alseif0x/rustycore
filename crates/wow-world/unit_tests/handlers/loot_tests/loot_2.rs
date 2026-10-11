@@ -498,7 +498,7 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
     });
     first
         .mutate_world_creature(owner, |creature| {
-            creature.creature.set_corpse_delay(120, false);
+            creature.set_corpse_delay(120, false);
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
         })
         .unwrap();
@@ -591,7 +591,7 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
     assert!(
         !first
             .mutate_world_creature(owner, |creature| {
-                creature.has_lootable_dynamic_flag_like_cpp()
+                crate::creature_projection::has_lootable_dynamic_flag_like_cpp(creature)
             })
             .unwrap(),
         "post-COMMIT completion must finish the corpse lifecycle without an active view"

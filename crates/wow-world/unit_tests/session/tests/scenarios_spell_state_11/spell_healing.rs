@@ -217,7 +217,7 @@ async fn spell_direct_heal_scales_by_creature_missing_health_like_cpp() {
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(500);
+            creature.unit_mut().set_health(500);
         })
         .expect("damaged creature");
 

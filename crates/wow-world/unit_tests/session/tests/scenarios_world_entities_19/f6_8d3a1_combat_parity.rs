@@ -129,26 +129,31 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
     }
     session
         .mutate_world_creature(hostile, |creature| {
-            creature.creature.unit_mut().set_faction(14);
-            creature.creature.engage_with_target_like_cpp(defender);
+            creature.unit_mut().set_faction(14);
+            creature.engage_with_target_like_cpp(defender);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
                 .add_threat(defender, 5.0);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(D3A1_HOSTILE_SEED_LIKE_CPP);
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(
+                creature,
+                D3A1_HOSTILE_SEED_LIKE_CPP,
+            );
         })
         .expect("the hostile creature is admitted");
     session
         .mutate_world_creature(neutral, |creature| {
-            creature.creature.unit_mut().set_faction(15);
-            creature.creature.engage_with_target_like_cpp(striker);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(D3A1_NEUTRAL_SEED_LIKE_CPP);
+            creature.unit_mut().set_faction(15);
+            creature.engage_with_target_like_cpp(striker);
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(
+                creature,
+                D3A1_NEUTRAL_SEED_LIKE_CPP,
+            );
         })
         .expect("the neutral creature is admitted");
     let (send_tx, _rx) = flume::bounded::<Vec<u8>>(8);

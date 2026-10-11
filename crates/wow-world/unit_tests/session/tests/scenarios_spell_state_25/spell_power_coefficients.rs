@@ -92,7 +92,7 @@ async fn spell_direct_heal_applies_bonus_coefficient_from_ap_like_cpp() {
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.unit_mut().set_health(100);
+            creature.unit_mut().set_health(100);
         })
         .expect("wounded creature");
     session
