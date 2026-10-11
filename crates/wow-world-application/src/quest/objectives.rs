@@ -9,6 +9,7 @@ use wow_core::{ObjectGuid, ObjectGuidGenerator};
 use wow_world_core::session::QuestObjectiveAccessLikeCpp;
 use wow_world_loot::LootState;
 
+mod completion_refresh;
 mod context;
 pub use self::context::QuestObjectiveProgressCx;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -28,6 +29,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
     pub fn new(
         reward: &'cx mut QuestRewardCx<'session>,
         loot: &'cx LootState,
+        world_entities: &'cx wow_world_entities::WorldEntitiesState,
         item_guid_generator: &'cx ObjectGuidGenerator,
         #[cfg(any(test, feature = "test-fixtures"))]
         reputation_fixture: &'cx mut super::QuestRewardReputationFixtureRefsLikeCpp<
@@ -48,6 +50,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         Self {
             reward,
             loot,
+            world_entities,
             item_guid_generator,
             #[cfg(any(test, feature = "test-fixtures"))]
             reputation_fixture,
@@ -80,6 +83,8 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
     }
 
     fn sync_player_registry_state_like_cpp(&self, owner: &QuestObjectiveAccessLikeCpp<'_>) {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let (health, max_health, alive) = self.xp_fixtures.vitals_fixture_refs_like_cpp();
         super::completion::sync_quest_completion_registry_like_cpp(
             owner,
             self.loot,
@@ -97,11 +102,11 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             #[cfg(any(test, feature = "test-fixtures"))]
             self.registry_fixtures.position,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.registry_fixtures.health,
+            health,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.registry_fixtures.max_health,
+            max_health,
             #[cfg(any(test, feature = "test-fixtures"))]
-            self.registry_fixtures.alive,
+            alive,
             #[cfg(any(test, feature = "test-fixtures"))]
             &*self.reward.player_level,
             #[cfg(any(test, feature = "test-fixtures"))]
@@ -166,6 +171,14 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         };
         if !completed {
             return false;
+        }
+        // C++ `SetQuestStatus` → `SendQuestUpdate` ends with
+        // `UpdateVisibleGameobjectsOrSpellClicks` (`Player.cpp:15557`, `:15672`),
+        // before `CompleteQuest` runs the tracking-event reward (`:14496`).
+        let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+        {
+            let owner = self.reward.player.quest_objective_access_like_cpp();
+            self.sync_player_registry_state_like_cpp(&owner);
         }
 
         if tracking_event {
@@ -767,20 +780,17 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         let Some(store) = self.reward.catalogs.quests.store.clone() else {
             return;
         };
-        let Some(currencies) = self
+        let Some(current_quantity) = self
             .reward
-            .player
-            .currency_like_cpp()
-            .player_currencies_like_cpp()
+            .inventory
+            .player_currency_quantity_with_access_like_cpp(
+                &self.reward.player.currency_like_cpp(),
+                currency_id,
+            )
+            .map(i64::from)
         else {
             return;
         };
-        let current_quantity = i64::from(
-            currencies
-                .get(&currency_id)
-                .map(|currency| currency.quantity)
-                .unwrap_or(0),
-        );
         let object_id = i32::try_from(currency_id).unwrap_or(i32::MAX);
         let Some(quests) = current_quest_gameplay_snapshot_like_cpp(
             &owner,

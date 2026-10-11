@@ -207,7 +207,7 @@ pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::add_currency_quest_reward_like_cpp;
 pub use quest::represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp;
 pub use quest::{
-    MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestRewardCommitCx, QuestRewardCx,
+    MAX_QUEST_LOG_SIZE_LIKE_CPP, QuestObjectiveProgressCx, QuestRewardCommitCx, QuestRewardCx,
     RepresentedCanSeeSpellClickOutcomeLikeCpp, RepresentedPendingQuestSharingLikeCpp,
     RepresentedPushQuestToPartyOutcomeLikeCpp, RepresentedPushQuestToPartyOutcomeReasonLikeCpp,
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestConfirmAcceptLikeCpp,
@@ -239,6 +239,7 @@ pub use quest::{
     VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp,
     represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,
+    represented_gameobject_dynamic_flags_update_like_cpp,
     represented_gameobject_is_for_quests_like_cpp, represented_has_quest_for_gameobject_like_cpp,
     represented_meets_player_condition_id_like_cpp, update_visible_gameobjects_like_cpp,
     update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,

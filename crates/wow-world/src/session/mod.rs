@@ -78,7 +78,7 @@ mod movement;
 pub(crate) use movement::state::MovementTransportMembershipLikeCpp;
 mod object_updates;
 pub(crate) use object_updates::dynamic_object_create_data_from_canonical_like_cpp;
-pub(crate) use object_updates::represented_gameobject_dynamic_flags_update_like_cpp;
+pub(crate) use wow_world_application::represented_gameobject_dynamic_flags_update_like_cpp;
 pub(crate) use wow_world_visibility::represented_dynamic_object_values_update_delivery_fingerprint_like_cpp;
 mod persistence;
 mod pets;
@@ -87,6 +87,8 @@ mod player_items;
 mod progression;
 mod publication;
 mod quest;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use quest::quest_reward_fixture_refs_like_cpp;
 pub mod registry;
 mod social;
 mod spell_effects;

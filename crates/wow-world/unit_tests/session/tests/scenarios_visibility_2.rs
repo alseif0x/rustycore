@@ -886,3 +886,5 @@ fn init_transport_filter_excludes_own_transport_and_wrong_phase_like_cpp() {
             .should_send_init_transport_like_cpp(other_transport, &PhaseShift::from_phases([20]),)
     );
 }
+#[path = "visibility_live_unit_flags.rs"]
+mod visibility_live_unit_flags;

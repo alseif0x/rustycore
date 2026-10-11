@@ -109,6 +109,28 @@ fn assert_root_outcome_like_cpp(
     }
 }
 
+/// Keeps the process's registered-dispatcher list above one for the capture.
+///
+/// `tracing-core` caches each callsite's `Interest` globally. While at most one
+/// dispatcher is registered, it computes that interest from the *calling
+/// thread's* default dispatcher (`Rebuilder::JustOne` → `dispatcher::get_default`).
+/// So when a concurrent test thread, whose default is the no-op dispatcher, is
+/// the first to reach the C1 callsite (any creature mutation does) while this
+/// test's scoped subscriber is the only one registered, the callsite is cached
+/// as `never` and the C1 event is dropped on this thread too. With a second
+/// registered dispatcher alive, every registration and rebuild combines all
+/// live dispatchers, so the cached interest is at least `sometimes` and each
+/// event asks this thread's own subscriber. The no-op second dispatcher
+/// enables nothing. It must be registered before the capture subscriber.
+fn install_capture_interest_pin_like_cpp() -> tracing::Dispatch {
+    tracing::Dispatch::new(tracing::subscriber::NoSubscriber::default())
+}
+
+/// A callsite no other test reaches, for the registration-race regression.
+fn capture_interest_probe_like_cpp() {
+    tracing::info!(target: "rustycore::capture::c1", "RUSTYCORE_CAPTURE_C1 interest probe");
+}
+
 #[test]
 fn c1_capture_records_every_mutation_root_outcome_like_cpp() {
     let sink = CaptureSinkLikeCpp(Arc::new(Mutex::new(Vec::new())));
@@ -125,7 +147,20 @@ fn c1_capture_records_every_mutation_root_outcome_like_cpp() {
     let foreign = wow_loot::OwnedLootAuthority::new();
     let mut runs = 0_usize;
 
+    let _interest_pin = install_capture_interest_pin_like_cpp();
     tracing::subscriber::with_default(subscriber, || {
+        // Recompute every cached interest over the live dispatchers (the pin
+        // and this capture), so no callsite keeps a `never` cached earlier.
+        tracing::callsite::rebuild_interest_cache();
+        // Registration race, reproduced deterministically: another thread,
+        // with no subscriber of its own, is the first to reach a callsite.
+        // Without the pin its `never` would be cached for this thread too.
+        std::thread::spawn(capture_interest_probe_like_cpp)
+            .join()
+            .expect("probe thread");
+        capture_interest_probe_like_cpp();
+        let probe = one_event_like_cpp(&drain_capture_like_cpp(&sink), "probe");
+        assert!(probe.contains("interest probe"), "{probe}");
         // Applied: the callback runs once on the incarnation.
         assert!(
             session

@@ -34,33 +34,6 @@ pub(crate) fn dynamic_object_create_data_from_canonical_like_cpp(
     }
 }
 
-pub(crate) fn represented_gameobject_dynamic_flags_update_like_cpp(
-    guid: wow_core::ObjectGuid,
-    map_id: u16,
-    dynamic_flags: u32,
-) -> Option<wow_packet::packets::update::UpdateObject> {
-    let mut mask = wow_entities::UpdateMask::new(wow_entities::OBJECT_DATA_BITS);
-    mask.set(wow_entities::OBJECT_DATA_PARENT_BIT);
-    mask.set(wow_entities::OBJECT_DATA_DYNAMIC_FLAGS_BIT);
-    let values_update = wow_entities::GameObjectValuesUpdate {
-        changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
-        object_data: Some(wow_entities::ObjectDataUpdate {
-            mask,
-            values: wow_entities::ObjectDataValues {
-                entry_id: 0,
-                dynamic_flags,
-                scale: 0.0,
-            },
-        }),
-        game_object_data: None,
-    };
-    crate::entity_update_bridge::game_object_values_update_to_update_object(
-        guid,
-        map_id,
-        &values_update,
-    )
-}
-
 impl WorldSession {
     pub(crate) fn send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
         &mut self,

@@ -229,6 +229,12 @@ impl QuestRewardPlayerAccessLikeCpp<'_> {
             .send_equip_error(result, item1, item2, required_level, limit_category);
     }
 
+    /// Shared view of the same canonical session for the read-only completion
+    /// visibility refresh (C++ `SendQuestUpdate` reads the Player/Map directly).
+    pub fn core_ref_like_cpp(&self) -> &SessionCore {
+        self.core
+    }
+
     pub fn reborrow_like_cpp<'a>(&'a mut self) -> QuestRewardPlayerAccessLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         let player_race = self.player_race;

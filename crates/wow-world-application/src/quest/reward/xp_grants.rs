@@ -596,7 +596,7 @@ pub struct QuestXpGainFixtureRefsLikeCpp<'a> {
 
 #[cfg(any(test, feature = "test-fixtures"))]
 impl<'a> QuestXpGainFixtureRefsLikeCpp<'a> {
-    pub(super) fn vitals_fixture_refs_like_cpp(&self) -> (&u32, &u32, &bool) {
+    pub(in crate::quest) fn vitals_fixture_refs_like_cpp(&self) -> (&u32, &u32, &bool) {
         self.stats.vitals_fixture_refs_like_cpp()
     }
 

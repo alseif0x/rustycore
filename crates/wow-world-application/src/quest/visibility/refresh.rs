@@ -39,23 +39,16 @@ pub struct VisibilityRefreshCxLikeCpp<'a> {
 
 /// Session capabilities the moved scans invoke at their original points.
 ///
-/// Each method is an existing World operation the scan body already called:
-/// the viewer-dependent `DynamicFlags` projection, the GameObject values-update
-/// projection and the creature `NpcFlags` values-update projection with its
-/// viewer-dependent spell-click filter. This trait adds no session behaviour.
+/// Each method is an existing operation the scan body already called: the
+/// viewer-dependent `DynamicFlags` projection and the creature `NpcFlags`
+/// values-update projection with its viewer-dependent spell-click filter. This
+/// trait adds no session behaviour.
 pub trait VisibilityRefreshHostLikeCpp {
     fn visibility_refresh_gameobject_dynamic_flags_like_cpp(
         &self,
         gameobject_entry: u32,
         state: &RepresentedGameObjectUseState,
     ) -> u32;
-
-    fn visibility_refresh_gameobject_values_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_id: u16,
-        dynamic_flags: u32,
-    ) -> Option<UpdateObject>;
 
     fn visibility_refresh_unit_npc_flags_update_like_cpp(
         &self,
@@ -121,7 +114,7 @@ where
 
         let dynamic_flags =
             host.visibility_refresh_gameobject_dynamic_flags_like_cpp(access.entry, &state);
-        let Some(update) = host.visibility_refresh_gameobject_values_update_like_cpp(
+        let Some(update) = represented_gameobject_dynamic_flags_update_like_cpp(
             guid,
             cx.core.player_map_id_like_cpp(),
             dynamic_flags,
@@ -218,4 +211,32 @@ where
     H: VisibilityRefreshHostLikeCpp,
 {
     update_visible_gameobjects_like_cpp(host, cx) + update_visible_spell_clicks_like_cpp(host, cx)
+}
+
+/// The GameObject `DynamicFlags` values update the refresh publishes.
+pub fn represented_gameobject_dynamic_flags_update_like_cpp(
+    guid: wow_core::ObjectGuid,
+    map_id: u16,
+    dynamic_flags: u32,
+) -> Option<wow_packet::packets::update::UpdateObject> {
+    let mut mask = wow_entities::UpdateMask::new(wow_entities::OBJECT_DATA_BITS);
+    mask.set(wow_entities::OBJECT_DATA_PARENT_BIT);
+    mask.set(wow_entities::OBJECT_DATA_DYNAMIC_FLAGS_BIT);
+    let values_update = wow_entities::GameObjectValuesUpdate {
+        changed_object_type_mask: 1 << wow_entities::TYPEID_OBJECT,
+        object_data: Some(wow_entities::ObjectDataUpdate {
+            mask,
+            values: wow_entities::ObjectDataValues {
+                entry_id: 0,
+                dynamic_flags,
+                scale: 0.0,
+            },
+        }),
+        game_object_data: None,
+    };
+    wow_world_core::entity_update_bridge::game_object_values_update_to_update_object(
+        guid,
+        map_id,
+        &values_update,
+    )
 }

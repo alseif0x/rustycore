@@ -8,6 +8,7 @@ use super::super::QuestRewardCx;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::super::QuestRewardReputationFixtureRefsLikeCpp;
 use wow_core::{ObjectGuid, ObjectGuidGenerator};
+use wow_world_entities::WorldEntitiesState;
 use wow_world_loot::LootState;
 
 /// Test-only inputs consumed by the existing registry publication phase.
@@ -15,9 +16,7 @@ use wow_world_loot::LootState;
 pub struct QuestObjectiveRegistryFixtureRefsLikeCpp<'a> {
     pub(super) spell_state: &'a wow_world_spell::SessionSpellState,
     pub(super) position: &'a Option<wow_core::Position>,
-    pub(super) health: &'a u32,
-    pub(super) max_health: &'a u32,
-    pub(super) alive: &'a bool,
+    pub(super) faction_template: &'a Option<u32>,
     pub(super) transport:
         &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
     pub(super) mount_vehicle: &'a Option<wow_entities::Vehicle>,
@@ -32,9 +31,7 @@ impl<'a> QuestObjectiveRegistryFixtureRefsLikeCpp<'a> {
     pub fn new(
         spell_state: &'a wow_world_spell::SessionSpellState,
         position: &'a Option<wow_core::Position>,
-        health: &'a u32,
-        max_health: &'a u32,
-        alive: &'a bool,
+        faction_template: &'a Option<u32>,
         transport: &'a Option<Box<wow_world_core::session::PlayerTransportLoginStateLikeCpp>>,
         mount_vehicle: &'a Option<wow_entities::Vehicle>,
         vehicle_seat_flags: &'a Option<i32>,
@@ -44,9 +41,7 @@ impl<'a> QuestObjectiveRegistryFixtureRefsLikeCpp<'a> {
         Self {
             spell_state,
             position,
-            health,
-            max_health,
-            alive,
+            faction_template,
             transport,
             mount_vehicle,
             vehicle_seat_flags,
@@ -56,13 +51,15 @@ impl<'a> QuestObjectiveRegistryFixtureRefsLikeCpp<'a> {
     }
 }
 
-/// A borrowed view of the reward operation and the existing loot publication state.
+/// A borrowed view of the reward operation, the existing loot publication state
+/// and the represented world entities the completion visibility refresh scans.
 ///
 /// Objective completions reborrow the same selected Core owner for their nested reward;
 /// this context never stores a World session or a callback into one.
 pub struct QuestObjectiveProgressCx<'cx, 'session> {
     pub(in crate::quest) reward: &'cx mut QuestRewardCx<'session>,
     pub(super) loot: &'cx LootState,
+    pub(in crate::quest) world_entities: &'cx WorldEntitiesState,
     pub(super) item_guid_generator: &'cx ObjectGuidGenerator,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(super) reputation_fixture: &'cx mut QuestRewardReputationFixtureRefsLikeCpp<'session>,
