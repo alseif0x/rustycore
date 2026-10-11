@@ -4,7 +4,6 @@
 //! canonical owner of this state is unchanged.
 
 use super::*;
-pub(crate) use wow_world_spell::RepresentedShapeshiftMutationLikeCpp;
 use wow_world_spell::shapeshift_form_of_spell_like_cpp;
 
 fn represented_aura_visual_without_caster_like_cpp(

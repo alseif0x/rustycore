@@ -1,0 +1,6 @@
+{
+  "name": "the session-free test-support crate may not depend on wow-world (#1363)",
+  "source": "wow-world-test-support",
+  "target": "wow-world",
+  "expected": "forbidden"
+}

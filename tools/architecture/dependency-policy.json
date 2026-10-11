@@ -281,6 +281,17 @@
     "wow-session": [
       "wow-network",
       "wow-packet"
+    ],
+    "wow-world-test-support": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-world-core",
+      "wow-world-entities"
     ]
   },
   "exceptions": [
@@ -394,7 +405,8 @@
       "wow-handler",
       "wow-network",
       "wow-packet",
-      "wow-session"
+      "wow-session",
+      "wow-world-test-support"
     ],
     "allowed": {
       "wow-ai": {
@@ -633,6 +645,12 @@
       "wow-world-visibility": {
         "normal": [
           "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-test-support": {
+        "normal": [
+          "flume"
         ],
         "build": []
       },

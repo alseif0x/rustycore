@@ -63,12 +63,6 @@ pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> Acti
     }
 }
 
-pub(in crate::session) use wow_world_core::session::power_type_from_u8_like_cpp;
-
-pub(in crate::session) use wow_world_entities::{
-    sheath_state_from_u8_like_cpp, unit_stand_state_from_u8_like_cpp,
-};
-
 #[derive(Debug, Clone)]
 pub(in crate::session) struct RepresentedPreparedQuestMenuItemLikeCpp {
     pub(in crate::session) quest: wow_data::quest::QuestTemplate,

@@ -15,7 +15,6 @@ pub use wow_world_core::session::SessionState;
 
 pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
-pub(in crate::session) use wow_world_lifecycle::default_account_data_like_cpp;
 pub(crate) use wow_world_lifecycle::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp, GLOBAL_CACHE_MASK_LIKE_CPP,
     PER_CHARACTER_CACHE_MASK_LIKE_CPP,

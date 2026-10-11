@@ -4,8 +4,6 @@
 //! Instance bind contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-pub(in crate::session) use wow_world_lifecycle::HomebindPersistenceJobLikeCpp;
-
 pub(crate) use wow_world_entities::RepresentedGameObjectSpellCaster;
 
 pub(crate) use wow_world_instances::RepresentedPendingBind;

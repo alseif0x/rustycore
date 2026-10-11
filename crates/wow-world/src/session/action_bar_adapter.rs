@@ -6,10 +6,6 @@
 
 use super::WorldSession;
 
-pub(in crate::session) use wow_world_core::session::{
-    action_button_action_like_cpp, action_button_type_like_cpp, make_action_button_like_cpp,
-};
-
 impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_active_player_local_flags_like_cpp(&mut self, flags: u32) {
