@@ -2,67 +2,20 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Private corpse capability handlers extracted from the legacy misc owner.
+//!
+//! `#1263 F5 deferred families`: the four registrations moved unchanged to
+//! `wow_world_application::register_corpse_handlers_like_cpp`; `corpse/host.rs`
+//! lends that registrar these operations.
 
 use tracing::{info, warn};
-use wow_constants::{ClientOpcodes, ConditionType};
-use wow_handler::{PacketProcessing, SessionStatus};
+use wow_constants::ConditionType;
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::misc::{
     PortGraveyard, ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
 };
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ResurrectResponse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_resurrect_response",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_resurrect_response(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RepopRequest,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_repop_request",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_repop_request(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ReclaimCorpse,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_reclaim_corpse",
-        handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_reclaim_corpse(pkt).await }),
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::RequestCemeteryList,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_request_cemetery_list",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_request_cemetery_list_with_catalog_like_cpp(
-                        catalogs.graveyards.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
+mod host;
 
 impl crate::session::WorldSession {
     /// CMSG_REQUEST_CEMETERY_LIST — client asks for graveyards in zone.
