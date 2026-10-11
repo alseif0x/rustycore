@@ -7,6 +7,11 @@ async fn spell_heal_syncs_canonical_creature_health_like_cpp() {
     let guid = test_creature_guid(18_003);
     session.core.player_guid = Some(ObjectGuid::create_player(1, 43));
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -17,7 +22,7 @@ async fn spell_heal_syncs_canonical_creature_health_like_cpp() {
 
     session.apply_heal(None, guid, 7).await.unwrap();
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 27);
     let sent = send_rx.try_recv().unwrap();
@@ -32,6 +37,11 @@ async fn spell_heal_skips_dead_creature_like_cpp() {
     let guid = test_creature_guid(18_004);
     session.core.player_guid = Some(ObjectGuid::create_player(1, 45));
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -46,7 +56,7 @@ async fn spell_heal_skips_dead_creature_like_cpp() {
 
     session.apply_heal(None, guid, 7).await.unwrap();
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 20);
     assert!(send_rx.try_recv().is_err());
@@ -61,7 +71,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
     let heal_spell_id = 18_144;
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -77,6 +87,11 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
     // `register_world_creature` bootstraps the legacy facade in instance
     // zero. Configure that fixture before the canonical Player makes the
     // session resolve legacy mutations through the test instance below.
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -88,13 +103,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(tank_guid);
@@ -135,7 +144,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
         .unwrap();
 
     let legacy_threat = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 7, creature_guid)
         .unwrap()
@@ -147,7 +156,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
     assert_eq!(legacy_threat, Some(38.0));
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 7, creature_guid)
             .unwrap()
@@ -176,7 +185,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
     assert_eq!(session.player_health_like_cpp(), 80);
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 7, creature_guid)
             .unwrap()

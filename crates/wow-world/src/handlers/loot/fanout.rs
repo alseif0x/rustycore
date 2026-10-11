@@ -21,7 +21,6 @@ impl WorldSession {
         map_id: u16,
         instance_id: u32,
         representative_packet_bytes: &[u8],
-        allow_legacy_creature_source: bool,
     ) -> bool {
         let is_monster_move = representative_packet_bytes
             .get(0..2)
@@ -111,15 +110,12 @@ impl WorldSession {
         // the current source object and apply C++ Visit(PlayerMapType&): same
         // phase and exact 2D visibility range before SendPacket.
         if source_guid.is_creature() {
-            match self
-                .represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
-                    source_guid,
-                    map_id,
-                    instance_id,
-                    false,
-                    allow_legacy_creature_source,
-                )
-            {
+            match self.represented_can_receive_creature_message_to_set_by_guid_like_cpp(
+                source_guid,
+                map_id,
+                instance_id,
+                false,
+            ) {
                 Some(true) => {}
                 Some(false) => {
                     if is_monster_move {

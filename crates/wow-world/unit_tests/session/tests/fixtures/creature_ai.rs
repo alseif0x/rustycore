@@ -245,19 +245,22 @@ pub(in crate::session::tests) fn creature_spell_bound_hook_tick_fixture_like_cpp
     creature_counter: i64,
     victim_counter: i64,
 ) -> (
-    crate::map_manager::SharedMapManager,
+    SharedCanonicalMapManager,
     SharedCanonicalMapManager,
     LegacyCreatureAggroConfigLikeCpp,
     ObjectGuid,
 ) {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(creature_counter);
     let victim_guid = ObjectGuid::create_player(1, victim_counter);
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -272,10 +275,6 @@ pub(in crate::session::tests) fn creature_spell_bound_hook_tick_fixture_like_cpp
             creature.creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let mut config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
@@ -484,49 +483,4 @@ pub(in crate::session::tests) fn decode_atomic_creature_spell_wire_pair_like_cpp
         decode_creature_spell_wire_header_like_cpp(&event.packet_bytes),
         decode_creature_spell_wire_header_like_cpp(basic_go_packet_bytes),
     )
-}
-pub(in crate::session::tests) fn creature_melee_sync_state_for_test_like_cpp(
-    victim: &crate::map_manager::WorldCreature,
-    applied_damage: u32,
-) -> CreatureMeleeVictimSyncStateLikeCpp {
-    let mut canonical = victim.clone();
-    let identity_authority = canonical.creature.loot_authority_like_cpp().clone();
-    let identity_health_authority = canonical
-        .creature
-        .unit()
-        .health_state_revision_authority_like_cpp();
-    let health_before = canonical.creature.unit().data().health;
-    let revision_before = canonical.creature.unit().health_state_revision_like_cpp();
-    let lifecycle_before = canonical.creature.loot_lifecycle_revision_like_cpp();
-    let death_before = canonical.creature.unit().death_state();
-    let ai_before = canonical.creature.ai_ownership().state;
-    let killed = canonical.take_damage_before_death_state_at_game_time_like_cpp(
-        applied_damage,
-        wow_entities::game_time_secs_like_cpp(),
-    );
-    if killed {
-        canonical.complete_death_state_after_kill_hooks_like_cpp();
-    }
-    CreatureMeleeVictimSyncStateLikeCpp {
-        applied_damage,
-        threat: None,
-        victim_health_before: health_before,
-        victim_health_after: canonical.creature.unit().data().health,
-        victim_health_state_revision_before: revision_before,
-        victim_health_state_revision_after: canonical
-            .creature
-            .unit()
-            .health_state_revision_like_cpp(),
-        identity: CreatureMeleeVictimSyncIdentityLikeCpp {
-            authority: identity_authority,
-            health_state_revision_authority: identity_health_authority,
-            spawn_id: canonical.creature.spawn_id(),
-            loot_lifecycle_revision_before: lifecycle_before,
-            loot_lifecycle_revision_after: canonical.creature.loot_lifecycle_revision_like_cpp(),
-            death_state_before: death_before,
-            death_state_after: canonical.creature.unit().death_state(),
-            ai_state_before: ai_before,
-            ai_state_after: canonical.creature.ai_ownership().state,
-        },
-    }
 }

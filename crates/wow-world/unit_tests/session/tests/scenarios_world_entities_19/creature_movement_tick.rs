@@ -1,47 +1,22 @@
-//! Legacy creature movement tick scenarios.
+//! Creature movement phase scenarios (the canonical map phase body).
 
 use super::*;
 
 #[test]
-fn legacy_creature_movement_tick_once_is_noop_under_session_owner_like_cpp() {
-    let manager = shared_map_manager();
-    let (mut session, _, _) = make_session();
-    let guid = test_creature_guid(90_007);
-    register_test_creature(&mut session, manager.clone(), guid, 25);
-
-    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
-        &manager,
-        None,
-        &MMapRuntimeConfigLikeCpp::default(),
-        None,
-        &HashMap::new(),
-        10,
-    );
-
-    assert!(outcome.skipped_owner_not_global);
-    assert_eq!(outcome.maps_seen, 0);
-    assert_eq!(outcome.creatures_seen, 0);
-    assert_eq!(outcome.movement_packets, 0);
-    assert!(outcome.plan.events.is_empty());
-    let guard = manager.read().unwrap();
-    assert_eq!(
-        guard
-            .find_creature(0, 0, guid)
-            .expect("creature remains present")
-            .state(),
-        wow_entities::CreatureAiState::Idle
-    );
-}
-#[test]
 fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanout_like_cpp() {
-    use crate::map_manager::{RecipientRule, RuntimeTickOwner, VISIBILITY_RADIUS};
+    use crate::map_manager::{RecipientRule, VISIBILITY_RADIUS};
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let guid = test_creature_guid(90_008);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
@@ -58,29 +33,21 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
             creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let mmap_config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
     };
-    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_movement_phase_for_test_like_cpp(
+        &canonical,
         &mmap_config,
         None,
         &HashMap::new(),
         10,
     );
-
-    assert!(!outcome.skipped_owner_not_global);
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
     assert_eq!(outcome.movement_packets, 1);
-    assert_eq!(outcome.canonical_syncs, 1);
     assert_eq!(outcome.plan.events.len(), 1);
     let event = &outcome.plan.events[0];
     assert_eq!(event.source_guid, guid);
@@ -103,7 +70,7 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
     }
 
     {
-        let guard = manager.read().unwrap();
+        let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, guid).expect("legacy creature");
         assert_eq!(
             creature.state(),
@@ -116,7 +83,7 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
         );
     }
     let legacy_authority = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -140,10 +107,15 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
 }
 #[test]
 fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp() {
-    use crate::map_manager::{RecipientRule, RuntimeTickOwner};
+    use crate::map_manager::RecipientRule;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let guid = test_creature_guid(90_009);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
@@ -166,18 +138,13 @@ fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp
                 );
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let mmap_config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
     };
-    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
+    let outcome = run_canonical_creature_movement_phase_for_test_like_cpp(
         &manager,
-        None,
         &mmap_config,
         None,
         &HashMap::new(),
@@ -202,17 +169,21 @@ fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp
 /// canonical application.
 #[test]
 fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::ServerPacket;
     use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
     let guid = test_creature_guid(90_011);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
@@ -229,18 +200,13 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
             creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let mmap_config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
     };
-    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
+    let outcome = run_canonical_creature_movement_phase_for_test_like_cpp(
+        &canonical,
         &mmap_config,
         None,
         &HashMap::new(),
@@ -248,7 +214,6 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
     );
 
     assert_eq!(outcome.movement_packets, 1);
-    assert_eq!(outcome.canonical_syncs, 1);
     let event = outcome
         .plan
         .events
@@ -292,96 +257,4 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
         ),
         other => panic!("expected NearbyVisible, got {other:?}"),
     }
-}
-
-/// #1263 F6-8B publication gate. A canonical manager configured without an
-/// instance for the exact residence defers the representation: the tick still
-/// drives the creature's canonical runtime state, but the legacy copy publishes
-/// neither the movement packet nor any other frame event.
-#[test]
-fn legacy_creature_movement_tick_defers_publication_until_the_canonical_application_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
-    let manager = shared_map_manager();
-    // Deliberately no `create_world_map`: the exact residence cannot admit.
-    let canonical = shared_canonical_map_manager();
-    let guid = test_creature_guid(90_012);
-    let position = Position::new(10.0, 10.0, 0.0, 0.0);
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-
-    let mut creature = crate::map_manager::WorldCreature::new(
-        guid, 900, position, 100, 80, 1, 2, 0.0, 1, 35, 0, 0,
-    );
-    creature
-        .creature
-        .unit_mut()
-        .world_mut()
-        .set_map(0, 0)
-        .unwrap();
-    creature
-        .creature
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .add_to_world();
-    creature
-        .creature
-        .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
-    {
-        let ai = creature.creature.ai_ownership_mut();
-        ai.wander_delay_ms = 0;
-        ai.move_start_ms = 0;
-        ai.wander_radius = 3.0;
-    }
-    creature.seed_runtime_rng_like_cpp(0x9012);
-    creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
-    {
-        let mut guard = manager.write().unwrap();
-        guard.add_creature(0, 0, grid_x, grid_y, creature);
-        guard.set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    }
-
-    let mmap_config = MMapRuntimeConfigLikeCpp {
-        enabled: false,
-        ..Default::default()
-    };
-    let outcome = run_legacy_creature_movement_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
-        &mmap_config,
-        None,
-        &HashMap::new(),
-        10,
-    );
-
-    assert_eq!(outcome.creatures_seen, 1);
-    assert_eq!(
-        outcome.canonical_syncs, 1,
-        "the queued snapshot is an attempt and is counted even when deferred"
-    );
-    assert_eq!(
-        outcome.movement_packets, 0,
-        "a deferred canonical application publishes no movement"
-    );
-    assert!(
-        outcome.plan.events.is_empty(),
-        "the legacy copy decides nothing once the canonical application did not happen"
-    );
-    assert!(
-        canonical.lock().unwrap().find_map(0, 0).is_none(),
-        "no canonical instance exists for the exact residence"
-    );
-    let guard = manager.read().unwrap();
-    let creature = guard
-        .find_creature(0, 0, guid)
-        .expect("legacy representation");
-    assert_eq!(
-        creature.runtime_motion_master_ticks_like_cpp(),
-        1,
-        "the tick still drove the canonical runtime state; only the publication is gated"
-    );
-    assert_eq!(
-        creature.state(),
-        wow_entities::CreatureAiState::WalkingRandom
-    );
 }

@@ -7,6 +7,11 @@ async fn spell_damage_skips_dead_creature_like_cpp() {
     let guid = test_creature_guid(18_010);
     session.core.player_guid = Some(ObjectGuid::create_player(1, 53));
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -21,7 +26,7 @@ async fn spell_damage_skips_dead_creature_like_cpp() {
 
     session.apply_damage(None, guid, 7).await.unwrap();
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 20);
     assert!(send_rx.try_recv().is_err());
@@ -36,6 +41,11 @@ async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 56);
     session.core.player_guid = Some(player_guid);
     session.set_player_level_like_cpp(80);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     let mut spell_store = wow_data::SpellStore::new();
@@ -67,7 +77,7 @@ async fn spell_instakill_effect_row_kills_creature_and_logs_like_cpp() {
         .await
         .expect("represented instakill effect row should execute");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 0);
     assert!(

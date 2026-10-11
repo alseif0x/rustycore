@@ -27,7 +27,7 @@ fn combat_rating_multiplier_uses_gt_table_like_cpp() {
 fn white_swing_applies_autoattack_damage_auras_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_030);
     let player = ObjectGuid::create_player(1, 84);
 
@@ -68,6 +68,11 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -164,7 +169,7 @@ fn white_swing_applies_autoattack_damage_auras_like_cpp() {
 fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_031);
     let player = ObjectGuid::create_player(1, 85);
 
@@ -205,6 +210,11 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -325,7 +335,7 @@ fn white_swing_applies_creature_type_melee_bonus_like_cpp() {
 fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_032);
     let player = ObjectGuid::create_player(1, 86);
     // C++ `MECHANIC_STUN` (`SharedDefines.h:2552`).
@@ -371,6 +381,11 @@ fn white_swing_applies_victim_aurastate_and_mechanic_melee_bonus_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

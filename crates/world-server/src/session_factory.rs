@@ -304,7 +304,7 @@ pub(super) async fn create_session(
     socket_timeouts: SocketTimeoutsLikeCpp,
     resources: Arc<SessionResources>,
     session_mgr: Arc<SessionManager>,
-    shared_map: SharedMapManager,
+    live_terrain: Arc<wow_world::map_manager::LiveTerrainHeights>,
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     instance_port: u16,
@@ -412,7 +412,7 @@ pub(super) async fn create_session(
             return;
         }
     }
-    session.set_map_manager(Arc::clone(&shared_map));
+    session.set_live_terrain_like_cpp(live_terrain);
     session.set_canonical_map_manager(Arc::clone(&canonical_map_manager));
 
     // Select the correct realm IP for ConnectTo based on client address.

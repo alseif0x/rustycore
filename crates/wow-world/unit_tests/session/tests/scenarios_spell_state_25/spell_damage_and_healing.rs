@@ -12,6 +12,11 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
@@ -73,7 +78,7 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -87,7 +92,7 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
         .expect("school damage with the ignore-damage-modifiers attribute");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -101,7 +106,7 @@ async fn spell_school_damage_respects_ignore_caster_damage_modifiers_like_cpp() 
         .expect("school damage with the ignore-caster-modifiers attribute");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -120,6 +125,11 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
     session.set_spell_misc_store(Arc::new(represented_frost_spell_misc_like_cpp(&[spell_id])));
@@ -136,7 +146,7 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
         .expect("Ice Lance against a target that is not frozen");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -161,7 +171,7 @@ async fn spell_school_damage_applies_ice_lance_frozen_triple_like_cpp() {
     // `100 * 3`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -180,6 +190,11 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
 
     session.set_spell_misc_store(Arc::new(represented_frost_spell_misc_like_cpp(&[spell_id])));
@@ -198,7 +213,7 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
         .expect("Drain Soul from a healthy caster");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -214,7 +229,7 @@ async fn spell_school_damage_applies_drain_soul_wounded_double_like_cpp() {
     // `100 * 2`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -233,6 +248,11 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
@@ -273,7 +293,7 @@ async fn spell_direct_heal_applies_damage_done_versus_aurastate_like_cpp() {
     // `100 * (1 + 100/100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -293,6 +313,11 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
@@ -337,7 +362,7 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     // `(100 + 100 * 0.5) * 1.5`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -353,7 +378,7 @@ async fn spell_direct_heal_respects_ignore_healing_modifiers_like_cpp() {
     // benefit still applies, so `(100 + 100 * 0.5) * 1.0`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()

@@ -7,10 +7,8 @@ use super::*;
 
 #[test]
 fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_300);
     let victim_guid = ObjectGuid::create_player(1, 91_301);
@@ -34,10 +32,6 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let mut spell = creature_ai_test_spell_info_like_cpp(spell_id, 6, 0);
     spell
         .power_costs
@@ -61,11 +55,10 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
             represented_creature_spell_test_attributes_like_cpp(false),
         );
 
-    let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
         creature.creature.ai_ownership_mut().last_swing_ms = 0;
         creature.creature.ai_ownership_mut().swing_timer_ms = 0;
@@ -73,7 +66,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     })
     .unwrap();
 
-    let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let cast = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
     assert_eq!(cast.canonical_cast_preconditions_passed, 1);
@@ -84,17 +77,14 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     assert_eq!(start.spell_id, spell_id);
     assert_eq!(go.spell_id, spell_id);
     assert!(
-        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
+        !mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
             .can_swing())
         .unwrap(),
         "successful untriggered 15691 must reset BASE_ATTACK before melee"
     );
 
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
-        &Default::default(),
-    );
+    let melee =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);
     assert!(melee.commands.is_empty());
@@ -104,12 +94,12 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     Arc::get_mut(config.spell_store.as_mut().unwrap())
         .unwrap()
         .insert_spell_misc_attributes_like_cpp(spell_id, implicit_cost_attributes);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
     })
     .unwrap();
     let implicit_cost_rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(implicit_cost_rejected.casts_ready, 0);
     assert_eq!(implicit_cost_rejected.spell_effects_unrepresented, 1);
     assert!(implicit_cost_rejected.plan.events.is_empty());
@@ -120,12 +110,12 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     Arc::get_mut(config.spell_store.as_mut().unwrap())
         .unwrap()
         .insert_spell_misc_attributes_like_cpp(spell_id, weapon_speed_cost_attributes);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(180));
     })
     .unwrap();
     let weapon_speed_cost_rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(weapon_speed_cost_rejected.casts_ready, 0);
     assert_eq!(weapon_speed_cost_rejected.spell_effects_unrepresented, 1);
     assert!(weapon_speed_cost_rejected.plan.events.is_empty());
@@ -136,7 +126,7 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
             spell_id,
             represented_creature_spell_test_attributes_like_cpp(false),
         );
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature
             .creature
             .unit_mut()
@@ -150,176 +140,26 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     })
     .unwrap();
     let aura_cost_rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(aura_cost_rejected.casts_ready, 0);
     assert_eq!(aura_cost_rejected.spell_effects_unrepresented, 1);
     assert!(aura_cost_rejected.plan.events.is_empty());
 }
 #[test]
-fn legacy_creature_spell_tick_rejects_same_guid_caster_replacement_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
-    // The canonical tick can replace a creature between the lifecycle and
-    // spell phases while the legacy map still holds the engaged one. The
-    // plan carries the incarnation it was captured from, so the replacement
-    // must neither cast nor mutate any state.
-    let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
-    let (mut session, _, _) = make_session();
-    let creature_guid = test_creature_guid(91_324);
-    let victim_guid = ObjectGuid::create_player(1, 91_325);
-    let spell_id = 15_691_i32;
-    add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
-    register_test_creature_mirrored_like_cpp(
-        &mut session,
-        manager.clone(),
-        &canonical,
-        creature_guid,
-        25,
-    );
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
-            creature.enter_combat(victim_guid);
-        })
-        .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-    let mut config = creature_ai_spell_test_config_like_cpp(
-        creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
-        false,
-        30.0,
-    );
-    Arc::get_mut(config.spell_store.as_mut().unwrap())
-        .unwrap()
-        .insert_spell_misc_attributes_like_cpp(
-            spell_id,
-            represented_creature_spell_test_attributes_like_cpp(false),
-        );
-
-    let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
-    assert_eq!(initialized.schedules_initialized, 1);
-    assert_eq!(initialized.casts_ready, 0);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
-        creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
-        creature.creature.ai_ownership_mut().last_swing_ms = 0;
-        creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-        assert!(creature.can_swing());
-    })
-    .unwrap();
-
-    let legacy_health_authority = manager
-        .read()
-        .unwrap()
-        .find_creature(0, 0, creature_guid)
-        .unwrap()
-        .creature
-        .unit()
-        .health_state_revision_authority_like_cpp();
-    let mut replacement = crate::map_manager::WorldCreature::new(
-        creature_guid,
-        9001,
-        Position::new(10.0, 10.0, 0.0, 0.0),
-        25,
-        80,
-        3,
-        5,
-        20.0,
-        1,
-        35,
-        0,
-        0,
-    )
-    .creature;
-    replacement.unit_mut().world_mut().set_map(0, 0).unwrap();
-    replacement
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .add_to_world();
-    replacement.unit_mut().set_faction(14);
-    replacement
-        .unit_mut()
-        .subsystems_mut()
-        .auras
-        .set_spell_cast_log_aura_authority_inert_like_cpp(true);
-    assert!(
-        !replacement
-            .unit()
-            .shares_health_state_revision_authority_like_cpp(&legacy_health_authority),
-        "the replacement must be a distinct incarnation"
-    );
-    canonical
-        .lock()
-        .unwrap()
-        .find_map_mut(0, 0)
-        .unwrap()
-        .map_mut()
-        .insert_map_object_record(wow_entities::MapObjectRecord::new_creature(replacement).unwrap())
-        .unwrap();
-
-    let rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
-
-    assert_eq!(
-        rejected.caster_incarnation_rejections, 1,
-        "spell tick outcome: {rejected:?}"
-    );
-    assert_eq!(rejected.casts_ready, 0);
-    assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
-    assert_eq!(rejected.spell_hits, 0);
-    assert_eq!(rejected.spell_misses, 0);
-    assert!(rejected.plan.events.is_empty());
-    assert!(
-        canonical
-            .lock()
-            .unwrap()
-            .find_map(0, 0)
-            .unwrap()
-            .map()
-            .with_creature_like_cpp(creature_guid, Clone::clone)
-            .unwrap()
-            .unit()
-            .subsystems()
-            .spells
-            .history
-            .cooldown(spell_id as u32)
-            .is_none(),
-        "no cooldown may start on the replacement"
-    );
-    assert!(
-        // A pure observation of the surviving legacy representation: the
-        // canonical map now owns the replacement incarnation, so this must not
-        // run the mutation root (F6-7 R7a).
-        manager
-            .read()
-            .unwrap()
-            .find_creature(0, 0, creature_guid)
-            .unwrap()
-            .can_swing(),
-        "the stale legacy creature keeps its swing because no cast happened"
-    );
-}
-#[test]
 fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_214);
     let victim_guid = ObjectGuid::create_player(1, 91_215);
     let instant_spell_id = 15_691_i32;
     let noninstant_spell_id = 70_009_i32;
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -335,10 +175,6 @@ fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let instant_spell = creature_ai_test_spell_info_like_cpp(instant_spell_id, 6, 0);
     let mut noninstant_spell = creature_ai_test_spell_info_like_cpp(noninstant_spell_id, 6, 0);
@@ -359,7 +195,7 @@ fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp
         noninstant_misc,
     ])));
 
-    let outcome = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(outcome.noninstant_casts_unrepresented, 1);
     assert_eq!(outcome.schedules_initialized, 0);
@@ -371,10 +207,8 @@ fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp
 }
 #[test]
 fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_206);
     let victim_guid = ObjectGuid::create_player(1, 91_207);
@@ -409,32 +243,26 @@ fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         false,
         30.0,
     );
 
-    let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
     })
     .unwrap();
-    let rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let rejected = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(rejected.casts_ready, 0);
     assert_eq!(rejected.spell_range_rejections, 1);
     assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
     assert!(rejected.plan.events.is_empty());
     let repeat_due_in_ms =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.creature_spell_due_in_ms_for_test(0).unwrap()
         })
         .unwrap();
@@ -442,10 +270,8 @@ fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
 }
 #[test]
 fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_336);
     let victim_guid = ObjectGuid::create_player(1, 91_337);
@@ -469,18 +295,13 @@ fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         false,
         30.0,
     );
 
-    let initialized =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let initialized = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(initialized.schedules_initialized, 1);
     canonical
         .lock()
@@ -492,19 +313,18 @@ fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
         .unwrap()
         .unit_mut()
         .add_unit_state(UnitState::IN_FLIGHT.bits());
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
     })
     .unwrap();
 
-    let rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let rejected = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(rejected.casts_ready, 0);
     assert_eq!(rejected.canonical_cast_target_rejections, 1);
     assert_eq!(rejected.spell_hit_results_unrepresented, 0);
     assert!(rejected.plan.events.is_empty());
     let (repeat_due_in_ms, rng_authoritative) =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0).unwrap(),
                 creature.runtime_rng_authority_complete_like_cpp(),
@@ -516,10 +336,8 @@ fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
 }
 #[test]
 fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_210);
     let victim_guid = ObjectGuid::create_player(1, 91_211);
@@ -539,6 +357,11 @@ fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_
             .difficulty(),
         2
     );
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -551,10 +374,6 @@ fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let spell = creature_ai_test_spell_info_like_cpp(spell_id, 6, 0);
     let spell_id_u32 = u32::try_from(spell_id).unwrap();
@@ -616,8 +435,7 @@ fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_
         toggle_difficulty_id: 0,
     }])));
 
-    let rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let rejected = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(rejected.spell_effects_unrepresented, 1);
     assert_eq!(rejected.schedules_initialized, 0);
@@ -626,15 +444,18 @@ fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_
 }
 #[test]
 fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_202);
     let victim_guid = ObjectGuid::create_player(1, 91_203);
     let spell_id = 70_002_i32;
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     add_canonical_creature_spell_test_pair_like_cpp(&canonical, creature_guid, victim_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -647,10 +468,6 @@ fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
             creature.enter_combat(victim_guid);
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     // AICOND_AGGRO passes `who` as the explicit SpellCastTargets unit, but
     // TargetA=1 still selects the caster in Spell::SelectSpellTargets. The
     // current single-victim wire slice must not claim that `who` was hit.
@@ -660,12 +477,11 @@ fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
         30.0,
     );
 
-    let engaged = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let engaged = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(engaged.casts_ready, 0);
     assert_eq!(engaged.spell_effects_unrepresented, 1);
     assert!(engaged.plan.events.is_empty());
-    let repeated =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let repeated = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(repeated.casts_ready, 0);
     assert!(repeated.plan.events.is_empty());
 }

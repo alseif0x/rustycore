@@ -7,9 +7,13 @@
 use super::*;
 
 impl WorldSession {
-    /// Inject the shared map manager. Call once at session creation, before login.
-    pub fn set_map_manager(&mut self, mgr: crate::map_manager::SharedMapManager) {
-        self.core.map_manager = Some(mgr);
+    /// Inject the shared, file-backed terrain heights (`DataDir`). Call once
+    /// at session creation, before login.
+    pub fn set_live_terrain_like_cpp(
+        &mut self,
+        terrain: Arc<crate::map_manager::LiveTerrainHeights>,
+    ) {
+        self.core.live_terrain = Some(terrain);
     }
     pub fn set_canonical_map_manager(&mut self, mgr: SharedCanonicalMapManager) {
         if let Some(registry) = &self.core.player_registry {

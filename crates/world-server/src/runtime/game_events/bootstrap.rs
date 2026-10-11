@@ -32,23 +32,12 @@ pub(crate) fn map_db2_entries_from_stores(
 }
 
 pub(crate) fn register_loaded_instance_ids(
-    legacy_map_manager: &SharedMapManager,
     canonical_map_manager: &Mutex<wow_map::MapManager>,
     instance_ids: &[u32],
 ) {
     let Some(max_instance_id) = instance_ids.iter().copied().max() else {
         return;
     };
-
-    match legacy_map_manager.write() {
-        Ok(mut manager) => {
-            manager.init_instance_ids_from_max(max_instance_id);
-            for &instance_id in instance_ids {
-                manager.register_instance_id(instance_id);
-            }
-        }
-        Err(_) => warn!("Legacy MapManager lock poisoned; persisted instance ids not registered"),
-    }
 
     match canonical_map_manager.lock() {
         Ok(mut manager) => {

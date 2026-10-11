@@ -44,7 +44,6 @@ impl WorldSession {
                 source.position,
                 bytes,
                 realm_connection,
-                false,
             )
         };
     }

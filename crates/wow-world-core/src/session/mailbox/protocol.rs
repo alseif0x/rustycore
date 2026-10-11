@@ -159,7 +159,6 @@ impl SessionCommand {
                 | Self::SendCreatureSpellCastIfVisibleLikeCpp(_)
                 | Self::SendPlayerSpellIfVisibleLikeCpp(_)
                 | Self::SendRealmIfVisibleLikeCpp(_)
-                | Self::SendRealmIfVisibleFromLegacySourceLikeCpp(_)
         )
     }
 
@@ -236,10 +235,6 @@ pub enum SessionCommand {
     /// Same visibility/phase/range gate as `SendIfVisibleLikeCpp`, but route
     /// the accepted packet through the receiver's realm connection.
     SendRealmIfVisibleLikeCpp(SendIfVisibleLikeCppCommand),
-    /// Realm-routed creature delivery whose sender validated a source owned
-    /// by the transitional legacy map. The receiver may re-read that legacy
-    /// source when no canonical mirror exists.
-    SendRealmIfVisibleFromLegacySourceLikeCpp(SendIfVisibleLikeCppCommand),
     /// Deliver an already-built addon chat packet only if this session accepts
     /// the addon prefix.
     ///

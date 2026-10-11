@@ -84,7 +84,6 @@ impl WorldSession {
         &mut self,
         command: SendIfVisibleLikeCppCommand,
         realm_connection: bool,
-        allow_legacy_creature_source: bool,
     ) {
         if !self.send_if_visible_like_cpp_gate_passes_like_cpp(
             command.queued_at,
@@ -92,7 +91,6 @@ impl WorldSession {
             command.map_id,
             command.instance_id,
             &command.packet_bytes,
-            allow_legacy_creature_source,
         ) {
             return;
         }

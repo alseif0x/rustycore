@@ -144,23 +144,6 @@ impl Creature {
             self.unit.set_unit_flags_like_cpp(flags);
         }
     }
-    pub fn respawn_ai(&mut self, now_ms: u64) {
-        self.ai_ownership.state = CreatureAiState::Idle;
-        self.ai_ownership.combat_target = None;
-        self.ai_ownership.move_target = None;
-        self.ai_ownership.move_start_ms = now_ms;
-        self.ai_ownership.last_swing_ms = now_ms;
-        self.ai_ownership.death_time_ms = None;
-        self.ai_ownership.corpse_despawn_at_ms = None;
-        self.ai_ownership.spline_id = self.ai_ownership.spline_id.saturating_add(1);
-        self.unit.set_death_state(DeathState::Alive);
-        self.unit.set_health(self.unit.data().max_health);
-        self.unit
-            .world_mut()
-            .relocate(self.ai_ownership.home_position);
-        self.unit.set_attacking(None);
-        self.last_damaged_time = 0;
-    }
     pub fn can_ai_wander(&self) -> bool {
         !self.is_template_rooted_like_cpp()
             && (self.ai_ownership.npc_flags == 0 || (self.ai_ownership.npc_flags & 0x80) == 0)

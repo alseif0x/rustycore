@@ -6,23 +6,18 @@
 //! #1263 F6-8D3a-1: where the player melee phase finds a creature victim.
 //!
 //! The player melee swing body is written once
-//! ([`execute_player_melee_swing_on_manager_like_cpp`]). The legacy bridge
-//! resolves a creature victim on the legacy representation (refusing one with
-//! no canonical incarnation, F6-8C) and mirrors the result to the canonical
-//! incarnation afterwards; the admitted canonical executor resolves the
-//! canonical creature directly and has nothing to mirror. Both read the victim
-//! through the same [`player_melee_creature_victim_facts_like_cpp`] and apply
-//! the swing through the same `apply_player_melee_to_legacy_creature_like_cpp`.
+//! ([`execute_player_melee_swing_on_manager_like_cpp`]). The creature victim is
+//! the canonical incarnation on the map the executor holds locked (#1263
+//! F6-8E: the only creature store); the swing reads it through
+//! [`player_melee_creature_victim_facts_like_cpp`] and applies the swing
+//! through `apply_player_melee_to_creature_like_cpp`.
 
 use super::*;
 
 /// What one creature-victim read resolved.
 pub(in crate::session) enum CreatureVictimReadLikeCpp<R> {
-    /// The victim is not a creature of this store; the caller tries a player.
+    /// The victim is not a creature of this map; the caller tries a player.
     NotACreature,
-    /// F6-8C: a legacy representation whose exact residence has no canonical
-    /// incarnation resolves no victim.
-    NoCanonicalIncarnation,
     Read(R),
 }
 
@@ -33,168 +28,13 @@ pub(in crate::session) enum CreatureVictimApplyLikeCpp {
     Hit(PlayerMeleeCreatureHitLikeCpp),
 }
 
-/// The creature-victim seam of the player melee swing body.
-pub(in crate::session) trait PlayerMeleeCreatureVictimsLikeCpp {
-    fn read_creature_victim_like_cpp<R>(
-        &mut self,
-        map: &wow_map::ManagedMapInnerLikeCpp,
-        map_id: u16,
-        instance_id: u32,
-        victim_guid: ObjectGuid,
-        read: impl FnOnce(&wow_entities::Creature) -> R,
-    ) -> CreatureVictimReadLikeCpp<R>;
-
-    #[allow(clippy::too_many_arguments)]
-    fn apply_to_creature_victim_like_cpp(
-        &mut self,
-        map: &mut wow_map::ManagedMapInnerLikeCpp,
-        map_id: u16,
-        instance_id: u32,
-        victim_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        tap_group_guids: &[ObjectGuid],
-        damages: &[crate::session::combat::RepresentedMeleeSwingLikeCpp],
-    ) -> CreatureVictimApplyLikeCpp;
-
-    /// The swing no longer needs any creature victim (a player victim).
-    fn release_creature_victims_like_cpp(&mut self);
-
-    /// Whether the victim's own map publishes the VALUES the swing changed.
-    ///
-    /// #1263 F6-8D3b-3: C++ `Unit::AttackerStateUpdate` → `DealDamage` →
-    /// `SetHealth` only marks the field; `Map::SendObjectUpdates` publishes it
-    /// once at the end of the map update (`Map.cpp:1929-1948`). A canonical
-    /// victim is exactly that map record, so the melee result must not carry a
-    /// second copy to the attacker's client.
-    fn victim_values_published_by_map_like_cpp(&self) -> bool {
-        false
-    }
-}
-
-/// One legacy creature-victim representation the bridge mirrors to its
-/// canonical incarnation after both guards are released.
-pub(in crate::session) struct PlayerMeleeCanonicalSyncLikeCpp {
-    pub(in crate::session) map_id: u16,
-    pub(in crate::session) instance_id: u32,
-    pub(in crate::session) creature: wow_entities::Creature,
-    pub(in crate::session) expected_authority: OwnedLootAuthority,
-    pub(in crate::session) expected_stamp: OwnedLootAuthorityStamp,
-}
-
-/// The legacy bridge's creature victims: the legacy store, taken lazily after
-/// the canonical guard (the established canonical → legacy order) and held
-/// for the rest of the swing.
-pub(in crate::session) struct LegacyPlayerMeleeCreatureVictimsLikeCpp<'a> {
-    legacy_map_manager: &'a crate::map_manager::SharedMapManager,
-    guard: Option<std::sync::RwLockWriteGuard<'a, crate::map_manager::MapManager>>,
-    canonical_syncs: &'a mut Vec<PlayerMeleeCanonicalSyncLikeCpp>,
-}
-
-impl<'a> LegacyPlayerMeleeCreatureVictimsLikeCpp<'a> {
-    pub(in crate::session) fn new_like_cpp(
-        legacy_map_manager: &'a crate::map_manager::SharedMapManager,
-        canonical_syncs: &'a mut Vec<PlayerMeleeCanonicalSyncLikeCpp>,
-    ) -> Self {
-        Self {
-            legacy_map_manager,
-            guard: None,
-            canonical_syncs,
-        }
-    }
-
-    fn legacy_like_cpp(&mut self) -> &mut crate::map_manager::MapManager {
-        let legacy_map_manager = self.legacy_map_manager;
-        self.guard.get_or_insert_with(|| {
-            legacy_map_manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-        })
-    }
-}
-
-impl PlayerMeleeCreatureVictimsLikeCpp for LegacyPlayerMeleeCreatureVictimsLikeCpp<'_> {
-    fn read_creature_victim_like_cpp<R>(
-        &mut self,
-        map: &wow_map::ManagedMapInnerLikeCpp,
-        map_id: u16,
-        instance_id: u32,
-        victim_guid: ObjectGuid,
-        read: impl FnOnce(&wow_entities::Creature) -> R,
-    ) -> CreatureVictimReadLikeCpp<R> {
-        let Some(creature) =
-            self.legacy_like_cpp()
-                .find_creature_mut(map_id, instance_id, victim_guid)
-        else {
-            return CreatureVictimReadLikeCpp::NotACreature;
-        };
-        // #1263 F6-8C: the canonical designated owner executes the swing.
-        // A surviving legacy representation without a canonical incarnation
-        // at this exact residence no longer resolves one.
-        if map.with_creature_like_cpp(victim_guid, |_| ()).is_none() {
-            return CreatureVictimReadLikeCpp::NoCanonicalIncarnation;
-        }
-        CreatureVictimReadLikeCpp::Read(read(&creature.creature))
-    }
-
-    fn apply_to_creature_victim_like_cpp(
-        &mut self,
-        _map: &mut wow_map::ManagedMapInnerLikeCpp,
-        map_id: u16,
-        instance_id: u32,
-        victim_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        tap_group_guids: &[ObjectGuid],
-        damages: &[crate::session::combat::RepresentedMeleeSwingLikeCpp],
-    ) -> CreatureVictimApplyLikeCpp {
-        let Some(creature) =
-            self.legacy_like_cpp()
-                .find_creature_mut(map_id, instance_id, victim_guid)
-        else {
-            return CreatureVictimApplyLikeCpp::Missing;
-        };
-        let expected_authority = creature.creature.loot_authority_like_cpp().clone();
-        let expected_stamp = expected_authority.stamp_like_cpp();
-        // #1263 F6-8D1: the swing operation takes the canonical creature;
-        // the legacy representation is only the transitional enumeration
-        // seam. The cached packet projection keeps its movement-flag mirror,
-        // which the legacy body performed through the bridge spline stop.
-        let Some(hit) = apply_player_melee_to_legacy_creature_like_cpp(
-            &mut creature.creature,
-            player_guid,
-            tap_group_guids,
-            Some(damages),
-        ) else {
-            return CreatureVictimApplyLikeCpp::NotApplied;
-        };
-        if hit.move_stop.is_some() {
-            // The legacy body mirrored the stopped spline's movement flags
-            // into the cached packet projection; preserve that projection
-            // update at the bridge boundary under the same condition.
-            creature.sync_create_projection_movement_flags_like_cpp();
-        }
-        let creature = creature.creature.clone();
-        self.canonical_syncs.push(PlayerMeleeCanonicalSyncLikeCpp {
-            map_id,
-            instance_id,
-            creature,
-            expected_authority,
-            expected_stamp,
-        });
-        CreatureVictimApplyLikeCpp::Hit(hit)
-    }
-
-    fn release_creature_victims_like_cpp(&mut self) {
-        self.guard = None;
-    }
-}
-
 /// The admitted canonical executor's creature victims: the canonical
 /// incarnation itself, on the map the executor holds locked. The swing writes
 /// it once; there is no representation to mirror.
 pub(in crate::session) struct CanonicalPlayerMeleeCreatureVictimsLikeCpp;
 
-impl PlayerMeleeCreatureVictimsLikeCpp for CanonicalPlayerMeleeCreatureVictimsLikeCpp {
-    fn read_creature_victim_like_cpp<R>(
+impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
+    pub(in crate::session) fn read_creature_victim_like_cpp<R>(
         &mut self,
         map: &wow_map::ManagedMapInnerLikeCpp,
         _map_id: u16,
@@ -208,7 +48,8 @@ impl PlayerMeleeCreatureVictimsLikeCpp for CanonicalPlayerMeleeCreatureVictimsLi
         }
     }
 
-    fn apply_to_creature_victim_like_cpp(
+    #[allow(clippy::too_many_arguments)]
+    pub(in crate::session) fn apply_to_creature_victim_like_cpp(
         &mut self,
         map: &mut wow_map::ManagedMapInnerLikeCpp,
         _map_id: u16,
@@ -219,7 +60,7 @@ impl PlayerMeleeCreatureVictimsLikeCpp for CanonicalPlayerMeleeCreatureVictimsLi
         damages: &[crate::session::combat::RepresentedMeleeSwingLikeCpp],
     ) -> CreatureVictimApplyLikeCpp {
         match map.with_creature_mut_like_cpp(victim_guid, |creature| {
-            apply_player_melee_to_legacy_creature_like_cpp(
+            apply_player_melee_to_creature_like_cpp(
                 creature,
                 player_guid,
                 tap_group_guids,
@@ -232,9 +73,17 @@ impl PlayerMeleeCreatureVictimsLikeCpp for CanonicalPlayerMeleeCreatureVictimsLi
         }
     }
 
-    fn release_creature_victims_like_cpp(&mut self) {}
+    /// The swing no longer needs any creature victim (a player victim).
+    pub(in crate::session) fn release_creature_victims_like_cpp(&mut self) {}
 
-    fn victim_values_published_by_map_like_cpp(&self) -> bool {
+    /// Whether the victim's own map publishes the VALUES the swing changed.
+    ///
+    /// #1263 F6-8D3b-3: C++ `Unit::AttackerStateUpdate` → `DealDamage` →
+    /// `SetHealth` only marks the field; `Map::SendObjectUpdates` publishes it
+    /// once at the end of the map update (`Map.cpp:1929-1948`). The canonical
+    /// victim is exactly that map record, so the melee result must not carry a
+    /// second copy to the attacker's client.
+    pub(in crate::session) fn victim_values_published_by_map_like_cpp(&self) -> bool {
         true
     }
 }

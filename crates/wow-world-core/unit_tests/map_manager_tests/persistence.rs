@@ -278,49 +278,6 @@ fn loaded_grid_canonical_bridge_only_sets_vehicle_create_flag_for_real_vehicle_k
 
     assert_eq!(bridged.create_data.vehicle_id, 0);
 }
-/// `into_owning_session_plan` must produce one `SelfOnly` `RuntimeEvent`
-/// per packet, in the same order, with `source_guid` set on every event.
-#[test]
-fn into_owning_session_plan_preserves_packets_as_self_only() {
-    let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 42);
-
-    let pkt_a = vec![0x01, 0x02, 0x03];
-    let pkt_b = vec![0xAA, 0xBB];
-    let pkt_c = vec![0xFF];
-
-    let mut output = RuntimeOutput::new();
-    output.packets.push(pkt_a.clone());
-    output.packets.push(pkt_b.clone());
-    output.packets.push(pkt_c.clone());
-
-    let plan = output.into_owning_session_plan(guid);
-
-    assert_eq!(plan.events.len(), 3, "must produce one event per packet");
-
-    for (i, event) in plan.events.iter().enumerate() {
-        assert_eq!(
-            event.source_guid, guid,
-            "event[{i}] must carry the source guid"
-        );
-        assert_eq!(
-            event.recipients,
-            RecipientRule::SelfOnly,
-            "event[{i}] must be SelfOnly"
-        );
-    }
-
-    // Packet bytes preserved in order.
-    assert_eq!(plan.events[0].packet_bytes, pkt_a);
-    assert_eq!(plan.events[1].packet_bytes, pkt_b);
-    assert_eq!(plan.events[2].packet_bytes, pkt_c);
-}
-/// Empty `RuntimeOutput` produces an empty `RuntimePlan`.
-#[test]
-fn into_owning_session_plan_empty_output_gives_empty_plan() {
-    let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 1);
-    let plan = RuntimeOutput::new().into_owning_session_plan(guid);
-    assert!(plan.events.is_empty());
-}
 #[test]
 fn pending_respawn_save_load_roundtrip_uses_cpp_respawn_table_statement() {
     let mut manager = MapManager::new();

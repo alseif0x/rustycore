@@ -2,7 +2,7 @@
 
 use super::*;
 
-// #1263 F6-8D3b-1: the `RuntimeTickOwner::CanonicalMap` creature tick owner.
+// #1263 F6-8D3b-1: the canonical map creature runtime (since F6-8E the only one).
 pub(crate) mod canonical_creature_runtime;
 pub(super) use canonical_creature_runtime::CanonicalCreatureRuntimeLikeCpp;
 mod deferred_visibility;

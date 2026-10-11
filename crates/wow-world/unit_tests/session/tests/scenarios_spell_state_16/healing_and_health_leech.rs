@@ -13,6 +13,11 @@ async fn spell_heal_max_health_zero_damage_uses_caster_max_health_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -51,7 +56,7 @@ async fn spell_heal_max_health_zero_damage_uses_caster_max_health_like_cpp() {
         .await
         .expect("represented heal-max-health row should execute");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(
         world_creature.current_hp(),
@@ -84,6 +89,11 @@ async fn spell_heal_pct_effect_row_heals_percent_of_target_max_health_like_cpp()
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -122,7 +132,7 @@ async fn spell_heal_pct_effect_row_heals_percent_of_target_max_health_like_cpp()
         .await
         .expect("represented heal-pct row should execute");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(
         world_creature.current_hp(),
@@ -196,6 +206,11 @@ async fn spell_health_leech_effect_row_damages_target_and_heals_caster_like_cpp(
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -234,7 +249,7 @@ async fn spell_health_leech_effect_row_damages_target_and_heals_caster_like_cpp(
         .await
         .expect("represented health-leech row should execute");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(world_creature.current_hp(), 5);
     drop(manager);
@@ -270,6 +285,11 @@ async fn spell_health_leech_lethal_damage_heals_only_effective_damage_like_cpp()
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -303,7 +323,7 @@ async fn spell_health_leech_lethal_damage_heals_only_effective_damage_like_cpp()
         .await
         .expect("represented primary health-leech should execute");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(world_creature.current_hp(), 0);
     drop(manager);
@@ -345,6 +365,11 @@ async fn spell_health_leech_negative_amount_is_noop_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 40);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -378,7 +403,7 @@ async fn spell_health_leech_negative_amount_is_noop_like_cpp() {
         .await
         .expect("negative represented health-leech should execute as C++ no-op effect");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, creature_guid).unwrap();
     assert_eq!(world_creature.current_hp(), 30);
     drop(manager);

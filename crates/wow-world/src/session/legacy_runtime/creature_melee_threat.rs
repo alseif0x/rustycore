@@ -9,14 +9,6 @@ pub(in crate::session) struct CreatureDamageThreatPlanLikeCpp {
     multiplier: f32,
 }
 
-#[derive(Clone, Debug)]
-pub(in crate::session) struct CreatureDamageThreatOutcomeLikeCpp {
-    pub(in crate::session) attacker_guid: ObjectGuid,
-    pub(in crate::session) attacker_authority: wow_loot::OwnedLootAuthority,
-    pub(in crate::session) attacker_spawn_id: u64,
-    pub(in crate::session) delta: f32,
-}
-
 impl Default for CreatureDamageThreatPlanLikeCpp {
     fn default() -> Self {
         Self {
@@ -124,34 +116,27 @@ pub(super) fn plan_creature_damage_threat_like_cpp(
 }
 
 /// Apply one already-authorized nonlethal damage threat transition and create
-/// the reciprocal threat reference on the Creature attacker. The returned
-/// value is the exact additive delta that the compatibility mirror must replay.
+/// the reciprocal threat reference on the Creature attacker. `None` when the
+/// transition was not admitted.
 pub(super) fn apply_creature_damage_threat_on_map_like_cpp(
     map: &mut wow_map::ManagedMapInnerLikeCpp,
     victim_guid: ObjectGuid,
     attacker_guid: ObjectGuid,
     damage_taken: u32,
     plan: CreatureDamageThreatPlanLikeCpp,
-) -> Option<CreatureDamageThreatOutcomeLikeCpp> {
+) -> Option<()> {
     if victim_guid == attacker_guid || plan.suppress {
         return None;
     }
-    let attacker_identity = map.with_creature_like_cpp(attacker_guid, |attacker| {
-        (
-            attacker.is_alive(),
-            attacker.loot_authority_like_cpp().clone(),
-            attacker.spawn_id(),
-        )
-    });
     let admitted = map
         .with_creature_like_cpp(victim_guid, |victim| {
             victim.is_alive()
                 && (!plan.no_initial_threat || victim.unit().subsystems().combat.has_combat())
         })
         .unwrap_or(false)
-        && attacker_identity
-            .as_ref()
-            .is_some_and(|(alive, _, _)| *alive);
+        && map
+            .with_creature_like_cpp(attacker_guid, |attacker| attacker.is_alive())
+            .unwrap_or(false);
     if !admitted {
         return None;
     }
@@ -197,11 +182,5 @@ pub(super) fn apply_creature_damage_threat_on_map_like_cpp(
             .combat
             .put_threatened_by_me_ref(victim_guid, threat_ref);
     }
-    let (_, attacker_authority, attacker_spawn_id) = attacker_identity?;
-    Some(CreatureDamageThreatOutcomeLikeCpp {
-        attacker_guid,
-        attacker_authority,
-        attacker_spawn_id,
-        delta: amount,
-    })
+    Some(())
 }

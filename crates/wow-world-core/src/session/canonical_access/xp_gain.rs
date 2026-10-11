@@ -418,17 +418,6 @@ impl CoreXPGainAccessLikeCpp<'_> {
         &self,
         creature_guid: ObjectGuid,
     ) -> Option<bool> {
-        if let Some(manager) = self.core.map_manager.as_ref() {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(creature) =
-                manager.find_creature(self.core.player_map_id_like_cpp(), 0, creature_guid)
-            {
-                return Some(creature.creature.has_loot_recipient());
-            }
-        }
-
         let key = self
             .core
             .current_canonical_player_map_key_like_cpp()

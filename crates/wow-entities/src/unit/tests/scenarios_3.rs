@@ -85,31 +85,6 @@ fn health_state_revision_advances_only_for_real_health_or_death_changes_like_cpp
 }
 
 #[test]
-fn committed_mirror_replay_adopts_revision_without_rewinding_shared_allocator_like_cpp() {
-    let mut base = Unit::new(true);
-    base.set_max_health(100);
-    base.set_health(100);
-    let authority = base.health_state_revision_authority_like_cpp();
-    let mut canonical = base.clone();
-    let mut mirror = base;
-
-    canonical.set_health(90);
-    assert_eq!(canonical.health_state_revision_like_cpp(), 3);
-    mirror.set_health(90);
-    assert_eq!(mirror.health_state_revision_like_cpp(), 4);
-    assert!(mirror.shares_health_state_revision_authority_like_cpp(&authority));
-
-    mirror.adopt_committed_health_state_revision_for_mirror_like_cpp(3);
-    assert_eq!(mirror.health_state_revision_like_cpp(), 3);
-    canonical.set_health(80);
-    assert_eq!(
-        canonical.health_state_revision_like_cpp(),
-        5,
-        "the mirror replay reservation remains consumed"
-    );
-}
-
-#[test]
 fn snapshot_preservation_copies_exact_authoritative_health_timeline_like_cpp() {
     let mut canonical = Unit::new(true);
     canonical.set_max_health(100);

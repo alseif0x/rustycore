@@ -4,17 +4,17 @@
 //! D1 ported the per-creature phase operations onto canonical ownership. D2
 //! connects them to an **admitted** transition: the map incarnations, the
 //! selected canonical objects and the tick diff captured for one tick. The
-//! tests below pin the three contracts of that connection:
+//! tests below pin the contracts of that connection:
 //!
 //! 1. one diff/clock advancement, one due cast, one swing commit, one canonical
 //!    effect and one deferred publication per admitted transition;
 //! 2. the reviewer's recreation/ABA falsifier — a map key or a GUID record
 //!    recreated as N+1 before execution gets **zero** clock, timer, RNG, health
 //!    and publication effects, because admission is a fence evaluated before the
-//!    first mutation rather than a post-hoc count;
-//! 3. one execution owner per admitted transition: the canonical, legacy and
-//!    session candidates attempted together produce exactly one of each
-//!    observable and the inactive owners produce none.
+//!    first mutation rather than a post-hoc count.
+//!
+//! (#1263 F6-8E deleted the legacy and session owners, and with them the
+//! three-owner composition contract this module also pinned.)
 
 use super::*;
 
@@ -523,209 +523,5 @@ fn replaced_creature_record_refuses_the_admitted_transition_like_cpp() {
         next_creature_roll_like_cpp(&canonical, attacker),
         next_creature_roll_like_cpp(&canonical, witness),
         "a refused transition does not advance the replacement RNG sequence"
-    );
-}
-
-#[test]
-fn production_composition_admits_exactly_one_execution_owner_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-    use std::sync::Arc;
-    use std::sync::atomic::{AtomicUsize, Ordering as AtomicOrdering};
-
-    let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
-    let (mut session, _, _) = make_session();
-    let attacker = test_creature_guid(94_231);
-    let victim = test_creature_guid(94_232);
-    register_test_creature_mirrored_like_cpp(
-        &mut session,
-        manager.clone(),
-        &canonical,
-        attacker,
-        100,
-    );
-    add_canonical_test_creature_on_map(
-        &canonical,
-        victim,
-        9002,
-        f6_8d2_position_like_cpp(11.0),
-        0,
-        0,
-        0,
-    );
-    arm_admitted_attacker_like_cpp(&canonical, attacker, victim, F6_8D2_ATTACKER_SEED_LIKE_CPP);
-    manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-
-    let (_plan, admission) =
-        admitted_tick_and_capture_like_cpp(&canonical, &[(f6_8d2_key_like_cpp(), attacker)]);
-    assert_eq!(
-        admission.objects.len(),
-        1,
-        "the mirrored fixture creature is one canonical incarnation"
-    );
-    let lease = f6_8d2_lease_like_cpp();
-
-    let session_arm_invocations = Arc::new(AtomicUsize::new(0));
-    let session_arm_counter = Arc::clone(&session_arm_invocations);
-    let mut session_arm = move || {
-        session_arm_counter.fetch_add(1, AtomicOrdering::Relaxed);
-        IsolatedSessionArmOutcomeLikeCpp { publications: 1 }
-    };
-
-    // The three production owners are attempted together for one admitted
-    // transition, with the canonical admitted path armed exactly as D3 will arm
-    // it. Exactly one of them may execute.
-    let composed = run_isolated_admitted_creature_execution_composition_like_cpp(
-        &admission,
-        true,
-        &canonical,
-        &manager,
-        &lease,
-        RuntimeTickOwner::GlobalLegacy,
-        &LegacyCreatureAggroConfigLikeCpp::default(),
-        Some(&mut session_arm),
-    );
-
-    let canonical_outcome = composed
-        .canonical
-        .as_ref()
-        .expect("the canonical admitted owner executed");
-    assert_eq!(
-        composed.admitted_owner,
-        Some(CreatureExecutionOwnerLikeCpp::CanonicalAdmitted),
-        "exactly one owner is admitted to the transition"
-    );
-    assert!(
-        composed.legacy.is_none(),
-        "the legacy global owner produced no effect while the canonical claim held the transition"
-    );
-    assert!(
-        composed.session.is_none(),
-        "the session owner produced no effect while the canonical claim held the transition"
-    );
-    assert_eq!(
-        session_arm_invocations.load(AtomicOrdering::Relaxed),
-        0,
-        "an inactive owner is not touched at all"
-    );
-    assert_eq!(
-        canonical_outcome.clock_advanced_ms,
-        u64::from(admission.diff_ms),
-        "exactly one clock advancement"
-    );
-    assert_eq!(canonical_outcome.due_casts, 1, "exactly one due cast");
-    assert_eq!(
-        canonical_outcome.swing_damage,
-        u64::from(F6_8D2_SWING_DAMAGE_LIKE_CPP),
-        "exactly one swing commit"
-    );
-    assert_eq!(canonical_outcome.effects_consumed, 1);
-    assert_eq!(
-        composed.publication_events_like_cpp(),
-        1,
-        "exactly one publication across every candidate owner"
-    );
-    let after_canonical = admitted_attacker_state_like_cpp(&canonical, attacker);
-    assert_eq!(
-        after_canonical.elapsed_ms,
-        u64::from(admission.diff_ms),
-        "the single clock advancement is observable on the canonical owner itself"
-    );
-    assert_eq!(
-        canonical_creature_health_like_cpp(&canonical, victim),
-        100 - u64::from(F6_8D2_SWING_DAMAGE_LIKE_CPP),
-        "the single swing reached the canonical victim exactly once"
-    );
-    let refused_owners: Vec<_> = composed
-        .refusals
-        .iter()
-        .map(|(owner, reason)| (*owner, *reason))
-        .collect();
-    assert!(
-        refused_owners.contains(&(
-            CreatureExecutionOwnerLikeCpp::LegacyGlobal,
-            "canonical-admitted-claim"
-        )),
-        "the legacy owner is refused by the canonical claim: {refused_owners:?}"
-    );
-    assert!(
-        refused_owners.contains(&(
-            CreatureExecutionOwnerLikeCpp::Session,
-            "canonical-admitted-claim"
-        )),
-        "the session owner is refused by the canonical claim: {refused_owners:?}"
-    );
-
-    // A repeated composition of the SAME admitted transition is closed for
-    // every owner: the canonical claim is already held, so neither a second
-    // canonical execution nor a legacy fallback may consume the diff again.
-    let repeated = run_isolated_admitted_creature_execution_composition_like_cpp(
-        &admission,
-        true,
-        &canonical,
-        &manager,
-        &lease,
-        RuntimeTickOwner::GlobalLegacy,
-        &LegacyCreatureAggroConfigLikeCpp::default(),
-        Some(&mut session_arm),
-    );
-    assert_eq!(
-        repeated.admitted_owner, None,
-        "no owner executes an admitted transition twice"
-    );
-    assert!(repeated.legacy.is_none());
-    assert!(repeated.session.is_none());
-    assert_eq!(
-        repeated
-            .canonical
-            .as_ref()
-            .and_then(|canonical| canonical.admission.refusal_label_like_cpp()),
-        Some("owner-lease"),
-        "the held claim is what closes the repeated attempt"
-    );
-    assert_eq!(
-        session_arm_invocations.load(AtomicOrdering::Relaxed),
-        0,
-        "a closed transition does not touch the session owner either"
-    );
-    assert_eq!(
-        admitted_attacker_state_like_cpp(&canonical, attacker),
-        after_canonical,
-        "a closed repeated attempt advances no clock, cast, swing or health"
-    );
-    assert_eq!(repeated.publication_events_like_cpp(), 0);
-
-    // The production default does not arm the canonical path: the legacy global
-    // owner executes instead, and the canonical admitted engine stays out of it.
-    // This is what makes the exclusivity above a decision rather than a shape.
-    let default_owner = run_isolated_admitted_creature_execution_composition_like_cpp(
-        &admission,
-        false,
-        &canonical,
-        &manager,
-        &lease,
-        RuntimeTickOwner::GlobalLegacy,
-        &LegacyCreatureAggroConfigLikeCpp::default(),
-        None,
-    );
-    assert_eq!(
-        default_owner.admitted_owner,
-        Some(CreatureExecutionOwnerLikeCpp::LegacyGlobal),
-        "the production default still admits the legacy global owner"
-    );
-    assert!(
-        default_owner.canonical.is_none(),
-        "an unarmed admitted transition never reaches the canonical engine"
-    );
-    assert!(
-        default_owner.refusals.contains(&(
-            CreatureExecutionOwnerLikeCpp::CanonicalAdmitted,
-            "transition-not-armed"
-        )),
-        "the canonical owner is refused as unarmed: {:?}",
-        default_owner.refusals
     );
 }

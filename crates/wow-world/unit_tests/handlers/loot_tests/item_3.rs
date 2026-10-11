@@ -726,7 +726,7 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(loot_owner);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_owner,

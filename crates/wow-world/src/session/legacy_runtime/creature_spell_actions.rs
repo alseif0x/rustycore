@@ -10,15 +10,10 @@
 //! a `DoCast` to validate and publish, an `EventMap::ScheduleEvent` re-arm, or a
 //! TurretAI attempt whose rejected `CastSpell` still resets BASE_ATTACK. This
 //! module drains those actions through **one** body,
-//! [`drain_creature_spell_actions_like_cpp`], against the owner that holds the
-//! caster:
-//!
-//! - the legacy bridge ([`LegacyCreatureSpellActionOwnerLikeCpp`]) keeps the
-//!   lock scopes it always had: a re-arm takes only the legacy write guard, a
-//!   cast or turret attempt takes the canonical guard and then the legacy one;
-//! - the admitted canonical executor ([`CanonicalCreatureSpellActionOwnerLikeCpp`])
-//!   runs every action on the canonical manager it already holds locked, where
-//!   the caster is the canonical incarnation itself.
+//! [`drain_creature_spell_actions_like_cpp`], on the canonical manager the
+//! admitted executor already holds locked
+//! ([`CanonicalCreatureSpellActionOwnerLikeCpp`]), where the caster is the
+//! canonical incarnation itself.
 
 use super::*;
 use wow_world_entities::creature_spell_admission::{
@@ -48,89 +43,14 @@ pub(super) enum PendingCreatureSpellActionLikeCpp {
     TurretRejectedAttempt(TurretRejectedCastAttemptLikeCpp),
 }
 
-/// Who holds the caster while the deferred spell actions run.
-pub(super) trait CreatureSpellActionOwnerLikeCpp {
-    /// The caster of a deferred `ScheduleEvent` re-arm; `None` when it is gone.
-    fn with_schedule_caster_like_cpp<R>(
-        &mut self,
-        schedule: &PendingCreatureSpellScheduleLikeCpp,
-        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R>;
-    /// A TurretAI rejected attempt; `None` when no canonical manager exists.
-    fn turret_rejected_attempt_like_cpp(
-        &mut self,
-        attempt: &TurretRejectedCastAttemptLikeCpp,
-        config: &LegacyCreatureAggroConfigLikeCpp,
-    ) -> Option<bool>;
-    /// Validate and append one cast; `None` when no canonical manager exists.
-    fn validate_cast_like_cpp(
-        &mut self,
-        cast: &PendingCreatureSpellCastLikeCpp,
-        config: &LegacyCreatureAggroConfigLikeCpp,
-        plan: &mut RuntimePlan,
-    ) -> Option<CreatureSpellCastValidationResultLikeCpp>;
-}
-
-/// The legacy bridge: the caster is the legacy representation, and every
-/// action takes the guards it took before F6-8D3a-1b.
-pub(super) struct LegacyCreatureSpellActionOwnerLikeCpp<'a> {
-    pub(super) legacy_map_manager: &'a crate::map_manager::SharedMapManager,
-    pub(super) canonical_map_manager: Option<&'a SharedCanonicalMapManager>,
-}
-
-impl CreatureSpellActionOwnerLikeCpp for LegacyCreatureSpellActionOwnerLikeCpp<'_> {
-    fn with_schedule_caster_like_cpp<R>(
-        &mut self,
-        schedule: &PendingCreatureSpellScheduleLikeCpp,
-        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R> {
-        let mut manager = self
-            .legacy_map_manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        manager
-            .find_creature_mut(schedule.map_id, schedule.instance_id, schedule.caster_guid)
-            .map(|creature| operation(&mut creature.creature))
-    }
-
-    fn turret_rejected_attempt_like_cpp(
-        &mut self,
-        attempt: &TurretRejectedCastAttemptLikeCpp,
-        config: &LegacyCreatureAggroConfigLikeCpp,
-    ) -> Option<bool> {
-        Some(apply_turret_rejected_cast_attempt_like_cpp(
-            self.canonical_map_manager?,
-            self.legacy_map_manager,
-            attempt,
-            config,
-        ))
-    }
-
-    fn validate_cast_like_cpp(
-        &mut self,
-        cast: &PendingCreatureSpellCastLikeCpp,
-        config: &LegacyCreatureAggroConfigLikeCpp,
-        plan: &mut RuntimePlan,
-    ) -> Option<CreatureSpellCastValidationResultLikeCpp> {
-        Some(validate_and_append_creature_spell_cast_like_cpp(
-            self.canonical_map_manager?,
-            self.legacy_map_manager,
-            &cast.command,
-            cast.difficulty_id,
-            cast.turret_ai,
-            config,
-            plan,
-        ))
-    }
-}
-
 /// The admitted canonical executor: the caster is the canonical incarnation on
 /// the manager the executor holds locked for the whole transition.
 pub(super) struct CanonicalCreatureSpellActionOwnerLikeCpp<'a> {
     pub(super) manager: &'a mut wow_map::MapManager,
 }
 
-impl CreatureSpellActionOwnerLikeCpp for CanonicalCreatureSpellActionOwnerLikeCpp<'_> {
+impl CanonicalCreatureSpellActionOwnerLikeCpp<'_> {
+    /// The caster of a deferred `ScheduleEvent` re-arm; `None` when it is gone.
     fn with_schedule_caster_like_cpp<R>(
         &mut self,
         schedule: &PendingCreatureSpellScheduleLikeCpp,
@@ -142,26 +62,28 @@ impl CreatureSpellActionOwnerLikeCpp for CanonicalCreatureSpellActionOwnerLikeCp
             .with_creature_mut_like_cpp(schedule.caster_guid, operation)
     }
 
+    /// A TurretAI rejected attempt: whether it consumed the swing.
     fn turret_rejected_attempt_like_cpp(
         &mut self,
         attempt: &TurretRejectedCastAttemptLikeCpp,
         config: &LegacyCreatureAggroConfigLikeCpp,
-    ) -> Option<bool> {
-        Some(apply_turret_rejected_cast_attempt_on_manager_like_cpp(
+    ) -> bool {
+        apply_turret_rejected_cast_attempt_on_manager_like_cpp(
             self.manager,
             &mut CanonicalCreatureSpellCastersLikeCpp,
             attempt,
             config,
-        ))
+        )
     }
 
+    /// Validate and append one cast.
     fn validate_cast_like_cpp(
         &mut self,
         cast: &PendingCreatureSpellCastLikeCpp,
         config: &LegacyCreatureAggroConfigLikeCpp,
         plan: &mut RuntimePlan,
-    ) -> Option<CreatureSpellCastValidationResultLikeCpp> {
-        Some(validate_and_append_creature_spell_cast_on_manager_like_cpp(
+    ) -> CreatureSpellCastValidationResultLikeCpp {
+        validate_and_append_creature_spell_cast_on_manager_like_cpp(
             self.manager,
             &mut CanonicalCreatureSpellCastersLikeCpp,
             &cast.command,
@@ -169,13 +91,12 @@ impl CreatureSpellActionOwnerLikeCpp for CanonicalCreatureSpellActionOwnerLikeCp
             cast.turret_ai,
             config,
             plan,
-        ))
+        )
     }
 }
 
 /// What a deferred re-arm found on its caster.
 enum CreatureSpellScheduleDrainLikeCpp {
-    NotCanonicalOwner,
     StaleEngagement,
     Scheduled,
     RuntimeRngAuthorityRejected,
@@ -184,28 +105,16 @@ enum CreatureSpellScheduleDrainLikeCpp {
 /// Drain the deferred spell actions in the order the selection recorded them:
 /// `DoCast` → `ScheduleEvent` per due event, exactly as `CombatAI::UpdateAI`
 /// runs them (`CombatAI.cpp:101-106`).
-pub(super) fn drain_creature_spell_actions_like_cpp<O>(
-    owner: &mut O,
-    ownership: &CanonicalCreatureOwnershipLikeCpp,
+pub(super) fn drain_creature_spell_actions_like_cpp(
+    owner: &mut CanonicalCreatureSpellActionOwnerLikeCpp<'_>,
     pending_actions: Vec<PendingCreatureSpellActionLikeCpp>,
     config: &LegacyCreatureAggroConfigLikeCpp,
     outcome: &mut LegacyCreatureSpellTickOutcomeLikeCpp,
-) where
-    O: CreatureSpellActionOwnerLikeCpp,
-{
+) {
     for pending_action in pending_actions {
         let pending_cast = match pending_action {
             PendingCreatureSpellActionLikeCpp::Schedule(schedule) => {
                 let drained = owner.with_schedule_caster_like_cpp(&schedule, |creature| {
-                    // #1263 F6-8C: the deferred slot re-arm mutates the caster's
-                    // canonical runtime schedule, so it needs the canonical owner.
-                    if !ownership.decides_like_cpp(
-                        schedule.map_id,
-                        schedule.instance_id,
-                        schedule.caster_guid,
-                    ) {
-                        return CreatureSpellScheduleDrainLikeCpp::NotCanonicalOwner;
-                    }
                     if creature.creature_spell_engagement_epoch_like_cpp()
                         != schedule.engagement_epoch
                     {
@@ -221,9 +130,6 @@ pub(super) fn drain_creature_spell_actions_like_cpp<O>(
                     CreatureSpellScheduleDrainLikeCpp::Scheduled
                 });
                 match drained {
-                    Some(CreatureSpellScheduleDrainLikeCpp::NotCanonicalOwner) => {
-                        outcome.canonical_incarnation_rejections += 1;
-                    }
                     Some(CreatureSpellScheduleDrainLikeCpp::RuntimeRngAuthorityRejected) => {
                         outcome.runtime_rng_authority_rejections += 1;
                     }
@@ -236,20 +142,14 @@ pub(super) fn drain_creature_spell_actions_like_cpp<O>(
                 continue;
             }
             PendingCreatureSpellActionLikeCpp::TurretRejectedAttempt(attempt) => {
-                if owner.turret_rejected_attempt_like_cpp(&attempt, config) == Some(true) {
+                if owner.turret_rejected_attempt_like_cpp(&attempt, config) {
                     outcome.turret_rejected_attempt_swings += 1;
                 }
                 continue;
             }
             PendingCreatureSpellActionLikeCpp::Cast(pending_cast) => pending_cast,
         };
-        let Some(validation) =
-            owner.validate_cast_like_cpp(&pending_cast, config, &mut outcome.plan)
-        else {
-            outcome.canonical_cast_missing_target += 1;
-            outcome.casts_ready = outcome.casts_ready.saturating_sub(1);
-            continue;
-        };
+        let validation = owner.validate_cast_like_cpp(&pending_cast, config, &mut outcome.plan);
 
         match validation {
             CreatureSpellCastValidationResultLikeCpp::Ready(hit_result) => {

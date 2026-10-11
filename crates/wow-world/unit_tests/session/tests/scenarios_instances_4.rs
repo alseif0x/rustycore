@@ -194,6 +194,11 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_306);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -221,7 +226,7 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
         }]))),
         ..legacy_aggro_hostile_config_like_cpp()
     };
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     let mut candidate = legacy_aggro_candidate_like_cpp(
         ObjectGuid::create_player(1, 91_307),

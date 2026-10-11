@@ -1,74 +1,13 @@
-//! Legacy creature spell tick and the cast validation it appends.
+//! Creature spell phase and the cast validation it appends.
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
-//!
-//! #1263 F6-8D3a-1b: the selection half of the phase
-//! ([`collect_creature_spell_actions_on_store_like_cpp`]) is written once
-//! against [`CreaturePhaseStoreLikeCpp`], so the legacy bridge and the admitted
-//! canonical executor run the same body; the deferred actions it returns are
-//! drained by `creature_spell_actions.rs`. The legacy entry keeps only the
-//! guard, the owner check and the lock scopes.
+//! Moved out of the Session root under #619. #1263 F6-8D3a-1b: the selection
+//! half of the phase ([`collect_creature_spell_actions_on_store_like_cpp`])
+//! runs over the admitted canonical store; the deferred actions it returns are
+//! drained by `creature_spell_actions.rs`.
 
 use super::*;
 
-/// Runs the C++ stock `CombatAI`/`TurretAI` template-spell decision once.
-///
-/// Selection, cooldown mutation, target preconditions, and START/GO packet
-/// construction stay under the global map-owned runtime. Effect execution is
-/// intentionally not invented here: damage/heal calculation belongs to M3.2,
-/// while this M2.6 slice proves the cast decision and wire topology.
-pub fn run_legacy_creature_spell_tick_once_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureSpellTickOutcomeLikeCpp {
-    use crate::map_manager::RuntimeTickOwner;
-
-    let mut outcome = LegacyCreatureSpellTickOutcomeLikeCpp::default();
-    let Some(spell_store) = config.spell_store.as_ref() else {
-        return outcome;
-    };
-    let mut map_difficulties = HashMap::new();
-    if let Some(canonical_map_manager) = canonical_map_manager
-        && let Ok(manager) = canonical_map_manager.lock()
-    {
-        map_difficulties = creature_spell_map_difficulties_like_cpp(&manager);
-    }
-    // #1263 F6-8C: the canonical designated owner decides which creature may
-    // select a template spell. Read once, before the legacy write guard.
-    let ownership =
-        canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
-    let mut manager = legacy_map_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if manager.tick_owner() != RuntimeTickOwner::GlobalLegacy {
-        outcome.skipped_owner_not_global = true;
-        return outcome;
-    }
-    let pending_actions = collect_creature_spell_actions_on_store_like_cpp(
-        &mut *manager,
-        &ownership,
-        &map_difficulties,
-        spell_store,
-        config,
-        &mut outcome,
-    );
-    drop(manager);
-    drain_creature_spell_actions_like_cpp(
-        &mut LegacyCreatureSpellActionOwnerLikeCpp {
-            legacy_map_manager,
-            canonical_map_manager,
-        },
-        &ownership,
-        pending_actions,
-        config,
-        &mut outcome,
-    );
-    outcome
-}
-
-/// The difficulty of every canonical map, keyed like the legacy residences.
+/// The difficulty of every canonical map, keyed by `(map_id, instance_id)`.
 pub(super) fn creature_spell_map_difficulties_like_cpp(
     manager: &wow_map::MapManager,
 ) -> HashMap<(u16, u32), u8> {
@@ -84,19 +23,14 @@ pub(super) fn creature_spell_map_difficulties_like_cpp(
 /// The selection half of `CombatAI::UpdateAI` / `TurretAI::UpdateAI`
 /// (`CombatAI.cpp:91-107, 217-223`): for every creature of the store, the
 /// schedule initialisation, the due-event choice and the represented cast
-/// plan, deferred as actions in C++ order. #1263 F6-8D3a-1b: one body for the
-/// legacy store and the admitted canonical store.
-pub(super) fn collect_creature_spell_actions_on_store_like_cpp<S>(
-    store: &mut S,
-    ownership: &CanonicalCreatureOwnershipLikeCpp,
+/// plan, deferred as actions in C++ order (#1263 F6-8D3a-1b).
+pub(super) fn collect_creature_spell_actions_on_store_like_cpp(
+    store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     map_difficulties: &HashMap<(u16, u32), u8>,
     spell_store: &wow_data::SpellStore,
     config: &LegacyCreatureAggroConfigLikeCpp,
     outcome: &mut LegacyCreatureSpellTickOutcomeLikeCpp,
-) -> Vec<PendingCreatureSpellActionLikeCpp>
-where
-    S: CreaturePhaseStoreLikeCpp + ?Sized,
-{
+) -> Vec<PendingCreatureSpellActionLikeCpp> {
     let mut pending_actions = Vec::new();
     let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
@@ -111,13 +45,6 @@ where
                 continue;
             };
             outcome.creatures_seen += 1;
-            // #1263 F6-8C: a creature whose exact residence has no canonical
-            // incarnation is not the canonical owner's object, so it selects no
-            // spell from the legacy representation.
-            if !ownership.decides_like_cpp(map_id, instance_id, guid) {
-                outcome.canonical_incarnation_rejections += 1;
-                continue;
-            }
             if !creature.is_alive() || creature.state() != wow_entities::CreatureAiState::InCombat {
                 continue;
             }

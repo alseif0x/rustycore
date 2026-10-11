@@ -7,14 +7,14 @@ use super::*;
 async fn refresh_visible_world_creatures_command_forces_creature_visibility_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 90_009);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(90_010);
     let creature_position = Position::new(12.0, 10.0, 0.0, 0.0);
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         grid_x,
@@ -36,7 +36,7 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
     );
 
     session.core.state = SessionState::LoggedIn;
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(canonical);
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(

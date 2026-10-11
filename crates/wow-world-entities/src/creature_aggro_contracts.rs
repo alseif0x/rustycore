@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Creature aggro contracts shared by the legacy runtime adapters.
+//! Creature runtime contracts shared by the admitted creature executor phases.
 //!
 //! Session-independent: moved out of `wow-world` under #1263 F5.
 
@@ -18,17 +18,14 @@ pub use wow_world_core::session::spell_has_no_unrepresented_runtime_hooks_from_a
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyCreatureMovementTickOutcomeLikeCpp {
-    pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub movement_packets: usize,
-    pub canonical_syncs: usize,
     pub plan: wow_world_core::map_manager::RuntimePlan,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
-    pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub corpses_despawned: usize,
@@ -39,21 +36,14 @@ pub struct LegacyCreatureLifecycleTickOutcomeLikeCpp {
     pub canonical_respawn_adds: usize,
     pub canonical_respawn_removes: usize,
     /// Ready respawns whose canonical admission was **refused** because a
-    /// competing claimable pool already owns the GUID. The legacy store
-    /// published nothing for them (F6-8A publication gate).
+    /// competing claimable pool already owns the GUID; nothing was published
+    /// for them (F6-8A publication gate).
     pub respawn_publications_refused_like_cpp: usize,
     /// Ready respawns whose canonical admission **deferred** them — no canonical
     /// map instance for the exact `(map_id, instance_id)` key, or the
     /// installation failed — so they were returned to the map's own spawn queue
     /// instead of being published without an admitted owner.
     pub respawn_publications_deferred_like_cpp: usize,
-    /// Ready respawns whose legacy publication **failed** because the store
-    /// refused the insertion (a concurrent publisher won the GUID), counted
-    /// **before** the fresh-insertion condition is examined. It therefore also
-    /// counts failures with **no** canonical rollback: only a failure that
-    /// followed a fresh canonical incarnation installed by this same tick undoes
-    /// that incarnation. Nothing stays published either way.
-    pub respawn_publications_failed_like_cpp: usize,
     /// Map instances whose sessions must recompute creature visibility.
     pub refresh_map_keys: Vec<(u16, u32)>,
 }
@@ -109,7 +99,6 @@ pub struct LegacyCreatureAggroOwnerSnapshotLikeCpp {
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
-    pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub sightless_creatures_skipped: usize,
@@ -135,10 +124,6 @@ pub struct LegacyCreatureAggroTickOutcomeLikeCpp {
     pub evades_started: usize,
     pub assistance_scheduled: usize,
     pub assistance_starts: usize,
-    /// #1263 F6-8C: creature objects the aggro selector refused because the
-    /// canonical designated owner holds no incarnation for them. A surviving
-    /// legacy copy decides nothing by itself.
-    pub canonical_incarnation_rejections: usize,
     pub plan: wow_world_core::map_manager::RuntimePlan,
     pub aggro_starts: usize,
     pub commands: Vec<wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand>,
@@ -160,7 +145,6 @@ pub enum LegacyCreatureThreatUpdateLikeCpp {
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
-    pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub swings_ready: usize,
@@ -175,18 +159,12 @@ pub struct LegacyCreatureMeleeTickOutcomeLikeCpp {
     pub attacking_interrupt_auras_removed: usize,
     pub canonical_hits: usize,
     pub canonical_creature_hits: usize,
-    pub legacy_creature_victim_syncs: usize,
-    pub legacy_creature_victim_sync_cas_rejections: usize,
-    /// #1263 F6-8C: swing selections refused because the attacker's canonical
-    /// designated owner holds no incarnation at its residence.
-    pub canonical_incarnation_rejections: usize,
     pub commands: Vec<wow_world_core::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand>,
     pub plan: RuntimePlan,
 }
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
-    pub skipped_owner_not_global: bool,
     pub maps_seen: usize,
     pub creatures_seen: usize,
     pub ai_selection_unrepresented: usize,
@@ -218,9 +196,6 @@ pub struct LegacyCreatureSpellTickOutcomeLikeCpp {
     pub canonical_cast_missing_target: usize,
     pub canonical_cast_target_rejections: usize,
     pub canonical_cast_cooldown_rejections: usize,
-    /// #1263 F6-8C: template-spell selections refused because the caster's
-    /// canonical designated owner holds no incarnation at its residence.
-    pub canonical_incarnation_rejections: usize,
     pub plan: RuntimePlan,
 }
 

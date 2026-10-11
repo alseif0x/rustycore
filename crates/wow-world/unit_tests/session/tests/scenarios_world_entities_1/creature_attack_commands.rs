@@ -6,7 +6,7 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
     let source_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 1011);
     let packet_bytes = vec![0xD4, 0x2D, 0xAA];
     let manager = shared_map_manager();
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -27,7 +27,7 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
         ),
     );
     session.core.state = SessionState::LoggedIn;
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
     session
         .core
@@ -54,10 +54,34 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
         "C++ MessageDistDeliverer rejects stale HaveAtClient entries outside source range"
     );
 
+    // Into range: the fixture re-adds the creature at the new position (its
+    // source grid is not loaded, so a relocation through the map would stay
+    // put like C++ `Map::CreatureRelocation`).
+    {
+        let mut guard = manager.lock().unwrap();
+        assert!(guard.remove_creature_any(571, 0, source_guid).is_some());
+        assert!(guard.add_creature(
+            571,
+            0,
+            0,
+            0,
+            crate::map_manager::WorldCreature::new(
+                source_guid,
+                777,
+                Position::new(10.0, 0.0, 0.0, 0.0),
+                100,
+                80,
+                1,
+                2,
+                0.0,
+                1,
+                35,
+                0,
+                0,
+            ),
+        ));
+    }
     session.mutate_world_creature(source_guid, |creature| {
-        creature
-            .creature
-            .set_ai_position(Position::new(10.0, 0.0, 0.0, 0.0));
         *creature.creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([20]);
     });
     session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));

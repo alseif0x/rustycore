@@ -780,7 +780,7 @@ fn player_attack_rejects_canonical_uber_player_flag_like_cpp() {
 async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 79);
     let victim = test_creature_guid(18_030);
 
@@ -808,6 +808,11 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
         0,
     ));
     session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();
@@ -820,7 +825,7 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
     assert!(send_rx.try_recv().is_err());
     assert_eq!(session.fixtures.combat.combat_target, None);
     assert!(!session.fixtures.combat.in_combat);
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     assert_ne!(
         guard
             .find_creature(0, 0, victim)
@@ -834,7 +839,7 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
 async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_start_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player = ObjectGuid::create_player(1, 81);
     let victim = test_creature_guid(18_032);
 
@@ -864,6 +869,11 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical attacking Player map");
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();

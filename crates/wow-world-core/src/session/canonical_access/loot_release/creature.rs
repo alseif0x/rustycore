@@ -28,6 +28,7 @@ pub fn looted_corpse_decay_secs_like_cpp(
 fn looted_creature_lifecycle_like_cpp(
     whole_object_fully_skinned: bool,
     corpse_decay_looted_rate: f32,
+    fanout_publishes: bool,
 ) -> impl FnOnce(
     &mut crate::map_manager::WorldCreature,
 ) -> (Option<(u32, u32)>, wow_entities::UnitValuesUpdate) {
@@ -55,7 +56,7 @@ fn looted_creature_lifecycle_like_cpp(
         };
         (
             marked,
-            loot_release_values_for_fanout_like_cpp(&mut creature.creature),
+            loot_release_values_for_fanout_like_cpp(&mut creature.creature, fanout_publishes),
         )
     }
 }
@@ -68,15 +69,25 @@ fn looted_creature_lifecycle_like_cpp(
 /// `Map::SendObjectUpdates`). Since the root mutates the canonical incarnation
 /// (D3b-2), its DynamicFlags mark would otherwise make the map's VALUES step
 /// republish the same field, raw, to the same clients.
+///
+/// #1263 F6-8E: the mark is taken only when the fanout publishes to every
+/// viewer, which needs the object-owned authority (each queued receiver
+/// checks the update against it and refuses an authority-less one). Without
+/// it the mark stays, and the map's VALUES step publishes the forced field to
+/// every viewer, as C++ `Map::SendObjectUpdates` does; the authority-less
+/// viewer projection preserves the canonical flag, the same value.
 pub(crate) fn loot_release_values_for_fanout_like_cpp(
     creature: &mut wow_entities::Creature,
+    fanout_publishes: bool,
 ) -> wow_entities::UnitValuesUpdate {
     let update = creature.unit().values_update();
-    creature
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .take_dynamic_flags_change_like_cpp();
+    if fanout_publishes {
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .take_dynamic_flags_change_like_cpp();
+    }
     update
 }
 
@@ -101,6 +112,7 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         let apply_lifecycle = looted_creature_lifecycle_like_cpp(
             whole_object_fully_skinned,
             corpse_decay_looted_rate,
+            observation.is_some(),
         );
         if let Some((authority, object_generation, lifecycle_revision)) = observation {
             self.core
@@ -137,6 +149,7 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
                 looted_creature_lifecycle_like_cpp(
                     whole_object_fully_skinned,
                     corpse_decay_looted_rate,
+                    true,
                 ),
             )
     }

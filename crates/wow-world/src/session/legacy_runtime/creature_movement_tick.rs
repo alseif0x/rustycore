@@ -1,37 +1,10 @@
-//! Legacy creature movement tick and movement stepping.
+//! Creature movement phase and movement stepping.
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! Moved out of the Session root under #619; run by the admitted canonical
+//! executor over the canonical map (#1263 F6-8D3a-2, F6-8E).
 
 use super::*;
 use crate::map_manager::CreatureMovementQueriesLikeCpp as _;
-
-/// Advances a single creature's movement state for one tick and returns the
-/// serialised `MonsterMove` packet bytes if a new spline was launched, or
-/// `None` otherwise.
-///
-/// The legacy bridge entry: it lends the bridge's canonical entity and cached
-/// projection to [`step_creature_movement_on_view_like_cpp`], the one body.
-#[allow(clippy::too_many_arguments)]
-pub(crate) fn step_creature_movement_like_cpp(
-    creature: &mut crate::map_manager::WorldCreature,
-    guid: wow_core::ObjectGuid,
-    mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    terrain: Option<&crate::map_manager::LiveTerrainHeights>,
-    chase_target: Option<crate::map_manager::ChaseTargetSnapshotLikeCpp>,
-    diff_ms: u32,
-) -> Option<Vec<u8>> {
-    step_creature_movement_on_view_like_cpp(
-        &mut creature.movement_like_cpp(),
-        guid,
-        mmap_config,
-        mmap_pathfinder,
-        terrain,
-        chase_target,
-        diff_ms,
-    )
-}
 
 /// The creature movement step — `Unit::Update(p_time)`'s clock,
 /// `UpdateSplineMovement` and `MotionMaster::Update` with the home, random,
@@ -370,93 +343,26 @@ pub(in crate::session) fn step_creature_movement_on_view_like_cpp(
     }
     None
 }
-/// Runs one global legacy creature-movement tick without spawning a loop.
-///
-/// This is the Slice 4A.3b single-shot driver body. It is gated by
-/// `RuntimeTickOwner::GlobalLegacy`; with the default `Session` owner it is a
-/// no-op. The lock order is explicit:
-///
-/// 1. take the legacy map write lock, drive every creature's canonical runtime
-///    state (spline, generators, `Unit::i_motionMaster`) and capture one
-///    publication frame per creature;
-/// 2. release the legacy lock;
-/// 3. transport each frame through the shared canonical admission gate and
-///    publish only the frames the canonical incarnation **applied**, returning
-///    a `RuntimePlan` for a caller to deliver outside all map locks.
-///
-/// There is no async work, no packet delivery, and no production loop here.
-///
-/// #1263 F6-8B: the movement publication is no longer decided by the legacy
-/// bridge copy. The drive already reads and writes the canonical runtime state
-/// (`Creature::runtime_like_cpp`), and the publication is now gated on the
-/// canonical application of the transported representation at the exact
-/// residence, exactly like the lifecycle respawn publication gated in F6-8A.
-///
-/// #1263 F6-8D3a-2: the drive is [`run_creature_movement_phase_on_store_like_cpp`],
-/// the one body the admitted canonical executor also runs; this entry keeps
-/// only the guard, the owner check and the canonical-gated publication.
-pub fn run_legacy_creature_movement_tick_once_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
-    chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
-    diff_ms: u32,
-) -> LegacyCreatureMovementTickOutcomeLikeCpp {
-    use crate::map_manager::RuntimeTickOwner;
-
-    let mut outcome = LegacyCreatureMovementTickOutcomeLikeCpp::default();
-    let frames = {
-        let mut manager = legacy_map_manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if manager.tick_owner() != RuntimeTickOwner::GlobalLegacy {
-            outcome.skipped_owner_not_global = true;
-            return outcome;
-        }
-        let live_terrain = manager.terrain();
-        run_creature_movement_phase_on_store_like_cpp(
-            &mut *manager,
-            live_terrain.as_deref(),
-            mmap_config,
-            mmap_pathfinder,
-            chase_targets,
-            diff_ms,
-            &mut outcome,
-        )
-    };
-
-    publish_creature_movement_frames_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        frames,
-        &mut outcome,
-    );
-    outcome
-}
-
-/// The creature movement phase over one store: for every creature, the chase
-/// victim snapshot, the movement step and one publication frame.
+/// The creature movement phase over the admitted canonical store: for every
+/// creature, the chase victim snapshot, the movement step and its publication
+/// (the reached-home values update first, then the movement packet).
 ///
 /// C++ `ChaseMovementGenerator` dereferences a live `Unit*`. The creature step
 /// has no object accessor, so the victim's facts are snapshotted first:
 /// players come from the caller's snapshot, creature victims from the store's
 /// map. Both lookups are immutable and finish before the mutable borrow.
-pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp<
-    S: CreaturePhaseStoreLikeCpp,
->(
-    store: &mut S,
+pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp(
+    store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     terrain: Option<&crate::map_manager::LiveTerrainHeights>,
     mmap_config: &MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<&crate::map_manager::WorldMMapPathfinderWorkerLikeCpp>,
     chase_targets: &HashMap<(u16, u32, ObjectGuid), crate::map_manager::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
     outcome: &mut LegacyCreatureMovementTickOutcomeLikeCpp,
-) -> Vec<CreatureMovementFrameLikeCpp> {
+) {
     use crate::map_manager::{RecipientRule, RuntimeEvent};
     use wow_packet::ServerPacket;
 
-    let mut frames = Vec::new();
     let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
     for (map_id, instance_id) in map_keys {
@@ -483,7 +389,6 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp<
                         })
                 });
 
-            let representation = store.phase_movement_representation_like_cpp();
             let Some(mut creature) =
                 store.phase_creature_movement_like_cpp(map_id, instance_id, guid)
             else {
@@ -520,21 +425,27 @@ pub(in crate::session) fn run_creature_movement_phase_on_store_like_cpp<
             } else {
                 None
             };
-            let snapshot = representation.then(|| creature.creature.clone());
             let visibility_range = creature.visibility_range_like_cpp();
-            frames.push(CreatureMovementFrameLikeCpp {
-                map_id,
-                instance_id,
-                guid,
-                snapshot,
-                source_position,
-                visibility_range,
-                home_health_restore,
-                movement_packet: packet_bytes,
-            });
+            if let Some(event) = home_health_restore {
+                outcome.plan.events.push(event);
+            }
+            if let Some(packet_bytes) = packet_bytes {
+                outcome.movement_packets += 1;
+                outcome.plan.events.push(RuntimeEvent {
+                    source_guid: guid,
+                    recipients: RecipientRule::NearbyVisible {
+                        source_guid: guid,
+                        map_id,
+                        instance_id,
+                        source_position,
+                        range: visibility_range,
+                        required_3d: false,
+                    },
+                    packet_bytes,
+                });
+            }
         }
     }
-    frames
 }
 #[cfg(test)]
 pub(in crate::session) fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
@@ -567,7 +478,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
 
-    let (health_before, health_state_revision_before, target_level) = {
+    let (health_before, target_level) = {
         let map = managed.map();
         let Some(victim) = map.get_typed_player(victim_guid) else {
             return CreatureMeleeApplyResultLikeCpp::MissingVictim;
@@ -625,7 +536,6 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
 
         (
             victim.unit().data().health,
-            victim.unit().health_state_revision_like_cpp(),
             victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
         )
     };
@@ -658,13 +568,8 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_player_on_map
         -1
     };
     CreatureMeleeApplyResultLikeCpp::Hit {
-        victim_applied_damage: damage,
-        victim_threat: None,
-        victim_health_before: health_before,
         victim_health_after: health_after,
-        victim_health_state_revision_before: health_state_revision_before,
         victim_health_state_revision_after: health_state_revision_after,
-        victim_creature_sync_identity: None,
         over_damage,
         target_level,
         events: Vec::new(),
@@ -698,21 +603,7 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
 
-    let (
-        health_before,
-        health_state_revision_before,
-        victim_incarnation_authority,
-        victim_health_state_revision_authority,
-        victim_spawn_id,
-        victim_loot_lifecycle_revision_before,
-        victim_death_state_before,
-        victim_ai_state_before,
-        target_level,
-        damage,
-        damage_done,
-        applied_damage,
-        hit_info,
-    ) = match {
+    let (health_before, target_level, damage, damage_done, applied_damage, hit_info) = match {
         let map = managed.map();
         map.with_creature_like_cpp(victim_guid, |victim| {
             let victim_position = victim.unit().world().position();
@@ -783,13 +674,6 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
 
             Ok((
                 victim.unit().data().health,
-                victim.unit().health_state_revision_like_cpp(),
-                victim.loot_authority_like_cpp().clone(),
-                victim.unit().health_state_revision_authority_like_cpp(),
-                victim.spawn_id(),
-                victim.loot_lifecycle_revision_like_cpp(),
-                victim.unit().death_state(),
-                victim.ai_ownership().state,
                 victim.unit().data().level.clamp(0, i32::from(u8::MAX)) as u8,
                 damage,
                 damage_done,
@@ -823,33 +707,15 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     // C++ returns before `AddThreat` when sparring reduced `damageDone` to
     // zero. `UNKILLABLE` clamps only the later `damageTaken`, so that path
     // still reaches `AddThreat(0)` and establishes combat references.
-    let victim_threat = if killed || damage_done == 0 {
-        None
-    } else {
-        super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
+    if !killed && damage_done != 0 {
+        let _ = super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
             managed.map_mut(),
             victim_guid,
             attacker_guid,
             applied_damage,
             threat_plan,
-        )
-    };
-    let victim_creature_sync_identity = managed
-        .map()
-        .with_creature_like_cpp(victim_guid, |victim| {
-            CreatureMeleeVictimSyncIdentityLikeCpp {
-                authority: victim_incarnation_authority,
-                health_state_revision_authority: victim_health_state_revision_authority,
-                spawn_id: victim_spawn_id,
-                loot_lifecycle_revision_before: victim_loot_lifecycle_revision_before,
-                loot_lifecycle_revision_after: victim.loot_lifecycle_revision_like_cpp(),
-                death_state_before: victim_death_state_before,
-                death_state_after: victim.unit().death_state(),
-                ai_state_before: victim_ai_state_before,
-                ai_state_after: victim.ai_ownership().state,
-            }
-        })
-        .expect("the just-mutated creature remains in the canonical map");
+        );
+    }
     // C++ serializes AttackerStateUpdate before DealMeleeDamage applies the
     // creature sparring clamp. Its overkill field therefore uses the raw wire
     // damage against pre-hit health, not the post-sparring applied damage.
@@ -903,97 +769,10 @@ pub(in crate::session) fn apply_creature_melee_damage_to_canonical_creature_on_m
     }
 
     CreatureMeleeApplyResultLikeCpp::Hit {
-        victim_applied_damage: applied_damage,
-        victim_threat,
-        victim_health_before: health_before,
         victim_health_after: health_after,
-        victim_health_state_revision_before: health_state_revision_before,
         victim_health_state_revision_after: health_state_revision_after,
-        victim_creature_sync_identity: Some(victim_creature_sync_identity),
         over_damage,
         target_level,
         events,
     }
-}
-/// Mirror one already-committed canonical creature health/death transition
-/// into the legacy owner under that owner's write lock.
-///
-/// Every identity and before-state comparison happens before mutation. The
-/// caller therefore gets an optimistic atomic CAS at the legacy boundary: a
-/// respawn/replacement, loot-authority handoff, damage/heal ABA, or prior
-/// replay rejects without touching the current creature.
-pub(in crate::session) fn apply_creature_melee_victim_sync_to_legacy_like_cpp(
-    victim: &mut crate::map_manager::WorldCreature,
-    sync: &CreatureMeleeVictimSyncStateLikeCpp,
-    game_time_secs: i64,
-) -> bool {
-    let unit = victim.creature.unit();
-    let identity = &sync.identity;
-    if unit.data().health != sync.victim_health_before
-        || unit.death_state() != identity.death_state_before
-        || unit.health_state_revision_like_cpp() != sync.victim_health_state_revision_before
-        || victim.creature.spawn_id() != identity.spawn_id
-        || victim.creature.loot_lifecycle_revision_like_cpp()
-            != identity.loot_lifecycle_revision_before
-        || victim.creature.ai_ownership().state != identity.ai_state_before
-        || !victim
-            .creature
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&identity.authority)
-        || !victim
-            .creature
-            .unit()
-            .shares_health_state_revision_authority_like_cpp(
-                &identity.health_state_revision_authority,
-            )
-        || victim
-            .creature
-            .loot_authority_like_cpp()
-            .lifecycle_like_cpp()
-            == OwnedLootAuthorityLifecycle::Detached
-    {
-        return false;
-    }
-
-    let killed = victim
-        .take_damage_before_death_state_at_game_time_like_cpp(sync.applied_damage, game_time_secs);
-    if !killed && let Some(threat) = &sync.threat {
-        victim.enter_combat(threat.attacker_guid);
-        let combat = &mut victim.creature.unit_mut().subsystems_mut().combat;
-        combat.set_in_combat_with(threat.attacker_guid, false, false);
-        combat.add_threat(threat.attacker_guid, threat.delta);
-    }
-    if killed {
-        victim.complete_death_state_after_kill_hooks_at_game_time_like_cpp(game_time_secs);
-        victim.creature.unit_mut().set_health(0);
-    }
-
-    let unit = victim.creature.unit();
-    let state_matches = unit.data().health == sync.victim_health_after
-        && unit.death_state() == identity.death_state_after
-        && victim.creature.spawn_id() == identity.spawn_id
-        && victim.creature.loot_lifecycle_revision_like_cpp()
-            == identity.loot_lifecycle_revision_after
-        && victim.creature.ai_ownership().state == identity.ai_state_after
-        && victim
-            .creature
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&identity.authority)
-        && victim
-            .creature
-            .unit()
-            .shares_health_state_revision_authority_like_cpp(
-                &identity.health_state_revision_authority,
-            );
-    if !state_matches {
-        return false;
-    }
-
-    victim
-        .creature
-        .unit_mut()
-        .adopt_committed_health_state_revision_for_mirror_like_cpp(
-            sync.victim_health_state_revision_after,
-        );
-    true
 }

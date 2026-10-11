@@ -19,6 +19,8 @@ use wow_packet::packets::chat::PrintNotification;
 use wow_packet::packets::misc::BuyFailed;
 use wow_packet::packets::update::CreatureCreateData;
 
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::{
     AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
     SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP, SessionPlayerController,
@@ -455,10 +457,14 @@ fn register_test_trainer_with_class(
     npc_flags: u32,
     trainer_class: u8,
 ) {
-    session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_player_position_like_cpp(Position::new(0.0, 0.0, 0.0, 0.0));
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_and_map_for_session_like_cpp(
+        session,
+    );
+    session.set_player_faction_template_like_cpp(1);
     session.register_world_creature(
         0,
         Position::new(1.0, 0.0, 0.0, 0.0),

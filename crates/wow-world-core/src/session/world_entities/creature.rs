@@ -22,16 +22,20 @@ impl SessionCore {
         Some(f(creature))
     }
 
+    /// Every creature the canonical map holds at the session's current map
+    /// key (#1263 F6-8E: the canonical map is the only creature store).
     pub fn world_creature_guids(&self) -> Vec<ObjectGuid> {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = &self.map_manager {
-            return manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .creature_guids(map_id, instance_id);
-        }
-
-        Vec::new()
+        let (map_id, instance_id) = self.current_runtime_map_key_like_cpp();
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return Vec::new();
+        };
+        let Ok(manager) = manager.lock() else {
+            return Vec::new();
+        };
+        manager
+            .find_map(u32::from(map_id), instance_id)
+            .map(|map| map.map().admitted_creature_guids_like_cpp())
+            .unwrap_or_default()
     }
 }
 

@@ -2,10 +2,11 @@
 //!
 //! Reviewer signature §5.3.1 R1 and repair order §5.3.2: the canonical map's
 //! `wow_entities::Creature` owns the single allocatable `wow_loot` authority for
-//! an object incarnation; the legacy `map_manager::WorldCreature` and the
-//! session's recorded loot-view authorities are aliases to that same allocation.
-//! Admission must select that authority *before* a legacy alias is published,
-//! and must never reconcile two independently allocated claimable pools.
+//! an object incarnation; the session's designated lookup and its recorded
+//! loot-view authorities are aliases to that same allocation. Admission must
+//! select that authority, and must never reconcile two independently allocated
+//! claimable pools. (#1263 F6-8E deleted the legacy store whose alias these
+//! regressions also compared.)
 //!
 //! Incarnation identity is `(MapKey, ObjectGuid, health-timeline allocation)`
 //! (`HealthStateRevisionAuthorityLikeCpp::shares_storage_like_cpp`), not the
@@ -20,15 +21,13 @@
 //! tick uses, not a test double.
 //!
 //! Boundary of the admission decision: `Refused` (the canonical owner exists and
-//! the candidate would be a second claimable pool) stops legacy publication. A
-//! session that has a canonical manager but no canonical map instance for the
+//! the candidate would be a second claimable pool) publishes nothing. A session
+//! that has a canonical manager but no canonical map instance for the
 //! registration key has **no admitted owner** either, so R7b-1 defers its
-//! publication until a canonical incarnation admits it instead of publishing a
-//! representation the mutation gate must refuse for its whole life; only the
-//! legacy-only configuration (no canonical manager at all) keeps the previous
-//! publication path. The registration caller always builds an unused pristine
-//! candidate, so the refusal is exercised at the admission entry point (test 3)
-//! and the caller's abort is unreachable today.
+//! publication on the canonical side until a canonical incarnation admits it.
+//! The registration caller always builds an unused pristine candidate, so the
+//! refusal is exercised at the admission entry point (test 3) and the caller's
+//! abort is unreachable today.
 
 use std::sync::{Arc, Mutex};
 
@@ -37,6 +36,8 @@ use super::{
     register_test_creature_like_cpp, represented_loot_object_guid_like_cpp, test_creature,
     test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::{
     SharedCanonicalMapManager, WorldSession, insert_canonical_creature_map_object_on_map_like_cpp,
 };
@@ -48,8 +49,7 @@ use wow_map::MapManager;
 const TEST_MAP_ID: u16 = 571;
 
 /// A session whose canonical map manager is configured, with (or without) the
-/// canonical map instance created. `register_test_creature_like_cpp` supplies
-/// the legacy map manager, so both stores are configured.
+/// canonical map instance created.
 fn canonical_admission_session_like_cpp(
     create_map: bool,
 ) -> (WorldSession, SharedCanonicalMapManager) {
@@ -77,14 +77,17 @@ fn canonical_authority_like_cpp(
         .with_creature_like_cpp(guid, |creature| creature.loot_authority_like_cpp().clone())
 }
 
-fn legacy_authority_like_cpp(
-    session: &WorldSession,
+/// The authority the session's designated-owner lookup resolves.
+fn session_authority_like_cpp(
+    session: &mut WorldSession,
     guid: ObjectGuid,
 ) -> Option<OwnedLootAuthority> {
-    let manager = session.core.map_manager.as_ref()?.read().ok()?;
-    manager
-        .find_creature(TEST_MAP_ID, 0, guid)
-        .map(|world_creature| world_creature.creature.loot_authority_like_cpp().clone())
+    match session.represented_owned_loot_authority_outcome_like_cpp(guid) {
+        wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => {
+            Some(authority)
+        }
+        _ => None,
+    }
 }
 
 /// The minimum an independently constructed admission candidate needs, matching
@@ -141,22 +144,22 @@ fn fresh_admission_shares_one_loot_authority_like_cpp() {
 
     let canonical_authority = canonical_authority_like_cpp(&canonical, guid)
         .expect("fresh admission installs the object");
-    let legacy_authority =
-        legacy_authority_like_cpp(&session, guid).expect("the legacy alias is published");
+    let session_authority = session_authority_like_cpp(&mut session, guid)
+        .expect("the session resolves the admitted incarnation");
     assert!(
-        canonical_authority.shares_storage_like_cpp(&legacy_authority),
-        "the legacy store must alias the canonical allocation, not hold a clone of it"
+        canonical_authority.shares_storage_like_cpp(&session_authority),
+        "the session lookup must alias the canonical allocation, not hold a clone of it"
     );
     assert_eq!(
         canonical_authority.stamp_like_cpp(),
-        legacy_authority.stamp_like_cpp(),
-        "both stores must describe the same loot lifetime"
+        session_authority.stamp_like_cpp(),
+        "both describe the same loot lifetime"
     );
 
     // Identity, not merely equal contents: a loot generation opened through the
-    // canonical allocation is the one the legacy alias reads.
+    // canonical allocation is the one the session's alias reads.
     canonical_authority.initialize_shared_like_cpp(money_loot_like_cpp(guid, 25, player));
-    let observed = legacy_authority
+    let observed = session_authority
         .shared_snapshot_like_cpp()
         .expect("the shared pool is openable through the alias");
     assert_eq!(
@@ -206,8 +209,9 @@ fn duplicate_pristine_admission_preserves_canonical_identity_like_cpp() {
         41,
         "the live canonical pool is untouched by the duplicate admission"
     );
-    let legacy = legacy_authority_like_cpp(&session, guid).expect("the legacy alias still exists");
-    assert!(legacy.shares_storage_like_cpp(&after));
+    let session_authority = session_authority_like_cpp(&mut session, guid)
+        .expect("the session still resolves the incarnation");
+    assert!(session_authority.shares_storage_like_cpp(&after));
 }
 
 #[test]
@@ -360,7 +364,7 @@ async fn recreation_cannot_reuse_old_views_or_leases_like_cpp() {
     // C++ destroys the Creature and its Loot with the object.
     assert!(
         session.remove_world_creature(guid).is_some(),
-        "the fixture removes the object from the legacy store"
+        "the fixture removes the object from its map"
     );
     assert!(
         canonical_authority_like_cpp(&canonical, guid).is_none(),
@@ -427,8 +431,9 @@ async fn alias_admission_keeps_a_live_canonical_claim_lease_like_cpp() {
         after.lifecycle_like_cpp(),
         OwnedLootAuthorityLifecycle::Active
     );
-    let legacy = legacy_authority_like_cpp(&session, guid).expect("the legacy alias still exists");
-    assert!(legacy.shares_storage_like_cpp(&after));
+    let session_authority = session_authority_like_cpp(&mut session, guid)
+        .expect("the session still resolves the incarnation");
+    assert!(session_authority.shares_storage_like_cpp(&after));
 
     let (first_commit, snapshot) = lease
         .commit_with_snapshot_like_cpp()
@@ -453,40 +458,26 @@ async fn alias_admission_keeps_a_live_canonical_claim_lease_like_cpp() {
 fn canonical_map_absence_defers_publication_until_admission_like_cpp() {
     // F6-7 R7b-1 contract. A configured canonical manager without a canonical
     // map instance for the registration key provides no admitted owner, so
-    // registration must not publish a legacy representation whose every owner
-    // mutation the R7 gate would refuse for its whole life. That is the shape of
-    // the session fixtures and of grid loading racing legacy registration; the
-    // built candidate is held until a canonical incarnation legitimately exists.
+    // registration publishes nothing; the built candidate is held on the
+    // canonical side until a canonical incarnation legitimately exists.
     let (mut session, canonical) = canonical_admission_session_like_cpp(false);
     let guid = test_creature_guid(62_108);
     register_test_creature_like_cpp(&mut session, test_creature(guid, false));
-    let manager = session
-        .core
-        .map_manager
-        .clone()
-        .expect("the fixture supplies the legacy map manager");
     assert!(
-        legacy_authority_like_cpp(&session, guid).is_none(),
-        "a representation with no admitted canonical owner must not be published"
+        session_authority_like_cpp(&mut session, guid).is_none(),
+        "a creature with no admitted canonical owner must not be published"
     );
     assert!(
         canonical_authority_like_cpp(&canonical, guid).is_none(),
         "no canonical incarnation was admitted"
     );
+    canonical
+        .lock()
+        .expect("canonical map manager")
+        .create_world_map(u32::from(TEST_MAP_ID), 0);
     assert_eq!(
-        manager.read().unwrap().respawn_queue_len(TEST_MAP_ID, 0),
+        canonical.lock().unwrap().respawn_queue_len(TEST_MAP_ID, 0),
         1,
-        "the built candidate waits for legitimate admission in the map spawn queue"
-    );
-
-    // The legacy-only configuration keeps its previous behaviour too: with no
-    // canonical manager at all, registration still publishes the legacy object.
-    let (mut legacy_only, _send_rx) = make_session_with_send_capacity(4);
-    legacy_only.set_player_map_position_like_cpp(TEST_MAP_ID, Position::ZERO);
-    let legacy_guid = test_creature_guid(62_109);
-    register_test_creature_like_cpp(&mut legacy_only, test_creature(legacy_guid, false));
-    assert!(
-        legacy_authority_like_cpp(&legacy_only, legacy_guid).is_some(),
-        "legacy-only configuration still publishes its object"
+        "the built candidate waits for legitimate admission in the canonical map's spawn queue"
     );
 }

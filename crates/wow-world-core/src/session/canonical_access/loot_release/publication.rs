@@ -155,16 +155,6 @@ impl LootReleaseAccessLikeCpp<'_> {
         &self,
         creature_guid: ObjectGuid,
     ) -> bool {
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.core.map_manager.as_ref()
-            && let Some(creature) = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .find_creature(map_id, instance_id, creature_guid)
-        {
-            return !creature.is_alive();
-        }
-
         let Some(map_key) = self
             .core
             .canonical_object_lookup_map_key_like_cpp(u32::from(

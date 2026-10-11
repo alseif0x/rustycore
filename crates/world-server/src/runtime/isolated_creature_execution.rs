@@ -34,13 +34,10 @@
 //! The adapter deliberately takes no `PlayerRegistry`, so the isolated path adds
 //! no direct session-directory access of its own.
 //!
-//! Production does not call either entry point. The production owner stays
-//! `RuntimeTickOwner::GlobalLegacy` / `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime`,
-//! the legacy scheduler stays and the stores stay; D3 owns the exclusive
-//! cutover and E owns the retirement of the legacy store. These entries are
-//! exported from the composition library the same way
-//! `compose_packet_handlers_like_cpp` is, so the cutover is a call-site change
-//! rather than a re-write.
+//! Production does not call either entry point: the canonical map update loop
+//! runs the executor through `canonical_creature_runtime.rs` (#1263
+//! F6-8D3b). These entries are exported from the composition library the same
+//! way `compose_packet_handlers_like_cpp` is, for the F6-8D2 regressions.
 
 use wow_world::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand;
 

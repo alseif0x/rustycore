@@ -10,6 +10,11 @@ async fn spell_effect_school_damage_negative_amount_is_noop_like_cpp() {
     let guid = test_creature_guid(18_011);
     let player_guid = ObjectGuid::create_player(1, 54);
     session.core.player_guid = Some(player_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -36,7 +41,7 @@ async fn spell_effect_school_damage_negative_amount_is_noop_like_cpp() {
         .await
         .expect("negative represented damage should execute as C++ no-op effect");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(world_creature.current_hp(), 40);
     let opcodes = drain_server_opcodes(&send_rx);
@@ -54,6 +59,11 @@ async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 55);
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     let mut spell_store = wow_data::SpellStore::new();
@@ -94,7 +104,7 @@ async fn spell_direct_heal_and_damage_use_spell_effect_rows_like_cpp() {
         .await
         .expect("represented direct effects should execute per SpellEffectInfo row");
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(
         world_creature.current_hp(),
@@ -124,6 +134,11 @@ async fn spell_school_damage_applies_spell_power_coefficient_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `GetBaseSpellPowerBonus()` 100 and the four stats the flat term can read.
     session
@@ -179,7 +194,7 @@ async fn spell_school_damage_applies_spell_power_coefficient_like_cpp() {
         .expect("represented school damage should scale with spell power");
 
     let current_hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()
@@ -201,6 +216,11 @@ async fn spell_school_damage_uses_max_damage_done_percent_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // Holy 1.5, fire 2.5: C++ takes the maximum over the spell's schools.
     session
@@ -254,7 +274,7 @@ async fn spell_school_damage_uses_max_damage_done_percent_like_cpp() {
         .expect("represented school damage should use the school percentage");
 
     let current_hp = manager
-        .read()
+        .lock()
         .unwrap()
         .find_creature(0, 0, guid)
         .unwrap()

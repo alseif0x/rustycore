@@ -345,10 +345,8 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
 }
 #[test]
 fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_208);
     let victim_guid = ObjectGuid::create_player(1, 91_209);
@@ -375,17 +373,13 @@ fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
             assert!(creature.can_swing());
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         false,
         30.0,
     );
 
-    let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let cast = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
     assert_eq!(cast.canonical_cast_preconditions_passed, 1);
     assert_eq!(cast.plan.events.len(), 1);
@@ -393,30 +387,25 @@ fn legacy_turret_ai_cast_resets_attack_timer_and_never_melees_like_cpp() {
     assert_eq!(start.opcode, ServerOpcodes::SpellStart as u16);
     assert_eq!(go.opcode, ServerOpcodes::SpellGo as u16);
     let can_swing_immediately =
-        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.can_swing()
         })
         .unwrap();
     assert!(!can_swing_immediately);
 
-    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+    mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
         creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
         assert!(creature.can_swing());
     })
     .unwrap();
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &manager,
-        Some(&canonical),
-        &Default::default(),
-    );
+    let melee =
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &Default::default());
     assert_eq!(melee.swings_ready, 0);
     assert_eq!(melee.canonical_hits, 0);
     assert!(melee.commands.is_empty());
 }
 #[test]
 fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     // C++ `DoSpellAttackIfReady` gates on `IsWithinCombatRange(max +
     // combat reaches)` and only then calls `CastSpell`/`resetAttackTimer`.
     // A `disables` row makes `Spell::CheckCast` reject the cast, so the
@@ -427,7 +416,7 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
 
     let attempt = |victim_x: f32| {
         let manager = shared_map_manager();
-        let canonical = shared_canonical_map_manager();
+        let canonical = Arc::clone(&manager);
         let (mut session, _, _) = make_session();
         let creature_guid = test_creature_guid(91_312);
         let victim_guid = ObjectGuid::create_player(1, 91_313);
@@ -465,10 +454,6 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
                 .world_mut()
                 .relocate(Position::new(victim_x, 10.0, 0.0, 0.0));
         }
-        manager
-            .write()
-            .unwrap()
-            .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
         let mut config = creature_ai_spell_test_config_like_cpp(
             creature_ai_test_spell_info_like_cpp(SPELL_ID as i32, 6, 0),
@@ -492,10 +477,9 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
             .0,
         ));
 
-        let outcome =
-            run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+        let outcome = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
         let swing_ready =
-            mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+            mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
                 creature.can_swing()
             })
             .unwrap();
@@ -535,10 +519,8 @@ fn legacy_turret_ai_disabled_spell_resets_swing_only_inside_raw_range_like_cpp()
 }
 #[test]
 fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_308);
     let victim_guid = ObjectGuid::create_player(1, 91_309);
@@ -569,10 +551,6 @@ fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
             assert!(creature.can_swing());
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let turret_spell = creature_ai_test_spell_info_like_cpp(turret_spell_id, 6, 0);
     let mut ignored_noninstant_spell = creature_ai_test_spell_info_like_cpp(ignored_spell_id, 6, 0);
@@ -599,7 +577,7 @@ fn legacy_turret_ai_ignores_noninstant_spells_outside_slot_zero_like_cpp() {
     let mut config = creature_ai_spell_test_config_like_cpp(turret_spell, false, 30.0);
     config.spell_store = Some(Arc::new(spell_store));
 
-    let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let cast = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(cast.noninstant_casts_unrepresented, 0);
     assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");

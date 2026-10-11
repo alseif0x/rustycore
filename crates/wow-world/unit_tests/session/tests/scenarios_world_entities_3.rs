@@ -270,8 +270,6 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
     let vehicle_offset =
         wow_entities::calculate_passenger_offset(creature_position, vehicle_base_position);
     let transport_position = Position::new(50.0, 60.0, 70.0, 0.5);
-    let stale_instance_copy_position = Position::new(270.0, 280.0, 290.0, 2.0);
-    let base_map_copy_position = Position::new(170.0, 180.0, 190.0, 2.5);
     let home_position = Position::new(40.0, 50.0, 60.0, 1.25);
     let home_effect = wow_data::SpellEffectInfo {
         effect_index: 0,
@@ -358,37 +356,6 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
         )),
         "an explicit transported destination resolves its own offset, not the caster position"
     );
-    let manager = shared_map_manager();
-    {
-        let mut manager_guard = manager.write().unwrap();
-        for (copy_instance_id, position) in [
-            (0_u32, base_map_copy_position),
-            (instance_id, stale_instance_copy_position),
-        ] {
-            let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-            assert!(manager_guard.add_creature(
-                0,
-                copy_instance_id,
-                grid_x,
-                grid_y,
-                crate::map_manager::WorldCreature::new(
-                    creature_guid,
-                    9001,
-                    position,
-                    100,
-                    2,
-                    3,
-                    5,
-                    20.0,
-                    100,
-                    14,
-                    0,
-                    0,
-                ),
-            ));
-        }
-    }
-    session.set_map_manager(manager);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
         spell_id,
@@ -429,26 +396,6 @@ async fn creature_cast_target_dest_home_keeps_creature_destination_like_cpp() {
     assert_ne!(
         packet_destination.position,
         Position::new(home_position.x, home_position.y, home_position.z, 0.0)
-    );
-    assert_ne!(
-        packet_destination.position,
-        Position::new(
-            stale_instance_copy_position.x,
-            stale_instance_copy_position.y,
-            stale_instance_copy_position.z,
-            0.0
-        ),
-        "the canonical caster validated by the interaction path wins over a stale legacy copy"
-    );
-    assert_ne!(
-        packet_destination.position,
-        Position::new(
-            base_map_copy_position.x,
-            base_map_copy_position.y,
-            base_map_copy_position.z,
-            0.0
-        ),
-        "the same runtime GUID in instance 0 must not shadow the effective caster"
     );
     assert_eq!(
         session.pending_teleport_save_destination_like_cpp(),

@@ -836,16 +836,19 @@ fn canonical_loot_lookup_fails_closed_while_player_is_in_two_maps_like_cpp() {
             .is_none()
     );
 }
+/// The designated loot owner is the incarnation on the player's own map
+/// instance: claiming the spawn's loot in instance 7 leaves the same spawn's
+/// loot in instance 0 untouched.
+///
+/// #1263 F6-8E: ported from the legacy-store lookup to the canonical maps.
 #[tokio::test]
-async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
+async fn loot_authority_lookup_uses_player_instance_like_cpp() {
     let (mut session, _, _) = make_session();
-    let legacy = shared_map_manager();
     let canonical = shared_canonical_map_manager();
     let player_guid = ObjectGuid::create_player(1, 61_705);
     let creature_guid = test_creature_guid(61_706);
     let position = Position::new(15.0, 25.0, 35.0, 1.5);
 
-    session.set_map_manager(Arc::clone(&legacy));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -858,16 +861,17 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
         0,
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 7);
-    let canonical_position = Position::new(115.0, 125.0, 135.0, 2.5);
-    add_canonical_test_creature_indexed_on_map_with_level(
-        &canonical,
-        creature_guid,
-        9_257,
-        canonical_position,
-        571,
-        7,
-        33,
-    );
+    for instance_id in [0, 7] {
+        add_canonical_test_creature_indexed_on_map_with_level(
+            &canonical,
+            creature_guid,
+            9_257,
+            position,
+            571,
+            instance_id,
+            33,
+        );
+    }
 
     let make_loot = |coins| CreatureLoot {
         loot_guid: creature_guid,
@@ -884,42 +888,24 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
         items: Vec::new(),
         looted_by_player: false,
     };
-    let make_creature = |instance_id, coins| {
-        let mut creature = crate::map_manager::WorldCreature::new(
-            creature_guid,
-            9_250,
-            position,
-            100,
-            80,
-            1,
-            2,
-            0.0,
-            1,
-            35,
-            0,
-            0,
-        );
-        creature
-            .creature
-            .unit_mut()
-            .world_mut()
-            .set_map(571, instance_id)
-            .unwrap();
-        creature
-            .creature
-            .initialize_shared_loot_authority_like_cpp(make_loot(coins));
-        creature
-    };
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
     {
-        let mut manager = legacy.write().unwrap();
-        assert!(manager.add_creature(571, 0, grid_x, grid_y, make_creature(0, 100)));
-        assert!(manager.add_creature(571, 7, grid_x, grid_y, make_creature(7, 700)));
+        let mut manager = canonical.lock().unwrap();
+        for (instance_id, coins) in [(0, 100), (7, 700)] {
+            let _ = manager
+                .find_map_mut(571, instance_id)
+                .unwrap()
+                .map_mut()
+                .get_typed_creature_mut(creature_guid)
+                .unwrap()
+                .initialize_shared_loot_authority_like_cpp(make_loot(coins));
+        }
     }
 
-    let selected_authority = session
-        .read_legacy_creature_loot_authority_like_cpp(creature_guid)
-        .expect("the current instance owns a legacy creature runtime");
+    let wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp::Found(selected_authority) =
+        session.represented_owned_loot_authority_outcome_like_cpp(creature_guid)
+    else {
+        panic!("the player's instance owns the creature's loot");
+    };
     assert_eq!(
         selected_authority
             .shared_snapshot_like_cpp()
@@ -935,45 +921,26 @@ async fn legacy_loot_authority_lookup_uses_player_instance_like_cpp() {
         .expect("instance 7 money pool is claimable");
     assert!(claim.commit_like_cpp().unwrap());
 
-    {
-        let manager = canonical.lock().unwrap();
-        let creature = manager
-            .find_map(571, 7)
+    let manager = canonical.lock().unwrap();
+    let coins = |instance_id| {
+        manager
+            .find_map(571, instance_id)
             .unwrap()
             .map()
-            .with_creature_like_cpp(creature_guid, Clone::clone)
-            .unwrap();
-        assert_eq!(creature.entry(), 9_257);
-        assert_eq!(creature.level(), 33);
-        assert_eq!(creature.position(), canonical_position);
-    }
-
-    let manager = legacy.read().unwrap();
-    assert_eq!(
-        manager
-            .find_creature(571, 0, creature_guid)
+            .get_typed_creature(creature_guid)
             .unwrap()
-            .creature
             .loot_authority_like_cpp()
             .shared_snapshot_like_cpp()
             .unwrap()
             .loot
-            .coins,
+            .coins
+    };
+    assert_eq!(
+        coins(0),
         100,
         "claiming instance 7 must not steal from the same spawn in instance 0"
     );
-    assert_eq!(
-        manager
-            .find_creature(571, 7, creature_guid)
-            .unwrap()
-            .creature
-            .loot_authority_like_cpp()
-            .shared_snapshot_like_cpp()
-            .unwrap()
-            .loot
-            .coins,
-        0
-    );
+    assert_eq!(coins(7), 0);
 }
 #[test]
 fn player_registry_publishes_instance_group_party_type_like_cpp() {

@@ -8,7 +8,7 @@ use crate::session::SessionState;
 
 impl crate::session::state::SessionCore {
     pub fn has_world_map_manager_like_cpp(&self) -> bool {
-        self.map_manager.is_some()
+        self.canonical_map_manager.is_some()
     }
 
     pub fn current_canonical_player_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {

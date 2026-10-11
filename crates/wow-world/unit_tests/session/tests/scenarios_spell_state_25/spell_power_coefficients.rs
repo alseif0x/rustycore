@@ -11,6 +11,11 @@ async fn spell_school_damage_applies_bonus_coefficient_from_ap_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `Unit::GetTotalAttackPowerValue(BASE_ATTACK)` = 100.
     session
@@ -45,7 +50,7 @@ async fn spell_school_damage_applies_bonus_coefficient_from_ap_like_cpp() {
         .expect("school damage without an AP coefficient");
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -60,7 +65,7 @@ async fn spell_school_damage_applies_bonus_coefficient_from_ap_like_cpp() {
     // `100 + int32(3.0 * 100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -79,6 +84,11 @@ async fn spell_direct_heal_applies_bonus_coefficient_from_ap_like_cpp() {
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     session
         .mutate_world_creature(guid, |creature| {
@@ -112,7 +122,7 @@ async fn spell_direct_heal_applies_bonus_coefficient_from_ap_like_cpp() {
     // `100 + int32(2.0 * 100)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -132,6 +142,11 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
     session.core.player_guid = Some(player_guid);
     session.core.client_visible_guids_like_cpp.insert(guid);
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 0, 0);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 1_000);
     // `SpellBaseDamageBonusDone` = 100 spell power.
     session
@@ -167,7 +182,7 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
     // `100 + int32(100 * 0.5)`.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()
@@ -182,7 +197,7 @@ async fn spell_school_damage_ignores_the_flat_benefit_of_ignore_caster_modifiers
     // C++ returns before the flat advertised benefit as well.
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 0, guid)
             .unwrap()

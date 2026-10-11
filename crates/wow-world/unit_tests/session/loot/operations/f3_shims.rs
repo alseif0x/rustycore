@@ -7,13 +7,6 @@
 use super::*;
 
 impl crate::session::WorldSession {
-    pub(crate) fn read_legacy_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.read_legacy_creature_loot_authority_like_cpp(hub, guid)
-    }
     pub(crate) fn read_canonical_creature_loot_authority_like_cpp(
         &self,
         guid: ObjectGuid,

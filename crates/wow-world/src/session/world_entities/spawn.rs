@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn drain_ready_map_respawns_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-        now: std::time::Instant,
-    ) -> Vec<crate::map_manager::PendingRespawn> {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.drain_ready_map_respawns_like_cpp(&mut hub, map_id, instance_id, now)
-    }
     pub(in crate::session) fn despawn_represented_linked_trap_by_guid_like_cpp(
         &mut self,
         trap_guid: ObjectGuid,

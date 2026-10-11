@@ -8,22 +8,19 @@ fn d3b3_session_like_cpp(
     guid: ObjectGuid,
 ) -> (
     WorldSession,
-    crate::map_manager::SharedMapManager,
+    SharedCanonicalMapManager,
     SharedCanonicalMapManager,
 ) {
     let manager = shared_map_manager();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::CanonicalMap);
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 25);
-    assert!(
-        manager.read().unwrap().find_creature(0, 0, guid).is_none(),
-        "the production owner keeps no legacy copy"
-    );
     (session, manager, canonical)
 }
 

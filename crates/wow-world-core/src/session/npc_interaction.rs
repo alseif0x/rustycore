@@ -9,7 +9,7 @@ use crate::session::{
     RepresentedGetReactionInputLikeCpp,
 };
 use wow_constants::{CreatureTypeFlags, UnitFlags2};
-use wow_core::{ObjectGuid, Position};
+use wow_core::ObjectGuid;
 
 impl NpcInteractionAccessLikeCpp<'_> {
     pub fn represented_npc_can_interact_with_like_cpp(
@@ -42,8 +42,6 @@ impl NpcInteractionAccessLikeCpp<'_> {
             .unwrap_or_else(|| {
                 wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0)
             });
-        let mut canonical_record_found_like_cpp = false;
-        let mut canonical_fail_closed_like_cpp = false;
         let mut canonical_reaction_input_like_cpp = None;
         let canonical_access = (|| {
             let manager = self.core.canonical_map_manager.as_ref()?;
@@ -61,7 +59,6 @@ impl NpcInteractionAccessLikeCpp<'_> {
                 map.map().get_typed_player(player_guid)
             {
                 if !canonical_player.unit().world().object().is_in_world() {
-                    canonical_fail_closed_like_cpp = true;
                     return None;
                 }
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -80,18 +77,15 @@ impl NpcInteractionAccessLikeCpp<'_> {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 {
                     if self.core.player_handle_like_cpp.is_some() {
-                        canonical_fail_closed_like_cpp = true;
                         return None;
                     }
                     *self.fixtures.player_alive && *self.fixtures.player_health > 0
                 }
                 #[cfg(not(any(test, feature = "test-fixtures")))]
                 {
-                    canonical_fail_closed_like_cpp = true;
                     return None;
                 }
             };
-            canonical_record_found_like_cpp = map.map().contains_map_object_like_cpp(guid);
             map.map()
                 .with_creature_or_pet_like_cpp(guid, |creature, _| {
                     let type_flags = CreatureTypeFlags::from_bits_retain(
@@ -192,115 +186,9 @@ impl NpcInteractionAccessLikeCpp<'_> {
             }
             return Some(canonical_access);
         }
-        if canonical_record_found_like_cpp || canonical_fail_closed_like_cpp {
-            return None;
-        }
-
-        self.represented_legacy_npc_can_interact_with_like_cpp(
-            guid,
-            npc_flags,
-            npc_flags2,
-            player_position,
-            player_map_key.instance_id,
-            player_interaction_combat_reach,
-            target_player_contested_pvp,
-        )
-    }
-
-    fn represented_legacy_npc_can_interact_with_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        npc_flags: u32,
-        npc_flags2: u32,
-        player_position: Position,
-        player_instance_id: u32,
-        player_interaction_combat_reach: f32,
-        target_player_contested_pvp: bool,
-    ) -> Option<RepresentedCreatureAccessLikeCpp> {
-        let manager = self.core.map_manager.as_ref()?;
-        let manager = manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let creature =
-            manager.find_creature(self.core.player_map_id_like_cpp(), player_instance_id, guid)?;
-        let type_flags =
-            CreatureTypeFlags::from_bits_retain(creature.creature.lifecycle_metadata().type_flags);
-        if self.resolved_player_is_alive_like_cpp() != Some(true)
-            && !type_flags.contains(CreatureTypeFlags::VISIBLE_TO_GHOSTS)
-        {
-            return None;
-        }
-        if !creature.is_alive() && !type_flags.contains(CreatureTypeFlags::INTERACT_WHILE_DEAD) {
-            return None;
-        }
-        if (npc_flags != 0 || npc_flags2 != 0)
-            && (creature.npc_flags() & npc_flags) == 0
-            && (creature.npc_flags2() & npc_flags2) == 0
-        {
-            return None;
-        }
-        if creature
-            .creature
-            .unit()
-            .subsystems()
-            .control
-            .charmer_guid
-            .is_some()
-        {
-            return None;
-        }
-        if !creature
-            .unit_flags2_like_cpp()
-            .contains(UnitFlags2::INTERACT_WHILE_HOSTILE)
-        {
-            let reaction =
-                self.represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
-                    self_faction_template_id: creature.faction(),
-                    target_faction_template_id: self
-                        .player_faction_template_id_like_cpp()
-                        .unwrap_or(0),
-                    same_object: false,
-                    attackable_by_summoner: false,
-                    same_charmer_or_owner_or_self: false,
-                    self_has_player_owner: false,
-                    target_has_player_owner: true,
-                    target_player_owner_is_current_session: true,
-                    target_owner_forced_rank_for_self: None,
-                    same_player_owner: false,
-                    duel_in_progress: false,
-                    same_raid: false,
-                    self_unit_player_controlled: false,
-                    target_unit_player_controlled: true,
-                    self_ffa_pvp: false,
-                    target_ffa_pvp: false,
-                    self_ignores_reputation: false,
-                    target_ignores_reputation: false,
-                    target_is_unit: true,
-                    target_player_contested_pvp,
-                });
-            if reaction <= wow_data::reputation::ReputationRankLikeCpp::Unfriendly {
-                return None;
-            }
-        }
-        let interaction_distance = creature.creature.unit().world().combat_reach() + 4.0;
-        let interaction_distance_with_radii = interaction_distance
-            + creature.creature.unit().world().combat_reach()
-            + player_interaction_combat_reach;
-        if !creature
-            .position()
-            .is_within_dist(&player_position, interaction_distance_with_radii)
-        {
-            return None;
-        }
-
-        Some(RepresentedCreatureAccessLikeCpp {
-            entry: creature.entry(),
-            position: creature.position(),
-            npc_flags: creature.npc_flags(),
-            npc_flags2: creature.npc_flags2(),
-            trainer_class: creature.trainer_class_like_cpp(),
-            faction_template_id: creature.faction(),
-        })
+        // The canonical map is the only creature store (#1263 F6-8E): a
+        // creature it does not hold, or one it refused, has no interaction.
+        None
     }
 }
 

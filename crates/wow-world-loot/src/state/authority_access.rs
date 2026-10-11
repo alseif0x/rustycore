@@ -4,39 +4,6 @@ use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityStamp};
 use wow_world_core::session::{HubMut, HubRef};
 
 impl LootState {
-    /// Single-store observation probe for the **legacy** representation.
-    ///
-    /// #1263 F6-8C: the canonical designated-authority lookup
-    /// ([`Self::read_canonical_creature_loot_authority_like_cpp`] and the
-    /// session's `represented_owned_loot_authority_outcome_like_cpp`) is the
-    /// only authority a loot consumer resolves. This probe and its `_on_map_`
-    /// sibling are kept for the loot fixtures that observe one store at a time
-    /// — they cannot move without deleting the legacy store (slice E) — and the
-    /// World surface no longer exposes them to production code.
-    pub fn read_legacy_creature_loot_authority_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        self.read_legacy_creature_loot_authority_on_map_like_cpp(
-            hub,
-            guid,
-            wow_map::MapKey::new(u32::from(map_id), instance_id),
-        )
-    }
-
-    pub fn read_legacy_creature_loot_authority_on_map_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        hub.core
-            .loot_release_access_like_cpp()
-            .read_legacy_creature_loot_authority_on_map_like_cpp(guid, map_key)
-    }
-
     pub fn read_canonical_creature_loot_authority_like_cpp(
         &self,
         hub: HubRef<'_>,
@@ -88,11 +55,10 @@ impl LootState {
     /// F6-7 R7b-2a: the guarded creature loot-lifecycle mutation now routes
     /// through the session's one gated mutation root
     /// (`SessionCore::mutate_world_creature_if_fully_looted_observation_like_cpp`),
-    /// which admits the representation against the current canonical
-    /// incarnation, takes the canonical lock before the legacy one, runs the
-    /// mutation once, applies it to the incarnation and only then synchronizes
-    /// the legacy representation. The two-store body that used to live here is
-    /// gone rather than duplicated.
+    /// which lends the canonical incarnation under the canonical lock, runs the
+    /// mutation once on it and returns it (#1263 F6-8E: there is no legacy
+    /// representation to synchronize). The two-store body that used to live
+    /// here is gone rather than duplicated.
     pub fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
         &mut self,
         hub: &mut HubMut<'_>,

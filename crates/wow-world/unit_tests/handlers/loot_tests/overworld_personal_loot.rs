@@ -13,6 +13,8 @@ use super::{
     attach_loot_guid_allocator_for_owner, broadcast_info, make_session,
     register_test_creature_like_cpp, test_creature, test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::WorldSession;
 use crate::session::directory::PlayerRegistry;
 
@@ -143,6 +145,11 @@ pub(super) fn overworld_personal_loot_test_fixture_like_cpp()
     creature.gold_min = 7;
     creature.gold_max = 7;
     register_test_creature_like_cpp(&mut session, creature);
+    let registered = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .expect("the registration configured a canonical store");
     attach_loot_guid_allocator_for_owner(&mut session, owner_guid);
     // F6-7 R7a: the canonical map instance is attached *after* registration, and
     // it holds a separately constructed placeholder object. Re-seat the canonical
@@ -155,12 +162,7 @@ pub(super) fn overworld_personal_loot_test_fixture_like_cpp()
         .cloned()
         .expect("the fixture attached the canonical map manager");
     adopt_registered_creature_as_canonical_incarnation_like_cpp(
-        &session
-            .core
-            .map_manager
-            .as_ref()
-            .cloned()
-            .expect("the fixture registered a legacy map manager"),
+        &registered,
         &canonical_manager,
         owner_guid,
         u32::from(owner_guid.map_id()),

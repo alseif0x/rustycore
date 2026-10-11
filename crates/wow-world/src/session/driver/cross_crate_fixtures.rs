@@ -32,7 +32,6 @@ impl WorldSession {
     #[allow(clippy::too_many_arguments)]
     pub async fn enter_canonical_world_for_test_like_cpp(
         &mut self,
-        legacy: crate::map_manager::SharedMapManager,
         canonical: SharedCanonicalMapManager,
         map_store: Arc<wow_data::MapStore>,
         registry: Arc<PlayerRegistry>,
@@ -41,7 +40,6 @@ impl WorldSession {
         position: Position,
         level: u8,
     ) -> bool {
-        self.set_map_manager(legacy);
         self.set_canonical_map_manager(canonical);
         self.set_map_store(map_store);
         self.attach_player_controller_like_cpp(SessionPlayerController::new(

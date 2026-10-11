@@ -28,6 +28,8 @@ use super::{
     make_session_with_send_capacity, register_test_creature_like_cpp,
     represented_loot_object_guid_like_cpp, test_creature, test_creature_guid,
 };
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 use crate::session::{SessionState, WorldSession};
 use wow_core::{ObjectGuid, Position};
 use wow_loot::OwnedLootAuthority;
@@ -36,9 +38,9 @@ use wow_world_core::session::OwnedLootAuthorityLookupOutcomeLikeCpp;
 
 /// Everything a rejected loot open must leave untouched: the represented loot
 /// cache and its generation, the active loot GUID, the represented viewers and
-/// their view generation, the recorded view authority, and both mirrors'
-/// generations (with their storage identity, which reconciliation would
-/// change).
+/// their view generation, the recorded view authority and the designated
+/// canonical allocation (with their storage identity, which reconciliation
+/// would change).
 #[derive(Debug, PartialEq, Eq)]
 struct LootViewStateLikeCpp {
     cached_present: bool,
@@ -48,24 +50,22 @@ struct LootViewStateLikeCpp {
     active_loot_guid: ObjectGuid,
     viewers: Vec<ObjectGuid>,
     view_generations: Vec<(ObjectGuid, u64)>,
-    view_authority_is_legacy_mirror: bool,
-    legacy_mirror_generation: Option<u64>,
-    legacy_mirror_coins: Option<u32>,
-    legacy_mirror_viewers: usize,
-    canonical_mirror_generation: Option<u64>,
-    mirrors_are_distinct: bool,
+    view_authority_generation: Option<u64>,
+    view_authority_coins: Option<u32>,
+    view_authority_viewers: usize,
+    canonical_generation: Option<u64>,
+    view_authority_is_not_the_canonical_allocation: bool,
 }
 
-fn mirror_authorities_like_cpp(
+fn canonical_authority_like_cpp(
     session: &WorldSession,
     owner_guid: ObjectGuid,
-) -> (Option<OwnedLootAuthority>, Option<OwnedLootAuthority>) {
+) -> Option<OwnedLootAuthority> {
     let map_key = MapKey::new(u32::from(session.core.player_map_id_like_cpp()), 0);
-    let access = session.core.loot_release_access_like_cpp();
-    (
-        access.read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key),
-        access.read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key),
-    )
+    session
+        .core
+        .loot_release_access_like_cpp()
+        .read_canonical_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
 }
 
 fn loot_view_state_like_cpp(
@@ -73,10 +73,13 @@ fn loot_view_state_like_cpp(
     owner_guid: ObjectGuid,
     player_guid: ObjectGuid,
 ) -> LootViewStateLikeCpp {
-    let (legacy, canonical) = mirror_authorities_like_cpp(session, owner_guid);
+    let canonical = canonical_authority_like_cpp(session, owner_guid);
     let mut viewers = session.loot.active_loot_view_owners_snapshot_like_cpp();
     viewers.sort_unstable_by_key(|guid| (guid.high_value(), guid.low_value()));
-    let active_authority = session.loot.active_loot_view_authority_like_cpp(owner_guid);
+    let active_authority = session
+        .loot
+        .active_loot_view_authority_like_cpp(owner_guid)
+        .cloned();
     LootViewStateLikeCpp {
         cached_present: session.loot.cached_loot_contains_owner_like_cpp(owner_guid),
         cached_generation: session
@@ -105,41 +108,35 @@ fn loot_view_state_like_cpp(
                     .map(|generation| (owner, generation))
             })
             .collect(),
-        view_authority_is_legacy_mirror: active_authority.is_some_and(|authority| {
-            legacy
-                .as_ref()
-                .is_some_and(|legacy| authority.shares_storage_like_cpp(legacy))
-        }),
-        legacy_mirror_generation: legacy
+        view_authority_generation: active_authority
             .as_ref()
             .and_then(|authority| authority.snapshot_for_player_like_cpp(player_guid))
             .map(|snapshot| snapshot.generation),
-        legacy_mirror_coins: legacy
+        view_authority_coins: active_authority
             .as_ref()
             .and_then(|authority| authority.snapshot_for_player_like_cpp(player_guid))
             .map(|snapshot| snapshot.loot.coins),
-        legacy_mirror_viewers: legacy
+        view_authority_viewers: active_authority
             .as_ref()
             .and_then(|authority| authority.snapshot_for_player_like_cpp(player_guid))
             .map(|snapshot| snapshot.loot.players_looting.len())
             .unwrap_or_default(),
-        canonical_mirror_generation: canonical
+        canonical_generation: canonical
             .as_ref()
             .and_then(|authority| authority.snapshot_for_player_like_cpp(player_guid))
             .map(|snapshot| snapshot.generation),
-        mirrors_are_distinct: matches!(
-            (&legacy, &canonical),
-            (Some(legacy), Some(canonical)) if !legacy.shares_storage_like_cpp(canonical)
+        view_authority_is_not_the_canonical_allocation: matches!(
+            (&active_authority, &canonical),
+            (Some(view), Some(canonical)) if !view.shares_storage_like_cpp(canonical)
         ),
     }
 }
 
-/// Seed an openable creature loot view (cache, mirrors at the legacy key,
-/// active represented guid) and then leave the session without a resolved
-/// canonical residence, so the designated owner cannot be addressed and the
-/// lookup reports `Unavailable`. The authoritative loot is installed while the
-/// canonical map is still absent, exactly as the existing packet fixtures do
-/// it.
+/// Seed an openable creature loot view (cache, the view authority of the
+/// registered incarnation, active represented guid) and then move the session
+/// to a canonical store whose incarnation holds another allocation, without a
+/// resolved canonical residence, so the designated owner cannot be addressed
+/// and the lookup reports `Unavailable`.
 fn unavailable_designated_owner_session_like_cpp() -> (
     WorldSession,
     flume::Receiver<Vec<u8>>,
@@ -161,16 +158,16 @@ fn unavailable_designated_owner_session_like_cpp() -> (
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let legacy_mirror = expect_found_like_cpp(
+    let registered = expect_found_like_cpp(
         session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
     );
     session.loot.set_active_loot_guid(owner_guid);
     session
         .loot
-        .insert_active_loot_view_authority_for_test_like_cpp(owner_guid, legacy_mirror);
+        .insert_active_loot_view_authority_for_test_like_cpp(owner_guid, registered);
 
-    // A second, independently allocated mirror appears at the same key, and
-    // the session is logged in with no canonical player, so the key the
+    // The session moves to a store whose incarnation holds an independently
+    // allocated pool, and is logged in with no canonical player, so the key the
     // designated owner resolves under does not resolve at all.
     let canonical_mirror = make_canonical_creature_for_session(&session, owner_guid);
     attach_canonical_creature(&mut session, canonical_mirror);
@@ -184,12 +181,12 @@ fn unavailable_designated_owner_rejects_loot_open_without_side_effects_like_cpp(
         unavailable_designated_owner_session_like_cpp();
     let before = loot_view_state_like_cpp(&session, owner_guid, player_guid);
     assert!(
-        before.cached_present && before.legacy_mirror_generation.is_some(),
-        "the fixture must expose an openable authority behind a readable mirror"
+        before.cached_present && before.view_authority_generation.is_some(),
+        "the fixture must expose an openable recorded view authority"
     );
     assert!(
-        before.mirrors_are_distinct,
-        "the fixture must hold two independently allocated mirrors"
+        before.view_authority_is_not_the_canonical_allocation,
+        "the fixture's recorded view and the canonical incarnation hold distinct allocations"
     );
     assert!(send_rx.try_recv().is_err(), "the fixture queues no packet");
 
@@ -229,10 +226,11 @@ fn absent_loot_authority_keeps_the_existing_open_and_release_paths_like_cpp() {
     let owner_guid = test_creature_guid(61_961);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_state(SessionState::LoggedIn);
+    // Not logged in: a logged-in session with no canonical player has no
+    // resolved residence, which is the `Unavailable` case pinned above.
 
-    // The legacy store is configured, readable and addressed, but it holds a
-    // *different* creature: the designated owner was genuinely consulted and
+    // The canonical store is configured, readable and addressed, but it holds
+    // a *different* creature: the designated owner was genuinely consulted and
     // does not contain this GUID, which is the proven absence this regression
     // pins — not the unaddressed "no store configured" fact that is
     // `Unavailable`, and not the unreadable-owner fact R2 added.
@@ -240,8 +238,7 @@ fn absent_loot_authority_keeps_the_existing_open_and_release_paths_like_cpp() {
         &mut session,
         test_creature(test_creature_guid(61_962), false),
     );
-    assert!(session.core.canonical_map_manager.is_none());
-    assert!(session.core.map_manager.is_some());
+    assert!(session.core.canonical_map_manager.is_some());
     assert!(matches!(
         session.represented_owned_loot_authority_outcome_like_cpp(owner_guid),
         OwnedLootAuthorityLookupOutcomeLikeCpp::Absent

@@ -13,7 +13,7 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     let secondary_guid = test_creature_guid(19_030);
     session.set_player_guid(Some(player_guid));
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut session);
     session.loot.set_active_loot_guid(primary_guid);
     session
         .loot

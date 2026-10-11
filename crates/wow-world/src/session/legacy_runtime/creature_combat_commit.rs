@@ -5,10 +5,9 @@
 
 //! The canonical commit of the aggro phase's attack start/stop transitions.
 //!
-//! #1263 F6-8D3a-1 moves these out of the world-server delivery module so the
-//! legacy bridge (which locks the canonical manager per batch) and the
-//! admitted canonical executor (which already holds that guard) commit the
-//! same transitions through the same body. C++ `Unit::Attack` / `CombatStop`
+//! #1263 F6-8D3a-1 moved these out of the world-server delivery module so the
+//! admitted canonical executor (which already holds the canonical guard)
+//! commits them (#1263 F6-8E deleted the legacy bridge that shared the body). C++ `Unit::Attack` / `CombatStop`
 //! mutate both participants inside one map update; here each command is one
 //! `MapCommandLikeCpp` through the map's single writer.
 

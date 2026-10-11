@@ -514,28 +514,6 @@ impl Unit {
         self.death_state = authoritative.death_state;
         self.health_state_revision_like_cpp = authoritative.health_state_revision_like_cpp.clone();
     }
-    /// Mark a mirror replay as the exact already-committed health transition.
-    ///
-    /// Replaying normal setters is intentional because it runs the mirror's
-    /// local death hooks, but those setters reserve fresh sequence values. The
-    /// caller may invoke this only after verifying that the resulting
-    /// health/death tuple and incarnation metadata exactly match the canonical
-    /// commit. The shared allocator never moves backward; only this mirror's
-    /// local state version is aligned with the committed version.
-    pub fn adopt_committed_health_state_revision_for_mirror_like_cpp(
-        &mut self,
-        committed_revision: u64,
-    ) {
-        assert_ne!(
-            committed_revision, 0,
-            "a committed health transition must carry a nonzero revision"
-        );
-        self.health_state_revision_like_cpp
-            .authority
-            .allocator
-            .fetch_max(committed_revision, Ordering::AcqRel);
-        self.health_state_revision_like_cpp.value = committed_revision;
-    }
     pub(super) fn advance_health_state_revision_like_cpp(&mut self) {
         self.health_state_revision_like_cpp.advance();
     }

@@ -3,6 +3,8 @@
 //! Separated from mod.rs under #709.
 
 use super::*;
+#[allow(unused_imports)]
+use crate::canonical_creature_fixtures::*;
 
 pub(crate) fn unique_temp_data_dir(test_name: &str) -> std::path::PathBuf {
     let unique = std::time::SystemTime::now()
@@ -298,8 +300,12 @@ pub(crate) fn register_misc_test_creature(
     entry: u32,
     npc_flags: u64,
 ) {
-    session.set_map_manager(Arc::new(RwLock::new(crate::map_manager::MapManager::new())));
+    session.set_canonical_map_manager(shared_canonical_map_manager());
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_and_map_for_session_like_cpp(
+        session,
+    );
+    session.set_player_faction_template_like_cpp(1);
     session.register_world_creature(
         571,
         Position::new(12.0, 0.0, 0.0, 0.0),

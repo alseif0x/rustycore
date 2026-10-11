@@ -411,8 +411,6 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
     let mut manager = wow_map::MapManager::default();
     let map = manager.create_world_map(571, 0);
     assert!(map.map_mut().load_grid(0.0, 0.0));
-    let legacy_manager: wow_world::SharedMapManager =
-        Arc::new(std::sync::RwLock::new(wow_world::MapManager::new()));
     let event_id = 1;
     let creature_spawn_id = 535101;
     let gameobject_spawn_id = 535201;
@@ -536,14 +534,6 @@ fn game_event_spawn_non_pool_creature_and_gameobject_loaded_grid_adds_records_li
         .get_creature_by_spawn_id_like_cpp(creature_spawn_id)
         .expect("GameEventSpawn should add loaded-grid Creature");
     assert_eq!(creature.respawn_time(), 0);
-    assert!(
-        legacy_manager
-            .read()
-            .unwrap()
-            .find_creature(571, 0, creature.guid())
-            .is_none(),
-        "#1263 F6-8D3b-2: C++ AddToMap has one store; no canonical->legacy mirror"
-    );
     let gameobject = map
         .get_gameobject_by_spawn_id_like_cpp(gameobject_spawn_id)
         .expect("GameEventSpawn should add spawned-by-default GameObject");

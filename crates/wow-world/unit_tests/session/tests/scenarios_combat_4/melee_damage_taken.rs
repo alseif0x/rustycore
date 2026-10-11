@@ -163,7 +163,7 @@ fn melee_damage_taken_matches_cpp_like_cpp() {
 fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(18_037);
     let player = ObjectGuid::create_player(1, 94);
 
@@ -204,6 +204,11 @@ fn white_swing_applies_victim_melee_damage_taken_like_cpp() {
         .unwrap();
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {

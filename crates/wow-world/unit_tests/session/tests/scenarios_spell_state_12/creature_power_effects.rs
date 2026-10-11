@@ -13,7 +13,7 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
     let creature_guid = test_creature_guid(19_302);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -26,6 +26,11 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -37,13 +42,7 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -115,7 +114,7 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
     let creature_guid = test_creature_guid(19_300);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -128,6 +127,11 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -139,13 +143,7 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -257,7 +255,7 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
     let creature_guid = test_creature_guid(19_303);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -274,6 +272,11 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -285,13 +288,7 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_world_creature(creature_guid, |world_creature| {
             let creature = &mut world_creature.creature;
@@ -334,7 +331,7 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
     );
     assert_eq!(
         manager
-            .read()
+            .lock()
             .unwrap()
             .find_creature(0, 7, creature_guid)
             .expect("creature in the test instance")
@@ -382,7 +379,7 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
     let creature_guid = test_creature_guid(19_301);
     let position = Position::new(10.0, 20.0, 30.0, 0.0);
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -399,6 +396,11 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 100);
     add_canonical_test_player_on_map(&canonical, player_guid, position, 0, 7);
     add_canonical_test_creature_indexed_on_map_with_level(
@@ -410,13 +412,7 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         7,
         80,
     );
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
-        &manager,
-        &canonical,
-        creature_guid,
-        (0, 0),
-        (0, 7),
-    );
+    adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_power_index(PowerType::Mana, Some(0));
@@ -460,7 +456,7 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         })
         .unwrap();
     assert_eq!(mana, 25, "C++ drains the burned power from the target pool");
-    let creature = manager.read().unwrap();
+    let creature = manager.lock().unwrap();
     let legacy = creature
         .find_creature(0, 7, creature_guid)
         .expect("creature in the test instance");

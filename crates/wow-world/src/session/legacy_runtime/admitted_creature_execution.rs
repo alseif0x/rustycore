@@ -2,16 +2,15 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
-//! #1263 F6-8D2: the isolated admitted creature execution path.
+//! #1263 F6-8D2: the admitted creature execution path.
 //!
 //! F6-8D1 ported the complete per-creature phase operations onto canonical
 //! `Creature`/`CreatureRuntimeLikeCpp` ownership. This module connects that
 //! engine to an **admitted** transition — the map incarnations, the selected
-//! objects and the tick diff captured for one tick — and executes it in an
-//! isolated path that production does not call. Production still runs the
-//! externally-driven legacy phases (`RuntimeTickOwner::GlobalLegacy`) and the
-//! canonical map still records `MapCreatureUpdateOwnerLikeCpp::ExternalRuntime`,
-//! so nothing here changes production behaviour.
+//! objects and the tick diff captured for one tick — and executes it. Since
+//! #1263 F6-8D3b-2 the canonical map update loop runs it every admitted tick
+//! (`run_admitted_creature_combat_phases_on_locked_manager_like_cpp`), and
+//! since F6-8E it is the only creature runtime.
 //!
 //! Three contracts are asserted by the regressions:
 //!
@@ -27,24 +26,19 @@
 //! 3. **One diff/clock advancement, one due cast, one swing commit and one
 //!    deferred publication** per admitted transition, with the publication
 //!    returned to the caller instead of being delivered under the map guard.
-//!
-//! The execution owner here is deliberately **not** wired into production: D3
-//! owns the exclusive cutover, and E owns the retirement of the legacy store.
 
 use super::*;
 
 // The engine is one responsibility with four cohesive private parts: the
 // single-owner claim (`lease`), the frozen admission and its fence
 // (`admission`), the admitted execution itself (`execution`) and the
-// three-owner composition the acceptance evaluates (`composition`).
+// production combat phases (`combat_phases`).
 mod admission;
 mod combat_phases;
-mod composition;
 mod execution;
 mod lease;
 
 pub use admission::*;
 pub use combat_phases::*;
-pub use composition::*;
 pub use execution::*;
 pub use lease::*;

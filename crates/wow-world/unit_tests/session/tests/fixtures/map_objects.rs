@@ -5,12 +5,10 @@
 
 use super::*;
 
-pub(in crate::session::tests) fn shared_map_manager() -> crate::map_manager::SharedMapManager {
-    Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()))
-}
-
-pub(in crate::session::tests) fn shared_canonical_map_manager() -> SharedCanonicalMapManager {
-    Arc::new(Mutex::new(wow_map::MapManager::default()))
+/// The creature store of a scenario: a canonical map manager (#1263 F6-8E:
+/// the only creature store).
+pub(in crate::session::tests) fn shared_map_manager() -> SharedCanonicalMapManager {
+    shared_canonical_map_manager()
 }
 
 pub(in crate::session::tests) fn configure_player_shape_mount_collision_stores_like_cpp(

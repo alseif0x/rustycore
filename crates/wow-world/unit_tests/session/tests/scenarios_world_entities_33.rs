@@ -9,11 +9,10 @@ use super::*;
 /// the absorb log before the attacker-state packet.
 #[test]
 fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(93_001);
     let victim_guid = test_creature_guid(93_002);
@@ -23,7 +22,17 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     for guid in [victim_guid] {
         session
@@ -164,10 +173,6 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
         spell_store: Some(spell_store),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let victim_health = || {
         canonical
@@ -252,7 +257,7 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config)
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)
     };
 
     let first = tick(&mut session);

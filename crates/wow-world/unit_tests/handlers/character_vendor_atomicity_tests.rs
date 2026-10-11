@@ -41,9 +41,9 @@ fn make_vendor_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         80,
         0,
     ));
-    session.set_map_manager(Arc::new(std::sync::RwLock::new(
-        crate::map_manager::MapManager::new(),
-    )));
+    session.set_canonical_map_manager(
+        crate::canonical_creature_fixtures::shared_canonical_map_manager(),
+    );
     (session, send_rx)
 }
 

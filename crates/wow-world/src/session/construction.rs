@@ -95,7 +95,6 @@ impl WorldSession {
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,
-                combat_tick_last_at_like_cpp: Instant::now(),
                 last_presented_creature_melee_health_state_revision_like_cpp: 0,
                 taxi_node_map_ids_like_cpp: HashMap::new(),
                 active_area_trigger: None,

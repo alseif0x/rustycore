@@ -395,7 +395,6 @@ pub(in crate::session) struct PendingPlayerSwingLikeCpp {
 
 #[derive(Debug, Clone, Default)]
 pub struct LegacyPlayerMeleeTickOutcomeLikeCpp {
-    pub skipped_owner_not_global: bool,
     pub attackers_seen: usize,
     pub maps_seen: usize,
     pub combat_ref_revalidations: usize,
@@ -407,11 +406,6 @@ pub struct LegacyPlayerMeleeTickOutcomeLikeCpp {
     pub victim_missing: usize,
     pub victim_not_alive: usize,
     pub attacker_unavailable: usize,
-    pub canonical_mirror_rejections: usize,
     pub in_combat_reconciles: usize,
-    /// #1263 F6-8C: creature victims whose execution was refused because the
-    /// canonical designated owner holds no incarnation for them. The legacy
-    /// copy alone no longer executes a swing.
-    pub canonical_incarnation_rejections: usize,
     pub commands: Vec<crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand>,
 }

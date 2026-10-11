@@ -14,11 +14,10 @@ use super::*;
 /// shrinks (`Unit.cpp:7670-7778`).
 #[test]
 fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM;
 
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let player = ObjectGuid::create_player(1, 91_180);
@@ -59,6 +58,11 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -150,10 +154,6 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
         spell_store: Some(spell_store),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let victim_health = |canonical: &SharedCanonicalMapManager| {
         canonical
@@ -168,15 +168,14 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
             .data()
             .health
     };
-    let swing = |manager: &crate::map_manager::SharedMapManager, session: &mut WorldSession| {
+    let swing = |manager: &SharedCanonicalMapManager, session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.ai_ownership_mut().last_swing_ms = 0;
                 creature.creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        let outcome =
-            run_legacy_creature_melee_tick_once_like_cpp(manager, Some(&canonical), &config);
+        let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
         outcome.commands.last().expect("one swing command").clone()
     };
     let aura_slot = |session: &WorldSession, spell_id: i32| {
@@ -259,10 +258,8 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
 /// runtime reads it through the aggro config's store handle.
 #[test]
 fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let player = ObjectGuid::create_player(1, 91_300);
     let creature_guid = test_creature_guid(91_301);
@@ -304,6 +301,11 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
             player.replace_effective_combat_stats_like_cpp(stats);
         })
         .unwrap();
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
@@ -352,10 +354,6 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
     session
         .apply_aura(91_310, player, 30_000, 1)
         .expect("apply hit-chance aura");
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
     let expected_stat = |armor_constant: f32| {
         wow_data::ExpectedStatStore::from_entries([wow_data::ExpectedStatEntry {
@@ -386,7 +384,7 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
             expected_stat_store,
             ..Default::default()
         };
-        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config)
+        run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config)
     };
 
     // No store: C++'s empty-store `EvaluateExpectedStat` fallback (`1.0`) gives
@@ -413,17 +411,25 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
 /// creature aura list existed, but the melee owner discarded it for damage.
 #[test]
 fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
     let attacker_guid = test_creature_guid(91_920);
     let victim_guid = test_creature_guid(91_921);
 
     let (mut session, _, _) = make_session();
     session.set_canonical_map_manager(Arc::clone(&canonical));
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     session
         .mutate_world_creature(attacker_guid, |creature| {
@@ -546,12 +552,8 @@ fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp
         )),
         ..Default::default()
     };
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
 
-    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
     assert_eq!(outcome.canonical_creature_hits, 1);
     assert_eq!(
         canonical

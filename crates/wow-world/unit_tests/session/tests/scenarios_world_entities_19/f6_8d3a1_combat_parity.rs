@@ -1,32 +1,29 @@
-//! #1263 F6-8D3a-1 regressions: the admitted canonical executor reaches
-//! combat-phase parity with the legacy bridge.
+//! #1263 F6-8D3a-1 regressions: the admitted canonical executor's combat
+//! phases, against the recorded legacy-bridge expectations.
 //!
-//! One seeded fixture is built twice, identically: two creatures and two
-//! players on map 0/0. The hostile creature is engaged with one player (threat
-//! from a hostile reaction), the neutral creature is engaged by the other per
-//! the R6-fix semantics (`EngageWithTarget`, accepted by `_IsTargetAcceptable`
-//! only because it is engaged) and is that player's melee victim. World **L**
-//! is driven through the legacy bridge in the legacy loop order (player melee,
-//! the movement phase (F6-8D3a-2; before it only its `Unit::Update` clock
-//! step), aggro plus its canonical
-//! start/stop commit and publication reduction, the creature spell phase
-//! (F6-8D3a-1b; this fixture's creatures know no spell, so it only proves the
-//! phase's place and its empty outcome), creature melee); world **C**
-//! is driven through `run_admitted_creature_combat_phases_isolated_like_cpp`.
-//! The comparison covers each phase's outcome (counters, `RuntimePlan` packet
-//! bytes and recipients, command lists), the creature-owned RNG positions, the
-//! swing timers and clocks, the threat tables and the health/revision tuples.
+//! One seeded fixture: two creatures and two players on map 0/0. The hostile
+//! creature is engaged with one player (threat from a hostile reaction), the
+//! neutral creature is engaged by the other per the R6-fix semantics
+//! (`EngageWithTarget`, accepted by `_IsTargetAcceptable` only because it is
+//! engaged) and is that player's melee victim. The fixture is driven through
+//! `run_admitted_creature_combat_phases_isolated_like_cpp` (player melee,
+//! movement, aggro plus its start/stop commit, spell, creature melee).
 //!
-//! The legacy store enumerates creatures in `HashMap` order and the executor in
-//! admission order, so events and commands are compared per source (a stable
-//! sort keeps each creature's own sequence). The two creatures fight different
-//! players, so no cross-creature result depends on that order.
+//! Until #1263 F6-8E the same fixture was also driven through the legacy
+//! bridge and the two compared (F6-8D3a-1 parity). F6-8E deleted the bridge;
+//! its observables are recorded in `f6_8d3a_recorded_expectations.tsv` (see
+//! `f6_8d3a_recorded_expectations`) and each one is checked against the
+//! executor: each phase's outcome (counters, `RuntimePlan` packet bytes and
+//! recipients, command lists), the creature-owned RNG positions, the swing
+//! timers and clocks, the threat tables and the health/revision tuples.
+//! Events and commands are compared per source (a stable sort keeps each
+//! creature's own sequence), as the parity check did.
 //!
 //! The attack-table roll (`rolled_melee_outcome_like_cpp`) draws from the
-//! thread RNG rather than a creature stream, so it cannot be byte-compared
-//! across two worlds; the fixture runs the store-less always-hit branch of the
-//! same body, and the one-body construction is what carries the table.
+//! thread RNG rather than a creature stream, so it cannot be recorded; the
+//! fixture runs the store-less always-hit branch of the same body.
 
+use super::f6_8d3a_recorded_expectations::{RecordedExpectationsLikeCpp, assert_recorded_like_cpp};
 use super::*;
 
 const D3A1_HOSTILE_SEED_LIKE_CPP: u64 = 0xD3A1_0001;
@@ -34,7 +31,6 @@ const D3A1_NEUTRAL_SEED_LIKE_CPP: u64 = 0xD3A1_0002;
 const D3A1_DIFF_MS_LIKE_CPP: u32 = 2_000;
 
 struct D3a1WorldLikeCpp {
-    manager: crate::map_manager::SharedMapManager,
     canonical: SharedCanonicalMapManager,
     _session: WorldSession,
     hostile: ObjectGuid,
@@ -87,8 +83,7 @@ fn d3a1_add_player_like_cpp(canonical: &SharedCanonicalMapManager, guid: ObjectG
 /// Build the fixture. Every call yields the same state: same GUIDs, seeds,
 /// positions, timers and engagements.
 fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
-    let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = shared_map_manager();
     let (mut session, _, _) = make_session();
     let hostile = test_creature_guid(base);
     let neutral = test_creature_guid(base + 1);
@@ -96,14 +91,14 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
     let defender = ObjectGuid::create_player(1, base + 3);
     register_test_creature_mirrored_like_cpp(
         &mut session,
-        manager.clone(),
+        canonical.clone(),
         &canonical,
         hostile,
         100,
     );
     register_test_creature_mirrored_like_cpp(
         &mut session,
-        manager.clone(),
+        canonical.clone(),
         &canonical,
         neutral,
         100,
@@ -156,10 +151,6 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
             creature.seed_runtime_rng_like_cpp(D3A1_NEUTRAL_SEED_LIKE_CPP);
         })
         .expect("the neutral creature is admitted");
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(crate::map_manager::RuntimeTickOwner::GlobalLegacy);
     let (send_tx, _rx) = flume::bounded::<Vec<u8>>(8);
     let (command_tx, _crx) = flume::bounded::<SessionCommand>(8);
     let registration = PlayerRegistry::new().register_or_replace(
@@ -180,7 +171,6 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
         legacy_aggro_candidate_like_cpp(defender, Position::new(11.0, 10.2, 0.0, 0.0)),
     ];
     D3a1WorldLikeCpp {
-        manager,
         canonical,
         _session: session,
         hostile,
@@ -189,95 +179,6 @@ fn d3a1_world_like_cpp(base: i64) -> D3a1WorldLikeCpp {
         defender,
         attackers,
         candidates,
-    }
-}
-
-/// Every phase outcome of one tick, plus the committed aggro commands.
-#[derive(Debug)]
-struct D3a1TickLikeCpp {
-    player_melee: crate::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
-    movement: crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
-    aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
-    committed_starts: Vec<crate::session::mailbox::CreatureAttackStartLikeCppCommand>,
-    committed_stops: Vec<crate::session::mailbox::CreatureAttackStopLikeCppCommand>,
-    spell: crate::session::LegacyCreatureSpellTickOutcomeLikeCpp,
-    melee: crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
-}
-
-/// World L: the legacy bridge, in the legacy loop order and with the
-/// world-server aggro commit the bridge applies before delivery.
-fn d3a1_legacy_tick_like_cpp(world: &D3a1WorldLikeCpp, diff_ms: u32) -> D3a1TickLikeCpp {
-    let config = d3a1_config_like_cpp();
-    let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
-    let player_melee = run_legacy_player_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
-        &world.attackers,
-        diff_ms,
-        &mut phase_state,
-        &config,
-    );
-    // #1263 F6-8D3a-2: the complete legacy movement phase, with the player
-    // chase snapshots the bridge takes from the registry.
-    let chase_targets = super::f6_8d3a2_movement_lifecycle_parity::d3a2_chase_targets_like_cpp(
-        &world.canonical,
-        &[world.striker, world.defender],
-    );
-    let movement = super::f6_8d3a2_movement_lifecycle_parity::d3a2_legacy_movement_tick_like_cpp(
-        &world.manager,
-        &world.canonical,
-        &chase_targets,
-        diff_ms,
-    );
-    let mut aggro = run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
-        &world.candidates,
-        config.clone(),
-    );
-    let (committed_starts, committed_stops) = {
-        let mut guard = world.canonical.lock().unwrap();
-        let starts = crate::session::apply_creature_attack_start_commands_on_manager_like_cpp(
-            &mut guard,
-            &aggro.commands,
-        );
-        let stops = crate::session::apply_creature_attack_stop_commands_on_manager_like_cpp(
-            &mut guard,
-            &aggro.stop_commands,
-        );
-        crate::session::retain_committed_creature_combat_events_like_cpp(
-            &mut aggro.plan,
-            &aggro.commands,
-            &starts,
-            &aggro.stop_commands,
-            &stops,
-        );
-        (
-            crate::session::committed_creature_combat_commands_like_cpp(&aggro.commands, &starts),
-            crate::session::committed_creature_combat_commands_like_cpp(
-                &aggro.stop_commands,
-                &stops,
-            ),
-        )
-    };
-    let spell = run_legacy_creature_spell_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
-        &config,
-    );
-    let melee = run_legacy_creature_melee_tick_once_like_cpp(
-        &world.manager,
-        Some(&world.canonical),
-        &config,
-    );
-    D3a1TickLikeCpp {
-        player_melee,
-        movement,
-        aggro,
-        committed_starts,
-        committed_stops,
-        spell,
-        melee,
     }
 }
 
@@ -311,7 +212,7 @@ fn d3a1_admit_like_cpp(
     (plan, admission)
 }
 
-/// World C: the admitted canonical executor over the same tick.
+/// One tick of the admitted canonical executor.
 fn d3a1_executor_tick_like_cpp(
     world: &D3a1WorldLikeCpp,
     admission: &AdmittedCreatureExecutionLikeCpp,
@@ -343,30 +244,33 @@ fn d3a1_executor_tick_like_cpp(
     )
 }
 
-/// Drive both worlds through one tick and return `(legacy, executor)`.
-fn d3a1_drive_both_like_cpp(
+/// Drive the fixture through one tick (`perturb` runs right before it) and
+/// check it against the recorded expectations of `test`. Returns the world,
+/// the outcome, the expectations (for a further pass) and the check result.
+fn d3a1_drive_like_cpp(
+    test: &'static str,
     base: i64,
-    perturb_executor_world: impl FnOnce(&D3a1WorldLikeCpp),
+    perturb: impl FnOnce(&D3a1WorldLikeCpp),
 ) -> (
     D3a1WorldLikeCpp,
-    D3a1TickLikeCpp,
-    D3a1WorldLikeCpp,
     AdmittedCreatureCombatPhasesOutcomeLikeCpp,
+    RecordedExpectationsLikeCpp,
+    Result<(), Vec<String>>,
 ) {
-    let legacy_world = d3a1_world_like_cpp(base);
-    let executor_world = d3a1_world_like_cpp(base);
-    let (_plan, admission) = d3a1_admit_like_cpp(&executor_world, D3A1_DIFF_MS_LIKE_CPP);
+    let world = d3a1_world_like_cpp(base);
+    let (_plan, admission) = d3a1_admit_like_cpp(&world, D3A1_DIFF_MS_LIKE_CPP);
     assert_eq!(admission.objects.len(), 2, "both creatures are admitted");
-    perturb_executor_world(&executor_world);
-    let legacy = d3a1_legacy_tick_like_cpp(&legacy_world, admission.diff_ms);
-    let executor = d3a1_executor_tick_like_cpp(&executor_world, &admission);
+    perturb(&world);
+    let executor = d3a1_executor_tick_like_cpp(&world, &admission);
     assert!(executor.executed_like_cpp(), "{:?}", executor.admission);
     assert_eq!(
         executor.clock_advanced_ms,
         2 * u64::from(admission.diff_ms),
         "one clock step per admitted creature"
     );
-    (legacy_world, legacy, executor_world, executor)
+    let mut expectations = RecordedExpectationsLikeCpp::for_test_like_cpp(test);
+    let result = d3a1_check_like_cpp(&mut expectations, &world, &executor);
+    (world, executor, expectations, result)
 }
 
 /// The plan events in per-source order.
@@ -400,7 +304,14 @@ fn d3a1_counters_like_cpp<T: std::fmt::Debug>(outcome: &T) -> String {
 /// The creature-owned observables: RNG position (next draws of a clone, which
 /// leaves the stream untouched), clock, swing timer, victim, threat table,
 /// health and health-state revision.
-fn d3a1_creature_state_like_cpp(creature: &wow_entities::Creature) -> String {
+fn d3a1_creature_like_cpp(world: &D3a1WorldLikeCpp, guid: ObjectGuid) -> String {
+    let guard = world.canonical.lock().unwrap();
+    let creature = guard
+        .find_map(0, 0)
+        .unwrap()
+        .map()
+        .get_typed_creature(guid)
+        .unwrap();
     let mut probe = creature.clone();
     let draws: Vec<_> = (0..4).map(|_| probe.roll_damage()).collect();
     let combat = &creature.unit().subsystems().combat;
@@ -427,23 +338,6 @@ fn d3a1_creature_state_like_cpp(creature: &wow_entities::Creature) -> String {
     )
 }
 
-fn d3a1_legacy_creature_like_cpp(world: &D3a1WorldLikeCpp, guid: ObjectGuid) -> String {
-    let guard = world.manager.read().unwrap();
-    d3a1_creature_state_like_cpp(&guard.find_creature(0, 0, guid).unwrap().creature)
-}
-
-fn d3a1_canonical_creature_like_cpp(world: &D3a1WorldLikeCpp, guid: ObjectGuid) -> String {
-    let guard = world.canonical.lock().unwrap();
-    d3a1_creature_state_like_cpp(
-        guard
-            .find_map(0, 0)
-            .unwrap()
-            .map()
-            .get_typed_creature(guid)
-            .unwrap(),
-    )
-}
-
 fn d3a1_player_like_cpp(world: &D3a1WorldLikeCpp, guid: ObjectGuid) -> String {
     let guard = world.canonical.lock().unwrap();
     let player = guard
@@ -462,133 +356,85 @@ fn d3a1_player_like_cpp(world: &D3a1WorldLikeCpp, guid: ObjectGuid) -> String {
     )
 }
 
-/// The parity check. `Err` names every observable that differs.
-fn d3a1_parity_like_cpp(
-    legacy_world: &D3a1WorldLikeCpp,
-    legacy: &D3a1TickLikeCpp,
-    executor_world: &D3a1WorldLikeCpp,
+/// One pass over every recorded observable. `Err` names every observable
+/// that differs.
+fn d3a1_check_like_cpp(
+    expectations: &mut RecordedExpectationsLikeCpp,
+    world: &D3a1WorldLikeCpp,
     executor: &AdmittedCreatureCombatPhasesOutcomeLikeCpp,
 ) -> Result<(), Vec<String>> {
-    let mut mismatches = Vec::new();
-    let mut check = |label: &str, left: String, right: String| {
-        if left != right {
-            mismatches.push(format!("{label}:\n  legacy:   {left}\n  executor: {right}"));
-        }
-    };
-    check(
+    let mut pass = expectations.pass_like_cpp();
+    pass.check_like_cpp(
         "player melee counters",
-        d3a1_counters_like_cpp(&legacy.player_melee),
         d3a1_counters_like_cpp(&executor.player_melee),
     );
-    check(
+    pass.check_like_cpp(
         "player melee commands",
-        d3a1_player_melee_commands_like_cpp(&legacy.player_melee.commands),
         d3a1_player_melee_commands_like_cpp(&executor.player_melee.commands),
     );
-    check(
+    pass.check_like_cpp(
         "movement counters",
-        super::f6_8d3a2_movement_lifecycle_parity::d3a2_movement_counters_like_cpp(
-            &legacy.movement,
-        ),
         super::f6_8d3a2_movement_lifecycle_parity::d3a2_movement_counters_like_cpp(
             &executor.movement,
         ),
     );
-    check(
+    pass.check_like_cpp(
         "movement plan",
-        format!("{:?}", d3a1_events_like_cpp(&legacy.movement.plan.events)),
         format!("{:?}", d3a1_events_like_cpp(&executor.movement.plan.events)),
     );
-    check(
-        "aggro counters",
-        d3a1_counters_like_cpp(&legacy.aggro),
-        d3a1_counters_like_cpp(&executor.aggro),
-    );
-    check(
+    pass.check_like_cpp("aggro counters", d3a1_counters_like_cpp(&executor.aggro));
+    pass.check_like_cpp(
         "aggro plan",
-        format!("{:?}", d3a1_events_like_cpp(&legacy.aggro.plan.events)),
         format!("{:?}", d3a1_events_like_cpp(&executor.aggro.plan.events)),
     );
-    check(
+    pass.check_like_cpp(
         "aggro committed starts",
-        format!("{:?}", d3a1_sorted_debug_like_cpp(&legacy.committed_starts)),
         format!(
             "{:?}",
             d3a1_sorted_debug_like_cpp(&executor.aggro_committed_starts)
         ),
     );
-    check(
+    pass.check_like_cpp(
         "aggro committed stops",
-        format!("{:?}", d3a1_sorted_debug_like_cpp(&legacy.committed_stops)),
         format!(
             "{:?}",
             d3a1_sorted_debug_like_cpp(&executor.aggro_committed_stops)
         ),
     );
-    check(
+    pass.check_like_cpp(
         "spell phase executed",
-        "true".to_string(),
         executor.spell_phase_executed.to_string(),
     );
-    check(
-        "spell counters",
-        d3a1_counters_like_cpp(&legacy.spell),
-        d3a1_counters_like_cpp(&executor.spell),
-    );
-    check(
+    pass.check_like_cpp("spell counters", d3a1_counters_like_cpp(&executor.spell));
+    pass.check_like_cpp(
         "spell plan",
-        format!("{:?}", d3a1_events_like_cpp(&legacy.spell.plan.events)),
         format!("{:?}", d3a1_events_like_cpp(&executor.spell.plan.events)),
     );
-    check(
-        "melee counters",
-        d3a1_counters_like_cpp(&legacy.melee),
-        d3a1_counters_like_cpp(&executor.melee),
-    );
-    check(
+    pass.check_like_cpp("melee counters", d3a1_counters_like_cpp(&executor.melee));
+    pass.check_like_cpp(
         "melee plan",
-        format!("{:?}", d3a1_events_like_cpp(&legacy.melee.plan.events)),
         format!("{:?}", d3a1_events_like_cpp(&executor.melee.plan.events)),
     );
-    check(
+    pass.check_like_cpp(
         "melee commands",
-        format!("{:?}", d3a1_sorted_debug_like_cpp(&legacy.melee.commands)),
         format!("{:?}", d3a1_sorted_debug_like_cpp(&executor.melee.commands)),
     );
-    for (label, guid) in [
-        ("hostile", legacy_world.hostile),
-        ("neutral", legacy_world.neutral),
-    ] {
-        check(
-            label,
-            d3a1_legacy_creature_like_cpp(legacy_world, guid),
-            d3a1_canonical_creature_like_cpp(executor_world, guid),
-        );
+    for (label, guid) in [("hostile", world.hostile), ("neutral", world.neutral)] {
+        pass.check_like_cpp(label, d3a1_creature_like_cpp(world, guid));
     }
-    for (label, guid) in [
-        ("striker", legacy_world.striker),
-        ("defender", legacy_world.defender),
-    ] {
-        check(
-            label,
-            d3a1_player_like_cpp(legacy_world, guid),
-            d3a1_player_like_cpp(executor_world, guid),
-        );
+    for (label, guid) in [("striker", world.striker), ("defender", world.defender)] {
+        pass.check_like_cpp(label, d3a1_player_like_cpp(world, guid));
     }
-    if mismatches.is_empty() {
-        Ok(())
-    } else {
-        Err(mismatches)
-    }
+    pass.finish_like_cpp()
 }
 
 /// The player melee commands, without the victim VALUES copy.
 ///
-/// #1263 F6-8D3b-3: the legacy bridge's victim is a legacy copy, so its
-/// command carries the victim's VALUES to the attacker; the executor's victim
-/// is the canonical map record, whose `Map::SendObjectUpdates` publishes them
-/// (C++ `DealDamage` only marks the field), so its command carries none. Every
-/// other byte must still match.
+/// #1263 F6-8D3b-3: the legacy bridge's victim was a legacy copy, so its
+/// command carried the victim's VALUES to the attacker and the recording
+/// leaves them out; the executor's victim is the canonical map record, whose
+/// `Map::SendObjectUpdates` publishes them (C++ `DealDamage` only marks the
+/// field), so its command carries none.
 fn d3a1_player_melee_commands_like_cpp(
     commands: &[crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand],
 ) -> String {
@@ -603,26 +449,29 @@ fn d3a1_player_melee_commands_like_cpp(
     format!("{commands:?}")
 }
 
-fn d3a1_assert_parity_like_cpp(
-    legacy_world: &D3a1WorldLikeCpp,
-    legacy: &D3a1TickLikeCpp,
-    executor_world: &D3a1WorldLikeCpp,
-    executor: &AdmittedCreatureCombatPhasesOutcomeLikeCpp,
-) {
-    if let Err(mismatches) = d3a1_parity_like_cpp(legacy_world, legacy, executor_world, executor) {
-        panic!("parity broken:\n{}", mismatches.join("\n"));
-    }
+#[test]
+fn canonical_executor_matches_recorded_phase_by_phase_like_cpp() {
+    let (world, executor, mut expectations, result) = d3a1_drive_like_cpp(
+        "canonical_executor_matches_recorded_phase_by_phase_like_cpp",
+        95_100,
+        |_| {},
+    );
+    assert_recorded_like_cpp("tick 0", result);
+    // A second pass over the same state reads the same values.
+    assert_recorded_like_cpp(
+        "tick 0, second pass",
+        d3a1_check_like_cpp(&mut expectations, &world, &executor),
+    );
 }
 
 #[test]
-fn canonical_executor_matches_legacy_bridge_phase_by_phase_like_cpp() {
-    let (legacy_world, legacy, executor_world, executor) = d3a1_drive_both_like_cpp(95_100, |_| {});
-    d3a1_assert_parity_like_cpp(&legacy_world, &legacy, &executor_world, &executor);
-}
-
-#[test]
-fn canonical_executor_matches_legacy_bridge_player_melee_phase_like_cpp() {
-    let (legacy_world, legacy, executor_world, executor) = d3a1_drive_both_like_cpp(95_110, |_| {});
+fn canonical_executor_matches_recorded_player_melee_phase_like_cpp() {
+    let (_world, executor, _, result) = d3a1_drive_like_cpp(
+        "canonical_executor_matches_recorded_player_melee_phase_like_cpp",
+        95_110,
+        |_| {},
+    );
+    assert_recorded_like_cpp("tick 0", result);
     // Phase 0 really ran: the striker hit the neutral creature once.
     assert_eq!(executor.player_melee.swings_ready, 1);
     assert_eq!(
@@ -634,45 +483,31 @@ fn canonical_executor_matches_legacy_bridge_player_melee_phase_like_cpp() {
     let swings = &executor.player_melee.commands[0].swings;
     assert_eq!(swings.len(), 1);
     assert_eq!(swings[0].damage, 7);
-    assert_eq!(
-        d3a1_counters_like_cpp(&legacy.player_melee),
-        d3a1_counters_like_cpp(&executor.player_melee)
-    );
-    assert_eq!(
-        d3a1_player_melee_commands_like_cpp(&legacy.player_melee.commands),
-        d3a1_player_melee_commands_like_cpp(&executor.player_melee.commands),
-        "same health and presentation bytes"
-    );
-    assert!(
-        legacy.player_melee.commands[0]
-            .victim_values_update
-            .is_some()
-    );
     assert!(
         executor.player_melee.commands[0]
             .victim_values_update
             .is_none(),
         "the canonical victim's map publishes its VALUES"
     );
-    assert_eq!(
-        d3a1_legacy_creature_like_cpp(&legacy_world, legacy_world.neutral),
-        d3a1_canonical_creature_like_cpp(&executor_world, executor_world.neutral),
-        "the neutral victim's health, revision and threat match"
-    );
 }
 
 #[test]
-fn canonical_executor_matches_legacy_bridge_aggro_phase_like_cpp() {
+fn canonical_executor_matches_recorded_aggro_phase_like_cpp() {
     use wow_packet::ServerPacket;
 
-    let (legacy_world, legacy, executor_world, executor) = d3a1_drive_both_like_cpp(95_120, |_| {});
+    let (world, executor, _, result) = d3a1_drive_like_cpp(
+        "canonical_executor_matches_recorded_aggro_phase_like_cpp",
+        95_120,
+        |_| {},
+    );
+    assert_recorded_like_cpp("tick 0", result);
     // R6-fix: both creatures switch to their engaged victim and publish
     // `SMSG_AI_REACTION` (hostile) then `SMSG_ATTACK_START`, with no evade.
     assert_eq!(executor.aggro.victim_switches, 2, "{:?}", executor.aggro);
     assert_eq!(executor.aggro.evades_started, 0);
     assert_eq!(executor.aggro_committed_starts.len(), 2);
     assert!(executor.aggro_committed_stops.is_empty());
-    let neutral = executor_world.neutral;
+    let neutral = world.neutral;
     let neutral_packets: Vec<_> = executor
         .aggro
         .plan
@@ -691,78 +526,44 @@ fn canonical_executor_matches_legacy_bridge_aggro_phase_like_cpp() {
             .to_bytes(),
             wow_packet::packets::combat::AttackStart {
                 attacker: neutral,
-                victim: executor_world.striker,
+                victim: world.striker,
             }
             .to_bytes(),
         ]
     );
-    assert_eq!(
-        d3a1_counters_like_cpp(&legacy.aggro),
-        d3a1_counters_like_cpp(&executor.aggro)
-    );
-    assert_eq!(
-        d3a1_events_like_cpp(&legacy.aggro.plan.events),
-        d3a1_events_like_cpp(&executor.aggro.plan.events)
-    );
-    assert_eq!(
-        d3a1_sorted_debug_like_cpp(&legacy.committed_starts),
-        d3a1_sorted_debug_like_cpp(&executor.aggro_committed_starts)
-    );
-    for guid in [legacy_world.hostile, legacy_world.neutral] {
-        assert_eq!(
-            d3a1_legacy_creature_like_cpp(&legacy_world, guid),
-            d3a1_canonical_creature_like_cpp(&executor_world, guid),
-            "threat tables and victims match"
-        );
-    }
 }
 
 #[test]
-fn canonical_executor_matches_legacy_bridge_creature_melee_phase_like_cpp() {
-    let (legacy_world, legacy, executor_world, executor) = d3a1_drive_both_like_cpp(95_130, |_| {});
+fn canonical_executor_matches_recorded_creature_melee_phase_like_cpp() {
+    let (_world, executor, _, result) = d3a1_drive_like_cpp(
+        "canonical_executor_matches_recorded_creature_melee_phase_like_cpp",
+        95_130,
+        |_| {},
+    );
+    assert_recorded_like_cpp("tick 0", result);
     // Both creatures counter-attack their own victim with the real body.
     assert_eq!(executor.melee.swings_ready, 2, "{:?}", executor.melee);
     assert_eq!(executor.melee.canonical_hits, 2);
     assert_eq!(executor.melee.commands.len(), 2);
-    assert_eq!(
-        d3a1_counters_like_cpp(&legacy.melee),
-        d3a1_counters_like_cpp(&executor.melee)
-    );
-    assert_eq!(
-        d3a1_sorted_debug_like_cpp(&legacy.melee.commands),
-        d3a1_sorted_debug_like_cpp(&executor.melee.commands),
-        "same damage, hit info, victim state and health revisions"
-    );
-    for guid in [legacy_world.striker, legacy_world.defender] {
-        assert_eq!(
-            d3a1_player_like_cpp(&legacy_world, guid),
-            d3a1_player_like_cpp(&executor_world, guid)
-        );
-    }
-    for guid in [legacy_world.hostile, legacy_world.neutral] {
-        assert_eq!(
-            d3a1_legacy_creature_like_cpp(&legacy_world, guid),
-            d3a1_canonical_creature_like_cpp(&executor_world, guid),
-            "the swing consumed the same draws and rearmed the same timer"
-        );
-    }
 }
 
 /// Negative control: one extra creature-owned draw before the executor runs is
-/// caught by the parity check, for exactly that reason.
+/// caught against the recorded expectations, for exactly that reason.
 #[test]
-fn canonical_executor_parity_detects_a_perturbed_draw_like_cpp() {
-    let (legacy_world, legacy, executor_world, executor) =
-        d3a1_drive_both_like_cpp(95_140, |world| {
+fn canonical_executor_regression_detects_a_perturbed_draw_like_cpp() {
+    let (_world, _executor, _, result) = d3a1_drive_like_cpp(
+        "canonical_executor_regression_detects_a_perturbed_draw_like_cpp",
+        95_140,
+        |world| {
             let mut guard = world.canonical.lock().unwrap();
             let _ = guard
                 .find_map_mut(0, 0)
                 .unwrap()
                 .map_mut()
                 .with_creature_mut_like_cpp(world.hostile, wow_entities::Creature::roll_damage);
-        });
-    let mismatches = d3a1_parity_like_cpp(&legacy_world, &legacy, &executor_world, &executor)
-        .expect_err("a perturbed RNG position must break parity");
+        },
+    );
+    let mismatches = result.expect_err("a perturbed RNG position must be caught");
     assert!(
         mismatches
             .iter()

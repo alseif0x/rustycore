@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    /// Flush a [`RuntimeOutput`] to the session send channel.
-    ///
-    /// Must be called outside any map lock. `flume` bounded `send` may block if
-    /// the channel is full — behaviour is identical to the previous direct sends.
-    pub(crate) fn flush_runtime_output(&self, out: RuntimeOutput) {
-        for pkt in out.packets {
-            let _ = self.send_tx().send(pkt);
-        }
-    }
     /// Server-triggered cast with an explicit C++ trigger contract.
     ///
     /// C++ `Unit::CastSpell` always constructs a `Spell`, so `m_castId` is a

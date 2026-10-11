@@ -13,50 +13,14 @@ impl WorldSession {
         guid: ObjectGuid,
         owner: ObjectGuid,
     ) -> bool {
-        let mut updated = self
+        let updated = self
             .core
             .mutate_canonical_creature_by_guid_like_cpp(guid, |creature| {
                 creature.unit_mut().set_private_object_owner_like_cpp(owner);
             })
             .is_some();
 
-        if let Some(manager) = self.core.map_manager.as_ref() {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(creature) =
-                manager.find_creature_mut(self.core.player_map_id_like_cpp(), 0, guid)
-            {
-                creature
-                    .creature
-                    .unit_mut()
-                    .set_private_object_owner_like_cpp(owner);
-                updated = true;
-            }
-        }
-
         updated
-    }
-    pub(crate) fn active_world_creature_guids_for_update_like_cpp(&self) -> Vec<ObjectGuid> {
-        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
-            return Vec::new();
-        };
-        let Some(manager) = &self.core.map_manager else {
-            return Vec::new();
-        };
-        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
-            return Vec::new();
-        };
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .active_creature_guids_for_player_update_like_cpp(
-                map_id,
-                instance_id,
-                player_position,
-                &player_phase_shift,
-            )
     }
     pub(in crate::session) fn represented_can_receive_creature_message_to_set_like_cpp(
         &self,
@@ -99,69 +63,26 @@ impl WorldSession {
         instance_id: u32,
         required_3d: bool,
     ) -> Option<bool> {
-        self.represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
-            guid,
-            map_id,
-            instance_id,
-            required_3d,
-            false,
-        )
-    }
-    pub(crate) fn represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_id: u16,
-        instance_id: u32,
-        required_3d: bool,
-        allow_legacy_fallback: bool,
-    ) -> Option<bool> {
-        if let Some(manager) = &self.core.canonical_map_manager {
-            let creature = {
-                let manager = manager.lock().ok()?;
-                manager
-                    .find_map(u32::from(map_id), instance_id)
-                    .and_then(|map| {
-                        map.map().with_creature_like_cpp(guid, |creature| {
-                            let create_data =
+        let creature = {
+            let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
+            manager
+                .find_map(u32::from(map_id), instance_id)
+                .and_then(|map| {
+                    map.map().with_creature_like_cpp(guid, |creature| {
+                        let create_data =
                             crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
                                 creature,
                             );
-                            crate::map_manager::WorldCreature::from_canonical(
-                                creature.clone(),
-                                create_data,
-                            )
-                        })
+                        crate::map_manager::WorldCreature::from_canonical(
+                            creature.clone(),
+                            create_data,
+                        )
                     })
-            };
-            if let Some(creature) = creature {
-                if creature.map_id() != u32::from(map_id) || creature.instance_id() != instance_id {
-                    return Some(false);
-                }
-                return Some(
-                    self.represented_can_receive_creature_message_to_set_like_cpp(
-                        guid,
-                        &creature,
-                        required_3d,
-                    ),
-                );
-            }
-            if !allow_legacy_fallback {
-                return None;
-            }
-        }
-
-        // The two map managers coexist during the incremental runtime
-        // migration. A canonical manager being installed does not prove that
-        // it owns a source already validated from the legacy map. Only the
-        // provenance-marked command path may cross this fallback boundary.
-        let creature = {
-            let manager = self.core.map_manager.as_ref()?;
-            manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .find_creature(map_id, instance_id, guid)
-                .cloned()
+                })
         }?;
+        if creature.map_id() != u32::from(map_id) || creature.instance_id() != instance_id {
+            return Some(false);
+        }
         Some(
             self.represented_can_receive_creature_message_to_set_like_cpp(
                 guid,

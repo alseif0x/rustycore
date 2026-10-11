@@ -19,7 +19,7 @@ use super::super::{
 use super::{
     CanonicalGameEventSchedulerLikeCpp, CanonicalRespawnConditionSchedulerLikeCpp,
     LoadedGridCreatureRespawnCachesLikeCpp, PlayerRegistry, RespawnDbWriterSenderLikeCpp,
-    SharedCanonicalMapManager, SharedCanonicalSpawnMetadataLikeCpp, SharedMapManager,
+    SharedCanonicalMapManager, SharedCanonicalSpawnMetadataLikeCpp,
     SharedRespawnDbMutationOrderLikeCpp, SharedRespawnDbProducerStopLikeCpp,
     SharedWorldStateMgrLikeCpp, canonical_map_coordinator_id_like_cpp,
     canonical_map_tick_begin_like_cpp, consume_game_event_live_update_side_effects_like_cpp,
@@ -33,7 +33,6 @@ use super::{
 
 pub(crate) fn spawn_canonical_map_update_loop(
     map_manager: SharedCanonicalMapManager,
-    legacy_map_manager: SharedMapManager,
     tick_interval_ms: u32,
     respawn_condition_interval_ms: u32,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
@@ -50,7 +49,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
     active_session_registry: Arc<crate::ActiveWorldSessionRegistryLikeCpp>,
     battlemaster_list_store: Arc<wow_data::BattlemasterListStore>,
     world_state_mgr: SharedWorldStateMgrLikeCpp,
-    // #1263 F6-8D3b-1: present only for `RuntimeTickOwner::CanonicalMap`.
+    // #1263 F6-8D3b-1: the canonical creature runtime; production always
+    // passes it, map-only tests may omit it.
     mut canonical_creature_runtime: Option<CanonicalCreatureRuntimeLikeCpp>,
 ) -> tokio::task::JoinHandle<()> {
     tokio::spawn(async move {
@@ -171,7 +171,7 @@ pub(crate) fn spawn_canonical_map_update_loop(
             }
 
             let (area_trigger_sweep_summary, session_plan) = {
-                // Canonical and legacy respawn mutations share this ordering
+                // Respawn mutations of every producer share this ordering
                 // gate. Statements are coalesced before releasing it, so
                 // mailbox replacement order is the same as mutation order even
                 // when this loop later awaits unrelated game-event DB work.
@@ -268,14 +268,10 @@ pub(crate) fn spawn_canonical_map_update_loop(
                     continue;
                 }
                 // #1263 F6-8D3b-1: the registry snapshots the creature phases
-                // read, before any guard, as the legacy bridge takes them.
-                let creature_inputs = canonical_creature_runtime.as_ref().and_then(|runtime| {
-                    runtime.collect_inputs_like_cpp(
-                        &legacy_map_manager,
-                        &map_manager,
-                        &player_registry,
-                    )
-                });
+                // read, taken before any guard.
+                let creature_inputs = canonical_creature_runtime
+                    .as_ref()
+                    .map(|runtime| runtime.collect_inputs_like_cpp(&map_manager, &player_registry));
                 // The persistence fence is re-taken for the half that produces
                 // respawn mutations, and its statements are still coalesced
                 // before it is released, so mailbox replacement order still

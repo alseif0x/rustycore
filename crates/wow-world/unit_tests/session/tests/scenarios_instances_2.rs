@@ -353,7 +353,7 @@ fn set_viewpoint_target_visibility_wrong_instance_does_not_fabricate_like_cpp() 
 async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 74_312);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(40);
@@ -383,7 +383,7 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let other_player_guid = ObjectGuid::create_player(1, 74_313);
     let registry = Arc::new(PlayerRegistry::default());
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&registry));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
@@ -416,7 +416,7 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         grid_x,
@@ -531,12 +531,12 @@ async fn update_visibility_uses_map_sources_without_world_db_like_cpp() {
 async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_clear_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 74_332);
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(74_333);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
@@ -558,7 +558,7 @@ async fn send_initial_packets_after_add_to_map_rebuilds_visibility_after_login_c
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
     let (grid_x, grid_y) =
         crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         grid_x,

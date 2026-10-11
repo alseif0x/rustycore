@@ -5,10 +5,15 @@ fn death_sync_preserves_existing_canonical_death_time_ms() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
     let guid = test_creature_guid(18_001);
+    let manager = session
+        .core
+        .canonical_map_manager
+        .clone()
+        .unwrap_or_else(|| manager.clone());
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
     {
-        let mut manager = manager.write().unwrap();
+        let mut manager = manager.lock().unwrap();
         let world_creature = manager.find_creature_mut(0, 0, guid).unwrap();
         world_creature.creature.mark_ai_dead(1_234);
     }
@@ -18,7 +23,7 @@ fn death_sync_preserves_existing_canonical_death_time_ms() {
         })
         .unwrap();
 
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(
         world_creature.creature.ai_ownership().death_time_ms,

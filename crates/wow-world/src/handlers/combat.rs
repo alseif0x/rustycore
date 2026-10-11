@@ -28,9 +28,11 @@ mod test_shims;
 impl WorldSession {
     /// Deliver one map-owned player auto-attack resolution to its attacker.
     ///
-    /// #28 moved the transition itself to whoever owns the creature tick, so
-    /// this is delivery only: it applies no damage and decides no swing. The
-    /// order below is `run_combat_tick`'s tail verbatim, and the order is what
+    /// #28 moved the transition itself to the map-owned player melee phase, so
+    /// this is delivery only: it applies no damage and decides no swing (a kill
+    /// still ends the killer's attack and combat reference, C++ `CombatStop`).
+    /// The order below is the retired session combat tick's tail verbatim, and
+    /// the order is what
     /// keeps the bytes identical — `SMSG_ATTACKSWING_ERROR` before the swings,
     /// the values update gated on what this client already has, the kill queues
     /// before `SMSG_ATTACKSTOP`.
@@ -67,7 +69,8 @@ impl WorldSession {
                 .set_player_attack_swing_error_like_cpp(swing_error);
         }
 
-        // The construction below is `run_combat_tick`'s tail verbatim; the
+        // The construction below is the retired session combat tick's tail
+        // verbatim (#1263 F6-8E); the
         // constants and field order are what make the bytes identical.
         if let Some(victim_guid) = command.victim_guid {
             for swing in &command.swings {
@@ -107,6 +110,34 @@ impl WorldSession {
         }
 
         if let Some(kill) = command.killed_creature.as_ref() {
+            // C++ `Unit::setDeathState(JUST_DIED)` → `CombatStop` →
+            // `RemoveAllAttackers`: the killer runs `AttackStop`, which also
+            // clears its target and `UNIT_STATE_MELEE_ATTACKING` (#1263 F6-8E:
+            // the retired session combat tick did this; the map-owned phase
+            // only reported the kill).
+            let _ = self.core.with_owned_player_mut_like_cpp(|player| {
+                let unit = player.unit_mut();
+                if unit.attacking() == Some(kill.creature_guid) {
+                    let _ = unit.attack_stop_like_cpp();
+                }
+                unit.subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(kill.creature_guid);
+            });
+            // Both ends of the reference go together (C++ `Unit::Kill` →
+            // `CombatStop`).
+            let _ = self
+                .core
+                .mutate_world_creature(kill.creature_guid, |creature| {
+                    creature
+                        .creature
+                        .unit_mut()
+                        .subsystems_mut()
+                        .combat
+                        .purge_combat_ref_like_cpp(command.attacker_guid);
+                });
+            crate::session::hub_mut(self)
+                .revalidate_canonical_player_combat_refs_like_cpp(command.attacker_guid);
             self.world_entities.queue_pending_creature_kill_like_cpp(
                 command.attacker_guid,
                 kill.creature_guid,

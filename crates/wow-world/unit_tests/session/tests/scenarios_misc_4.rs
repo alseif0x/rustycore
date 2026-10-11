@@ -6,7 +6,7 @@
 use super::*;
 
 #[test]
-fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
+fn npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let player_guid = ObjectGuid::create_player(1, 45);
     let questgiver_guid = test_creature_guid(16);
@@ -22,7 +22,7 @@ fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
         80,
         0,
     ));
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -42,7 +42,8 @@ fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
             0,
         ),
     );
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    session.set_player_faction_template_like_cpp(1);
 
     session.set_player_alive_like_cpp(false);
     assert_eq!(
@@ -55,7 +56,7 @@ fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
     );
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(571, 0, questgiver_guid)
         .unwrap()
@@ -75,7 +76,7 @@ fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
 
     session.set_player_alive_like_cpp(true);
     {
-        let mut manager = manager.write().unwrap();
+        let mut manager = manager.lock().unwrap();
         let creature = manager.find_creature_mut(571, 0, questgiver_guid).unwrap();
         creature
             .creature
@@ -95,7 +96,7 @@ fn legacy_only_npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
     );
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(571, 0, questgiver_guid)
         .unwrap()
@@ -137,7 +138,7 @@ fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
             faction_template_entry(1, 1, 0, 0, 0),
         ]),
     ));
-    manager.write().unwrap().add_creature(
+    manager.lock().unwrap().add_creature(
         571,
         0,
         0,
@@ -157,7 +158,7 @@ fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
             0,
         ),
     );
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
@@ -169,7 +170,7 @@ fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
     );
 
     manager
-        .write()
+        .lock()
         .unwrap()
         .find_creature_mut(571, 0, questgiver_guid)
         .unwrap()
@@ -229,11 +230,8 @@ fn legacy_only_charmed_npc_interaction_is_rejected_like_cpp() {
         .subsystems_mut()
         .control
         .set_charmer(player_guid, true);
-    manager
-        .write()
-        .unwrap()
-        .add_creature(571, 0, 0, 0, creature);
-    session.set_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().add_creature(571, 0, 0, 0, creature);
+    session.set_canonical_map_manager(Arc::clone(&manager));
 
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(

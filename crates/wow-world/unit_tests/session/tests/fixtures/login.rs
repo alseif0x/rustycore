@@ -280,10 +280,13 @@ pub(in crate::session::tests) fn install_xp_victim_like_cpp(
         .unwrap_or_else(|| ObjectGuid::create_player(1, 0xE1C0));
     session.set_player_guid(Some(player_guid));
     let map_id = session.core.player_map_id_like_cpp();
-    session.set_map_manager(shared_map_manager());
+    session.set_canonical_map_manager(shared_map_manager());
     if session.player_position_like_cpp().is_none() {
         session.set_player_map_position_like_cpp(map_id, Position::new(10.0, 10.0, 0.0, 0.0));
     }
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_and_map_for_session_like_cpp(
+        session,
+    );
     session.register_world_creature(
         map_id,
         Position::new(10.0, 10.0, 0.0, 0.0),

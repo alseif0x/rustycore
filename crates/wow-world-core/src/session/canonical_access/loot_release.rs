@@ -157,12 +157,6 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
             return;
         };
         if owner_guid.is_creature_or_vehicle() {
-            let _ = self.core.rebind_legacy_creature_loot_authority_like_cpp(
-                owner_guid,
-                &authority,
-                authority.stamp_like_cpp(),
-                authority.clone(),
-            );
             let authority_stamp = authority.stamp_like_cpp();
             let _ = self
                 .transitions_like_cpp()
@@ -184,13 +178,22 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
         }
     }
 
+    /// C++ `ForceUpdateFieldChange(DynamicFlags)` after a creature loot
+    /// release. `fanout_publishes` says whether the caller publishes the
+    /// returned VALUES through the per-viewer fanout (it has the object-owned
+    /// authority); only then is the map-publication mark handed over (see
+    /// `loot_release_values_for_fanout_like_cpp`).
     pub fn force_creature_loot_release_dynamic_flags_like_cpp(
         &mut self,
         guid: ObjectGuid,
+        fanout_publishes: bool,
     ) -> Option<wow_entities::UnitValuesUpdate> {
         self.core.mutate_world_creature(guid, |creature| {
             creature.force_dynamic_flags_update_like_cpp();
-            creature::loot_release_values_for_fanout_like_cpp(&mut creature.creature)
+            creature::loot_release_values_for_fanout_like_cpp(
+                &mut creature.creature,
+                fanout_publishes,
+            )
         })
     }
 }

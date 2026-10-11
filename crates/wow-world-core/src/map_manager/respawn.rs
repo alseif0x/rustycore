@@ -132,10 +132,6 @@ impl WorldCreature {
         self.creature
             .should_ai_respawn(self.runtime_elapsed_ms_like_cpp())
     }
-
-    pub fn respawn(&mut self) {
-        self.creature.respawn_ai(self.runtime_elapsed_ms_like_cpp());
-    }
 }
 
 impl MapInstance {

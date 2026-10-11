@@ -106,7 +106,7 @@ impl WorldSession {
             .unwrap_or_else(|| {
                 wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0)
             });
-        let legacy_map_id = u16::try_from(map_key.map_id).ok()?;
+        u16::try_from(map_key.map_id).ok()?;
         let canonical_destination = self
             .core
             .canonical_map_manager
@@ -162,13 +162,7 @@ impl WorldSession {
                     .player_position_like_cpp()
                     .map(|position| (ObjectGuid::EMPTY, position))
             } else {
-                self.core.map_manager.as_ref().and_then(|manager| {
-                    manager
-                        .read()
-                        .unwrap_or_else(|poisoned| poisoned.into_inner())
-                        .find_creature(legacy_map_id, map_key.instance_id, caster_guid)
-                        .map(|creature| (ObjectGuid::EMPTY, creature.position()))
-                })
+                None
             }
         })?;
         Some((map_key.map_id, transport, position))

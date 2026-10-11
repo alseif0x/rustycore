@@ -233,7 +233,7 @@ fn represented_handle_spellclick_continues_after_unrepresented_row_like_cpp() {
 async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 42);
     let creature_guid = test_creature_guid(226);
     let spell_id = 907_i32;
@@ -264,7 +264,7 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
-    session.set_map_manager(manager.clone());
+    session.set_canonical_map_manager(manager.clone());
     session.register_world_creature(
         571,
         Position::new(12.0, 0.0, 0.0, 0.0),
@@ -297,7 +297,7 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
         creature.unit_mut().set_max_health(40);
         creature.unit_mut().set_health(40);
     });
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -349,7 +349,7 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
             ..Default::default()
         }
     );
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
     assert_eq!(
         world_creature.current_hp(),
@@ -428,7 +428,7 @@ async fn represented_spellclick_executes_clicker_cast_to_clickee_like_cpp() {
 async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 42);
     let creature_guid = test_creature_guid(227);
     let spell_id = 908_i32;
@@ -459,7 +459,7 @@ async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
-    session.set_map_manager(manager.clone());
+    session.set_canonical_map_manager(manager.clone());
     session.register_world_creature(
         571,
         Position::new(12.0, 0.0, 0.0, 0.0),
@@ -492,7 +492,7 @@ async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
         creature.unit_mut().set_max_health(40);
         creature.unit_mut().set_health(40);
     });
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -545,7 +545,7 @@ async fn represented_spellclick_executes_clickee_caster_self_damage_like_cpp() {
         },
         "C++ Unit::HandleSpellClick may resolve caster=this and cast from the clickee itself"
     );
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
     assert_eq!(world_creature.current_hp(), 33);
     assert_eq!(
@@ -697,7 +697,7 @@ async fn represented_spellclick_executes_clickee_caster_damage_to_clicker_like_c
 async fn represented_spellclick_executes_owner_original_caster_when_owner_is_clicker_like_cpp() {
     let (mut session, _pkt_tx, send_rx) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let player_guid = ObjectGuid::create_player(1, 42);
     let creature_guid = test_creature_guid(229);
     let spell_id = 910_i32;
@@ -728,7 +728,7 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         .core
         .client_visible_guids_like_cpp
         .insert(creature_guid);
-    session.set_map_manager(manager.clone());
+    session.set_canonical_map_manager(manager.clone());
     session.register_world_creature(
         571,
         Position::new(12.0, 0.0, 0.0, 0.0),
@@ -765,7 +765,7 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         creature.unit_mut().set_max_health(40);
         creature.unit_mut().set_health(40);
     });
-    adopt_canonical_test_incarnation_as_legacy_like_cpp(
+    adopt_canonical_test_incarnation_like_cpp(
         &manager,
         &canonical,
         creature_guid,
@@ -823,7 +823,7 @@ async fn represented_spellclick_executes_owner_original_caster_when_owner_is_cli
         },
         "C++ GetOwnerGUID resolves to the clicker here, so Rust can use the player-caster rail without faking original caster"
     );
-    let manager = manager.read().unwrap();
+    let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(571, 0, creature_guid).unwrap();
     assert_eq!(world_creature.current_hp(), 33);
     assert_eq!(

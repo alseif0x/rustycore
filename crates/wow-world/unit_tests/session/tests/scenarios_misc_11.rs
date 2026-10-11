@@ -727,61 +727,10 @@ async fn process_pending_ticks_goober_autoclose_then_cleanup_like_cpp_update() {
     assert_eq!(command.go_state, Some(wow_entities::GoState::Ready as i8));
     assert_eq!(command.gameobject_flags & wow_entities::GO_FLAG_IN_USE, 0);
 }
-/// A poisoned legacy lock must not hand the tick back to the session while the
-/// global loop still believes it owns it.
-///
-/// The two readers used to disagree: the session read the owner as
-/// `mm.read().ok()` and fell back to `Session` on poison, while every tick body
-/// reads through the poison with `unwrap_or_else(|p| p.into_inner())`. Under a
-/// poisoned lock that told both of them they owned the creature tick, and it
-/// resolved twice (#28).
-#[test]
-fn poisoned_legacy_lock_does_not_hand_the_tick_back_to_the_session_like_cpp() {
-    use crate::map_manager::{RuntimeTickOwner, shared_runtime_tick_owner_like_cpp};
-
-    let manager = shared_map_manager();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
-
-    // Poison the lock the way a panicking tick would.
-    let poisoning = Arc::clone(&manager);
-    let _ = std::thread::spawn(move || {
-        let _guard = poisoning.write().unwrap();
-        panic!("poison the legacy map manager");
-    })
-    .join();
-    assert!(manager.is_poisoned(), "the fixture must actually poison it");
-
-    // What every tick body sees, reading through the poison.
-    let tick_body_owner = manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .tick_owner();
-    assert_eq!(tick_body_owner, RuntimeTickOwner::GlobalLegacy);
-
-    // What the shared reader — and therefore the session — sees. Before #28
-    // this returned `Session`, so both sides ticked the same creature.
-    assert_eq!(
-        shared_runtime_tick_owner_like_cpp(&manager),
-        tick_body_owner,
-        "both readers must agree about who owns the tick, poisoned or not"
-    );
-}
-#[test]
-fn runtime_tick_owner_default_is_session() {
-    use crate::map_manager::RuntimeTickOwner;
-    let manager = shared_map_manager();
-    let owner = manager.read().unwrap().tick_owner();
-    assert_eq!(owner, RuntimeTickOwner::Session);
-}
 #[test]
 fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_cpp() {
-    use crate::map_manager::RuntimeTickOwner;
-
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_302);
     let victim_guid = ObjectGuid::create_player(1, 91_303);
@@ -808,10 +757,6 @@ fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_c
             assert!(creature.can_swing());
         })
         .unwrap();
-    manager
-        .write()
-        .unwrap()
-        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
     let mut config = creature_ai_spell_test_config_like_cpp(
         creature_ai_test_spell_info_like_cpp(spell_id, 6, 0),
         false,
@@ -821,97 +766,16 @@ fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_c
         spell_range_entry_like_cpp(71, 5.0, 30.0),
     ])));
 
-    let rejected =
-        run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    let rejected = run_canonical_creature_spell_phase_for_test_like_cpp(&canonical, &config);
 
     assert_eq!(rejected.casts_ready, 0, "spell tick outcome: {rejected:?}");
     assert_eq!(rejected.spell_range_rejections, 1);
     assert_eq!(rejected.canonical_cast_preconditions_passed, 0);
     assert!(rejected.plan.events.is_empty());
     assert!(
-        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
+        !mutate_canonical_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
             .can_swing())
         .unwrap(),
         "TurretAI must reset BASE_ATTACK after its raw-max CastSpell attempt"
-    );
-}
-#[test]
-fn run_tick_returns_output_without_sending() {
-    // run_creatures_tick and run_combat_tick must return a RuntimeOutput
-    // containing the packets but NOT send anything to the channel until
-    // flush_runtime_output is called. This catches any residual direct send.
-    let manager = shared_map_manager();
-
-    // ── creatures tick ─────────────────────────────────────────────────
-    let (mut session_c, _, recv_c) = make_session();
-    session_c.set_mmap_runtime_config_like_cpp(MMapRuntimeConfigLikeCpp {
-        enabled: false,
-        ..Default::default()
-    });
-    let guid_c = test_creature_guid(90_005);
-    register_test_creature(&mut session_c, manager.clone(), guid_c, 25);
-    session_c.core.client_visible_guids_like_cpp.insert(guid_c);
-    session_c
-        .mutate_world_creature(guid_c, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
-            ai.wander_delay_ms = 0;
-            ai.move_start_ms = 0;
-            ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x9005);
-        })
-        .unwrap();
-
-    let output_c = (0..32)
-        .find_map(|_| {
-            let output = session_c.run_creatures_tick();
-            assert!(
-                recv_c.try_recv().is_err(),
-                "run_creatures_tick must not send before flush"
-            );
-            (!output.packets.is_empty()).then_some(output)
-        })
-        .expect("run_creatures_tick must eventually return at least one packet");
-    // Flush and confirm the channel is now populated.
-    session_c.flush_runtime_output(output_c);
-    assert!(
-        recv_c.try_recv().is_ok(),
-        "channel must have packets after flush"
-    );
-
-    // ── combat tick ───────────────────────────────────────────────────
-    let (mut session_m, _, recv_m) = make_session();
-    let guid_m = test_creature_guid(90_006);
-    let player_m = ObjectGuid::create_player(1, 90_006);
-    session_m.core.player_guid = Some(player_m);
-    session_m.fixtures.combat.combat_target = Some(guid_m);
-    session_m.fixtures.combat.in_combat = true;
-    session_m.core.client_visible_guids_like_cpp.insert(guid_m);
-    register_test_creature(&mut session_m, manager.clone(), guid_m, 40);
-    session_m
-        .mutate_world_creature(guid_m, |creature| {
-            creature.enter_combat(player_m);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-        })
-        .unwrap();
-
-    let output_m = session_m.run_combat_tick();
-    assert!(
-        recv_m.try_recv().is_err(),
-        "run_combat_tick must not send before flush"
-    );
-    assert!(
-        !output_m.packets.is_empty(),
-        "run_combat_tick must return at least one packet"
-    );
-    session_m.flush_runtime_output(output_m);
-    assert!(
-        recv_m.try_recv().is_ok(),
-        "channel must have packets after flush"
     );
 }

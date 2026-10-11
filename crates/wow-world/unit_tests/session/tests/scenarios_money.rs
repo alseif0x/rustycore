@@ -667,7 +667,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.inventory.set_player_gold_for_test_like_cpp(100);
     // F6-7 R2 correction: absence must be proven by an addressed store.
-    attach_addressed_empty_legacy_loot_store_like_cpp(&mut session);
+    attach_addressed_empty_creature_loot_store_like_cpp(&mut session);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         active_guid,
         CreatureLoot {

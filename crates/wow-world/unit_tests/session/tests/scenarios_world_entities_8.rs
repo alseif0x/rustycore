@@ -204,11 +204,11 @@ fn creature_kill_reputation_respects_team_dependent_horde_branch_like_cpp() {
 fn register_world_creature_mirrors_existing_canonical_map_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(611);
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.core.current_map_id = 571;
     session.register_world_creature(
@@ -254,7 +254,7 @@ fn register_world_creature_mirrors_existing_canonical_map_like_cpp() {
 fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(614);
     let mut create_data = test_creature_create_data(guid, 9001, 25);
     create_data.display_id = 1234;
@@ -279,7 +279,7 @@ fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
     create_data.pvp_flags = wow_constants::unit::UnitPvpFlags::FFA_PVP.bits();
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.core.current_map_id = 571;
     session.register_world_creature(
@@ -365,7 +365,8 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
         vec![wow_movement::WaypointNode::new(1, 12.0, 20.0, 30.0)],
     );
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().create_world_map(571, 0);
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
         (path_id == 77_001).then_some(path.clone())
     }));
@@ -406,10 +407,10 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
         77_001,
     );
 
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard
         .find_creature(571, 0, guid)
-        .expect("creature inserted into legacy map");
+        .expect("creature inserted into the canonical map");
     assert_eq!(
         creature.creature.waypoint_path_id_like_cpp(),
         77_001,
@@ -450,7 +451,8 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
         vec![wow_movement::WaypointNode::new(1, 14.0, 22.0, 31.0)],
     );
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().create_world_map(571, 0);
     session.set_waypoint_path_resolver_like_cpp(Arc::new(move |path_id| {
         (path_id == 77_002).then_some(path.clone())
     }));
@@ -496,10 +498,10 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
         0,
     );
 
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard
         .find_creature(571, 0, guid)
-        .expect("creature inserted into legacy map");
+        .expect("creature inserted into the canonical map");
     assert_eq!(
         creature.creature.waypoint_path_id_like_cpp(),
         77_002,
@@ -548,7 +550,8 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
     let manager = shared_map_manager();
     let guid = test_creature_guid(615);
 
-    session.set_map_manager(Arc::clone(&manager));
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().create_world_map(571, 0);
     session.core.current_map_id = 571;
     session.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         571,
@@ -615,10 +618,10 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
         0,
     );
 
-    let guard = manager.read().unwrap();
+    let guard = manager.lock().unwrap();
     let creature = guard
         .find_creature(571, 0, guid)
-        .expect("creature inserted into legacy map");
+        .expect("creature inserted into the canonical map");
     let auras = &creature.creature.unit().subsystems().auras;
     assert_eq!(
         auras
@@ -698,11 +701,11 @@ fn represented_gameobject_owner_update_mutates_existing_canonical_created_by_lik
 fn mutate_world_creature_relocates_canonical_map_object_like_cpp() {
     let (mut session, _, _) = make_session();
     let manager = shared_map_manager();
-    let canonical = shared_canonical_map_manager();
+    let canonical = Arc::clone(&manager);
     let guid = test_creature_guid(612);
 
     canonical.lock().unwrap().create_world_map(571, 0);
-    session.set_map_manager(manager);
+    session.set_canonical_map_manager(manager);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.core.current_map_id = 571;
     session.register_world_creature(
@@ -746,7 +749,7 @@ fn mutate_world_creature_relocates_canonical_map_object_like_cpp() {
     assert_eq!(typed.position(), moved);
 }
 #[test]
-fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
+fn canonical_creature_relocation_helper_uses_explicit_map_and_instance_like_cpp() {
     let canonical = shared_canonical_map_manager();
     let guid = test_creature_guid(613);
     let player_guid = ObjectGuid::create_player(1, 613);
@@ -790,214 +793,4 @@ fn canonical_creature_sync_helpers_use_explicit_map_and_instance_like_cpp() {
             .expect("creature remains in explicit map instance");
         assert_eq!(creature.position(), relocated);
     }
-    let authority_before = canonical
-        .lock()
-        .unwrap()
-        .find_map(609, 7)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap()
-        .loot_authority_like_cpp()
-        .clone();
-
-    let synced = Position::new(17.0, 27.0, 37.0, 3.0);
-    let mut creature = canonical
-        .lock()
-        .unwrap()
-        .find_map(609, 7)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap()
-        .clone();
-    creature.unit_mut().world_mut().relocate(synced);
-    creature.unit_mut().set_level(33);
-    creature.unit_mut().subsystems_mut().combat.end_all_combat();
-
-    let selected_authority =
-        sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, creature)
-            .expect("canonical sync keeps a typed creature authority");
-    assert!(authority_before.shares_storage_like_cpp(&selected_authority));
-
-    let guard = canonical.lock().unwrap();
-    let typed = guard
-        .find_map(609, 7)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .expect("typed creature remains in explicit map instance");
-    assert_eq!(typed.position(), synced);
-    assert_eq!(typed.level(), 33);
-    assert!(
-        authority_before.shares_storage_like_cpp(typed.loot_authority_like_cpp()),
-        "a whole-entity sync must not replace the canonical loot authority"
-    );
-    assert!(
-        !guard
-            .find_map(609, 7)
-            .unwrap()
-            .map()
-            .get_typed_player(player_guid)
-            .unwrap()
-            .unit()
-            .subsystems()
-            .combat
-            .threatened_by_me_owner_guids()
-            .contains(&guid),
-        "syncing an evaded legacy creature must purge the canonical reverse threat ref"
-    );
-    drop(guard);
-
-    let mut reengaged = canonical
-        .lock()
-        .unwrap()
-        .find_map(609, 7)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap()
-        .clone();
-    reengaged
-        .unit_mut()
-        .subsystems_mut()
-        .combat
-        .add_threat(player_guid, 30.0);
-    sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, reengaged)
-        .expect("reengaged creature sync");
-    assert!(
-        canonical
-            .lock()
-            .unwrap()
-            .find_map(609, 7)
-            .unwrap()
-            .map()
-            .get_typed_player(player_guid)
-            .unwrap()
-            .unit()
-            .subsystems()
-            .combat
-            .threatened_by_me_owner_guids()
-            .contains(&guid),
-        "a proximity-acquired forward threat ref must create the player's inverse ref"
-    );
-}
-#[test]
-fn canonical_creature_sync_refuses_a_competing_used_loot_authority_like_cpp() {
-    let canonical = shared_canonical_map_manager();
-    let guid = test_creature_guid(61_399);
-    let player_guid = ObjectGuid::create_player(1, 61_398);
-    let position = Position::new(1.0, 2.0, 3.0, 0.5);
-    add_canonical_test_creature_on_map(&canonical, guid, 9_399, position, 0, 609, 7);
-
-    let loot = |coins| CreatureLoot {
-        loot_guid: ObjectGuid::create_world_object(
-            HighGuid::LootObject,
-            0,
-            0,
-            609,
-            0,
-            0,
-            i64::from(coins),
-        ),
-        coins,
-        unlooted_count: 0,
-        loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
-        dungeon_encounter_id: 0,
-        loot_method: 0,
-        loot_master: ObjectGuid::EMPTY,
-        round_robin_player: ObjectGuid::EMPTY,
-        player_ffa_items: Vec::new(),
-        players_looting: Vec::new(),
-        allowed_looters: vec![player_guid],
-        items: Vec::new(),
-        looted_by_player: false,
-    };
-
-    let canonical_authority = {
-        let mut manager = canonical.lock().unwrap();
-        let creature = manager
-            .find_map_mut(609, 7)
-            .unwrap()
-            .map_mut()
-            .get_typed_creature_mut(guid)
-            .unwrap();
-        creature.initialize_shared_loot_authority_like_cpp(loot(10));
-        creature.loot_authority_like_cpp().clone()
-    };
-    let canonical_stamp_before = canonical_authority.stamp_like_cpp();
-
-    // A second representation of the same GUID carrying its own live pool and
-    // its own health timeline: a competing used allocation from another
-    // incarnation, so synchronization must be refused before any authority is
-    // selected.
-    let mut incoming = wow_entities::Creature::new(false);
-    incoming.unit_mut().world_mut().object_mut().create(guid);
-    incoming
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .set_entry(9_399);
-    incoming.unit_mut().world_mut().set_map(609, 7).unwrap();
-    incoming.unit_mut().world_mut().relocate(position);
-    incoming.initialize_shared_loot_authority_like_cpp(loot(20));
-    let incoming_authority = incoming.loot_authority_like_cpp().clone();
-    assert!(!canonical_authority.shares_storage_like_cpp(&incoming_authority));
-    assert_eq!(
-        incoming_authority.lifecycle_like_cpp(),
-        OwnedLootAuthorityLifecycle::Active
-    );
-
-    let selected = sync_canonical_creature_entity_on_map_like_cpp(&canonical, 609, 7, incoming);
-    assert!(
-        selected.is_none(),
-        "a competing used allocation must be refused, never reconciled or quarantined"
-    );
-
-    let stored = canonical
-        .lock()
-        .unwrap()
-        .find_map(609, 7)
-        .unwrap()
-        .map()
-        .with_creature_like_cpp(guid, Clone::clone)
-        .unwrap();
-    assert!(
-        stored
-            .loot_authority_like_cpp()
-            .shares_storage_like_cpp(&canonical_authority),
-        "the canonical object keeps its own allocation"
-    );
-    assert_eq!(
-        stored.loot_authority_like_cpp().stamp_like_cpp(),
-        canonical_stamp_before,
-        "a refused synchronization must not mutate the canonical lifetime"
-    );
-    assert_eq!(
-        stored.loot_authority_like_cpp().lifecycle_like_cpp(),
-        OwnedLootAuthorityLifecycle::Active,
-        "no terminal quarantine tombstone is installed on the refusal path"
-    );
-    assert_eq!(
-        stored
-            .loot_authority_like_cpp()
-            .shared_snapshot_like_cpp()
-            .expect("the canonical pool stays openable")
-            .loot
-            .coins,
-        10
-    );
-    assert_eq!(
-        canonical_authority.lifecycle_like_cpp(),
-        OwnedLootAuthorityLifecycle::Active,
-        "the canonical allocation is not detached by a refused synchronization"
-    );
-    assert_eq!(
-        incoming_authority
-            .shared_snapshot_like_cpp()
-            .expect("the refused candidate keeps its own untouched pool")
-            .loot
-            .coins,
-        20
-    );
 }
