@@ -45,38 +45,9 @@ pub(super) struct CuratedAnchor {
 
 // Exact function/method anchors from runtime-ownership-ledger.json. The loot
 // bridge is module-shaped rather than one function and is handled separately.
-pub(super) const CURATED_ANCHORS: &[CuratedAnchor] = &[
-    CuratedAnchor {
-        package: "world-server",
-        module: "crate::runtime::delivery",
-        name: "run_legacy_creature_movement_tick_and_deliver_once_like_cpp",
-        direction: BridgeDirection::LegacyToCanonical,
-    },
-    CuratedAnchor {
-        package: "world-server",
-        module: "crate::runtime::delivery",
-        name: "run_legacy_creature_aggro_tick_and_deliver_once_like_cpp",
-        direction: BridgeDirection::LegacyToCanonical,
-    },
-    CuratedAnchor {
-        package: "world-server",
-        module: "crate::runtime::delivery",
-        name: "run_legacy_creature_melee_tick_and_deliver_once_like_cpp",
-        direction: BridgeDirection::LegacyToCanonical,
-    },
-    CuratedAnchor {
-        package: "world-server",
-        module: "crate::runtime::delivery",
-        name: "run_legacy_creature_spell_tick_and_deliver_once_like_cpp",
-        direction: BridgeDirection::LegacyToCanonical,
-    },
-    CuratedAnchor {
-        package: "world-server",
-        module: "crate::runtime::delivery",
-        name: "run_legacy_creature_runtime_tick_and_deliver_once_like_cpp",
-        direction: BridgeDirection::LegacyToCanonical,
-    },
-];
+// #1263 F6-8E-1 deleted the last curated anchors (the legacy creature runtime's
+// `run_legacy_creature_*_and_deliver_once_like_cpp` outcome bridges).
+pub(super) const CURATED_ANCHORS: &[CuratedAnchor] = &[];
 
 /// One authority surface referenced by a bridge item.
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]

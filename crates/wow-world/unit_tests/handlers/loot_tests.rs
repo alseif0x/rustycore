@@ -37,8 +37,7 @@ use super::{
     represented_loot_response_items_like_cpp, start_loot_roll_packet_like_cpp,
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
+use crate::canonical_creature_fixtures::{self as fixtures, CanonicalCreatureFixtureLikeCpp as _};
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
@@ -200,7 +199,7 @@ fn make_visible_creature_spell_session_like_cpp()
     let (mut session, send_rx) = make_session_with_send_capacity(2);
     let source_guid =
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 777, 91_500);
-    let manager = shared_canonical_map_manager();
+    let manager = fixtures::shared_canonical_map_manager();
     manager.lock().unwrap().add_creature(
         571,
         0,
@@ -471,9 +470,7 @@ fn test_creature(guid: ObjectGuid, is_alive: bool) -> CreatureAI {
 }
 
 fn register_test_creature_like_cpp(session: &mut WorldSession, creature: CreatureAI) {
-    crate::canonical_creature_fixtures::ensure_canonical_creature_store_for_session_like_cpp(
-        session,
-    );
+    fixtures::ensure_canonical_creature_store_for_session_like_cpp(session);
 
     let create_data = CreatureCreateData {
         guid: creature.guid,

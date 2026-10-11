@@ -10,7 +10,8 @@
 //! made them. The fields F6-8E deleted from the outcome types (the
 //! legacy-owner skip flag, mirror/incarnation rejection and sync counters,
 //! legacy victim syncs, the failed respawn publication count) were removed
-//! from the recorded values; nothing else was edited.
+//! from the recorded values, and trailing whitespace is trimmed on both sides;
+//! nothing else was edited.
 //!
 //! A test now drives the executor alone and checks each observable against
 //! the next recorded value with the same test and label. The perturbed
@@ -86,6 +87,9 @@ pub(super) struct RecordedPassLikeCpp<'a> {
 impl RecordedPassLikeCpp<'_> {
     pub(super) fn check_like_cpp(&mut self, label: &str, actual: String) {
         let recorded = self.expectations.next_like_cpp(label);
+        // The recording is stored without trailing whitespace (a counter
+        // rendering cut before its `plan:` field ends in a space).
+        let actual = actual.trim_end();
         if recorded != actual {
             self.mismatches.push(format!(
                 "{label}:\n  recorded: {recorded}\n  executor: {actual}"

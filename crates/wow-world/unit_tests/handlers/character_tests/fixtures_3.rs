@@ -3,8 +3,7 @@
 //! Separated from the character_tests root under #662; every fixture is unchanged.
 
 use super::*;
-#[allow(unused_imports)]
-use crate::canonical_creature_fixtures::*;
+use crate::canonical_creature_fixtures::{self as fixtures, CanonicalCreatureFixtureLikeCpp as _};
 
 pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, slot: u8) {
     let player_guid = session.player_guid().expect("player guid");
@@ -679,19 +678,13 @@ pub(super) fn attach_map_manager(session: &mut WorldSession, manager: wow_map::M
     session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(manager)));
 }
 
-/// Add one NPC creature on 571/0 to the session's canonical store (one is
-/// installed when the session has none).
 pub(super) fn attach_npc_creature(
     session: &mut WorldSession,
     guid: ObjectGuid,
     entry: u32,
     npc_flags: u32,
 ) {
-    let manager = session
-        .core
-        .canonical_map_manager
-        .clone()
-        .unwrap_or_else(shared_canonical_map_manager);
+    let manager = fixtures::ensure_canonical_creature_store_for_session_like_cpp(session);
     manager.lock().unwrap().add_creature(
         571,
         0,
@@ -712,7 +705,6 @@ pub(super) fn attach_npc_creature(
             0,
         ),
     );
-    session.set_canonical_map_manager(manager);
 }
 
 pub(super) fn mark_gameobject_questgiver(session: &mut WorldSession, guid: ObjectGuid) {
