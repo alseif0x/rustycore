@@ -205,16 +205,6 @@ impl WorldSession {
         state.represented_notify_loot_item_removed_like_cpp(&mut hub, owner_guid, loot_list_id)
     }
 
-    pub(super) fn send_loot_error_like_cpp(
-        &self,
-        loot_obj: ObjectGuid,
-        owner: ObjectGuid,
-        error: u8,
-    ) {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.send_loot_error_like_cpp(hub, loot_obj, owner, error)
-    }
-
     pub(super) fn send_loot_item_push_result(
         &self,
         player_guid: ObjectGuid,

@@ -17,3 +17,29 @@ impl crate::session::WorldSession {
         state.represented_auto_decline_guild_invites_like_cpp(hub)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn player_guild_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerGuildState> {
+        wow_world_social::player_guild_state_snapshot_like_cpp(
+            &crate::session::hub_ref(self),
+            &self.social,
+        )
+    }
+    pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_guild_id_invited_like_cpp(guild_id))
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_guild_state_like_cpp(|state| {
+                    state.invited_guild_id = (guild_id != 0).then_some(guild_id);
+                })
+                .is_some();
+        }
+        canonical
+    }
+}

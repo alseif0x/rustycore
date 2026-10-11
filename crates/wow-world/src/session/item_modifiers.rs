@@ -132,10 +132,6 @@ impl WorldSession {
         self.catalogs.player_stats = Some(store);
     }
 
-    pub(crate) fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
-        self.catalogs.player_stats()
-    }
-
     pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {
         #[cfg(test)]
         {

@@ -61,3 +61,38 @@ impl crate::session::WorldSession {
         self.loot.is_active_loot_guid(guid)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn read_canonical_creature_loot_authority_on_map_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        map_key: wow_map::MapKey,
+    ) -> Option<OwnedLootAuthority> {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.read_canonical_creature_loot_authority_on_map_like_cpp(hub, guid, map_key)
+    }
+    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
+    ) {
+        crate::session::cx_loot(self).set_group_loot_money_persistence_port_like_cpp(port)
+    }
+    pub(crate) fn set_pass_on_group_loot_like_cpp(&mut self, value: bool) -> bool {
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.set_pass_on_group_loot_like_cpp(&mut hub, value)
+    }
+    pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) -> bool {
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.set_loot_specialization_id_like_cpp(&mut hub, spec_id)
+    }
+}
+
+impl crate::session::LootCx<'_> {
+    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
+    ) {
+        self.lifecycle
+            .set_group_loot_money_persistence_port_like_cpp(port);
+    }
+}

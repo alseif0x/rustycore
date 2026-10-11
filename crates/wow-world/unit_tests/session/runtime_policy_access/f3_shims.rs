@@ -20,3 +20,9 @@ impl crate::session::WorldSession {
         self.catalogs.start_all_explored_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
+        crate::session::hub_mut(self).set_represented_is_outdoors_like_cpp(is_outdoors)
+    }
+}

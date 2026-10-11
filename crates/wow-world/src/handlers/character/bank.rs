@@ -309,13 +309,8 @@ impl WorldSession {
         )
         .await;
     }
-
-    /// CMSG_CHANGE_BANK_BAG_SLOT_FLAG — player toggles an ActivePlayer bank bag flag.
-    ///
-    /// Target Opcodes.cpp:289 registers STATUS_UNHANDLED / Handle_NULL.
-    /// F5 preserves the existing Rust operation; this target difference remains F6.
-    pub(crate) async fn handle_change_bank_bag_slot_flag(&mut self, packet: ChangeBankBagSlotFlag) {
-        self.build_bank_slot_flag_handler_cx_like_cpp()
-            .change_bank_bag_slot_flag_like_cpp(packet);
-    }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/character/bank/test_only.rs"]
+mod test_only;

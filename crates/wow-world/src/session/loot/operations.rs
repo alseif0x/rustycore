@@ -15,20 +15,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.represented_money_loot_with_rate_like_cpp(&mut hub, min_amount, max_amount, rate)
     }
-    pub(crate) fn read_canonical_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.read_canonical_creature_loot_authority_on_map_like_cpp(hub, guid, map_key)
-    }
-    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
-    ) {
-        crate::session::cx_loot(self).set_group_loot_money_persistence_port_like_cpp(port)
-    }
     pub fn set_loot_drop_rates_like_cpp(&mut self, rates: LootDropRatesLikeCpp) {
         self.config.loot_drop_rates = rates;
     }
@@ -48,10 +34,6 @@ impl WorldSession {
     pub(crate) fn resolved_pass_on_group_loot_like_cpp(&self) -> Option<bool> {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.resolved_pass_on_group_loot_like_cpp(hub)
-    }
-    pub(crate) fn set_pass_on_group_loot_like_cpp(&mut self, value: bool) -> bool {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.set_pass_on_group_loot_like_cpp(&mut hub, value)
     }
     pub(in crate::session) async fn reconcile_durable_loot_money_before_save_like_cpp(
         &mut self,
@@ -77,10 +59,6 @@ impl WorldSession {
             0,
         )
     }
-    pub(crate) fn set_loot_specialization_id_like_cpp(&mut self, spec_id: u32) -> bool {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.set_loot_specialization_id_like_cpp(&mut hub, spec_id)
-    }
 }
 
 impl crate::session::LootCxRef<'_> {
@@ -91,16 +69,6 @@ impl crate::session::LootCxRef<'_> {
             self.lifecycle
                 .durable_loot_money_persistence_tracker_like_cpp(),
         )
-    }
-}
-
-impl crate::session::LootCx<'_> {
-    pub(crate) fn set_group_loot_money_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_group_loot_money_persistence_port_like_cpp(port);
     }
 }
 

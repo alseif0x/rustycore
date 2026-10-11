@@ -232,16 +232,6 @@ impl WorldSession {
                 })
     }
 
-    pub(crate) fn get_quest_slot_quest_id_like_cpp(&self, slot: u8) -> Option<u32> {
-        let owner = self.core.quest_objective_access_like_cpp();
-        wow_world_application::get_quest_slot_quest_id_like_cpp(
-            &owner,
-            &self.quest_state,
-            slot,
-            cfg!(test),
-        )
-    }
-
     pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {
         let owner = self.core.quest_objective_access_like_cpp();
         wow_world_application::find_quest_slot_like_cpp(
@@ -275,3 +265,7 @@ impl WorldSession {
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/quest/state/test_only.rs"]
+mod test_only;

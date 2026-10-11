@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn canonical_player_health_snapshot_like_cpp(&self) -> Option<(u32, u32)> {
-        self.core.canonical_player_snapshot_like_cpp(|player| {
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
-        })
-    }
     /// C++ `Unit::SetPower`'s `SMSG_POWER_UPDATE` publication
     /// (`Unit.cpp:9287-9312`). C++ also marks the changed `UnitData::Power`
     /// field, which the canonical Player setter already did, and sends the same
@@ -41,47 +33,6 @@ impl WorldSession {
     /// handle for the spell-effect chain.
     pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
         self.catalogs.power_type_store = Some(store);
-    }
-    pub(crate) fn represented_player_power_values_like_cpp(
-        &self,
-    ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-        let canonical = self.resolved_player_power_values_like_cpp();
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return character_power_snapshot_values_like_cpp(
-                &self.fixtures.combat.represented_player_powers_like_cpp,
-            );
-        }
-        canonical
-    }
-    fn resolved_player_power_values_like_cpp(&self) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.unit().data().power);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .core
-                .mutate_canonical_player_like_cpp(|player| player.unit().data().power);
-        }
-        canonical
-    }
-    pub(in crate::session) fn resolved_player_power_snapshot_like_cpp(
-        &self,
-    ) -> Option<CharacterPowerSnapshotLikeCpp> {
-        let canonical = self
-            .resolved_player_power_values_like_cpp()
-            .map(loaded_character_power_snapshot_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.combat.represented_player_powers_like_cpp);
-        }
-        canonical
-    }
-    pub(crate) fn set_player_health_like_cpp(&mut self, health: u32, max_health: u32) {
-        let _ =
-            crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(health, max_health);
-        self.sync_player_registry_state_like_cpp();
     }
 }
 

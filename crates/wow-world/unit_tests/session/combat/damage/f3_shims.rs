@@ -21,3 +21,18 @@ impl crate::session::WorldSession {
         crate::session::hub_ref(self).resolved_player_damage_control_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
+        let Some((_, max_health, _)) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
+        else {
+            return;
+        };
+        let _ = crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(
+            health_after.min(u64::from(max_health)) as u32,
+            max_health,
+        );
+        self.sync_player_registry_state_like_cpp();
+    }
+}

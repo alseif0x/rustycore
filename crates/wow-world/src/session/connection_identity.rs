@@ -54,10 +54,6 @@ pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) 
 pub(in crate::session) use wow_world_core::session::connection_identity::unix_now;
 
 impl WorldSession {
-    pub(crate) fn set_realm_id(&mut self, realm_id: u16) {
-        self.core.set_realm_id(realm_id)
-    }
-
     pub fn set_realm_handle_like_cpp(&mut self, region: u8, battlegroup: u8, realm_id: u16) {
         self.core.realm_policy.realm_region = region;
         self.core.realm_policy.realm_battlegroup = battlegroup;
@@ -113,10 +109,6 @@ impl WorldSession {
 
     pub fn set_legit_characters(&mut self, guids: Vec<ObjectGuid>) {
         self.core.set_legit_characters(guids)
-    }
-
-    pub(crate) fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
-        self.core.is_legit_character(guid)
     }
 
     /// Get the current session state.

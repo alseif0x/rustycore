@@ -222,16 +222,6 @@ impl WorldSession {
         self.lifecycle
             .set_loot_money_persistence_test_result_like_cpp(None);
     }
-    pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
-        #[cfg(test)]
-        {
-            self.lifecycle.loot_money_persistence_test_result_like_cpp()
-        }
-        #[cfg(not(test))]
-        {
-            None
-        }
-    }
     #[cfg(test)]
     pub(in crate::session) fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         let wow_world_core::session::state::SessionFixtures {
@@ -406,3 +396,7 @@ impl WorldSession {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/test_support/operations/test_only.rs"]
+mod test_only;

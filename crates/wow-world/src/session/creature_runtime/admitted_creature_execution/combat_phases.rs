@@ -101,49 +101,6 @@ impl AdmittedCreatureCombatPhasesOutcomeLikeCpp {
     pub const fn executed_like_cpp(&self) -> bool {
         self.admission.is_admitted_like_cpp()
     }
-
-    /// The deferred respawn DB statements, in the order they are submitted to
-    /// the respawn writer.
-    #[must_use]
-    pub(crate) fn deferred_respawn_db_mutations_like_cpp(
-        &self,
-    ) -> &[wow_persistence::RespawnPersistenceMutationLikeCpp] {
-        &self.lifecycle.respawn_db_mutations
-    }
-
-    /// The deferred visibility refresh the lifecycle phase drives: one
-    /// `RefreshVisibleWorldCreaturesLikeCpp` per affected map, sent to every
-    /// in-world session on that map and instance.
-    #[must_use]
-    pub(crate) fn deferred_visibility_refreshes_like_cpp(
-        &self,
-    ) -> Vec<crate::session::mailbox::RefreshVisibleWorldCreaturesLikeCppCommand> {
-        self.lifecycle
-            .refresh_map_keys
-            .iter()
-            .map(|&(map_id, instance_id)| {
-                crate::session::mailbox::RefreshVisibleWorldCreaturesLikeCppCommand {
-                    map_id,
-                    instance_id,
-                }
-            })
-            .collect()
-    }
-
-    /// The deferred plan events, in phase order (movement, aggro, spell, then
-    /// melee).
-    #[must_use]
-    pub(crate) fn deferred_plan_events_like_cpp(&self) -> Vec<RuntimeEvent> {
-        self.movement
-            .plan
-            .events
-            .iter()
-            .chain(&self.aggro.plan.events)
-            .chain(&self.spell.plan.events)
-            .chain(&self.melee.plan.events)
-            .cloned()
-            .collect()
-    }
 }
 
 /// Run the admitted combat phases once.
@@ -514,3 +471,7 @@ pub(in crate::session) fn run_creature_melee_phase_on_manager_like_cpp(
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/creature_runtime/admitted_creature_execution/combat_phases/test_only.rs"]
+mod test_only;

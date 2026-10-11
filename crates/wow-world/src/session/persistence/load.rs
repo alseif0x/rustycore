@@ -384,33 +384,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.set_loaded_player_powers_like_cpp(&mut hub, powers)
     }
-    pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
-        &self,
-    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| {
-                player
-                    .action_buttons_loaded_like_cpp()
-                    .then(|| player.action_buttons_snapshot_like_cpp())
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none()
-            && self.core.player_handle_like_cpp.is_none()
-            && self
-                .fixtures
-                .presentation
-                .represented_action_buttons_loaded_like_cpp
-        {
-            return Some(
-                self.fixtures
-                    .presentation
-                    .represented_action_buttons_like_cpp,
-            );
-        }
-        canonical
-    }
     pub(crate) fn load_represented_cuf_profile_like_cpp(
         &mut self,
         id: u8,

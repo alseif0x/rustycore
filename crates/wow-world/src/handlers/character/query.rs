@@ -101,11 +101,6 @@ impl WorldSession {
         .await;
     }
 
-    pub(crate) async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
-        self.build_item_text_query_handler_cx_like_cpp()
-            .handle_item_text_query(query);
-    }
-
     #[cfg(test)]
     pub(crate) async fn handle_quest_giver_status_multiple_query(&mut self) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
@@ -210,3 +205,7 @@ impl WorldSession {
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/character/query/test_only.rs"]
+mod test_only;

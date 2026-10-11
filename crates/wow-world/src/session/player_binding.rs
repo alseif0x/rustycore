@@ -221,50 +221,6 @@ impl WorldSession {
         self.set_player_moved_unit_guid_like_cpp(controller.guid());
     }
 
-    pub(crate) fn set_player_liquid_status_like_cpp(&mut self, status: u32) {
-        crate::canonical_player_sync::sync_player_liquid_status_like_cpp(self, status);
-    }
-
-    pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
-        let catalogs = &self.catalogs;
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let quest_state = &self.quest_state;
-        let world_test_consumer = cfg!(test);
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let mut player = self.core.quest_reward_player_access_like_cpp(
-            &self.fixtures.identity.player_race,
-            &self.fixtures.identity.player_class,
-        );
-        #[cfg(any(test, feature = "test-fixtures"))]
-        wow_world_application::QuestRewardCx::set_player_level_and_refresh_talent_points_like_cpp(
-            &mut player,
-            level,
-            catalogs,
-            quest_state,
-            world_test_consumer,
-            &mut self.fixtures.identity.player_level,
-            &self
-                .fixtures
-                .progression
-                .represented_gray_level_script_overrides_like_cpp,
-            &self.fixtures.progression.represented_talents_like_cpp,
-            &self
-                .fixtures
-                .progression
-                .represented_active_talent_group_like_cpp,
-            &mut self.fixtures.progression.player_character_points_like_cpp,
-        );
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let mut player = self.core.quest_reward_player_access_like_cpp();
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        wow_world_application::QuestRewardCx::set_player_level_and_refresh_talent_points_like_cpp(
-            &mut player,
-            level,
-            catalogs,
-            world_test_consumer,
-        );
-    }
-
     #[cfg(test)]
     pub(crate) fn set_player_class_like_cpp(&mut self, class: u8) {
         if crate::session::hub_ref(self).player_class_like_cpp() != class {

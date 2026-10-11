@@ -7,52 +7,6 @@
 use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseState};
 use super::{WorldSession, quest};
 
-impl WorldSession {
-    pub(in crate::session) fn represented_gameobject_activate_to_quest_like_cpp(
-        &self,
-        gameobject_entry: u32,
-        state: &RepresentedGameObjectUseState,
-    ) -> bool {
-        let owner = self.core.quest_objective_access_like_cpp();
-        let inventory_access = self.core.owned_inventory_access_like_cpp();
-        let player = self.core.quest_eligibility_access_like_cpp(
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_race,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_class,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.identity.player_level,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self
-                .fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_like_cpp,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            &self.fixtures.progression.reputation_state_like_cpp,
-        );
-        let conditions = self.player_condition_projection_cx_like_cpp();
-        let eligibility = wow_world_application::QuestEligibilityCx::new(
-            player,
-            &self.quest_state,
-            &self.catalogs,
-            &conditions,
-            cfg!(test),
-        );
-        wow_world_application::represented_gameobject_activate_to_quest_like_cpp(
-            &owner,
-            &self.catalogs,
-            &self.quest_state,
-            &self.inventory,
-            &inventory_access,
-            &eligibility,
-            gameobject_entry,
-            state,
-            cfg!(test),
-        )
-    }
-}
-
 impl crate::session::QuestStateCx<'_> {
     pub(crate) fn record_represented_gameobject_template_quest_source_like_cpp(
         &mut self,
@@ -105,3 +59,7 @@ impl crate::session::QuestStateCxRef<'_> {
             .then_some(access)
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/quest_interaction/test_only.rs"]
+mod test_only;

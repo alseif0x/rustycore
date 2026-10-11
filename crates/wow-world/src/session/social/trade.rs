@@ -28,14 +28,6 @@ impl WorldSession {
             .map(|state| state.map(|state| state.partner_guid))
     }
 
-    pub(crate) fn set_represented_active_trade_partner_like_cpp(
-        &mut self,
-        partner_guid: Option<ObjectGuid>,
-    ) -> bool {
-        self.trade_handler_cx_like_cpp()
-            .set_represented_active_trade_partner_like_cpp(partner_guid)
-    }
-
     pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) -> bool {
         self.trade_handler_cx_like_cpp()
             .clear_represented_active_trade_partner_like_cpp()

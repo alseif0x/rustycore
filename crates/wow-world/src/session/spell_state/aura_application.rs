@@ -24,13 +24,6 @@ impl WorldSession {
         )
     }
 
-    pub(in crate::session) fn remove_player_visible_aura_like_cpp(
-        &mut self,
-        slot: u8,
-    ) -> Option<AuraApplication> {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.remove_player_visible_aura_like_cpp(&mut hub, slot)
-    }
     pub(in crate::session) fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(
         &mut self,
     ) -> usize {
@@ -70,22 +63,6 @@ impl WorldSession {
             let _ = self.remove_aura(slot);
         }
         removed
-    }
-    /// Apply an aura to the player and send SMSG_AURA_UPDATE.
-    pub(crate) fn apply_aura(
-        &mut self,
-        spell_id: i32,
-        caster_guid: ObjectGuid,
-        duration_ms: u32,
-        aura_flags: u32,
-    ) -> Result<(), &'static str> {
-        self.apply_aura_with_effect_mask_like_cpp(
-            spell_id,
-            caster_guid,
-            duration_ms,
-            aura_flags,
-            0x0000_0001,
-        )
     }
     pub(in crate::session) fn apply_aura_with_effect_mask_like_cpp(
         &mut self,
@@ -434,32 +411,6 @@ impl WorldSession {
             .unwrap_or(0);
 
         represented_removed + canonical_removed
-    }
-    pub(crate) fn remove_represented_mod_speed_no_control_auras_cancelable_like_cpp(
-        &mut self,
-    ) -> usize {
-        self.remove_represented_cancelable_auras_by_effect_like_cpp(
-            RepresentedAuraEffectLikeCpp::ModSpeedNoControl,
-        )
-    }
-    pub(in crate::session) fn remove_represented_cancelable_auras_by_effect_like_cpp(
-        &mut self,
-        represented_effect: RepresentedAuraEffectLikeCpp,
-    ) -> usize {
-        let (spell_state, inventory, loot, quest_state, hub) =
-            crate::session::state::split_aura_application_mut(self);
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let _ = quest_state;
-        wow_world_application::remove_represented_cancelable_auras_by_effect_like_cpp(
-            hub,
-            spell_state,
-            inventory,
-            loot,
-            #[cfg(any(test, feature = "test-fixtures"))]
-            quest_state,
-            cfg!(test),
-            represented_effect,
-        )
     }
     pub(crate) fn remove_auras_with_interrupt_flags_like_cpp(
         &mut self,

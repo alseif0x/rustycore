@@ -139,12 +139,6 @@ impl IsolatedCreatureExecutionOutcomeLikeCpp {
         }
     }
 
-    /// Number of publication events this transition produced.
-    #[must_use]
-    pub(crate) fn publication_events_like_cpp(&self) -> usize {
-        self.deferred_publication.len()
-    }
-
     /// Whether the engine actually ran for this transition.
     #[must_use]
     pub const fn executed_like_cpp(&self) -> bool {
@@ -337,3 +331,7 @@ impl AdmittedCreatureExecutionLikeCpp {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/creature_runtime/admitted_creature_execution/admission/test_only.rs"]
+mod test_only;

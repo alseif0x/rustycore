@@ -16,3 +16,12 @@ impl crate::session::WorldSession {
         self.social.represented_duel_cancels_like_cpp()
     }
 }
+
+impl WorldSession {
+    pub(crate) fn resolved_represented_duel_arbiter_guid_like_cpp(
+        &self,
+    ) -> Option<Option<ObjectGuid>> {
+        let (state, hub) = crate::session::split_social_ref(self);
+        wow_world_application::resolved_represented_duel_arbiter_guid_like_cpp(hub, state)
+    }
+}

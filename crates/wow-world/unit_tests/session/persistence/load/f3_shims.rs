@@ -89,3 +89,33 @@ impl crate::session::WorldSession {
         state.mark_represented_cuf_profiles_loaded_like_cpp(&mut hub)
     }
 }
+
+impl WorldSession {
+    pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
+        &self,
+    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .action_buttons_loaded_like_cpp()
+                    .then(|| player.action_buttons_snapshot_like_cpp())
+            })
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none()
+            && self.core.player_handle_like_cpp.is_none()
+            && self
+                .fixtures
+                .presentation
+                .represented_action_buttons_loaded_like_cpp
+        {
+            return Some(
+                self.fixtures
+                    .presentation
+                    .represented_action_buttons_like_cpp,
+            );
+        }
+        canonical
+    }
+}

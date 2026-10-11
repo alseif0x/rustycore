@@ -590,29 +590,6 @@ impl crate::session::PetsCx<'_> {
         true
     }
 
-    pub(crate) async fn battle_pet_remove_pet_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-    ) -> bool {
-        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
-            #[cfg(test)]
-            return self.battle_pet_remove_pet_like_cpp(pet_guid);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
-        match owner.try_remove_pet_like_cpp(lease, pet_guid).await {
-            Ok(()) => true,
-            Err(error) => {
-                self.hub
-                    .shared()
-                    .log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
-                false
-            }
-        }
-    }
-
     /// Record the C++ `BattlePetMgr::AddPet` criteria hooks from durable
     /// current state. Both C++ criteria are set-like (`UniquePetsOwned` uses
     /// the current unique-species count and `LearnedNewPet` sets one species

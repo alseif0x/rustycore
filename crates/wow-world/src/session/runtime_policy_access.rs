@@ -12,10 +12,6 @@ impl WorldSession {
         self.config.reset_schedule_like_cpp = schedule;
     }
 
-    pub(crate) fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
-        crate::session::hub_mut(self).set_represented_is_outdoors_like_cpp(is_outdoors)
-    }
-
     pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
         self.core.admission.socket_timeouts_like_cpp = timeouts;
         self.core.reset_timeout_time_like_cpp(false);

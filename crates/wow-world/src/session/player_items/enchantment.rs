@@ -32,21 +32,6 @@ impl WorldSession {
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
     }
-    pub(crate) fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
-        self.catalogs.is_arena_allowed_enchantment(enchantment_id)
-    }
-    pub(crate) fn apply_enchantment_template_ref(
-        &self,
-        enchantment_id: i32,
-        required_skill_value: u16,
-        condition_fits: bool,
-    ) -> Option<ApplyEnchantmentTemplateRef> {
-        self.catalogs.apply_enchantment_template_ref(
-            enchantment_id,
-            required_skill_value,
-            condition_fits,
-        )
-    }
     pub(crate) fn apply_enchantment_effect_refs(
         &self,
         enchantment_id: u32,

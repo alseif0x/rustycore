@@ -58,22 +58,6 @@ impl WorldSession {
         self.send_packet(&packet);
         true
     }
-    /// Publish the C++ vendor gain immediately for callers that do not own a
-    /// wider durable transaction. Persistence-sensitive vendor handlers use
-    /// [`Self::plan_add_currency_vendor_like_cpp`] and publish only after
-    /// their combined item/currency transaction commits.
-    pub(crate) fn add_currency_vendor(
-        &mut self,
-        currency_id: u32,
-        amount: u32,
-    ) -> Result<Option<PlayerCurrencyDelta>, ()> {
-        let mut currencies = self.player_currencies_like_cpp().ok_or(())?;
-        let delta = self.plan_add_currency_vendor_like_cpp(&mut currencies, currency_id, amount)?;
-        if !self.set_player_currencies_like_cpp(currencies) {
-            return Err(());
-        }
-        Ok(delta)
-    }
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::ItemRefund)`.
     pub(crate) fn add_currency_item_refund(
         &mut self,

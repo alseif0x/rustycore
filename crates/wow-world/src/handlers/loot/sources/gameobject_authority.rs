@@ -50,24 +50,6 @@ impl WorldSession {
         Some(())
     }
 
-    pub(in crate::handlers::loot) fn upsert_represented_personal_gameobject_loot_authority_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        loot: CreatureLoot,
-        replace: bool,
-    ) -> Option<()> {
-        let observation = crate::session::cx_loot(self)
-            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)?;
-        self.upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
-            gameobject_guid,
-            player_guid,
-            loot,
-            replace,
-            &observation,
-        )
-    }
-
     pub(in crate::handlers::loot) fn upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,

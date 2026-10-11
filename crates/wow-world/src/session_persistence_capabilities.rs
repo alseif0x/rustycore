@@ -14,38 +14,6 @@ impl WorldSession {
             .set_required_persistence_capabilities_like_cpp(capabilities);
     }
 
-    pub(crate) fn set_vendor_trade_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_vendor_trade_persistence_port_like_cpp(port)
-    }
-
-    pub(crate) fn set_player_inventory_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_player_inventory_persistence_port_like_cpp(port)
-    }
-
-    pub(crate) fn set_player_quest_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_player_quest_persistence_port_like_cpp(port)
-    }
-
-    pub(crate) fn set_player_quest_reward_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle
-            .set_player_quest_reward_persistence_port_like_cpp(port)
-    }
-
     pub fn set_character_administration_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
@@ -54,3 +22,7 @@ impl WorldSession {
             .set_character_administration_persistence_port_like_cpp(port)
     }
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/session_persistence_capabilities/test_only.rs"]
+mod test_only;

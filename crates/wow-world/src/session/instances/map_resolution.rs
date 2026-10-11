@@ -329,13 +329,6 @@ impl WorldSession {
 
         Some((corpses, scene_objects, conversations))
     }
-    pub(in crate::session) fn canonical_map_has_seer_like_object_like_cpp(
-        &self,
-        target: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.canonical_map_has_seer_like_object_like_cpp(hub, target)
-    }
 }
 
 #[cfg(test)]

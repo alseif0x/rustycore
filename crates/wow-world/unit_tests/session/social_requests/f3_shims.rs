@@ -26,3 +26,14 @@ impl crate::session::WorldSession {
         state.represented_arena_team_id_invited_like_cpp(hub)
     }
 }
+
+impl WorldSession {
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
+        &mut self,
+        arena_team_id: u32,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.set_represented_arena_team_id_invited_like_cpp(&mut hub, arena_team_id)
+    }
+}

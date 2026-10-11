@@ -21,31 +21,6 @@ impl WorldSession {
             .represented_loot_authority_pools_like_cpp(owner_guid, player_guid, loot, personal)
     }
 
-    pub(super) async fn request_represented_remote_master_loot_give_like_cpp(
-        &self,
-        target: ObjectGuid,
-        owner_guid: ObjectGuid,
-        loot_obj: ObjectGuid,
-        loot_list_id: u8,
-        dungeon_encounter_id: u32,
-        entry: LootEntry,
-        claim: Option<LootClaimLease>,
-    ) -> MasterLootGiveResult {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state
-            .request_represented_remote_master_loot_give_like_cpp(
-                hub,
-                target,
-                owner_guid,
-                loot_obj,
-                loot_list_id,
-                dungeon_encounter_id,
-                entry,
-                claim,
-            )
-            .await
-    }
-
     pub(super) fn mark_represented_master_loot_item_removed_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
@@ -124,3 +99,7 @@ impl WorldSession {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/loot/authority/test_only.rs"]
+mod test_only;

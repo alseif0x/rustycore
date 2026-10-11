@@ -119,18 +119,6 @@ impl WorldSession {
             self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.clone());
         }
     }
-    pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
-        let Some((_, max_health, _)) =
-            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
-        else {
-            return;
-        };
-        let _ = crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(
-            health_after.min(u64::from(max_health)) as u32,
-            max_health,
-        );
-        self.sync_player_registry_state_like_cpp();
-    }
 }
 
 #[cfg(test)]

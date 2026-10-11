@@ -152,9 +152,6 @@ impl WorldSession {
     pub fn set_chr_races_store(&mut self, store: Arc<ChrRacesStore>) {
         self.catalogs.chr.races_store = Some(store);
     }
-    pub(crate) fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
-        self.catalogs.set_cinematic_sequences_store(store)
-    }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,

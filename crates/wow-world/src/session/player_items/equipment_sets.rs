@@ -38,10 +38,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_load_equipment_set_packet_like_cpp(hub)
     }
-    pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.delete_represented_equipment_set_like_cpp(&mut hub, id)
-    }
     pub(crate) fn build_equipment_set_use_context_like_cpp(
         &mut self,
     ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'_> {

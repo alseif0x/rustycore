@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn apply_chat_away_mode_like_cpp(
-        &mut self,
-        mode: PlayerAwayModeLikeCpp,
-        text: String,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.apply_chat_away_mode_like_cpp(&mut hub, mode, text)
-    }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
         self.core.transport.remote_address_like_cpp = address;
     }

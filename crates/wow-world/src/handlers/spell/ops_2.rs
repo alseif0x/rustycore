@@ -372,29 +372,6 @@ impl WorldSession {
             "CMSG_SPELL_CLICK represented execution outcome"
         );
     }
-    /// Handle the represented `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS`.
-    ///
-    /// The inspected opcode table assigns this packet to the shared unresolved
-    /// `0xBADD` value, so `WorldSession` probes this handler from that branch
-    /// and falls through to other 0xBADD packet shapes when the target does not
-    /// match C++ `Player::GetUnitBeingMoved()`.
-    pub(crate) async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp(
-        &mut self,
-        mut pkt: wow_packet::WorldPacket,
-    ) -> bool {
-        let request = match CancelModSpeedNoControlAuras::read(&mut pkt) {
-            Ok(request) if pkt.is_empty() => request,
-            _ => return false,
-        };
-        if crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
-            != Some(request.target_guid)
-        {
-            return false;
-        }
-
-        self.remove_represented_mod_speed_no_control_auras_cancelable_like_cpp();
-        true
-    }
     /// Handle `CMSG_SELF_RES`.
     pub(crate) async fn handle_self_res_with_generator_like_cpp(
         &mut self,
@@ -488,3 +465,7 @@ impl WorldSession {
         )
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/spell/ops_2/test_only.rs"]
+mod test_only;

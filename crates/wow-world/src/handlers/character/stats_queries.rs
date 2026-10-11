@@ -7,12 +7,6 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(crate) fn level_up_stat_deltas_like_cpp(
-        &mut self,
-        new_level: u8,
-    ) -> Option<(i32, [i32; 5])> {
-        self.stats_application_cx_like_cpp()
-            .level_up_stat_deltas_like_cpp(new_level)
-    }
-}
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/character/stats_queries/test_only.rs"]
+mod test_only;

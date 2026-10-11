@@ -42,11 +42,6 @@ impl WorldSession {
             .is_some()
     }
 
-    pub(crate) fn last_spell_cast_time_like_cpp(&self) -> Option<Option<Instant>> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.last_spell_cast_time_like_cpp(hub)
-    }
-
     pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.spell_last_cast_time_like_cpp(hub, spell_id)

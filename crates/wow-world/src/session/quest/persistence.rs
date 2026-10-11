@@ -6,12 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_quest_poi_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
-    ) {
-        crate::session::cx_quest_state(self).set_quest_poi_persistence_port_like_cpp(port)
-    }
     #[cfg(test)]
     pub(in crate::session) fn current_player_xp_persistence_request_like_cpp(
         &self,
@@ -45,11 +39,6 @@ impl crate::session::QuestStateCxRef<'_> {
     }
 }
 
-impl crate::session::QuestStateCx<'_> {
-    pub(crate) fn set_quest_poi_persistence_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
-    ) {
-        self.lifecycle.set_quest_poi_persistence_port_like_cpp(port);
-    }
-}
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/persistence/test_only.rs"]
+mod test_only;
