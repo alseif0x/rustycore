@@ -8,4 +8,5 @@
 use super::*;
 pub(crate) use wow_world_lifecycle::group_persistence_command_like_cpp;
 
+#[cfg(test)]
 pub(super) use wow_world_social::group_fanout::*;

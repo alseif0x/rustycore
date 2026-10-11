@@ -11,6 +11,7 @@
 //! remains in the character handler adapters.
 
 use super::*;
+#[cfg(test)]
 pub(crate) use crate::session::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use crate::session::hub_support::{
     SPELL_SCHOOL_MASK_ALL_LIKE_CPP, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,

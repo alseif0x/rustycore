@@ -3,6 +3,7 @@
 
 //! Thin compatibility entry points for the application-owned instance handlers.
 
+#[cfg(test)]
 use wow_packet::packets::misc::SetSavedInstanceExtend;
 
 #[cfg(test)]

@@ -17,9 +17,9 @@ use wow_constants::unit::NPCFlags1;
 #[cfg(test)]
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use wow_packet::packets::talent::{
-    ConfirmRespecWipe, LearnTalent, LearnTalents, SPEC_RESET_TALENTS_LIKE_CPP,
-};
+#[cfg(test)]
+use wow_packet::packets::talent::LearnTalents;
+use wow_packet::packets::talent::{ConfirmRespecWipe, LearnTalent, SPEC_RESET_TALENTS_LIKE_CPP};
 use wow_packet::{ClientPacket, WorldPacket};
 
 #[cfg(test)]

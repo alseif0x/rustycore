@@ -111,10 +111,15 @@ mod action_bar_adapter;
 use action_bar_adapter::make_action_button_like_cpp;
 use action_bar_adapter::set_active_player_update_bit_like_cpp;
 use action_bar_adapter::{action_button_action_like_cpp, action_button_type_like_cpp};
+#[cfg(test)]
 mod auction_contracts;
+#[cfg(test)]
 pub(crate) use auction_contracts::RepresentedAuctionPlaceBidLikeCpp;
+#[cfg(test)]
 pub(crate) use auction_contracts::RepresentedAuctionRemoveItemLikeCpp;
+#[cfg(test)]
 pub(crate) use auction_contracts::RepresentedAuctionReplicateRequestLikeCpp;
+#[cfg(test)]
 pub(crate) use auction_contracts::RepresentedAuctionSellItemLikeCpp;
 mod aura_effect_values;
 use aura_effect_values::CanonicalThreatAuraSnapshotLikeCpp;
@@ -335,6 +340,7 @@ pub(crate) use item_modifiers::RepresentedItemBonusActionLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemBonusStateLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemModsReapplyEventLikeCpp;
+#[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemSetAuraRefreshEventLikeCpp;
 #[cfg(test)]
 pub(crate) use item_modifiers::RepresentedItemSetEffectLikeCpp;
@@ -391,8 +397,10 @@ pub(crate) use movement_protocol::{
 mod npc_interaction;
 mod persistence_capabilities;
 pub use persistence_capabilities::CatalogPersistenceCapabilitiesLikeCpp;
+#[cfg(test)]
 pub(crate) use persistence_capabilities::CharacterPowerSnapshotLikeCpp;
 pub use persistence_capabilities::PlayerPersistenceCapabilitiesLikeCpp;
+#[cfg(test)]
 pub(crate) use persistence_capabilities::PlayerSaveToDbSnapshotLikeCpp;
 pub use persistence_capabilities::SessionAdmissionPersistenceLikeCpp;
 pub use persistence_capabilities::SessionPersistencePortsLikeCpp;
@@ -400,6 +408,7 @@ pub use persistence_capabilities::WorldPersistenceCapabilitiesLikeCpp;
 use persistence_capabilities::character_power_snapshot_values_like_cpp;
 #[cfg(test)]
 use persistence_capabilities::empty_character_power_snapshot_like_cpp;
+#[cfg(test)]
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
 mod pet_loading;
@@ -623,10 +632,12 @@ use crate::loot_persistence::{
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
+#[cfg(test)]
+use crate::session::mailbox::GameEventQuestCompleteClientOutcomeLikeCpp;
 use crate::session::mailbox::{
-    CreatureAttackStartLikeCppCommand, GameEventQuestCompleteClientOutcomeLikeCpp,
-    GameEventQuestCompleteCommandLikeCpp, KickLikeCppCommand, LootRollCommandIdentityLikeCpp,
-    NotifyLootMoneyRemovedLikeCppCommand, SendIfVisibleLikeCppCommand, SessionCommand,
+    CreatureAttackStartLikeCppCommand, GameEventQuestCompleteCommandLikeCpp, KickLikeCppCommand,
+    LootRollCommandIdentityLikeCpp, NotifyLootMoneyRemovedLikeCppCommand,
+    SendIfVisibleLikeCppCommand, SessionCommand,
 };
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
@@ -672,6 +683,14 @@ use wow_core::{
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
 };
 #[cfg(test)]
+use wow_data::CinematicSequencesStore;
+#[cfg(test)]
+use wow_data::SpellLinkedTypeLikeCpp;
+#[cfg(test)]
+use wow_data::SpellProcEntryLikeCpp;
+#[cfg(test)]
+use wow_data::SummonPropertiesEntry;
+#[cfg(test)]
 use wow_data::VehicleTemplateStoreLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::calculate_battle_pet_stats_like_cpp;
@@ -680,10 +699,8 @@ use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, AdventureMapPoiStore, AreaTableStore, AreaTriggerDb2Store,
     AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore, BattlemasterListStore,
-    ChrSpecializationStore, CinematicSequencesStore, CombatRatingsGameTableLikeCpp,
-    ConditionEntriesByTypeStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp,
-    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureEquipmentStoreLikeCpp,
+    ChrSpecializationStore, CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore,
+    CreatureAddonStoreLikeCpp, CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore,
     CreatureModelDataStore, CreatureSpellDisableDecisionLikeCpp,
     CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
     CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
@@ -711,14 +728,13 @@ use wow_data::{
     SpellGroupStackRuleStoreLikeCpp, SpellGroupStoreLikeCpp, SpellItemEnchantmentConditionStore,
     SpellItemEnchantmentStore, SpellLearnSkillLookupLikeCpp, SpellLearnSkillNodeLikeCpp,
     SpellLearnSkillStoreLikeCpp, SpellLearnSpellNodeLikeCpp, SpellLearnSpellStoreLikeCpp,
-    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellMiscStore,
-    SpellPetAuraStoreLikeCpp, SpellProcEntryLikeCpp, SpellProcStoreLikeCpp, SpellRadiusStore,
-    SpellRangeStore, SpellRequiredStoreLikeCpp, SpellShapeshiftFormStore, SpellStore,
-    SpellTargetPositionStoreLikeCpp, SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp,
-    SpellThreatStoreLikeCpp, SummonPropertiesEntry, TactKeyStore, TalentStore, TalentTabStore,
-    TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp, TransmogSetItemStore,
-    TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore,
-    WorldSafeLocStore, is_player_meeting_condition_like_cpp,
+    SpellLevelsStore, SpellLinkedStoreLikeCpp, SpellMiscStore, SpellPetAuraStoreLikeCpp,
+    SpellProcStoreLikeCpp, SpellRadiusStore, SpellRangeStore, SpellRequiredStoreLikeCpp,
+    SpellShapeshiftFormStore, SpellStore, SpellTargetPositionStoreLikeCpp,
+    SpellTargetRestrictionsStore, SpellThreatEntryLikeCpp, SpellThreatStoreLikeCpp, TactKeyStore,
+    TalentStore, TalentTabStore, TavernAreaTriggerStoreLikeCpp, ToyStore, TrainerStoreLikeCpp,
+    TransmogSetItemStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
+    VehicleSeatStore, VehicleStore, WorldSafeLocStore, is_player_meeting_condition_like_cpp,
     progression_rewards::{
         ContentTuningStore, CurvePointStore, CurveStore, FactionEntry, FactionStore,
         FactionTemplateStore, FriendshipRepReactionStore, NumTalentsAtLevelStore,
@@ -756,7 +772,7 @@ use wow_data::{
 #[cfg(test)]
 use wow_data::{
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
-    PlayerCreateInfoStoreLikeCpp, SpellGroupStackRuleLikeCpp,
+    SpellGroupStackRuleLikeCpp,
 };
 #[cfg(test)]
 use wow_entities::PetStable;
@@ -765,40 +781,45 @@ use wow_entities::TitanGripPenaltyAction;
 use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
 // Test-only: the session admission fixtures compare against the player slot end.
 #[cfg(test)]
+use wow_entities::ApplyEnchantmentTemplateRef;
+#[cfg(test)]
+use wow_entities::ItemLimitCategoryTemplate;
+#[cfg(test)]
 pub(crate) use wow_entities::PLAYER_SLOT_END;
+#[cfg(test)]
+use wow_entities::explored_zones_db_string_from_blocks_like_cpp;
 use wow_entities::{
     AccessorObjectKind, ActiveState, ApplyEnchantmentArgs, ApplyEnchantmentDurationAction,
     ApplyEnchantmentEffectAction, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
     ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult,
-    ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END,
-    BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
-    CanBankItemArgs, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
-    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
-    CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
-    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
-    EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
-    EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED,
-    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
-    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
-    GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_0,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END,
-    INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT, ITEM_DATA_CREATOR_BIT,
-    ITEM_DATA_DURABILITY_BIT, ITEM_DATA_DYNAMIC_FLAGS_BIT, ITEM_DATA_DYNAMIC_FLAGS2_BIT,
-    ITEM_DATA_ENCHANTMENT_FIRST_BIT, ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT,
-    ITEM_DATA_PROPERTY_SEED_BIT, ITEM_DATA_RANDOM_PROPERTIES_ID_BIT, Item, ItemCreateInfo,
-    ItemDataUpdate, ItemLimitCategoryTemplate, ItemPosCount, ItemSlotRef, ItemStorageRef,
-    ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
-    MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
-    PROFESSION_SLOT_END, Pet, PetDeclinedNamesLikeCpp, PetSpellState, PetSpellType, PetType,
-    PhaseShift, Player, PlayerEnchantTimeUpdate, PlayerInteractionDataLikeCpp,
-    PlayerInventoryRuntime, PlayerItemTimeUpdate, PlayerPetLifecycleStateLikeCpp,
-    PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp,
-    PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK, QUESTS_COMPLETED_BITS_SIZE,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery, SendNewItemDisplayText,
-    SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem, SwapItemPreflightPlan,
-    TYPEID_CONTAINER, TYPEID_ITEM, Unit, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
-    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
+    ApplyEnchantmentSocketContext, BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT,
+    BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef, CanBankItemArgs, CanEquipItemArgs,
+    CanEquipUniqueItemArgs, CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs,
+    CanUseItemTemplateArgs, CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK,
+    EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET,
+    EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
+    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND,
+    EQUIPMENT_SLOT_RANGED, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
+    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    EquippedGemRef, GAMEOBJECT_TYPE_GUILD_BANK, GameObject, INVENTORY_DEFAULT_SIZE,
+    INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
+    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ITEM_DATA_BITS, ITEM_DATA_CONTAINED_IN_BIT,
+    ITEM_DATA_CREATOR_BIT, ITEM_DATA_DURABILITY_BIT, ITEM_DATA_DYNAMIC_FLAGS_BIT,
+    ITEM_DATA_DYNAMIC_FLAGS2_BIT, ITEM_DATA_ENCHANTMENT_FIRST_BIT,
+    ITEM_DATA_ENCHANTMENT_PARENT_BIT, ITEM_DATA_PARENT_BIT, ITEM_DATA_PROPERTY_SEED_BIT,
+    ITEM_DATA_RANDOM_PROPERTIES_ID_BIT, Item, ItemCreateInfo, ItemDataUpdate, ItemPosCount,
+    ItemSlotRef, ItemStorageRef, ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE,
+    MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT, MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PROFESSION_SLOT_END, Pet, PetDeclinedNamesLikeCpp,
+    PetSpellState, PetSpellType, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
+    PlayerInteractionDataLikeCpp, PlayerInventoryRuntime, PlayerItemTimeUpdate,
+    PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp,
+    PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK,
+    QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
+    SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
+    SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, Unit, UpdateMask, Vehicle,
+    VisibleItemValues, WorldObject, is_bag_pos, is_equipment_packed_pos, is_inventory_pos,
+    make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,
@@ -839,10 +860,9 @@ use wow_packet::packets::item::{
 use wow_packet::packets::item::{ItemEnchantTimeUpdate, ItemTimeUpdate};
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountToy, AccountToyUpdate,
-    DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, FeatureSystemStatus,
-    FeatureSystemStatusGlueScreen, MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult,
-    NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet, SetProficiency, SetupCurrency, SetupCurrencyRecord,
-    SpellChargeEntry, SpellHistoryEntry, TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP,
+    DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP, MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
+    MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet, SetProficiency, SetupCurrency,
+    SetupCurrencyRecord, TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP,
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
     TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
 };

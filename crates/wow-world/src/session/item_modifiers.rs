@@ -15,12 +15,13 @@ use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
 #[cfg(test)]
+pub(crate) use wow_world_inventory::RepresentedItemSetAuraRefreshEventLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_inventory::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
 };
 pub(crate) use wow_world_inventory::{
-    RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
-    RepresentedItemSetSpellEventLikeCpp,
+    RepresentedItemBonusActionLikeCpp, RepresentedItemSetSpellEventLikeCpp,
 };
 
 pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;

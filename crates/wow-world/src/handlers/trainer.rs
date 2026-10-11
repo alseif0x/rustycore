@@ -28,18 +28,22 @@
 
 use std::sync::Arc;
 
-use wow_data::{BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp};
+#[cfg(test)]
+use wow_data::SkillLineAbilityCoverageLikeCpp;
 
 #[cfg(test)]
 use wow_packet::packets::spell::PlaySpellVisualKit;
 
 use crate::session::WorldSession;
+#[cfg(test)]
+use wow_world_application::TrainerAdmissionProofLikeCpp;
+#[cfg(test)]
+use wow_world_application::trainer_condition_admission_proof_like_cpp;
 use wow_world_application::{
-    TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp,
-    TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp,
-    TrainerUnavailableReasonLikeCpp, finish_trainer_offer_after_projection_like_cpp,
-    prepare_trainer_offer_like_cpp, resolve_creature_trainer_like_cpp,
-    trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
+    TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp, TrainerOfferDecisionLikeCpp,
+    TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp, TrainerUnavailableReasonLikeCpp,
+    finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
+    resolve_creature_trainer_like_cpp, trainer_list_required_npc_flags_like_cpp,
     trainer_price_like_cpp,
 };
 

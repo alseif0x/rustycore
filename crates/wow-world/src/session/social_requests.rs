@@ -4,7 +4,9 @@
 //! Social requests: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ObjectGuid, PowerType, WorldSession};
+#[cfg(test)]
+use super::WorldSession;
+use super::{ObjectGuid, PowerType};
 
 pub(in crate::session) fn party_member_power_kind_from_u8_like_cpp(power: u8) -> PowerType {
     match power {

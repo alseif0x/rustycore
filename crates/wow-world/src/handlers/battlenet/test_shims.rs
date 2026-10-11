@@ -5,7 +5,7 @@
 //! Test-only entry points for the battle.net handlers moved to
 //! `wow-world-lifecycle` (#1263 F5).
 
-use wow_packet::packets::battlenet::{BattlenetRequest, ChangeRealmTicket};
+use wow_packet::packets::battlenet::ChangeRealmTicket;
 use wow_world_lifecycle::BattlenetHandlerCxLikeCpp;
 
 use crate::session::WorldSession;

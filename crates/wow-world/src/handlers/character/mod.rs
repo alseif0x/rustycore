@@ -506,6 +506,7 @@ fn represented_go_state_from_i8_like_cpp(state: i8) -> Option<wow_entities::GoSt
 }
 
 use wow_packet::packets::gossip::*;
+#[cfg(test)]
 use wow_packet::packets::query::*;
 
 use crate::session::{InventoryItem, WorldSession};

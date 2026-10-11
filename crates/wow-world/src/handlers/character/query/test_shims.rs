@@ -7,7 +7,7 @@
 
 use wow_packet::packets::query::{
     QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature, QueryGameObject,
-    QueryPageText, QueryPetName, QueryPlayerNames, QueryRealmName,
+    QueryPageText, QueryPetName, QueryPlayerNames,
 };
 use wow_world_application::CharacterQueryHandlerCxLikeCpp;
 

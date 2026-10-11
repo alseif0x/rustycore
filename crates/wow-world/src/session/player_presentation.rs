@@ -4,10 +4,13 @@
 //! Player presentation: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
+use super::Player;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedForceDeselectLikeCpp;
+#[cfg(test)]
 use super::debug;
-use super::{Player, SKILL_RIDING_LIKE_CPP, SpellCastResult, WorldSession};
+use super::{SKILL_RIDING_LIKE_CPP, SpellCastResult, WorldSession};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {

@@ -11,8 +11,10 @@ use tracing::{info, warn};
 use wow_constants::ConditionType;
 
 use wow_packet::ClientPacket;
+#[cfg(test)]
+use wow_packet::packets::misc::PortGraveyard;
 use wow_packet::packets::misc::{
-    PortGraveyard, ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
+    ReclaimCorpse, RepopRequest, RequestCemeteryListResponse, ResurrectResponse,
 };
 
 mod host;

@@ -4,8 +4,11 @@
 //! Quest interaction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseState};
-use super::{WorldSession, quest};
+#[cfg(test)]
+use super::RepresentedGameObjectUseState;
+#[cfg(test)]
+use super::WorldSession;
+use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp};
 
 impl crate::session::QuestStateCx<'_> {
     pub(crate) fn record_represented_gameobject_template_quest_source_like_cpp(

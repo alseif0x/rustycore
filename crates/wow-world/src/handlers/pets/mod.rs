@@ -14,12 +14,16 @@
 //! that used to claim otherwise.
 
 use tracing::warn;
+#[cfg(test)]
 use wow_core::GameTime;
 
 use wow_packet::ClientPacket;
 #[cfg(test)]
+use wow_packet::packets::misc::BattlePetDeletePet;
+#[cfg(test)]
+use wow_packet::packets::misc::BattlePetModifyName;
+#[cfg(test)]
 use wow_packet::packets::misc::CageBattlePet;
-use wow_packet::packets::misc::{BattlePetDeletePet, BattlePetModifyName};
 use wow_packet::packets::pet::DismissCritter;
 
 mod battle_pet_host;

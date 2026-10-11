@@ -4,7 +4,10 @@
 //! Progression adapters: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP};
+#[cfg(test)]
+use super::Arc;
+#[cfg(test)]
+use super::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP;
 use super::{WorldSession, catalogs};
 
 impl WorldSession {

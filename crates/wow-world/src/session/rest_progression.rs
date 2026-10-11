@@ -4,9 +4,11 @@
 //! Rest progression: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
+use super::RepresentedAuraEffectLikeCpp;
+use super::WorldSession;
 use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
-use super::{RepresentedAuraEffectLikeCpp, WorldSession};
 
 impl WorldSession {
     #[cfg(test)]
