@@ -12,8 +12,8 @@ use wow_data::CreatureSpellDisableDecisionLikeCpp;
 use wow_entities::{PhaseShift, UnitVisibilityDetectionStateLikeCpp};
 use wow_world_core::runtime_plan::RuntimePlan;
 
-pub use wow_world_core::session::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
 pub use wow_world_core::session::CreatureAggroConfigLikeCpp;
+pub use wow_world_core::session::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
 pub use wow_world_core::session::spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp;
 
 #[derive(Debug, Clone, Default)]

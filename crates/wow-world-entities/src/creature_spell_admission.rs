@@ -7,9 +7,7 @@
 
 use wow_constants::{UnitFlags, UnitState};
 use wow_core::ObjectGuid;
-use wow_world_core::session::{
-    CreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
-};
+use wow_world_core::session::{CreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP};
 
 use crate::creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
 
