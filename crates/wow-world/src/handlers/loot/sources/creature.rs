@@ -7,6 +7,9 @@
 
 use super::*;
 
+/// C++ `AELootCreatureCheck::LootDistance` (`LootHandler.cpp:44`).
+const AE_LOOT_DISTANCE_LIKE_CPP: f32 = 30.0;
+
 impl WorldSession {
     pub(in crate::handlers::loot) fn sync_represented_creature_loot_to_canonical_like_cpp(
         &mut self,
@@ -64,20 +67,13 @@ impl WorldSession {
             return Vec::new();
         };
 
+        // C++ `AELootCreatureCheck::LootDistance` over the nearby grid cells
+        // only, each corpse read in place (no per-creature clone).
         let mut candidates: Vec<ObjectGuid> = self
             .core
-            .world_creature_guids()
+            .nearby_dead_creature_guids_like_cpp(player_position, AE_LOOT_DISTANCE_LIKE_CPP)
             .into_iter()
-            .filter(|guid| {
-                if *guid == main_loot_target || !guid.is_creature_or_vehicle() {
-                    return false;
-                }
-                self.represented_creature_loot_state_like_cpp(*guid)
-                    .is_some_and(|creature| {
-                        !creature.is_alive
-                            && player_position.is_within_dist(&creature.position, 30.0)
-                    })
-            })
+            .filter(|guid| *guid != main_loot_target && guid.is_creature_or_vehicle())
             .collect();
         candidates.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
 
