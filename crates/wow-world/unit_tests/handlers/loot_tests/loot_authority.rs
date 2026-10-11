@@ -114,6 +114,7 @@ pub(super) fn two_sessions_with_authoritative_creature_loot_like_cpp(
     let second_guid = ObjectGuid::create_player(1, 43);
     let owner_guid = test_creature_guid(19_500);
     let shared_map = shared_canonical_map_manager();
+    shared_map.lock().unwrap().create_world_map(0, 0);
 
     first.set_player_guid(Some(first_guid));
     second.set_player_guid(Some(second_guid));

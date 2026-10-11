@@ -189,8 +189,6 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
             .unit_mut()
             .world_mut()
             .set_map(u32::from(map_id), instance_id);
-        // As the production registration does before the insert.
-        creature.unit_mut().world_mut().object_mut().add_to_world();
         self.create_world_map(u32::from(map_id), instance_id);
         wow_world_entities::insert_canonical_creature_map_object_on_locked_map_like_cpp(
             self,
@@ -273,11 +271,23 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
     }
 }
 
-/// Give `session` a canonical creature store when it has none, and the
-/// canonical map at its runtime map key (`create_world_map` is idempotent), so
-/// a creature registered through the session is admitted as a canonical
-/// incarnation — the store the former legacy registration always provided.
+/// Give `session` a canonical creature store when it has none — with the
+/// canonical map at its runtime map key, so a creature registered through the
+/// session is admitted as a canonical incarnation. A store the session already
+/// has is left as configured (a missing map keeps deferring registrations).
 pub(crate) fn ensure_canonical_creature_store_for_session_like_cpp(
+    session: &mut crate::session::WorldSession,
+) -> SharedCanonicalMapManager {
+    if let Some(canonical) = session.core.canonical_map_manager.clone() {
+        return canonical;
+    }
+    ensure_canonical_creature_store_and_map_for_session_like_cpp(session)
+}
+
+/// Give `session` a canonical creature store when it has none, and the
+/// canonical map at its runtime map key either way (`create_world_map` is
+/// idempotent): the store the former legacy registration always provided.
+pub(crate) fn ensure_canonical_creature_store_and_map_for_session_like_cpp(
     session: &mut crate::session::WorldSession,
 ) -> SharedCanonicalMapManager {
     let canonical = match session.core.canonical_map_manager.clone() {

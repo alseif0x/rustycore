@@ -2,12 +2,10 @@
 
 use super::*;
 
-// Anchor: legacy motor A (WorldSession) shares a single Arc<RwLock<MapManager>>
-// across sessions — mutations from one session are immediately visible to the
-// other without any message-passing. This characterizes the shared-state
-// contract that tick_creatures_sync / tick_combat_sync depend on.
+// Sessions share one canonical map manager: a mutation through one session's
+// root is immediately visible to the other without any message-passing.
 #[tokio::test]
-async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
+async fn two_sessions_sharing_the_canonical_map_manager_see_same_creature_state() {
     let manager = shared_map_manager();
 
     let (mut session1, _pkt_tx1, _send_rx1) = make_session();
@@ -63,17 +61,17 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
         "session2 must observe HP=60 after session1 applied 40 damage"
     );
 
-    let guids2 = session2.core.world_creature_guids();
-    assert!(
-        guids2.contains(&creature_guid),
-        "session2 must see creature inserted via shared manager"
+    assert_eq!(
+        session2.mutate_world_creature(creature_guid, |c| c.current_hp()),
+        Some(60),
+        "session2 resolves the same incarnation through the shared manager"
     );
 }
 /// Two players attacking one creature resolve it once, not twice.
 ///
 /// This is #28's acceptance criterion, and nothing in the tree asserted it: the
 /// existing "two session" tests either hand-copy the owner guard or drive a
-/// single session. Under `GlobalLegacy` the map owns the transition, so one
+/// single session. The map owns the transition, so one
 /// pass of the phase applies each attacker's swing exactly once against shared
 /// creature state — and running the phase twice with no time elapsed must not
 /// apply anything again, because the swing timers were consumed.

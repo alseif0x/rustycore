@@ -461,7 +461,7 @@ fn register_test_trainer_with_class(
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_player_position_like_cpp(Position::new(0.0, 0.0, 0.0, 0.0));
-    crate::canonical_creature_fixtures::ensure_canonical_creature_store_for_session_like_cpp(
+    crate::canonical_creature_fixtures::ensure_canonical_creature_store_and_map_for_session_like_cpp(
         session,
     );
     session.set_player_faction_template_like_cpp(1);
