@@ -37,11 +37,6 @@ impl WorldSession {
         )
     }
     #[cfg(test)]
-    pub(crate) fn represented_guild_id_like_cpp(&self) -> u64 {
-        self.resolved_represented_guild_id_like_cpp()
-            .expect("test Player guild owner must resolve")
-    }
-    #[cfg(test)]
     fn mutate_player_guild_state_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,

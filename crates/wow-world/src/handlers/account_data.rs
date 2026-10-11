@@ -45,10 +45,6 @@ mod session_shims {
             self.account_data_test_cx_like_cpp()
                 .handle_save_cuf_profiles(pkt);
         }
-
-        pub(crate) async fn handle_tutorial(&mut self, pkt: WorldPacket) {
-            self.account_data_test_cx_like_cpp().handle_tutorial(pkt);
-        }
     }
 }
 

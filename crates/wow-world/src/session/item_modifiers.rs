@@ -120,16 +120,6 @@ pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32)
 }
 
 impl WorldSession {
-    /// C++ `sImportPriceQualityStore.LookupEntry(quality + 1)`.
-    #[cfg(test)]
-    pub(crate) fn import_price_quality_factor_like_cpp(&self, quality: u32) -> Option<f32> {
-        self.item_valuation_catalogs_for_test_like_cpp()
-            .import_prices
-            .quality
-            .get(quality + 1)
-            .map(|entry| entry.data)
-    }
-
     pub fn set_shield_block_regular_game_table(
         &mut self,
         table: Arc<ShieldBlockRegularGameTableLikeCpp>,

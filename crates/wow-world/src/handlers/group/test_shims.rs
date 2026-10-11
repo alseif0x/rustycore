@@ -91,13 +91,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_ready_check_response(&mut self, pkt: WorldPacket) {
-        let (social, hub) = crate::session::split_social_mut(self);
-        SocialGroupHandlerCxLikeCpp::new(social, hub)
-            .handle_ready_check_response(pkt)
-            .await;
-    }
-
     pub(crate) async fn handle_low_level_raid1(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)

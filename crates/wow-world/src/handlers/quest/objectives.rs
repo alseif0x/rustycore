@@ -612,21 +612,4 @@ impl WorldSession {
             changed_quest_ids,
         })
     }
-
-    #[cfg(test)]
-    pub(crate) async fn apply_quest_source_item_bound_objective_preflight_like_cpp(
-        &mut self,
-        entry_id: u32,
-        quest_log_item_id: u32,
-        count: u32,
-    ) -> Option<QuestSourceItemBoundPreflightLikeCpp> {
-        let generators = self.id_generators_for_test_like_cpp();
-        self.apply_quest_source_item_bound_objective_preflight_with_generator_like_cpp(
-            generators.item.as_ref(),
-            entry_id,
-            quest_log_item_id,
-            count,
-        )
-        .await
-    }
 }

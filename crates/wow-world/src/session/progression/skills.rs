@@ -80,12 +80,6 @@ impl WorldSession {
             BTreeSet::new(),
         );
     }
-    #[cfg(test)]
-    pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
-        crate::session::hub_ref(self)
-            .resolved_player_skill_values_like_cpp()
-            .expect("test Player skill owner must resolve")
-    }
     pub(in crate::session) fn represented_fishing_base_skill_level_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,

@@ -4,7 +4,7 @@
 //! Player registry binding: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, PendingInvites, PlayerRegistry, PlayerSessionRegistrationLikeCpp};
+use super::{Arc, PlayerRegistry, PlayerSessionRegistrationLikeCpp};
 use super::{WorldSession, debug};
 
 impl WorldSession {

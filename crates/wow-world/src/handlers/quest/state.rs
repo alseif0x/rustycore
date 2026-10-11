@@ -68,23 +68,6 @@ impl WorldSession {
         .await
     }
 
-    #[cfg(test)]
-    pub(crate) async fn complete_represented_quest_after_objective_if_ready_like_cpp(
-        &mut self,
-        quest: &wow_data::quest::QuestTemplate,
-        ignored_objective_id: u32,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        self.complete_represented_quest_after_objective_with_generator_like_cpp(
-            generator.as_ref(),
-            quest,
-            ignored_objective_id,
-        )
-        .await
-    }
-
     pub(crate) async fn complete_represented_quest_after_objective_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

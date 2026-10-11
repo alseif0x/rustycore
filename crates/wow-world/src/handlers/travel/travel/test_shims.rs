@@ -22,12 +22,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_taxi_node_status_query(&mut self, pkt: WorldPacket) {
-        self.travel_test_cx_like_cpp()
-            .handle_taxi_node_status_query(pkt)
-            .await;
-    }
-
     pub(crate) async fn handle_update_area_trigger_visual(&mut self, pkt: WorldPacket) {
         self.travel_test_cx_like_cpp()
             .handle_update_area_trigger_visual(pkt)

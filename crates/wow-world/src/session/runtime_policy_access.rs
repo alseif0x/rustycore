@@ -4,7 +4,7 @@
 //! Runtime policy access: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, ChatFloodThrottleIndexLikeCpp, DisableMgrLikeCpp, SocketTimeoutsLikeCpp};
+use super::{Arc, DisableMgrLikeCpp, SocketTimeoutsLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldSession, registry};
 
 impl WorldSession {
@@ -16,11 +16,6 @@ impl WorldSession {
         crate::session::hub_mut(self).set_represented_is_outdoors_like_cpp(is_outdoors)
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
-        self.config.addon_channel_like_cpp = enabled;
-    }
-
     pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
         self.core.admission.socket_timeouts_like_cpp = timeouts;
         self.core.reset_timeout_time_like_cpp(false);
@@ -30,29 +25,8 @@ impl WorldSession {
         self.core.realm_policy.server_expansion_like_cpp = expansion;
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_characters_per_realm_like_cpp(&mut self, characters_per_realm: u32) {
-        self.config.characters_per_realm_like_cpp = characters_per_realm;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn declined_names_used_like_cpp(&self) -> bool {
-        self.config.declined_names_used_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_feature_system_character_undelete_enabled_like_cpp(&mut self, enabled: bool) {
-        self.config
-            .feature_system_character_undelete_enabled_like_cpp = enabled;
-    }
-
     pub fn set_waypoint_path_resolver_like_cpp(&mut self, resolver: WaypointPathResolverLikeCpp) {
         self.catalogs.waypoint_path_resolver_like_cpp = Some(resolver);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn addon_channel_like_cpp(&self) -> bool {
-        self.config.addon_channel_like_cpp
     }
 
     /// Set the C++ DisableMgr store loaded from the `disables` table.

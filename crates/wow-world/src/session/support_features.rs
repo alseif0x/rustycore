@@ -9,37 +9,6 @@ use super::{FeatureSystemStatus, FeatureSystemStatusGlueScreen, WorldSession};
 #[cfg(test)]
 pub(crate) mod test_fixtures;
 
-impl WorldSession {
-    #[cfg(test)]
-    pub(crate) fn represented_support_tickets_enabled_like_cpp(&self) -> bool {
-        self.interaction
-            .represented_support_tickets_enabled_like_cpp()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_represented_support_tickets_enabled_like_cpp(&mut self, enabled: bool) {
-        self.interaction
-            .set_represented_support_tickets_enabled_like_cpp(enabled);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn feature_system_status_like_cpp(&self) -> FeatureSystemStatus {
-        self.core.feature_system_status_with_policy_like_cpp(
-            &self.support_feature_policy_for_test_like_cpp(),
-        )
-    }
-
-    #[cfg(test)]
-    pub(crate) fn feature_system_status_glue_screen_like_cpp(
-        &self,
-    ) -> FeatureSystemStatusGlueScreen {
-        self.core
-            .feature_system_status_glue_screen_with_policy_like_cpp(
-                &self.support_feature_policy_for_test_like_cpp(),
-            )
-    }
-}
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/support_features/f3_shims.rs"]
 mod f3_shims;

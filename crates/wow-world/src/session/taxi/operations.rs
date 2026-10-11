@@ -214,12 +214,6 @@ impl WorldSession {
             );
         true
     }
-    #[cfg(test)]
-    pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self)
-            .resolved_is_in_taxi_flight_like_cpp()
-            .expect("test Player taxi owner must resolve")
-    }
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         crate::session::hub_mut(self).set_player_transport_guid_like_cpp(guid)
     }

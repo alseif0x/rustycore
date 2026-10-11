@@ -83,36 +83,6 @@ impl WorldSession {
             ),
         )
     }
-    #[cfg(test)]
-    pub(crate) fn set_creature_health_rates_like_cpp(
-        &mut self,
-        rates: CreatureClassificationHealthRatesLikeCpp,
-    ) {
-        self.config.creature_health_rates_like_cpp = rates;
-    }
-    #[cfg(test)]
-    pub(crate) fn creature_create_stats_like_cpp(
-        &self,
-        entry: u32,
-        level: u8,
-        unit_class: u8,
-        classification: u32,
-        regen_health: bool,
-        db_cur_health: u32,
-        db_cur_mana: u32,
-    ) -> CreatureCreateStatsLikeCpp {
-        let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.creature_create_stats_with_catalogs_like_cpp(
-            &catalogs,
-            entry,
-            level,
-            unit_class,
-            classification,
-            regen_health,
-            db_cur_health,
-            db_cur_mana,
-        )
-    }
     pub(crate) async fn talked_to_creature_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,

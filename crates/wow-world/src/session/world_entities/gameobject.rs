@@ -128,22 +128,6 @@ impl WorldSession {
         )
         .await;
     }
-    #[cfg(test)]
-    pub(crate) async fn kill_credit_gameobject_like_cpp(
-        &mut self,
-        gameobject_entry: u32,
-        gameobject_guid: wow_core::ObjectGuid,
-    ) {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return;
-        };
-        self.kill_credit_gameobject_with_generator_like_cpp(
-            generator.as_ref(),
-            gameobject_entry,
-            gameobject_guid,
-        )
-        .await;
-    }
     pub(in crate::session) fn represented_gameobject_is_friendly_to_player_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,

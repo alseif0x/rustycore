@@ -143,13 +143,6 @@ impl WorldSession {
     pub fn set_item_child_equipment_store(&mut self, store: Arc<ItemChildEquipmentStore>) {
         self.catalogs.items.child_equipment_store = Some(store);
     }
-    #[cfg(test)]
-    pub(crate) fn set_creature_equipment_store_like_cpp(
-        &mut self,
-        store: Arc<CreatureEquipmentStoreLikeCpp>,
-    ) {
-        self.catalogs.creature_equipment_store_like_cpp = Some(store);
-    }
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
         self.catalogs.spell_catalogs.spell_equipped_items_store = Some(store);
     }

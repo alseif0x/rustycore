@@ -180,11 +180,6 @@ impl WorldSession {
         }
         canonical
     }
-    #[cfg(test)]
-    pub(crate) fn represented_visible_resting_like_cpp(&self) -> bool {
-        self.resolved_visible_resting_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
     /// Resolve the current C++ `Player::m_seer` projection from the canonical
     /// Player. C++ keeps a pointer, but every Rust consumer in this boundary
     /// needs only its GUID; `ActivePlayerData::FarsightObject` is the durable

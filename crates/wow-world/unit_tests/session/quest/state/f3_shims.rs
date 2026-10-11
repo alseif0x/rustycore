@@ -8,22 +8,6 @@ use super::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
-    pub(in crate::session::quest::state) fn apply_player_quest_gameplay_fixture_like_cpp(
-        &mut self,
-        state: PlayerQuestGameplayState,
-    ) {
-        self.quest_state
-            .apply_player_quest_gameplay_fixture_like_cpp(state)
-    }
-    #[cfg(test)]
-    pub(in crate::session::quest::state) fn apply_player_quest_core_compatibility_like_cpp(
-        &mut self,
-        state: &PlayerQuestGameplayState,
-    ) {
-        self.quest_state
-            .apply_player_quest_core_compatibility_like_cpp(state)
-    }
-    #[cfg(test)]
     pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
         self.fixtures
             .battleground

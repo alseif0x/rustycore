@@ -113,26 +113,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_toggle_pvp(&mut self, pkt: WorldPacket) {
-        let changed = self
-            .battleground_test_cx_like_cpp()
-            .handle_toggle_pvp(pkt)
-            .await;
-        if changed {
-            self.sync_player_registry_state_like_cpp();
-        }
-    }
-
-    pub(crate) async fn handle_set_pvp(&mut self, pkt: WorldPacket) {
-        let changed = self
-            .battleground_test_cx_like_cpp()
-            .handle_set_pvp(pkt)
-            .await;
-        if changed {
-            self.sync_player_registry_state_like_cpp();
-        }
-    }
-
     pub(crate) fn apply_toggle_pvp_like_cpp(&mut self) {
         let changed = self
             .battleground_test_cx_like_cpp()

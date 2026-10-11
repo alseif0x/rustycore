@@ -6,11 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    /// Set the area trigger teleport store for this session.
-    #[cfg(test)]
-    pub(crate) fn set_area_trigger_store(&mut self, store: Arc<AreaTriggerStore>) {
-        self.catalogs.area_trigger_store = Some(store);
-    }
     pub(crate) fn dispatch_area_trigger_script_like_cpp(
         &mut self,
         dispatcher: Option<&AreaTriggerScriptDispatcherLikeCpp>,
@@ -555,12 +550,6 @@ impl WorldSession {
                 }
             }
         }
-    }
-    #[cfg(test)]
-    pub(crate) async fn check_area_triggers(&mut self) {
-        let catalogs = self.area_trigger_catalogs_for_test_like_cpp();
-        self.check_area_triggers_with_catalogs_like_cpp(&catalogs)
-            .await;
     }
     pub(crate) fn set_area_spirit_healer_guid_like_cpp(&mut self, healer_guid: ObjectGuid) -> bool {
         let (state, mut hub) = crate::session::split_instances_mut(self);

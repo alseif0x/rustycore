@@ -11,12 +11,6 @@ impl WorldSession {
         state.resolved_has_represented_aura_effect_like_cpp(hub, effect)
     }
 
-    #[cfg(test)]
-    fn has_represented_aura_effect_like_cpp(&self, effect: RepresentedAuraEffectLikeCpp) -> bool {
-        self.resolved_has_represented_aura_effect_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-
     pub(in crate::session) fn resolved_has_represented_aura_effect_with_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,

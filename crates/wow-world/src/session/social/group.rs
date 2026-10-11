@@ -67,26 +67,6 @@ impl WorldSession {
             })
             .unwrap_or_default()
     }
-    #[cfg(test)]
-    pub(crate) fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
-        self.config.allow_two_side_interaction_group_like_cpp = enabled;
-    }
-    #[cfg(test)]
-    pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
-        self.config.party_raid_warnings_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
-        self.config.allow_gm_group_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
-        self.config.allow_two_side_interaction_group_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
-        self.config.party_level_req_like_cpp
-    }
     pub(crate) fn send_player_party_type_update_like_cpp(&self, category: u8, party_type: u8) {
         let (state, hub) = crate::session::split_social_ref(self);
         state.send_player_party_type_update_like_cpp(hub, category, party_type)

@@ -8,25 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(super) async fn represented_player_vote_on_loot_roll_like_cpp(
-        &mut self,
-        roll: &LootRoll,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
-        self.represented_player_vote_on_loot_roll_with_generator_like_cpp(
-            generator.as_ref(),
-            &item_valuation,
-            roll,
-            player_guid,
-        )
-        .await
-    }
-
     pub(super) async fn represented_player_vote_on_loot_roll_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -40,27 +21,6 @@ impl WorldSession {
         self.represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
             item_guid_generator,
             item_valuation,
-            roll,
-            player_guid,
-            pass_on_group_loot,
-        )
-        .await
-    }
-
-    #[cfg(test)]
-    pub(super) async fn represented_player_vote_on_loot_roll_with_pass_state_like_cpp(
-        &mut self,
-        roll: &LootRoll,
-        player_guid: ObjectGuid,
-        pass_on_group_loot: bool,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        let item_valuation = self.item_valuation_catalogs_for_test_like_cpp();
-        self.represented_player_vote_on_loot_roll_with_pass_state_and_generator_like_cpp(
-            generator.as_ref(),
-            &item_valuation,
             roll,
             player_guid,
             pass_on_group_loot,

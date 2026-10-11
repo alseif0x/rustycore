@@ -11,8 +11,7 @@ use tracing::{debug, info, warn};
 use wow_constants::{InventoryResult, SpellCastResult};
 
 use wow_packet::packets::collection::{
-    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP,
-    CollectionItemSetFavorite, TransmogrifyItems,
+    COLLECTION_TYPE_APPEARANCE_LIKE_CPP, COLLECTION_TYPE_TOYBOX_LIKE_CPP, CollectionItemSetFavorite,
 };
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::misc::{AddToy, UseToy};

@@ -34,16 +34,14 @@ use wow_data::{BattlePetClassificationLikeCpp, SkillLineAbilityCoverageLikeCpp};
 use wow_packet::packets::spell::PlaySpellVisualKit;
 
 use crate::session::WorldSession;
-use wow_conditions as conditions;
 use wow_world_application::{
     TrainerAdmissionProofLikeCpp, TrainerBattlePetProofLikeCpp, TrainerListOfferResultLikeCpp,
     TrainerOfferDecisionLikeCpp, TrainerOfferInputLikeCpp, TrainerOfferPreflightLikeCpp,
-    TrainerProductLikeCpp, TrainerUnavailableReasonLikeCpp,
-    finish_trainer_offer_after_projection_like_cpp, prepare_trainer_offer_like_cpp,
-    resolve_creature_trainer_like_cpp, trainer_condition_admission_proof_like_cpp,
-    trainer_list_required_npc_flags_like_cpp, trainer_price_like_cpp,
+    TrainerUnavailableReasonLikeCpp, finish_trainer_offer_after_projection_like_cpp,
+    prepare_trainer_offer_like_cpp, resolve_creature_trainer_like_cpp,
+    trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
+    trainer_price_like_cpp,
     trainer_spell_class_race_fit_like_cpp as fit_trainer_spell_class_race_rows_like_cpp,
-    trainer_spell_product_like_cpp as classify_trainer_spell_product_like_cpp,
 };
 
 fn trainer_spell_class_race_fit_like_cpp(

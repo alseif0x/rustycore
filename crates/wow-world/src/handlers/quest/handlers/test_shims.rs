@@ -32,14 +32,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_query_quest_info(&mut self, pkt: WorldPacket) {
-        let quest_store = self.catalogs.quests.store.clone();
-        let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
-            .handle_query_quest_info(pkt)
-            .await;
-    }
-
     /// Dispatches through the registered production thunk so the two-phase
     /// owner/host orchestration (pending-share clear, registry sync, evidence)
     /// is exercised by every caller instead of re-implemented here.
@@ -59,17 +51,6 @@ impl WorldSession {
         let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
         QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
             .handle_quest_giver_close_quest(pkt);
-    }
-
-    pub(crate) async fn handle_query_quest_completion_npcs(
-        &mut self,
-        query: wow_packet::packets::query::QueryQuestCompletionNpcs,
-    ) {
-        let quest_store = self.catalogs.quests.store.clone();
-        let (quest_state, lifecycle, hub) = crate::session::split_quest_state_lifecycle_mut(self);
-        QuestQueryHandlerCxLikeCpp::new(hub, quest_store, quest_state, lifecycle, cfg!(test))
-            .handle_query_quest_completion_npcs(query)
-            .await;
     }
 
     /// Delegates to the moved owner body with this session as its host; the

@@ -8,14 +8,6 @@ use super::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
-    pub(in crate::session) fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).can_gain_represented_xp_rest_bonus_like_cpp()
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
-        crate::session::hub_ref(self).represented_xp_rest_bonus_cap_like_cpp()
-    }
-    #[cfg(test)]
     pub(in crate::session) fn calc_represented_xp_rest_extra_per_sec_like_cpp(
         &self,
         bubble: f32,

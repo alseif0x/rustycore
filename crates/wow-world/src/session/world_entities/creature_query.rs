@@ -164,24 +164,6 @@ impl WorldSession {
     pub fn set_creature_addon_store_like_cpp(&mut self, store: Arc<CreatureAddonStoreLikeCpp>) {
         self.catalogs.creature_addon_store_like_cpp = Some(store);
     }
-    #[cfg(test)]
-    pub(crate) fn creature_addon_store_like_cpp(&self) -> Option<&Arc<CreatureAddonStoreLikeCpp>> {
-        self.catalogs.creature_addon_store_like_cpp.as_ref()
-    }
-    #[cfg(test)]
-    pub(crate) fn set_creature_difficulty_store_like_cpp(
-        &mut self,
-        store: Arc<CreatureDifficultyStoreLikeCpp>,
-    ) {
-        self.catalogs.creature_difficulty_store_like_cpp = Some(store);
-    }
-    #[cfg(test)]
-    pub(crate) fn set_creature_base_stats_store_like_cpp(
-        &mut self,
-        store: Arc<CreatureBaseStatsStoreLikeCpp>,
-    ) {
-        self.catalogs.creature_base_stats_store_like_cpp = Some(store);
-    }
     pub(crate) fn creature_create_stats_with_catalogs_like_cpp(
         &self,
         catalogs: &CreatureSpawnCatalogsLikeCpp,

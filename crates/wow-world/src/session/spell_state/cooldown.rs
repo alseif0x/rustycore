@@ -28,14 +28,6 @@ impl WorldSession {
             category_end_unix_secs,
         )
     }
-    /// Login snapshot of spell-history + charge packet entries
-    /// (see `record_login_spell_history_packets_like_cpp`).
-    #[cfg(test)]
-    pub(crate) fn spell_history_packets_like_cpp(
-        &self,
-    ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
-        self.spell_state.spell_history_packets_for_test_like_cpp()
-    }
 }
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/cooldown/f3_shims.rs"]

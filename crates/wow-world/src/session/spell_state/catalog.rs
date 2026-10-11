@@ -34,18 +34,6 @@ impl WorldSession {
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.spell_catalogs.spell_area_store = Some(store);
     }
-    #[cfg(test)]
-    pub(in crate::session) fn store_player_spell_runtime_fixture_like_cpp(
-        &mut self,
-        runtime: RepresentedPlayerSpellRuntimeLikeCpp,
-    ) -> bool {
-        if self.core.player_handle_like_cpp.is_none() {
-            self.spell_state
-                .store_represented_spell_runtime_fixture_like_cpp(runtime);
-            return true;
-        }
-        false
-    }
 }
 
 impl WorldSession {

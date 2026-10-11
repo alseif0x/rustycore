@@ -46,7 +46,6 @@ use wow_data::{
         QUEST_PACKAGE_FILTER_LOOT_SPECIALIZATION_LIKE_CPP, QuestPackageItemEntry,
     },
     quest::QuestStore,
-    reputation::reputation_rank_from_standing_like_cpp as reputation_rank_from_standing_data_like_cpp,
 };
 pub use wow_entities::PlayerQuestStatusRecord as PlayerQuestStatus;
 use wow_entities::{

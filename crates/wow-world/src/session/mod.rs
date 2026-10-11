@@ -765,8 +765,8 @@ use wow_entities::{
     ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult,
     ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef, BANK_SLOT_BAG_END,
     BANK_SLOT_BAG_START, BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, BagTemplateRef,
-    CanBankItemArgs, CanEquipItemArgs, CanEquipItemOutcome, CanEquipUniqueItemArgs,
-    CanStoreItemArgs, CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
+    CanBankItemArgs, CanEquipItemArgs, CanEquipUniqueItemArgs, CanStoreItemArgs,
+    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs,
     CreatureAddonLifecycleRecordLikeCpp, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
     EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_END, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1,
     EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS,
@@ -910,7 +910,6 @@ use wow_world_instances::{
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 const MAP_RAID_LIKE_CPP: u8 = 2;
 use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
-pub(crate) use wow_world_core::session::PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 pub(crate) use wow_world_social::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP;

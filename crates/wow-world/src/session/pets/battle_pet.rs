@@ -18,17 +18,6 @@ impl WorldSession {
         self.lifecycle
             .set_battle_pet_account_attachment_like_cpp(attachment);
     }
-    /// Set the world-DB battle-pet breed/quality selection store (#161).
-    #[cfg(test)]
-    pub(crate) fn set_battle_pet_selection_store_like_cpp(
-        &mut self,
-        store: Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
-    ) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_selection_store_like_cpp = Some(store);
-    }
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
         breed: u16,

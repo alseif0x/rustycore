@@ -32,15 +32,6 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
-    pub(crate) async fn handle_get_undelete_cooldown_status(&mut self) {
-        dispatch_registered_like_cpp(
-            self,
-            ClientOpcodes::GetUndeleteCharacterCooldownStatus,
-            WorldPacket::new_empty(),
-        )
-        .await;
-    }
-
     pub(crate) async fn handle_alter_appearance(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::AlterAppearance, pkt).await;
     }

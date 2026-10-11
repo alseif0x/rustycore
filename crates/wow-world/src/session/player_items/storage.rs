@@ -221,20 +221,6 @@ impl WorldSession {
         }
         applied
     }
-    #[cfg(test)]
-    pub(crate) async fn apply_inventory_item_obtain_spells_like_cpp(
-        &mut self,
-        item_entry: u32,
-    ) -> Vec<i32> {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.apply_inventory_item_obtain_spells_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-            item_entry,
-        )
-        .await
-    }
     pub(crate) fn apply_inventory_item_remove_side_effects_like_cpp(
         &mut self,
         bag: u8,

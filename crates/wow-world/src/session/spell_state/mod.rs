@@ -16,7 +16,6 @@ mod catalog;
 mod cooldown;
 mod effects;
 mod mount_aura;
-mod shapeshift;
 
 pub(crate) use aura::RepresentedShapeshiftMutationLikeCpp;
 pub(crate) use aura_publication::player_aura_info_like_cpp;

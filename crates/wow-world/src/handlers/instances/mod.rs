@@ -4,7 +4,6 @@
 //! Thin compatibility entry points for the application-owned instance handlers.
 
 use wow_packet::packets::misc::SetSavedInstanceExtend;
-pub(crate) use wow_world_application::InstanceResetMethodLikeCpp as RepresentedInstanceResetMethodLikeCpp;
 
 #[cfg(test)]
 use crate::session::registry::PacketHandlerEntry;

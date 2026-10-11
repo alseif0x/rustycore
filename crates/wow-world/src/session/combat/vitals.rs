@@ -83,13 +83,6 @@ impl WorldSession {
             crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(health, max_health);
         self.sync_player_registry_state_like_cpp();
     }
-    #[cfg(test)]
-    pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
-        crate::session::hub_ref(self)
-            .resolved_player_vitals_like_cpp()
-            .unwrap()
-            .1
-    }
 }
 
 #[cfg(test)]

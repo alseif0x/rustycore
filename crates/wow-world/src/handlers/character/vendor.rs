@@ -16,24 +16,6 @@ mod sell;
 use rules::{VendorBuyItem, vendor_currency_type_is_known};
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(crate) async fn handle_sell_item(&mut self, sell: SellItem) {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return;
-        };
-        self.handle_sell_item_with_generator_like_cpp(generator.as_ref(), sell)
-            .await;
-    }
-
-    #[cfg(test)]
-    pub(crate) async fn handle_item_purchase_refund(&mut self, refund: ItemPurchaseRefund) {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return;
-        };
-        self.handle_item_purchase_refund_with_generator_like_cpp(generator.as_ref(), refund)
-            .await;
-    }
-
     pub(crate) fn send_represented_creature_trainer_gossip_menu_like_cpp(
         &mut self,
         npc_guid: ObjectGuid,

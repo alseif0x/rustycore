@@ -48,12 +48,6 @@ impl WorldSession {
             source_is_not_empty_bag,
         )
     }
-    #[cfg(test)]
-    pub(crate) fn creature_equipment_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<CreatureEquipmentStoreLikeCpp>> {
-        self.catalogs.creature_equipment_store_like_cpp.as_ref()
-    }
     pub(crate) fn send_equip_error(
         &self,
         result: InventoryResult,

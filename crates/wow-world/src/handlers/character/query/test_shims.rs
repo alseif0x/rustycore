@@ -35,12 +35,6 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_query_realm_name(&mut self, query: QueryRealmName) {
-        self.character_query_test_cx_like_cpp()
-            .handle_query_realm_name(query)
-            .await;
-    }
-
     pub(crate) async fn handle_query_page_text(&mut self, query: QueryPageText) {
         self.character_query_test_cx_like_cpp()
             .handle_query_page_text(query)

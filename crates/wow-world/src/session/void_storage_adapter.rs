@@ -58,17 +58,6 @@ impl WorldSession {
             .next_represented_void_storage_item_id_with_generator_like_cpp(generator)
     }
 
-    #[cfg(test)]
-    pub(crate) fn next_represented_void_storage_item_id_like_cpp(&self) -> Option<u64> {
-        self.core
-            .void_storage_item_id_generator_like_cpp
-            .as_deref()
-            .map(|generator| {
-                self.inventory
-                    .next_represented_void_storage_item_id_with_generator_like_cpp(generator)
-            })
-    }
-
     pub(crate) fn represented_void_storage_contents_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::void_storage::VoidStorageContents> {

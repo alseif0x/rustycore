@@ -5,10 +5,3 @@
 
 #[allow(unused_imports)]
 use super::*;
-
-impl crate::session::WorldSession {
-    #[cfg(test)]
-    pub(crate) fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
-        self.spell_state.known_spells_fixture_like_cpp()
-    }
-}

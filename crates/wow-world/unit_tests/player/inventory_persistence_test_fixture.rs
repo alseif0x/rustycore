@@ -30,23 +30,6 @@ impl PlayerInventoryPersistencePortFixtureLikeCpp {
         )
     }
 
-    pub(crate) fn with_outcomes_like_cpp(
-        outcomes: impl IntoIterator<Item = PersistenceOutcomeLikeCpp>,
-    ) -> (
-        Arc<Self>,
-        Arc<Mutex<Vec<PlayerInventoryPersistenceRequestLikeCpp>>>,
-    ) {
-        let requests = Arc::new(Mutex::new(Vec::new()));
-        (
-            Arc::new(Self {
-                requests: Arc::clone(&requests),
-                outcome: PersistenceOutcomeLikeCpp::Applied { rows: 0 },
-                outcomes: Mutex::new(outcomes.into_iter().collect()),
-            }),
-            requests,
-        )
-    }
-
     pub(crate) fn failed() -> Arc<Self> {
         Self::new_like_cpp(PersistenceOutcomeLikeCpp::Failed {
             reason: "inventory fixture rollback".into(),

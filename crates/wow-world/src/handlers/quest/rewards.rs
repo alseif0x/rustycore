@@ -6,30 +6,6 @@
 //! World adapters for the App-owned quest reward operation.
 
 use super::*;
-use crate::quest::application::QuestRewardDurablePlanLikeCpp;
 
 mod controller;
-mod currencies;
-mod items;
 mod validation;
-
-impl WorldSession {
-    #[cfg(test)]
-    pub(super) async fn reward_represented_quest_like_cpp(
-        &mut self,
-        quest: &wow_data::quest::QuestTemplate,
-        quest_giver_guid: ObjectGuid,
-        choice: QuestChoiceItemLikeCpp,
-    ) -> bool {
-        let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
-            return false;
-        };
-        self.reward_represented_quest_with_generator_like_cpp(
-            generator.as_ref(),
-            quest,
-            quest_giver_guid,
-            choice,
-        )
-        .await
-    }
-}

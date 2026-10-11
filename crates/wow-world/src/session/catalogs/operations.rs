@@ -20,21 +20,8 @@ impl WorldSession {
     pub fn set_toy_store(&mut self, store: Arc<ToyStore>) {
         self.catalogs.toy_store = Some(store);
     }
-    #[cfg(test)]
-    pub(crate) fn set_player_create_info_store_like_cpp(
-        &mut self,
-        store: Arc<PlayerCreateInfoStoreLikeCpp>,
-    ) {
-        self.catalogs
-            .player_bootstrap_catalog_test_fixture_like_cpp
-            .player_create_info_store_like_cpp = Some(store);
-    }
     pub fn set_packet_spoof_config_like_cpp(&mut self, config: PacketSpoofConfigLikeCpp) {
         self.core.admission.packet_spoof_config_like_cpp = config;
-    }
-    #[cfg(test)]
-    pub(crate) fn set_feature_system_bpay_store_enabled_like_cpp(&mut self, enabled: bool) {
-        self.config.feature_system_bpay_store_enabled_like_cpp = enabled;
     }
     /// Set the random property points store for this session.
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
@@ -93,10 +80,6 @@ impl WorldSession {
     }
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
         self.catalogs.lfg_dungeons_store = Some(store);
-    }
-    #[cfg(test)]
-    pub(crate) fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
-        self.catalogs.lfg_dungeon_store_like_cpp = Some(store);
     }
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
         self.catalogs.factions.store = Some(store);

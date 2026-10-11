@@ -13,11 +13,6 @@ impl WorldSession {
     ) {
         self.catalogs.items.random_enchantment_template_store = Some(store);
     }
-    /// Get the item disenchant loot store reference.
-    #[cfg(test)]
-    pub(crate) fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
-        self.catalogs.item_disenchant_loot_store.as_ref()
-    }
     pub(crate) fn apply_enchantment_random_suffix_ref(
         &self,
         random_properties_id: i32,

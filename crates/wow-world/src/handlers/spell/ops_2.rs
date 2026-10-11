@@ -372,17 +372,6 @@ impl WorldSession {
             "CMSG_SPELL_CLICK represented execution outcome"
         );
     }
-    #[cfg(test)]
-    pub(crate) async fn handle_spell_click(&mut self, pkt: wow_packet::WorldPacket) {
-        let generators = self.id_generators_for_test_like_cpp();
-        let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
-        self.handle_spell_click_with_generator_like_cpp(
-            generators.item.as_ref(),
-            &creature_spawn_catalogs,
-            pkt,
-        )
-        .await;
-    }
     /// Handle the represented `CMSG_CANCEL_MOD_SPEED_NO_CONTROL_AURAS`.
     ///
     /// The inspected opcode table assigns this packet to the shared unresolved

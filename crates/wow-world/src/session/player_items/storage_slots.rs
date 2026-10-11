@@ -80,11 +80,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_player_inventory_slot_count_like_cpp(&mut hub, count)
     }
-    #[cfg(test)]
-    pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
-        self.resolved_player_inventory_slot_count_like_cpp()
-            .expect("test Player inventory-slot owner must resolve")
-    }
 }
 
 #[cfg(test)]

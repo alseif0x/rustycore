@@ -31,19 +31,9 @@ impl WorldSession {
             .await;
     }
 
-    pub(crate) async fn handle_query_time(&mut self) {
-        self.player_test_cx_like_cpp().handle_query_time().await;
-    }
-
     pub(crate) async fn handle_query_next_mail_time(&mut self) {
         self.player_test_cx_like_cpp()
             .handle_query_next_mail_time()
-            .await;
-    }
-
-    pub(crate) async fn handle_set_selection(&mut self, pkt: WorldPacket) {
-        self.player_test_cx_like_cpp()
-            .handle_set_selection(pkt)
             .await;
     }
 
@@ -55,12 +45,6 @@ impl WorldSession {
 
     pub(crate) async fn handle_set_title(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp().handle_set_title(pkt).await;
-    }
-
-    pub(crate) async fn handle_get_item_purchase_data(&mut self, pkt: WorldPacket) {
-        self.player_test_cx_like_cpp()
-            .handle_get_item_purchase_data(pkt)
-            .await;
     }
 
     pub(crate) async fn handle_stand_state_change(&mut self, pkt: WorldPacket) {

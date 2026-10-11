@@ -74,12 +74,6 @@ impl WorldSession {
             .collect();
     }
 
-    /// Set the GUID generator for new characters.
-    #[cfg(test)]
-    pub(crate) fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
-        self.core.guid_generator = Some(generator);
-    }
-
     pub fn set_player_lifecycle_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
