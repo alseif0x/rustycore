@@ -93,7 +93,7 @@ fn move_remove_movement_force_ack_wire_like_cpp(pkt: &MoveRemoveMovementForceAck
 }
 
 impl WorldSession {
-    pub async fn handle_move_time_skipped(&mut self, pkt: MoveTimeSkipped) {
+    pub(crate) async fn handle_move_time_skipped(&mut self, pkt: MoveTimeSkipped) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::MoveTimeSkipped,
@@ -102,7 +102,7 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_move_set_vehicle_rec_id_ack(
+    pub(crate) async fn handle_move_set_vehicle_rec_id_ack(
         &mut self,
         opcode: ClientOpcodes,
         pkt: MoveSetVehicleRecIdAck,
@@ -115,7 +115,7 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_move_knock_back_ack(&mut self, pkt: MoveKnockBackAck) {
+    pub(crate) async fn handle_move_knock_back_ack(&mut self, pkt: MoveKnockBackAck) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::MoveKnockBackAck,

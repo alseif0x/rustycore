@@ -144,7 +144,7 @@ impl WorldSession {
         self.catalogs.items.child_equipment_store = Some(store);
     }
     #[cfg(test)]
-    pub fn set_creature_equipment_store_like_cpp(
+    pub(crate) fn set_creature_equipment_store_like_cpp(
         &mut self,
         store: Arc<CreatureEquipmentStoreLikeCpp>,
     ) {

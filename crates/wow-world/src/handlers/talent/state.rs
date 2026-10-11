@@ -25,7 +25,7 @@ impl WorldSession {
     /// `SendTalentsInfoData()` only on success. Rust currently has the
     /// represented talent snapshot plus DB2 spell-rank and talent-tab class
     /// validation, but not the complete C++ point/prerequisite/tier runtime.
-    pub async fn handle_learn_talent(
+    pub(crate) async fn handle_learn_talent(
         &mut self,
         talent_tabs: &wow_data::TalentTabStore,
         mut packet: WorldPacket,
@@ -60,7 +60,7 @@ impl WorldSession {
     /// The inspected C++ opcode table still uses the shared `0xBADD`
     /// placeholder, so this handler is deliberately not registered for live
     /// dispatch until the real client opcode is resolved.
-    pub async fn handle_learn_talents(
+    pub(crate) async fn handle_learn_talents(
         &mut self,
         talent_tabs: &wow_data::TalentTabStore,
         mut packet: WorldPacket,
@@ -91,7 +91,7 @@ impl WorldSession {
     /// then runs `Player::ResetTalents`, sends talent data, and casts the
     /// visual spell. Rust keeps this as represented state until trainer-class
     /// matching, criteria/DB persistence, and visual cast runtime are canonical.
-    pub async fn handle_confirm_respec_wipe_with_generator_like_cpp(
+    pub(crate) async fn handle_confirm_respec_wipe_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         no_reset_talent_cost: bool,
@@ -147,7 +147,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
+    pub(crate) async fn handle_confirm_respec_wipe(&mut self, packet: WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_confirm_respec_wipe_with_generator_like_cpp(
             generators.item.as_ref(),

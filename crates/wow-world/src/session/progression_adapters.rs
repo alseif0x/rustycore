@@ -81,7 +81,7 @@ impl WorldSession {
 
     /// Set the player XP table (xp required per level).
     #[cfg(test)]
-    pub fn set_player_xp_table(&mut self, table: Arc<Vec<u32>>) {
+    pub(crate) fn set_player_xp_table(&mut self, table: Arc<Vec<u32>>) {
         self.catalogs.player_xp_table = Some(table);
         self.refresh_next_level_xp();
     }

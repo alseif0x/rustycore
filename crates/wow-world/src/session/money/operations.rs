@@ -10,7 +10,7 @@ impl WorldSession {
     pub fn set_currency_types_store(&mut self, store: Arc<CurrencyTypesStore>) {
         self.catalogs.currency_types_store = Some(store);
     }
-    pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
+    pub(crate) fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
         self.catalogs.currency_types_store()
     }
     /// C++ `Player::GetCurrencyQuantity`.

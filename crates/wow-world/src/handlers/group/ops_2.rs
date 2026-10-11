@@ -11,7 +11,7 @@ impl WorldSession {
     /// C++ `WorldSession::HandleClearRaidMarker` resolves the player's current
     /// HOME group, gates raid groups to leader/assistant, then calls
     /// `Group::DeleteRaidMarker`. Marker id `8` is the C++ "clear all" sentinel.
-    pub async fn handle_clear_raid_marker(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_clear_raid_marker(&mut self, mut pkt: wow_packet::WorldPacket) {
         let clear = match ClearRaidMarker::read(&mut pkt) {
             Ok(clear) => clear,
             Err(e) => {

@@ -1,0 +1,464 @@
+# #1363 wow-world shrink — slice 0 inventory (input for slice 1)
+
+Owner: GitHub #1363 ("Shrink wow-world"), slice 0. Measured on branch
+`1363-s0-test-support` against base `d7e2fa2d5` (`origin/3.4.3`). This note is the
+dead-code and test-only inventory that slice 1 consumes; it is not a parity or
+completion claim, and it records no behaviour change.
+
+## What slice 0 changed
+
+- **Visibility.** 499 `pub fn` items of `wow-world` became `pub(crate)`: 479 inherent
+  `WorldSession` methods and 20 other inherent methods / free functions. A function
+  stays `pub` when a crate that depends on `wow-world` names it (`world-server` lib,
+  tests and build script, and `wow-world`'s own integration tests under `tests/`); the
+  set was found by narrowing every exact-`pub` fn and re-widening each one rustc then
+  rejected (E0624/E0603/E0364) in `cargo check -p world-server --all-targets` and
+  `cargo check -p wow-world --all-targets`, so it is compiler-proven, not name-guessed.
+  Trait impls and already restricted items are untouched.
+- **Kept `pub` to stay line-neutral (22).** These are external-unused too, but
+  `pub(crate)` makes rustfmt reflow their signature and the runtime-ownership hotspot
+  ratchet forbids line growth. Slice 1 narrows them together with deletions that pay
+  for the reflow: `handle_chat_addon_message_targeted`, `handle_chat_channel_player_command`, `handle_chat_message`, `handle_chat_register_addon_prefixes`, `handle_db_query_bulk`, `handle_guild_bank_remaining_withdraw_money_query`, `handle_move_apply_movement_force_ack`, `handle_move_change_vehicle_seats`, `handle_move_remove_movement_force_ack`, `handle_query_corpse_location`, `handle_quest_giver_query_quest`, `handle_request_vehicle_switch_seat`, `has_item_appearance_like_cpp`, `item_modified_appearance_store`, `represented_request_adjacent_vehicle_seat_like_cpp`, `save_disconnect_player_to_db_like_cpp`, `send_buy_error`, `send_nearby_creatures`, `send_update_world_state_like_cpp`, `set_creature_addon_store_like_cpp`, `set_module_registry_like_cpp`, `set_quest_pool_store`.
+- **Session ownership baseline.** `tools/architecture/session-ownership-policy.json`
+  records each `WorldSession` impl item's visibility; the regenerated baseline differs
+  from the old one only in 505 `"pub"` -> `"pub (crate)"` values (479 impl items, 26
+  direct-registry rows of the same methods). Checked by comparing both documents with
+  the `visibility` key removed: identical.
+- **`wow-world-test-support`.** New dev-only crate (category `tooling`, so no
+  production crate can depend on it; dev edges are not product edges). It receives the
+  `WorldSession`-free fixtures of `session::tests::fixtures::{creature_ai, map_objects,
+  packets, spell_catalog}` and of `canonical_creature_fixtures` (1,955 lines out of
+  `crates/wow-world/unit_tests`, 1,995 in, the difference being module headers and
+  explicit imports). Moved bodies are unchanged except `pub(in crate::session::tests)`
+  / `pub(crate)` -> `pub` and `crate::creature_respawn` / `crate::session::SharedCanonicalMapManager`
+  -> their real `wow_world_core` paths. The session-bound fixtures stay in
+  `wow-world`; the fixture roots re-export the moved names explicitly, so every
+  consumer path is unchanged. No test moved; test identities are unchanged.
+
+## Lint policy decision
+
+No validation gate builds with `-D warnings` (validation-v2 runs `cargo check` /
+`cargo test` without it and no clippy gate exists), so slice 0 adds **no**
+`#[allow(dead_code)]`. The newly visible warnings are the point of the slice; slice 1
+removes them. Existing allowances (`profession`, `spell_acquisition` and
+`canonical_creature_fixtures` modules in `lib.rs`) are unchanged, and the items they
+cover are not in the lists below.
+
+## Totals (rustc `dead_code`, `cargo check -p wow-world --lib` vs `--lib --profile test`)
+
+`wow-world` lib `dead_code` warnings: 116 at base, 159 on the branch (one warning can
+name several items). Per item:
+
+| Class | Newly reported by slice 0 | Already reported at base | Total |
+|---|---|---|---|
+| Dead in production and test builds (delete) | 28 items, 169 lines | 90 items, 1284 lines | 118 items, 1453 lines |
+| Used only by `cfg(test)` / `test-fixtures` code (cfg(test) or delete with its tests) | 107 items, 1009 lines | 143 items, 2055 lines | 250 items, 3064 lines |
+
+Lines are physical lines of the item including its doc comments and attributes.
+"Already reported" items were warnings at base too (mostly in private modules);
+slice 1 owns them as well. In the test build two `session/mod.rs` imports
+(`set_active_player_update_bit_like_cpp`, `UnitVisibilityDetectionStateLikeCpp`)
+became unused because only moved fixtures used them; they are left for slice 1 so this
+slice does not shrink `crates/wow-world/src/`.
+
+## Dead in production and test builds
+
+### Newly reported by slice 0
+
+| File:line | Item | Kind | Lines |
+|---|---|---|---:|
+| `handlers/account_data.rs:49` | `handle_tutorial` | method | 3 |
+| `handlers/character/character_handler_shims.rs:35` | `handle_get_undelete_cooldown_status` | method | 8 |
+| `handlers/collections/mod.rs:44` | `handle_transmogrify_items` | method | 20 |
+| `handlers/quest/eligibility.rs:214` | `has_quest` | method | 5 |
+| `session/catalogs/operations.rs:15` | `trinity_string_store` | method | 3 |
+| `session/catalogs/operations.rs:23` | `heirloom_store` | method | 4 |
+| `session/catalogs/operations.rs:31` | `toy_store` | method | 4 |
+| `session/catalogs/operations.rs:62` | `rand_prop_points_store` | method | 3 |
+| `session/catalogs/operations.rs:110` | `chr_specialization_store` | method | 3 |
+| `session/connection_identity.rs:144` | `idle_time` | method | 4 |
+| `session/creature_runtime/admitted_creature_execution/lease.rs:24` | `label_like_cpp` | method | 7 |
+| `session/player_items/appearance.rs:14` | `item_appearance_store` | method | 4 |
+| `session/player_items/appearance.rs:29` | `transmog_set_item_store` | method | 4 |
+| `session/player_items/catalog.rs:28` | `item_search_name_store` | method | 4 |
+| `session/player_items/catalog.rs:40` | `item_spec_override_store` | method | 3 |
+| `session/player_items/catalog.rs:49` | `item_effect_store` | method | 3 |
+| `session/player_items/durability.rs:289` | `durability_costs_store` | method | 4 |
+| `session/player_items/durability.rs:293` | `durability_quality_store` | method | 4 |
+| `session/player_items/enchantment.rs:16` | `item_random_enchantment_template_store` | method | 5 |
+| `session/player_items/enchantment.rs:45` | `spell_item_enchantment_store` | method | 3 |
+| `session/player_registry_binding.rs:25` | `pending_invites` | method | 3 |
+| `session/spell_state/acquisition.rs:9` | `set_spell_acquisition_port_like_cpp` | method | 7 |
+| `session/spell_state/catalog.rs:134` | `spell_label_store` | method | 3 |
+| `session/spell_state/cooldown.rs:35` | `is_spell_on_cooldown` | method | 30 |
+| `session_persistence_capabilities.rs:49` | `set_stored_item_persistence_port_like_cpp` | method | 7 |
+| `session_persistence_capabilities.rs:65` | `set_loot_template_catalog_persistence_port_like_cpp` | method | 7 |
+| `session_persistence_capabilities.rs:73` | `set_vendor_catalog_persistence_port_like_cpp` | method | 7 |
+| `session_persistence_capabilities.rs:81` | `set_visibility_spawn_catalog_persistence_port_like_cpp` | method | 7 |
+
+### Already reported at base
+
+| File:line | Item | Kind | Lines |
+|---|---|---|---:|
+| `handlers/character/stats.rs:28` | `represented_player_gear_stats_like_cpp` | method | 7 |
+| `handlers/character/stats.rs:51` | `apply_represented_shapeshift_base_attack_time_like_cpp` | method | 4 |
+| `handlers/character/stats_update.rs:37` | `send_total_stat_percentage_update_like_cpp` | method | 5 |
+| `handlers/instances/mod.rs:42` | `reset_represented_instances_like_cpp` | method | 13 |
+| `handlers/loot/authority.rs:83` | `represented_master_loot_target_exists_like_cpp` | method | 7 |
+| `handlers/loot/authority.rs:91` | `represented_master_loot_target_eligible_like_cpp` | method | 16 |
+| `handlers/loot/mod.rs:163` | `MAX_NR_LOOT_ITEMS_LIKE_CPP` | constant | 1 |
+| `handlers/loot/mod.rs:306` | `position` | field | 1 |
+| `handlers/loot/mod.rs:307` | `display_id` | field | 1 |
+| `handlers/loot/mod.rs:308` | `scale` | field | 1 |
+| `handlers/loot/mod.rs:309` | `rotation` | field | 1 |
+| `handlers/loot/mod.rs:310` | `go_type` | field | 1 |
+| `handlers/loot/mod.rs:311` | `interact_radius_override` | field | 1 |
+| `handlers/loot/mod.rs:312` | `lock_id` | field | 1 |
+| `handlers/loot/mod.rs:313` | `owner_guid` | field | 1 |
+| `handlers/loot/mod.rs:632` | `queue_stored_item_money_indeterminate_kick_like_cpp` | function | 12 |
+| `handlers/quest/eligibility.rs:43` | `satisfy_quest_skill_like_cpp` | method | 11 |
+| `handlers/quest/eligibility.rs:55` | `satisfy_quest_reputation_like_cpp` | method | 58 |
+| `handlers/quest/eligibility.rs:123` | `satisfy_quest_exclusive_group_like_cpp` | method | 78 |
+| `handlers/quest/mod.rs:127` | `QUEST_FLAGS_REMOVE_SURPLUS_ITEMS_LIKE_CPP` | constant | 1 |
+| `handlers/quest/mod.rs:128` | `QUEST_FLAGS_EX_NO_ITEM_REMOVAL_LIKE_CPP` | constant | 1 |
+| `handlers/quest/mod.rs:176` | `reputation_rank_from_standing_like_cpp` | function | 3 |
+| `handlers/quest/mod.rs:180` | `calculate_pct_i32_f32_like_cpp` | function | 3 |
+| `handlers/quest/mod.rs:184` | `player_quest_level_like_cpp` | function | 7 |
+| `handlers/quest/persistence.rs:120` | `plan_quest_status_save_like_cpp` | method | 20 |
+| `handlers/quest/rewards.rs:17` | `remove_quest_required_items_and_currencies_like_cpp` | method | 55 |
+| `handlers/quest/rewards.rs:73` | `record_represented_quest_reward_reputation_like_cpp` | method | 47 |
+| `handlers/quest/rewards.rs:121` | `apply_quest_reward_lockout_status_like_cpp` | method | 20 |
+| `handlers/quest/rewards/currencies.rs:10` | `grant_quest_reward_currencies_like_cpp` | method | 48 |
+| `handlers/quest/rewards/items.rs:10` | `QuestRewardItemGrantLikeCpp` | enum | 5 |
+| `handlers/quest/rewards/items.rs:17` | `store_fixed_quest_reward_items_like_cpp` | method | 14 |
+| `handlers/quest/rewards/items.rs:32` | `store_chosen_quest_reward_item_like_cpp` | method | 15 |
+| `handlers/quest/rewards/items.rs:48` | `store_quest_package_reward_items_like_cpp` | method | 15 |
+| `handlers/quest/rewards/items.rs:64` | `apply_quest_reward_item_grant_like_cpp` | method | 138 |
+| `handlers/quest/state.rs:228` | `remove_represented_timed_quest_like_cpp` | method | 15 |
+| `handlers/trainer.rs:73` | `trainer_spell_product_like_cpp` | function | 6 |
+| `handlers/trainer.rs:87` | `trainer_spell_condition_proof_like_cpp` | method | 54 |
+| `quest/application/reward_commit.rs:9` | `commit_quest_reward_plan_like_cpp` | method | 22 |
+| `session/catalogs/operations.rs:50` | `update_speak_time_with_policy_like_cpp` | method | 8 |
+| `session/catalogs/operations.rs:122` | `lfg_dungeons_store` | method | 3 |
+| `session/collections/operations.rs:42` | `record_represented_auction_place_bid_like_cpp` | method | 9 |
+| `session/combat/melee.rs:73` | `take_canonical_player_attack_swings_like_cpp` | method | 32 |
+| `session/faction_reactions.rs:15` | `reset_schedule_like_cpp` | method | 3 |
+| `session/instances/instance.rs:61` | `current_map_instanceable_like_cpp` | method | 4 |
+| `session/loot/operations.rs:18` | `represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp` | method | 16 |
+| `session/loot/operations.rs:42` | `read_canonical_gameobject_loot_authority_on_map_like_cpp` | method | 8 |
+| `session/loot/operations.rs:50` | `mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp` | method | 21 |
+| `session/loot/operations.rs:83` | `enable_ae_loot_like_cpp` | method | 3 |
+| `session/loot/operations.rs:135` | `group_loot_money_persistence_port_like_cpp` | method | 7 |
+| `session/mod.rs:974` | `MAP_BATTLEGROUND_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:975` | `MAP_ARENA_LIKE_CPP` | constant | 1 |
+| `session/movement/state.rs:104` | `calendar_remove_event_like_cpp` | method | 6 |
+| `session/persistence/commit.rs:9` | `commit_exclusive_trainer_money_only_like_cpp` | method | 16 |
+| `session/player_items/bank.rs:116` | `record_represented_bank_item_move_like_cpp` | method | 8 |
+| `session/player_items/durability.rs:33` | `stats_limits_like_cpp` | method | 4 |
+| `session/player_items/equipment.rs:9` | `represented_equip_spell_fits_shapeshift_like_cpp` | method | 7 |
+| `session/player_items/equipment.rs:22` | `refresh_represented_item_effects_at_form_change_like_cpp` | method | 10 |
+| `session/player_items/equipment.rs:48` | `inventory_equip_capabilities_like_cpp` | method | 4 |
+| `session/player_items/equipment.rs:102` | `represented_can_equip_unique_item_like_cpp` | method | 14 |
+| `session/player_items/equipment.rs:134` | `can_equip_inventory_item_like_cpp` | method | 25 |
+| `session/player_items/items.rs:137` | `record_represented_auction_remove_item_like_cpp` | method | 8 |
+| `session/player_items/items.rs:145` | `record_represented_auction_sell_item_like_cpp` | method | 8 |
+| `session/player_items/modifiers.rs:269` | `represented_can_use_attack_type_like_cpp` | method | 8 |
+| `session/player_items/persistence.rs:258` | `stored_item_money_persistence_port_like_cpp` | method | 7 |
+| `session/player_items/storage.rs:100` | `represented_item_inventory_type_like_cpp` | method | 8 |
+| `session/player_items/storage.rs:161` | `direct_inventory_player_snapshot` | method | 6 |
+| `session/player_items/storage.rs:175` | `add_inventory_item_duration_refs_like_cpp` | method | 4 |
+| `session/player_items/storage_slots.rs:9` | `represented_direct_inventory_slot_by_guid_like_cpp` | method | 7 |
+| `session/progression/reputation.rs:12` | `reputation_rates_like_cpp` | method | 3 |
+| `session/quest/persistence.rs:15` | `resolved_current_player_xp_persistence_request_like_cpp` | method | 22 |
+| `session/quest/state.rs:43` | `remove_represented_quest_status_like_cpp` | method | 7 |
+| `session/quest/state.rs:64` | `settle_represented_rewarded_quest_like_cpp` | method | 15 |
+| `session/quest/state.rs:548` | `record_represented_auction_replicate_request_like_cpp` | method | 9 |
+| `session/quest_interaction.rs:13` | `represented_has_quest_for_gameobject_like_cpp` | method | 15 |
+| `session/quest_interaction.rs:27` | `represented_gameobject_is_for_quests_like_cpp` | method | 15 |
+| `session/social/group.rs:271` | `clear_represented_group_subgroup_like_cpp` | method | 4 |
+| `session/social_requests.rs:53` | `calendar_community_invite_like_cpp` | method | 26 |
+| `session/social_requests.rs:80` | `calendar_add_event_like_cpp` | method | 48 |
+| `session/spell_state/acquisition.rs:40` | `commit_exclusive_player_money_and_spell_acquisition_like_cpp` | method | 48 |
+| `session/spell_state/aura.rs:73` | `represented_spell_has_mod_shapeshift_effect_like_cpp` | method | 7 |
+| `session/spell_state/aura/effect_queries.rs:48` | `aura_has_total_stat_percentage_effect_like_cpp` | method | 7 |
+| `session/spell_state/aura_publication.rs:15` | `insert_player_visible_aura_with_provenance_like_cpp` | method | 8 |
+| `session/spell_state/shapeshift.rs:10` | `sync_represented_display_power_like_cpp` | method | 4 |
+| `session/spell_state/shapeshift.rs:15` | `represented_spell_has_power_display_effect_like_cpp` | method | 7 |
+| `session/state/hub.rs:64` | `split_social_inventory_mut` | function | 16 |
+| `session/state/hub.rs:81` | `split_social_lifecycle_mut` | function | 20 |
+| `session/state/hub.rs:515` | `world_entities` | field | 1 |
+| `session/state/hub.rs:567` | `loot` | field | 1 |
+| `session/state/hub.rs:677` | `inventory` | field | 1 |
+| `session/taxi/operations.rs:217` | `represented_set_taxi_benchmark_mode_like_cpp` | method | 25 |
+
+## Used only by tests
+
+### Newly reported by slice 0
+
+| File:line | Item | Kind | Lines |
+|---|---|---|---:|
+| `handlers/account_data.rs:23` | `account_data_test_cx_like_cpp` | method | 4 |
+| `handlers/account_data.rs:28` | `handle_request_account_data` | method | 5 |
+| `handlers/account_data.rs:34` | `handle_update_account_data` | method | 5 |
+| `handlers/account_data.rs:40` | `handle_addon_list` | method | 3 |
+| `handlers/account_data.rs:44` | `handle_save_cuf_profiles` | method | 4 |
+| `handlers/character/bank.rs:317` | `handle_change_bank_bag_slot_flag` | method | 8 |
+| `handlers/character/character_handler_shims.rs:44` | `handle_alter_appearance` | method | 3 |
+| `handlers/character/character_handler_shims.rs:48` | `handle_confirm_barbers_choice` | method | 3 |
+| `handlers/character/character_handler_shims.rs:52` | `handle_set_player_declined_names` | method | 3 |
+| `handlers/character/character_handler_shims.rs:65` | `handle_opening_cinematic` | method | 3 |
+| `handlers/character/character_handler_shims.rs:69` | `handle_enum_characters` | method | 8 |
+| `handlers/character/character_handler_shims.rs:78` | `handle_char_customize` | method | 8 |
+| `handlers/character/character_handler_shims.rs:91` | `char_customize_wire_like_cpp` | function | 17 |
+| `handlers/character/items/equipment_sets.rs:15` | `handle_save_equipment_set_with_generator_like_cpp` | method | 14 |
+| `handlers/character/items/equipment_sets.rs:39` | `handle_assign_equipment_set_spec` | method | 10 |
+| `handlers/character/items/equipment_sets.rs:49` | `handle_delete_equipment_set` | method | 9 |
+| `handlers/character/items/equipment_sets.rs:57` | `handle_use_equipment_set` | method | 7 |
+| `handlers/character/items/handlers.rs:486` | `handle_cancel_temp_enchantment` | method | 7 |
+| `handlers/character/query.rs:104` | `handle_item_text_query` | method | 4 |
+| `handlers/entities/corpse.rs:266` | `try_handle_client_port_graveyard_like_cpp` | method | 29 |
+| `handlers/entities/player.rs:24` | `handle_set_difficulty_id` | method | 4 |
+| `handlers/entities/player.rs:29` | `handle_toggle_difficulty` | method | 4 |
+| `handlers/entities/player.rs:34` | `handle_set_dungeon_difficulty` | method | 4 |
+| `handlers/entities/player.rs:39` | `handle_set_raid_difficulty` | method | 4 |
+| `handlers/group/ops_2.rs:14` | `handle_clear_raid_marker` | method | 47 |
+| `handlers/instances/mod.rs:32` | `handle_request_raid_info` | method | 4 |
+| `handlers/instances/mod.rs:37` | `handle_reset_instances` | method | 4 |
+| `handlers/instances/mod.rs:56` | `handle_instance_lock_response` | method | 4 |
+| `handlers/instances/mod.rs:63` | `handle_set_saved_instance_extend` | method | 6 |
+| `handlers/pets/mod.rs:30` | `handle_battle_pet_delete_pet_represented_like_cpp` | method | 8 |
+| `handlers/pets/mod.rs:68` | `handle_battle_pet_modify_name_represented_like_cpp` | method | 8 |
+| `handlers/pets/mod.rs:108` | `handle_battle_pet_delete_pet_represented_like_cpp` | method | 18 |
+| `handlers/pets/mod.rs:135` | `handle_battle_pet_modify_name_represented_like_cpp` | method | 25 |
+| `handlers/progression/mod.rs:20` | `reputation_test_cx_like_cpp` | method | 3 |
+| `handlers/progression/mod.rs:24` | `handle_request_forced_reactions` | method | 5 |
+| `handlers/progression/mod.rs:30` | `handle_set_faction_at_war` | method | 5 |
+| `handlers/progression/mod.rs:36` | `handle_set_faction_not_at_war` | method | 5 |
+| `handlers/progression/mod.rs:42` | `handle_set_faction_inactive` | method | 5 |
+| `handlers/progression/mod.rs:48` | `handle_set_watched_faction` | method | 5 |
+| `handlers/spell/ops_2.rs:392` | `try_handle_cancel_mod_speed_no_control_auras_like_cpp` | method | 23 |
+| `handlers/talent/state.rs:63` | `handle_learn_talents` | method | 30 |
+| `session/catalogs/operations.rs:200` | `set_cinematic_sequences_store` | method | 3 |
+| `session/connection_identity.rs:57` | `set_realm_id` | method | 3 |
+| `session/connection_identity.rs:124` | `is_legit_character` | method | 3 |
+| `session/creature_runtime/admitted_creature_execution/admission.rs:144` | `publication_events_like_cpp` | method | 5 |
+| `session/creature_runtime/admitted_creature_execution/combat_phases.rs:108` | `deferred_respawn_db_mutations_like_cpp` | method | 8 |
+| `session/creature_runtime/admitted_creature_execution/combat_phases.rs:118` | `deferred_visibility_refreshes_like_cpp` | method | 18 |
+| `session/creature_runtime/admitted_creature_execution/combat_phases.rs:136` | `deferred_plan_events_like_cpp` | method | 14 |
+| `session/gameobject_interaction.rs:21` | `summon_private_object_owner_like_cpp` | method | 27 |
+| `session/item_modifiers.rs:145` | `player_stats` | method | 3 |
+| `session/lifecycle_ops/operations.rs:9` | `set_session_account_state_port_like_cpp` | method | 6 |
+| `session/loot/operations.rs:71` | `set_group_loot_money_persistence_port_like_cpp` | method | 6 |
+| `session/loot/operations.rs:154` | `set_group_loot_money_persistence_port_like_cpp` | method | 7 |
+| `session/mod.rs:948` | `SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:949` | `SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP` | constant | 1 |
+| `session/movement/state.rs:79` | `remove_legit_character` | method | 3 |
+| `session/persistence/plans.rs:24` | `set_character_enumeration_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:31` | `set_packet_spoof_ban_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:38` | `set_void_storage_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:45` | `set_social_persistence_port_like_cpp` | method | 6 |
+| `session/persistence/plans.rs:51` | `set_map_corpse_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:58` | `set_represented_group_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:65` | `set_support_bug_report_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:72` | `set_gossip_catalog_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:79` | `set_player_name_query_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:86` | `set_instance_lock_persistence_port_like_cpp` | method | 7 |
+| `session/persistence/plans.rs:178` | `set_account_data_persisted_like_cpp` | method | 11 |
+| `session/pets/battle_pet.rs:604` | `battle_pet_remove_pet_durable_like_cpp` | method | 22 |
+| `session/pets/battle_pet_journal.rs:286` | `battle_pet_modify_name_durable_like_cpp` | method | 34 |
+| `session/pets/persistence.rs:9` | `set_battle_pet_purchase_persistence_port_like_cpp` | method | 6 |
+| `session/pets/persistence.rs:44` | `set_battle_pet_purchase_persistence_port_like_cpp` | method | 9 |
+| `session/player_cast/state.rs:45` | `last_spell_cast_time_like_cpp` | method | 4 |
+| `session/player_items/appearance.rs:340` | `replay_rewarded_quest_item_appearances_like_cpp` | method | 47 |
+| `session/player_items/appearance.rs:386` | `replay_rewarded_quest_direct_item_appearances_like_cpp` | method | 27 |
+| `session/player_items/appearance.rs:423` | `set_appearance_is_favorite_like_cpp` | method | 8 |
+| `session/player_items/appearance.rs:454` | `remove_temporary_item_appearance_like_cpp` | method | 12 |
+| `session/player_items/appearance.rs:466` | `items_providing_temporary_appearance_like_cpp` | method | 7 |
+| `session/player_items/enchantment.rs:48` | `is_arena_allowed_enchantment` | method | 3 |
+| `session/player_items/enchantment.rs:51` | `apply_enchantment_template_ref` | method | 12 |
+| `session/player_items/items.rs:50` | `item_display_id` | method | 3 |
+| `session/player_items/items.rs:85` | `is_item_bound_account_wide` | method | 4 |
+| `session/player_items/persistence.rs:81` | `set_stored_item_money_persistence_port_like_cpp` | method | 6 |
+| `session/player_items/persistence.rs:87` | `set_item_template_addon_catalog_persistence_port_like_cpp` | method | 7 |
+| `session/player_items/persistence.rs:247` | `send_item_time_update_plan` | method | 4 |
+| `session/player_items/persistence.rs:295` | `set_stored_item_money_persistence_port_like_cpp` | method | 7 |
+| `session/player_items/persistence.rs:303` | `set_item_template_addon_catalog_persistence_port_like_cpp` | method | 7 |
+| `session/quest/persistence.rs:9` | `set_quest_poi_persistence_port_like_cpp` | method | 6 |
+| `session/quest/persistence.rs:71` | `set_quest_poi_persistence_port_like_cpp` | method | 6 |
+| `session/quest/rewards.rs:15` | `notify_game_event_quest_complete_like_cpp` | method | 15 |
+| `session/registry.rs:86` | `contains_handler` | function | 6 |
+| `session/registry.rs:93` | `get_handler` | function | 6 |
+| `session/runtime_policy_access.rs:15` | `set_represented_is_outdoors_like_cpp` | method | 3 |
+| `session/spell_effects/execution_overloads.rs:12` | `execute_spell_with_generator_like_cpp` | method | 26 |
+| `session/spell_effects/execution_overloads.rs:50` | `execute_spell_with_target_data_and_generator_like_cpp` | method | 24 |
+| `session/spell_effects/execution_overloads.rs:96` | `execute_spell_with_visual_and_generator_like_cpp` | method | 29 |
+| `session/spell_state/aura_application.rs:75` | `apply_aura` | method | 16 |
+| `session/spell_state/aura_application.rs:438` | `remove_represented_mod_speed_no_control_auras_cancelable_like_cpp` | method | 7 |
+| `session/spell_state/aura_application.rs:445` | `remove_represented_cancelable_auras_by_effect_like_cpp` | method | 19 |
+| `session/state/hub.rs:502` | `InventoryCx` | struct | 5 |
+| `session/state/hub.rs:506` | `cx_inventory` | function | 5 |
+| `session/state/hub.rs:568` | `lifecycle` | field | 1 |
+| `session/state/hub.rs:662` | `lifecycle` | field | 1 |
+| `session/world_entities/creature.rs:11` | `set_canonical_creature_private_object_owner_like_cpp` | method | 14 |
+| `session_persistence_capabilities.rs:17` | `set_vendor_trade_persistence_port_like_cpp` | method | 7 |
+| `session_persistence_capabilities.rs:25` | `set_player_inventory_persistence_port_like_cpp` | method | 7 |
+| `session_persistence_capabilities.rs:33` | `set_player_quest_persistence_port_like_cpp` | method | 7 |
+| `session_persistence_capabilities.rs:41` | `set_player_quest_reward_persistence_port_like_cpp` | method | 7 |
+
+### Already reported at base
+
+| File:line | Item | Kind | Lines |
+|---|---|---|---:|
+| `canonical_player_sync.rs:43` | `sync_player_liquid_status_like_cpp` | function | 5 |
+| `handlers/character/mod.rs:369` | `TACT_KEY_TABLE_HASH_LIKE_CPP` | constant | 1 |
+| `handlers/character/stats_queries.rs:11` | `level_up_stat_deltas_like_cpp` | method | 7 |
+| `handlers/character/stats_update.rs:11` | `player_stat_changes_like_cpp` | method | 6 |
+| `handlers/character/stats_update.rs:18` | `player_stat_changes_with_represented_item_bonuses_like_cpp` | method | 9 |
+| `handlers/character/stats_update.rs:43` | `send_level_up_stat_update_like_cpp` | method | 5 |
+| `handlers/loot/authority.rs:24` | `request_represented_remote_master_loot_give_like_cpp` | method | 24 |
+| `handlers/loot/fanout.rs:208` | `send_loot_error_like_cpp` | method | 9 |
+| `handlers/loot/mod.rs:176` | `LOCK_KEY_SKILL_LIKE_CPP` | constant | 1 |
+| `handlers/loot/mod.rs:177` | `LOCK_KEY_SPELL_LIKE_CPP` | constant | 1 |
+| `handlers/loot/mod.rs:178` | `SPELL_EFFECT_OPEN_LOCK_LIKE_CPP` | constant | 1 |
+| `handlers/loot/mod.rs:645` | `spawn_loot_claim_persistence_worker_like_cpp` | function | 45 |
+| `handlers/loot/sources/gameobject_authority.rs:53` | `upsert_represented_personal_gameobject_loot_authority_like_cpp` | method | 17 |
+| `handlers/quest/mod.rs:121` | `QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL` | constant | 1 |
+| `handlers/quest/mod.rs:129` | `CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP` | constant | 1 |
+| `handlers/quest/state.rs:268` | `get_quest_slot_quest_id_like_cpp` | method | 9 |
+| `handlers/trainer.rs:49` | `trainer_spell_class_race_fit_like_cpp` | function | 23 |
+| `session/action_bar_adapter.rs:15` | `set_tutorial_int_like_cpp` | method | 3 |
+| `session/action_bar_adapter.rs:19` | `apply_tutorial_action_like_cpp` | method | 33 |
+| `session/canonical_access/operations.rs:265` | `owned_player_cuf_profiles_like_cpp` | method | 25 |
+| `session/character_customization.rs:39` | `represented_learn_title_like_cpp` | method | 11 |
+| `session/character_customization.rs:51` | `represented_has_title_like_cpp` | method | 12 |
+| `session/character_customization.rs:64` | `represented_set_chosen_title_like_cpp` | method | 11 |
+| `session/chat/operations.rs:9` | `apply_chat_away_mode_like_cpp` | method | 8 |
+| `session/combat/damage.rs:122` | `set_player_health_after_runtime_damage_like_cpp` | method | 12 |
+| `session/combat/melee.rs:111` | `represented_melee_damage_taken_like_cpp` | method | 50 |
+| `session/combat/melee.rs:165` | `represented_melee_outcome_facts_like_cpp` | method | 213 |
+| `session/combat/melee.rs:379` | `represented_melee_armor_mitigation_like_cpp` | method | 76 |
+| `session/combat/melee.rs:454` | `represented_melee_damage_bonus_like_cpp` | method | 44 |
+| `session/combat/vitals.rs:9` | `canonical_player_health_snapshot_like_cpp` | method | 8 |
+| `session/combat/vitals.rs:45` | `represented_player_power_values_like_cpp` | method | 12 |
+| `session/combat/vitals.rs:57` | `resolved_player_power_values_like_cpp` | method | 12 |
+| `session/combat/vitals.rs:69` | `resolved_player_power_snapshot_like_cpp` | method | 12 |
+| `session/combat/vitals.rs:81` | `set_player_health_like_cpp` | method | 5 |
+| `session/instances/difficulty.rs:40` | `player_difficulty_preferences_snapshot_like_cpp` | method | 6 |
+| `session/instances/difficulty.rs:55` | `resolved_dungeon_difficulty_id_like_cpp` | method | 4 |
+| `session/instances/difficulty.rs:59` | `resolved_raid_difficulty_id_like_cpp` | method | 4 |
+| `session/instances/difficulty.rs:63` | `resolved_legacy_raid_difficulty_id_like_cpp` | method | 4 |
+| `session/instances/map_resolution.rs:332` | `canonical_map_has_seer_like_object_like_cpp` | method | 7 |
+| `session/item_modifiers.rs:28` | `RepresentedItemSetEffectLikeCpp` | type alias | 1 |
+| `session/item_modifiers.rs:30` | `RepresentedItemBonusStateLikeCpp` | type alias | 1 |
+| `session/item_modifiers.rs:32` | `void_withdrawal_post_store_item_values_update_like_cpp` | function | 43 |
+| `session/loot/operations.rs:34` | `read_canonical_creature_loot_authority_on_map_like_cpp` | method | 8 |
+| `session/loot/operations.rs:100` | `set_pass_on_group_loot_like_cpp` | method | 4 |
+| `session/loot/operations.rs:128` | `set_loot_specialization_id_like_cpp` | method | 4 |
+| `session/mod.rs:858` | `QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:859` | `QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:863` | `QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:864` | `QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:865` | `QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:911` | `MAP_INSTANCE_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:912` | `MAP_RAID_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:915` | `PLAYER_FLAGS_PVP_TIMER_LIKE_CPP` | constant | 1 |
+| `session/mod.rs:922` | `TRADE_STATUS_PLAYER_BUSY_LIKE_CPP` | constant | 1 |
+| `session/money/operations.rs:65` | `add_currency_vendor` | method | 16 |
+| `session/movement/state.rs:50` | `remove_currency` | method | 5 |
+| `session/movement/state.rs:88` | `set_represented_mover_fixed_position_vehicle_like_cpp` | method | 14 |
+| `session/movement/state.rs:262` | `resolved_movement_force_mod_magnitude_like_cpp` | method | 10 |
+| `session/npc_interaction.rs:20` | `set_player_trainer_interaction_like_cpp` | method | 8 |
+| `session/npc_interaction.rs:29` | `reset_player_interaction_if_source_like_cpp` | method | 7 |
+| `session/npc_interaction.rs:42` | `resolved_player_interaction_trainer_id_like_cpp` | method | 4 |
+| `session/npc_interaction.rs:47` | `player_trainer_interaction_matches_like_cpp` | method | 8 |
+| `session/persistence/load.rs:387` | `loaded_action_buttons_snapshot_like_cpp` | method | 27 |
+| `session/persistence/save.rs:9` | `current_player_save_to_db_snapshot_like_cpp` | method | 9 |
+| `session/persistence/save.rs:77` | `persist_standalone_player_currency_save_like_cpp` | method | 36 |
+| `session/persistence/save.rs:193` | `has_complete_player_skill_save_authority_like_cpp` | method | 6 |
+| `session/persistence/save.rs:199` | `represented_save_cuf_profiles_like_cpp` | method | 7 |
+| `session/player_binding.rs:224` | `set_player_liquid_status_like_cpp` | method | 3 |
+| `session/player_binding.rs:228` | `set_player_level_like_cpp` | method | 39 |
+| `session/player_condition_values.rs:40` | `RepresentedItemLevelCapsLikeCpp` | type alias | 1 |
+| `session/player_items/bank.rs:123` | `represented_bank_bag_slot_flag_like_cpp` | method | 4 |
+| `session/player_items/bank.rs:127` | `set_represented_bank_bag_slot_flag_like_cpp` | method | 8 |
+| `session/player_items/equipment.rs:26` | `apply_initial_equipped_item_equip_auras_like_cpp` | method | 15 |
+| `session/player_items/equipment.rs:158` | `represented_avg_equipped_item_level_like_cpp` | method | 17 |
+| `session/player_items/equipment_sets.rs:41` | `delete_represented_equipment_set_like_cpp` | method | 4 |
+| `session/player_items/modifiers.rs:21` | `item_limit_category_template_like_cpp` | method | 8 |
+| `session/player_items/modifiers.rs:38` | `player_item_modifier_runtime_snapshot_like_cpp` | method | 6 |
+| `session/player_items/modifiers.rs:45` | `add_player_item_set_item_like_cpp` | method | 8 |
+| `session/player_items/modifiers.rs:54` | `add_player_item_set_bonus_like_cpp` | method | 8 |
+| `session/player_items/modifiers.rs:63` | `set_player_item_level_caps_like_cpp` | method | 11 |
+| `session/player_items/modifiers.rs:105` | `record_represented_update_item_set_auras_like_cpp` | method | 10 |
+| `session/player_items/modifiers.rs:115` | `plan_represented_update_item_set_auras_like_cpp` | method | 19 |
+| `session/player_items/modifiers.rs:227` | `apply_represented_item_set_aura_refresh_events_like_cpp` | method | 7 |
+| `session/player_items/storage.rs:19` | `move_represented_direct_inventory_item_with_item_mods_like_cpp` | method | 51 |
+| `session/player_items/storage.rs:70` | `record_destroyed_inventory_item_mod_remove_like_cpp` | method | 18 |
+| `session/player_items/valuation.rs:9` | `set_represented_item_level_caps_like_cpp` | method | 6 |
+| `session/player_items/valuation.rs:15` | `set_represented_using_pvp_item_levels_like_cpp` | method | 4 |
+| `session/player_items/valuation.rs:19` | `resolved_using_pvp_item_levels_like_cpp` | method | 4 |
+| `session/player_items/valuation.rs:23` | `update_represented_item_level_area_based_scaling_like_cpp` | method | 4 |
+| `session/player_items/valuation.rs:119` | `represented_item_level_like_cpp` | method | 20 |
+| `session/player_presentation.rs:28` | `set_represented_shapeshift_form_like_cpp` | method | 11 |
+| `session/player_presentation.rs:37` | `represented_primary_specialization_id_like_cpp` | method | 14 |
+| `session/player_presentation.rs:52` | `set_represented_primary_specialization_id_like_cpp` | method | 17 |
+| `session/player_presentation.rs:209` | `apply_far_sight_like_cpp` | method | 27 |
+| `session/progression_adapters.rs:11` | `set_championing_faction_like_cpp` | method | 12 |
+| `session/progression_adapters.rs:24` | `killed_player_credit_with_generator_like_cpp` | method | 15 |
+| `session/progression_adapters.rs:52` | `kill_credit_criteria_tree_objective_with_generator_like_cpp` | method | 14 |
+| `session/quest/objectives.rs:170` | `update_represented_storing_flag_quest_objective_progress_like_cpp` | method | 120 |
+| `session/quest/rewards.rs:30` | `record_represented_rewarded_quest_row_like_cpp` | method | 5 |
+| `session/quest/rewards.rs:35` | `complete_player_quest_status_authority_load_like_cpp` | method | 5 |
+| `session/quest/rewards.rs:160` | `add_represented_quest_reward_talent_points_like_cpp` | method | 29 |
+| `session/quest/rewards.rs:395` | `set_represented_daily_quest_completed_like_cpp_for_test` | method | 14 |
+| `session/quest/rewards.rs:431` | `add_currency_quest_reward_like_cpp` | method | 23 |
+| `session/quest/state.rs:117` | `ensure_represented_seasonal_event_like_cpp` | method | 7 |
+| `session/quest/state.rs:237` | `spell_area_for_quest_map_bounds_like_cpp` | method | 11 |
+| `session/quest/state.rs:248` | `spell_area_for_quest_end_map_bounds_like_cpp` | method | 11 |
+| `session/quest/state.rs:322` | `set_represented_resurrection_request_like_cpp` | method | 18 |
+| `session/quest/state.rs:340` | `represented_resurrection_requested_by_like_cpp` | method | 10 |
+| `session/quest/state.rs:515` | `set_represented_df_quest_like_cpp_for_test` | method | 14 |
+| `session/quest_interaction.rs:43` | `represented_gameobject_activate_to_quest_like_cpp` | method | 43 |
+| `session/rest_progression.rs:92` | `add_represented_xp_rest_bonus_like_cpp` | method | 17 |
+| `session/rest_progression.rs:194` | `take_represented_xp_rest_bonus_for_gain_like_cpp` | method | 30 |
+| `session/social/duel.rs:13` | `resolved_represented_duel_arbiter_guid_like_cpp` | method | 6 |
+| `session/social/guild.rs:9` | `player_guild_state_snapshot_like_cpp` | method | 6 |
+| `session/social/guild.rs:52` | `set_represented_guild_id_invited_like_cpp` | method | 15 |
+| `session/social/trade.rs:31` | `set_represented_active_trade_partner_like_cpp` | method | 7 |
+| `session/social_requests.rs:129` | `set_represented_arena_team_id_invited_like_cpp` | method | 8 |
+| `session/spell_effects/effects_player.rs:8` | `loaded_player_visible_items_for_create_like_cpp` | method | 17 |
+| `session/spell_state/acquisition.rs:174` | `replace_complete_spell_acquisition_runtime_like_cpp` | method | 36 |
+| `session/spell_state/aura_application.rs:27` | `remove_player_visible_aura_like_cpp` | method | 7 |
+| `session/spell_state/spell.rs:74` | `spell_linked_like_cpp` | method | 12 |
+| `session/spell_state/spell.rs:86` | `spell_area_map_bounds_like_cpp` | method | 8 |
+| `session/spell_state/spell.rs:94` | `spell_area_for_area_map_bounds_like_cpp` | method | 11 |
+| `session/spell_state/spell.rs:105` | `spell_proc_entry_like_cpp` | method | 14 |
+| `session/spell_state/spell.rs:119` | `spells_required_for_spell_like_cpp` | method | 8 |
+| `session/spell_state/spell.rs:127` | `is_spell_requiring_spell_like_cpp` | method | 8 |
+| `session/spell_state/spell.rs:205` | `begin_represented_trait_authority_load_like_cpp` | method | 8 |
+| `session/spell_state/spell.rs:232` | `install_represented_trait_authority_rows_like_cpp` | method | 11 |
+| `session/spell_state/spell.rs:271` | `mark_represented_spell_rows_saved_like_cpp` | method | 7 |
+| `session/spell_state/spell.rs:279` | `rebase_represented_spells_onto_saved_rows_like_cpp` | method | 9 |
+| `session/spell_state/spell.rs:424` | `represented_spell_trait_definition_ids_like_cpp` | method | 10 |
+| `session/spell_state/spell.rs:630` | `add_represented_self_res_spell_like_cpp` | method | 19 |
+| `session/spell_state/spellbook.rs:28` | `is_spell_learn_spell_like_cpp` | method | 7 |
+| `session/spell_state/spellbook.rs:35` | `is_spell_learn_to_spell_like_cpp` | method | 7 |
+| `session/spell_state/spellbook.rs:592` | `represented_favorite_known_spells_like_cpp` | method | 10 |
+| `session/test_support/operations.rs:225` | `loot_money_persistence_test_result_for_worker_like_cpp` | method | 10 |
+| `session/world_entities/creature.rs:116` | `talked_to_creature_with_generator_like_cpp` | method | 16 |
+| `session/world_entities/creature.rs:226` | `apply_creature_aura_like_cpp` | method | 27 |
+| `session/world_state/operations.rs:178` | `represented_explored_zones_db_string_like_cpp` | method | 5 |
+| `session/world_state/operations.rs:189` | `update_area_represented_like_cpp` | method | 9 |
+| `session/world_state/operations.rs:565` | `set_area_spirit_healer_guid_like_cpp` | method | 4 |
+| `session/world_state/operations.rs:569` | `area_spirit_healer_guid_like_cpp` | method | 10 |
+| `session/xp_grants.rs:110` | `give_xp_runtime_like_cpp` | method | 17 |
+
+## Reproduce
+
+```bash
+export PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1
+cargo check --locked -p wow-world --lib --message-format json                 > lib.json
+cargo check --locked -p wow-world --lib --profile test --message-format json  > test.json
+# dead_code items of the lib artifact (profile.test=false) minus those of the
+# lib-test artifact (profile.test=true) are the test-only class.
+```

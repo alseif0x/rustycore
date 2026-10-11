@@ -28,26 +28,26 @@ impl WorldSession {
             .set_instance_endpoint(addr, port);
     }
 
-    pub fn instance_address(&self) -> [u8; 4] {
+    pub(crate) fn instance_address(&self) -> [u8; 4] {
         self.core.instance_address()
     }
 
-    pub fn instance_port(&self) -> u16 {
+    pub(crate) fn instance_port(&self) -> u16 {
         self.core.instance_port()
     }
 
-    pub fn set_connect_to_key(&mut self, key: Option<i64>) {
+    pub(crate) fn set_connect_to_key(&mut self, key: Option<i64>) {
         self.core.set_connect_to_key(key)
     }
 
-    pub fn set_connect_to_serial(
+    pub(crate) fn set_connect_to_serial(
         &mut self,
         serial: Option<wow_packet::packets::auth::ConnectToSerial>,
     ) {
         self.core.set_connect_to_serial(serial)
     }
 
-    pub fn set_instance_link_rx(
+    pub(crate) fn set_instance_link_rx(
         &mut self,
         rx: Option<tokio::sync::oneshot::Receiver<InstanceLink>>,
     ) {
@@ -131,7 +131,7 @@ impl WorldSession {
         .await;
     }
 
-    pub fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
+    pub(crate) fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
         self.core.send_packet_realm(pkt)
     }
 

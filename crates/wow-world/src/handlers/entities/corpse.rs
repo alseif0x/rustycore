@@ -97,7 +97,7 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_request_cemetery_list(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_request_cemetery_list(&mut self, pkt: wow_packet::WorldPacket) {
         let store = self
             .graveyard_store()
             .cloned()
@@ -183,7 +183,7 @@ impl crate::session::WorldSession {
     /// CMSG_RESURRECT_RESPONSE — answer to a pending resurrection request.
     /// C++ ref: `WorldSession::HandleResurrectResponse`.
 
-    pub async fn handle_resurrect_response(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_resurrect_response(&mut self, mut pkt: wow_packet::WorldPacket) {
         let response = match ResurrectResponse::read(&mut pkt) {
             Ok(response) => response,
             Err(error) => {
@@ -227,7 +227,7 @@ impl crate::session::WorldSession {
     /// CMSG_REPOP_REQUEST — release spirit.
     /// C++ ref: `WorldSession::HandleRepopRequest`.
 
-    pub async fn handle_repop_request(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_repop_request(&mut self, mut pkt: wow_packet::WorldPacket) {
         let _request = match RepopRequest::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -263,7 +263,7 @@ impl crate::session::WorldSession {
 
     /// CMSG_CLIENT_PORT_GRAVEYARD — manually teleport ghost to graveyard.
     /// C++ ref: `WorldSession::HandlePortGraveyard`.
-    pub async fn try_handle_client_port_graveyard_like_cpp(
+    pub(crate) async fn try_handle_client_port_graveyard_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
     ) -> bool {
@@ -294,7 +294,7 @@ impl crate::session::WorldSession {
     /// CMSG_RECLAIM_CORPSE — resurrect at corpse.
     /// C++ ref: `WorldSession::HandleReclaimCorpse`.
 
-    pub async fn handle_reclaim_corpse(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_reclaim_corpse(&mut self, mut pkt: wow_packet::WorldPacket) {
         let _request = match ReclaimCorpse::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {

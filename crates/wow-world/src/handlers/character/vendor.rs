@@ -17,7 +17,7 @@ use rules::{VendorBuyItem, vendor_currency_type_is_known};
 
 impl WorldSession {
     #[cfg(test)]
-    pub async fn handle_sell_item(&mut self, sell: SellItem) {
+    pub(crate) async fn handle_sell_item(&mut self, sell: SellItem) {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return;
         };
@@ -26,7 +26,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_item_purchase_refund(&mut self, refund: ItemPurchaseRefund) {
+    pub(crate) async fn handle_item_purchase_refund(&mut self, refund: ItemPurchaseRefund) {
         let Some(generator) = self.item_guid_generator_like_cpp_for_bridge() else {
             return;
         };
@@ -74,7 +74,7 @@ impl WorldSession {
 
     /// CMSG_REPAIR_ITEM — player repairs item at a repair vendor.
     /// C++ ref: WorldSession::HandleRepairItemOpcode.
-    pub async fn handle_repair_item_with_generator_like_cpp(
+    pub(crate) async fn handle_repair_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         repair: RepairItem,
@@ -156,7 +156,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_repair_item(&mut self, repair: RepairItem) {
+    pub(crate) async fn handle_repair_item(&mut self, repair: RepairItem) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_repair_item_with_generator_like_cpp(generators.item.as_ref(), repair)
             .await;
@@ -165,7 +165,7 @@ impl WorldSession {
     /// Handle CMSG_ITEM_PURCHASE_REFUND.
     ///
     /// C++ ref: `ItemHandler.HandleItemRefund` -> `Player::RefundItem`.
-    pub async fn handle_item_purchase_refund_with_generator_like_cpp(
+    pub(crate) async fn handle_item_purchase_refund_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         refund: ItemPurchaseRefund,

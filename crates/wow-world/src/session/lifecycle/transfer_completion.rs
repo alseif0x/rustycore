@@ -23,7 +23,7 @@ impl WorldSession {
     /// Finish represented native phases, not client initialization or a durable save.
     /// False forbids ordinary disconnect cleanup: the owner/completion is unavailable.
     /// No packet, query or await is needed; terrain reads remain outside map guards.
-    pub fn finish_worldport_native_before_disconnect_like_cpp(&mut self) -> bool {
+    pub(crate) fn finish_worldport_native_before_disconnect_like_cpp(&mut self) -> bool {
         if self.player_guid().is_none() {
             return true;
         }

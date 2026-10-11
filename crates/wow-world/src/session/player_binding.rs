@@ -78,7 +78,7 @@ impl SessionPlayerController {
 
 impl WorldSession {
     /// Set the logged-in player GUID.
-    pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
+    pub(crate) fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         let previous_player_guid = self.core.player_guid;
         let player_changed = self.core.player_guid != guid;
         if player_changed {

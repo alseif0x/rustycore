@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub async fn handle_void_storage_unlock_with_generator_like_cpp(
+    pub(crate) async fn handle_void_storage_unlock_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: WorldPacket,
@@ -88,13 +88,13 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_void_storage_unlock(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_void_storage_unlock(&mut self, pkt: WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_void_storage_unlock_with_generator_like_cpp(generators.item.as_ref(), pkt)
             .await;
     }
 
-    pub async fn handle_void_storage_query(&mut self, mut pkt: WorldPacket) {
+    pub(crate) async fn handle_void_storage_query(&mut self, mut pkt: WorldPacket) {
         let Ok(query) = QueryVoidStorage::read(&mut pkt) else {
             return;
         };

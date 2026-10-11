@@ -27,7 +27,7 @@ mod battle_pet_host;
 mod test_shims;
 
 impl crate::session::WorldSession {
-    pub async fn handle_battle_pet_delete_pet_represented_like_cpp(
+    pub(crate) async fn handle_battle_pet_delete_pet_represented_like_cpp(
         &mut self,
         pkt: wow_packet::WorldPacket,
     ) {
@@ -47,7 +47,7 @@ impl crate::session::WorldSession {
     /// wired, this represented body exercises the successful inventory seam.
 
     #[cfg(test)]
-    pub async fn handle_cage_battle_pet_represented_like_cpp(
+    pub(crate) async fn handle_cage_battle_pet_represented_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
     ) {
@@ -65,7 +65,7 @@ impl crate::session::WorldSession {
         let _ = self.battle_pet_cage_battle_pet_represented_like_cpp(request.pet_guid, true, true);
     }
 
-    pub async fn handle_battle_pet_modify_name_represented_like_cpp(
+    pub(crate) async fn handle_battle_pet_modify_name_represented_like_cpp(
         &mut self,
         pkt: wow_packet::WorldPacket,
     ) {
@@ -80,7 +80,7 @@ impl crate::session::WorldSession {
     /// critters, and sends no direct response. Real `TempSummon::UnSummon` and
     /// object update/despawn fanout remain part of the live companion runtime.
 
-    pub async fn handle_dismiss_critter(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_dismiss_critter(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match DismissCritter::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -105,7 +105,7 @@ impl crate::session::PetsCx<'_> {
     /// placeholder, so this method is intentionally not registered for
     /// production dispatch until the real client opcode is known.
 
-    pub async fn handle_battle_pet_delete_pet_represented_like_cpp(
+    pub(crate) async fn handle_battle_pet_delete_pet_represented_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
     ) {
@@ -132,7 +132,7 @@ impl crate::session::PetsCx<'_> {
     /// `0xBADD` placeholder, so this method is intentionally not registered for
     /// production dispatch until the real client opcode is known.
 
-    pub async fn handle_battle_pet_modify_name_represented_like_cpp(
+    pub(crate) async fn handle_battle_pet_modify_name_represented_like_cpp(
         &mut self,
         mut pkt: wow_packet::WorldPacket,
     ) {

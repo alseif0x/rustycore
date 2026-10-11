@@ -101,13 +101,13 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
+    pub(crate) async fn handle_item_text_query(&mut self, query: ItemTextQuery) {
         self.build_item_text_query_handler_cx_like_cpp()
             .handle_item_text_query(query);
     }
 
     #[cfg(test)]
-    pub async fn handle_quest_giver_status_multiple_query(&mut self) {
+    pub(crate) async fn handle_quest_giver_status_multiple_query(&mut self) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
             catalogs.quest_info.as_ref(),
@@ -116,7 +116,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_quest_giver_status_tracked_query(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_quest_giver_status_tracked_query(&mut self, pkt: WorldPacket) {
         let catalogs = self.session_handler_catalogs_for_test_like_cpp();
         self.handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
             catalogs.quest_info.as_ref(),
@@ -135,7 +135,7 @@ impl WorldSession {
     /// `QuestStore` relations -> one outbound packet only. This handler must not mutate map,
     /// QuestStore, ObjectAccessor/GameEvent, or player state. Exact Creature hostility/faction remains
     /// a documented gap; represented Creature NPC QUEST_GIVER flag is enforced when available.
-    pub async fn handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
+    pub(crate) async fn handle_quest_giver_status_multiple_query_with_catalog_like_cpp(
         &mut self,
         quest_info: &wow_data::progression_rewards::QuestInfoStore,
     ) {
@@ -165,7 +165,7 @@ impl WorldSession {
     /// read-only `QuestStore` status -> one outbound packet only. This must not read the visible GUID
     /// cache and must not mutate map, QuestStore, ObjectAccessor/GameEvent, player quest state, or
     /// represented visibility state.
-    pub async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
+    pub(crate) async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp(
         &mut self,
         quest_info: &wow_data::progression_rewards::QuestInfoStore,
         mut pkt: WorldPacket,

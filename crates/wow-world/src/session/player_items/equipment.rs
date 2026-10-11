@@ -75,7 +75,7 @@ impl WorldSession {
     ) -> Option<&Arc<CreatureEquipmentStoreLikeCpp>> {
         self.catalogs.creature_equipment_store_like_cpp.as_ref()
     }
-    pub fn send_equip_error(
+    pub(crate) fn send_equip_error(
         &self,
         result: InventoryResult,
         item1: Option<ObjectGuid>,

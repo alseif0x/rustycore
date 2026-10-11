@@ -12,7 +12,7 @@ impl WorldSession {
     /// Handle CMSG_SELL_ITEM — player sells an item to a vendor.
     ///
     /// C++ ref: `HandleSellItemOpcode` (`Handlers/ItemHandler.cpp:365+`).
-    pub async fn handle_sell_item_with_generator_like_cpp(
+    pub(crate) async fn handle_sell_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         sell: SellItem,

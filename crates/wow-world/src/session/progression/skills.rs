@@ -10,7 +10,7 @@ impl WorldSession {
     pub fn set_skill_store(&mut self, store: Arc<SkillStore>) {
         self.catalogs.skill_store = Some(store);
     }
-    pub fn skill_store(&self) -> Option<&Arc<SkillStore>> {
+    pub(crate) fn skill_store(&self) -> Option<&Arc<SkillStore>> {
         self.catalogs.skill_store()
     }
     pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {

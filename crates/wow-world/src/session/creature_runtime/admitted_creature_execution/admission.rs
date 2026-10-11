@@ -86,7 +86,7 @@ pub enum CreatureExecutionAdmissionLikeCpp {
 
 impl CreatureExecutionAdmissionLikeCpp {
     #[must_use]
-    pub const fn is_admitted_like_cpp(self) -> bool {
+    pub(crate) const fn is_admitted_like_cpp(self) -> bool {
         matches!(self, Self::Admitted)
     }
 
@@ -141,7 +141,7 @@ impl IsolatedCreatureExecutionOutcomeLikeCpp {
 
     /// Number of publication events this transition produced.
     #[must_use]
-    pub fn publication_events_like_cpp(&self) -> usize {
+    pub(crate) fn publication_events_like_cpp(&self) -> usize {
         self.deferred_publication.len()
     }
 
@@ -267,7 +267,7 @@ impl AdmittedCreatureExecutionLikeCpp {
     /// The fence. Evaluated against the canonical manager **before** any
     /// mutation, and again under the same guard the execution uses.
     #[must_use]
-    pub fn fence_like_cpp(
+    pub(crate) fn fence_like_cpp(
         &self,
         manager: &wow_map::MapManager,
     ) -> CreatureExecutionAdmissionLikeCpp {
@@ -323,7 +323,7 @@ impl AdmittedCreatureExecutionLikeCpp {
 
     /// The transition of one admitted object.
     #[must_use]
-    pub fn transition_like_cpp(
+    pub(crate) fn transition_like_cpp(
         &self,
         object: &AdmittedCreatureExecutionObjectLikeCpp,
     ) -> CreatureExecutionTransitionLikeCpp {

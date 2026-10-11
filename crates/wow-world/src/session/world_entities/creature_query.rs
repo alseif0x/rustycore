@@ -169,14 +169,14 @@ impl WorldSession {
         self.catalogs.creature_addon_store_like_cpp.as_ref()
     }
     #[cfg(test)]
-    pub fn set_creature_difficulty_store_like_cpp(
+    pub(crate) fn set_creature_difficulty_store_like_cpp(
         &mut self,
         store: Arc<CreatureDifficultyStoreLikeCpp>,
     ) {
         self.catalogs.creature_difficulty_store_like_cpp = Some(store);
     }
     #[cfg(test)]
-    pub fn set_creature_base_stats_store_like_cpp(
+    pub(crate) fn set_creature_base_stats_store_like_cpp(
         &mut self,
         store: Arc<CreatureBaseStatsStoreLikeCpp>,
     ) {

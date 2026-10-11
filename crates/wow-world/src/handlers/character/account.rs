@@ -86,7 +86,7 @@ impl WorldSession {
     /// Test-only entry point for the hotfix handler owned by
     /// `wow-world-application` (#1263 F5).
     #[cfg(test)]
-    pub async fn handle_hotfix_request(
+    pub(crate) async fn handle_hotfix_request(
         &mut self,
         cache: &wow_data::HotfixBlobCache,
         req: wow_packet::packets::misc::HotfixRequest,

@@ -10,7 +10,7 @@ impl WorldSession {
     ///
     /// Decode movement and the original client request, then enter the shared
     /// application admission/preparation path for both instant and timed casts.
-    pub async fn handle_cast_spell_with_catalogs_like_cpp(
+    pub(crate) async fn handle_cast_spell_with_catalogs_like_cpp(
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -114,7 +114,7 @@ impl WorldSession {
         }
     }
     #[cfg(test)]
-    pub async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_cast_spell(&mut self, pkt: wow_packet::WorldPacket) {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let progression = self.progression_catalogs_for_test_like_cpp();
@@ -133,7 +133,7 @@ impl WorldSession {
     ///
     /// This ports Trinity's initial validation and fails closed until item loot
     /// storage/generation is represented in Rust.
-    pub async fn handle_open_item(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_open_item(&mut self, mut pkt: wow_packet::WorldPacket) {
         let open = match OpenItem::read(&mut pkt) {
             Ok(open) => open,
             Err(e) => {

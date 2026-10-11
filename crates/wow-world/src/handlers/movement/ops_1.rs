@@ -10,7 +10,7 @@ impl WorldSession {
     ///
     /// Parses MovementInfo, validates it, updates player position,
     /// and queues a broadcast to nearby players.
-    pub async fn handle_movement_with_catalogs_like_cpp(
+    pub(crate) async fn handle_movement_with_catalogs_like_cpp(
         &mut self,
         area_trigger_catalogs: &AreaTriggerCatalogsLikeCpp,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -500,7 +500,7 @@ impl WorldSession {
         }
     }
     #[cfg(test)]
-    pub async fn handle_movement(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_movement(&mut self, pkt: wow_packet::WorldPacket) {
         let area_trigger_catalogs = self.area_trigger_catalogs_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         let progression = self.progression_catalogs_for_test_like_cpp();
@@ -614,7 +614,7 @@ impl WorldSession {
         }
     }
     /// Handle C++ `HandleMovementAckMessage` opcodes.
-    pub async fn handle_movement_ack_message(
+    pub(crate) async fn handle_movement_ack_message(
         &mut self,
         opcode: ClientOpcodes,
         mut pkt: MovementAckMessage,
@@ -633,7 +633,7 @@ impl WorldSession {
     /// owner like its C++ handler; its registered thunk is the production path,
     /// and this branch keeps the direct WorldSession entry point on that same
     /// path for its unit caller instead of duplicating the moved body.
-    pub async fn handle_movement_speed_ack(
+    pub(crate) async fn handle_movement_speed_ack(
         &mut self,
         opcode: ClientOpcodes,
         mut pkt: MovementSpeedAck,
@@ -663,7 +663,7 @@ impl WorldSession {
         self.handle_force_speed_change_ack_like_cpp(opcode, &mut pkt.ack, pkt.speed);
     }
     /// Handle C++ `HandleMoveSplineDoneOpcode` bookkeeping until taxi runtime is complete.
-    pub async fn handle_move_spline_done(&mut self, mut pkt: MoveSplineDone) {
+    pub(crate) async fn handle_move_spline_done(&mut self, mut pkt: MoveSplineDone) {
         trace!(
             account = self.core.account_id,
             spline_id = pkt.spline_id,

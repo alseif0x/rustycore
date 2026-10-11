@@ -14,7 +14,7 @@ impl WorldSession {
             .set_required_persistence_capabilities_like_cpp(capabilities);
     }
 
-    pub fn set_vendor_trade_persistence_port_like_cpp(
+    pub(crate) fn set_vendor_trade_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>,
     ) {
@@ -22,7 +22,7 @@ impl WorldSession {
             .set_vendor_trade_persistence_port_like_cpp(port)
     }
 
-    pub fn set_player_inventory_persistence_port_like_cpp(
+    pub(crate) fn set_player_inventory_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,
     ) {
@@ -30,7 +30,7 @@ impl WorldSession {
             .set_player_inventory_persistence_port_like_cpp(port)
     }
 
-    pub fn set_player_quest_persistence_port_like_cpp(
+    pub(crate) fn set_player_quest_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>,
     ) {
@@ -38,7 +38,7 @@ impl WorldSession {
             .set_player_quest_persistence_port_like_cpp(port)
     }
 
-    pub fn set_player_quest_reward_persistence_port_like_cpp(
+    pub(crate) fn set_player_quest_reward_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>,
     ) {
@@ -46,7 +46,7 @@ impl WorldSession {
             .set_player_quest_reward_persistence_port_like_cpp(port)
     }
 
-    pub fn set_stored_item_persistence_port_like_cpp(
+    pub(crate) fn set_stored_item_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>,
     ) {
@@ -62,7 +62,7 @@ impl WorldSession {
             .set_character_administration_persistence_port_like_cpp(port)
     }
 
-    pub fn set_loot_template_catalog_persistence_port_like_cpp(
+    pub(crate) fn set_loot_template_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>,
     ) {
@@ -70,7 +70,7 @@ impl WorldSession {
             .set_loot_template_catalog_persistence_port_like_cpp(port);
     }
 
-    pub fn set_vendor_catalog_persistence_port_like_cpp(
+    pub(crate) fn set_vendor_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>,
     ) {
@@ -78,7 +78,7 @@ impl WorldSession {
             .set_vendor_catalog_persistence_port_like_cpp(port);
     }
 
-    pub fn set_visibility_spawn_catalog_persistence_port_like_cpp(
+    pub(crate) fn set_visibility_spawn_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>,
     ) {

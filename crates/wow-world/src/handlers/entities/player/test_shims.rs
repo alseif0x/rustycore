@@ -24,46 +24,46 @@ impl WorldSession {
         )
     }
 
-    pub async fn handle_far_sight(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_far_sight(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp().handle_far_sight(pkt).await;
         let catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.force_update_visibility_with_catalogs_like_cpp(&catalogs)
             .await;
     }
 
-    pub async fn handle_query_time(&mut self) {
+    pub(crate) async fn handle_query_time(&mut self) {
         self.player_test_cx_like_cpp().handle_query_time().await;
     }
 
-    pub async fn handle_query_next_mail_time(&mut self) {
+    pub(crate) async fn handle_query_next_mail_time(&mut self) {
         self.player_test_cx_like_cpp()
             .handle_query_next_mail_time()
             .await;
     }
 
-    pub async fn handle_set_selection(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_selection(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp()
             .handle_set_selection(pkt)
             .await;
     }
 
-    pub async fn handle_set_action_button(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_action_button(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp()
             .handle_set_action_button(pkt)
             .await;
     }
 
-    pub async fn handle_set_title(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_title(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp().handle_set_title(pkt).await;
     }
 
-    pub async fn handle_get_item_purchase_data(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_get_item_purchase_data(&mut self, pkt: WorldPacket) {
         self.player_test_cx_like_cpp()
             .handle_get_item_purchase_data(pkt)
             .await;
     }
 
-    pub async fn handle_stand_state_change(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_stand_state_change(&mut self, pkt: WorldPacket) {
         if let Some(intent) = self
             .player_test_cx_like_cpp()
             .handle_stand_state_change(pkt)

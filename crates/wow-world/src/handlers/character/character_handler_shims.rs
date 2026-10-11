@@ -32,7 +32,7 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
-    pub async fn handle_get_undelete_cooldown_status(&mut self) {
+    pub(crate) async fn handle_get_undelete_cooldown_status(&mut self) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::GetUndeleteCharacterCooldownStatus,
@@ -41,15 +41,15 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_alter_appearance(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_alter_appearance(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::AlterAppearance, pkt).await;
     }
 
-    pub async fn handle_confirm_barbers_choice(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_confirm_barbers_choice(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::ConfirmBarbersChoice, pkt).await;
     }
 
-    pub async fn handle_set_player_declined_names(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_player_declined_names(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::SetPlayerDeclinedNames, pkt).await;
     }
 
@@ -62,11 +62,11 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_opening_cinematic(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_opening_cinematic(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::OpeningCinematic, pkt).await;
     }
 
-    pub async fn handle_enum_characters(&mut self) {
+    pub(crate) async fn handle_enum_characters(&mut self) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::EnumCharacters,
@@ -75,7 +75,7 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_char_customize(&mut self, request: CharCustomize) {
+    pub(crate) async fn handle_char_customize(&mut self, request: CharCustomize) {
         dispatch_registered_like_cpp(
             self,
             ClientOpcodes::CharCustomize,

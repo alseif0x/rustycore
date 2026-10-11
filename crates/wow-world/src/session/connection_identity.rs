@@ -54,7 +54,7 @@ pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) 
 pub(in crate::session) use wow_world_core::session::connection_identity::unix_now;
 
 impl WorldSession {
-    pub fn set_realm_id(&mut self, realm_id: u16) {
+    pub(crate) fn set_realm_id(&mut self, realm_id: u16) {
         self.core.set_realm_id(realm_id)
     }
 
@@ -76,7 +76,7 @@ impl WorldSession {
 
     /// Set the GUID generator for new characters.
     #[cfg(test)]
-    pub fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
+    pub(crate) fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
         self.core.guid_generator = Some(generator);
     }
 
@@ -99,7 +99,7 @@ impl WorldSession {
         self.core.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
     }
 
-    pub fn realm_id(&self) -> u16 {
+    pub(crate) fn realm_id(&self) -> u16 {
         self.core.realm_id()
     }
 
@@ -108,7 +108,7 @@ impl WorldSession {
         self.core.transport.session_mgr = Some(mgr);
     }
 
-    pub fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
+    pub(crate) fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
         self.core.session_mgr()
     }
 
@@ -121,7 +121,7 @@ impl WorldSession {
         self.core.set_legit_characters(guids)
     }
 
-    pub fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
+    pub(crate) fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
         self.core.is_legit_character(guid)
     }
 
@@ -141,7 +141,7 @@ impl WorldSession {
     }
 
     /// Time since the last packet was received.
-    pub fn idle_time(&self) -> std::time::Duration {
+    pub(crate) fn idle_time(&self) -> std::time::Duration {
         self.core.admission.last_packet_time.elapsed()
     }
 

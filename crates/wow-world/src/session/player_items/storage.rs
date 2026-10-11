@@ -105,7 +105,7 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_item_inventory_type_like_cpp(hub, item_entry, item_guid)
     }
-    pub fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
+    pub(crate) fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
         crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
     pub(crate) fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {

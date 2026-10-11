@@ -1667,7 +1667,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_currency_flags",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_currency_flags (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -2356,7 +2356,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_accept_wargame_invite",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_accept_wargame_invite (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -2370,7 +2370,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlemaster_join_skirmish",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlemaster_join_skirmish (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2400,7 +2400,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_set_pvp_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn apply_set_pvp_like_cpp (& mut self , enable_pvp : bool)",
           "cfg": [
             "cfg (test)"
@@ -2416,7 +2416,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_toggle_pvp_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn apply_toggle_pvp_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -2447,7 +2447,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_area_spirit_healer_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_area_spirit_healer_query (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2463,7 +2463,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_area_spirit_healer_queue",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_area_spirit_healer_queue (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2479,7 +2479,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_accept",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_accept (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2495,7 +2495,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_decline",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_decline (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2511,7 +2511,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_disband",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_disband (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2527,7 +2527,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_leader",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_leader (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2543,7 +2543,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_leave",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_leave (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2559,7 +2559,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_remove",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_remove (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2575,7 +2575,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_arena_team_roster",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_arena_team_roster (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2591,7 +2591,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlefield_leave",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlefield_leave (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2607,7 +2607,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlefield_list",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlefield_list (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2623,7 +2623,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlefield_port",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlefield_port (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2639,7 +2639,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlemaster_hello",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlemaster_hello (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2655,7 +2655,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlemaster_join",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlemaster_join (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2671,7 +2671,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlemaster_join_arena",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlemaster_join_arena (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2687,7 +2687,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_arena_team",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_arena_team (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2703,7 +2703,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_battlefield_status",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_battlefield_status (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2719,7 +2719,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_pvp_rewards",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_pvp_rewards (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2735,7 +2735,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_rated_pvp_info",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_rated_pvp_info (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2751,7 +2751,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_pvp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_pvp (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2767,7 +2767,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_toggle_pvp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_toggle_pvp (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -2783,7 +2783,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battlenet_request",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battlenet_request (& mut self , req : BattlenetRequest)",
           "cfg": [
             "cfg (test)"
@@ -2799,7 +2799,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_change_realm_ticket",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_change_realm_ticket (& mut self , ticket : ChangeRealmTicket)",
           "cfg": [
             "cfg (test)"
@@ -3070,7 +3070,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_hotfix_request",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_hotfix_request (& mut self , cache : & wow_data :: HotfixBlobCache , req : wow_packet :: packets :: misc :: HotfixRequest ,)",
           "cfg": [
             "cfg (test)"
@@ -3506,7 +3506,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_autobank_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_autobank_item (& mut self , packet : AutoBankItem)",
           "cfg": [
             "cfg (test)"
@@ -3522,7 +3522,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_autobank_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_autobank_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , packet : AutoBankItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -3536,7 +3536,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_autostore_bank_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_autostore_bank_item (& mut self , packet : AutoStoreBankItem)",
           "cfg": [
             "cfg (test)"
@@ -3552,7 +3552,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_autostore_bank_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_autostore_bank_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , packet : AutoStoreBankItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -3566,7 +3566,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_banker_activate",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_banker_activate (& mut self , hello : Hello)",
           "cfg": [],
           "source_class": "production",
@@ -3580,7 +3580,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_buy_bank_slot",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_buy_bank_slot (& mut self , buy : BuyBankSlot)",
           "cfg": [
             "cfg (test)"
@@ -3610,7 +3610,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_change_bank_bag_slot_flag",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_change_bank_bag_slot_flag (& mut self , packet : ChangeBankBagSlotFlag)",
           "cfg": [],
           "source_class": "production",
@@ -3821,7 +3821,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_alter_appearance",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_alter_appearance (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -3837,7 +3837,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_char_customize",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_char_customize (& mut self , request : CharCustomize)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -3869,7 +3869,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_confirm_barbers_choice",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_confirm_barbers_choice (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -3885,7 +3885,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_enum_characters",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_enum_characters (& mut self)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -3901,7 +3901,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_get_undelete_cooldown_status",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_get_undelete_cooldown_status (& mut self)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -3917,7 +3917,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_opening_cinematic",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_opening_cinematic (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -3933,7 +3933,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_player_declined_names",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_player_declined_names (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (any (test , feature = \"test-fixtures\"))"
@@ -4017,7 +4017,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_binder_activate",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_binder_activate (& mut self , hello : Hello)",
           "cfg": [
             "cfg (test)"
@@ -4033,7 +4033,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_binder_activate_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_binder_activate_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , hello : Hello ,)",
           "cfg": [],
           "source_class": "production",
@@ -4047,7 +4047,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_gossip_hello",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_gossip_hello (& mut self , hello : Hello)",
           "cfg": [],
           "source_class": "production",
@@ -4061,7 +4061,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_gossip_select_option",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_gossip_select_option (& mut self , select : wow_packet :: packets :: gossip :: GossipSelectOption ,)",
           "cfg": [],
           "source_class": "production",
@@ -4203,7 +4203,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_destroy_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_destroy_item (& mut self , destroy : wow_packet :: packets :: item :: DestroyItemPkt ,)",
           "cfg": [],
           "source_class": "production",
@@ -4231,7 +4231,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_assign_equipment_set_spec",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_assign_equipment_set_spec (& mut self , pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -4245,7 +4245,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_delete_equipment_set",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_delete_equipment_set (& mut self , pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -4259,7 +4259,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_save_equipment_set",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_save_equipment_set (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -4275,7 +4275,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_save_equipment_set_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_save_equipment_set_with_generator_like_cpp (& mut self , generator : & wow_core :: EquipmentSetGuidGeneratorLikeCpp , pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -4289,7 +4289,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_use_equipment_set",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_use_equipment_set (& mut self , pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -4303,7 +4303,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_equip_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_equip_item (& mut self , equip : AutoEquipItem)",
           "cfg": [
             "cfg (test)"
@@ -4319,7 +4319,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_equip_item_slot",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_equip_item_slot (& mut self , equip : AutoEquipItemSlot)",
           "cfg": [
             "cfg (test)"
@@ -4335,7 +4335,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_equip_item_slot_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_equip_item_slot_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , equip : AutoEquipItemSlot ,)",
           "cfg": [],
           "source_class": "production",
@@ -4349,7 +4349,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_equip_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_equip_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , equip : AutoEquipItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -4363,7 +4363,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_store_bag_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_store_bag_item (& mut self , store : wow_packet :: packets :: item :: AutoStoreBagItem ,)",
           "cfg": [
             "cfg (test)"
@@ -4379,7 +4379,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_store_bag_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_store_bag_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , store : wow_packet :: packets :: item :: AutoStoreBagItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -4393,7 +4393,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_temp_enchantment",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_temp_enchantment (& mut self , cancel : CancelTempEnchantment)",
           "cfg": [],
           "source_class": "production",
@@ -4407,7 +4407,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_swap_inv_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_swap_inv_item (& mut self , swap : SwapInvItem)",
           "cfg": [
             "cfg (test)"
@@ -4423,7 +4423,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_swap_inv_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_swap_inv_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , swap : SwapInvItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -4437,7 +4437,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_swap_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_swap_item (& mut self , swap : wow_packet :: packets :: item :: SwapItem)",
           "cfg": [
             "cfg (test)"
@@ -4453,7 +4453,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_swap_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_swap_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , swap : wow_packet :: packets :: item :: SwapItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -4705,7 +4705,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_hearth_and_resurrect",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_hearth_and_resurrect (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -4805,7 +4805,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_item_text_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_item_text_query (& mut self , query : ItemTextQuery)",
           "cfg": [],
           "source_class": "production",
@@ -4819,7 +4819,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_status_multiple_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_status_multiple_query (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -4835,7 +4835,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_status_multiple_query_with_catalog_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_status_multiple_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore ,)",
           "cfg": [],
           "source_class": "production",
@@ -4849,7 +4849,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_status_tracked_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_status_tracked_query (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -4865,7 +4865,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_status_tracked_query_with_catalog_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_status_tracked_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -4923,7 +4923,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_corpse_transport",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_corpse_transport (& mut self , query : QueryCorpseTransport)",
           "cfg": [
             "cfg (test)"
@@ -4939,7 +4939,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_creature",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_creature (& mut self , query : QueryCreature)",
           "cfg": [
             "cfg (test)"
@@ -4955,7 +4955,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_game_object",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_game_object (& mut self , query : QueryGameObject)",
           "cfg": [
             "cfg (test)"
@@ -4971,7 +4971,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_page_text",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_page_text (& mut self , query : QueryPageText)",
           "cfg": [
             "cfg (test)"
@@ -4987,7 +4987,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_pet_name",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_pet_name (& mut self , query : QueryPetName)",
           "cfg": [
             "cfg (test)"
@@ -5003,7 +5003,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_player_names",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_player_names (& mut self , query : QueryPlayerNames)",
           "cfg": [
             "cfg (test)"
@@ -5019,7 +5019,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_realm_name",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_realm_name (& mut self , query : QueryRealmName)",
           "cfg": [
             "cfg (test)"
@@ -5035,7 +5035,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "realm_query_response_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn realm_query_response_like_cpp (& self , virtual_realm_address : u32 ,) -> wow_packet :: packets :: query :: RealmQueryResponse",
           "cfg": [
             "cfg (test)"
@@ -5333,7 +5333,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_item_purchase_refund",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_item_purchase_refund (& mut self , refund : ItemPurchaseRefund)",
           "cfg": [
             "cfg (test)"
@@ -5349,7 +5349,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_item_purchase_refund_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_item_purchase_refund_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , refund : ItemPurchaseRefund ,)",
           "cfg": [],
           "source_class": "production",
@@ -5363,7 +5363,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_repair_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_repair_item (& mut self , repair : RepairItem)",
           "cfg": [
             "cfg (test)"
@@ -5379,7 +5379,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_repair_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_repair_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , repair : RepairItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -5393,7 +5393,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_sell_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_sell_item (& mut self , sell : SellItem)",
           "cfg": [
             "cfg (test)"
@@ -5436,7 +5436,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_buy_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_buy_item (& mut self , buy : BuyItem)",
           "cfg": [
             "cfg (test)"
@@ -5452,7 +5452,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_buy_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_buy_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , buy : BuyItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -5466,7 +5466,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_buy_back_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_buy_back_item (& mut self , buyback : BuyBackItem)",
           "cfg": [
             "cfg (test)"
@@ -5482,7 +5482,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_buy_back_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_buy_back_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , buyback : BuyBackItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -5496,7 +5496,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_list_inventory",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_list_inventory (& mut self , hello : Hello)",
           "cfg": [],
           "source_class": "production",
@@ -5510,7 +5510,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_sell_item_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_sell_item_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , sell : SellItem ,)",
           "cfg": [],
           "source_class": "production",
@@ -5598,7 +5598,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_nearby_creatures_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn send_nearby_creatures_with_catalogs_like_cpp (& mut self , catalogs : & CreatureSpawnCatalogsLikeCpp , map_id : u16 , position : & Position , _zone_id : u32 ,)",
           "cfg": [],
           "source_class": "production",
@@ -5612,7 +5612,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_visibility",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn update_visibility (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -5628,7 +5628,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_visibility_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn update_visibility_with_catalogs_like_cpp (& mut self , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
@@ -5655,7 +5655,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_nearby_gameobjects",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn send_nearby_gameobjects (& mut self , map_id : u16 , position : & Position , _zone_id : u32 ,)",
           "cfg": [],
           "source_class": "production",
@@ -5683,7 +5683,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_logout_request",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_logout_request (& mut self , req : LogoutRequest)",
           "cfg": [
             "cfg (test)"
@@ -6147,7 +6147,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_text_emote",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_text_emote (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6205,7 +6205,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_addon_message",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_addon_message (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6237,7 +6237,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_addon_message_whisper",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_addon_message_whisper (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6253,7 +6253,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_afk",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_afk (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6269,7 +6269,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_channel_message",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_channel_message (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6285,7 +6285,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_dnd",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_dnd (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6301,7 +6301,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_emote",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_emote (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6333,7 +6333,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_whisper",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_whisper (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6349,7 +6349,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_addon_message_with_policy_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_addon_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [
             "cfg (test)"
@@ -6365,7 +6365,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_channel_command",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_channel_command (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6381,7 +6381,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_channel_password",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_channel_password (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6413,7 +6413,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_join_channel",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_join_channel (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6429,7 +6429,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_leave_channel",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_leave_channel (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6445,7 +6445,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_message_with_policy_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_message_with_policy_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket , msg_type : ChatMsg , chat_policy : & ChatPolicyCatalogsLikeCpp ,)",
           "cfg": [
             "cfg (test)"
@@ -6477,7 +6477,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_report_filtered",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_report_filtered (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6493,7 +6493,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_report_ignored",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_report_ignored (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6509,7 +6509,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_chat_unregister_all_addon_prefixes",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_chat_unregister_all_addon_prefixes (& mut self , pkt : wow_packet :: WorldPacket ,)",
           "cfg": [
             "cfg (test)"
@@ -6525,7 +6525,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_emote",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_emote (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6541,7 +6541,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_update_aadc_status",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_update_aadc_status (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6557,7 +6557,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_add_toy",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_add_toy (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -6571,7 +6571,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_transmogrify_items",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_transmogrify_items (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -6585,7 +6585,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_use_toy",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_use_toy (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6601,7 +6601,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_use_toy_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_use_toy_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -6630,7 +6630,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_collection_item_set_favorite",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_collection_item_set_favorite (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6646,7 +6646,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_mount_clear_fanfare",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_mount_clear_fanfare (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6662,7 +6662,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_mount_set_favorite",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_mount_set_favorite (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6678,7 +6678,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_mount_special_anim",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_mount_special_anim (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6694,7 +6694,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_toy_clear_fanfare",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_toy_clear_fanfare (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6724,7 +6724,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_attack_swing",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_attack_swing (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -6738,7 +6738,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_attack_stop",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_attack_stop (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6754,7 +6754,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_sheathed",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn handle_set_sheathed (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6783,7 +6783,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_df_get_system_info",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_df_get_system_info (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6882,7 +6882,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_df_get_join_status",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_df_get_join_status (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6898,7 +6898,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_lfg_list_get_status",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_lfg_list_get_status (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6914,7 +6914,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_conquest_formula_constants",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_conquest_formula_constants (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -6930,7 +6930,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_lfg_list_blacklist",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_lfg_list_blacklist (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7074,7 +7074,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_accept_trade",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_accept_trade (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7090,7 +7090,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_begin_trade",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_begin_trade (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7106,7 +7106,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_busy_trade",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_busy_trade (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7122,7 +7122,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_can_duel",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_can_duel (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7138,7 +7138,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_trade",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_trade (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7154,7 +7154,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_clear_trade_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_clear_trade_item (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7170,7 +7170,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_decline_petition",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_decline_petition (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7186,7 +7186,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_duel_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_duel_response (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7202,7 +7202,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_ignore_trade",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_ignore_trade (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7218,7 +7218,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_petition",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_petition (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7234,7 +7234,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_trade_gold",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_trade_gold (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7250,7 +7250,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_trade_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_trade_item (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7266,7 +7266,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_trade_spell",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_trade_spell (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7282,7 +7282,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_sign_petition",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_sign_petition (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7298,7 +7298,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_unaccept_trade",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_unaccept_trade (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7342,7 +7342,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_reclaim_corpse",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_reclaim_corpse (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7356,7 +7356,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_repop_request",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_repop_request (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7370,7 +7370,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_cemetery_list",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_cemetery_list (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7400,7 +7400,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_resurrect_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_resurrect_response (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7414,7 +7414,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "try_handle_client_port_graveyard_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn try_handle_client_port_graveyard_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -7484,7 +7484,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_game_obj_use",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_game_obj_use (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7543,7 +7543,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_close_interaction",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_close_interaction (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7559,7 +7559,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_game_obj_report_use",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_game_obj_report_use (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7575,7 +7575,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_difficulty_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_difficulty_id (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7589,7 +7589,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_dungeon_difficulty",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_dungeon_difficulty (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7603,7 +7603,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_raid_difficulty",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_raid_difficulty (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7617,7 +7617,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_toggle_difficulty",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_toggle_difficulty (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7631,7 +7631,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_far_sight",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_far_sight (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7647,7 +7647,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_get_item_purchase_data",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_get_item_purchase_data (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7663,7 +7663,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_next_mail_time",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_next_mail_time (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -7679,7 +7679,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_time",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_time (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -7695,7 +7695,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_action_button",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_action_button (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7711,7 +7711,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_selection",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_selection (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7727,7 +7727,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_title",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_title (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7743,7 +7743,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_stand_state_change",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_stand_state_change (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7860,7 +7860,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_clear_raid_marker",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_clear_raid_marker (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -7874,7 +7874,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_change_sub_group",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_change_sub_group (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7890,7 +7890,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_convert_raid",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_convert_raid (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7906,7 +7906,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_do_ready_check",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_do_ready_check (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7922,7 +7922,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_initiate_role_poll",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_initiate_role_poll (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7938,7 +7938,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_leave_group",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_leave_group (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7954,7 +7954,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_low_level_raid1",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_low_level_raid1 (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7970,7 +7970,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_low_level_raid2",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_low_level_raid2 (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -7986,7 +7986,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_minimap_ping",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_minimap_ping (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8002,7 +8002,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_opt_out_of_loot",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_opt_out_of_loot (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8018,7 +8018,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_invite",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_party_invite (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8034,7 +8034,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_invite_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_party_invite_response (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8050,7 +8050,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_invite_with_policy_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_party_invite_with_policy_like_cpp (& mut self , pkt : WorldPacket , policy : & crate :: session :: GroupInvitePolicyLikeCpp ,)",
           "cfg": [
             "cfg (test)"
@@ -8066,7 +8066,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_party_uninvite",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_party_uninvite (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8082,7 +8082,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_random_roll",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_random_roll (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8098,7 +8098,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_ready_check_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_ready_check_response (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8114,7 +8114,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_party_join_updates",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_party_join_updates (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8130,7 +8130,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_party_member_stats",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_party_member_stats (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8146,7 +8146,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_assistant_leader",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_assistant_leader (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8162,7 +8162,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_everyone_is_assistant",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_everyone_is_assistant (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8178,7 +8178,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_loot_method",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_loot_method (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8194,7 +8194,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_party_assignment",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_party_assignment (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8210,7 +8210,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_party_leader",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_party_leader (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8226,7 +8226,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_role",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_role (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8242,7 +8242,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_silence_party_talker",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_silence_party_talker (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8258,7 +8258,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_swap_sub_groups",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_swap_sub_groups (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8274,7 +8274,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_update_raid_target",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_update_raid_target (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8304,7 +8304,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_accept_guild_invite",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_accept_guild_invite (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8320,7 +8320,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_guild_bank_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_guild_bank_item (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8336,7 +8336,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_auto_store_guild_bank_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_auto_store_guild_bank_item (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8352,7 +8352,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_decline_guild_invites",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_decline_guild_invites (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8368,7 +8368,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_activate",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_activate (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8384,7 +8384,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_buy_tab",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_buy_tab (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8400,7 +8400,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_deposit_money",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_deposit_money (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8416,7 +8416,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_log_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_log_query (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8432,7 +8432,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_query_tab",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_query_tab (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8464,7 +8464,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_set_tab_text",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_set_tab_text (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8480,7 +8480,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_text_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_text_query (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8496,7 +8496,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_update_tab",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_update_tab (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8512,7 +8512,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_bank_withdraw_money",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_bank_withdraw_money (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8528,7 +8528,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_decline_invitation",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_decline_invitation (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8544,7 +8544,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_guild_set_achievement_tracking",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_guild_set_achievement_tracking (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -8560,7 +8560,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_instance_lock_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_instance_lock_response (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -8574,7 +8574,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_raid_info",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_raid_info (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -8588,7 +8588,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_reset_instances",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_reset_instances (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -8602,7 +8602,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_saved_instance_extend",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_saved_instance_extend (& mut self , query : SetSavedInstanceExtend)",
           "cfg": [],
           "source_class": "production",
@@ -9146,7 +9146,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_loot_money",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_loot_money (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -9162,7 +9162,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_loot_money_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_loot_money_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -9176,7 +9176,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_loot_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_loot_item (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -9192,7 +9192,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_loot_release",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_loot_release (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -9208,7 +9208,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_loot_roll",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_loot_roll (& mut self , roll : LootRoll)",
           "cfg": [
             "cfg (test)"
@@ -9224,7 +9224,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_loot_unit",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_loot_unit (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -9240,7 +9240,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_master_loot_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_master_loot_item (& mut self , master_loot_item : MasterLootItem)",
           "cfg": [
             "cfg (test)"
@@ -9256,7 +9256,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_loot_specialization",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_loot_specialization (& mut self , packet : SetLootSpecialization)",
           "cfg": [
             "cfg (test)"
@@ -11360,7 +11360,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_move_spline_done",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_move_spline_done (& mut self , mut pkt : MoveSplineDone)",
           "cfg": [],
           "source_class": "production",
@@ -11374,7 +11374,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_movement",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_movement (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11390,7 +11390,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_movement_ack_message",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_movement_ack_message (& mut self , opcode : ClientOpcodes , mut pkt : MovementAckMessage ,)",
           "cfg": [],
           "source_class": "production",
@@ -11434,7 +11434,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_movement_speed_ack",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_movement_speed_ack (& mut self , opcode : ClientOpcodes , mut pkt : MovementSpeedAck ,)",
           "cfg": [],
           "source_class": "production",
@@ -11448,7 +11448,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_movement_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_movement_with_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , progression : & ProgressionCatalogsLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -11478,7 +11478,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_move_knock_back_ack",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_move_knock_back_ack (& mut self , pkt : MoveKnockBackAck)",
           "cfg": [
             "cfg (test)"
@@ -11510,7 +11510,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_move_set_vehicle_rec_id_ack",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_move_set_vehicle_rec_id_ack (& mut self , opcode : ClientOpcodes , pkt : MoveSetVehicleRecIdAck ,)",
           "cfg": [
             "cfg (test)"
@@ -11526,7 +11526,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_move_time_skipped",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_move_time_skipped (& mut self , pkt : MoveTimeSkipped)",
           "cfg": [
             "cfg (test)"
@@ -11738,7 +11738,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_delete_pet_represented_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_delete_pet_represented_like_cpp (& mut self , pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -11752,7 +11752,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_modify_name_represented_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_modify_name_represented_like_cpp (& mut self , pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -11766,7 +11766,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cage_battle_pet_represented_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cage_battle_pet_represented_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [
             "cfg (test)"
@@ -11782,7 +11782,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_dismiss_critter",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_dismiss_critter (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -11824,7 +11824,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_clear_fanfare",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_clear_fanfare (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11840,7 +11840,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_request_journal",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_request_journal (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11856,7 +11856,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_request_journal_lock",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_request_journal_lock (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11872,7 +11872,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_set_battle_slot",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_set_battle_slot (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11888,7 +11888,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_set_flags",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_set_flags (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11904,7 +11904,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_summon",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_summon (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11920,7 +11920,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_battle_pet_update_notify",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_battle_pet_update_notify (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -11936,7 +11936,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_battle_pet_name",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_battle_pet_name (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12103,7 +12103,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "can_take_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn can_take_quest (& self , quest : & wow_data :: quest :: QuestTemplate) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -12131,7 +12131,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "has_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn has_quest (& self , quest_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -12225,7 +12225,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_adventure_map_start_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_adventure_map_start_quest (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12255,7 +12255,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_confirm_accept",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_confirm_accept (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12271,7 +12271,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_confirm_accept_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_confirm_accept_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -12285,7 +12285,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_accept_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_accept_quest (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12301,7 +12301,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_accept_quest_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_accept_quest_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -12455,7 +12455,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_hello",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_hello (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -12483,7 +12483,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_status_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_status_query (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12499,7 +12499,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_status_query_with_catalog_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_status_query_with_catalog_like_cpp (& mut self , quest_info : & wow_data :: progression_rewards :: QuestInfoStore , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -12513,7 +12513,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_poi_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_poi_query (& mut self , query : QuestPoiQuery)",
           "cfg": [],
           "source_class": "production",
@@ -12527,7 +12527,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_choose_reward",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_choose_reward (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12543,7 +12543,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_choose_reward_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_choose_reward_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -12557,7 +12557,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_request_reward",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_request_reward (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12573,7 +12573,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_request_reward_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_request_reward_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -12587,7 +12587,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_push_quest_to_party",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_push_quest_to_party (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -12629,7 +12629,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_quest_completion_npcs",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_quest_completion_npcs (& mut self , query : wow_packet :: packets :: query :: QueryQuestCompletionNpcs ,)",
           "cfg": [
             "cfg (test)"
@@ -12645,7 +12645,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_query_quest_info",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_query_quest_info (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12661,7 +12661,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_close_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_close_quest (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12677,7 +12677,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_giver_complete_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_giver_complete_quest (& mut self , mut pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12693,7 +12693,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_log_remove_quest",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_log_remove_quest (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12709,7 +12709,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_quest_push_result",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_quest_push_result (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -12725,7 +12725,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_world_quest_update",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_world_quest_update (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -13870,7 +13870,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_accept_social_contract",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_accept_social_contract (& mut self , accept : AcceptSocialContract)",
           "cfg": [
             "cfg (test)"
@@ -13886,7 +13886,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_account_notification_acknowledged",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_account_notification_acknowledged (& mut self , packet : AccountNotificationAcknowledged ,)",
           "cfg": [
             "cfg (test)"
@@ -13902,7 +13902,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_del_ignore",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_del_ignore (& mut self , ignore : DelIgnore)",
           "cfg": [
             "cfg (test)"
@@ -13918,7 +13918,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_social_contract_request",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_social_contract_request (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -13976,7 +13976,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cast_spell",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cast_spell (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -13992,7 +13992,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cast_spell_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cast_spell_with_catalogs_like_cpp (& mut self , area_trigger_catalogs : & AreaTriggerCatalogsLikeCpp , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , progression : & crate :: session :: ProgressionCatalogsLikeCpp , player_grid_loader : & crate :: session :: PlayerGridLoadResolverLikeCpp , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -14006,7 +14006,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_open_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_open_item (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -14108,7 +14108,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_self_res",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_self_res (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14124,7 +14124,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_self_res_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_self_res_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -14138,7 +14138,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_spell_click",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_spell_click (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14154,7 +14154,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_spell_click_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_spell_click_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & crate :: session :: CreatureSpawnCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -14294,7 +14294,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "try_handle_cancel_mod_speed_no_control_auras_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn try_handle_cancel_mod_speed_no_control_auras_like_cpp (& mut self , mut pkt : wow_packet :: WorldPacket ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -14324,7 +14324,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_aura",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_aura (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14340,7 +14340,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_auto_repeat_spell",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_auto_repeat_spell (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14356,7 +14356,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_cast",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_cast (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14372,7 +14372,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_channelling",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_channelling (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14388,7 +14388,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_growth_aura",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_growth_aura (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14404,7 +14404,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_mount_aura",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_mount_aura (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14420,7 +14420,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_cancel_queued_spell",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_cancel_queued_spell (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14436,7 +14436,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_pet_cancel_aura",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_pet_cancel_aura (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14452,7 +14452,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_totem_destroyed",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_totem_destroyed (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14704,7 +14704,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_confirm_respec_wipe",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_confirm_respec_wipe (& mut self , packet : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14720,7 +14720,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_confirm_respec_wipe_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_confirm_respec_wipe_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , no_reset_talent_cost : bool , mut packet : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -14734,7 +14734,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_learn_talent",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_learn_talent (& mut self , talent_tabs : & wow_data :: TalentTabStore , mut packet : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -14748,7 +14748,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_learn_talents",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_learn_talents (& mut self , talent_tabs : & wow_data :: TalentTabStore , mut packet : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -14776,7 +14776,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_stabled_pets",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_stabled_pets (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14792,7 +14792,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_spirit_healer_activate",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_spirit_healer_activate (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14808,7 +14808,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_trainer_buy_spell",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_trainer_buy_spell (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -14824,7 +14824,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_trainer_list",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_trainer_list (& mut self , hello : wow_packet :: packets :: gossip :: Hello)",
           "cfg": [],
           "source_class": "production",
@@ -15100,7 +15100,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_activate_taxi",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_activate_taxi (& mut self , mut pkt : wow_packet :: WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -15114,7 +15114,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_area_trigger",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_area_trigger (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15130,7 +15130,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_area_trigger_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_area_trigger_with_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp , mut pkt : wow_packet :: WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -15144,7 +15144,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_world_port_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_world_port_response (& mut self , pkt : wow_packet :: WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15188,7 +15188,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_set_taxi_benchmark_mode",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_set_taxi_benchmark_mode (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15204,7 +15204,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_suspend_token_response",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_suspend_token_response (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15220,7 +15220,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_taxi_node_status_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_taxi_node_status_query (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15236,7 +15236,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_update_area_trigger_visual",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_update_area_trigger_visual (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15295,7 +15295,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_move_dismiss_vehicle",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_move_dismiss_vehicle (& mut self , mut packet : MoveDismissVehicle)",
           "cfg": [],
           "source_class": "production",
@@ -15323,7 +15323,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_ride_vehicle_interact",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_ride_vehicle_interact (& mut self , packet : RideVehicleInteract)",
           "cfg": [],
           "source_class": "production",
@@ -15337,7 +15337,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_eject_passenger",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_eject_passenger (& mut self , packet : wow_packet :: packets :: vehicle :: EjectPassenger ,)",
           "cfg": [
             "cfg (test)"
@@ -15353,7 +15353,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_vehicle_exit",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_vehicle_exit (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehicleExit ,)",
           "cfg": [
             "cfg (test)"
@@ -15369,7 +15369,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_vehicle_next_seat",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_vehicle_next_seat (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehicleNextSeat ,)",
           "cfg": [
             "cfg (test)"
@@ -15385,7 +15385,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_request_vehicle_prev_seat",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_request_vehicle_prev_seat (& mut self , packet : wow_packet :: packets :: vehicle :: RequestVehiclePrevSeat ,)",
           "cfg": [
             "cfg (test)"
@@ -15417,7 +15417,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "represented_request_vehicle_exit_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn represented_request_vehicle_exit_like_cpp (& mut self) -> bool",
           "cfg": [
             "cfg (test)"
@@ -15742,7 +15742,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_swap_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_void_storage_swap_item (& mut self , mut pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -15756,7 +15756,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_transfer",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_void_storage_transfer (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15772,7 +15772,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_transfer_with_generators_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_void_storage_transfer_with_generators_like_cpp (& mut self , generators : & SessionIdGeneratorsLikeCpp , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -15786,7 +15786,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_query",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_void_storage_query (& mut self , mut pkt : WorldPacket)",
           "cfg": [],
           "source_class": "production",
@@ -15800,7 +15800,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_unlock",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_void_storage_unlock (& mut self , pkt : WorldPacket)",
           "cfg": [
             "cfg (test)"
@@ -15816,7 +15816,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "handle_void_storage_unlock_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn handle_void_storage_unlock_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , mut pkt : WorldPacket ,)",
           "cfg": [],
           "source_class": "production",
@@ -16395,7 +16395,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "add_item_appearance_for_item_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn add_item_appearance_for_item_like_cpp (& mut self , item_id : u32 , appearance_mod_id : u32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -16421,7 +16421,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "add_item_appearance_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn add_item_appearance_like_cpp (& mut self , item_modified_appearance_id : u32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -16600,7 +16600,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "add_temporary_item_appearance_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn add_temporary_item_appearance_like_cpp (& mut self , item_modified_appearance_id : u32 , item_guid : ObjectGuid ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -16613,7 +16613,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "add_transmog_set_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn add_transmog_set_like_cpp (& mut self , transmog_set_id : u32 ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -16781,7 +16781,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_aura",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn apply_aura (& mut self , spell_id : i32 , caster_guid : ObjectGuid , duration_ms : u32 , aura_flags : u32 ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -17249,7 +17249,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_enchantment_effect_refs",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn apply_enchantment_effect_refs (& self , enchantment_id : u32 ,) -> Option < [ApplyEnchantmentEffectRef ; 3] >",
           "cfg": [],
           "source_class": "production",
@@ -17262,7 +17262,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_enchantment_random_suffix_ref",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn apply_enchantment_random_suffix_ref (& self , random_properties_id : i32 ,) -> Option < ApplyEnchantmentRandomSuffixRef >",
           "cfg": [],
           "source_class": "production",
@@ -17275,7 +17275,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_enchantment_template_ref",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn apply_enchantment_template_ref (& self , enchantment_id : i32 , required_skill_value : u16 , condition_fits : bool ,) -> Option < ApplyEnchantmentTemplateRef >",
           "cfg": [],
           "source_class": "production",
@@ -19345,7 +19345,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "battlenet_account_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn battlenet_account_id (& self) -> u32",
           "cfg": [],
           "source_class": "production",
@@ -19872,7 +19872,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "can_add_item_appearance_represented_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn can_add_item_appearance_represented_like_cpp (& self , item_modified_appearance_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -20392,7 +20392,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "check_area_triggers",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn check_area_triggers (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -20407,7 +20407,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "check_area_triggers_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn check_area_triggers_with_catalogs_like_cpp (& mut self , catalogs : & AreaTriggerCatalogsLikeCpp ,)",
           "cfg": [],
           "source_class": "production",
@@ -20515,7 +20515,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "chr_specialization_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn chr_specialization_store (& self) -> Option < & Arc < ChrSpecializationStore > >",
           "cfg": [],
           "source_class": "production",
@@ -20567,7 +20567,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "cleanup_shared_runtime_state_on_disconnect_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn cleanup_shared_runtime_state_on_disconnect_like_cpp (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -20582,7 +20582,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn cleanup_shared_runtime_state_on_disconnect_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator ,) -> FinalizationOutcome",
           "cfg": [
             "cfg (test)"
@@ -21120,7 +21120,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "condition_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn condition_store (& self) -> Option < & Arc < ConditionEntriesByTypeStore > >",
           "cfg": [],
           "source_class": "production",
@@ -21342,7 +21342,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "currency_types_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn currency_types_store (& self) -> Option < & Arc < CurrencyTypesStore > >",
           "cfg": [],
           "source_class": "production",
@@ -21711,7 +21711,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "disable_mgr",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn disable_mgr (& self) -> Option < & Arc < DisableMgrLikeCpp > >",
           "cfg": [],
           "source_class": "production",
@@ -21819,7 +21819,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "durability_costs_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn durability_costs_store (& self) -> Option < & Arc < DurabilityCostsStore > >",
           "cfg": [],
           "source_class": "production",
@@ -21832,7 +21832,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "durability_quality_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn durability_quality_store (& self) -> Option < & Arc < DurabilityQualityStore > >",
           "cfg": [],
           "source_class": "production",
@@ -22100,7 +22100,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell (& mut self , spell_id : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
@@ -22115,7 +22115,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -22128,7 +22128,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_target_data",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_target_data (& mut self , spell_id : i32 , target_guid : ObjectGuid , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
@@ -22143,7 +22143,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_target_data_and_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -22156,7 +22156,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_visual",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual (& mut self , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
@@ -22171,7 +22171,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_visual_and_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -22184,7 +22184,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_visual_and_target_data",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual_and_target_data (& mut self , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
@@ -22199,7 +22199,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_visual_and_target_data_and_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual_and_target_data_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -22212,7 +22212,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_visual_and_target_data_with_metadata",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual_and_target_data_with_metadata (& mut self , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData , metadata : SpellCastMetadata ,) -> Result < () , & 'static str >",
           "cfg": [
             "cfg (test)"
@@ -22227,7 +22227,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn execute_spell_with_visual_and_target_data_with_metadata_and_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , creature_spawn_catalogs : & CreatureSpawnCatalogsLikeCpp , spell_id : i32 , target_guid : ObjectGuid , cast_id : ObjectGuid , spell_visual : wow_packet :: packets :: spell :: SpellCastVisual , target_data : SpellTargetData , metadata : SpellCastMetadata ,) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -22407,7 +22407,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "finish_worldport_native_before_disconnect_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn finish_worldport_native_before_disconnect_like_cpp (& mut self) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -22958,7 +22958,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn group_registry (& self) -> Option < & Arc < GroupRegistry > >",
           "cfg": [],
           "source_class": "production",
@@ -23297,7 +23297,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "heirloom_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn heirloom_store (& self) -> Option < & Arc < HeirloomStore > >",
           "cfg": [],
           "source_class": "production",
@@ -23338,7 +23338,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "idle_time",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn idle_time (& self) -> std :: time :: Duration",
           "cfg": [],
           "source_class": "production",
@@ -23364,7 +23364,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "import_price_quality_factor_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn import_price_quality_factor_like_cpp (& self , quality : u32) -> Option < f32 >",
           "cfg": [
             "cfg (test)"
@@ -23688,7 +23688,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "instance_address",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn instance_address (& self) -> [u8 ; 4]",
           "cfg": [],
           "source_class": "production",
@@ -23701,7 +23701,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "instance_port",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn instance_port (& self) -> u16",
           "cfg": [],
           "source_class": "production",
@@ -23924,7 +23924,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "is_arena_allowed_enchantment",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn is_arena_allowed_enchantment (& self , enchantment_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -23980,7 +23980,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "is_item_bound_account_wide",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn is_item_bound_account_wide (& self , item_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -23993,7 +23993,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "is_legit_character",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn is_legit_character (& self , guid : & ObjectGuid) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -24073,7 +24073,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "is_spell_on_cooldown",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn is_spell_on_cooldown (& self , spell_id : i32) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -24138,7 +24138,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_appearance_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_appearance_store (& self) -> Option < & Arc < ItemAppearanceStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24181,7 +24181,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_disenchant_loot_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_disenchant_loot_store (& self) -> Option < & Arc < ItemDisenchantLootStore > >",
           "cfg": [
             "cfg (test)"
@@ -24196,7 +24196,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_display_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_display_id (& self , item_id : u32 , appearance_mod_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
@@ -24222,7 +24222,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_effect_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_effect_store (& self) -> Option < & Arc < ItemEffectStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24235,7 +24235,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_extended_cost_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_extended_cost_store (& self) -> Option < & Arc < ItemExtendedCostStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24276,7 +24276,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_modified_appearance_for_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_modified_appearance_for_item (& self , item_id : u32 , appearance_mod_id : u32 ,) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
@@ -24289,7 +24289,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_modified_appearance_ref",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_modified_appearance_ref (& self , id : u32) -> Option < (u32 , u16) >",
           "cfg": [],
           "source_class": "production",
@@ -24315,7 +24315,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_random_enchantment_template_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_random_enchantment_template_store (& self ,) -> Option < & Arc < ItemRandomEnchantmentTemplateStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24328,7 +24328,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_random_properties_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_random_properties_store (& self) -> Option < & Arc < ItemRandomPropertiesStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24341,7 +24341,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_random_suffix_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_random_suffix_store (& self) -> Option < & Arc < ItemRandomSuffixStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24354,7 +24354,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_search_name_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_search_name_store (& self) -> Option < & Arc < ItemSearchNameStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24382,7 +24382,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_spec_override_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_spec_override_store (& self) -> Option < & Arc < ItemSpecOverrideStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24395,7 +24395,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_stats_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_stats_store (& self) -> Option < & Arc < ItemStatsStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24408,7 +24408,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_storage_template",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_storage_template (& self , item_id : u32) -> Option < ItemStorageTemplate >",
           "cfg": [],
           "source_class": "production",
@@ -24421,7 +24421,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_store (& self) -> Option < & Arc < ItemStore > >",
           "cfg": [],
           "source_class": "production",
@@ -24434,7 +24434,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_flags",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_flags (& self , item_id : u32) -> Option < ItemFlags >",
           "cfg": [],
           "source_class": "production",
@@ -24447,7 +24447,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_flags2",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_flags2 (& self , item_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
@@ -24460,7 +24460,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_flags3",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_flags3 (& self , item_id : u32) -> Option < u32 >",
           "cfg": [],
           "source_class": "production",
@@ -24473,7 +24473,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_inventory_type",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_inventory_type (& self , item_id : u32) -> Option < u8 >",
           "cfg": [],
           "source_class": "production",
@@ -24486,7 +24486,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_lock_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_lock_id (& self , item_id : u32) -> Option < u16 >",
           "cfg": [],
           "source_class": "production",
@@ -24499,7 +24499,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_max_durability",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_max_durability (& self , item_id : u32) -> u32",
           "cfg": [],
           "source_class": "production",
@@ -24512,7 +24512,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_quality",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_quality (& self , item_id : u32) -> Option < i8 >",
           "cfg": [],
           "source_class": "production",
@@ -24525,7 +24525,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "item_template_start_quest_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn item_template_start_quest_id (& self , item_id : u32) -> Option < i32 >",
           "cfg": [],
           "source_class": "production",
@@ -24553,7 +24553,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "items_providing_temporary_appearance_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn items_providing_temporary_appearance_like_cpp (& self , item_modified_appearance_id : u32 ,) -> HashSet < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
@@ -24851,7 +24851,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "load_completed_achievements_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn load_completed_achievements_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
@@ -24892,7 +24892,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "load_instance_time_restrictions_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn load_instance_time_restrictions_like_cpp (& mut self)",
           "cfg": [],
           "source_class": "production",
@@ -24905,7 +24905,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "load_player_account_data_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn load_player_account_data_like_cpp (& mut self , guid : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
@@ -25334,7 +25334,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "lock_entry_exists_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn lock_entry_exists_like_cpp (& self , lock_id : u32) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -25347,7 +25347,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "loot_drop_rates_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn loot_drop_rates_like_cpp (& self) -> LootDropRatesLikeCpp",
           "cfg": [],
           "source_class": "production",
@@ -25388,7 +25388,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "loot_stores",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn loot_stores (& self) -> Option < & Arc < LootStores > >",
           "cfg": [],
           "source_class": "production",
@@ -25701,7 +25701,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "mmap_runtime_config_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn mmap_runtime_config_like_cpp (& self) -> & MMapRuntimeConfigLikeCpp",
           "cfg": [],
           "source_class": "production",
@@ -26353,7 +26353,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "notify_game_event_quest_complete_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn notify_game_event_quest_complete_like_cpp (& mut self , quest_id : u32 ,) -> GameEventQuestCompleteClientOutcomeLikeCpp",
           "cfg": [],
           "source_class": "production",
@@ -26504,7 +26504,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "pending_invites",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn pending_invites (& self) -> Option < & Arc < PendingInvites > >",
           "cfg": [],
           "source_class": "production",
@@ -26826,7 +26826,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "plan_store_new_direct_inventory_item",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn plan_store_new_direct_inventory_item (& self , entry_id : u32 , count : u32 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
           "cfg": [],
           "source_class": "production",
@@ -26839,7 +26839,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "plan_store_new_direct_inventory_item_at",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn plan_store_new_direct_inventory_item_at (& self , entry_id : u32 , count : u32 , bag : u8 , slot : u8 ,) -> Option < (InventoryResult , Vec < ItemPosCount > , Option < u32 >) >",
           "cfg": [],
           "source_class": "production",
@@ -27035,7 +27035,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_condition_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn player_condition_store (& self) -> Option < & Arc < PlayerConditionStore > >",
           "cfg": [],
           "source_class": "production",
@@ -27320,7 +27320,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_loading",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn player_loading (& self) -> Option < ObjectGuid >",
           "cfg": [],
           "source_class": "production",
@@ -27623,7 +27623,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn player_registry (& self) -> Option < & Arc < PlayerRegistry > >",
           "cfg": [],
           "source_class": "production",
@@ -27851,7 +27851,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "player_stats",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn player_stats (& self) -> Option < & Arc < PlayerStatsStore > >",
           "cfg": [],
           "source_class": "production",
@@ -28136,7 +28136,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "process_pending",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn process_pending (& mut self)",
           "cfg": [
             "cfg (test)"
@@ -28508,7 +28508,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "rand_prop_points_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn rand_prop_points_store (& self) -> Option < & Arc < RandPropPointsStore > >",
           "cfg": [],
           "source_class": "production",
@@ -28588,7 +28588,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "realm_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn realm_id (& self) -> u16",
           "cfg": [],
           "source_class": "production",
@@ -29520,7 +29520,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_aura",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn remove_aura (& mut self , slot : u8) -> Result < () , & 'static str >",
           "cfg": [],
           "source_class": "production",
@@ -29715,7 +29715,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_legit_character",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn remove_legit_character (& mut self , guid : & ObjectGuid)",
           "cfg": [],
           "source_class": "production",
@@ -29923,7 +29923,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "remove_temporary_item_appearance_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn remove_temporary_item_appearance_like_cpp (& mut self , item_modified_appearance_id : u32 , item_guid : ObjectGuid ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -30188,7 +30188,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "replay_rewarded_quest_direct_item_appearances_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn replay_rewarded_quest_direct_item_appearances_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -30201,7 +30201,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "replay_rewarded_quest_item_appearances_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn replay_rewarded_quest_item_appearances_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,) -> Option < wow_entities :: PlayerValuesUpdate >",
           "cfg": [],
           "source_class": "production",
@@ -36221,7 +36221,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_account_heirlooms_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_account_heirlooms_like_cpp (& self)",
           "cfg": [],
           "source_class": "production",
@@ -36234,7 +36234,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_account_toys_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_account_toys_like_cpp (& self)",
           "cfg": [],
           "source_class": "production",
@@ -36327,7 +36327,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_equip_error",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_equip_error (& self , result : InventoryResult , item1 : Option < ObjectGuid > , item2 : Option < ObjectGuid > , required_level : u32 , limit_category : u32 ,)",
           "cfg": [],
           "source_class": "production",
@@ -36340,7 +36340,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_favorite_appearances_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_favorite_appearances_like_cpp (& self)",
           "cfg": [],
           "source_class": "production",
@@ -36392,7 +36392,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_item_enchant_time_update_plans",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_item_enchant_time_update_plans (& self , owner_guid : ObjectGuid , updates : & [PlayerEnchantTimeUpdate] ,)",
           "cfg": [],
           "source_class": "production",
@@ -36418,7 +36418,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_item_time_update_plan",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_item_time_update_plan (& self , update : & PlayerItemTimeUpdate)",
           "cfg": [],
           "source_class": "production",
@@ -36431,7 +36431,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_item_time_update_plans",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_item_time_update_plans (& self , updates : & [PlayerItemTimeUpdate])",
           "cfg": [],
           "source_class": "production",
@@ -36472,7 +36472,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_new_item_plan",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_new_item_plan (& self , plan : & SendNewItemPlan)",
           "cfg": [],
           "source_class": "production",
@@ -36498,7 +36498,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_packet_realm",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_packet_realm (& self , pkt : & impl wow_packet :: ServerPacket)",
           "cfg": [],
           "source_class": "production",
@@ -36563,7 +36563,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_raw_packet",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_raw_packet (& self , data : & [u8])",
           "cfg": [],
           "source_class": "production",
@@ -36797,7 +36797,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_sell_error",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_sell_error (& self , result : SellResult , creature_guid : Option < ObjectGuid > , item_guid : ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
@@ -36849,7 +36849,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "send_tx",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn send_tx (& self) -> & flume :: Sender < Vec < u8 > >",
           "cfg": [],
           "source_class": "production",
@@ -36918,7 +36918,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "session_mgr",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn session_mgr (& self) -> Option < & Arc < SessionManager > >",
           "cfg": [],
           "source_class": "production",
@@ -36987,7 +36987,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_account_data_persisted_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn set_account_data_persisted_like_cpp (& mut self , data_type : u8 , time : i64 , data : String ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -37091,7 +37091,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_addon_channel_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_addon_channel_like_cpp (& mut self , enabled : bool)",
           "cfg": [
             "cfg (test)"
@@ -37139,7 +37139,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_allow_two_side_interaction_group_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_allow_two_side_interaction_group_like_cpp (& mut self , enabled : bool)",
           "cfg": [
             "cfg (test)"
@@ -37155,7 +37155,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_appearance_is_favorite_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_appearance_is_favorite_like_cpp (& mut self , item_modified_appearance_id : u32 , apply : bool ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -37245,7 +37245,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_area_trigger_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_area_trigger_store (& mut self , store : Arc < AreaTriggerStore >)",
           "cfg": [
             "cfg (test)"
@@ -37323,7 +37323,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_battle_pet_purchase_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_battle_pet_purchase_persistence_port_like_cpp (& mut self , store : Arc < dyn wow_persistence :: BattlePetPurchasePersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -37353,7 +37353,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_battle_pet_selection_store_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_battle_pet_selection_store_like_cpp (& mut self , store : Arc < wow_data :: battle_pet_selection :: BattlePetSelectionStoreLikeCpp > ,)",
           "cfg": [
             "cfg (test)"
@@ -37461,7 +37461,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_canonical_creature_private_object_owner_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_canonical_creature_private_object_owner_like_cpp (& mut self , guid : ObjectGuid , owner : ObjectGuid ,) -> bool",
           "cfg": [],
           "source_class": "production",
@@ -37533,7 +37533,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_character_enumeration_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_character_enumeration_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: CharacterEnumerationPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -37547,7 +37547,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_characters_per_realm_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_characters_per_realm_like_cpp (& mut self , characters_per_realm : u32)",
           "cfg": [
             "cfg (test)"
@@ -37627,7 +37627,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_chat_strict_link_checking_kick_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_chat_strict_link_checking_kick_like_cpp (& mut self , enabled : bool)",
           "cfg": [
             "cfg (test)"
@@ -37685,7 +37685,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_cinematic_sequences_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_cinematic_sequences_store (& mut self , store : Arc < CinematicSequencesStore >)",
           "cfg": [],
           "source_class": "production",
@@ -37787,7 +37787,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_connect_to_key",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_connect_to_key (& mut self , key : Option < i64 >)",
           "cfg": [],
           "source_class": "production",
@@ -37801,7 +37801,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_connect_to_serial",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_connect_to_serial (& mut self , serial : Option < wow_packet :: packets :: auth :: ConnectToSerial > ,)",
           "cfg": [],
           "source_class": "production",
@@ -37859,7 +37859,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_creature_base_stats_store_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_creature_base_stats_store_like_cpp (& mut self , store : Arc < CreatureBaseStatsStoreLikeCpp > ,)",
           "cfg": [
             "cfg (test)"
@@ -37875,7 +37875,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_creature_difficulty_store_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_creature_difficulty_store_like_cpp (& mut self , store : Arc < CreatureDifficultyStoreLikeCpp > ,)",
           "cfg": [
             "cfg (test)"
@@ -37919,7 +37919,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_creature_equipment_store_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_creature_equipment_store_like_cpp (& mut self , store : Arc < CreatureEquipmentStoreLikeCpp > ,)",
           "cfg": [
             "cfg (test)"
@@ -37935,7 +37935,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_creature_health_rates_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_creature_health_rates_like_cpp (& mut self , rates : CreatureClassificationHealthRatesLikeCpp ,)",
           "cfg": [
             "cfg (test)"
@@ -38301,7 +38301,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_feature_system_bpay_store_enabled_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_feature_system_bpay_store_enabled_like_cpp (& mut self , enabled : bool)",
           "cfg": [
             "cfg (test)"
@@ -38317,7 +38317,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_feature_system_character_undelete_enabled_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_feature_system_character_undelete_enabled_like_cpp (& mut self , enabled : bool)",
           "cfg": [
             "cfg (test)"
@@ -38463,7 +38463,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_gossip_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_gossip_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: GossipCatalogPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -38493,7 +38493,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_group_loot_money_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_group_loot_money_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: GroupLootMoneyPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -38521,7 +38521,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_guid_generator",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_guid_generator (& mut self , generator : Arc < ObjectGuidGenerator >)",
           "cfg": [
             "cfg (test)"
@@ -38623,7 +38623,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_instance_link_rx",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_instance_link_rx (& mut self , rx : Option < tokio :: sync :: oneshot :: Receiver < InstanceLink > > ,)",
           "cfg": [],
           "source_class": "production",
@@ -38651,7 +38651,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_instance_lock_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_instance_lock_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: InstanceLockPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -39011,7 +39011,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_item_template_addon_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_item_template_addon_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: ItemTemplateAddonCatalogPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -39053,7 +39053,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_lfg_dungeon_store_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_lfg_dungeon_store_like_cpp (& mut self , store : Arc < LfgDungeonStoreLikeCpp >)",
           "cfg": [
             "cfg (test)"
@@ -39299,7 +39299,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_map_corpse_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_map_corpse_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: MapCorpsePersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -39721,7 +39721,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_packet_spoof_ban_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_packet_spoof_ban_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PacketSpoofBanPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -39899,7 +39899,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_alive_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_alive_like_cpp (& mut self , alive : bool)",
           "cfg": [],
           "source_class": "production",
@@ -40067,7 +40067,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_create_info_store_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_create_info_store_like_cpp (& mut self , store : Arc < PlayerCreateInfoStoreLikeCpp > ,)",
           "cfg": [
             "cfg (test)"
@@ -40205,7 +40205,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_guid",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_guid (& mut self , guid : Option < ObjectGuid >)",
           "cfg": [],
           "source_class": "production",
@@ -40391,7 +40391,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_moved_unit_guid_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_moved_unit_guid_like_cpp (& mut self , guid : ObjectGuid)",
           "cfg": [],
           "source_class": "production",
@@ -40485,7 +40485,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_name_query_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_name_query_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerNameQueryPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -40789,7 +40789,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_xp_table",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_xp_table (& mut self , table : Arc < Vec < u32 > >)",
           "cfg": [
             "cfg (test)"
@@ -40945,7 +40945,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_quest_poi_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_quest_poi_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: QuestPoiPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -41043,7 +41043,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_realm_id",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_realm_id (& mut self , realm_id : u16)",
           "cfg": [],
           "source_class": "production",
@@ -41445,7 +41445,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_represented_group_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_represented_group_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: RepresentedGroupPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -41517,7 +41517,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_represented_is_outdoors_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_represented_is_outdoors_like_cpp (& mut self , is_outdoors : bool)",
           "cfg": [],
           "source_class": "production",
@@ -41829,7 +41829,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_represented_support_tickets_enabled_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_represented_support_tickets_enabled_like_cpp (& mut self , enabled : bool)",
           "cfg": [
             "cfg (test)"
@@ -42023,7 +42023,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_rested_xp_config_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_rested_xp_config_like_cpp (& mut self , max_player_level_config : u32 , rest_offline_wilderness_rate : f32 , rest_offline_tavern_or_city_rate : f32 , rest_ingame_rate : f32 ,)",
           "cfg": [
             "cfg (test)"
@@ -42141,7 +42141,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_session_account_state_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_session_account_state_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: SessionAccountStatePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -42225,7 +42225,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_social_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_social_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: SocialPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -42267,7 +42267,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_spell_acquisition_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_spell_acquisition_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerSpellAcquisitionPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -42823,7 +42823,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_stored_item_money_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_stored_item_money_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: StoredItemMoneyPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -42837,7 +42837,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_support_bug_report_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_support_bug_report_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: SupportBugReportPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -43131,7 +43131,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_vehicle_template_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_vehicle_template_store (& mut self , store : Arc < VehicleTemplateStoreLikeCpp >)",
           "cfg": [
             "cfg (test)"
@@ -43193,7 +43193,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_void_storage_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_void_storage_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VoidStoragePersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -43274,7 +43274,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "skill_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn skill_store (& self) -> Option < & Arc < SkillStore > >",
           "cfg": [],
           "source_class": "production",
@@ -43429,7 +43429,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "spell_item_enchantment_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn spell_item_enchantment_store (& self) -> Option < & Arc < SpellItemEnchantmentStore > >",
           "cfg": [],
           "source_class": "production",
@@ -43442,7 +43442,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "spell_label_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn spell_label_store (& self) -> Option < & Arc < wow_data :: SpellLabelStore > >",
           "cfg": [],
           "source_class": "production",
@@ -43522,7 +43522,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "spell_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn spell_store (& self) -> Option < & Arc < SpellStore > >",
           "cfg": [],
           "source_class": "production",
@@ -43688,7 +43688,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "summon_private_object_owner_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn summon_private_object_owner_like_cpp (& self , caster_guid : ObjectGuid , caster_private_object_owner : ObjectGuid , properties : & SummonPropertiesEntry ,) -> ObjectGuid",
           "cfg": [],
           "source_class": "production",
@@ -44303,7 +44303,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "toy_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn toy_store (& self) -> Option < & Arc < ToyStore > >",
           "cfg": [],
           "source_class": "production",
@@ -44381,7 +44381,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "transmog_set_item_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn transmog_set_item_store (& self) -> Option < & Arc < TransmogSetItemStore > >",
           "cfg": [],
           "source_class": "production",
@@ -44422,7 +44422,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "trinity_string_store",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn trinity_string_store (& self) -> Option < & Arc < TrinityStringStoreLikeCpp > >",
           "cfg": [],
           "source_class": "production",
@@ -44530,7 +44530,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "update",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn update (& mut self , diff_ms : u32) -> usize",
           "cfg": [
             "cfg (test)"
@@ -44828,7 +44828,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "update_with_catalogs_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "async fn update_with_catalogs_like_cpp (& mut self , diff_ms : u32 , catalogs : & SessionHandlerCatalogsLikeCpp ,) -> usize",
           "cfg": [],
           "source_class": "production",
@@ -46952,7 +46952,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_loot_template_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_loot_template_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: LootTemplateCatalogPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -46967,7 +46967,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_inventory_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_inventory_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerInventoryPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -46982,7 +46982,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_quest_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_quest_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerQuestPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -46997,7 +46997,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_player_quest_reward_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_player_quest_reward_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: PlayerQuestRewardPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -47027,7 +47027,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_stored_item_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_stored_item_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: StoredItemPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -47042,7 +47042,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_vendor_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_vendor_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VendorCatalogPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -47057,7 +47057,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_vendor_trade_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_vendor_trade_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VendorTradePersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -47072,7 +47072,7 @@
           "trait_path": null,
           "kind": "method",
           "name": "set_visibility_spawn_catalog_persistence_port_like_cpp",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "signature": "fn set_visibility_spawn_catalog_persistence_port_like_cpp (& mut self , port : Arc < dyn wow_persistence :: VisibilitySpawnCatalogPersistencePortLikeCpp > ,)",
           "cfg": [],
           "source_class": "production",
@@ -58704,7 +58704,7 @@
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -58743,7 +58743,7 @@
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -58756,7 +58756,7 @@
           "registry": "PlayerRegistry",
           "operation": "clone",
           "symbol": "clone",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry",
           "count": 1
@@ -58769,7 +58769,7 @@
           "registry": "GroupRegistry",
           "operation": "accessor",
           "symbol": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "group_registry()",
           "count": 1
@@ -58782,7 +58782,7 @@
           "registry": "GroupRegistry",
           "operation": "clone",
           "symbol": "clone",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry",
           "count": 1
@@ -58938,7 +58938,7 @@
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 3
@@ -58951,7 +58951,7 @@
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "registry:PlayerRegistry",
           "count": 1
@@ -58964,7 +58964,7 @@
           "registry": "PlayerRegistry",
           "operation": "clone",
           "symbol": "cloned",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "cloned()",
           "count": 2
@@ -59406,7 +59406,7 @@
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -59419,7 +59419,7 @@
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry:PlayerRegistry",
           "count": 1
@@ -59432,7 +59432,7 @@
           "registry": "GroupRegistry",
           "operation": "accessor",
           "symbol": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "group_registry()",
           "count": 1
@@ -59445,7 +59445,7 @@
           "registry": "GroupRegistry",
           "operation": "local_alias",
           "symbol": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "group_registry:GroupRegistry",
           "count": 1
@@ -59458,7 +59458,7 @@
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -59471,7 +59471,7 @@
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry:PlayerRegistry",
           "count": 1
@@ -59484,7 +59484,7 @@
           "registry": "GroupRegistry",
           "operation": "accessor",
           "symbol": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "group_registry()",
           "count": 1
@@ -59497,7 +59497,7 @@
           "registry": "GroupRegistry",
           "operation": "local_alias",
           "symbol": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "group_registry:GroupRegistry",
           "count": 1
@@ -59510,7 +59510,7 @@
           "registry": "GroupRegistry",
           "operation": "get",
           "symbol": "get",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "get(& group_guid)",
           "count": 1
@@ -60205,7 +60205,7 @@
           "registry": "PendingInvites",
           "operation": "type_reference",
           "symbol": "return",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "Option < & Arc < PendingInvites > >",
           "count": 1
@@ -60218,7 +60218,7 @@
           "registry": "PendingInvites",
           "operation": "accessor",
           "symbol": "pending_invites",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "pending_invites()",
           "count": 1
@@ -60231,7 +60231,7 @@
           "registry": "PendingInvites",
           "operation": "return",
           "symbol": "registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . pending_invites ()",
           "count": 1
@@ -60244,7 +60244,7 @@
           "registry": "PlayerRegistry",
           "operation": "type_reference",
           "symbol": "return",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "Option < & Arc < PlayerRegistry > >",
           "count": 1
@@ -60257,7 +60257,7 @@
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "player_registry()",
           "count": 1
@@ -60270,7 +60270,7 @@
           "registry": "PlayerRegistry",
           "operation": "return",
           "symbol": "registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . player_registry ()",
           "count": 1
@@ -60673,7 +60673,7 @@
           "registry": "GroupRegistry",
           "operation": "type_reference",
           "symbol": "return",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "Option < & Arc < GroupRegistry > >",
           "count": 1
@@ -60686,7 +60686,7 @@
           "registry": "GroupRegistry",
           "operation": "accessor",
           "symbol": "group_registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "group_registry()",
           "count": 1
@@ -60699,7 +60699,7 @@
           "registry": "GroupRegistry",
           "operation": "return",
           "symbol": "registry",
-          "visibility": "pub",
+          "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . group_registry ()",
           "count": 1

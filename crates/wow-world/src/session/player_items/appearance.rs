@@ -11,7 +11,7 @@ impl WorldSession {
         self.catalogs.items.appearance_store = Some(store);
     }
     /// Get the item appearance store reference.
-    pub fn item_appearance_store(&self) -> Option<&Arc<ItemAppearanceStore>> {
+    pub(crate) fn item_appearance_store(&self) -> Option<&Arc<ItemAppearanceStore>> {
         self.catalogs.items.appearance_store.as_ref()
     }
     /// Set the item modified appearance store for this session.
@@ -26,10 +26,10 @@ impl WorldSession {
         self.catalogs.transmog_set_item_store = Some(store);
     }
     /// Get the transmog set item store reference.
-    pub fn transmog_set_item_store(&self) -> Option<&Arc<TransmogSetItemStore>> {
+    pub(crate) fn transmog_set_item_store(&self) -> Option<&Arc<TransmogSetItemStore>> {
         self.catalogs.transmog_set_item_store.as_ref()
     }
-    pub fn add_item_appearance_like_cpp(
+    pub(crate) fn add_item_appearance_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
@@ -42,7 +42,7 @@ impl WorldSession {
     /// `sDB2Manager.GetItemModifiedAppearance` and runs the represented
     /// `CanAddAppearance` item-template/proficiency/quality gate, including the
     /// learned `Player::GetWeaponProficiency` mask.
-    pub fn add_item_appearance_for_item_like_cpp(
+    pub(crate) fn add_item_appearance_for_item_like_cpp(
         &mut self,
         item_id: u32,
         appearance_mod_id: u32,
@@ -88,7 +88,7 @@ impl WorldSession {
     /// transmog source, quality/flags, item class/subclass/inventory and duplicate
     /// gates that Rust currently represents. Full `Player::CanUseItem` remains
     /// wider than this helper.
-    pub fn can_add_item_appearance_represented_like_cpp(
+    pub(crate) fn can_add_item_appearance_represented_like_cpp(
         &self,
         item_modified_appearance_id: u32,
     ) -> bool {
@@ -337,7 +337,7 @@ impl WorldSession {
     /// only through `ItemSpecOverride.db2`, matching C++'s primary `ObjectMgr::LoadItemTemplates`
     /// branch. The C++ fallback that derives `ItemSpecClassMask` from `ItemSpecStats` is intentionally
     /// not guessed here because Rust does not yet represent the sparse stat-modifier bonus fields.
-    pub fn replay_rewarded_quest_item_appearances_like_cpp(
+    pub(crate) fn replay_rewarded_quest_item_appearances_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
@@ -383,7 +383,7 @@ impl WorldSession {
     /// `CollectionMgr::AddItemAppearance(itemId)`. Use
     /// `replay_rewarded_quest_item_appearances_like_cpp` for the combined direct + represented
     /// quest-package replay.
-    pub fn replay_rewarded_quest_direct_item_appearances_like_cpp(
+    pub(crate) fn replay_rewarded_quest_direct_item_appearances_like_cpp(
         &mut self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
@@ -420,7 +420,7 @@ impl WorldSession {
             favorite_appearances,
         )
     }
-    pub fn set_appearance_is_favorite_like_cpp(
+    pub(crate) fn set_appearance_is_favorite_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,
         apply: bool,
@@ -428,7 +428,7 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_appearance_is_favorite_like_cpp(&mut hub, item_modified_appearance_id, apply)
     }
-    pub fn send_favorite_appearances_like_cpp(&self) {
+    pub(crate) fn send_favorite_appearances_like_cpp(&self) {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_favorite_appearances_like_cpp(hub)
     }
@@ -439,7 +439,7 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.load_represented_account_transmog_illusions_like_cpp(&mut hub, known_illusion_blocks)
     }
-    pub fn add_temporary_item_appearance_like_cpp(
+    pub(crate) fn add_temporary_item_appearance_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,
         item_guid: ObjectGuid,
@@ -451,7 +451,7 @@ impl WorldSession {
             item_guid,
         )
     }
-    pub fn remove_temporary_item_appearance_like_cpp(
+    pub(crate) fn remove_temporary_item_appearance_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,
         item_guid: ObjectGuid,
@@ -463,24 +463,24 @@ impl WorldSession {
             item_guid,
         )
     }
-    pub fn items_providing_temporary_appearance_like_cpp(
+    pub(crate) fn items_providing_temporary_appearance_like_cpp(
         &self,
         item_modified_appearance_id: u32,
     ) -> HashSet<ObjectGuid> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.items_providing_temporary_appearance_like_cpp(hub, item_modified_appearance_id)
     }
-    pub fn add_transmog_set_like_cpp(
+    pub(crate) fn add_transmog_set_like_cpp(
         &mut self,
         transmog_set_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.add_transmog_set_like_cpp(&mut hub, transmog_set_id)
     }
-    pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
+    pub(crate) fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
         self.catalogs.item_modified_appearance_ref(id)
     }
-    pub fn item_modified_appearance_for_item(
+    pub(crate) fn item_modified_appearance_for_item(
         &self,
         item_id: u32,
         appearance_mod_id: u32,

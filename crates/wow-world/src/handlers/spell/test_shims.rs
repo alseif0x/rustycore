@@ -29,39 +29,39 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
-    pub async fn handle_cancel_cast(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_cast(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelCast, pkt).await;
     }
 
-    pub async fn handle_cancel_aura(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_aura(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelAura, pkt).await;
     }
 
-    pub async fn handle_cancel_auto_repeat_spell(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_auto_repeat_spell(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelAutoRepeatSpell, pkt).await;
     }
 
-    pub async fn handle_cancel_channelling(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_channelling(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelChannelling, pkt).await;
     }
 
-    pub async fn handle_cancel_growth_aura(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_growth_aura(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelGrowthAura, pkt).await;
     }
 
-    pub async fn handle_cancel_mount_aura(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_mount_aura(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelMountAura, pkt).await;
     }
 
-    pub async fn handle_cancel_queued_spell(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_cancel_queued_spell(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::CancelQueuedSpell, pkt).await;
     }
 
-    pub async fn handle_pet_cancel_aura(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_pet_cancel_aura(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::PetCancelAura, pkt).await;
     }
 
-    pub async fn handle_totem_destroyed(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_totem_destroyed(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::TotemDestroyed, pkt).await;
     }
 

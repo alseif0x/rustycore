@@ -72,7 +72,7 @@ impl WorldSession {
         removed
     }
     /// Apply an aura to the player and send SMSG_AURA_UPDATE.
-    pub fn apply_aura(
+    pub(crate) fn apply_aura(
         &mut self,
         spell_id: i32,
         caster_guid: ObjectGuid,
@@ -379,7 +379,7 @@ impl WorldSession {
         Ok(())
     }
     /// Remove an aura by slot and send SMSG_AURA_UPDATE.
-    pub fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
+    pub(crate) fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
         self.player_aura_application_cx_like_cpp()
             .remove_aura_like_cpp(slot)
     }

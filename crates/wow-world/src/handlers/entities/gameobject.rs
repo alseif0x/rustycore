@@ -470,7 +470,7 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_game_obj_use(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_game_obj_use(&mut self, pkt: wow_packet::WorldPacket) {
         let catalogs = self
             .world_query_catalogs_like_cpp()
             .cloned()

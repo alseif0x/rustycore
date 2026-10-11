@@ -11,7 +11,7 @@ impl WorldSession {
     /// Handle CMSG_BUY_BACK_ITEM — player buys back an item from a vendor.
     ///
     /// C++ ref: `WorldSession::HandleBuybackItem`.
-    pub async fn handle_buy_back_item_with_generator_like_cpp(
+    pub(crate) async fn handle_buy_back_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         buyback: BuyBackItem,
@@ -272,7 +272,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_buy_back_item(&mut self, buyback: BuyBackItem) {
+    pub(crate) async fn handle_buy_back_item(&mut self, buyback: BuyBackItem) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_buy_back_item_with_generator_like_cpp(generators.item.as_ref(), buyback)
             .await;

@@ -35,119 +35,119 @@ fn group_test_cx_like_cpp<'a>(
 }
 
 impl WorldSession {
-    pub async fn handle_set_loot_method(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_loot_method(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_set_loot_method(pkt)
             .await;
     }
 
-    pub async fn handle_silence_party_talker(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_silence_party_talker(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_silence_party_talker(pkt)
             .await;
     }
 
-    pub async fn handle_set_role(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_role(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_set_role(pkt)
             .await;
     }
 
-    pub async fn handle_initiate_role_poll(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_initiate_role_poll(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_initiate_role_poll(pkt)
             .await;
     }
 
-    pub async fn handle_update_raid_target(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_update_raid_target(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_update_raid_target(pkt)
             .await;
     }
 
-    pub async fn handle_request_party_join_updates(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_request_party_join_updates(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_request_party_join_updates(pkt)
             .await;
     }
 
-    pub async fn handle_request_party_member_stats(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_request_party_member_stats(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_request_party_member_stats(pkt)
             .await;
     }
 
-    pub async fn handle_do_ready_check(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_do_ready_check(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_do_ready_check(pkt)
             .await;
     }
 
-    pub async fn handle_ready_check_response(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_ready_check_response(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_ready_check_response(pkt)
             .await;
     }
 
-    pub async fn handle_low_level_raid1(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_low_level_raid1(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_low_level_raid1(pkt)
             .await;
     }
 
-    pub async fn handle_low_level_raid2(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_low_level_raid2(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_low_level_raid2(pkt)
             .await;
     }
 
-    pub async fn handle_minimap_ping(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_minimap_ping(&mut self, pkt: WorldPacket) {
         let (social, hub) = crate::session::split_social_mut(self);
         SocialGroupHandlerCxLikeCpp::new(social, hub)
             .handle_minimap_ping(pkt)
             .await;
     }
 
-    pub async fn handle_set_party_leader(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_party_leader(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_set_party_leader(pkt)
             .await;
     }
 
-    pub async fn handle_set_assistant_leader(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_assistant_leader(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_set_assistant_leader(pkt)
             .await;
     }
 
-    pub async fn handle_set_everyone_is_assistant(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_everyone_is_assistant(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_set_everyone_is_assistant(pkt)
             .await;
     }
 
-    pub async fn handle_set_party_assignment(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_set_party_assignment(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_set_party_assignment(pkt)
             .await;
     }
 
-    pub async fn handle_change_sub_group(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_change_sub_group(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
             group_test_cx_like_cpp(self, &policy)
@@ -157,7 +157,7 @@ impl WorldSession {
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
-    pub async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_swap_sub_groups(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
             group_test_cx_like_cpp(self, &policy)
@@ -167,7 +167,7 @@ impl WorldSession {
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
-    pub async fn handle_leave_group(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_leave_group(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
             group_test_cx_like_cpp(self, &policy)
@@ -177,7 +177,7 @@ impl WorldSession {
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
-    pub async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_convert_raid(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
             group_test_cx_like_cpp(self, &policy)
@@ -187,7 +187,7 @@ impl WorldSession {
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
-    pub async fn handle_party_invite_response(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_party_invite_response(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
             group_test_cx_like_cpp(self, &policy)
@@ -197,7 +197,7 @@ impl WorldSession {
         self.apply_group_publication_tail_like_cpp(tail).await;
     }
 
-    pub async fn handle_party_invite_with_policy_like_cpp(
+    pub(crate) async fn handle_party_invite_with_policy_like_cpp(
         &mut self,
         pkt: WorldPacket,
         policy: &crate::session::GroupInvitePolicyLikeCpp,
@@ -207,28 +207,28 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_party_invite(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_party_invite(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_party_invite(pkt)
             .await;
     }
 
-    pub async fn handle_random_roll(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_random_roll(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_random_roll(pkt)
             .await;
     }
 
-    pub async fn handle_opt_out_of_loot(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_opt_out_of_loot(&mut self, pkt: WorldPacket) {
         let policy = self.group_invite_policy_for_test_like_cpp();
         group_test_cx_like_cpp(self, &policy)
             .handle_opt_out_of_loot(pkt)
             .await;
     }
 
-    pub async fn handle_party_uninvite(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_party_uninvite(&mut self, pkt: WorldPacket) {
         let tail = {
             let policy = self.group_invite_policy_for_test_like_cpp();
             group_test_cx_like_cpp(self, &policy)

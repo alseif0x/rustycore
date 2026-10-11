@@ -17,13 +17,13 @@ impl WorldSession {
         GameObjectHandlerCxLikeCpp::new(hub, interaction, world_entities)
     }
 
-    pub async fn handle_close_interaction(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_close_interaction(&mut self, pkt: WorldPacket) {
         self.gameobject_test_cx_like_cpp()
             .handle_close_interaction(pkt)
             .await;
     }
 
-    pub async fn handle_game_obj_report_use(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_game_obj_report_use(&mut self, pkt: WorldPacket) {
         self.gameobject_test_cx_like_cpp()
             .handle_game_obj_report_use(pkt)
             .await;

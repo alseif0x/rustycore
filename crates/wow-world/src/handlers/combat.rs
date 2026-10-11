@@ -175,7 +175,7 @@ impl WorldSession {
     ///
     /// The target must be a known creature in the current map.
     /// Sends SMSG_ATTACK_START if the target is valid.
-    pub async fn handle_attack_swing(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_attack_swing(&mut self, mut pkt: wow_packet::WorldPacket) {
         let swing = match AttackSwing::read(&mut pkt) {
             Ok(s) => s,
             Err(e) => {

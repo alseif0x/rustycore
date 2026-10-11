@@ -112,7 +112,7 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_df_get_system_info(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_df_get_system_info(&mut self, pkt: wow_packet::WorldPacket) {
         let store = self
             .lfg_dungeon_store_like_cpp()
             .cloned()

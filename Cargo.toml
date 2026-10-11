@@ -26,6 +26,7 @@ members = [
     "crates/wow-world-social",
     "crates/wow-world-spell",
     "crates/wow-world-visibility",
+    "crates/wow-world-test-support",
     "crates/wow-conditions",
     "crates/wow-progression",
     "crates/wow-spell-acquisition",
@@ -177,6 +178,7 @@ wow-world-inventory = { path = "crates/wow-world-inventory" }
 wow-world-lifecycle = { path = "crates/wow-world-lifecycle" }
 wow-world-spell = { path = "crates/wow-world-spell" }
 wow-world-visibility = { path = "crates/wow-world-visibility" }
+wow-world-test-support = { path = "crates/wow-world-test-support" }
 wow-conditions = { path = "crates/wow-conditions" }
 wow-progression = { path = "crates/wow-progression" }
 wow-spell-acquisition = { path = "crates/wow-spell-acquisition" }

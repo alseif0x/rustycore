@@ -20,7 +20,7 @@ use wow_packet::ClientPacket;
 use wow_packet::packets::misc::SetCurrencyFlags;
 
 impl crate::session::WorldSession {
-    pub async fn handle_set_currency_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_set_currency_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match SetCurrencyFlags::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {

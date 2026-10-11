@@ -17,7 +17,7 @@ impl WorldSession {
     /// CMSG_BINDER_ACTIVATE — player sets hearthstone at innkeeper.
     /// C++ refs: `WorldSession::HandleBinderActivateOpcode` /
     /// `WorldSession::SendBindPoint` (`Handlers/NPCHandler.cpp:373-402`).
-    pub async fn handle_binder_activate_with_generator_like_cpp(
+    pub(crate) async fn handle_binder_activate_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
@@ -113,7 +113,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_binder_activate(&mut self, hello: Hello) {
+    pub(crate) async fn handle_binder_activate(&mut self, hello: Hello) {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_binder_activate_with_generator_like_cpp(
@@ -163,7 +163,7 @@ impl WorldSession {
         }
     }
 
-    pub async fn handle_gossip_hello(&mut self, hello: Hello) {
+    pub(crate) async fn handle_gossip_hello(&mut self, hello: Hello) {
         info!(
             "GossipHello for {:?} from account {}",
             hello.unit, self.core.account_id
@@ -605,7 +605,7 @@ impl WorldSession {
     ///
     /// Routes to the appropriate handler based on the option's OptionNpc value:
     /// 1=Vendor, 3=Trainer, 5=Binder, etc.
-    pub async fn handle_gossip_select_option(
+    pub(crate) async fn handle_gossip_select_option(
         &mut self,
         select: wow_packet::packets::gossip::GossipSelectOption,
     ) {

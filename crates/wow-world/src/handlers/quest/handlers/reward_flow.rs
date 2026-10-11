@@ -8,7 +8,7 @@ impl WorldSession {
     /// Sent when player right-clicks a quest-ender NPC and has the quest in Complete status.
     /// Server responds with SMSG_QUEST_GIVER_OFFER_REWARD_MESSAGE (reward selection dialog).
     #[cfg(test)]
-    pub async fn handle_quest_giver_request_reward(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_quest_giver_request_reward(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_quest_giver_request_reward_with_generator_like_cpp(
             generators.item.as_ref(),
@@ -17,7 +17,7 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_quest_giver_request_reward_with_generator_like_cpp(
+    pub(crate) async fn handle_quest_giver_request_reward_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
@@ -161,7 +161,7 @@ impl WorldSession {
     /// Gives XP, gold, items. Removes quest from active log.
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverChooseReward
     #[cfg(test)]
-    pub async fn handle_quest_giver_choose_reward(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_quest_giver_choose_reward(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         self.handle_quest_giver_choose_reward_with_generator_like_cpp(
             generators.item.as_ref(),
@@ -170,7 +170,7 @@ impl WorldSession {
         .await;
     }
 
-    pub async fn handle_quest_giver_choose_reward_with_generator_like_cpp(
+    pub(crate) async fn handle_quest_giver_choose_reward_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,

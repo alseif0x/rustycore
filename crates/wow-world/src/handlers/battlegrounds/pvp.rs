@@ -56,13 +56,13 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_battlemaster_join_skirmish(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_battlemaster_join_skirmish(&mut self, pkt: wow_packet::WorldPacket) {
         let catalog = self.battlemaster_list_catalog_for_test_like_cpp();
         self.handle_battlemaster_join_skirmish_with_catalog_like_cpp(catalog.as_ref(), pkt)
             .await;
     }
 
-    pub async fn handle_accept_wargame_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_accept_wargame_invite(&mut self, mut pkt: wow_packet::WorldPacket) {
         let packet = match AcceptWargameInvite::read(&mut pkt) {
             Ok(packet) => packet,
             Err(error) => {

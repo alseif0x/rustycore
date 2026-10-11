@@ -61,6 +61,7 @@
     ],
     "tooling": [
       "capture-diff",
+      "wow-world-test-support",
       "xtask"
     ]
   },

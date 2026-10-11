@@ -9,7 +9,7 @@ use super::*;
 
 impl WorldSession {
     /// Handle CMSG_DESTROY_ITEM: delete an item from inventory.
-    pub async fn handle_destroy_item(
+    pub(crate) async fn handle_destroy_item(
         &mut self,
         destroy: wow_packet::packets::item::DestroyItemPkt,
     ) {

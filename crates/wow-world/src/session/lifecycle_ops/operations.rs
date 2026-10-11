@@ -6,7 +6,7 @@
 use super::*;
 
 impl WorldSession {
-    pub fn set_session_account_state_port_like_cpp(
+    pub(crate) fn set_session_account_state_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
     ) {
@@ -15,14 +15,14 @@ impl WorldSession {
     pub fn set_battlenet_account_id(&mut self, battlenet_account_id: u32) {
         self.core.account_state.battlenet_account_id = battlenet_account_id;
     }
-    pub fn battlenet_account_id(&self) -> u32 {
+    pub(crate) fn battlenet_account_id(&self) -> u32 {
         self.core.battlenet_account_id()
     }
     pub(crate) fn account_heirloom_active_player_rows_like_cpp(&self) -> Vec<(i32, u32)> {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.account_heirloom_active_player_rows_like_cpp(hub)
     }
-    pub fn send_account_heirlooms_like_cpp(&self) {
+    pub(crate) fn send_account_heirlooms_like_cpp(&self) {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.send_account_heirlooms_like_cpp(hub)
     }
@@ -42,7 +42,7 @@ impl WorldSession {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.account_toy_active_player_rows_like_cpp(hub)
     }
-    pub fn send_account_toys_like_cpp(&self) {
+    pub(crate) fn send_account_toys_like_cpp(&self) {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.send_account_toys_like_cpp(hub)
     }

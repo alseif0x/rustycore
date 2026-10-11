@@ -14,7 +14,7 @@ use wow_world_social::SocialContactsHandlerCxLikeCpp;
 use super::*;
 
 impl WorldSession {
-    pub async fn handle_del_ignore(&mut self, ignore: DelIgnore) {
+    pub(crate) async fn handle_del_ignore(&mut self, ignore: DelIgnore) {
         let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
         let persistence = lifecycle.social_persistence_port_like_cpp();
         SocialContactsHandlerCxLikeCpp::new(hub, persistence)
@@ -22,7 +22,7 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_social_contract_request(&mut self) {
+    pub(crate) async fn handle_social_contract_request(&mut self) {
         let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
         let persistence = lifecycle.social_persistence_port_like_cpp();
         SocialContactsHandlerCxLikeCpp::new(hub, persistence)
@@ -30,7 +30,7 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_accept_social_contract(&mut self, accept: AcceptSocialContract) {
+    pub(crate) async fn handle_accept_social_contract(&mut self, accept: AcceptSocialContract) {
         let (lifecycle, hub) = crate::session::split_lifecycle_mut(self);
         let persistence = lifecycle.social_persistence_port_like_cpp();
         SocialContactsHandlerCxLikeCpp::new(hub, persistence)
@@ -38,7 +38,7 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_account_notification_acknowledged(
+    pub(crate) async fn handle_account_notification_acknowledged(
         &mut self,
         packet: AccountNotificationAcknowledged,
     ) {

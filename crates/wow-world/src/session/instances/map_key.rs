@@ -170,7 +170,7 @@ impl WorldSession {
     pub fn set_mmap_runtime_config_like_cpp(&mut self, config: MMapRuntimeConfigLikeCpp) {
         self.config.mmap_runtime_config_like_cpp = config;
     }
-    pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
+    pub(crate) fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
         self.config.mmap_runtime_config_like_cpp()
     }
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {

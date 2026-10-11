@@ -12,7 +12,7 @@ impl WorldSession {
     /// then calls `Player::SetEquipmentSet`. Rust mirrors the in-memory dirty
     /// state and new-set `SMSG_EQUIPMENT_SET_ID`; the next full player save
     /// appends `_SaveEquipmentSets`-shaped statements to its transaction.
-    pub async fn handle_save_equipment_set_with_generator_like_cpp(
+    pub(crate) async fn handle_save_equipment_set_with_generator_like_cpp(
         &mut self,
         generator: &wow_core::EquipmentSetGuidGeneratorLikeCpp,
         pkt: WorldPacket,
@@ -22,7 +22,7 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_save_equipment_set(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_save_equipment_set(&mut self, pkt: WorldPacket) {
         let Some(generator) = self.equipment_set_guid_generator_for_test_like_cpp() else {
             return;
         };
@@ -36,7 +36,7 @@ impl WorldSession {
     /// `Handle_NULL`. This Rust handler currently assigns the first matching
     /// equipment-set ID without a response; the next full player save persists it.
     /// This version difference requires F6 evidence before claiming parity.
-    pub async fn handle_assign_equipment_set_spec(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_assign_equipment_set_spec(&mut self, pkt: WorldPacket) {
         self.build_equipment_sets_handler_cx_like_cpp()
             .handle_assign_equipment_set_spec(pkt);
     }
@@ -46,7 +46,7 @@ impl WorldSession {
     /// C++ marks existing equipment/transmog sets as deleted unless the set was
     /// still new in memory, in which case it removes it immediately. The DB
     /// delete happens later in `_SaveEquipmentSets`.
-    pub async fn handle_delete_equipment_set(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_delete_equipment_set(&mut self, pkt: WorldPacket) {
         self.build_equipment_sets_handler_cx_like_cpp()
             .handle_delete_equipment_set(pkt);
     }
@@ -54,7 +54,7 @@ impl WorldSession {
     /// Handle CMSG_USE_EQUIPMENT_SET.
     ///
     /// Decode and delegate CMSG_USE_EQUIPMENT_SET to its Application owner.
-    pub async fn handle_use_equipment_set(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_use_equipment_set(&mut self, pkt: WorldPacket) {
         self.build_equipment_set_use_context_like_cpp()
             .handle_use_equipment_set_like_cpp(pkt);
     }

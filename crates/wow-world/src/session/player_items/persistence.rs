@@ -78,13 +78,13 @@ impl WorldSession {
             item_guid,
         )
     }
-    pub fn set_stored_item_money_persistence_port_like_cpp(
+    pub(crate) fn set_stored_item_money_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
     ) {
         crate::session::cx_inventory(self).set_stored_item_money_persistence_port_like_cpp(port)
     }
-    pub fn set_item_template_addon_catalog_persistence_port_like_cpp(
+    pub(crate) fn set_item_template_addon_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
     ) {
@@ -115,14 +115,14 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.plan_inventory_swap_preflight_like_cpp(hub, src, dst)
     }
-    pub fn plan_store_new_direct_inventory_item(
+    pub(crate) fn plan_store_new_direct_inventory_item(
         &self,
         entry_id: u32,
         count: u32,
     ) -> Option<(InventoryResult, Vec<ItemPosCount>, Option<u32>)> {
         self.plan_store_new_direct_inventory_item_at(entry_id, count, NULL_BAG, NULL_SLOT)
     }
-    pub fn plan_store_new_direct_inventory_item_at(
+    pub(crate) fn plan_store_new_direct_inventory_item_at(
         &self,
         entry_id: u32,
         count: u32,
@@ -229,7 +229,7 @@ impl WorldSession {
         self.loot
             .set_loot_item_store_test_commit_gate_like_cpp(gate);
     }
-    pub fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
+    pub(crate) fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
         let packet = crate::session::item_push_result_from_send_new_item_plan(plan);
         if plan.delivery == SendNewItemDelivery::GroupBroadcast {
             use wow_packet::ServerPacket;
@@ -244,11 +244,11 @@ impl WorldSession {
         // the inventory object updates remain on the instance connection.
         self.send_packet_realm(&packet);
     }
-    pub fn send_item_time_update_plan(&self, update: &PlayerItemTimeUpdate) {
+    pub(crate) fn send_item_time_update_plan(&self, update: &PlayerItemTimeUpdate) {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_item_time_update_plan(hub, update)
     }
-    pub fn send_item_time_update_plans(&self, updates: &[PlayerItemTimeUpdate]) {
+    pub(crate) fn send_item_time_update_plans(&self, updates: &[PlayerItemTimeUpdate]) {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_item_time_update_plans(hub, updates)
     }
@@ -292,7 +292,7 @@ impl crate::session::InventoryCxRef<'_> {
 }
 
 impl crate::session::InventoryCx<'_> {
-    pub fn set_stored_item_money_persistence_port_like_cpp(
+    pub(crate) fn set_stored_item_money_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
     ) {
@@ -300,7 +300,7 @@ impl crate::session::InventoryCx<'_> {
             .set_stored_item_money_persistence_port_like_cpp(port);
     }
 
-    pub fn set_item_template_addon_catalog_persistence_port_like_cpp(
+    pub(crate) fn set_item_template_addon_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
     ) {

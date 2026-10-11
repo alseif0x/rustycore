@@ -41,7 +41,7 @@ impl crate::session::WorldSession {
     /// paths before applying changes. This Rust slice only represents the
     /// client packet and keeps gameplay state unchanged.
 
-    pub async fn handle_transmogrify_items(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_transmogrify_items(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match TransmogrifyItems::read_like_cpp(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -70,7 +70,7 @@ impl crate::session::WorldSession {
     /// the represented spell executor, but preserves the C++ toy metadata that
     /// must reach `SpellCastData`.
 
-    pub async fn handle_use_toy_with_generator_like_cpp(
+    pub(crate) async fn handle_use_toy_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &crate::session::CreatureSpawnCatalogsLikeCpp,
@@ -266,7 +266,7 @@ impl crate::session::WorldSession {
     /// the account row and calls `Player::AddToy`, then destroys the item only
     /// when the account toy was newly inserted.
 
-    pub async fn handle_add_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_add_toy(&mut self, mut pkt: wow_packet::WorldPacket) {
         let request = match AddToy::read(&mut pkt) {
             Ok(request) => request,
             Err(error) => {
@@ -336,7 +336,7 @@ impl crate::session::WorldSession {
     }
 
     #[cfg(test)]
-    pub async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
+    pub(crate) async fn handle_use_toy(&mut self, pkt: wow_packet::WorldPacket) {
         let generators = self.id_generators_for_test_like_cpp();
         let creature_spawn_catalogs = self.creature_spawn_catalogs_for_test_like_cpp();
         self.handle_use_toy_with_generator_like_cpp(

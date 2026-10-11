@@ -14,7 +14,7 @@ impl WorldSession {
         VehicleHandlerCxLikeCpp::new(crate::session::hub_mut(self))
     }
 
-    pub async fn handle_eject_passenger(
+    pub(crate) async fn handle_eject_passenger(
         &mut self,
         packet: wow_packet::packets::vehicle::EjectPassenger,
     ) {
@@ -23,7 +23,7 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_request_vehicle_prev_seat(
+    pub(crate) async fn handle_request_vehicle_prev_seat(
         &mut self,
         packet: wow_packet::packets::vehicle::RequestVehiclePrevSeat,
     ) {
@@ -32,7 +32,7 @@ impl WorldSession {
             .await;
     }
 
-    pub async fn handle_request_vehicle_next_seat(
+    pub(crate) async fn handle_request_vehicle_next_seat(
         &mut self,
         packet: wow_packet::packets::vehicle::RequestVehicleNextSeat,
     ) {
@@ -46,7 +46,7 @@ impl WorldSession {
             .represented_request_adjacent_vehicle_seat_like_cpp(next)
     }
 
-    pub async fn handle_request_vehicle_exit(
+    pub(crate) async fn handle_request_vehicle_exit(
         &mut self,
         packet: wow_packet::packets::vehicle::RequestVehicleExit,
     ) {
@@ -59,7 +59,7 @@ impl WorldSession {
         }
     }
 
-    pub fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
+    pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
         let changed = self
             .vehicle_test_cx_like_cpp()
             .represented_request_vehicle_exit_like_cpp();

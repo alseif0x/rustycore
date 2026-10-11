@@ -25,35 +25,35 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
-    pub async fn handle_battle_pet_request_journal(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_request_journal(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetRequestJournal, pkt).await;
     }
 
-    pub async fn handle_battle_pet_request_journal_lock(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_request_journal_lock(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetRequestJournalLock, pkt).await;
     }
 
-    pub async fn handle_battle_pet_clear_fanfare(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_clear_fanfare(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetClearFanfare, pkt).await;
     }
 
-    pub async fn handle_battle_pet_set_flags(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_set_flags(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetSetFlags, pkt).await;
     }
 
-    pub async fn handle_battle_pet_set_battle_slot(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_set_battle_slot(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetSetBattleSlot, pkt).await;
     }
 
-    pub async fn handle_battle_pet_summon(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_summon(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetSummon, pkt).await;
     }
 
-    pub async fn handle_battle_pet_update_notify(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_battle_pet_update_notify(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::BattlePetUpdateNotify, pkt).await;
     }
 
-    pub async fn handle_query_battle_pet_name(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_query_battle_pet_name(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::QueryBattlePetName, pkt).await;
     }
 }

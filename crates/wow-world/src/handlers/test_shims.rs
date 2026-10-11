@@ -26,11 +26,11 @@ async fn dispatch_registered_like_cpp(
 }
 
 impl WorldSession {
-    pub async fn handle_spirit_healer_activate(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_spirit_healer_activate(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::SpiritHealerActivate, pkt).await;
     }
 
-    pub async fn handle_request_stabled_pets(&mut self, pkt: WorldPacket) {
+    pub(crate) async fn handle_request_stabled_pets(&mut self, pkt: WorldPacket) {
         dispatch_registered_like_cpp(self, ClientOpcodes::RequestStabledPets, pkt).await;
     }
 }
