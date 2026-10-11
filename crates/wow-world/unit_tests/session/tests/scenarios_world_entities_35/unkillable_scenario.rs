@@ -21,6 +21,15 @@ fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
     register_test_creature(&mut session, manager.clone(), victim_guid, 4);
     register_test_creature(&mut session, manager.clone(), zero_damage_victim_guid, 1);
     register_test_creature(&mut session, manager.clone(), lethal_victim_guid, 4);
+    for guid in [victim_guid, zero_damage_victim_guid, lethal_victim_guid] {
+        session
+            .mutate_world_creature(guid, |creature| {
+                // #1263 F6-8D3b-3: a fresh creature now swings on its first ready
+                // update (C++ `m_attackTimer = {}`); this scenario's victims stay passive.
+                creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+            })
+            .unwrap();
+    }
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.creature.ai_ownership_mut().min_damage = 10;

@@ -672,6 +672,15 @@ fn legacy_creature_melee_share_honors_no_initial_threat_like_cpp() {
     for guid in [attacker_guid, victim_guid, secondary_guid] {
         register_test_creature(&mut session, manager.clone(), guid, 100);
     }
+    for guid in [victim_guid, secondary_guid] {
+        session
+            .mutate_world_creature(guid, |creature| {
+                // #1263 F6-8D3b-3: a fresh creature now swings on its first ready
+                // update (C++ `m_attackTimer = {}`); this scenario's victims stay passive.
+                creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+            })
+            .unwrap();
+    }
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.creature.ai_ownership_mut().min_damage = 10;

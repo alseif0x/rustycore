@@ -25,6 +25,15 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     register_test_creature(&mut session, manager.clone(), attacker_guid, 100);
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
+    for guid in [victim_guid] {
+        session
+            .mutate_world_creature(guid, |creature| {
+                // #1263 F6-8D3b-3: a fresh creature now swings on its first ready
+                // update (C++ `m_attackTimer = {}`); this scenario's victims stay passive.
+                creature.creature.ai_ownership_mut().swing_timer_ms = u64::MAX;
+            })
+            .unwrap();
+    }
     session
         .mutate_world_creature(attacker_guid, |creature| {
             creature.creature.unit_mut().set_level(80);

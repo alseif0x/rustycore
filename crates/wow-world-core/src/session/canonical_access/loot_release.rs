@@ -190,7 +190,7 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
     ) -> Option<wow_entities::UnitValuesUpdate> {
         self.core.mutate_world_creature(guid, |creature| {
             creature.force_dynamic_flags_update_like_cpp();
-            creature.creature.unit().values_update()
+            creature::loot_release_values_for_fanout_like_cpp(&mut creature.creature)
         })
     }
 }

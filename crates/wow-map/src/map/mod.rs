@@ -12,6 +12,7 @@
 
 mod entity_world;
 mod game_object;
+mod lent_creature;
 mod object_update_selection;
 mod relocation;
 mod respawn;
@@ -32,6 +33,7 @@ use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use self::entity_world::EntityWorld;
+pub use self::lent_creature::{LentCreatureOriginLikeCpp, LentCreatureReturnLikeCpp};
 pub use self::runtime::{
     MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
 };

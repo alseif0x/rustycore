@@ -90,6 +90,20 @@ impl WorldObject {
         self.object.set_grid_presence(false);
         Ok(())
     }
+    /// Put back the map binding a map-owned object had when its record was lent
+    /// out of the map, whatever the borrower did to it.
+    ///
+    /// #1263 F6-8D3b-3: the canonical mutation root lends a creature out of its
+    /// map record and must put it back. C++ never takes a `Creature` out of its
+    /// `Map` to mutate it, so the binding a lent object returns with is, by
+    /// construction, the one it left with; a borrower that rebound it cannot be
+    /// allowed to make the object unreturnable.
+    pub fn restore_lent_map_binding_like_cpp(&mut self, map_id: u32, instance_id: u32) {
+        self.has_current_map = true;
+        self.location.map_id = map_id;
+        self.instance_id = instance_id;
+        self.object.bind_map(map_id, instance_id);
+    }
     pub const fn has_current_map(&self) -> bool {
         self.has_current_map
     }

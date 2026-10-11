@@ -184,7 +184,12 @@ impl Default for CreatureAiOwnershipState {
             wander_steps_remaining: 0,
             combat_target: None,
             last_swing_ms: 0,
-            swing_timer_ms: 2_000,
+            // C++ `Unit::Unit` value-initializes `m_attackTimer = { }`
+            // (`Unit.cpp:321`) and `isAttackReady` is `m_attackTimer == 0`
+            // (`Unit.h:677`): a fresh creature swings on its first
+            // `DoMeleeAttackIfReady` in range; only `resetAttackTimer` after
+            // that swing arms the base attack time (`Unit.cpp:2131`).
+            swing_timer_ms: 0,
             aggro_radius: DEFAULT_MONSTER_SIGHT_DISTANCE,
             wander_radius: 5.0,
             death_time_ms: None,

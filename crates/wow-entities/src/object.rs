@@ -308,6 +308,23 @@ impl EntityObject {
         self.add_to_object_update_if_needed();
     }
 
+    /// Hand a pending DynamicFlags change to a producer that publishes it
+    /// itself: the field stays at its value, only the map-publication mark is
+    /// dropped (other changed fields keep theirs).
+    ///
+    /// #1263 F6-8D3b-3: the creature loot-release fanout publishes the
+    /// viewer-dependent DynamicFlags per receiver (C++ builds them per viewer
+    /// in `BuildValuesUpdateBlockForPlayer`); the map's raw VALUES step must
+    /// not publish the same field a second time.
+    pub fn take_dynamic_flags_change_like_cpp(&mut self) -> bool {
+        let changed = self
+            .changed_fields
+            .contains(ObjectChangedFields::DYNAMIC_FLAGS);
+        self.changed_fields
+            .remove(ObjectChangedFields::DYNAMIC_FLAGS);
+        changed
+    }
+
     pub fn replace_all_dynamic_flags_suppressed(&mut self, flags: u32) {
         self.dynamic_flags = flags;
     }

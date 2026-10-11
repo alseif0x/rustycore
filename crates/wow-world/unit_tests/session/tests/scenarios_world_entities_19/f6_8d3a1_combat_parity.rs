@@ -482,8 +482,8 @@ fn d3a1_parity_like_cpp(
     );
     check(
         "player melee commands",
-        format!("{:?}", legacy.player_melee.commands),
-        format!("{:?}", executor.player_melee.commands),
+        d3a1_player_melee_commands_like_cpp(&legacy.player_melee.commands),
+        d3a1_player_melee_commands_like_cpp(&executor.player_melee.commands),
     );
     check(
         "movement counters",
@@ -582,6 +582,27 @@ fn d3a1_parity_like_cpp(
     }
 }
 
+/// The player melee commands, without the victim VALUES copy.
+///
+/// #1263 F6-8D3b-3: the legacy bridge's victim is a legacy copy, so its
+/// command carries the victim's VALUES to the attacker; the executor's victim
+/// is the canonical map record, whose `Map::SendObjectUpdates` publishes them
+/// (C++ `DealDamage` only marks the field), so its command carries none. Every
+/// other byte must still match.
+fn d3a1_player_melee_commands_like_cpp(
+    commands: &[crate::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand],
+) -> String {
+    let commands: Vec<_> = commands
+        .iter()
+        .cloned()
+        .map(|mut command| {
+            command.victim_values_update = None;
+            command
+        })
+        .collect();
+    format!("{commands:?}")
+}
+
 fn d3a1_assert_parity_like_cpp(
     legacy_world: &D3a1WorldLikeCpp,
     legacy: &D3a1TickLikeCpp,
@@ -618,9 +639,20 @@ fn canonical_executor_matches_legacy_bridge_player_melee_phase_like_cpp() {
         d3a1_counters_like_cpp(&executor.player_melee)
     );
     assert_eq!(
-        format!("{:?}", legacy.player_melee.commands),
-        format!("{:?}", executor.player_melee.commands),
-        "same values update, health and presentation bytes"
+        d3a1_player_melee_commands_like_cpp(&legacy.player_melee.commands),
+        d3a1_player_melee_commands_like_cpp(&executor.player_melee.commands),
+        "same health and presentation bytes"
+    );
+    assert!(
+        legacy.player_melee.commands[0]
+            .victim_values_update
+            .is_some()
+    );
+    assert!(
+        executor.player_melee.commands[0]
+            .victim_values_update
+            .is_none(),
+        "the canonical victim's map publishes its VALUES"
     );
     assert_eq!(
         d3a1_legacy_creature_like_cpp(&legacy_world, legacy_world.neutral),

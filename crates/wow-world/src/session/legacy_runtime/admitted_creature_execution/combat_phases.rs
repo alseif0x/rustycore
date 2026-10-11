@@ -304,6 +304,25 @@ pub fn run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
     // legacy loop runs its movement phase, on the canonical incarnation in
     // place. Each frame is therefore already applied and is published as is.
     {
+        // #1263 F6-8D3b-3: the generators write the new position in place;
+        // C++ `Unit::UpdatePosition` then runs `Map::CreatureRelocation`
+        // (`Map.cpp:1042-1072`), so a creature that moved also moves cells.
+        let origins: Vec<_> = selection
+            .iter()
+            .filter_map(|object| {
+                let position = manager
+                    .find_map(object.map_id, object.instance_id)?
+                    .map()
+                    .get_typed_creature(object.creature_guid)?
+                    .position();
+                Some((
+                    object.map_id,
+                    object.instance_id,
+                    object.creature_guid,
+                    position,
+                ))
+            })
+            .collect();
         let mut store = AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(
             &mut *manager,
             &admission.maps,
@@ -320,6 +339,13 @@ pub fn run_admitted_creature_combat_phases_on_locked_manager_like_cpp(
         );
         for frame in frames {
             push_creature_movement_frame_events_like_cpp(frame, &mut outcome.movement);
+        }
+        for (map_id, instance_id, guid, from) in origins {
+            if let Some(managed) = manager.find_map_mut(map_id, instance_id) {
+                let _ = managed
+                    .map_mut()
+                    .relocate_creature_moved_in_place_like_cpp(guid, from);
+            }
         }
         outcome.clock_advanced_ms =
             (outcome.movement.creatures_seen as u64).saturating_mul(u64::from(admission.diff_ms));
