@@ -32,7 +32,7 @@ impl<'a> AdmittedCanonicalCreatureStoreLikeCpp<'a> {
     /// residence does not fit the legacy `(u16, u32)` key space is not visited.
     ///
     /// #1263 F6-8D3a-3: every admitted map is a residence, with or without
-    /// selected objects, exactly as the legacy store visits every active map —
+    /// selected objects, as C++ `Map::Update` runs every active map —
     /// the lifecycle phase drains a map's respawn queue after its last creature
     /// despawned.
     pub(in crate::session) fn new_like_cpp(

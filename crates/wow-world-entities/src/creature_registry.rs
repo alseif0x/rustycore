@@ -12,8 +12,8 @@ const CURRENT_EXPANSION_LIKE_CPP: u8 = wow_data::CREATURE_CURRENT_EXPANSION_LIKE
 /// One canonical admission decision, taken under the canonical map manager lock.
 ///
 /// R1: the canonical map's creature owns the one allocatable loot authority for
-/// its object incarnation; the legacy store and the session loot-view state may
-/// hold aliases to that allocation, but must never allocate a competing
+/// its object incarnation; the session loot-view state may hold aliases to that
+/// allocation (#1263 F6-8E deleted the legacy store), but must never allocate a competing
 /// claimable pool. The authority, the canonical owner's health timeline snapshot
 /// and the aura provenance therefore travel together, so the registration caller
 /// adopts authority and health timeline from the same decision instead of a
@@ -151,7 +151,7 @@ fn admit_canonical_creature_map_object_on_locked_map_like_cpp(
         let incoming_authority = creature.loot_authority_like_cpp();
         // R1: the existing canonical creature already owns this incarnation's
         // authority. A duplicate admission is accepted only when it carries that
-        // same allocation (the legacy store's alias) or an unused pristine
+        // same allocation or an unused pristine
         // candidate. Any other candidate would be a second independently
         // claimable pool, so it is refused here instead of being reconciled with
         // the canonical pool; the canonical authority is returned unchanged and

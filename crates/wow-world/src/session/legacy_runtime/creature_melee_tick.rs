@@ -21,7 +21,7 @@ use secondary_targets::{
 /// every logged-in session a writer of shared creature combat state; extracting
 /// it is what lets the global loop become its sole owner. Damage arithmetic,
 /// tap assignment, threat, the death branch and the swing record are unchanged.
-pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
+pub(in crate::session) fn apply_player_melee_to_creature_like_cpp(
     creature: &mut wow_entities::Creature,
     player_guid: ObjectGuid,
     tap_group_guids: &[ObjectGuid],

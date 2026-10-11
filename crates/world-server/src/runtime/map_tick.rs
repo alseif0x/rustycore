@@ -103,8 +103,8 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
 pub(crate) type CanonicalMapCreaturePhaseLikeCpp<'a> =
     &'a mut dyn FnMut(&mut wow_map::MapManager, &wow_map::MapTickPlanLikeCpp);
 
-/// [`canonical_map_tick_resume_like_cpp`] with the creature tick owner of
-/// `RuntimeTickOwner::CanonicalMap` (#1263 F6-8D3b-1). The creature phase runs
+/// [`canonical_map_tick_resume_like_cpp`] with the canonical creature runtime
+/// (#1263 F6-8D3b-1; since F6-8E the only creature runtime). The creature phase runs
 /// after the respawn phase and before the object visitors, where C++
 /// `Map::Update` runs `ProcessRespawns` and then `Creature::Update`
 /// (`Maps/Map.cpp:682-735`), on the coordinator state the admission fence

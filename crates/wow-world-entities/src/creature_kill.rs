@@ -9,9 +9,9 @@ use crate::{PendingCreatureKillRewardLikeCpp, WorldEntitiesState};
 impl WorldEntitiesState {
     /// Queue one creature kill for the loot and reward phases, deduplicated.
     ///
-    /// Both writers of this queue — `run_combat_tick` and the delivery handler
-    /// for a map-owned resolution (#28) — must enqueue identically, so the
-    /// dedup lives here instead of being written twice. The queues stay private
+    /// Its writer is the delivery handler for a map-owned melee resolution
+    /// (#28; #1263 F6-8E deleted the session combat tick, the other writer).
+    /// The dedup lives here, beside the queue. The queues stay private
     /// to the session; a handler asks for the transition, not for the fields.
     pub fn queue_pending_creature_kill_like_cpp(
         &mut self,

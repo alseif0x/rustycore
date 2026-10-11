@@ -10,7 +10,7 @@
 //! the canonical incarnation on the map the executor holds locked (#1263
 //! F6-8E: the only creature store); the swing reads it through
 //! [`player_melee_creature_victim_facts_like_cpp`] and applies the swing
-//! through `apply_player_melee_to_legacy_creature_like_cpp`.
+//! through `apply_player_melee_to_creature_like_cpp`.
 
 use super::*;
 
@@ -60,7 +60,7 @@ impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
         damages: &[crate::session::combat::RepresentedMeleeSwingLikeCpp],
     ) -> CreatureVictimApplyLikeCpp {
         match map.with_creature_mut_like_cpp(victim_guid, |creature| {
-            apply_player_melee_to_legacy_creature_like_cpp(
+            apply_player_melee_to_creature_like_cpp(
                 creature,
                 player_guid,
                 tap_group_guids,

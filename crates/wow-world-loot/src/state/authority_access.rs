@@ -55,11 +55,10 @@ impl LootState {
     /// F6-7 R7b-2a: the guarded creature loot-lifecycle mutation now routes
     /// through the session's one gated mutation root
     /// (`SessionCore::mutate_world_creature_if_fully_looted_observation_like_cpp`),
-    /// which admits the representation against the current canonical
-    /// incarnation, takes the canonical lock before the legacy one, runs the
-    /// mutation once, applies it to the incarnation and only then synchronizes
-    /// the legacy representation. The two-store body that used to live here is
-    /// gone rather than duplicated.
+    /// which lends the canonical incarnation under the canonical lock, runs the
+    /// mutation once on it and returns it (#1263 F6-8E: there is no legacy
+    /// representation to synchronize). The two-store body that used to live
+    /// here is gone rather than duplicated.
     pub fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
         &mut self,
         hub: &mut HubMut<'_>,

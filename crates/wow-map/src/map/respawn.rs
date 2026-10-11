@@ -31,10 +31,9 @@ where
     }
 
     /// #1263 F6-8D3a-3: the creature respawn queue with the rebuild data
-    /// (`PendingRespawn`) and the persisted respawn rows of this map — the same
-    /// queue type the legacy map manager owns, so the creature lifecycle phase
-    /// runs one body against either. It sits beside [`Self::respawn_store_like_cpp`]
-    /// exactly as the legacy lifecycle keeps both.
+    /// (`PendingRespawn`) and the persisted respawn rows of this map, which the
+    /// creature lifecycle phase drains. It sits beside
+    /// [`Self::respawn_store_like_cpp`].
     pub const fn creature_respawn_queue_like_cpp(
         &self,
     ) -> &crate::creature_respawn_queue::CreatureRespawnQueueLikeCpp {
