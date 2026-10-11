@@ -1,4 +1,4 @@
-//! Shared legacy creature tick entry points.
+//! Shared creature phase entry points of the canonical runtime.
 //!
 //! Moved out of the Session root under #619. Behaviour is preserved; the
 //! canonical owner of this state is unchanged.

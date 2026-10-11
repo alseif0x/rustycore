@@ -1,5 +1,5 @@
-//! C++ `Unit::CalculateMeleeDamage` for a player victim in the legacy creature
-//! melee tick.
+//! C++ `Unit::CalculateMeleeDamage` for a player victim in the creature melee
+//! phase.
 //!
 //! Split out of `creature_melee_tick` as behavior-preserving structure: the
 //! caller keeps the C++ map-update serialization, the RNG position and the

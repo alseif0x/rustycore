@@ -137,7 +137,7 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
     let attacker_combat_reach = attacker_unit_data.combat_reach;
 
     // Resolve the victim from live state, canonical player first, then the
-    // legacy creature. Geometry comes from whichever side owns it.
+    // creature. Geometry comes from whichever side owns it.
     let map_difficulty_id = map_difficulties
         .get(&(attacker.map_id, attacker.instance_id))
         .copied()

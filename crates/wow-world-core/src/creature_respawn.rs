@@ -210,7 +210,7 @@ pub fn snap_respawn_creature_to_ground_like_cpp(
     };
     let caps = AllowedPositionZCaps {
         // Transport passengers recompute position from the transport elsewhere;
-        // the legacy respawn path does not model on-transport spawns.
+        // the respawn path does not model on-transport spawns.
         on_transport: false,
         can_fly: creature.can_fly_like_cpp(),
         can_swim: creature.can_swim_like_cpp(),

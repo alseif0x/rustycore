@@ -224,10 +224,8 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
     }
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
 
-    let candidates = collect_creature_aggro_candidates_with_canonical_like_cpp(
-        &registry,
-        Some(&canonical),
-    );
+    let candidates =
+        collect_creature_aggro_candidates_with_canonical_like_cpp(&registry, Some(&canonical));
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].map_difficulty_id, 2);
@@ -292,10 +290,8 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
         player.set_forced_reputation_rank_like_cpp(87, true);
     }
 
-    let candidates = collect_creature_aggro_candidates_with_canonical_like_cpp(
-        &registry,
-        Some(&canonical),
-    );
+    let candidates =
+        collect_creature_aggro_candidates_with_canonical_like_cpp(&registry, Some(&canonical));
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(

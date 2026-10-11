@@ -396,7 +396,7 @@ pub fn zone_and_area_for_position_like_cpp(
     Ok((zone_id, area_id))
 }
 
-/// Live, file-backed terrain height for the legacy world runtime.
+/// Live, file-backed terrain height for the creature runtime.
 ///
 /// One [`GridMapTerrain`] per map id (created lazily, shared across that map's
 /// instances), mirroring C++ `TerrainInfo` ownership. Rooted at the server's

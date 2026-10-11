@@ -24,7 +24,7 @@ fn waypoint_path_store_initializes_world_creature_default_waypoint_like_cpp() {
         }],
     );
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 54_340);
-    let mut creature = wow_world::map_manager::WorldCreature::new(
+    let mut creature = wow_world::creature_projection::new_runtime_creature_like_cpp(
         guid,
         1,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -38,15 +38,15 @@ fn waypoint_path_store_initializes_world_creature_default_waypoint_like_cpp() {
         0,
         0,
     );
-    creature.creature.load_path_like_cpp(30);
+    creature.load_path_like_cpp(30);
 
     let action =
         initialize_world_creature_default_waypoint_from_store_like_cpp(&mut creature, &store);
 
     assert_eq!(action, wow_movement::WaypointMovementAction::StopMoving);
-    assert!(creature.creature.unit().subsystems().motion.stopped);
+    assert!(creature.unit().subsystems().motion.stopped);
     assert!(matches!(
-        wow_world::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature).update_default_waypoint_movement_like_cpp(
+        wow_world::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature).update_default_waypoint_movement_like_cpp(
             wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32
         ),
         wow_movement::WaypointMovementAction::Launch(launch)

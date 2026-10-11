@@ -124,7 +124,7 @@ GROUPS = (
         player_bootstrap_catalog_test_fixture_like_cpp
     """.split()),
     ('config', 'SessionWorldConfig', 'config', 'Immutable world configuration and rate values (C++ `sWorld` config subsets) and the script dispatchers injected at composition.', """
-        creature_aggro_config_like_cpp characters_per_realm_like_cpp
+        legacy_creature_aggro_config_like_cpp characters_per_realm_like_cpp
         declined_names_used_like_cpp feature_system_bpay_store_enabled_like_cpp
         feature_system_character_undelete_enabled_like_cpp max_player_level_config_like_cpp
         max_primary_trade_skills_like_cpp represented_cast_unstuck_enabled_like_cpp

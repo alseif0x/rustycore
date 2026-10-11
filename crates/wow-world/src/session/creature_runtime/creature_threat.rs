@@ -1,4 +1,4 @@
-//! Legacy creature threat accumulation and victim selection.
+//! Creature threat accumulation and victim selection.
 //!
 //! Moved out of the Session root under #619. Behaviour is preserved.
 

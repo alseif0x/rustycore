@@ -36,9 +36,9 @@ use super::{
     collect_creature_aggro_candidates_like_cpp,
     collect_creature_aggro_candidates_with_canonical_like_cpp,
     consume_game_event_live_update_side_effects_like_cpp, create_pid_file_like_cpp,
-    database_pool_size_like_cpp, db_keepalive_database_names_like_cpp,
-    db_keepalive_interval_minutes_like_cpp, db_keepalive_sql_like_cpp,
-    declined_names_used_for_realm_category_like_cpp,
+    creature_aggro_config_like_cpp, database_pool_size_like_cpp,
+    db_keepalive_database_names_like_cpp, db_keepalive_interval_minutes_like_cpp,
+    db_keepalive_sql_like_cpp, declined_names_used_for_realm_category_like_cpp,
     deliver_creature_attack_start_commands_like_cpp,
     deliver_creature_melee_damage_commands_like_cpp,
     deliver_refresh_visible_world_creatures_like_cpp, deliver_runtime_plan_like_cpp,
@@ -58,7 +58,7 @@ use super::{
     game_event_update_npc_vendor_like_cpp, game_event_update_world_states_like_cpp,
     get_address_for_client_with_local_networks, half_max_core_stuck_time_like_cpp,
     install_canonical_spawn_group_initializer_like_cpp, is_ffa_pvp_realm_type_like_cpp,
-    is_pvp_realm_type_like_cpp, kick_all_sessions_like_cpp, creature_aggro_config_like_cpp,
+    is_pvp_realm_type_like_cpp, kick_all_sessions_like_cpp,
     load_loaded_grid_area_triggers_like_cpp, load_world_config_from, loot_drop_rates_like_cpp,
     loot_quest_required_from_signed_db_like_cpp,
     materialize_game_event_quest_complete_db_bridge_like_cpp,
@@ -1474,7 +1474,7 @@ fn mirror_canonical_melee_test_creature_like_cpp(
     guid: ObjectGuid,
     map_id: u32,
     instance_id: u32,
-) -> wow_world::map_manager::WorldCreature {
+) -> wow_entities::Creature {
     let mut creature = canonical
         .lock()
         .unwrap()
@@ -1494,9 +1494,9 @@ fn mirror_canonical_melee_test_creature_like_cpp(
         ai.min_damage = 3;
         ai.max_damage = 5;
     }
-    let create_data =
-        wow_world::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
-    wow_world::map_manager::WorldCreature::from_canonical(creature, create_data)
+    let create_data = wow_world::creature_projection::creature_create_data_like_cpp(&creature);
+    wow_world::creature_projection::install_creature_runtime_like_cpp(&mut creature, &create_data);
+    creature
 }
 
 #[path = "main_tests/scenarios_1.rs"]

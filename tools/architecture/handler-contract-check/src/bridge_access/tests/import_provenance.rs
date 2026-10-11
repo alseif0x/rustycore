@@ -490,7 +490,9 @@ fn core_map_manager_type_aliases_keep_exact_legacy_provenance() {
     let mut sources = core_mounts(CORE_MAP_DEFINITIONS).to_vec();
     sources.push(server_bridge(
         r#"
-            use wow_world_core::{map_manager::MapManager as CoreMap, map_manager::WorldCreature as CoreCreature, map_manager::SharedMapManager as CoreShared};
+            use wow_world_core::map_manager::{
+                MapManager as CoreMap, WorldCreature as CoreCreature, SharedMapManager as CoreShared,
+            };
             fn translate(
                 old: &wow_world::SharedMapManager,
                 new: &wow_entities::Creature,

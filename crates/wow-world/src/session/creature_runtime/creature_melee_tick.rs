@@ -15,7 +15,7 @@ use secondary_targets::{
     MeleeSecondaryTargetsOutcomeLikeCpp, apply_secondary_targets_damage_like_cpp,
 };
 
-/// Apply one player's melee swings to a legacy creature.
+/// Apply one player's melee swings to a creature.
 ///
 /// Lifted out of `run_combat_tick` by #28. This is the write path that made
 /// every logged-in session a writer of shared creature combat state; extracting
