@@ -14,8 +14,8 @@ use super::*;
 /// Creature faction template 14 shaped like 3.4.3 `FactionTemplate` 7, the
 /// template of the paired-run creature entry 15271: no groups, no enemies, no
 /// friends, no flags, on a faction without reputation (neutral to all).
-fn neutral_creature_config_like_cpp() -> LegacyCreatureAggroConfigLikeCpp {
-    legacy_aggro_relation_config_like_cpp(
+fn neutral_creature_config_like_cpp() -> CreatureAggroConfigLikeCpp {
+    aggro_relation_config_like_cpp(
         faction_template_entry(14, 7, 0, 0, 0),
         faction_template_entry(1, 930, 0, 0, 0),
         FactionEntry::for_test_like_cpp(7, -1),
@@ -63,18 +63,17 @@ fn neutral_creature_engaged_by_player_stays_engaged_and_attacks_back_like_cpp() 
     session
         .mutate_world_creature(creature_guid, |creature| {
             // The player's first swing (damage 4): engage, then damage threat.
-            creature.creature.engage_with_target_like_cpp(victim_guid);
+            creature.engage_with_target_like_cpp(victim_guid);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
                 .add_threat(victim_guid, 4.0);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         victim_guid,
         Position::new(11.0, 10.0, 0.0, 0.0),
     )];
@@ -141,12 +140,12 @@ fn neutral_creature_does_not_start_aggro_on_passer_by_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.unit_mut().set_level(25);
         })
         .unwrap();
     let passer_by = ObjectGuid::create_player(1, 91_347);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         passer_by,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -167,9 +166,7 @@ fn neutral_creature_does_not_start_aggro_on_passer_by_like_cpp() {
     // stays hostile-only: the engaged clause never admits a new target.
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("AggressorAI", String::new());
+            creature.set_ai_identity_names_runtime_like_cpp("AggressorAI", String::new());
         })
         .unwrap();
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
@@ -241,7 +238,7 @@ async fn attack_swing_engages_and_creature_reacts_with_ai_reaction_then_attack_s
         (None, true),
         "Player::Attack publishes nothing for the creature and presets no victim"
     );
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(11.0, 10.0, 0.0, 0.0),
     )];

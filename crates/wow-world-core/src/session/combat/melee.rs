@@ -89,10 +89,7 @@ impl crate::session::HubMut<'_> {
         }
         self.remove_canonical_attacker_like_cpp(target, player_guid);
         let _ = self.core.mutate_world_creature(target, |victim| {
-            victim
-                .creature
-                .unit_mut()
-                .remove_attacker_like_cpp(player_guid);
+            victim.unit_mut().remove_attacker_like_cpp(player_guid);
         });
         Some(target)
     }

@@ -642,8 +642,7 @@ fn login_grid_load_materializes_visible_adjacent_ngrid_creature_like_cpp() {
         "regression setup must place the player and nearby creature across a C++ NGrid boundary"
     );
     assert!(
-        player_position.distance_2d(&creature_position)
-            <= wow_world::map_manager::VISIBILITY_RADIUS,
+        player_position.distance_2d(&creature_position) <= wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
         "regression creature must be inside the client visibility radius"
     );
 

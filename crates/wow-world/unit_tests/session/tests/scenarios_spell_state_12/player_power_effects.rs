@@ -610,7 +610,6 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player_guid);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
@@ -654,7 +653,6 @@ async fn spell_energize_forwards_half_requested_threat_without_modifiers_like_cp
     let threat = session
         .mutate_world_creature(creature_guid, |creature| {
             creature
-                .creature
                 .unit()
                 .subsystems()
                 .combat

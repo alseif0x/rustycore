@@ -6,7 +6,7 @@
 use super::*;
 
 #[test]
-fn legacy_creature_aggro_tick_once_skips_sightless_creature_like_cpp() {
+fn creature_aggro_tick_once_skips_sightless_creature_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_096);
@@ -18,17 +18,16 @@ fn legacy_creature_aggro_tick_once_skips_sightless_creature_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 50.0;
-            creature.creature.unit_mut().set_level(25);
+            creature.ai_ownership_mut().aggro_radius = 50.0;
+            creature.unit_mut().set_level(25);
             creature
-                .creature
                 .unit_mut()
                 .add_unit_state(UnitState::STUNNED.bits());
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_097);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -36,7 +35,7 @@ fn legacy_creature_aggro_tick_once_skips_sightless_creature_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.creatures_seen, 1);
@@ -55,7 +54,7 @@ fn legacy_creature_aggro_tick_once_skips_sightless_creature_like_cpp() {
     assert_eq!(combat_target, None);
 }
 #[test]
-fn legacy_creature_aggro_rejects_water_target_when_creature_cannot_enter_water_like_cpp() {
+fn creature_aggro_rejects_water_target_when_creature_cannot_enter_water_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_064);
@@ -67,26 +66,26 @@ fn legacy_creature_aggro_rejects_water_target_when_creature_cannot_enter_water_l
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 50.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.set_swim_allowed_runtime_like_cpp(false);
+            creature.ai_ownership_mut().aggro_radius = 50.0;
+            creature.unit_mut().set_level(25);
+            creature.set_swim_allowed_runtime_like_cpp(false);
         })
         .unwrap();
 
     let water_player = ObjectGuid::create_player(1, 91_065);
     let dry_player = ObjectGuid::create_player(1, 91_066);
     let mut water_candidate =
-        legacy_aggro_candidate_like_cpp(water_player, Position::new(10.5, 10.5, 0.0, 0.0));
+        aggro_candidate_like_cpp(water_player, Position::new(10.5, 10.5, 0.0, 0.0));
     water_candidate.player_liquid_status_like_cpp = LIQUID_MAP_IN_WATER_LIKE_CPP;
     let candidates = vec![
         water_candidate,
-        legacy_aggro_candidate_like_cpp(dry_player, Position::new(10.5, 10.5, 0.0, 0.0)),
+        aggro_candidate_like_cpp(dry_player, Position::new(10.5, 10.5, 0.0, 0.0)),
     ];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.accessibility_rejections, 1);
@@ -95,7 +94,7 @@ fn legacy_creature_aggro_rejects_water_target_when_creature_cannot_enter_water_l
     assert_eq!(outcome.commands[0].victim_guid, dry_player);
 }
 #[test]
-fn legacy_creature_aggro_rejects_land_target_when_creature_cannot_walk_or_fly_like_cpp() {
+fn creature_aggro_rejects_land_target_when_creature_cannot_walk_or_fly_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_067);
@@ -107,17 +106,17 @@ fn legacy_creature_aggro_rejects_land_target_when_creature_cannot_walk_or_fly_li
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 50.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.set_ground_movement_type_runtime_like_cpp(
+            creature.ai_ownership_mut().aggro_radius = 50.0;
+            creature.unit_mut().set_level(25);
+            creature.set_ground_movement_type_runtime_like_cpp(
                 wow_constants::CreatureGroundMovementType::None as u8,
             );
-            creature.creature.set_swim_allowed_runtime_like_cpp(true);
+            creature.set_swim_allowed_runtime_like_cpp(true);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_068);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -125,7 +124,7 @@ fn legacy_creature_aggro_rejects_land_target_when_creature_cannot_walk_or_fly_li
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.accessibility_rejections, 1);
@@ -133,7 +132,7 @@ fn legacy_creature_aggro_rejects_land_target_when_creature_cannot_walk_or_fly_li
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_home_range_uses_map_visibility_category_like_cpp() {
+fn creature_aggro_home_range_uses_map_visibility_category_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_029);
@@ -145,18 +144,18 @@ fn legacy_creature_aggro_home_range_uses_map_visibility_category_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_030);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(130.0, 10.0, 0.0, 0.0),
     )];
-    let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(6.0);
+    let mut config = aggro_hostile_config_with_rate_like_cpp(6.0);
     config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 0,
@@ -178,7 +177,7 @@ fn legacy_creature_aggro_home_range_uses_map_visibility_category_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_home_range_is_skipped_in_dungeon_like_cpp() {
+fn creature_aggro_home_range_is_skipped_in_dungeon_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_031);
@@ -190,18 +189,18 @@ fn legacy_creature_aggro_home_range_is_skipped_in_dungeon_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_032);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(240.0, 10.0, 0.0, 0.0),
     )];
-    let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(8.0);
+    let mut config = aggro_hostile_config_with_rate_like_cpp(8.0);
     config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 0,
@@ -223,7 +222,7 @@ fn legacy_creature_aggro_home_range_is_skipped_in_dungeon_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_player_owned_creature_requires_owner_position_like_cpp() {
+fn creature_aggro_player_owned_creature_requires_owner_position_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_033);
@@ -236,20 +235,16 @@ fn legacy_creature_aggro_player_owned_creature_requires_owner_position_like_cpp(
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
                 .set_owner_guid(Some(owner));
+            creature.set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() + 10);
             creature
-                .creature
-                .set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() + 10);
-            creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -261,11 +256,11 @@ fn legacy_creature_aggro_player_owned_creature_requires_owner_position_like_cpp(
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_035);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(240.0, 10.0, 0.0, 0.0),
     )];
-    let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(8.0);
+    let mut config = aggro_hostile_config_with_rate_like_cpp(8.0);
     config.map_store = Some(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 0,
@@ -287,7 +282,7 @@ fn legacy_creature_aggro_player_owned_creature_requires_owner_position_like_cpp(
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
+fn creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_048);
@@ -300,11 +295,10 @@ fn legacy_creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 400.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 400.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
@@ -314,10 +308,9 @@ fn legacy_creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
 
     let victim = ObjectGuid::create_player(1, 91_050);
     let mut victim_candidate =
-        legacy_aggro_candidate_like_cpp(victim, Position::new(301.5, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(victim, Position::new(301.5, 10.0, 0.0, 0.0));
     victim_candidate.player_combat_reach = 1.0;
-    let mut owner_candidate =
-        legacy_aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
+    let mut owner_candidate = aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
     owner_candidate.player_combat_reach = 1.0;
     owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
     let candidates = vec![victim_candidate, owner_candidate];
@@ -325,7 +318,7 @@ fn legacy_creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(9.0),
+        aggro_hostile_config_with_rate_like_cpp(9.0),
     );
 
     assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -335,7 +328,7 @@ fn legacy_creature_aggro_player_owned_creature_uses_owner_position_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, victim);
 }
 #[test]
-fn legacy_creature_aggro_player_owned_creature_rejects_beyond_owner_position_like_cpp() {
+fn creature_aggro_player_owned_creature_rejects_beyond_owner_position_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_051);
@@ -348,11 +341,10 @@ fn legacy_creature_aggro_player_owned_creature_rejects_beyond_owner_position_lik
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 400.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 400.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
@@ -362,10 +354,9 @@ fn legacy_creature_aggro_player_owned_creature_rejects_beyond_owner_position_lik
 
     let victim = ObjectGuid::create_player(1, 91_053);
     let mut victim_candidate =
-        legacy_aggro_candidate_like_cpp(victim, Position::new(303.5, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(victim, Position::new(303.5, 10.0, 0.0, 0.0));
     victim_candidate.player_combat_reach = 1.0;
-    let mut owner_candidate =
-        legacy_aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
+    let mut owner_candidate = aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
     owner_candidate.player_combat_reach = 1.0;
     owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
     let candidates = vec![victim_candidate, owner_candidate];
@@ -373,7 +364,7 @@ fn legacy_creature_aggro_player_owned_creature_rejects_beyond_owner_position_lik
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(7.0),
+        aggro_hostile_config_with_rate_like_cpp(7.0),
     );
 
     assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -382,7 +373,7 @@ fn legacy_creature_aggro_player_owned_creature_rejects_beyond_owner_position_lik
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge_like_cpp() {
+fn creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_057);
@@ -395,11 +386,10 @@ fn legacy_creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 400.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 400.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
@@ -409,10 +399,9 @@ fn legacy_creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge
 
     let victim = ObjectGuid::create_player(1, 91_059);
     let mut victim_candidate =
-        legacy_aggro_candidate_like_cpp(victim, Position::new(302.0, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(victim, Position::new(302.0, 10.0, 0.0, 0.0));
     victim_candidate.player_combat_reach = 1.0;
-    let mut owner_candidate =
-        legacy_aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
+    let mut owner_candidate = aggro_candidate_like_cpp(owner, Position::new(200.0, 10.0, 0.0, 0.0));
     owner_candidate.player_combat_reach = 1.0;
     owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
     let candidates = vec![victim_candidate, owner_candidate];
@@ -420,7 +409,7 @@ fn legacy_creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(6.0),
+        aggro_hostile_config_with_rate_like_cpp(6.0),
     );
 
     assert_eq!(outcome.home_range_rejections, 1);
@@ -428,7 +417,7 @@ fn legacy_creature_aggro_player_owned_creature_rejects_exact_owner_distance_edge
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_like_cpp() {
+fn creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_054);
@@ -441,11 +430,10 @@ fn legacy_creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 400.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 400.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
@@ -454,10 +442,8 @@ fn legacy_creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_
         .unwrap();
 
     let victim = ObjectGuid::create_player(1, 91_056);
-    let victim_candidate =
-        legacy_aggro_candidate_like_cpp(victim, Position::new(80.0, 10.0, 0.0, 0.0));
-    let mut owner_candidate =
-        legacy_aggro_candidate_like_cpp(owner, Position::new(80.0, 10.0, 0.0, 0.0));
+    let victim_candidate = aggro_candidate_like_cpp(victim, Position::new(80.0, 10.0, 0.0, 0.0));
+    let mut owner_candidate = aggro_candidate_like_cpp(owner, Position::new(80.0, 10.0, 0.0, 0.0));
     owner_candidate.map_id = 1;
     owner_candidate.player_unit_flags |= UnitFlags::NON_ATTACKABLE.bits();
     let candidates = vec![victim_candidate, owner_candidate];
@@ -465,7 +451,7 @@ fn legacy_creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(6.0),
+        aggro_hostile_config_with_rate_like_cpp(6.0),
     );
 
     assert_eq!(outcome.owner_position_unrepresented, 1);
@@ -473,7 +459,7 @@ fn legacy_creature_aggro_player_owned_creature_wrong_map_owner_is_unrepresented_
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() {
+fn creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_122);
@@ -492,11 +478,10 @@ fn legacy_creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() 
     register_test_creature(&mut session, manager.clone(), owner, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 400.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 400.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
@@ -505,37 +490,31 @@ fn legacy_creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() 
         .unwrap();
     session
         .mutate_world_creature(owner, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 0.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(1.0);
+            creature.ai_ownership_mut().aggro_radius = 0.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(1.0);
             creature
-                .creature
                 .unit_mut()
                 .add_unit_state(UnitState::SIGHTLESS.bits());
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .relocate(Position::new(200.0, 10.0, 0.0, 0.0));
-            creature
-                .creature
-                .set_ai_position(Position::new(200.0, 10.0, 0.0, 0.0));
-            creature
-                .creature
-                .set_ai_home_position(Position::new(200.0, 10.0, 0.0, 0.0));
+            creature.set_ai_position(Position::new(200.0, 10.0, 0.0, 0.0));
+            creature.set_ai_home_position(Position::new(200.0, 10.0, 0.0, 0.0));
         })
         .unwrap();
 
     let victim = ObjectGuid::create_player(1, 91_124);
     let mut victim_candidate =
-        legacy_aggro_candidate_like_cpp(victim, Position::new(301.5, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(victim, Position::new(301.5, 10.0, 0.0, 0.0));
     victim_candidate.player_combat_reach = 1.0;
     let candidates = vec![victim_candidate];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
+        aggro_hostile_config_with_rate_like_cpp(8.0),
     );
 
     assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -545,7 +524,7 @@ fn legacy_creature_aggro_creature_owned_creature_uses_owner_position_like_cpp() 
     assert_eq!(outcome.commands[0].victim_guid, victim);
 }
 #[test]
-fn legacy_creature_aggro_creature_owned_creature_rejects_beyond_owner_position_like_cpp() {
+fn creature_aggro_creature_owned_creature_rejects_beyond_owner_position_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_125);
@@ -564,11 +543,10 @@ fn legacy_creature_aggro_creature_owned_creature_rejects_beyond_owner_position_l
     register_test_creature(&mut session, manager.clone(), owner, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 400.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 400.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .control
@@ -577,37 +555,31 @@ fn legacy_creature_aggro_creature_owned_creature_rejects_beyond_owner_position_l
         .unwrap();
     session
         .mutate_world_creature(owner, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 0.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(1.0);
+            creature.ai_ownership_mut().aggro_radius = 0.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(1.0);
             creature
-                .creature
                 .unit_mut()
                 .add_unit_state(UnitState::SIGHTLESS.bits());
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .relocate(Position::new(200.0, 10.0, 0.0, 0.0));
-            creature
-                .creature
-                .set_ai_position(Position::new(200.0, 10.0, 0.0, 0.0));
-            creature
-                .creature
-                .set_ai_home_position(Position::new(200.0, 10.0, 0.0, 0.0));
+            creature.set_ai_position(Position::new(200.0, 10.0, 0.0, 0.0));
+            creature.set_ai_home_position(Position::new(200.0, 10.0, 0.0, 0.0));
         })
         .unwrap();
 
     let victim = ObjectGuid::create_player(1, 91_127);
     let mut victim_candidate =
-        legacy_aggro_candidate_like_cpp(victim, Position::new(303.5, 10.0, 0.0, 0.0));
+        aggro_candidate_like_cpp(victim, Position::new(303.5, 10.0, 0.0, 0.0));
     victim_candidate.player_combat_reach = 1.0;
     let candidates = vec![victim_candidate];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
+        aggro_hostile_config_with_rate_like_cpp(8.0),
     );
 
     assert_eq!(outcome.owner_position_unrepresented, 0);
@@ -616,7 +588,7 @@ fn legacy_creature_aggro_creature_owned_creature_rejects_beyond_owner_position_l
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_recent_damage_skips_home_range_like_cpp() {
+fn creature_aggro_recent_damage_skips_home_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_036);
@@ -628,15 +600,15 @@ fn legacy_creature_aggro_recent_damage_skips_home_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            let _ = creature.creature.take_ai_damage(1, 0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            let _ = creature.take_ai_damage(1, 0);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_037);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(240.0, 10.0, 0.0, 0.0),
     )];
@@ -644,7 +616,7 @@ fn legacy_creature_aggro_recent_damage_skips_home_range_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
+        aggro_hostile_config_with_rate_like_cpp(8.0),
     );
 
     assert_eq!(outcome.home_range_rejections, 0);
@@ -653,7 +625,7 @@ fn legacy_creature_aggro_recent_damage_skips_home_range_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_expired_recent_damage_uses_home_range_like_cpp() {
+fn creature_aggro_expired_recent_damage_uses_home_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_044);
@@ -665,17 +637,15 @@ fn legacy_creature_aggro_expired_recent_damage_uses_home_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature
-                .creature
-                .set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() - 1);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() - 1);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_045);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(240.0, 10.0, 0.0, 0.0),
     )];
@@ -683,7 +653,7 @@ fn legacy_creature_aggro_expired_recent_damage_uses_home_range_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
+        aggro_hostile_config_with_rate_like_cpp(8.0),
     );
 
     assert_eq!(outcome.home_range_rejections, 1);
@@ -691,7 +661,7 @@ fn legacy_creature_aggro_expired_recent_damage_uses_home_range_like_cpp() {
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_taunt_skips_home_range_like_cpp() {
+fn creature_aggro_taunt_skips_home_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_038);
@@ -704,11 +674,10 @@ fn legacy_creature_aggro_taunt_skips_home_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -720,7 +689,7 @@ fn legacy_creature_aggro_taunt_skips_home_range_like_cpp() {
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_040);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(240.0, 10.0, 0.0, 0.0),
     )];
@@ -728,7 +697,7 @@ fn legacy_creature_aggro_taunt_skips_home_range_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
+        aggro_hostile_config_with_rate_like_cpp(8.0),
     );
 
     assert_eq!(outcome.home_range_rejections, 0);
@@ -737,7 +706,7 @@ fn legacy_creature_aggro_taunt_skips_home_range_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, player);
 }
 #[test]
-fn legacy_creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp() {
+fn creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_041);
@@ -750,17 +719,12 @@ fn legacy_creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp(
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 250.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().aggro_radius = 250.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_type_flags_runtime_like_cpp(CreatureTypeFlags::BOSS_MOB.bits());
+            creature.set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() + 10);
             creature
-                .creature
-                .set_type_flags_runtime_like_cpp(CreatureTypeFlags::BOSS_MOB.bits());
-            creature
-                .creature
-                .set_last_damaged_time_like_cpp(wow_entities::game_time_secs_like_cpp() + 10);
-            creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -772,7 +736,7 @@ fn legacy_creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp(
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_043);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(240.0, 10.0, 0.0, 0.0),
     )];
@@ -780,7 +744,7 @@ fn legacy_creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp(
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_with_rate_like_cpp(8.0),
+        aggro_hostile_config_with_rate_like_cpp(8.0),
     );
 
     assert_eq!(outcome.home_range_rejections, 1);
@@ -788,7 +752,7 @@ fn legacy_creature_aggro_world_boss_does_not_skip_home_range_for_taunt_like_cpp(
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_home_range_uses_template_flight_2d_like_cpp() {
+fn creature_aggro_home_range_uses_template_flight_2d_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let dynamic_guid = test_creature_guid(91_025);
@@ -807,20 +771,18 @@ fn legacy_creature_aggro_home_range_uses_template_flight_2d_like_cpp() {
     register_test_creature(&mut session, manager.clone(), template_guid, 25);
     session
         .mutate_world_creature(dynamic_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 500.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature
-                .creature
-                .set_movement_flags_runtime_like_cpp(MovementFlag::DISABLE_GRAVITY);
+            creature.ai_ownership_mut().aggro_radius = 500.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_movement_flags_runtime_like_cpp(MovementFlag::DISABLE_GRAVITY);
         })
         .unwrap();
     session
         .mutate_world_creature(template_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 500.0;
-            creature.creature.unit_mut().set_level(25);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_flight_movement_type_runtime_like_cpp(
+            creature.ai_ownership_mut().aggro_radius = 500.0;
+            creature.unit_mut().set_level(25);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_flight_movement_type_runtime_like_cpp(
                 wow_constants::CreatureFlightMovementType::CanFly as u8,
             );
         })
@@ -829,11 +791,11 @@ fn legacy_creature_aggro_home_range_uses_template_flight_2d_like_cpp() {
     let dynamic_player = ObjectGuid::create_player(1, 91_027);
     let template_player = ObjectGuid::create_player(1, 91_028);
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(dynamic_player, Position::new(10.5, 10.5, 4.0, 0.0)),
-        legacy_aggro_candidate_like_cpp(template_player, Position::new(10.5, 10.5, 4.0, 0.0)),
+        aggro_candidate_like_cpp(dynamic_player, Position::new(10.5, 10.5, 4.0, 0.0)),
+        aggro_candidate_like_cpp(template_player, Position::new(10.5, 10.5, 4.0, 0.0)),
     ];
 
-    let mut config = legacy_aggro_hostile_config_with_rate_like_cpp(8.0);
+    let mut config = aggro_hostile_config_with_rate_like_cpp(8.0);
     config.visibility_distance_continents = 3.0;
     let outcome =
         run_canonical_creature_aggro_phase_for_test_like_cpp(&manager, &candidates, config);

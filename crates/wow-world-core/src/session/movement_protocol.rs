@@ -283,7 +283,7 @@ impl crate::session::HubRef<'_> {
     /// No grid minimum-height data is loaded, so this is the C++ default for a
     /// missing grid, exactly as the former map facade answered for every key.
     pub fn player_min_height_like_cpp(&self, _position: wow_core::Position) -> f32 {
-        crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP
+        crate::terrain::DEFAULT_MIN_HEIGHT_LIKE_CPP
     }
 
     pub fn trace_anticheat_violation_like_cpp(

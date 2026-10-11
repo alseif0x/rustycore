@@ -48,7 +48,7 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
     register_test_creature(&mut session, Arc::clone(&manager), victim, 52);
     session
         .mutate_world_creature(victim, |creature| {
-            creature.creature.set_sparring_health_pct_like_cpp(50.0);
+            creature.set_sparring_health_pct_like_cpp(50.0);
         })
         .unwrap();
     let manager = session
@@ -60,10 +60,10 @@ fn legacy_creature_melee_tick_once_preserves_sparring_damage_clamp_like_cpp() {
     session
         .mutate_world_creature(attacker, |creature| {
             creature.enter_combat(victim);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.creature.ai_ownership_mut().min_damage = 52;
-            creature.creature.ai_ownership_mut().max_damage = 52;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().min_damage = 52;
+            creature.ai_ownership_mut().max_damage = 52;
         })
         .unwrap();
 
@@ -169,8 +169,8 @@ fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
     session
         .mutate_world_creature(attacker, |creature| {
             creature.enter_combat(victim);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -262,8 +262,8 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
     session
         .mutate_world_creature(attacker, |creature| {
             creature.enter_combat(victim);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -289,9 +289,9 @@ fn legacy_creature_melee_tick_once_preserves_lethal_creature_outcome_like_cpp() 
     drop(guard);
     let legacy_guard = manager.lock().unwrap();
     let legacy_creature = legacy_guard.find_creature(0, 0, victim).unwrap();
-    assert_eq!(legacy_creature.creature.unit().data().health, 0);
+    assert_eq!(legacy_creature.unit().data().health, 0);
     assert_eq!(
-        legacy_creature.creature.unit().death_state(),
+        legacy_creature.unit().death_state(),
         wow_constants::DeathState::Corpse
     );
 }
@@ -345,10 +345,9 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             creature
-                .creature
                 .unit_mut()
                 .add_unit_state(UnitState::CHARGING.bits());
         })
@@ -366,7 +365,7 @@ fn legacy_creature_melee_tick_once_rejects_charging_before_ready_swing_like_cpp(
         let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, creature_guid).unwrap();
         assert_eq!(
-            creature.creature.ai_ownership().swing_timer_ms,
+            creature.ai_ownership().swing_timer_ms,
             0,
             "C++ returns before isAttackReady/resetAttackTimer while charging"
         );
@@ -396,13 +395,11 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             let mut static_flags = [0; 8];
             static_flags[0] = wow_constants::creature::CreatureStaticFlags::NO_MELEE_FLEE.bits();
-            creature
-                .creature
-                .set_static_flags_runtime_like_cpp(static_flags);
+            creature.set_static_flags_runtime_like_cpp(static_flags);
         })
         .unwrap();
 
@@ -420,8 +417,8 @@ fn legacy_creature_melee_tick_once_rejects_no_melee_static_flag_like_cpp() {
         creature.runtime_rng_authority_complete_like_cpp(),
         "NO_MELEE returns before CalculateMeleeDamage consumes runtime RNG"
     );
-    assert_eq!(creature.creature.ai_ownership().last_swing_ms, 0);
-    assert_eq!(creature.creature.ai_ownership().swing_timer_ms, 0);
+    assert_eq!(creature.ai_ownership().last_swing_ms, 0);
+    assert_eq!(creature.ai_ownership().swing_timer_ms, 0);
 }
 #[test]
 fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
@@ -447,9 +444,9 @@ fn legacy_creature_melee_tick_once_rejects_blocking_channel_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.creature.unit_mut().set_current_cast_spell(
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.unit_mut().set_current_cast_spell(
                 wow_entities::CurrentSpellSlot::Channeled,
                 wow_entities::CurrentSpellRef::new(12_347, Some(creature_guid), None),
             );
@@ -510,9 +507,9 @@ fn legacy_creature_melee_tick_once_respects_channel_allow_actions_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.creature.unit_mut().set_current_cast_spell(
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.unit_mut().set_current_cast_spell(
                 wow_entities::CurrentSpellSlot::Channeled,
                 wow_entities::CurrentSpellRef::new(12_348, Some(creature_guid), None)
                     .with_allow_actions_during_channel(true),
@@ -549,8 +546,8 @@ fn legacy_creature_lifecycle_persistence_does_not_double_count_stale_tick_time_l
     register_test_creature(&mut session, Arc::clone(&manager), guid, 10);
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.set_spawn_id(90_020);
-            creature.creature.ai_ownership_mut().respawn_time_secs = 30;
+            creature.set_spawn_id(90_020);
+            creature.ai_ownership_mut().respawn_time_secs = 30;
             assert!(creature.take_damage(10));
         })
         .unwrap();
@@ -597,9 +594,9 @@ fn legacy_creature_lifecycle_tick_once_despawns_corpse_queues_respawn_and_refres
     let past = now - Duration::from_secs(1);
     session
         .mutate_world_creature(guid, |creature| {
-            creature.creature.set_spawn_id(90_010);
+            creature.set_spawn_id(90_010);
             creature.take_damage(10);
-            creature.set_corpse_despawn_at(Some(past));
+            crate::creature_projection::test_support::set_corpse_despawn_at(creature, Some(past));
         })
         .unwrap();
 
@@ -692,15 +689,13 @@ fn legacy_creature_lifecycle_tick_once_does_not_persist_garrison_respawn_like_cp
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_like_cpp() {
-    use crate::map_manager::pending_respawn_from_world_creature_like_cpp;
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
 
     let now = Instant::now();
     let guid = test_creature_guid(90_011);
-    let mut world_creature = crate::map_manager::WorldCreature::new(
+    let mut world_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9001,
         Position::new(5.0, 6.0, 7.0, 1.0),
@@ -715,14 +710,13 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
         0,
     );
     world_creature
-        .creature
         .unit_mut()
         .world_mut()
         .phase_shift_mut()
         .add_phase_like_cpp(77, wow_constants::PhaseFlags::empty(), 1);
-    world_creature.creature.ai_ownership_mut().phase_id = 77;
-    world_creature.creature.set_spawn_id(90_011);
-    let mut pending = pending_respawn_from_world_creature_like_cpp(
+    world_creature.ai_ownership_mut().phase_id = 77;
+    world_creature.set_spawn_id(90_011);
+    let mut pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &world_creature,
         now - Duration::from_secs(1),
         0,
@@ -795,7 +789,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
             creature.phase_shift().has_phase_like_cpp(77),
             "resolved phase shift must survive session-free respawn"
         );
-        let auras = &creature.creature.unit().subsystems().auras;
+        let auras = &creature.unit().subsystems().auras;
         let slot = auras
             .visible_auras
             .iter()

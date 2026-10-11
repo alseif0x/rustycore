@@ -133,7 +133,6 @@ use wow_persistence::{
 };
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
-use crate::map_manager::zone_and_area_for_position_like_cpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
@@ -145,6 +144,7 @@ use crate::session::{
     RepresentedQuestObjectiveProgressEventLikeCpp, RepresentedVoidStorageItemLikeCpp,
     SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
+use crate::terrain::zone_and_area_for_position_like_cpp;
 // Test-only: its production caller moved to `wow-world-application` (#1263 F5).
 #[cfg(test)]
 use crate::session::REST_STATE_RAF_LINKED_LIKE_CPP;
@@ -200,7 +200,7 @@ const GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP: i32 = -1;
 const GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP: u8 = 3;
 const GOSSIP_OPTION_TRAINER_TEXT_LIKE_CPP: &str = "I would like to train.";
 
-pub(crate) use wow_world_core::map_manager::MapCorpseLoadOutcomeLikeCpp;
+pub(crate) use wow_world_core::corpse_load::MapCorpseLoadOutcomeLikeCpp;
 
 fn motd_lines_like_cpp(motd: &str) -> Vec<String> {
     // C++ `World::SetMotd` uses `boost::split` on `@` with token compression
@@ -370,7 +370,7 @@ const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
 // Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
-const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
+const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = wow_entities::VISIBILITY_RADIUS_LIKE_CPP;
 pub(crate) use wow_constants::character::RESPONSE_SUCCESS_LIKE_CPP;
 const CHAR_CREATE_ERROR_LIKE_CPP: u8 = 25;
 pub(crate) use wow_constants::character::{

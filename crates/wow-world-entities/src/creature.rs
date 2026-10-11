@@ -1,11 +1,10 @@
 use wow_core::ObjectGuid;
-use wow_world_core::map_manager::WorldCreature;
 use wow_world_core::session::{HubMut, HubRef};
 
 use crate::WorldEntitiesState;
 
 pub fn creature_message_to_set_target_allows_like_cpp(
-    creature: &WorldCreature,
+    creature: &wow_entities::Creature,
     source_is_visible_like_cpp: bool,
     player_map_id: u32,
     player_instance_id: u32,
@@ -43,7 +42,7 @@ impl WorldEntitiesState {
     pub fn represented_can_see_or_detect_world_creature_like_cpp(
         &self,
         hub: HubRef<'_>,
-        creature: &WorldCreature,
+        creature: &wow_entities::Creature,
     ) -> bool {
         let expected = wow_map::MapKey::new(
             u32::from(hub.core.player_map_id_like_cpp()),
@@ -54,12 +53,9 @@ impl WorldEntitiesState {
         }
         hub.core
             .with_owned_player_like_cpp(|player| {
-                player.unit().can_see_or_detect_unit_like_cpp(
-                    creature.creature.unit(),
-                    false,
-                    true,
-                    false,
-                )
+                player
+                    .unit()
+                    .can_see_or_detect_unit_like_cpp(creature.unit(), false, true, false)
             })
             .unwrap_or(false)
     }

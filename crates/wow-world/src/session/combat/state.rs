@@ -131,27 +131,22 @@ impl WorldSession {
         crate::session::hub_mut(self).set_in_combat_like_cpp(false);
         for owner_guid in owner_guids {
             let _ = self.core.mutate_world_creature(owner_guid, |owner| {
-                if owner.creature.unit().attacking() == Some(player_guid) {
-                    let _ = owner.creature.unit_mut().attack_stop_like_cpp();
+                if owner.unit().attacking() == Some(player_guid) {
+                    let _ = owner.unit_mut().attack_stop_like_cpp();
                 }
                 owner
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
                     .purge_combat_ref_like_cpp(player_guid);
                 owner
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
                     .scale_threat(player_guid, 0.0);
-                owner
-                    .creature
-                    .unit_mut()
-                    .remove_attacker_like_cpp(player_guid);
-                if owner.creature.ai_ownership().combat_target == Some(player_guid) {
-                    owner.creature.ai_ownership_mut().combat_target = None;
+                owner.unit_mut().remove_attacker_like_cpp(player_guid);
+                if owner.ai_ownership().combat_target == Some(player_guid) {
+                    owner.ai_ownership_mut().combat_target = None;
                 }
             });
         }

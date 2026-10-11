@@ -308,7 +308,7 @@ pub(in crate::session::tests) fn install_xp_victim_like_cpp(
     if tapped {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.set_tapped_by_player(player_guid, &[]);
+                creature.set_tapped_by_player(player_guid, &[]);
             })
             .expect("XP victim is installed in the represented map");
     }

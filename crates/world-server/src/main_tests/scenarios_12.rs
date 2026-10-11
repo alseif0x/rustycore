@@ -133,7 +133,7 @@ fn collect_legacy_creature_aggro_candidates_uses_living_in_world_players_like_cp
     }
     assert!(registry.bind_canonical_map_manager(canonical));
 
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    let candidates = collect_creature_aggro_candidates_like_cpp(&registry);
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].player_guid, in_world);
@@ -224,10 +224,8 @@ fn collect_legacy_creature_aggro_candidates_hydrates_canonical_visibility_like_c
     }
     assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
 
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
-        &registry,
-        Some(&canonical),
-    );
+    let candidates =
+        collect_creature_aggro_candidates_with_canonical_like_cpp(&registry, Some(&canonical));
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(candidates[0].map_difficulty_id, 2);
@@ -292,10 +290,8 @@ fn collect_legacy_creature_aggro_candidates_reads_reputation_and_flags_from_cano
         player.set_forced_reputation_rank_like_cpp(87, true);
     }
 
-    let candidates = collect_legacy_creature_aggro_candidates_with_canonical_like_cpp(
-        &registry,
-        Some(&canonical),
-    );
+    let candidates =
+        collect_creature_aggro_candidates_with_canonical_like_cpp(&registry, Some(&canonical));
 
     assert_eq!(candidates.len(), 1);
     assert_eq!(
@@ -324,7 +320,7 @@ fn collect_legacy_creature_aggro_candidates_skips_unknown_canonical_owner_like_c
     let (info, _) = make_registry_player_like_cpp(571, 2, position, true);
     registry.register_or_replace(player_guid, info, Default::default());
 
-    let candidates = collect_legacy_creature_aggro_candidates_like_cpp(&registry);
+    let candidates = collect_creature_aggro_candidates_like_cpp(&registry);
 
     assert!(candidates.is_empty());
 }
@@ -430,7 +426,7 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
     );
 
     let attack_bytes = wow_packet::packets::combat::AttackStart { attacker, victim }.to_bytes();
-    let recipients = wow_world::map_manager::RecipientRule::NearbyVisibleDurable {
+    let recipients = wow_world::runtime_plan::RecipientRule::NearbyVisibleDurable {
         source_guid: attacker,
         map_id: 571,
         instance_id: 4,
@@ -445,19 +441,19 @@ fn rejected_map_attack_filters_both_session_and_visual_delivery_like_cpp() {
         reaction: wow_constants::creature::AiReaction::Hostile,
     }
     .to_bytes();
-    let mut plan = wow_world::map_manager::RuntimePlan {
+    let mut plan = wow_world::runtime_plan::RuntimePlan {
         events: vec![
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients: recipients.clone(),
                 packet_bytes: reaction_bytes,
             },
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients: recipients.clone(),
                 packet_bytes: attack_bytes,
             },
-            wow_world::map_manager::RuntimeEvent {
+            wow_world::runtime_plan::RuntimeEvent {
                 source_guid: attacker,
                 recipients,
                 packet_bytes: vec![0xAA, 0x55],

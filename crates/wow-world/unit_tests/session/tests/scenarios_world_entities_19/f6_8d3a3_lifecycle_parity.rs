@@ -60,14 +60,17 @@ async fn d3a3_world_like_cpp(base: i64) -> D3a3WorldLikeCpp {
     );
     session
         .mutate_world_creature(creature, |world_creature| {
-            let unit = world_creature.creature.unit_mut();
+            let unit = world_creature.unit_mut();
             unit.set_speed_rate_like_cpp(wow_constants::UnitMoveType::Walk, 1.0);
             unit.set_speed_rate_like_cpp(wow_constants::UnitMoveType::Run, D3A3_RUN_RATE_LIKE_CPP);
-            world_creature.seed_runtime_rng_like_cpp(D3A3_SEED_LIKE_CPP);
-            world_creature.creature.set_spawn_id(D3A3_SPAWN_ID_LIKE_CPP);
-            world_creature.creature.set_corpse_delay(1, false);
-            world_creature.creature.set_respawn_delay(2);
-            world_creature.creature.ai_ownership_mut().respawn_time_secs = 2;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(
+                world_creature,
+                D3A3_SEED_LIKE_CPP,
+            );
+            world_creature.set_spawn_id(D3A3_SPAWN_ID_LIKE_CPP);
+            world_creature.set_corpse_delay(1, false);
+            world_creature.set_respawn_delay(2);
+            world_creature.ai_ownership_mut().respawn_time_secs = 2;
             // `Unit::Kill` → `setDeathState(JUST_DIED)` → `CORPSE`.
             assert!(world_creature.take_damage(25), "the creature dies");
         })
@@ -113,10 +116,10 @@ async fn d3a3_world_like_cpp(base: i64) -> D3a3WorldLikeCpp {
 
 /// One tick's comparable output on either side.
 struct D3a3TickLikeCpp {
-    lifecycle: crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    movement: crate::session::LegacyCreatureMovementTickOutcomeLikeCpp,
-    aggro: LegacyCreatureAggroTickOutcomeLikeCpp,
-    melee: crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp,
+    lifecycle: crate::session::CreatureLifecycleTickOutcomeLikeCpp,
+    movement: crate::session::CreatureMovementTickOutcomeLikeCpp,
+    aggro: CreatureAggroTickOutcomeLikeCpp,
+    melee: crate::session::CreatureMeleeTickOutcomeLikeCpp,
     /// The packets the observer session sent for this tick's visibility
     /// refresh commands.
     visibility: Vec<Vec<u8>>,
@@ -166,7 +169,7 @@ async fn d3a3_executor_tick_like_cpp(
         [(key, world.creature)],
     )
     .expect("the canonical owner is readable");
-    let config = legacy_aggro_hostile_config_like_cpp();
+    let config = aggro_hostile_config_like_cpp();
     let mut phase_state = crate::session::PlayerMeleePhaseStateLikeCpp::default();
     let lease = std::sync::Arc::new(std::sync::Mutex::new(CreatureExecutionLeaseLikeCpp::new()));
     let mmap_config = super::f6_8d3a2_movement_lifecycle_parity::d3a2_mmap_config_like_cpp();
@@ -205,7 +208,7 @@ async fn d3a3_executor_tick_like_cpp(
 
 /// The lifecycle counters, without the two lists compared on their own.
 fn d3a3_lifecycle_counters_like_cpp(
-    outcome: &crate::session::LegacyCreatureLifecycleTickOutcomeLikeCpp,
+    outcome: &crate::session::CreatureLifecycleTickOutcomeLikeCpp,
 ) -> String {
     format!(
         "maps={} creatures={} despawned={} respawned={} canonical_removes={} \
@@ -560,7 +563,7 @@ fn respawn_rebuild_applies_template_speed_rates_to_the_unit_like_cpp() {
     use wow_constants::UnitMoveType;
 
     let guid = test_creature_guid(97_300);
-    let queued = crate::map_manager::WorldCreature::new(
+    let queued = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9001,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -574,14 +577,11 @@ fn respawn_rebuild_applies_template_speed_rates_to_the_unit_like_cpp() {
         0,
         0,
     );
-    let mut pending = crate::map_manager::pending_respawn_from_world_creature_like_cpp(
-        &queued,
-        Instant::now(),
-        0,
-    );
+    let mut pending =
+        crate::creature_respawn::pending_respawn_from_creature_like_cpp(&queued, Instant::now(), 0);
     pending.create_data.speed_walk_rate = 0.8;
     pending.create_data.speed_run_rate = 1.5;
-    let creature = crate::map_manager::creature_from_pending_respawn_like_cpp(&pending, 0);
+    let creature = crate::creature_respawn::creature_from_pending_respawn_like_cpp(&pending, 0);
     let rates = creature.unit().speed_rate();
     assert_eq!(rates[UnitMoveType::Walk as usize], 0.8);
     assert_eq!(rates[UnitMoveType::Run as usize], 1.5);
@@ -589,11 +589,17 @@ fn respawn_rebuild_applies_template_speed_rates_to_the_unit_like_cpp() {
     assert_eq!(rates[UnitMoveType::Flight as usize], 1.0);
     // The legacy bridge projection of the same rebuild caches the same rates.
     let world_creature =
-        crate::map_manager::world_creature_from_pending_respawn_like_cpp(&pending, 0);
-    assert_eq!(world_creature.create_data.speed_walk_rate, 0.8);
-    assert_eq!(world_creature.create_data.speed_run_rate, 1.5);
+        crate::creature_respawn::creature_from_pending_respawn_like_cpp(&pending, 0);
     assert_eq!(
-        world_creature.creature.unit().speed_rate()[UnitMoveType::Run as usize],
+        crate::creature_projection::creature_create_data_like_cpp(&world_creature).speed_walk_rate,
+        0.8
+    );
+    assert_eq!(
+        crate::creature_projection::creature_create_data_like_cpp(&world_creature).speed_run_rate,
+        1.5
+    );
+    assert_eq!(
+        world_creature.unit().speed_rate()[UnitMoveType::Run as usize],
         1.5
     );
 }

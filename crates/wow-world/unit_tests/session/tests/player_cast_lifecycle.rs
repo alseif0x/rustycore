@@ -321,7 +321,7 @@ async fn canonical_prepare_allocates_map_cast_and_stamps_residence_like_cpp() {
     spells.insert(TEST_SPELL_ID, spell);
     session.set_spell_store(Arc::new(spells));
     session.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
-    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+    session.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
         // An empty effective visual catalog still takes the production
         // resolver path and returns the C++ default visual.
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
@@ -388,7 +388,7 @@ async fn canonical_prepare_applies_cast_speed_auras_like_cpp() {
     spells.insert(TEST_SPELL_ID, spell);
     baseline.set_spell_store(Arc::new(spells));
     baseline.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
-    baseline.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+    baseline.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
             [],
         ))),
@@ -437,7 +437,7 @@ async fn canonical_prepare_applies_cast_speed_auras_like_cpp() {
     );
     session.set_spell_store(Arc::new(spells));
     session.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
-    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+    session.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
             [],
         ))),
@@ -748,7 +748,7 @@ fn normal_visual_uses_server_relation_id_and_cpp_equal_condition_order() {
         caster_player_condition_id: 0,
         spell_id: TEST_SPELL_ID as u32,
     };
-    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+    session.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
             [row(10), row(20)],
         ))),
@@ -805,7 +805,7 @@ async fn normal_start_and_go_carry_cpp_cast_flags_like_cpp() {
     spells.insert(TEST_SPELL_ID, spell);
     session.set_spell_store(Arc::new(spells));
     session.set_known_spells_like_cpp(vec![TEST_SPELL_ID]);
-    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+    session.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
             [],
         ))),

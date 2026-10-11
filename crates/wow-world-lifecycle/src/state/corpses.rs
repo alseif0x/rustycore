@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tracing::warn;
 use wow_core::Position;
 use wow_entities::{CorpseCustomizationChoice, CorpseType};
-use wow_world_core::map_manager::{
+use wow_world_core::corpse_load::{
     LoadedMapCorpseRowLikeCpp, MapCorpseLoadOutcomeLikeCpp,
     materialize_loaded_map_corpses_like_cpp, parse_corpse_items_like_cpp,
 };

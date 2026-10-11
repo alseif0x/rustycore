@@ -7,8 +7,6 @@ use super::*;
 
 #[test]
 fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp() {
-    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -16,7 +14,7 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
     let now = Instant::now();
     let queued_guid = test_creature_guid(90_012);
     let live_guid = test_creature_guid(90_013);
-    let mut queued_world_creature = crate::map_manager::WorldCreature::new(
+    let mut queued_world_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         queued_guid,
         9002,
         Position::new(8.0, 9.0, 10.0, 1.5),
@@ -30,14 +28,14 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
         0,
         0,
     );
-    queued_world_creature.creature.set_spawn_id(90_012);
-    let pending = pending_respawn_from_world_creature_like_cpp(
+    queued_world_creature.set_spawn_id(90_012);
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &queued_world_creature,
         now - Duration::from_secs(1),
         0,
     );
     let spawn_id = pending.spawn_id;
-    let mut live_world_creature = crate::map_manager::WorldCreature::new(
+    let mut live_world_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         live_guid,
         9002,
         Position::new(8.0, 9.0, 10.0, 1.5),
@@ -51,16 +49,12 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
         0,
         0,
     );
-    live_world_creature.creature.set_spawn_id(spawn_id);
+    live_world_creature.set_spawn_id(spawn_id);
 
     {
         let mut guard = manager.lock().unwrap();
-        let (grid_x, grid_y) = world_to_grid_coords(
-            live_world_creature.position().x,
-            live_world_creature.position().y,
-        );
         assert!(
-            guard.add_creature(0, 0, grid_x, grid_y, live_world_creature),
+            guard.add_creature(0, 0, live_world_creature),
             "test setup simulates canonical ProcessRespawns already mirroring the spawn under a regenerated GUID"
         );
         assert!(
@@ -119,8 +113,6 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp() {
-    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -129,7 +121,7 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
     let queued_guid = test_creature_guid(90_017);
     let dead_guid = test_creature_guid(90_018);
     let spawn_id = 90_017;
-    let mut queued = crate::map_manager::WorldCreature::new(
+    let mut queued = crate::creature_projection::new_runtime_creature_like_cpp(
         queued_guid,
         9006,
         Position::new(20.0, 21.0, 22.0, 1.25),
@@ -143,11 +135,14 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
         0,
         0,
     );
-    queued.creature.set_spawn_id(spawn_id);
-    let pending =
-        pending_respawn_from_world_creature_like_cpp(&queued, now - Duration::from_secs(1), 0);
+    queued.set_spawn_id(spawn_id);
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
+        &queued,
+        now - Duration::from_secs(1),
+        0,
+    );
 
-    let mut dead = crate::map_manager::WorldCreature::new(
+    let mut dead = crate::creature_projection::new_runtime_creature_like_cpp(
         dead_guid,
         9006,
         Position::new(23.0, 24.0, 25.0, 1.5),
@@ -161,15 +156,17 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
         0,
         0,
     );
-    dead.creature.set_spawn_id(spawn_id);
+    dead.set_spawn_id(spawn_id);
     assert!(dead.take_damage(55));
-    dead.creature.runtime_state_mut().save_respawn_requested = false;
-    dead.set_corpse_despawn_at(Some(now + Duration::from_secs(60)));
+    dead.runtime_state_mut().save_respawn_requested = false;
+    crate::creature_projection::test_support::set_corpse_despawn_at(
+        &mut dead,
+        Some(now + Duration::from_secs(60)),
+    );
 
     {
         let mut guard = manager.lock().unwrap();
-        let (grid_x, grid_y) = world_to_grid_coords(dead.position().x, dead.position().y);
-        assert!(guard.add_creature(0, 0, grid_x, grid_y, dead));
+        assert!(guard.add_creature(0, 0, dead));
         assert!(
             guard
                 .save_pending_respawn_time_like_cpp(0, 0, &pending, now, unix_now())
@@ -197,8 +194,6 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
 }
 #[test]
 fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_like_cpp() {
-    use crate::map_manager::{pending_respawn_from_world_creature_like_cpp, world_to_grid_coords};
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -206,7 +201,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
     let now = Instant::now();
     let synthetic_guid = test_creature_guid(90_014);
     let persistent_guid = test_creature_guid(90_015);
-    let synthetic = crate::map_manager::WorldCreature::new(
+    let synthetic = crate::creature_projection::new_runtime_creature_like_cpp(
         synthetic_guid,
         9003,
         Position::new(11.0, 12.0, 13.0, 0.5),
@@ -220,11 +215,14 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
         0,
         0,
     );
-    let pending =
-        pending_respawn_from_world_creature_like_cpp(&synthetic, now - Duration::from_secs(1), 0);
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
+        &synthetic,
+        now - Duration::from_secs(1),
+        0,
+    );
     assert!(!pending.persistent_spawn);
 
-    let mut persistent = crate::map_manager::WorldCreature::new(
+    let mut persistent = crate::creature_projection::new_runtime_creature_like_cpp(
         persistent_guid,
         9004,
         Position::new(14.0, 15.0, 16.0, 0.75),
@@ -238,13 +236,11 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
         0,
         0,
     );
-    persistent.creature.set_spawn_id(pending.spawn_id);
+    persistent.set_spawn_id(pending.spawn_id);
 
     {
         let mut guard = manager.lock().unwrap();
-        let (grid_x, grid_y) =
-            world_to_grid_coords(persistent.position().x, persistent.position().y);
-        assert!(guard.add_creature(0, 0, grid_x, grid_y, persistent));
+        assert!(guard.add_creature(0, 0, persistent));
         guard.push_respawn(0, 0, pending);
     }
 
@@ -263,7 +259,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
     let synthetic = guard
         .find_creature(0, 0, synthetic_guid)
         .expect("GUID-low collision with a DB spawn id must not discard a synthetic respawn");
-    assert_eq!(synthetic.creature.spawn_id(), 0);
+    assert_eq!(synthetic.spawn_id(), 0);
     assert!(guard.find_creature(0, 0, persistent_guid).is_some());
     assert_eq!(guard.respawn_queue_len(0, 0), 0);
 }
@@ -334,16 +330,15 @@ fn step_creature_movement_random_should_wander_returns_monster_move_and_state_wa
     let guid = test_creature_guid(200_001);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     // Trigger random wander: delay=0, wander_radius=3.0, move_start_ms=0.
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    creature.seed_runtime_rng_like_cpp(0x5757);
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false, // disable pathfinding → simple straight-line spline
         ..Default::default()
@@ -383,15 +378,14 @@ fn step_creature_movement_chase_priority_interrupts_active_random_spline_like_cp
     let target = ObjectGuid::create_player(1, 20_013);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .set_default_movement_type_runtime_like_cpp(wow_entities::MovementGeneratorType::Random);
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    creature.seed_runtime_rng_like_cpp(0x2013);
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x2013);
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -458,22 +452,21 @@ fn step_creature_movement_chase_paths_around_real_navmesh_obstacle_like_cpp() {
     let victim_guid = test_creature_guid(200_026);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(MAP_ID, 0)
         .expect("bind the fixture map");
-    creature.creature.set_ai_position(start);
-    creature.creature.set_ai_home_position(start);
+    creature.set_ai_position(start);
+    creature.set_ai_home_position(start);
     creature.enter_combat(victim_guid);
 
-    let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,
         ..Default::default()
     };
-    let target = crate::map_manager::ChaseTargetSnapshotLikeCpp {
+    let target = crate::creature_movement::ChaseTargetSnapshotLikeCpp {
         guid: victim_guid,
         position: victim_position,
         combat_reach: 1.0,
@@ -528,7 +521,6 @@ fn step_creature_movement_chase_paths_around_real_navmesh_obstacle_like_cpp() {
     // NOPATH; here it succeeded, so the creature must be marked as chasing.
     assert!(
         creature
-            .creature
             .unit()
             .has_unit_state(wow_constants::UnitState::CHASE_MOVE.bits()),
         "a launched chase sets UNIT_STATE_CHASE_MOVE"
@@ -567,19 +559,16 @@ fn step_creature_movement_home_paths_around_real_navmesh_obstacle_like_cpp() {
     let guid = test_creature_guid(200_027);
     let mut creature = make_test_world_creature(guid);
     creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(MAP_ID, 0)
         .expect("bind the fixture map");
     // Home is across the obstacle from where the creature stands.
-    creature.creature.set_ai_home_position(home);
-    creature.creature.set_ai_position(away);
-    creature
-        .creature
-        .set_ai_state(wow_entities::CreatureAiState::Returning);
+    creature.set_ai_home_position(home);
+    creature.set_ai_position(away);
+    creature.set_ai_state(wow_entities::CreatureAiState::Returning);
 
-    let worker = crate::map_manager::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,
@@ -620,7 +609,6 @@ fn step_creature_movement_home_paths_around_real_navmesh_obstacle_like_cpp() {
     // C++ `SetTargetLocation` adds `UNIT_STATE_ROAMING_MOVE` before launching.
     assert!(
         creature
-            .creature
             .unit()
             .has_unit_state(wow_constants::UnitState::ROAMING_MOVE.bits())
     );
@@ -639,7 +627,7 @@ fn step_creature_movement_idle_zero_wander_radius_stays_still_like_cpp() {
     let guid = test_creature_guid(200_011);
     let mut creature = make_test_world_creature(guid);
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 0.0;
@@ -657,14 +645,14 @@ fn step_creature_movement_idle_zero_wander_radius_stays_still_like_cpp() {
         "C++ Creature::Create forces RANDOM_MOTION_TYPE to IDLE_MOTION_TYPE when m_wanderDistance is zero"
     );
     assert_eq!(creature.state(), wow_entities::CreatureAiState::Idle);
-    assert!(creature.creature.ai_ownership().move_target.is_none());
+    assert!(creature.ai_ownership().move_target.is_none());
 }
 #[test]
 fn step_creature_movement_idle_positive_wander_radius_stays_still_like_cpp() {
     let guid = test_creature_guid(200_012);
     let mut creature = make_test_world_creature(guid);
     {
-        let ai = creature.creature.ai_ownership_mut();
+        let ai = creature.ai_ownership_mut();
         ai.wander_delay_ms = 0;
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
@@ -682,5 +670,5 @@ fn step_creature_movement_idle_positive_wander_radius_stays_still_like_cpp() {
         "C++ IdleMovementGenerator must not use RandomMovementGenerator wander distance"
     );
     assert_eq!(creature.state(), wow_entities::CreatureAiState::Idle);
-    assert!(creature.creature.ai_ownership().move_target.is_none());
+    assert!(creature.ai_ownership().move_target.is_none());
 }

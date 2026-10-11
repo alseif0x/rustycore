@@ -474,10 +474,8 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
     }
 
     // A terrain-read failure retains the seeded location but cannot prove its authority.
-    let (gx, gy) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(
-        destination.x,
-        destination.y,
-    );
+    let (gx, gy) =
+        crate::terrain::terrain_grid_coords_for_wow_position_like_cpp(destination.x, destination.y);
     std::fs::write(
         data_dir
             .join("maps")

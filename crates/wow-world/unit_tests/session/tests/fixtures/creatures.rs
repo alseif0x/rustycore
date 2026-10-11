@@ -141,18 +141,18 @@ pub(in crate::session::tests) fn register_test_creature(
             // This test fixture represents a fully hydrated DB-backed
             // creature with no addon/template-addon auras.
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
                 .set_spell_hit_aura_authority_inert_like_cpp(true);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
                 .set_spell_cast_log_aura_authority_inert_like_cpp(true);
-            creature.seed_runtime_rng_like_cpp(0x5E11_117);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(
+                creature, 0x5E11_117,
+            );
         })
         .expect("registered test creature must remain available");
 

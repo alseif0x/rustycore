@@ -539,13 +539,10 @@ fn visible_world_creatures_use_map_grid_and_phase_like_cpp() {
         .ensure_canonical_world_map_for_current_player_like_cpp()
         .expect("canonical viewer map");
     for (guid, position) in [(visible_guid, visible_pos), (far_guid, far_pos)] {
-        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
         manager.lock().unwrap().add_creature(
             571,
             0,
-            grid_x,
-            grid_y,
-            crate::map_manager::WorldCreature::new(
+            crate::creature_projection::new_runtime_creature_like_cpp(
                 guid, 900, position, 100, 80, 1, 2, 0.0, 1, 35, 0, 0,
             ),
         );
@@ -589,7 +586,7 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
     // is the one carrying the spline, and it is given a different level from
     // its legacy duplicate so a legacy-preferred selection cannot satisfy both
     // assertions below.
-    let mut canonical_carrier = crate::map_manager::WorldCreature::new(
+    let mut canonical_carrier = crate::creature_projection::new_runtime_creature_like_cpp(
         creature_guid,
         76_011,
         creature_position,
@@ -604,18 +601,15 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
         0,
     );
     canonical_carrier
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(571, 0)
         .unwrap();
     canonical_carrier
-        .creature
         .unit_mut()
         .world_mut()
         .set_combat_reach(1.0);
-    canonical_carrier
-        .movement_like_cpp()
+    crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut canonical_carrier)
         .begin_move_spline_like_cpp(Position::new(24.0, 20.0, 0.0, 0.0))
         .expect("canonical runtime spline must launch");
     canonical
@@ -625,11 +619,11 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
         .expect("canonical map instance")
         .map_mut()
         .add_map_object_record_to_map_like_cpp(
-            wow_entities::MapObjectRecord::new_creature(canonical_carrier.creature).unwrap(),
+            wow_entities::MapObjectRecord::new_creature(canonical_carrier).unwrap(),
         )
         .unwrap();
 
-    let mut legacy_creature = crate::map_manager::WorldCreature::new(
+    let mut legacy_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         creature_guid,
         76_011,
         creature_position,
@@ -644,23 +638,19 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
         0,
     );
     legacy_creature
-        .creature
         .unit_mut()
         .world_mut()
         .set_map(571, 0)
         .unwrap();
     legacy_creature
-        .creature
         .unit_mut()
         .world_mut()
         .object_mut()
         .add_to_world();
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager
         .lock()
         .unwrap()
-        .add_creature(571, 0, grid_x, grid_y, legacy_creature);
+        .add_creature(571, 0, legacy_creature);
 
     let visible = session.visible_world_creatures_from_map_like_cpp(571, &player_position);
 
@@ -676,8 +666,10 @@ fn visible_world_creatures_prefer_canonical_runtime_duplicate_with_active_spline
         "C++ has one map Creature; Rust visibility must select the canonical runtime state, which carries the active MoveSpline"
     );
     assert!(
-        MovementFlag::from_bits_retain(visible[0].create_data.movement_flags)
-            .contains(MovementFlag::FORWARD),
+        MovementFlag::from_bits_retain(
+            crate::creature_projection::creature_create_data_like_cpp(&visible[0]).movement_flags,
+        )
+        .contains(MovementFlag::FORWARD),
         "the canonical active spline carries C++ MoveSplineInit::Launch movement flags into CREATE"
     );
 }
@@ -692,7 +684,7 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
     session.set_player_map_position_like_cpp(571, player_position);
     session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
 
-    let mut creature = crate::map_manager::WorldCreature::new(
+    let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         900,
         visible_position,
@@ -706,14 +698,9 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
         0,
         0,
     );
-    let _ = creature.creature.unit_mut().world_mut().set_map(571, 0);
-    creature
-        .creature
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .add_to_world();
-    *creature.creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
+    let _ = creature.unit_mut().world_mut().set_map(571, 0);
+    creature.unit_mut().world_mut().object_mut().add_to_world();
+    *creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
 
     assert!(
         !session.represented_can_receive_creature_message_to_set_like_cpp(guid, &creature, false),
@@ -727,11 +714,7 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
     );
 
     let mut wrong_phase = creature.clone();
-    *wrong_phase
-        .creature
-        .unit_mut()
-        .world_mut()
-        .phase_shift_mut() = PhaseShift::from_phases([20]);
+    *wrong_phase.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([20]);
     assert!(
         !session.represented_can_receive_creature_message_to_set_like_cpp(
             guid,
@@ -742,7 +725,7 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
     );
 
     let mut far_creature = creature.clone();
-    far_creature.creature.set_ai_position(far_position);
+    far_creature.set_ai_position(far_position);
     assert!(
         !session.represented_can_receive_creature_message_to_set_like_cpp(
             guid,
@@ -752,7 +735,7 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
         "MessageDistDeliverer applies source GetVisibilityRange distance"
     );
 
-    let mut wrong_map = crate::map_manager::WorldCreature::new(
+    let mut wrong_map = crate::creature_projection::new_runtime_creature_like_cpp(
         test_creature_guid(9302),
         900,
         visible_position,
@@ -766,14 +749,9 @@ fn creature_message_to_set_gate_requires_have_at_client_phase_map_and_range_like
         0,
         0,
     );
-    let _ = wrong_map.creature.unit_mut().world_mut().set_map(530, 0);
-    wrong_map
-        .creature
-        .unit_mut()
-        .world_mut()
-        .object_mut()
-        .add_to_world();
-    *wrong_map.creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
+    let _ = wrong_map.unit_mut().world_mut().set_map(530, 0);
+    wrong_map.unit_mut().world_mut().object_mut().add_to_world();
+    *wrong_map.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
     session
         .core
         .client_visible_guids_like_cpp

@@ -13,6 +13,20 @@
 //! from the recorded values, and trailing whitespace is trimmed on both sides;
 //! nothing else was edited.
 //!
+//! How the file was produced (review follow-up of PR #1355): on `6c1a7de2f`
+//! the shared parity comparison of these four modules was temporarily
+//! instrumented to print one `GOLDEN\t<test path>\t<label>\t<equal>\t<legacy
+//! bridge value>\t<canonical value>` line per comparison, and
+//! `cargo test -p wow-world --lib f6_8d3a -- --nocapture --test-threads=1`
+//! was captured. Each `GOLDEN` line was reduced to `<test fn>\t<label>\t<legacy
+//! bridge value>` (module path dropped), with the edits listed above. The
+//! instrumentation itself was never committed: the bridge it observed no
+//! longer exists, so the recording cannot be regenerated on a later base. It
+//! is reproducible only by re-applying that print on `6c1a7de2f`. #1263
+//! F6-8E-2 renamed the canonical runtime's `Legacy*` outcome types, and the
+//! recorded `Debug` values carry those type names, so the same rename was
+//! applied to the values (no other change).
+//!
 //! A test now drives the executor alone and checks each observable against
 //! the next recorded value with the same test and label. The perturbed
 //! negative controls still drive an unperturbed recording, so their expected

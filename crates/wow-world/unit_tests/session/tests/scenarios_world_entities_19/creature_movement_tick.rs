@@ -4,7 +4,8 @@ use super::*;
 
 #[test]
 fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanout_like_cpp() {
-    use crate::map_manager::{RecipientRule, VISIBILITY_RADIUS};
+    use crate::runtime_plan::RecipientRule;
+    use wow_entities::VISIBILITY_RADIUS_LIKE_CPP as VISIBILITY_RADIUS;
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical.lock().unwrap().create_world_map(0, 0);
@@ -20,17 +21,18 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x9008);
-            creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x9008);
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                creature,
+                Duration::from_millis(10),
+            );
         })
         .unwrap();
 
@@ -107,7 +109,7 @@ fn legacy_creature_movement_tick_once_moves_once_syncs_canonical_and_plans_fanou
 }
 #[test]
 fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp() {
-    use crate::map_manager::RecipientRule;
+    use crate::runtime_plan::RecipientRule;
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let guid = test_creature_guid(90_009);
@@ -119,18 +121,15 @@ fn legacy_creature_movement_tick_once_uses_creature_visibility_override_like_cpp
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x5757);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x5757);
             creature
-                .creature
                 .unit_mut()
                 .world_mut()
                 .set_visibility_distance_override_like_cpp(
@@ -187,17 +186,18 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
     register_test_creature(&mut session, manager.clone(), guid, 25);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x9011);
-            creature.backdate_runtime_clock_for_test(Duration::from_millis(10));
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x9011);
+            crate::creature_projection::test_support::backdate_runtime_clock_for_test(
+                creature,
+                Duration::from_millis(10),
+            );
         })
         .unwrap();
 
@@ -248,7 +248,7 @@ fn legacy_creature_movement_tick_publishes_the_canonical_runtime_state_like_cpp(
         "the published packet is the canonical runtime state's projection"
     );
     match &event.recipients {
-        crate::map_manager::RecipientRule::NearbyVisible {
+        crate::runtime_plan::RecipientRule::NearbyVisible {
             source_position, ..
         } => assert_eq!(
             *source_position,

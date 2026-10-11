@@ -37,7 +37,7 @@ pub struct PersistedRespawnRowLikeCpp {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LegacyRespawnTimeAddOutcomeLikeCpp {
+pub enum RespawnTimeAddOutcomeLikeCpp {
     Inserted,
     ReplacedExisting,
     RejectedZeroSpawnId,
@@ -133,28 +133,28 @@ impl CreatureRespawnQueueLikeCpp {
     pub fn add_persisted_respawn_time_like_cpp(
         &mut self,
         row: PersistedRespawnRowLikeCpp,
-    ) -> LegacyRespawnTimeAddOutcomeLikeCpp {
+    ) -> RespawnTimeAddOutcomeLikeCpp {
         if row.spawn_id == 0 {
-            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId;
+            return RespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId;
         }
         if !matches!(
             row.object_type,
             SpawnObjectType::Creature | SpawnObjectType::GameObject
         ) {
-            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType;
+            return RespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType;
         }
 
         let key = (row.object_type, row.spawn_id);
         if let Some(existing) = self.persisted_respawn_times.get(&key) {
             if row.respawn_time <= existing.respawn_time {
                 self.persisted_respawn_times.insert(key, row);
-                LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting
+                RespawnTimeAddOutcomeLikeCpp::ReplacedExisting
             } else {
-                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual
+                RespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual
             }
         } else {
             self.persisted_respawn_times.insert(key, row);
-            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
+            RespawnTimeAddOutcomeLikeCpp::Inserted
         }
     }
 

@@ -85,22 +85,17 @@ impl WorldSession {
         for owner_guid in pve_refs {
             let _ = self.core.mutate_world_creature(owner_guid, |owner| {
                 owner
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
                     .purge_combat_ref_like_cpp(target_guid);
                 owner
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
                     .scale_threat(target_guid, 0.0);
-                owner
-                    .creature
-                    .unit_mut()
-                    .remove_attacker_like_cpp(target_guid);
-                owner.creature.ai_ownership_mut().combat_target = None;
+                owner.unit_mut().remove_attacker_like_cpp(target_guid);
+                owner.ai_ownership_mut().combat_target = None;
             });
         }
     }

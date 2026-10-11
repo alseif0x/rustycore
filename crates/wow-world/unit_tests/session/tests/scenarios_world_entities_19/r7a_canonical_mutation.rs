@@ -227,8 +227,8 @@ fn fresh_non_health_mutation_is_applied_once_to_the_incarnation_like_cpp() {
     let applied = session
         .mutate_world_creature(guid, |creature| {
             callback_runs += 1;
-            creature.creature.ai_ownership_mut().npc_flags = 0x0001_0042;
-            creature.creature.unit_mut().set_level(41);
+            creature.ai_ownership_mut().npc_flags = 0x0001_0042;
+            creature.unit_mut().set_level(41);
         })
         .is_some();
 
@@ -300,7 +300,7 @@ fn aba_health_cycle_mutates_the_incarnation_once_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AB;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00AB;
             })
             .is_some(),
         "the canonical-first root mutates the current incarnation"
@@ -350,7 +350,7 @@ fn destroyed_incarnation_copy_cannot_reach_the_replacement_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AC;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00AC;
             })
             .is_some(),
         "the canonical-first root mutates the current incarnation"
@@ -405,7 +405,7 @@ fn missing_manager_map_or_object_refuses_before_invocation_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AE;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00AE;
             })
             .is_none(),
         "a missing canonical map instance is unavailable ownership"
@@ -418,7 +418,7 @@ fn missing_manager_map_or_object_refuses_before_invocation_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AF;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00AF;
             })
             .is_none(),
         "a missing canonical object is unavailable ownership"
@@ -458,7 +458,7 @@ fn session_without_a_canonical_store_publishes_and_mutates_nothing_like_cpp() {
         session
             .mutate_world_creature(guid, |creature| {
                 callback_runs += 1;
-                creature.creature.ai_ownership_mut().npc_flags = 0x0000_00B0;
+                creature.ai_ownership_mut().npc_flags = 0x0000_00B0;
             })
             .is_none(),
         "nothing was admitted, so nothing can be mutated"

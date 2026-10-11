@@ -433,19 +433,10 @@ impl WorldSession {
             let moved = self
                 .core
                 .mutate_world_creature(mover_guid, |creature| {
-                    creature.creature.set_ai_position(info.position);
-                    creature
-                        .creature
-                        .unit_mut()
-                        .set_movement_time_like_cpp(info.time);
-                    creature
-                        .creature
-                        .unit_mut()
-                        .set_movement_flags_like_cpp(info.flags);
-                    creature
-                        .creature
-                        .set_movement_flags_runtime_like_cpp(info.flags);
-                    creature.create_data.movement_flags = info.flags.bits();
+                    creature.set_ai_position(info.position);
+                    creature.unit_mut().set_movement_time_like_cpp(info.time);
+                    creature.unit_mut().set_movement_flags_like_cpp(info.flags);
+                    creature.set_movement_flags_runtime_like_cpp(info.flags);
                 })
                 .is_some();
             trace!(
@@ -480,7 +471,7 @@ impl WorldSession {
                 map_id,
                 instance_id,
                 pos,
-                crate::map_manager::VISIBILITY_RADIUS,
+                wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
             ) {
                 let _ = registry.try_send_current_command(
                     registration,

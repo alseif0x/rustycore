@@ -8,7 +8,7 @@
 use wow_core::ObjectGuid;
 use wow_loot::OwnedLootAuthority;
 use wow_world_core::session::{
-    LegacyCreatureAggroConfigLikeCpp, creature_ai_spell_difficulty_chain_like_cpp,
+    CreatureAggroConfigLikeCpp, creature_ai_spell_difficulty_chain_like_cpp,
 };
 
 use crate::creature_spell_metadata::{
@@ -84,7 +84,7 @@ pub struct CreatureSpellCastPlanLikeCpp {
 pub fn creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp(
     command: &CreatureSpellCastPlanLikeCpp,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     // C++ `Spell::IsAutoActionResetSpell` rejects triggered casts and these
     // two attribute cases. CreatureAI `DoCast`/`CastSpell` is untriggered in
@@ -118,7 +118,7 @@ pub fn creature_ai_spell_plan_like_cpp(
     spell_id: u32,
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Result<CreatureSpellCastPlanLikeCpp, ()> {
     Ok(CreatureSpellCastPlanLikeCpp {
         caster_guid,
@@ -152,7 +152,7 @@ pub enum CreatureAiSpellRepresentationRejectionLikeCpp {
 pub fn creature_ai_spell_requires_projectile_payload_like_cpp(
     spell_id: u32,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> bool {
     // C++ `Spell::SendSpellStart` / `SendSpellGo` add
     // `CAST_FLAG_PROJECTILE` and `SpellCastData::AmmoDisplayID` for any of
@@ -223,7 +223,7 @@ pub fn creature_ai_spell_has_unrepresented_nonzero_power_cost_like_cpp(
 pub fn creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp(
     spell: &wow_data::SpellInfo,
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
     creature: &wow_entities::Creature,
 ) -> bool {
     const SPELL_ATTR1_USE_ALL_MANA_LIKE_CPP: u32 = 0x0000_0002;

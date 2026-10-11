@@ -173,8 +173,8 @@ fn combat_tick_offhand_only_does_not_clear_base_swing_error_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -247,7 +247,6 @@ fn player_attack_does_not_create_combat_ref_when_can_begin_combat_fails_like_cpp
     session
         .mutate_world_creature(victim, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat
@@ -353,7 +352,7 @@ fn combat_tick_revalidates_and_purges_invalid_combat_refs_like_cpp() {
         .mutate_world_creature(victim, |creature| {
             let mut victim_phase = PhaseShift::default();
             victim_phase.add_phase_like_cpp(20, wow_constants::PhaseFlags::empty(), 1);
-            *creature.creature.unit_mut().world_mut().phase_shift_mut() = victim_phase;
+            *creature.unit_mut().world_mut().phase_shift_mut() = victim_phase;
         })
         .unwrap();
 
@@ -439,19 +438,15 @@ fn legacy_combat_ai_no_melee_fixture_preserves_rng_until_due_15691_hit_like_cpp(
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature.creature.set_spell(0, spell_id as u32);
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, spell_id as u32);
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             let mut static_flags = [0; 8];
             static_flags[0] = wow_constants::creature::CreatureStaticFlags::NO_MELEE_FLEE.bits();
-            creature
-                .creature
-                .set_static_flags_runtime_like_cpp(static_flags);
-            creature.seed_runtime_rng_like_cpp(hit_seed);
+            creature.set_static_flags_runtime_like_cpp(static_flags);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, hit_seed);
             assert!(creature.can_swing());
             assert!(creature.runtime_rng_authority_complete_like_cpp());
         })
@@ -551,67 +546,67 @@ fn legacy_turret_ai_can_attack_uses_combat_reaches_and_strict_bounds_like_cpp() 
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.set_spell(0, 7_003);
-            creature.creature.unit_mut().set_combat_reach(1.0);
+            creature.set_spell(0, 7_003);
+            creature.unit_mut().set_combat_reach(1.0);
         })
         .unwrap();
-    let config = LegacyCreatureAggroConfigLikeCpp {
+    let config = CreatureAggroConfigLikeCpp {
         spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
             spell_misc_entry_like_cpp(8_301, 7_003, 71),
         ]))),
         spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
             spell_range_entry_like_cpp(71, 1.0, 5.0),
         ]))),
-        ..legacy_aggro_hostile_config_like_cpp()
+        ..aggro_hostile_config_like_cpp()
     };
     let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
     let mut candidate =
-        legacy_aggro_candidate_like_cpp(ObjectGuid::create_player(1, 91_305), Position::default());
+        aggro_candidate_like_cpp(ObjectGuid::create_player(1, 91_305), Position::default());
     candidate.player_combat_reach = 1.0;
 
     candidate.position = Position::new(16.0, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+        CreatureAiCanAttackDecisionLikeCpp::Allowed,
         "center distance 6 is inside max 5 + reaches 1 + 1"
     );
     candidate.position = Position::new(17.0, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected,
+        CreatureAiCanAttackDecisionLikeCpp::Rejected,
         "IsWithinCombatRange is strict at max + reaches"
     );
     candidate.position = Position::new(12.5, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected,
+        CreatureAiCanAttackDecisionLikeCpp::Rejected,
         "center distance 2.5 is inside min 1 + reaches 1 + 1"
     );
     candidate.position = Position::new(13.0, 10.0, 0.0, 0.0);
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+        CreatureAiCanAttackDecisionLikeCpp::Allowed,
         "the min + reaches boundary itself is not within strict range"
     );
 }

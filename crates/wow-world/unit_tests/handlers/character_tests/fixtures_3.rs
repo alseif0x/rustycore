@@ -688,9 +688,7 @@ pub(super) fn attach_npc_creature(
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             guid,
             entry,
             Position::new(10.0, 0.0, 0.0, 0.0),

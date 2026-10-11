@@ -208,7 +208,7 @@ impl WorldSession {
             unit_flags,
             unit_flags2,
             unit_flags3,
-            aura_state: crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+            aura_state: wow_entities::Creature::health_aura_state_like_cpp(
                 creature_stats.health.max(0) as u64,
                 creature_stats.max_health.max(0) as u64,
                 creature_stats.health > 0,

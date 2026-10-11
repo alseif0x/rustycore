@@ -38,6 +38,9 @@ use super::{
     stored_item_money_zero_without_source_outcome_like_cpp,
 };
 use crate::canonical_creature_fixtures::{self as fixtures, CanonicalCreatureFixtureLikeCpp as _};
+use crate::creature_projection::test_support::{
+    corpse_despawn_at, corpse_despawn_deadline_ms_like_cpp, set_corpse_despawn_at,
+};
 use crate::player::inventory_persistence_test_fixture::PlayerInventoryPersistencePortFixtureLikeCpp;
 use crate::session::directory::{
     PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
@@ -203,9 +206,7 @@ fn make_visible_creature_spell_session_like_cpp()
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             source_guid,
             777,
             Position::ZERO,
@@ -489,7 +490,7 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
         unit_flags: creature.unit_flags,
         unit_flags2: 0,
         unit_flags3: 0,
-        aura_state: crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+        aura_state: wow_entities::Creature::health_aura_state_like_cpp(
             u64::from(creature.hp.max(1)),
             u64::from(creature.max_hp.max(1)),
             true,
@@ -544,7 +545,7 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
     );
     if !is_alive {
         let _ = session.mutate_world_creature(guid, |world_creature| {
-            world_creature.creature.mark_ai_dead(0);
+            world_creature.mark_ai_dead(0);
         });
     }
 }
@@ -622,9 +623,7 @@ fn tap_test_creature_like_cpp(
     player_guid: ObjectGuid,
 ) {
     let _ = session.mutate_world_creature(creature_guid, |world_creature| {
-        world_creature
-            .creature
-            .set_tapped_by_player(player_guid, &[]);
+        world_creature.set_tapped_by_player(player_guid, &[]);
     });
 }
 

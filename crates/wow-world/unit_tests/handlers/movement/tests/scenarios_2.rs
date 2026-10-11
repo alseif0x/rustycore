@@ -272,7 +272,7 @@ fn movement_directory_rejects_replaced_recipient_generation_like_cpp() {
         0,
         0,
         Position::ZERO,
-        crate::map_manager::VISIBILITY_RADIUS,
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
     );
     let [stale] = recipients.as_slice() else {
         panic!("expected the first recipient generation");
@@ -323,13 +323,10 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_player_registry(Arc::clone(&registry));
 
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
     manager.lock().unwrap().add_creature(
         0,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             mover_guid,
             777,
             mover_start,
@@ -345,6 +342,7 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
         ),
     );
 
+    install_canonical_player_on_map_zero_for_test(&manager, player_guid, player_position);
     registry.register_or_replace(
         player_guid,
         broadcast_info_with_command(player_guid, self_tx, self_command_tx),
@@ -378,8 +376,8 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
             .expect("controlled mover creature");
         (
             creature.position(),
-            creature.creature.unit().movement_flags_like_cpp(),
-            creature.creature.unit().movement_time_like_cpp(),
+            creature.unit().movement_flags_like_cpp(),
+            creature.unit().movement_time_like_cpp(),
         )
     };
     assert_eq!(creature_position, moved_position);
@@ -458,13 +456,10 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
     session.set_player_position_like_cpp(player_position);
     session.set_canonical_map_manager(Arc::clone(&manager));
 
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(mover_start.x, mover_start.y);
     manager.lock().unwrap().add_creature(
         0,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             mover_guid,
             778,
             mover_start,
@@ -481,16 +476,14 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
     );
     {
         let mut guard = manager.lock().unwrap();
-        let mover = guard
+        let mut mover = guard
             .find_creature_mut(0, 0, mover_guid)
             .expect("controlled mover creature");
-        crate::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover.creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut *mover)
             .begin_move_spline_like_cpp(attempted_position)
             .expect("active movement spline");
         assert!(
-            !crate::map_manager::CreatureMovementQueriesLikeCpp::movement_finished(
-                &*mover.creature
-            )
+            !crate::creature_movement::CreatureMovementQueriesLikeCpp::movement_finished(&*mover)
         );
     }
 
@@ -515,7 +508,7 @@ async fn controlled_mover_movement_is_ignored_until_spline_finalizes_like_cpp() 
         .expect("controlled mover creature");
     assert_eq!(mover.position(), mover_start);
     assert_eq!(
-        mover.creature.unit().movement_flags_like_cpp(),
+        mover.unit().movement_flags_like_cpp(),
         MovementFlag::empty()
     );
 }
@@ -539,8 +532,12 @@ async fn handle_movement_does_not_broadcast_outside_visibility_range_like_cpp() 
         Default::default(),
     );
     let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-    far_info.placement.position =
-        wow_core::Position::new(crate::map_manager::VISIBILITY_RADIUS + 10.0, 0.0, 0.0, 0.0);
+    far_info.placement.position = wow_core::Position::new(
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 10.0,
+        0.0,
+        0.0,
+        0.0,
+    );
     registry.register_or_replace(far_guid, far_info, Default::default());
 
     let movement = MovementInfo {

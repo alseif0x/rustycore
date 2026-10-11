@@ -92,9 +92,7 @@ async fn send_if_visible_command_sent_when_source_visible_like_cpp() {
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             source_guid,
             777,
             Position::ZERO,

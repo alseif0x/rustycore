@@ -745,15 +745,11 @@ fn legacy_turret_ai_raw_max_attempt_resets_swing_before_min_range_failure_like_c
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             assert!(creature.can_swing());
         })
         .unwrap();

@@ -33,7 +33,7 @@ impl crate::session::state::SessionCatalogs {
 
 impl crate::session::state::SessionWorldConfig {
     pub fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.legacy_creature_aggro_config_like_cpp
+        self.creature_aggro_config_like_cpp
             .map_visibility_range_like_cpp(map_id)
     }
 

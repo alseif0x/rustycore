@@ -105,7 +105,7 @@ impl Runtime for WorldSession {
     }
 
     fn visual(&self, spell: &wow_data::SpellInfo) -> Option<SpellCastVisualLikeCpp> {
-        let config = &self.config.legacy_creature_aggro_config_like_cpp;
+        let config = &self.config.creature_aggro_config_like_cpp;
         let Some(store) = config.spell_x_spell_visual_store.as_ref() else {
             #[cfg(test)]
             if self.core.player_handle_like_cpp.is_none() {

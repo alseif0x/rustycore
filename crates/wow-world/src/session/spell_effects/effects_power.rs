@@ -342,7 +342,7 @@ impl WorldSession {
             let drained = self
                 .core
                 .mutate_world_creature(target_guid, |world_creature| {
-                    let creature = &mut world_creature.creature;
+                    let creature = &mut *world_creature;
                     if !creature.is_alive()
                         || party_member_power_kind_from_u8_like_cpp(
                             creature.unit().data().display_power,

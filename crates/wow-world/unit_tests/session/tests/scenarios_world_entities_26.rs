@@ -23,12 +23,8 @@ fn legacy_creature_combat_ai_successful_cast_resets_swing_before_same_tick_melee
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -163,15 +159,9 @@ fn legacy_creature_combat_ai_mixed_noninstant_template_suppresses_15691_like_cpp
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(instant_spell_id).unwrap());
-            creature
-                .creature
-                .set_spell(1, u32::try_from(noninstant_spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(instant_spell_id).unwrap());
+            creature.set_spell(1, u32::try_from(noninstant_spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -234,12 +224,8 @@ fn legacy_creature_combat_ai_rearms_after_range_rejection_like_cpp() {
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -286,12 +272,8 @@ fn legacy_creature_combat_ai_rearms_after_target_rejection_like_cpp() {
     );
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -365,12 +347,8 @@ fn legacy_creature_combat_ai_rejects_unhydrated_active_difficulty_metadata_like_
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -459,12 +437,8 @@ fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp("CombatAI", String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
         })
         .unwrap();
@@ -486,7 +460,7 @@ fn legacy_creature_combat_ai_aggro_self_effect_fails_closed_like_cpp() {
     assert!(repeated.plan.events.is_empty());
 }
 #[test]
-fn legacy_creature_ai_target_classifier_uses_target_a_and_nonzero_range_like_cpp() {
+fn creature_ai_target_classifier_uses_target_a_and_nonzero_range_like_cpp() {
     let spell_id = 70_003_u32;
     let target_b_only = creature_ai_test_spell_info_like_cpp(spell_id as i32, 0, 6);
     let ranged = creature_ai_spell_test_config_like_cpp(target_b_only.clone(), false, 30.0);

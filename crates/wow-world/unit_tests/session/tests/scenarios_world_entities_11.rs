@@ -125,8 +125,7 @@ async fn killing_moving_creature_sends_cpp_like_monster_move_stop() {
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .movement_like_cpp()
+            crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
                 .begin_move_spline_like_cpp(Position::new(20.0, 10.0, 0.0, 0.0))
                 .expect("valid represented spline");
         })
@@ -220,8 +219,8 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     assert!(session.mirror_canonical_creature_threat_from_attacker_like_cpp(guid, player, 3.0));
@@ -232,8 +231,8 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
     // incarnation, whose threat (asserted below) is the authority.
     let guard = manager.lock().unwrap();
     let world_creature = guard.find_creature(0, 0, guid).unwrap();
-    assert!(world_creature.creature.is_tapped_by(player));
-    assert!(world_creature.creature.has_loot_recipient());
+    assert!(world_creature.is_tapped_by(player));
+    assert!(world_creature.has_loot_recipient());
     drop(guard);
 
     let canonical = canonical.lock().unwrap();
@@ -308,13 +307,10 @@ async fn attack_stop_preserves_creature_combat_state_like_cpp() {
     let manager = manager.lock().unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert_eq!(
-        world_creature.creature.ai_state(),
+        world_creature.ai_state(),
         wow_entities::CreatureAiState::InCombat
     );
-    assert_eq!(
-        world_creature.creature.ai_ownership().combat_target,
-        Some(player)
-    );
+    assert_eq!(world_creature.ai_ownership().combat_target, Some(player));
 }
 #[test]
 fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
@@ -358,7 +354,7 @@ fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
     {
         let guard = manager.lock().unwrap();
         let creature = guard.find_creature(0, 0, victim).unwrap();
-        assert!(creature.creature.unit().has_attacker_like_cpp(attacker));
+        assert!(creature.unit().has_attacker_like_cpp(attacker));
     }
 
     assert_eq!(
@@ -367,7 +363,7 @@ fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
     );
     let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, victim).unwrap();
-    assert!(!creature.creature.unit().has_attacker_like_cpp(attacker));
+    assert!(!creature.unit().has_attacker_like_cpp(attacker));
 }
 #[test]
 fn give_xp_runtime_rejects_creature_without_loot_recipient_like_cpp() {
@@ -386,7 +382,7 @@ fn give_xp_runtime_rejects_creature_without_loot_recipient_like_cpp() {
     let player_guid = session.player_guid().expect("test player");
     session
         .mutate_world_creature(victim, |creature| {
-            creature.creature.set_tapped_by_player(player_guid, &[]);
+            creature.set_tapped_by_player(player_guid, &[]);
         })
         .expect("test victim");
     assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));

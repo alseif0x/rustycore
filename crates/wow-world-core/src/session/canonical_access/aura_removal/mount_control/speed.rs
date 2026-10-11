@@ -280,7 +280,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
             .packet_publication_access_like_cpp()
             .broadcast_to_movement_set_in_range_and_connection_like_cpp(
                 bytes,
-                crate::map_manager::VISIBILITY_RADIUS,
+                wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
                 false,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.fixtures.position,
@@ -339,7 +339,7 @@ impl crate::session::state::SessionCore {
             map_id,
             instance_id,
             source_position,
-            crate::map_manager::VISIBILITY_RADIUS,
+            wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
         ) {
             let _ = registry.try_send_current_command(
                 registration,

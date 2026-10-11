@@ -407,16 +407,14 @@ fn creature_movement_phase_launches_real_move_spline_for_represented_wander() {
     session.set_player_map_position_like_cpp(0, Position::new(10.0, 10.0, 0.0, 0.0));
     session
         .mutate_world_creature(guid, |creature| {
-            creature
-                .creature
-                .set_default_movement_type_runtime_like_cpp(
-                    wow_entities::MovementGeneratorType::Random,
-                );
-            let ai = creature.creature.ai_ownership_mut();
+            creature.set_default_movement_type_runtime_like_cpp(
+                wow_entities::MovementGeneratorType::Random,
+            );
+            let ai = creature.ai_ownership_mut();
             ai.wander_delay_ms = 0;
             ai.move_start_ms = 0;
             ai.wander_radius = 3.0;
-            creature.seed_runtime_rng_like_cpp(0x5757);
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x5757);
         })
         .unwrap();
     session.core.client_visible_guids_like_cpp.insert(guid);
@@ -463,7 +461,7 @@ fn creature_movement_phase_launches_real_move_spline_for_represented_wander() {
 
     session
         .mutate_world_creature(guid, |creature| {
-            let motion_spline = &creature.creature.unit().subsystems().motion.spline;
+            let motion_spline = &creature.unit().subsystems().motion.spline;
             assert!(motion_spline.enabled);
             assert!(!motion_spline.finalized);
             assert_eq!(motion_spline.spline_id, 2);
@@ -846,7 +844,6 @@ async fn spell_damage_adds_threat_without_overwriting_current_victim_like_cpp() 
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(tank);
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .combat

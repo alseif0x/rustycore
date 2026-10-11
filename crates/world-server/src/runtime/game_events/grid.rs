@@ -16,7 +16,7 @@ pub(crate) fn initialize_loaded_grid_creature_default_motion_like_cpp(
     if creature.default_movement_type() != wow_entities::MovementGeneratorType::Waypoint {
         return false;
     }
-    wow_world::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(creature)
+    wow_world::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
             waypoint_paths.get(path_id).cloned()
         });
@@ -290,7 +290,7 @@ pub(crate) fn ensure_login_player_grid_loaded_like_cpp(
     let cell = wow_map::cell_from_world(position.x, position.y);
     let grid = wow_map::GridCoord::new(cell.grid_x(), cell.grid_y());
     let visible_grids =
-        player_visible_grid_coords_like_cpp(position, wow_world::map_manager::VISIBILITY_RADIUS);
+        player_visible_grid_coords_like_cpp(position, wow_entities::VISIBILITY_RADIUS_LIKE_CPP);
 
     let Ok(metadata) = canonical_spawn_metadata.lock() else {
         outcome.map_unavailable = true;

@@ -85,7 +85,7 @@ pub fn spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
 /// `CONFIG_NO_GRAY_AGGRO_ABOVE` and `CONFIG_NO_GRAY_AGGRO_BELOW` after
 /// `Trinity::XP::GetColorCode(playerLevel, creatureLevel) == XP_GRAY`.
 #[derive(Clone)]
-pub struct LegacyCreatureAggroConfigLikeCpp {
+pub struct CreatureAggroConfigLikeCpp {
     pub no_gray_aggro_above: u32,
     pub no_gray_aggro_below: u32,
     pub creature_aggro_rate: f32,
@@ -131,7 +131,7 @@ pub struct LegacyCreatureAggroConfigLikeCpp {
     pub family_assistance_delay_ms: u32,
 }
 
-impl Default for LegacyCreatureAggroConfigLikeCpp {
+impl Default for CreatureAggroConfigLikeCpp {
     fn default() -> Self {
         Self {
             no_gray_aggro_above: 0,
@@ -175,7 +175,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
     }
 }
 
-impl LegacyCreatureAggroConfigLikeCpp {
+impl CreatureAggroConfigLikeCpp {
     pub fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
         let Some(conditions) = self.spell_condition_store.as_deref() else {
             return false;

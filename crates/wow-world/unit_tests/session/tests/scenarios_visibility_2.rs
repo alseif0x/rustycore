@@ -34,14 +34,10 @@ async fn force_update_visibility_repopulates_client_guids_after_login_clear_like
     let _ = drain_server_packet_bytes(&send_rx);
 
     let creature_position = Position::new(20.0, 20.0, 0.0, 0.0);
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             creature_guid,
             901,
             creature_position,
@@ -125,14 +121,10 @@ async fn far_sight_update_visibility_uses_represented_seer_position_like_cpp() {
         .expect("canonical player map");
     add_canonical_test_creature(&canonical, seer_guid, 4920, seer_position, 0);
 
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(visible_position.x, visible_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             visible_creature_guid,
             4921,
             visible_position,
@@ -438,8 +430,12 @@ fn player_entry_visibility_refresh_skips_out_of_range_sessions_like_cpp() {
         Default::default(),
     );
     let mut far_info = broadcast_info_with_command(far_guid, far_tx, far_command_tx);
-    far_info.placement.position =
-        Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+    far_info.placement.position = Position::new(
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
+        0.0,
+        0.0,
+        0.0,
+    );
     registry.register_or_replace(far_guid, far_info, Default::default());
 
     session.notify_other_players_visibility_changed_like_cpp();
@@ -585,7 +581,12 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
     add_canonical_test_player_on_map(
         &canonical,
         far_guid,
-        Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0),
+        Position::new(
+            wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
+            0.0,
+            0.0,
+            0.0,
+        ),
         571,
         0,
     );
@@ -595,14 +596,18 @@ fn visible_other_players_skips_out_of_visibility_range_like_cpp() {
     registry.register_or_replace(nearby_guid, nearby_info, Default::default());
     let mut far_info = broadcast_info(far_guid, far_tx);
     far_info.placement.map_id = 571;
-    far_info.placement.position =
-        Position::new(crate::map_manager::VISIBILITY_RADIUS + 1.0, 0.0, 0.0, 0.0);
+    far_info.placement.position = Position::new(
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP + 1.0,
+        0.0,
+        0.0,
+        0.0,
+    );
     registry.register_or_replace(far_guid, far_info, Default::default());
 
     let visible = session.visible_other_players_from_registry_like_cpp(
         571,
         &Position::ZERO,
-        crate::map_manager::VISIBILITY_RADIUS,
+        wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
     );
 
     assert_eq!(visible.len(), 1);
@@ -810,7 +815,7 @@ fn visible_other_players_rejects_registry_only_target_like_cpp() {
             .visible_other_players_from_registry_like_cpp(
                 571,
                 &Position::ZERO,
-                crate::map_manager::VISIBILITY_RADIUS,
+                wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
             )
             .is_empty(),
         "C++ VisibleNotifier cannot visit a registry-only player"
@@ -854,7 +859,7 @@ fn visible_other_players_applies_canonical_phase_gate_like_cpp() {
             .visible_other_players_from_registry_like_cpp(
                 571,
                 &Position::ZERO,
-                crate::map_manager::VISIBILITY_RADIUS,
+                wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
             )
             .is_empty(),
         "C++ VisibleNotifier excludes players outside the viewer's phase"

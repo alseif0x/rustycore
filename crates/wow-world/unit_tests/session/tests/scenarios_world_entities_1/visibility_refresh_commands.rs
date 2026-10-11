@@ -12,14 +12,10 @@ async fn refresh_visible_world_creatures_command_forces_creature_visibility_like
     let player_position = Position::new(10.0, 10.0, 0.0, 0.0);
     let creature_guid = test_creature_guid(90_010);
     let creature_position = Position::new(12.0, 10.0, 0.0, 0.0);
-    let (grid_x, grid_y) =
-        crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
     manager.lock().unwrap().add_creature(
         571,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             creature_guid,
             901,
             creature_position,

@@ -26,10 +26,9 @@ impl LootState {
         hub.core
             .mutate_world_creature(creature_guid, move |world_creature| {
                 if world_creature.is_alive()
-                    || world_creature.creature.loot_lifecycle_revision_like_cpp()
+                    || world_creature.loot_lifecycle_revision_like_cpp()
                         != expected_loot_lifecycle_revision
                     || !world_creature
-                        .creature
                         .loot_authority_like_cpp()
                         .shares_storage_like_cpp(&expected_authority)
                     || !expected_authority.is_retired_like_cpp()
@@ -52,9 +51,7 @@ impl LootState {
                         .is_some()
                 };
                 if installed {
-                    world_creature
-                        .creature
-                        .sync_loot_summaries_from_authority_like_cpp();
+                    world_creature.sync_loot_summaries_from_authority_like_cpp();
                 }
                 installed
             })
@@ -116,12 +113,12 @@ impl LootState {
                 position: creature.position(),
                 level: creature.level(),
                 entry: creature.entry(),
-                loot_id: creature.loot_id(),
-                gold_min: creature.gold_min(),
-                gold_max: creature.gold_max(),
-                dungeon_encounter_id: creature.dungeon_encounter_id(),
-                tappers: creature.creature.tap_list().to_vec(),
-                loot_lifecycle_revision: creature.creature.loot_lifecycle_revision_like_cpp(),
+                loot_id: creature.ai_ownership().loot_id,
+                gold_min: creature.ai_ownership().gold_min,
+                gold_max: creature.ai_ownership().gold_max,
+                dungeon_encounter_id: creature.ai_ownership().dungeon_encounter_id,
+                tappers: creature.tap_list().to_vec(),
+                loot_lifecycle_revision: creature.loot_lifecycle_revision_like_cpp(),
             }
         })
     }

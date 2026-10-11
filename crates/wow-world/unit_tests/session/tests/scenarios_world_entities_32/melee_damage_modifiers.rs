@@ -66,19 +66,17 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -150,7 +148,7 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -171,8 +169,8 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
     let swing = |manager: &SharedCanonicalMapManager, session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
         let outcome = run_canonical_creature_melee_phase_for_test_like_cpp(&canonical, &config);
@@ -241,7 +239,6 @@ fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -309,19 +306,17 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10_000;
-            creature.creature.ai_ownership_mut().max_damage = 10_000;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10_000;
+            creature.ai_ownership_mut().max_damage = 10_000;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -375,11 +370,11 @@ fn legacy_creature_melee_tick_once_reads_the_expected_stat_store_like_cpp() {
                 expected_stat_store: Option<Arc<wow_data::ExpectedStatStore>>| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
-        let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+        let config = crate::session::CreatureAggroConfigLikeCpp {
             spell_store: Some(Arc::clone(&spell_store)),
             expected_stat_store,
             ..Default::default()
@@ -433,35 +428,27 @@ fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp
     register_test_creature(&mut session, manager.clone(), victim_guid, 100);
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.unit_mut().set_level(80);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     session
         .mutate_world_creature(victim_guid, |creature| {
-            creature.creature.unit_mut().set_level(80);
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.unit_mut().set_level(80);
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    91_923,
-                    attacker_guid,
-                    0,
-                    1,
-                ));
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(91_923, attacker_guid, 0, 1),
+            );
         })
         .unwrap();
 
@@ -515,31 +502,15 @@ fn legacy_creature_melee_tick_once_applies_creature_attacker_done_bonus_like_cpp
     session.set_spell_store(Arc::clone(&spell_store));
     session
         .mutate_world_creature(attacker_guid, |creature| {
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    91_920,
-                    attacker_guid,
-                    0,
-                    1,
-                ));
-            creature
-                .creature
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .add_applied(wow_entities::AppliedAuraRef::new(
-                    91_921,
-                    attacker_guid,
-                    0,
-                    1,
-                ));
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(91_920, attacker_guid, 0, 1),
+            );
+            creature.unit_mut().subsystems_mut().auras.add_applied(
+                wow_entities::AppliedAuraRef::new(91_921, attacker_guid, 0, 1),
+            );
         })
         .unwrap();
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         creature_template_lifecycle_store: Some(Arc::new(
             wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([

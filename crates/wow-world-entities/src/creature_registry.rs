@@ -2,7 +2,7 @@ use wow_constants::{SheathState, UnitPvpFlags, UnitStandStateType, WeaponAttackT
 use wow_core::ObjectGuid;
 use wow_entities::{AccessorObjectKind, CreatureAddonLifecycleRecordLikeCpp};
 use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityLifecycle};
-use wow_world_core::map_manager::{WorldCreature, pending_respawn_from_creature_like_cpp};
+use wow_world_core::creature_respawn::pending_respawn_from_creature_like_cpp;
 use wow_world_core::session::{HubMut, SharedCanonicalMapManager, power_type_from_u8_like_cpp};
 
 use crate::WorldEntitiesState;
@@ -434,12 +434,15 @@ impl WorldEntitiesState {
         // representation, so it receives the runtime installation (motion
         // master, respawn create projection) and the default waypoint
         // initialization its legacy bridge used to receive.
-        WorldCreature::install_bridge_runtime_like_cpp(&mut canonical_creature, &create_data);
+        wow_world_core::creature_projection::install_creature_runtime_like_cpp(
+            &mut canonical_creature,
+            &create_data,
+        );
         if canonical_creature.default_movement_type()
             == wow_entities::MovementGeneratorType::Waypoint
         {
             let resolver = hub.catalogs.waypoint_path_resolver_like_cpp.clone();
-            wow_world_core::map_manager::CreatureMovementLikeCpp::canonical_like_cpp(
+            wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(
                 &mut canonical_creature,
             )
             .initialize_default_waypoint_movement_with_path_resolver_like_cpp(
@@ -485,17 +488,17 @@ impl WorldEntitiesState {
     }
 
     /// Remove one represented creature from the session's current map and
-    /// return it (its incarnation, with its create projection).
+    /// return its incarnation.
     ///
     /// The canonical incarnation is removed (C++ `RemoveFromMap`) and returned
-    /// with its create projection (#1263 F6-8E: the only creature store).
+    /// (#1263 F6-8E: the only creature store).
     pub fn remove_world_creature(
         &mut self,
         hub: &mut HubMut<'_>,
         guid: ObjectGuid,
-    ) -> Option<WorldCreature> {
+    ) -> Option<wow_entities::Creature> {
         let (map_id, instance_id) = hub.core.current_runtime_map_key_like_cpp();
-        let canonical = hub.core.canonical_map_manager.as_ref().and_then(|manager| {
+        hub.core.canonical_map_manager.as_ref().and_then(|manager| {
             let mut manager = manager.lock().ok()?;
             let map = manager
                 .find_map_mut(u32::from(map_id), instance_id)?
@@ -505,13 +508,6 @@ impl WorldEntitiesState {
             let creature = creature.clone();
             let _ = map.remove_from_map_like_cpp(guid, true);
             Some(creature)
-        });
-        canonical.map(|creature| {
-            let create_data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
-            WorldCreature {
-                creature,
-                create_data,
-            }
         })
     }
 }

@@ -623,7 +623,7 @@ fn retired_creature_owner_keys_are_only_warned_like_cpp() {
     assert!(!app.contains("creature_tick_owner_from_config"));
 }
 #[test]
-fn legacy_creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {
+fn creature_aggro_config_uses_cpp_no_gray_aggro_keys_like_cpp() {
     let _guard = TEST_LOCK.lock().expect("test lock poisoned");
 
     wow_config::load_config_from_str(
@@ -642,7 +642,7 @@ CreatureFamilyAssistanceDelay = 3456
     )
     .expect("config should load");
     let configs = wow_config::load_world_config_values();
-    let config = legacy_creature_aggro_config_like_cpp(&configs);
+    let config = creature_aggro_config_like_cpp(&configs);
 
     // C++ first clamps NoGrayAggro values to MaxPlayerLevel, then clamps
     // Below down to Above when Above > 0 && Above < Below.

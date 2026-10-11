@@ -5,11 +5,11 @@
 
 use super::*;
 
-pub(in crate::session::tests) fn legacy_aggro_candidate_like_cpp(
+pub(in crate::session::tests) fn aggro_candidate_like_cpp(
     player_guid: ObjectGuid,
     position: Position,
-) -> LegacyCreatureAggroCandidateLikeCpp {
-    LegacyCreatureAggroCandidateLikeCpp {
+) -> CreatureAggroCandidateLikeCpp {
+    CreatureAggroCandidateLikeCpp {
         player_guid,
         map_id: 0,
         instance_id: 0,
@@ -40,12 +40,12 @@ pub(in crate::session::tests) fn legacy_aggro_candidate_like_cpp(
     }
 }
 
-pub(in crate::session::tests) fn legacy_aggro_relation_config_like_cpp(
+pub(in crate::session::tests) fn aggro_relation_config_like_cpp(
     creature_faction_template: wow_data::progression_rewards::FactionTemplateEntry,
     player_faction_template: wow_data::progression_rewards::FactionTemplateEntry,
     creature_faction: FactionEntry,
-) -> LegacyCreatureAggroConfigLikeCpp {
-    LegacyCreatureAggroConfigLikeCpp {
+) -> CreatureAggroConfigLikeCpp {
+    CreatureAggroConfigLikeCpp {
         faction_template_store: Some(Arc::new(
             wow_data::progression_rewards::FactionTemplateStore::from_entries([
                 creature_faction_template,
@@ -57,21 +57,20 @@ pub(in crate::session::tests) fn legacy_aggro_relation_config_like_cpp(
     }
 }
 
-pub(in crate::session::tests) fn legacy_aggro_hostile_config_like_cpp()
--> LegacyCreatureAggroConfigLikeCpp {
-    legacy_aggro_relation_config_like_cpp(
+pub(in crate::session::tests) fn aggro_hostile_config_like_cpp() -> CreatureAggroConfigLikeCpp {
+    aggro_relation_config_like_cpp(
         faction_template_entry(14, 72, 0, 0, 930),
         faction_template_entry(1, 930, 0, 0, 0),
         FactionEntry::for_test_like_cpp(72, 1),
     )
 }
 
-pub(in crate::session::tests) fn legacy_aggro_hostile_config_with_rate_like_cpp(
+pub(in crate::session::tests) fn aggro_hostile_config_with_rate_like_cpp(
     creature_aggro_rate: f32,
-) -> LegacyCreatureAggroConfigLikeCpp {
-    LegacyCreatureAggroConfigLikeCpp {
+) -> CreatureAggroConfigLikeCpp {
+    CreatureAggroConfigLikeCpp {
         creature_aggro_rate,
-        ..legacy_aggro_hostile_config_like_cpp()
+        ..aggro_hostile_config_like_cpp()
     }
 }
 
@@ -160,7 +159,7 @@ pub(in crate::session::tests) fn creature_ai_spell_test_config_like_cpp(
     spell: wow_data::SpellInfo,
     passive: bool,
     range_max: f32,
-) -> LegacyCreatureAggroConfigLikeCpp {
+) -> CreatureAggroConfigLikeCpp {
     let spell_id = u32::try_from(spell.spell_id).unwrap();
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(spell.spell_id, spell);
@@ -184,7 +183,7 @@ pub(in crate::session::tests) fn creature_ai_spell_test_config_like_cpp(
             effect_mechanics: BTreeMap::from([(0, 0)]),
         },
     );
-    LegacyCreatureAggroConfigLikeCpp {
+    CreatureAggroConfigLikeCpp {
         spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([misc]))),
         spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
             spell_range_entry_like_cpp(71, 0.0, range_max),
@@ -234,7 +233,7 @@ pub(in crate::session::tests) fn creature_ai_spell_test_config_like_cpp(
         spell_script_all_rank_root_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
         legacy_spell_script_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
         spell_linked_rejected_trigger_spell_ids_like_cpp: Some(Arc::new(BTreeSet::new())),
-        ..legacy_aggro_hostile_config_like_cpp()
+        ..aggro_hostile_config_like_cpp()
     }
 }
 
@@ -247,7 +246,7 @@ pub(in crate::session::tests) fn creature_spell_bound_hook_tick_fixture_like_cpp
 ) -> (
     SharedCanonicalMapManager,
     SharedCanonicalMapManager,
-    LegacyCreatureAggroConfigLikeCpp,
+    CreatureAggroConfigLikeCpp,
     ObjectGuid,
 ) {
     let manager = shared_map_manager();
@@ -264,15 +263,11 @@ pub(in crate::session::tests) fn creature_spell_bound_hook_tick_fixture_like_cpp
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp(ai_name, String::new());
-            creature
-                .creature
-                .set_spell(0, u32::try_from(spell_id).unwrap());
+            creature.set_ai_identity_names_runtime_like_cpp(ai_name, String::new());
+            creature.set_spell(0, u32::try_from(spell_id).unwrap());
             creature.enter_combat(victim_guid);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -473,7 +468,7 @@ pub(in crate::session::tests) fn decode_atomic_creature_spell_wire_pair_like_cpp
     CreatureSpellWireHeaderLikeCpp,
 ) {
     let basic_go_packet_bytes = match &event.recipients {
-        crate::map_manager::RecipientRule::NearbyVisibleDurableSpellCast {
+        crate::runtime_plan::RecipientRule::NearbyVisibleDurableSpellCast {
             basic_go_packet_bytes,
             ..
         } => basic_go_packet_bytes,

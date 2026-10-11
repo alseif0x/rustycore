@@ -9,9 +9,7 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             source_guid,
             777,
             Position::new(5000.0, 5000.0, 0.0, 0.0),
@@ -63,9 +61,7 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
         assert!(guard.add_creature(
             571,
             0,
-            0,
-            0,
-            crate::map_manager::WorldCreature::new(
+            crate::creature_projection::new_runtime_creature_like_cpp(
                 source_guid,
                 777,
                 Position::new(10.0, 0.0, 0.0, 0.0),
@@ -78,11 +74,11 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
                 35,
                 0,
                 0,
-            ),
+            )
         ));
     }
     session.mutate_world_creature(source_guid, |creature| {
-        *creature.creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([20]);
+        *creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([20]);
     });
     session.set_represented_player_phase_shift_like_cpp(PhaseShift::from_phases([10]));
     session
@@ -106,7 +102,7 @@ async fn send_if_visible_creature_command_rechecks_current_phase_and_range_like_
     );
 
     session.mutate_world_creature(source_guid, |creature| {
-        *creature.creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
+        *creature.unit_mut().world_mut().phase_shift_mut() = PhaseShift::from_phases([10]);
     });
     session
         .session_command_tx()

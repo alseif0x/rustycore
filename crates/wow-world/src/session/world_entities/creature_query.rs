@@ -24,7 +24,7 @@ impl WorldSession {
         &self,
         map_id: u16,
         position: &wow_core::Position,
-    ) -> Vec<crate::map_manager::WorldCreature> {
+    ) -> Vec<wow_entities::Creature> {
         if self
             .core
             .current_canonical_player_map_key_like_cpp()
@@ -42,7 +42,7 @@ impl WorldSession {
         &self,
         map_id: u16,
         position: &wow_core::Position,
-    ) -> Option<Vec<crate::map_manager::WorldCreature>> {
+    ) -> Option<Vec<wow_entities::Creature>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let player_map_key = player_map_key?;
@@ -112,16 +112,16 @@ impl WorldSession {
                     )
                 })
                 .map(|creature| {
-                    let create_data =
-                        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
-                            &creature,
-                        );
                     // #1263 F6-8B: the visibility candidate must carry the
                     // canonical runtime state, because the create projection at
                     // the call site reads the live `Unit::movespline` from it.
-                    crate::map_manager::WorldCreature::from_canonical_preserving_runtime_like_cpp(
+                    // The caller computes that projection on demand (the
+                    // runtime installation changes no field it reads).
+                    let create_data =
+                        crate::creature_projection::creature_create_data_like_cpp(&creature);
+                    crate::creature_projection::projected_creature_preserving_runtime_like_cpp(
                         creature,
-                        create_data,
+                        &create_data,
                     )
                 })
                 .collect()

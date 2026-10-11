@@ -744,32 +744,34 @@ fn unresolved_external_authority_glob_remains_rejected_after_parent_import() {
 }
 
 #[test]
-fn moved_pending_respawn_bridge_matches_its_exact_reviewed_record() {
+fn retired_pending_respawn_bridge_is_absent_from_the_inventory() {
     // #1263 F6-8D3a-3 moved the rebuild body into
-    // `creature_from_pending_respawn_like_cpp` (the `WorldCreature` wrapper no
-    // longer touches both authorities), so the reviewed record is that body's.
+    // `creature_from_pending_respawn_like_cpp`; F6-8E-2 deleted the legacy
+    // `map_manager` module and its `WorldCreature` wrapper, so the body touches
+    // only the canonical authority and is no longer a bridge: neither the live
+    // scan nor the reviewed inventory may record it.
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
     let baseline = crate::session_ownership::repository_syntax_for_tests()
         .expect("the moved function retains complete parent import provenance");
-    let actual = baseline
-        .bridge_accesses
-        .bridges
-        .iter()
-        .filter(|record| record.enclosing == "fn::creature_from_pending_respawn_like_cpp")
-        .collect::<Vec<_>>();
-    assert_eq!(actual.len(), 1);
+    assert!(
+        baseline
+            .bridge_accesses
+            .bridges
+            .iter()
+            .all(|record| record.enclosing != "fn::creature_from_pending_respawn_like_cpp")
+    );
     let policy: serde_json::Value = serde_json::from_str(
         &fs::read_to_string(repository.join("tools/architecture/session-ownership-policy.json"))
             .unwrap(),
     )
     .unwrap();
-    let expected = policy["syntax_baseline"]["bridge_accesses"]["bridges"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|record| record["enclosing"] == "fn::creature_from_pending_respawn_like_cpp")
-        .expect("reviewed bridge remains in the exact inventory");
-    assert_eq!(&serde_json::to_value(actual[0]).unwrap(), expected);
+    assert!(
+        policy["syntax_baseline"]["bridge_accesses"]["bridges"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .all(|record| record["enclosing"] != "fn::creature_from_pending_respawn_like_cpp")
+    );
 }
 
 fn nominal_identity(

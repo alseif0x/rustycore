@@ -35,26 +35,26 @@ mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod account_data_handler_contexts;
+mod creature_runtime;
 mod effect_learning;
 mod instance_handler_contexts;
 mod instances;
 mod inventory_handler_contexts;
-mod legacy_runtime;
 mod reputation_handler_contexts;
 mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
-use legacy_runtime::*;
+use creature_runtime::*;
 // #1263 F6-8D3a-1: the aggro commit of the admitted canonical executor;
 // world-server calls the same body.
-pub use legacy_runtime::{
+pub use creature_runtime::{
     apply_creature_attack_start_commands_on_manager_like_cpp,
     apply_creature_attack_stop_commands_on_manager_like_cpp,
     committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
 };
 // #1263 F6-8D2/D3b-1: the admitted creature executor; the world-server
 // canonical map loop calls it.
-pub use legacy_runtime::{
+pub use creature_runtime::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
@@ -195,21 +195,21 @@ pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayMo
 use connection_identity::{default_account_data_like_cpp, trinity_sprintf_like_cpp, unix_now};
 mod construction;
 mod creature_aggro_contracts;
+pub use creature_aggro_contracts::CreatureAggroCandidateLikeCpp;
+pub use creature_aggro_contracts::CreatureAggroConfigLikeCpp;
+use creature_aggro_contracts::CreatureAggroOwnerSnapshotLikeCpp;
+pub use creature_aggro_contracts::CreatureAggroTickOutcomeLikeCpp;
+use creature_aggro_contracts::CreatureAggroVisibilityDecisionLikeCpp;
+use creature_aggro_contracts::CreatureAiCanAttackDecisionLikeCpp;
+use creature_aggro_contracts::CreatureAiSelectionDecisionLikeCpp;
+use creature_aggro_contracts::CreatureCanAttackLeashDecisionLikeCpp;
+pub use creature_aggro_contracts::CreatureLifecycleTickOutcomeLikeCpp;
+pub use creature_aggro_contracts::CreatureMeleeTickOutcomeLikeCpp;
+pub use creature_aggro_contracts::CreatureMovementTickOutcomeLikeCpp;
 use creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
+pub use creature_aggro_contracts::CreatureSpellTickOutcomeLikeCpp;
+use creature_aggro_contracts::CreatureThreatUpdateLikeCpp;
 use creature_aggro_contracts::DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP;
-pub use creature_aggro_contracts::LegacyCreatureAggroCandidateLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureAggroConfigLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAggroOwnerSnapshotLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureAggroTickOutcomeLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAggroVisibilityDecisionLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAiCanAttackDecisionLikeCpp;
-use creature_aggro_contracts::LegacyCreatureAiSelectionDecisionLikeCpp;
-use creature_aggro_contracts::LegacyCreatureCanAttackLeashDecisionLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureLifecycleTickOutcomeLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureMeleeTickOutcomeLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureMovementTickOutcomeLikeCpp;
-pub use creature_aggro_contracts::LegacyCreatureSpellTickOutcomeLikeCpp;
-use creature_aggro_contracts::LegacyCreatureThreatUpdateLikeCpp;
 use creature_aggro_contracts::check_no_gray_aggro_config_like_cpp;
 use creature_aggro_contracts::creature_ai_spell_disable_decision_like_cpp;
 use creature_aggro_contracts::spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp;
@@ -416,13 +416,13 @@ mod player_load_values;
 use player_load_values::{gender_from_u8, unix_secs_to_ms_like_cpp};
 use player_load_values::{player_team_id_for_race_cpp, represented_pet_aura_slot_like_cpp};
 mod player_melee_application;
-pub use player_melee_application::LegacyPlayerMeleeTickOutcomeLikeCpp;
 use player_melee_application::PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
 use player_melee_application::PendingPlayerSwingLikeCpp;
 pub(crate) use player_melee_application::PlayerAttackStartLikeCppResult;
 pub use player_melee_application::PlayerMeleeAttackerSnapshotLikeCpp;
 pub(crate) use player_melee_application::PlayerMeleeCreatureHitLikeCpp;
 pub use player_melee_application::PlayerMeleePhaseStateLikeCpp;
+pub use player_melee_application::PlayerMeleeTickOutcomeLikeCpp;
 pub(in crate::session) use player_melee_application::RepresentedMeleeDamageBonusLikeCpp;
 use player_melee_application::apply_player_melee_to_canonical_player_like_cpp;
 use player_melee_application::begin_combat_ref_on_map_like_cpp;
@@ -612,9 +612,6 @@ use crate::loot_persistence::{
     DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceGuardLikeCpp,
     DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
 };
-use crate::map_manager::{
-    PendingRespawn, RecipientRule, RuntimeEvent, RuntimePlan, WorldMMapPathfinderWorkerLikeCpp,
-};
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
@@ -627,6 +624,11 @@ use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
     ReputationRatesLikeCpp,
+};
+use crate::{
+    creature_respawn::PendingRespawn,
+    pathfinder::WorldMMapPathfinderWorkerLikeCpp,
+    runtime_plan::{RecipientRule, RuntimeEvent, RuntimePlan},
 };
 use wow_ai::{
     CURRENT_EXPANSION_LIKE_CPP, CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp,

@@ -131,7 +131,7 @@ fn c1_capture_records_every_mutation_root_outcome_like_cpp() {
             session
                 .mutate_world_creature(guid, |creature| {
                     runs += 1;
-                    creature.creature.ai_ownership_mut().npc_flags = 0x0000_0042;
+                    creature.ai_ownership_mut().npc_flags = 0x0000_0042;
                 })
                 .is_some()
         );

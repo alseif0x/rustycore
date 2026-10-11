@@ -81,7 +81,7 @@ impl WorldEntitiesState {
         let skin_loot_id = hub
             .core
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership().skin_loot_id
+                creature.ai_ownership().skin_loot_id
             })
             .unwrap_or(0);
         if skin_loot_id == 0 {

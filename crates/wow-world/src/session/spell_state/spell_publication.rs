@@ -39,7 +39,7 @@ impl WorldSession {
             self.core.mutate_world_creature(attacker_guid, |creature| {
                 (
                     creature.position(),
-                    creature.creature.unit().world().combat_reach(),
+                    creature.unit().world().combat_reach(),
                     creature.visibility_range_like_cpp(),
                 )
             })

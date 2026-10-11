@@ -42,6 +42,32 @@ fn make_session_with_send_rx() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     (session, send_rx)
 }
 
+/// Place the session's Player on the canonical map `(0, 0)` so the
+/// controlled-mover queries resolve the canonical map key (#1263 F6-8E-2:
+/// without a canonical Player key they resolve nothing, as before F6-8E-1).
+fn install_canonical_player_on_map_zero_for_test(
+    canonical: &crate::session::SharedCanonicalMapManager,
+    player_guid: ObjectGuid,
+    position: Position,
+) {
+    let mut player = wow_entities::Player::new(Some(1), false);
+    player
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
+    player.unit_mut().world_mut().set_map(0, 0).unwrap();
+    player.unit_mut().world_mut().relocate(position);
+    player.unit_mut().world_mut().object_mut().add_to_world();
+    canonical
+        .lock()
+        .unwrap()
+        .create_world_map(0, 0)
+        .map_mut()
+        .insert_map_object_record(wow_entities::MapObjectRecord::new_player(player).unwrap())
+        .unwrap();
+}
+
 fn install_canonical_player_and_transports_for_test(
     canonical: &crate::session::SharedCanonicalMapManager,
     player_guid: ObjectGuid,
@@ -136,7 +162,7 @@ fn write_single_area_map_tile_like_cpp(
         bytes.extend_from_slice(&area_id.to_le_bytes());
     }
 
-    let (gx, gy) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(x, y);
+    let (gx, gy) = crate::terrain::terrain_grid_coords_for_wow_position_like_cpp(x, y);
     fs::write(
         data_dir
             .join("maps")

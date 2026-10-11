@@ -23,7 +23,7 @@ pub(crate) fn write_no_area_map_file_like_cpp(
     y: f32,
     area_id: u16,
 ) {
-    let (grid_x, grid_y) = crate::map_manager::terrain_grid_coords_for_wow_position_like_cpp(x, y);
+    let (grid_x, grid_y) = crate::terrain::terrain_grid_coords_for_wow_position_like_cpp(x, y);
     let mut bytes = Vec::new();
     bytes.extend_from_slice(b"MAPS");
     bytes.extend_from_slice(&10_u32.to_le_bytes());

@@ -458,7 +458,7 @@ fn loaded_player_aura_recreates_cast_and_unconditional_visual_provenance_like_cp
         caster_player_condition_id,
         spell_id: spell_id as u32,
     };
-    session.set_legacy_creature_aggro_config_like_cpp(LegacyCreatureAggroConfigLikeCpp {
+    session.set_creature_aggro_config_like_cpp(CreatureAggroConfigLikeCpp {
         spell_x_spell_visual_store: Some(Arc::new(wow_data::SpellXSpellVisualStore::from_entries(
             [visual(20_611, 7), visual(20_612, 0), visual(20_613, 0)],
         ))),

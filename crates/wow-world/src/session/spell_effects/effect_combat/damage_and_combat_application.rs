@@ -93,41 +93,41 @@ impl WorldSession {
             )
         };
 
-        let Some((threat_value, taunt_slot)) = self
-            .core
-            .mutate_world_creature(target_guid, |creature| {
-                let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
-                if !combat.owner_can_have_threat_list
-                    || (enforce_effect_taunt_current_victim_gate
-                        && combat.current_victim_guid == Some(player_guid))
-                {
-                    return None;
-                }
-                let threat = (!combat.is_threat_list_empty(false))
-                    .then(|| combat.match_unit_threat_to_highest_threat_like_cpp(player_guid))
-                    .flatten();
-                if taunt_effect_mask.is_none() {
-                    combat.set_threat_taunt_state(
-                        player_guid,
-                        wow_entities::ThreatTauntState::Taunt(1),
-                    );
-                    combat.current_victim_guid = Some(player_guid);
-                }
-                let taunt_slot =
-                    taunt_effect_mask
-                        .filter(|_| duration_ms != 0)
-                        .and_then(|effect_mask| {
-                            creature.apply_taunt_aura_with_provenance_like_cpp(
+        let Some((threat_value, taunt_slot)) =
+            self.core
+                .mutate_world_creature(target_guid, |creature| {
+                    let combat = &mut creature.unit_mut().subsystems_mut().combat;
+                    if !combat.owner_can_have_threat_list
+                        || (enforce_effect_taunt_current_victim_gate
+                            && combat.current_victim_guid == Some(player_guid))
+                    {
+                        return None;
+                    }
+                    let threat = (!combat.is_threat_list_empty(false))
+                        .then(|| combat.match_unit_threat_to_highest_threat_like_cpp(player_guid))
+                        .flatten();
+                    if taunt_effect_mask.is_none() {
+                        combat.set_threat_taunt_state(
+                            player_guid,
+                            wow_entities::ThreatTauntState::Taunt(1),
+                        );
+                        combat.current_victim_guid = Some(player_guid);
+                    }
+                    let taunt_slot = taunt_effect_mask.filter(|_| duration_ms != 0).and_then(
+                        |effect_mask| {
+                            crate::creature_projection::apply_taunt_aura_with_provenance_like_cpp(
+                                creature,
                                 player_guid,
                                 u32::try_from(spell_id).ok()?,
                                 effect_mask,
                                 duration_ms,
                                 provenance,
                             )
-                        });
-                Some((threat, taunt_slot))
-            })
-            .flatten()
+                        },
+                    );
+                    Some((threat, taunt_slot))
+                })
+                .flatten()
         else {
             return Ok(());
         };
@@ -253,7 +253,6 @@ impl WorldSession {
             self.core
                 .mutate_world_creature(caster_guid, |creature| {
                     creature
-                        .creature
                         .unit()
                         .subsystems()
                         .control
@@ -348,9 +347,7 @@ impl WorldSession {
                 );
 
                 if caster_rewards_session_player {
-                    creature
-                        .creature
-                        .set_tapped_by_player(player_guid, &tap_group_guids);
+                    creature.set_tapped_by_player(player_guid, &tap_group_guids);
                 }
                 // C++ `SpellNonMeleeDamage::preHitHealth`, read before
                 // `DealDamage` so the log can report the overkill.
@@ -359,29 +356,23 @@ impl WorldSession {
                 let newly_engaged = !died
                     && damage_amount > 0
                     && !suppress_harmful_threat
-                    && !(no_initial_threat && !creature.creature.is_in_combat())
-                    && creature.creature.ai_ownership().combat_target.is_none();
+                    && !(no_initial_threat && !creature.is_in_combat())
+                    && creature.ai_ownership().combat_target.is_none();
                 let threat_value = if !died
                     && damage_amount > 0
                     && !suppress_harmful_threat
-                    && !(no_initial_threat && !creature.creature.is_in_combat())
+                    && !(no_initial_threat && !creature.is_in_combat())
                 {
                     // C++ `Spell::DoAllEffectOnTarget` calls `Unit::AtTargetAttacked`, then
                     // `Unit::DealDamage` adds threat for non-player hostile victims.
-                    if creature.creature.ai_ownership().combat_target.is_none() {
+                    if creature.ai_ownership().combat_target.is_none() {
                         creature.enter_combat(caster_guid);
                     }
+                    creature.unit_mut().subsystems_mut().combat.add_threat(
+                        caster_guid,
+                        damage_amount as f32 * spell_threat_pct_mod * caster_school_threat_mod,
+                    );
                     creature
-                        .creature
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .add_threat(
-                            caster_guid,
-                            damage_amount as f32 * spell_threat_pct_mod * caster_school_threat_mod,
-                        );
-                    creature
-                        .creature
                         .unit()
                         .subsystems()
                         .combat
@@ -395,8 +386,10 @@ impl WorldSession {
                         target_guid,
                         creature.entry()
                     );
-                    let move_stop = creature
-                        .movement_like_cpp()
+                    let move_stop =
+                        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(
+                            creature,
+                        )
                         .stop_move_spline_like_cpp()
                         .map(|stop| {
                             MonsterMoveStop {
@@ -412,7 +405,7 @@ impl WorldSession {
                 };
                 Some((
                     kill_info,
-                    creature.creature.unit().values_update(),
+                    creature.unit().values_update(),
                     threat_value,
                     newly_engaged,
                     pre_hit_health,
@@ -475,10 +468,7 @@ impl WorldSession {
             let (mob_level, can_give_experience) = self
                 .core
                 .mutate_world_creature(guid, |creature| {
-                    (
-                        creature.level(),
-                        creature.creature.can_give_experience_like_cpp(),
-                    )
+                    (creature.level(), creature.can_give_experience_like_cpp())
                 })
                 .unwrap_or((1, false));
             let xp = can_give_experience

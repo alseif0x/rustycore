@@ -125,7 +125,7 @@ impl SessionSpellState {
         let (health, max_health, alive) = hub.resolved_player_vitals_like_cpp()?;
         Some(
             aura_driven
-                | wow_world_core::map_manager::WorldCreature::health_aura_state_like_cpp(
+                | wow_entities::Creature::health_aura_state_like_cpp(
                     u64::from(health),
                     u64::from(max_health),
                     alive,

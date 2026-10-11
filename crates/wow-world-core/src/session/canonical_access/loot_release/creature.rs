@@ -29,19 +29,19 @@ fn looted_creature_lifecycle_like_cpp(
     whole_object_fully_skinned: bool,
     corpse_decay_looted_rate: f32,
     fanout_publishes: bool,
-) -> impl FnOnce(
-    &mut crate::map_manager::WorldCreature,
-) -> (Option<(u32, u32)>, wow_entities::UnitValuesUpdate) {
-    move |creature: &mut crate::map_manager::WorldCreature| {
-        creature.remove_lootable_dynamic_flag_like_cpp();
+) -> impl FnOnce(&mut wow_entities::Creature) -> (Option<(u32, u32)>, wow_entities::UnitValuesUpdate)
+{
+    move |creature: &mut wow_entities::Creature| {
+        crate::creature_projection::remove_lootable_dynamic_flag_like_cpp(creature);
         let marked = if !creature.is_alive() {
             let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
                 whole_object_fully_skinned,
-                creature.corpse_delay_secs_like_cpp(),
-                creature.ignore_corpse_decay_ratio_like_cpp(),
+                creature.corpse_delay(),
+                creature.ignore_corpse_decay_ratio(),
                 corpse_decay_looted_rate,
             );
-            if !creature.all_loot_removed_from_corpse_like_cpp(
+            if !crate::creature_projection::all_loot_removed_from_corpse_like_cpp(
+                creature,
                 corpse_decay_looted_rate,
                 whole_object_fully_skinned,
             ) {
@@ -56,7 +56,7 @@ fn looted_creature_lifecycle_like_cpp(
         };
         (
             marked,
-            loot_release_values_for_fanout_like_cpp(&mut creature.creature, fanout_publishes),
+            loot_release_values_for_fanout_like_cpp(creature, fanout_publishes),
         )
     }
 }

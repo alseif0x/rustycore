@@ -112,9 +112,7 @@ pub(crate) trait CanonicalCreatureFixtureLikeCpp {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        grid_x: i16,
-        grid_y: i16,
-        creature: crate::map_manager::WorldCreature,
+        creature: wow_entities::Creature,
     ) -> bool;
     /// Remove the incarnation from its map (`RemoveFromMap`) and return it.
     fn remove_creature_any(
@@ -122,7 +120,7 @@ pub(crate) trait CanonicalCreatureFixtureLikeCpp {
         map_id: u16,
         instance_id: u32,
         guid: ObjectGuid,
-    ) -> Option<crate::map_manager::WorldCreature>;
+    ) -> Option<wow_entities::Creature>;
     /// The map's creature respawn queue length (0 without the map).
     fn respawn_queue_len(&self, map_id: u16, instance_id: u32) -> usize;
     /// Queue one creature respawn on the map (created when absent).
@@ -130,14 +128,14 @@ pub(crate) trait CanonicalCreatureFixtureLikeCpp {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: crate::map_manager::PendingRespawn,
+        respawn: crate::creature_respawn::PendingRespawn,
     );
     /// Save one pending respawn's time in the map's queue (`SaveRespawnTime`).
     fn save_pending_respawn_time_like_cpp(
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: &crate::map_manager::PendingRespawn,
+        respawn: &crate::creature_respawn::PendingRespawn,
         now: std::time::Instant,
         now_secs: i64,
     ) -> Option<wow_persistence::RespawnPersistenceMutationLikeCpp>;
@@ -180,11 +178,8 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        _grid_x: i16,
-        _grid_y: i16,
-        creature: crate::map_manager::WorldCreature,
+        mut creature: wow_entities::Creature,
     ) -> bool {
-        let mut creature = creature.creature;
         let _ = creature
             .unit_mut()
             .world_mut()
@@ -204,16 +199,11 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         map_id: u16,
         instance_id: u32,
         guid: ObjectGuid,
-    ) -> Option<crate::map_manager::WorldCreature> {
+    ) -> Option<wow_entities::Creature> {
         let map = self.find_map_mut(u32::from(map_id), instance_id)?.map_mut();
         let creature = map.get_typed_creature(guid)?.clone();
         let _ = map.remove_from_map_like_cpp(guid, true);
-        let create_data =
-            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
-        Some(crate::map_manager::WorldCreature {
-            creature,
-            create_data,
-        })
+        Some(creature)
     }
 
     fn respawn_queue_len(&self, map_id: u16, instance_id: u32) -> usize {
@@ -229,7 +219,7 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: crate::map_manager::PendingRespawn,
+        respawn: crate::creature_respawn::PendingRespawn,
     ) {
         self.create_world_map(u32::from(map_id), instance_id)
             .map_mut()
@@ -241,11 +231,11 @@ impl CanonicalCreatureFixtureLikeCpp for wow_map::MapManager {
         &mut self,
         map_id: u16,
         instance_id: u32,
-        respawn: &crate::map_manager::PendingRespawn,
+        respawn: &crate::creature_respawn::PendingRespawn,
         now: std::time::Instant,
         now_secs: i64,
     ) -> Option<wow_persistence::RespawnPersistenceMutationLikeCpp> {
-        crate::map_manager::save_pending_respawn_time_on_queue_like_cpp(
+        crate::creature_respawn::save_pending_respawn_time_on_queue_like_cpp(
             self.create_world_map(u32::from(map_id), instance_id)
                 .map_mut()
                 .creature_respawn_queue_like_cpp_mut(),

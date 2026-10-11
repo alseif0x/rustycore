@@ -158,7 +158,6 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     assert!(first.reconcile_represented_loot_cache_like_cpp(owner_guid, opened_first));
     let _ = first.mutate_world_creature(owner_guid, |creature| {
         creature
-            .creature
             .unit_mut()
             .world_mut()
             .object_mut()
@@ -214,7 +213,6 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
         !first
             .mutate_world_creature(owner_guid, |creature| {
                 creature
-                    .creature
                     .unit()
                     .world()
                     .object()

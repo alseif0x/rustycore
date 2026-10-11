@@ -73,18 +73,16 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
     session
@@ -153,7 +151,7 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -164,8 +162,8 @@ fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
     let reset_swing = |session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
     };
@@ -392,18 +390,16 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -454,7 +450,7 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -468,8 +464,8 @@ fn legacy_creature_melee_tick_once_drains_player_mana_shield_like_cpp() {
     let reset_swing = |session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
     };
@@ -637,22 +633,19 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
             // C++ `GetMaxPositiveAuraModifierByMiscMask` reads the attacker's
             // own `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL` effects.
             creature
-                .creature
                 .unit_mut()
                 .subsystems_mut()
                 .auras
@@ -719,7 +712,7 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
     spell_store.insert_spell_misc_attributes_like_cpp(91_813, attributes);
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -730,8 +723,8 @@ fn legacy_creature_melee_tick_once_honors_ignore_absorb_like_cpp() {
     let reset_swing = |session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
     };

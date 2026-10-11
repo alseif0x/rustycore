@@ -16,13 +16,10 @@ async fn two_sessions_sharing_the_canonical_map_manager_see_same_creature_state(
 
     let creature_guid = test_creature_guid(99901);
     let pos = Position::new(10.0, 10.0, 0.0, 0.0);
-    let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(pos.x, pos.y);
     manager.lock().unwrap().add_creature(
         0,
         0,
-        grid_x,
-        grid_y,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             creature_guid,
             900,
             pos,
@@ -135,9 +132,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
             // (`Unit.cpp:2313-2360`); both attackers must land their swing.
             session
                 .mutate_world_creature(creature_guid, |creature| {
-                    creature
-                        .creature
-                        .add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
+                    creature.add_unit_type_mask_like_cpp(wow_entities::UNIT_MASK_TOTEM);
                 })
                 .unwrap();
         }
@@ -173,7 +168,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
         &attackers,
         2_000,
         &mut phase_state,
-        &crate::session::LegacyCreatureAggroConfigLikeCpp::default(),
+        &crate::session::CreatureAggroConfigLikeCpp::default(),
     );
     assert_eq!(first.attackers_seen, 2);
     assert_eq!(
@@ -203,7 +198,7 @@ async fn two_players_attacking_one_creature_resolve_once_under_the_map_owner_lik
         &attackers,
         0,
         &mut phase_state,
-        &crate::session::LegacyCreatureAggroConfigLikeCpp::default(),
+        &crate::session::CreatureAggroConfigLikeCpp::default(),
     );
     assert_eq!(
         second.creature_hits, 0,

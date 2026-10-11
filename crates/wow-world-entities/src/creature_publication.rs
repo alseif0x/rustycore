@@ -1,5 +1,4 @@
 use wow_core::{ObjectGuid, Position};
-use wow_world_core::map_manager::WorldCreature;
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubRef};
 
 use crate::WorldEntitiesState;
@@ -69,9 +68,9 @@ impl WorldEntitiesState {
     pub fn send_initial_visible_packets_for_creature_like_cpp(
         &self,
         hub: HubRef<'_>,
-        creature: &WorldCreature,
+        creature: &wow_entities::Creature,
     ) {
-        let aura_subsystem = &creature.creature.unit().subsystems().auras;
+        let aura_subsystem = &creature.unit().subsystems().auras;
         if aura_subsystem.visible_auras.is_empty() {
             return;
         }

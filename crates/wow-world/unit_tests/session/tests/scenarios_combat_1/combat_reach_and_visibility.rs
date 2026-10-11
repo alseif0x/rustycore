@@ -17,7 +17,7 @@ fn npc_interaction_uses_combat_reach_like_cpp() {
         80,
         0,
     ));
-    let mut creature = crate::map_manager::WorldCreature::new(
+    let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
         questgiver_guid,
         505,
         Position::new(15.75, 0.0, 0.0, 0.0),
@@ -31,8 +31,8 @@ fn npc_interaction_uses_combat_reach_like_cpp() {
         wow_constants::unit::NPCFlags1::QUEST_GIVER.bits(),
         0,
     );
-    creature.creature.unit_mut().set_combat_reach(0.0);
-    manager.lock().unwrap().add_creature(571, 0, 0, 0, creature);
+    creature.unit_mut().set_combat_reach(0.0);
+    manager.lock().unwrap().add_creature(571, 0, creature);
     session.set_canonical_map_manager(Arc::clone(&manager));
     session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
     session

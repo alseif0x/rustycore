@@ -202,13 +202,13 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.set_spell(0, 7_004);
-            creature.creature.unit_mut().set_combat_reach(0.0);
+            creature.set_spell(0, 7_004);
+            creature.unit_mut().set_combat_reach(0.0);
         })
         .unwrap();
     let mut active_misc = spell_misc_entry_like_cpp(8_303, 7_004, 72);
     active_misc.difficulty_id = 2;
-    let config = LegacyCreatureAggroConfigLikeCpp {
+    let config = CreatureAggroConfigLikeCpp {
         spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
             spell_misc_entry_like_cpp(8_302, 7_004, 71),
             active_misc,
@@ -224,11 +224,11 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
             fallback_difficulty_id: 0,
             toggle_difficulty_id: 0,
         }]))),
-        ..legacy_aggro_hostile_config_like_cpp()
+        ..aggro_hostile_config_like_cpp()
     };
     let guard = manager.lock().unwrap();
     let creature = guard.find_creature(0, 0, creature_guid).unwrap();
-    let mut candidate = legacy_aggro_candidate_like_cpp(
+    let mut candidate = aggro_candidate_like_cpp(
         ObjectGuid::create_player(1, 91_307),
         Position::new(16.0, 10.0, 0.0, 0.0),
     );
@@ -236,23 +236,23 @@ fn legacy_turret_ai_can_attack_uses_active_map_difficulty_range_like_cpp() {
     candidate.map_difficulty_id = 2;
 
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Allowed,
+        CreatureAiCanAttackDecisionLikeCpp::Allowed,
         "active difficulty range 10 must win over base range 2"
     );
     candidate.map_difficulty_id = 0;
     assert_eq!(
-        legacy_creature_ai_can_attack_decision_like_cpp(
+        creature_ai_can_attack_decision_like_cpp(
             &CreatureAiKindLikeCpp::TurretAI,
             &creature.creature,
             &candidate,
             &config,
         ),
-        LegacyCreatureAiCanAttackDecisionLikeCpp::Rejected
+        CreatureAiCanAttackDecisionLikeCpp::Rejected
     );
 }

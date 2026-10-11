@@ -66,14 +66,10 @@ impl Fixture {
             901,
             588_902,
         );
-        let (grid_x, grid_y) =
-            crate::map_manager::world_to_grid_coords(creature_position.x, creature_position.y);
         canonical.lock().unwrap().add_creature(
             KEY.map_id as u16,
             KEY.instance_id,
-            grid_x,
-            grid_y,
-            crate::map_manager::WorldCreature::new(
+            crate::creature_projection::new_runtime_creature_like_cpp(
                 creature,
                 901,
                 creature_position,

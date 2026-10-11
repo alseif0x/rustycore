@@ -171,7 +171,6 @@ pub(super) fn overworld_personal_loot_test_fixture_like_cpp()
     session
         .mutate_world_creature(owner_guid, |world_creature| {
             world_creature
-                .creature
                 .set_tapped_by_player(disconnected_tapper, &[first_tapper, second_tapper]);
         })
         .expect("the adopted incarnation admits the fixture's tap mutation");

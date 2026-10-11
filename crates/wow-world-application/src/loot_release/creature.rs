@@ -7,12 +7,17 @@ use wow_packet::packets::loot::LOOT_TYPE_SKINNING_LIKE_CPP;
 
 /// The DynamicFlags VALUES a fully-looted creature release publishes.
 ///
-/// C++ `LootHandler::DoLootRelease` forces the DynamicFlags field before it
-/// runs the corpse lifecycle, so the field reaches every viewer whatever that
-/// transition does. The lifecycle's VALUES (lootable flag removed) win; a
-/// refused or absent transition still publishes the forced VALUES, whose
-/// map-publication mark the force already handed to the fanout (#1263 F6-8E,
-/// review D-1).
+/// C++ `WorldSession::DoLootRelease` runs the corpse lifecycle
+/// (`RemoveDynamicFlag(UNIT_DYNFLAG_LOOTABLE)`, `AllLootRemovedFromCorpse`)
+/// and then forces the DynamicFlags field (`LootHandler.cpp:370-390`), so the
+/// field reaches every viewer whatever that transition did. Rust takes the
+/// force mark first and publishes one VALUES after the lifecycle, so the
+/// published field carries the post-lifecycle value either way: the
+/// lifecycle's VALUES (lootable flag removed) win; a refused or absent
+/// transition still publishes the forced VALUES, whose map-publication mark
+/// the force already handed to the fanout (#1263 F6-8E, review D-1; the mark
+/// hand-over, D-2, is `loot_release_values_for_fanout_like_cpp` in
+/// `wow-world-core` `session/canonical_access/loot_release/creature.rs`).
 pub(super) fn fully_looted_release_values_to_publish_like_cpp<'a, M>(
     lifecycle_update: Option<&'a (M, wow_entities::UnitValuesUpdate)>,
     forced_values_update: Option<&'a wow_entities::UnitValuesUpdate>,
@@ -31,8 +36,8 @@ impl LootReleaseCxLikeCpp<'_> {
         represented_loot_type: u8,
         authoritative_release: Option<&AuthoritativeLootReleaseLikeCpp>,
     ) -> bool {
-        // C++ forces the viewer-dependent DynamicFlags field after every
-        // creature release, including a selected personal pool that completed
+        // C++ forces the viewer-dependent DynamicFlags field at the end of
+        // every creature release (`LootHandler.cpp:390`), including a selected personal pool that completed
         // while another pool remains.
         let forced_values_update = self
             .owner

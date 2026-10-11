@@ -31,7 +31,7 @@ const D3B_PLAYER_HP_LIKE_CPP: u64 = 1_000;
 const D3B_SPAWN_ID_LIKE_CPP: u64 = 96_301;
 const D3B_CREATURE_GOLD_LIKE_CPP: u32 = 7;
 
-fn d3b_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+fn d3b_aggro_config_like_cpp() -> wow_world::session::CreatureAggroConfigLikeCpp {
     let template = |id, faction, enemies| wow_data::progression_rewards::FactionTemplateEntry {
         id,
         faction,
@@ -42,7 +42,7 @@ fn d3b_aggro_config_like_cpp() -> wow_world::session::LegacyCreatureAggroConfigL
         enemies,
         friend: [0; 8],
     };
-    wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+    wow_world::session::CreatureAggroConfigLikeCpp {
         faction_template_store: Some(Arc::new(
             wow_data::progression_rewards::FactionTemplateStore::from_entries([
                 template(14, 72, [930, 0, 0, 0, 0, 0, 0, 0]),
@@ -87,7 +87,7 @@ fn d3b_world_like_cpp(base: i64) -> D3bWorldLikeCpp {
         Arc::new(Mutex::new(wow_map::MapManager::default()));
     canonical.lock().unwrap().create_world_map(0, 0);
     let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9001, base);
-    let mut world_creature = wow_world::map_manager::WorldCreature::new(
+    let mut world_creature = wow_world::creature_projection::new_runtime_creature_like_cpp(
         creature,
         9001,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -101,16 +101,19 @@ fn d3b_world_like_cpp(base: i64) -> D3bWorldLikeCpp {
         0,
         0,
     );
-    world_creature.creature.set_spawn_id(D3B_SPAWN_ID_LIKE_CPP);
+    world_creature.set_spawn_id(D3B_SPAWN_ID_LIKE_CPP);
     // A money drop (C++ `Creature::GetLootMode` / `mingold..maxgold`), so the
     // corpse is lootable without an item template store.
-    world_creature.creature.ai_ownership_mut().gold_min = D3B_CREATURE_GOLD_LIKE_CPP;
-    world_creature.creature.ai_ownership_mut().gold_max = D3B_CREATURE_GOLD_LIKE_CPP;
-    world_creature.creature.set_corpse_delay(1, false);
-    world_creature.creature.set_respawn_delay(1);
-    world_creature.creature.ai_ownership_mut().respawn_time_secs = 1;
-    world_creature.seed_runtime_rng_like_cpp(0xD3B2);
-    let mut canonical_creature = world_creature.creature;
+    world_creature.ai_ownership_mut().gold_min = D3B_CREATURE_GOLD_LIKE_CPP;
+    world_creature.ai_ownership_mut().gold_max = D3B_CREATURE_GOLD_LIKE_CPP;
+    world_creature.set_corpse_delay(1, false);
+    world_creature.set_respawn_delay(1);
+    world_creature.ai_ownership_mut().respawn_time_secs = 1;
+    wow_world::creature_projection::test_support::seed_runtime_rng_like_cpp(
+        &mut world_creature,
+        0xD3B2,
+    );
+    let mut canonical_creature = world_creature;
     canonical_creature
         .unit_mut()
         .world_mut()
@@ -719,7 +722,7 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
     // C++ `Creature::InitEntry` (`Creature.cpp:547-553`) re-applies the
     // template walk/run rates and the native object scale on every respawn.
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 9003, 96_360);
-    let mut world_creature = wow_world::map_manager::WorldCreature::new(
+    let mut world_creature = wow_world::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9003,
         Position::new(10.0, 10.0, 0.0, 0.0),
@@ -735,7 +738,7 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
     );
     let mut projection =
         wow_entities::creature_create::CreatureRespawnCreateProjectionLikeCpp::from_create_data_like_cpp(
-            &world_creature.create_data,
+            &wow_world::creature_projection::creature_create_data_like_cpp(&world_creature),
         );
     projection.speed_walk_rate = 0.8;
     projection.speed_run_rate = 1.5;
@@ -743,11 +746,10 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
     projection.native_x_display_scale = 1.1;
     projection.scale = 2.0;
     world_creature
-        .creature
         .runtime_like_cpp_mut()
         .set_respawn_create_projection_like_cpp(projection);
 
-    let pending = wow_world::map_manager::pending_respawn_from_world_creature_like_cpp(
+    let pending = wow_world::creature_respawn::pending_respawn_from_creature_like_cpp(
         &world_creature,
         Instant::now(),
         0,
@@ -757,7 +759,7 @@ fn respawn_entry_carries_the_template_speed_rates_and_scales_like_cpp() {
     assert_eq!(pending.create_data.display_scale, 1.25);
     assert_eq!(pending.create_data.native_x_display_scale, 1.1);
     assert_eq!(pending.create_data.scale, 2.0);
-    let rebuilt = wow_world::map_manager::creature_from_pending_respawn_like_cpp(&pending, 0);
+    let rebuilt = wow_world::creature_respawn::creature_from_pending_respawn_like_cpp(&pending, 0);
     assert_eq!(rebuilt.unit().world().object().scale(), 2.0);
     let rates = rebuilt.unit().speed_rate();
     assert_eq!(rates[wow_constants::UnitMoveType::Run as usize], 1.5);

@@ -16,7 +16,7 @@ async fn spell_heal_syncs_canonical_creature_health_like_cpp() {
     session
         .mutate_world_creature(guid, |creature| {
             creature.take_damage(20);
-            creature.creature.clear_data_changes();
+            creature.clear_data_changes();
         })
         .unwrap();
 
@@ -47,10 +47,9 @@ async fn spell_heal_skips_dead_creature_like_cpp() {
         .mutate_world_creature(guid, |creature| {
             creature.take_damage(20);
             creature
-                .creature
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Corpse);
-            creature.creature.clear_data_changes();
+            creature.clear_data_changes();
         })
         .unwrap();
 
@@ -107,7 +106,7 @@ async fn spell_self_heal_adds_half_effective_heal_threat_like_cpp() {
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(tank_guid);
-            let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+            let combat = &mut creature.unit_mut().subsystems_mut().combat;
             combat.add_threat(tank_guid, 100.0);
             combat.add_threat(player_guid, 10.0);
         })

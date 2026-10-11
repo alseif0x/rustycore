@@ -127,8 +127,7 @@ impl WorldSession {
             .filter(|owner_guid| {
                 self.core
                     .mutate_world_creature(**owner_guid, |creature| {
-                        creature.is_alive()
-                            && !creature.creature.unit().has_unit_state(controlled_mask)
+                        creature.is_alive() && !creature.unit().has_unit_state(controlled_mask)
                     })
                     .unwrap_or(false)
             })
@@ -146,14 +145,14 @@ impl WorldSession {
                     if !creature.is_alive() {
                         return None;
                     }
-                    let controlled = creature.creature.unit().has_unit_state(controlled_mask);
-                    if no_initial_threat && !creature.creature.is_in_combat() {
+                    let controlled = creature.unit().has_unit_state(controlled_mask);
+                    if no_initial_threat && !creature.is_in_combat() {
                         return None;
                     }
-                    if !controlled && creature.creature.ai_ownership().combat_target.is_none() {
+                    if !controlled && creature.ai_ownership().combat_target.is_none() {
                         creature.enter_combat(assistant_guid);
                     }
-                    let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                    let combat = &mut creature.unit_mut().subsystems_mut().combat;
                     combat.add_threat(assistant_guid, if controlled { 0.0 } else { per_owner });
                     combat.threat_value(assistant_guid)
                 })
@@ -274,13 +273,11 @@ impl WorldSession {
             .core
             .mutate_world_creature(target_guid, |creature| {
                 creature
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat
                     .add_threat(player_guid, damage as f32);
                 creature
-                    .creature
                     .unit()
                     .subsystems()
                     .combat
@@ -309,7 +306,6 @@ impl WorldSession {
             .core
             .mutate_world_creature(target_guid, |creature| {
                 creature
-                    .creature
                     .unit_mut()
                     .subsystems_mut()
                     .combat

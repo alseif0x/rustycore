@@ -85,8 +85,6 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
     managed_kind: wow_map::ManagedMapKind,
     spawn_id: u64,
 ) {
-    use crate::map_manager::world_to_grid_coords;
-
     let manager = shared_map_manager();
     let canonical = Arc::clone(&manager);
     canonical
@@ -97,7 +95,7 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
     let guid = test_creature_guid(
         i64::try_from(spawn_id).expect("test spawn id must fit the ObjectGuid counter"),
     );
-    let mut creature = crate::map_manager::WorldCreature::new(
+    let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9005,
         Position::new(17.0, 18.0, 19.0, 1.0),
@@ -111,13 +109,15 @@ pub(in crate::session::tests) fn assert_instanceable_map_does_not_persist_respaw
         0,
         0,
     );
-    creature.creature.set_spawn_id(spawn_id);
+    creature.set_spawn_id(spawn_id);
     assert!(creature.take_damage(50));
-    creature.set_corpse_despawn_at(Some(Instant::now() - Duration::from_secs(1)));
-    let (grid_x, grid_y) = world_to_grid_coords(creature.position().x, creature.position().y);
+    crate::creature_projection::test_support::set_corpse_despawn_at(
+        &mut creature,
+        Some(Instant::now() - Duration::from_secs(1)),
+    );
     {
         let mut guard = manager.lock().unwrap();
-        assert!(guard.add_creature(map_id, instance_id, grid_x, grid_y, creature));
+        assert!(guard.add_creature(map_id, instance_id, creature));
     }
 
     let outcome = run_canonical_creature_lifecycle_phase_for_test_like_cpp(
@@ -166,7 +166,7 @@ pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
     session
         .mutate_world_creature(guid, |c| {
             c.take_damage(10);
-            c.set_corpse_despawn_at(Some(past));
+            crate::creature_projection::test_support::set_corpse_despawn_at(c, Some(past));
         })
         .unwrap();
 
@@ -200,8 +200,8 @@ pub(in crate::session::tests) fn force_respawn_ready(session: &mut WorldSession)
 
 pub(in crate::session::tests) fn make_test_world_creature(
     guid: ObjectGuid,
-) -> crate::map_manager::WorldCreature {
-    crate::map_manager::WorldCreature::new(
+) -> wow_entities::Creature {
+    crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9999,
         Position::new(10.0, 10.0, 0.0, 0.0),

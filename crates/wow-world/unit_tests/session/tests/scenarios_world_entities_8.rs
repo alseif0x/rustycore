@@ -308,8 +308,7 @@ fn register_world_creature_preserves_create_state_in_canonical_like_cpp() {
         .map()
         .with_creature_like_cpp(guid, Clone::clone)
         .expect("creature inserted into canonical map");
-    let reconstructed =
-        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature);
+    let reconstructed = crate::creature_projection::creature_create_data_like_cpp(&creature);
 
     assert_eq!(reconstructed.display_id, create_data.display_id);
     assert_eq!(
@@ -412,27 +411,27 @@ fn register_world_creature_hydrates_db_waypoint_path_like_cpp() {
         .find_creature(571, 0, guid)
         .expect("creature inserted into the canonical map");
     assert_eq!(
-        creature.creature.waypoint_path_id_like_cpp(),
+        creature.waypoint_path_id_like_cpp(),
         77_001,
         "C++ Creature::LoadCreaturesAddon copies nonzero PathId into _waypointPathId"
     );
     assert_eq!(
-        creature.creature.equipment_id(),
+        creature.equipment_id(),
         6,
         "C++ Creature::LoadEquipment stores the selected equipment id on the creature"
     );
     assert_eq!(
-        creature.creature.original_equipment_id(),
+        creature.original_equipment_id(),
         -1,
         "C++ Creature::InitEntry preserves DB equipment_id separately from the selected equipment template"
     );
     assert_eq!(
-        creature.creature.lifecycle_metadata().script_name,
+        creature.lifecycle_metadata().script_name,
         "npc_db_waypoint",
         "C++ ObjectMgr::LoadCreatures stores creature.ScriptName on CreatureData for AI selection"
     );
     assert_eq!(
-        creature.creature.lifecycle_metadata().string_id.as_deref(),
+        creature.lifecycle_metadata().string_id.as_deref(),
         Some("spawn-string"),
         "C++ Creature::LoadFromDB copies CreatureData::StringId into m_stringIds[1]"
     );
@@ -503,7 +502,7 @@ fn register_world_creature_applies_addon_lifecycle_like_cpp() {
         .find_creature(571, 0, guid)
         .expect("creature inserted into the canonical map");
     assert_eq!(
-        creature.creature.waypoint_path_id_like_cpp(),
+        creature.waypoint_path_id_like_cpp(),
         77_002,
         "C++ Creature::LoadCreaturesAddon copies addon PathId into _waypointPathId"
     );
@@ -622,7 +621,7 @@ fn registered_creature_addon_aura_effects_feed_canonical_consumers_like_cpp() {
     let creature = guard
         .find_creature(571, 0, guid)
         .expect("creature inserted into the canonical map");
-    let auras = &creature.creature.unit().subsystems().auras;
+    let auras = &creature.unit().subsystems().auras;
     assert_eq!(
         auras
             .total_aura_modifier_like_cpp(wow_data::spell::aura_types::SPELL_AURA_MOD_DETECT_RANGE),
@@ -729,7 +728,7 @@ fn mutate_world_creature_relocates_canonical_map_object_like_cpp() {
 
     let moved = Position::new(15.0, 25.0, 35.0, 2.0);
     session.mutate_world_creature(guid, |creature| {
-        creature.creature.set_ai_position(moved);
+        creature.set_ai_position(moved);
     });
 
     let guard = canonical.lock().unwrap();
@@ -793,4 +792,46 @@ fn canonical_creature_relocation_helper_uses_explicit_map_and_instance_like_cpp(
             .expect("creature remains in explicit map instance");
         assert_eq!(creature.position(), relocated);
     }
+}
+/// #1263 F6-8E-2: C++ `Cell::VisitGridObjects(_player, searcher,
+/// AELootCreatureCheck::LootDistance)` (`LootHandler.cpp:236-242`) finds only
+/// the dead creatures on the nearby grid cells within 30 yards: a live one,
+/// one just beyond the distance and one on far cells are not candidates.
+#[test]
+fn ae_loot_candidates_are_the_nearby_dead_creatures_like_cpp() {
+    let (mut session, _, _) = make_session();
+    let manager = shared_map_manager();
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    let corpse = |entry: i64, x: f32, alive: bool| {
+        let guid = test_creature_guid(entry);
+        let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
+            guid,
+            9001,
+            Position::new(x, 0.0, 0.0, 0.0),
+            100,
+            1,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+        );
+        if !alive {
+            creature.die();
+        }
+        assert!(manager.lock().unwrap().add_creature(0, 0, creature));
+        guid
+    };
+    let near_dead = corpse(19_041, 10.0, false);
+    corpse(19_042, 12.0, true);
+    corpse(19_043, 31.0, false);
+    corpse(19_044, 900.0, false);
+
+    let candidates = session
+        .core
+        .nearby_dead_creature_guids_like_cpp(Position::ZERO, 30.0);
+
+    assert_eq!(candidates, vec![near_dead]);
 }

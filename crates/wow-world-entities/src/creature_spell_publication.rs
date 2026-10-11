@@ -7,7 +7,7 @@
 
 use wow_constants::PowerType;
 use wow_core::{ObjectGuid, Position};
-use wow_world_core::map_manager::{RecipientRule, RuntimeEvent, RuntimePlan};
+use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent, RuntimePlan};
 
 use crate::creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
 use crate::creature_spell_planning::CreatureSpellCastPlanLikeCpp;

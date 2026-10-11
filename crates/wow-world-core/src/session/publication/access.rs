@@ -4,11 +4,11 @@
 use std::time::Instant;
 
 use crate::entity_update_bridge::player_values_update_to_update_object;
-use crate::map_manager::VISIBILITY_RADIUS;
 use crate::session::SessionCore;
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 use wow_core::{ObjectGuid, Position};
 use wow_entities::PlayerValuesUpdate;
+use wow_entities::VISIBILITY_RADIUS_LIKE_CPP as VISIBILITY_RADIUS;
 
 /// Borrowed access to the session's established packet publication channel.
 pub struct PacketPublicationAccessLikeCpp<'a> {

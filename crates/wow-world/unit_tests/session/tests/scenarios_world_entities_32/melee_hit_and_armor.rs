@@ -67,20 +67,18 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
             // The first stages assert an exact landed damage, so the creature's
             // flat 5% critical chance is disabled until the crit stage opts in.
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -148,7 +146,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     }
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(Arc::clone(&spell_store)),
         ..Default::default()
     };
@@ -169,8 +167,8 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     let reset_swing = |session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
     };
@@ -277,7 +275,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
         .flatten()
         .expect("miss aura slot");
     session.remove_aura(miss_slot).expect("remove miss aura");
-    let last_command = |outcome: &crate::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+    let last_command = |outcome: &crate::session::CreatureMeleeTickOutcomeLikeCpp| {
         outcome.commands.last().expect("one swing command").clone()
     };
 
@@ -336,7 +334,7 @@ fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
     set_victim_avoidance(&mut session, 100.0, 100.0);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.set_flags_extra_runtime_like_cpp(0);
+            creature.set_flags_extra_runtime_like_cpp(0);
         })
         .unwrap();
     session
@@ -452,23 +450,21 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature.creature.ai_ownership_mut().min_damage = 10;
-            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.set_ai_position(Position::new(10.0, 10.0, 0.0, 0.0));
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.ai_ownership_mut().min_damage = 10;
+            creature.ai_ownership_mut().max_damage = 10;
             // C++ `CalcArmorReducedDamage`'s `levelModifier` is the attacker's
             // level, so the fixture creature is a level-80 attacker.
-            creature.creature.unit_mut().set_level(80);
+            creature.unit_mut().set_level(80);
             // The fixture asserts exact mitigated damage, so the flat 5% crit
             // stays off.
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
             );
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+            creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.ai_ownership_mut().swing_timer_ms = 0;
         })
         .unwrap();
 
@@ -521,7 +517,7 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
     );
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
-    let config = crate::session::LegacyCreatureAggroConfigLikeCpp {
+    let config = crate::session::CreatureAggroConfigLikeCpp {
         spell_store: Some(spell_store),
         ..Default::default()
     };
@@ -542,8 +538,8 @@ fn legacy_creature_melee_tick_once_applies_player_victim_armor_like_cpp() {
     let reset_swing = |session: &mut WorldSession| {
         session
             .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
             })
             .unwrap();
     };

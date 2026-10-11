@@ -93,11 +93,10 @@ impl WaypointPathStoreLikeCpp {
     }
 }
 pub fn initialize_world_creature_default_waypoint_from_store_like_cpp(
-    creature: &mut wow_world::map_manager::WorldCreature,
+    creature: &mut wow_entities::Creature,
     waypoint_paths: &WaypointPathStoreLikeCpp,
 ) -> wow_movement::WaypointMovementAction {
-    creature
-        .movement_like_cpp()
+    wow_world::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature)
         .initialize_default_waypoint_movement_with_path_resolver_like_cpp(|path_id| {
             waypoint_paths.get(path_id).cloned()
         })

@@ -97,9 +97,7 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             source_guid,
             777,
             Position::ZERO,

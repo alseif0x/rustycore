@@ -42,11 +42,8 @@ impl WorldSession {
             threat_value,
         )
     }
-    pub fn set_legacy_creature_aggro_config_like_cpp(
-        &mut self,
-        config: LegacyCreatureAggroConfigLikeCpp,
-    ) {
-        self.config.legacy_creature_aggro_config_like_cpp = config;
+    pub fn set_creature_aggro_config_like_cpp(&mut self, config: CreatureAggroConfigLikeCpp) {
+        self.config.creature_aggro_config_like_cpp = config;
     }
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
         self.catalogs.spell_catalogs.spell_threat_store = Some(store);
@@ -122,7 +119,6 @@ impl WorldSession {
                         return None;
                     }
                     if !creature
-                        .creature
                         .unit()
                         .subsystems()
                         .combat
@@ -130,11 +126,11 @@ impl WorldSession {
                     {
                         return None;
                     }
-                    let newly_engaged = !creature.creature.is_in_combat();
+                    let newly_engaged = !creature.is_in_combat();
                     if newly_engaged {
                         creature.enter_combat(caster_guid);
                     }
-                    let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                    let combat = &mut creature.unit_mut().subsystems_mut().combat;
                     combat.add_threat(caster_guid, base_amount);
                     combat
                         .threat_value(caster_guid)
@@ -201,8 +197,7 @@ impl WorldSession {
             .filter(|owner_guid| {
                 self.core
                     .mutate_world_creature(**owner_guid, |creature| {
-                        creature.is_alive()
-                            && !creature.creature.unit().has_unit_state(controlled_mask)
+                        creature.is_alive() && !creature.unit().has_unit_state(controlled_mask)
                     })
                     .unwrap_or(false)
             })
@@ -215,8 +210,8 @@ impl WorldSession {
                     if !creature.is_alive() {
                         return None;
                     }
-                    let controlled = creature.creature.unit().has_unit_state(controlled_mask);
-                    let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
+                    let controlled = creature.unit().has_unit_state(controlled_mask);
+                    let combat = &mut creature.unit_mut().subsystems_mut().combat;
                     combat.add_threat(
                         caster_guid,
                         if controlled {

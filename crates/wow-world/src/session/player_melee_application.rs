@@ -394,7 +394,7 @@ pub(in crate::session) struct PendingPlayerSwingLikeCpp {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct LegacyPlayerMeleeTickOutcomeLikeCpp {
+pub struct PlayerMeleeTickOutcomeLikeCpp {
     pub attackers_seen: usize,
     pub maps_seen: usize,
     pub combat_ref_revalidations: usize,

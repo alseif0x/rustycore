@@ -25,9 +25,7 @@ fn npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             questgiver_guid,
             506,
             Position::new(12.0, 0.0, 0.0, 0.0),
@@ -77,14 +75,14 @@ fn npc_interaction_preserves_dead_and_ghost_exceptions_like_cpp() {
     session.set_player_alive_like_cpp(true);
     {
         let mut manager = manager.lock().unwrap();
-        let creature = manager.find_creature_mut(571, 0, questgiver_guid).unwrap();
+        let mut creature = manager.find_creature_mut(571, 0, questgiver_guid).unwrap();
         creature
             .creature
             .set_type_flags_runtime_like_cpp(CreatureTypeFlags::empty().bits());
         creature
             .creature
             .set_death_state_runtime(wow_constants::DeathState::JustDied, 0);
-        creature.creature.unit_mut().set_health(0);
+        creature.unit_mut().set_health(0);
     }
     assert_eq!(
         session.represented_npc_can_interact_with_like_cpp(
@@ -141,9 +139,7 @@ fn legacy_only_hostile_npc_interaction_is_rejected_like_cpp() {
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             questgiver_guid,
             504,
             Position::new(14.0, 0.0, 0.0, 0.0),
@@ -210,7 +206,7 @@ fn legacy_only_charmed_npc_interaction_is_rejected_like_cpp() {
         80,
         0,
     ));
-    let mut creature = crate::map_manager::WorldCreature::new(
+    let mut creature = crate::creature_projection::new_runtime_creature_like_cpp(
         questgiver_guid,
         508,
         Position::new(14.0, 0.0, 0.0, 0.0),
@@ -225,12 +221,11 @@ fn legacy_only_charmed_npc_interaction_is_rejected_like_cpp() {
         0,
     );
     creature
-        .creature
         .unit_mut()
         .subsystems_mut()
         .control
         .set_charmer(player_guid, true);
-    manager.lock().unwrap().add_creature(571, 0, 0, 0, creature);
+    manager.lock().unwrap().add_creature(571, 0, creature);
     session.set_canonical_map_manager(Arc::clone(&manager));
 
     assert_eq!(

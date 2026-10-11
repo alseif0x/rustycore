@@ -149,7 +149,7 @@ impl crate::session::HubRef<'_> {
             map_id,
             instance_id,
             source_position,
-            crate::map_manager::VISIBILITY_RADIUS,
+            wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
         ) {
             let _ = registry.try_send_current_command(
                 registration,

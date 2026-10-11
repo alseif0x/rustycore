@@ -9,7 +9,7 @@ use super::*;
 impl crate::session::WorldSession {
     pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
     where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+        F: FnOnce(&mut wow_entities::Creature) -> R,
     {
         self.core.mutate_world_creature(guid, f)
     }

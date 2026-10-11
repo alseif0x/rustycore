@@ -734,9 +734,7 @@ async fn send_if_visible_explicit_player_delivers_to_session_on_non_zero_map_lik
     manager.lock().unwrap().add_creature(
         571,
         0,
-        0,
-        0,
-        crate::map_manager::WorldCreature::new(
+        crate::creature_projection::new_runtime_creature_like_cpp(
             source_guid,
             777,
             Position::ZERO,

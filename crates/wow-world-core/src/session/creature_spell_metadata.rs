@@ -3,11 +3,11 @@
 
 //! Shared creature spell difficulty fallback selection.
 
-use super::LegacyCreatureAggroConfigLikeCpp;
+use super::CreatureAggroConfigLikeCpp;
 
 pub fn creature_ai_spell_difficulty_chain_like_cpp(
     difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
+    config: &CreatureAggroConfigLikeCpp,
 ) -> Vec<u8> {
     let mut chain = Vec::new();
     let mut visited = [false; 256];

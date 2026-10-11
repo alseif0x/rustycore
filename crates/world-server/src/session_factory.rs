@@ -304,7 +304,7 @@ pub(super) async fn create_session(
     socket_timeouts: SocketTimeoutsLikeCpp,
     resources: Arc<SessionResources>,
     session_mgr: Arc<SessionManager>,
-    live_terrain: Arc<wow_world::map_manager::LiveTerrainHeights>,
+    live_terrain: Arc<wow_world::terrain::LiveTerrainHeights>,
     canonical_map_manager: SharedCanonicalMapManager,
     canonical_spawn_metadata: SharedCanonicalSpawnMetadataLikeCpp,
     instance_port: u16,
@@ -312,7 +312,7 @@ pub(super) async fn create_session(
     mmap_runtime_config: MMapRuntimeConfigLikeCpp,
     mmap_pathfinder: Option<Arc<WorldMMapPathfinderWorkerLikeCpp>>,
     active_session_registry: Arc<ActiveWorldSessionRegistryLikeCpp>,
-    legacy_creature_aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
+    creature_aggro_config: wow_world::session::CreatureAggroConfigLikeCpp,
     world_runtime_state: Arc<WorldRuntimeStateLikeCpp>,
     battle_pet_account_registry: Arc<BattlePetAccountRegistryLikeCpp>,
 ) {
@@ -384,7 +384,7 @@ pub(super) async fn create_session(
     resources
         .runtime
         .install_into_session_like_cpp(&mut session, socket_timeouts);
-    session.set_legacy_creature_aggro_config_like_cpp(legacy_creature_aggro_config.clone());
+    session.set_creature_aggro_config_like_cpp(creature_aggro_config.clone());
     session.set_mmap_runtime_config_like_cpp(mmap_runtime_config.clone());
     if let Some(ref pathfinder) = mmap_pathfinder {
         session.set_mmap_pathfinder_like_cpp(Arc::clone(pathfinder));

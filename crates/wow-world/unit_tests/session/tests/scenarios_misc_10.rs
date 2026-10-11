@@ -433,7 +433,7 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
     session.register_in_player_registry();
 
     let snapshot = player_registry
-        .legacy_aggro_candidates()
+        .aggro_candidates()
         .into_iter()
         .find(|candidate| candidate.player_guid == player_guid)
         .expect("canonical aggro snapshot");
@@ -471,7 +471,7 @@ fn player_registry_targetability_snapshot_syncs_from_session_and_canonical_like_
     session.register_in_player_registry();
 
     let snapshot = player_registry
-        .legacy_aggro_candidates()
+        .aggro_candidates()
         .into_iter()
         .find(|candidate| candidate.player_guid == player_guid)
         .expect("canonical targetability snapshot");

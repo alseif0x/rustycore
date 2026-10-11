@@ -449,7 +449,7 @@ impl AuraMountControlAccessLikeCpp<'_> {
                     scale: object_scale,
                 }
                 .to_bytes(),
-                crate::map_manager::VISIBILITY_RADIUS,
+                wow_entities::VISIBILITY_RADIUS_LIKE_CPP,
                 false,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 self.fixtures.position,

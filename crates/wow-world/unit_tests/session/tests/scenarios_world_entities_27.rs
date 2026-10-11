@@ -95,7 +95,7 @@ fn legacy_creature_spell_tick_is_noop_under_session_owner_like_cpp() {
     assert!(outcome.plan.events.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
+fn creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_116);
@@ -107,12 +107,10 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 100.0;
-            creature.creature.unit_mut().set_combat_reach(0.0);
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature.creature.set_spell(0, 7001);
+            creature.ai_ownership_mut().aggro_radius = 100.0;
+            creature.unit_mut().set_combat_reach(0.0);
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, 7001);
         })
         .unwrap();
 
@@ -120,22 +118,22 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
     let too_far = ObjectGuid::create_player(1, 91_118);
     let valid = ObjectGuid::create_player(1, 91_119);
     let candidates = vec![
-        legacy_aggro_candidate_like_cpp(too_close, Position::new(10.5, 10.0, 0.0, 0.0)),
-        legacy_aggro_candidate_like_cpp(too_far, Position::new(16.0, 10.0, 0.0, 0.0)),
-        legacy_aggro_candidate_like_cpp(valid, Position::new(12.0, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(too_close, Position::new(10.5, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(too_far, Position::new(16.0, 10.0, 0.0, 0.0)),
+        aggro_candidate_like_cpp(valid, Position::new(12.0, 10.0, 0.0, 0.0)),
     ];
 
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        LegacyCreatureAggroConfigLikeCpp {
+        CreatureAggroConfigLikeCpp {
             spell_misc_store: Some(Arc::new(wow_data::SpellMiscStore::from_entries([
                 spell_misc_entry_like_cpp(1, 7001, 71),
             ]))),
             spell_range_store: Some(Arc::new(wow_data::SpellRangeStore::from_entries([
                 spell_range_entry_like_cpp(71, 1.0, 5.0),
             ]))),
-            ..legacy_aggro_hostile_config_like_cpp()
+            ..aggro_hostile_config_like_cpp()
         },
     );
 
@@ -146,7 +144,7 @@ fn legacy_creature_aggro_tick_once_honors_turret_ai_range_like_cpp() {
     assert_eq!(outcome.commands[0].victim_guid, valid);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cpp() {
+fn creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_120);
@@ -158,16 +156,14 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature
-                .creature
-                .set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
-            creature.creature.set_spell(0, 7002);
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_ai_identity_names_runtime_like_cpp("TurretAI", String::new());
+            creature.set_spell(0, 7002);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_121);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -175,7 +171,7 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
 
     assert_eq!(outcome.ai_can_attack_unrepresented, 1);
@@ -183,7 +179,7 @@ fn legacy_creature_aggro_tick_once_fails_closed_for_missing_turret_range_like_cp
     assert!(outcome.commands.is_empty());
 }
 #[test]
-fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
+fn creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_012);
@@ -195,12 +191,12 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 0.0;
+            creature.ai_ownership_mut().aggro_radius = 0.0;
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_013);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.0, 10.0, 0.0, 0.0),
     )];
@@ -208,7 +204,7 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
@@ -227,7 +223,7 @@ fn legacy_creature_aggro_tick_once_rejects_non_positive_radius_like_cpp() {
     assert_eq!(combat_target, None);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
+fn creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_014);
@@ -239,16 +235,15 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.ai_ownership_mut().aggro_radius = 5.0;
             creature
-                .creature
                 .unit_mut()
                 .set_unit_flags_like_cpp(UnitFlags::IMMUNE_TO_PC);
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_015);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -256,7 +251,7 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
@@ -275,7 +270,7 @@ fn legacy_creature_aggro_tick_once_rejects_immune_to_pc_like_cpp() {
     assert_eq!(combat_target, None);
 }
 #[test]
-fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
+fn creature_aggro_tick_once_rejects_civilian_like_cpp() {
     let manager = shared_map_manager();
     let (mut session, _, _) = make_session();
     let creature_guid = test_creature_guid(91_016);
@@ -287,15 +282,15 @@ fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
     register_test_creature(&mut session, manager.clone(), creature_guid, 25);
     session
         .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().aggro_radius = 5.0;
-            creature.creature.set_flags_extra_runtime_like_cpp(
+            creature.ai_ownership_mut().aggro_radius = 5.0;
+            creature.set_flags_extra_runtime_like_cpp(
                 wow_constants::CreatureFlagsExtra::CIVILIAN.bits(),
             );
         })
         .unwrap();
 
     let player = ObjectGuid::create_player(1, 91_017);
-    let candidates = vec![legacy_aggro_candidate_like_cpp(
+    let candidates = vec![aggro_candidate_like_cpp(
         player,
         Position::new(10.5, 10.5, 0.0, 0.0),
     )];
@@ -303,7 +298,7 @@ fn legacy_creature_aggro_tick_once_rejects_civilian_like_cpp() {
     let outcome = run_canonical_creature_aggro_phase_for_test_like_cpp(
         &manager,
         &candidates,
-        legacy_aggro_hostile_config_like_cpp(),
+        aggro_hostile_config_like_cpp(),
     );
     assert_eq!(outcome.maps_seen, 1);
     assert_eq!(outcome.creatures_seen, 1);
@@ -367,8 +362,8 @@ fn legacy_creature_melee_tick_once_preserves_compatibility_player_damage_like_cp
     session
         .mutate_world_creature(creature_guid, |creature| {
             creature.enter_combat(player);
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            creature.seed_runtime_rng_like_cpp(0x91_004);
+            creature.ai_ownership_mut().swing_timer_ms = 0;
+            crate::creature_projection::test_support::seed_runtime_rng_like_cpp(creature, 0x91_004);
         })
         .unwrap();
 
@@ -448,10 +443,10 @@ fn legacy_creature_melee_tick_once_two_attackers_commit_only_one_lethal_player_h
         session
             .mutate_world_creature(attacker, |creature| {
                 creature.enter_combat(player);
-                creature.creature.ai_ownership_mut().last_swing_ms = 0;
-                creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-                creature.creature.ai_ownership_mut().min_damage = 1;
-                creature.creature.ai_ownership_mut().max_damage = 1;
+                creature.ai_ownership_mut().last_swing_ms = 0;
+                creature.ai_ownership_mut().swing_timer_ms = 0;
+                creature.ai_ownership_mut().min_damage = 1;
+                creature.ai_ownership_mut().max_damage = 1;
             })
             .unwrap();
     }

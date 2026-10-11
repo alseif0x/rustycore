@@ -53,7 +53,7 @@ async fn spell_power_drain_on_a_creature_requires_the_matching_power_type_like_c
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 100);
@@ -154,7 +154,7 @@ async fn spell_power_drain_on_a_creature_restores_the_caster_share_like_cpp() {
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_power_index(PowerType::Mana, Some(0));
             unit.set_max_power(PowerType::Mana, 100);
@@ -291,7 +291,7 @@ async fn spell_power_burn_on_a_creature_with_zero_amplitude_deals_no_damage_like
     adopt_canonical_test_incarnation_like_cpp(&manager, &canonical, creature_guid, (0, 0), (0, 7));
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_health(100);
             unit.set_power_index(PowerType::Mana, Some(0));
@@ -423,7 +423,7 @@ async fn spell_power_burn_on_a_creature_applies_the_scaled_damage_like_cpp() {
         .unwrap();
     session
         .mutate_world_creature(creature_guid, |world_creature| {
-            let creature = &mut world_creature.creature;
+            let creature = &mut *world_creature;
             let unit = creature.unit_mut();
             unit.set_health(100);
             unit.set_power_index(PowerType::Mana, Some(0));

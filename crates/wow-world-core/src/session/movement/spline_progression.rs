@@ -24,12 +24,10 @@ impl crate::session::HubMut<'_> {
         } else {
             self.core.mutate_world_creature(mover_guid, |creature| {
                 let adjusted_time = creature
-                    .creature
                     .unit()
                     .movement_time_like_cpp()
                     .wrapping_add(time_skipped);
                 creature
-                    .creature
                     .unit_mut()
                     .set_movement_time_like_cpp(adjusted_time);
                 adjusted_time
