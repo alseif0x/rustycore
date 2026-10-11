@@ -6,9 +6,9 @@
 use super::*;
 
 impl WorldSession {
-    /// Set the realm ID for GUID creation.
-    /// Register a creature through canonical map state when available, keeping
-    /// the legacy per-session AI facade as a compatibility cache.
+    /// Register a creature through the canonical map (test fixtures; the
+    /// production spawn path is `register_materialized_creature_spawn_like_cpp`).
+    #[cfg(test)]
     pub(crate) fn register_world_creature(
         &mut self,
         map_id: u16,
@@ -48,6 +48,7 @@ impl WorldSession {
             0,
         );
     }
+    #[cfg(test)]
     pub(crate) fn register_world_creature_with_flags_extra_like_cpp(
         &mut self,
         map_id: u16,
@@ -97,6 +98,7 @@ impl WorldSession {
             0,
         );
     }
+    #[cfg(test)]
     pub(crate) fn register_world_creature_with_flags_extra_and_movement_like_cpp(
         &mut self,
         map_id: u16,
@@ -162,6 +164,7 @@ impl WorldSession {
             0,
         );
     }
+    #[cfg(test)]
     pub(crate) fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
         &mut self,
         map_id: u16,
@@ -236,6 +239,7 @@ impl WorldSession {
             waypoint_path_id,
         )
     }
+    #[cfg(test)]
     pub(crate) fn remove_world_creature(
         &mut self,
         guid: ObjectGuid,

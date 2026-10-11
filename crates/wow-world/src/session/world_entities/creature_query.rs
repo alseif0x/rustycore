@@ -16,15 +16,10 @@ impl WorldSession {
     }
     /// Nearby creature candidates for one represented player position.
     ///
-    /// #1263 F6-8B. The canonical creature on the canonical map is the one
-    /// canonical authority for the movement/visibility transition, so the
-    /// spline-bearing candidate set is selected from **it** first. The legacy
-    /// runtime representation is only the fallback for a GUID the canonical
-    /// store does not hold (canonical runtime absent or deferred); it is never a
-    /// second authority that decides a GUID canonical already owns. Both halves
-    /// keep their own phase and `CanSeeOrDetect` filtering unchanged, and the
-    /// resulting GUID set — and therefore every create/out-of-range decision
-    /// derived from it — is the same union as before.
+    /// #1263 F6-8B/F6-8E. The canonical creature on the canonical map is the
+    /// one authority for the movement/visibility transition, so the
+    /// spline-bearing candidate set is selected from it, with its own phase and
+    /// `CanSeeOrDetect` filtering.
     pub(crate) fn visible_world_creatures_from_map_like_cpp(
         &self,
         map_id: u16,
@@ -38,69 +33,10 @@ impl WorldSession {
             return Vec::new();
         }
 
-        let mut creatures = Vec::new();
-        let mut seen = std::collections::HashSet::new();
-        let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
-        let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
-            return Vec::new();
-        };
-
-        // Canonical first: these candidates carry the canonical runtime state,
-        // including the live `Unit::movespline` a create block projects.
-        creatures.extend(
-            self.visible_creatures_from_canonical_map_like_cpp(map_id, position)
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|creature| seen.insert(creature.guid())),
-        );
-
-        if let Some(manager) = &self.core.map_manager {
-            let (_, instance_id) = self.core.current_runtime_map_key_like_cpp();
-            let visibility_range = self.config.player_map_visibility_range_like_cpp(map_id);
-            // Materialize the legacy candidates and release its map-manager
-            // read guard before visibility filters consult canonical Player
-            // state. Spell validation takes these managers in the opposite
-            // order (canonical, then legacy write), so retaining the legacy
-            // guard here would permit an ABBA deadlock.
-            let legacy_candidates = {
-                manager
-                    .read()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .get_visible_creatures_in_phase(
-                        map_id,
-                        instance_id,
-                        position.x,
-                        position.y,
-                        position.z,
-                        // C++ visits cells around `GetSightRange()` and applies
-                        // `_IsWithinDist` with both combat reaches. One extra
-                        // cell keeps borderline target centers in the legacy
-                        // candidate set before the exact check below.
-                        visibility_range + source_combat_reach + SIZE_OF_GRID_CELL,
-                        Some(&player_phase_shift),
-                    )
-            };
-            creatures.extend(
-                legacy_candidates
-                    .into_iter()
-                    .filter(|creature| {
-                        wow_core::visibility_distance_allows_like_cpp(
-                            position,
-                            source_combat_reach,
-                            &creature.position(),
-                            creature.creature.unit().world().combat_reach(),
-                            visibility_range,
-                        )
-                    })
-                    .filter(|creature| {
-                        let (s, h) = crate::session::split_world_entities_ref(self);
-                        s.represented_can_see_or_detect_world_creature_like_cpp(h, creature)
-                    })
-                    .filter(|creature| seen.insert(creature.guid())),
-            );
-        }
-
-        creatures
+        // These candidates carry the canonical runtime state, including the
+        // live `Unit::movespline` a create block projects.
+        self.visible_creatures_from_canonical_map_like_cpp(map_id, position)
+            .unwrap_or_default()
     }
     pub(crate) fn visible_creatures_from_canonical_map_like_cpp(
         &self,

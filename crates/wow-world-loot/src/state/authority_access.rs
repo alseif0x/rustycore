@@ -4,39 +4,6 @@ use wow_loot::{OwnedLootAuthority, OwnedLootAuthorityStamp};
 use wow_world_core::session::{HubMut, HubRef};
 
 impl LootState {
-    /// Single-store observation probe for the **legacy** representation.
-    ///
-    /// #1263 F6-8C: the canonical designated-authority lookup
-    /// ([`Self::read_canonical_creature_loot_authority_like_cpp`] and the
-    /// session's `represented_owned_loot_authority_outcome_like_cpp`) is the
-    /// only authority a loot consumer resolves. This probe and its `_on_map_`
-    /// sibling are kept for the loot fixtures that observe one store at a time
-    /// — they cannot move without deleting the legacy store (slice E) — and the
-    /// World surface no longer exposes them to production code.
-    pub fn read_legacy_creature_loot_authority_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let (map_id, instance_id) = hub.core.current_runtime_map_key_like_cpp();
-        self.read_legacy_creature_loot_authority_on_map_like_cpp(
-            hub,
-            guid,
-            wow_map::MapKey::new(u32::from(map_id), instance_id),
-        )
-    }
-
-    pub fn read_legacy_creature_loot_authority_on_map_like_cpp(
-        &self,
-        hub: HubRef<'_>,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        hub.core
-            .loot_release_access_like_cpp()
-            .read_legacy_creature_loot_authority_on_map_like_cpp(guid, map_key)
-    }
-
     pub fn read_canonical_creature_loot_authority_like_cpp(
         &self,
         hub: HubRef<'_>,

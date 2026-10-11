@@ -157,7 +157,7 @@ impl WorldSession {
                 self.handle_apply_group_subgroup_command_like_cpp(command);
             }
             SessionCommand::SendIfVisibleLikeCpp(command) => {
-                self.handle_send_if_visible_like_cpp_command_like_cpp(command, false, false);
+                self.handle_send_if_visible_like_cpp_command_like_cpp(command, false);
             }
             SessionCommand::SendCreatureSpellCastIfVisibleLikeCpp(command) => {
                 self.handle_send_creature_spell_cast_if_visible_like_cpp_command_like_cpp(command);
@@ -166,10 +166,7 @@ impl WorldSession {
                 self.handle_player_cast_publication_like_cpp(command);
             }
             SessionCommand::SendRealmIfVisibleLikeCpp(command) => {
-                self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, false);
-            }
-            SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command) => {
-                self.handle_send_if_visible_like_cpp_command_like_cpp(command, true, true);
+                self.handle_send_if_visible_like_cpp_command_like_cpp(command, true);
             }
             SessionCommand::SendAddonIfRegisteredLikeCpp(command) => {
                 self.handle_send_addon_if_registered_like_cpp_command_like_cpp(command);

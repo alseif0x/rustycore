@@ -139,7 +139,6 @@ impl TrainerAcquisitionRuntimeLikeCpp for AppTrainerCx<'_> {
             publication.trainer_position,
             trainer_visual.to_bytes(),
             true,
-            true,
         );
         packets.send_packet_realm(&player_visual);
         packets.broadcast_to_movement_set_in_range_and_connection_like_cpp(

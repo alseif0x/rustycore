@@ -459,8 +459,8 @@ impl WorldSession {
             );
         }
 
-        // TODO: aggro proximity check re-enable once combat system is stable
-        // self.check_creature_aggro().await;
+        // Aggro proximity (`CreatureAI::MoveInLineOfSight`) is the canonical
+        // map's creature aggro phase, not a session check.
 
         // C++ `mover->SendMessageToSet(moveUpdate.Write(), _player)` uses
         // the mover visibility range and skips this player's session.

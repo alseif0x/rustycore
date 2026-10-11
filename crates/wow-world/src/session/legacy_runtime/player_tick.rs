@@ -1,131 +1,17 @@
-//! Legacy player melee tick.
+//! Player melee phase (`Player::Update` → `DoMeleeAttackIfReady`).
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! Moved out of the Session root under #619; run by the admitted canonical
+//! executor as its phase 0 (#1263 F6-8D3a-1, F6-8E). C++ anchor:
+//! `Player::Update` calls `DoMeleeAttackIfReady` before `Map::Update` runs
+//! `ObjectUpdater`; the swing timer is consumed after the range and facing
+//! checks, as it is here.
 
 use super::*;
-
-/// Resolve every player auto-attack once, from the map, for one frame.
-///
-/// #28 moves this transition off the session. Every logged-in session used to
-/// run it on its own clock and write shared legacy creature state ungated, so
-/// with N players there were N+1 concurrent writers of that state. Here it
-/// resolves once, under the owner.
-///
-/// The phases are separated by which lock they need, and the separation is the
-/// point: the owner gate reads through a `Copy` helper that holds no guard, the
-/// collect phase touches canonical only, and the execute phase takes canonical
-/// then legacy — the established order the canonical map loop already enforces
-/// globally. No phase holds one manager while acquiring the other.
-///
-/// C++ anchor: `Player::Update` calls `DoMeleeAttackIfReady` before
-/// `Map::Update` runs `ObjectUpdater`; the swing timer is consumed after the
-/// range and facing checks, as it is here.
-pub fn run_legacy_player_melee_tick_once_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
-    diff_ms: u32,
-    phase_state: &mut PlayerMeleePhaseStateLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyPlayerMeleeTickOutcomeLikeCpp {
-    let mut outcome = LegacyPlayerMeleeTickOutcomeLikeCpp::default();
-
-    // Step 1 — the gate. Reading the owner through the shared helper returns a
-    // `Copy` and releases immediately, so nothing below can be holding a legacy
-    // guard while it reaches for canonical.
-    if crate::map_manager::shared_runtime_tick_owner_like_cpp(legacy_map_manager)
-        != RuntimeTickOwner::GlobalLegacy
-    {
-        outcome.skipped_owner_not_global = true;
-        return outcome;
-    }
-    outcome.attackers_seen = attackers.len();
-
-    let Some(canonical_map_manager) = canonical_map_manager else {
-        return outcome;
-    };
-    // Step 2 — collect. Canonical only, once, never nested.
-    let (pending, map_difficulties) = {
-        let Ok(mut manager) = canonical_map_manager.lock() else {
-            return outcome;
-        };
-        collect_player_melee_swings_on_manager_like_cpp(
-            &mut manager,
-            attackers,
-            diff_ms,
-            phase_state,
-            &mut outcome,
-        )
-    };
-
-    outcome.swings_ready = pending.len();
-
-    // Step 3 — execute. Canonical then legacy, the established order: a target
-    // switch or a same-GUID respawn must not cross this commit
-    // (`run_legacy_creature_melee_tick_once_like_cpp` takes them the same way and
-    // says so). Every early return drops both guards.
-    let mut canonical_syncs = Vec::new();
-    for swing in pending {
-        let Ok(mut canonical_manager) = canonical_map_manager.lock() else {
-            outcome.attacker_unavailable += 1;
-            continue;
-        };
-        let mut victims = LegacyPlayerMeleeCreatureVictimsLikeCpp::new_like_cpp(
-            legacy_map_manager,
-            &mut canonical_syncs,
-        );
-        execute_player_melee_swing_on_manager_like_cpp(
-            &mut canonical_manager,
-            &mut victims,
-            &swing,
-            &map_difficulties,
-            diff_ms,
-            config,
-            &mut outcome,
-        );
-    }
-
-    // Step 4 — mirror. Both guards are released; the shared map-level gate
-    // takes canonical and then legacy itself, admits the transported
-    // representation against the current incarnation, applies it and only then
-    // rebinds the legacy alias. F6-7 R7b-2b: this site used to bypass the
-    // R7a/R7b-2a admission predicate and could offer a foreign incarnation's
-    // representation to the canonical object.
-    for PlayerMeleeCanonicalSyncLikeCpp {
-        map_id,
-        instance_id,
-        creature,
-        expected_authority,
-        expected_stamp,
-    } in canonical_syncs
-    {
-        let applied = sync_admitted_creature_representation_on_map_like_cpp(
-            canonical_map_manager,
-            Some(legacy_map_manager),
-            map_id,
-            instance_id,
-            creature,
-            &expected_authority,
-            expected_stamp,
-        );
-        // Attempt count, refusal count: one increment per attempted mirror that
-        // the canonical incarnation did not apply, including an admission
-        // refusal. An applied snapshot whose legacy compare-and-exchange failed
-        // is not a rejection.
-        if !applied {
-            outcome.canonical_mirror_rejections += 1;
-        }
-    }
-
-    outcome
-}
 
 /// Step 2 of the player melee phase: the combat-reference sweep and the
 /// victim resolution, on the canonical manager the caller holds locked.
 ///
-/// #1263 F6-8D3a-1: the legacy bridge and the admitted canonical executor
-/// collect through this one body. Returns the pending swings and each map's
+/// #1263 F6-8D3a-1. Returns the pending swings and each map's
 /// difficulty (the victim's applied-aura mechanics are read at the map's own
 /// difficulty, exactly as the session reads its target's).
 pub(in crate::session) fn collect_player_melee_swings_on_manager_like_cpp(
@@ -218,17 +104,15 @@ pub(in crate::session) fn collect_player_melee_swings_on_manager_like_cpp(
 /// C++ anchor: `Player::Update` → `DoMeleeAttackIfReady` →
 /// `AttackerStateUpdate`; the swing timer is consumed after the range and
 /// facing checks.
-pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp<V>(
+pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
-    victims: &mut V,
+    victims: &mut CanonicalPlayerMeleeCreatureVictimsLikeCpp,
     swing: &PendingPlayerSwingLikeCpp,
     map_difficulties: &HashMap<(u16, u32), u8>,
     diff_ms: u32,
     config: &LegacyCreatureAggroConfigLikeCpp,
     outcome: &mut LegacyPlayerMeleeTickOutcomeLikeCpp,
-) where
-    V: PlayerMeleeCreatureVictimsLikeCpp,
-{
+) {
     let attacker = &swing.attacker;
     let Some(managed) =
         canonical_manager.find_map_mut(u32::from(attacker.map_id), attacker.instance_id)
@@ -284,11 +168,6 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp<V>(
             )
         },
     ) {
-        CreatureVictimReadLikeCpp::NoCanonicalIncarnation => {
-            outcome.canonical_incarnation_rejections += 1;
-            outcome.victim_missing += 1;
-            return;
-        }
         CreatureVictimReadLikeCpp::Read(None) => {
             outcome.victim_not_alive += 1;
             return;

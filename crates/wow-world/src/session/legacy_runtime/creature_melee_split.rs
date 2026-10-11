@@ -2,7 +2,6 @@
 
 use crate::entity_update_bridge::unit_values_update_to_update_object;
 use crate::map_manager::{RecipientRule, RuntimeEvent};
-use crate::session::{CreatureMeleeVictimSyncIdentityLikeCpp, CreatureMeleeVictimSyncStateLikeCpp};
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
 
@@ -12,7 +11,6 @@ pub(super) struct MeleeSplitDamageOutcomeLikeCpp {
     pub damage: u32,
     pub mutation_events: Vec<RuntimeEvent>,
     pub combat_log_packets: Vec<Vec<u8>>,
-    pub creature_syncs: Vec<(ObjectGuid, CreatureMeleeVictimSyncStateLikeCpp)>,
 }
 
 /// C++ `Unit::CalcAbsorbResist`'s `SPELL_AURA_SPLIT_DAMAGE_PCT` tail
@@ -160,9 +158,6 @@ pub(super) fn apply_melee_split_damage_like_cpp(
         }
         result.mutation_events.extend(secondary.mutation_events);
         result.combat_log_packets.push(secondary.combat_log_packet);
-        if let Some(sync) = secondary.creature_sync {
-            result.creature_syncs.push((caster_guid, sync));
-        }
     }
 
     result
@@ -171,7 +166,6 @@ pub(super) fn apply_melee_split_damage_like_cpp(
 pub(super) struct SecondarySplitDamageOutcomeLikeCpp {
     pub mutation_events: Vec<RuntimeEvent>,
     pub combat_log_packet: Vec<u8>,
-    pub creature_sync: Option<CreatureMeleeVictimSyncStateLikeCpp>,
     pub reached_damage_delivery: bool,
 }
 
@@ -270,7 +264,6 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                 }],
             }
             .to_bytes(),
-            creature_sync: None,
             reached_damage_delivery: false,
         });
     }
@@ -298,7 +291,6 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
     );
     let mut mutation_events = Vec::new();
     let pre_hit_health;
-    let mut creature_sync = None;
     if caster_guid.is_player() {
         let caster = canonical_manager
             .find_map_mut(u32::from(map_id), instance_id)?
@@ -330,13 +322,6 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
             .map_mut()
             .get_typed_creature_mut(caster_guid)?;
         pre_hit_health = caster.unit().data().health;
-        let revision_before = caster.unit().health_state_revision_like_cpp();
-        let identity_authority = caster.loot_authority_like_cpp().clone();
-        let health_authority = caster.unit().health_state_revision_authority_like_cpp();
-        let spawn_id = caster.spawn_id();
-        let loot_revision_before = caster.loot_lifecycle_revision_like_cpp();
-        let death_state_before = caster.unit().death_state();
-        let ai_state_before = caster.ai_ownership().state;
         let applied_damage = caster.calculate_damage_for_sparring_like_cpp(
             true,
             attacker_is_player_controlled,
@@ -357,10 +342,8 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                 );
                 caster.unit_mut().set_health(0);
             }
-            let threat = if killed {
-                None
-            } else {
-                super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
+            if !killed {
+                let _ = super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
                     canonical_manager
                         .find_map_mut(u32::from(map_id), instance_id)?
                         .map_mut(),
@@ -368,33 +351,12 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                     attacker_guid,
                     applied_damage,
                     threat_plan,
-                )
-            };
+                );
+            }
             let caster = canonical_manager
                 .find_map_mut(u32::from(map_id), instance_id)?
                 .map_mut()
                 .get_typed_creature_mut(caster_guid)?;
-            let health_after = caster.unit().data().health;
-            let revision_after = caster.unit().health_state_revision_like_cpp();
-            creature_sync = Some(CreatureMeleeVictimSyncStateLikeCpp {
-                applied_damage,
-                threat,
-                victim_health_before: pre_hit_health,
-                victim_health_after: health_after,
-                victim_health_state_revision_before: revision_before,
-                victim_health_state_revision_after: revision_after,
-                identity: CreatureMeleeVictimSyncIdentityLikeCpp {
-                    authority: identity_authority,
-                    health_state_revision_authority: health_authority,
-                    spawn_id,
-                    loot_lifecycle_revision_before: loot_revision_before,
-                    loot_lifecycle_revision_after: caster.loot_lifecycle_revision_like_cpp(),
-                    death_state_before,
-                    death_state_after: caster.unit().death_state(),
-                    ai_state_before,
-                    ai_state_after: caster.ai_ownership().state,
-                },
-            });
             if let Some(update) = unit_values_update_to_update_object(
                 caster_guid,
                 map_id,
@@ -437,7 +399,6 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
             flags: 0,
         }
         .to_bytes(),
-        creature_sync,
         reached_damage_delivery: true,
     })
 }

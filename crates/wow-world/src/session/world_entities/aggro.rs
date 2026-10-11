@@ -18,6 +18,7 @@ impl WorldSession {
             default_radius,
         )
     }
+    #[cfg(test)]
     pub(in crate::session) fn canonical_creature_threat_value_like_cpp(
         &self,
         creature_guid: ObjectGuid,
@@ -26,6 +27,7 @@ impl WorldSession {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.canonical_creature_threat_value_like_cpp(hub, creature_guid, attacker_guid)
     }
+    #[cfg(test)]
     pub(in crate::session) fn mirror_canonical_creature_threat_from_attacker_like_cpp(
         &mut self,
         creature_guid: ObjectGuid,

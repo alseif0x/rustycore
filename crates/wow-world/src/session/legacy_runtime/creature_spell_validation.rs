@@ -1,56 +1,19 @@
-//! Validation and append of a legacy creature spell cast plan.
+//! Validation and append of a creature spell cast plan.
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved.
-//!
-//! #1263 F6-8D3a-1b: the body is written once
-//! ([`validate_and_append_creature_spell_cast_on_manager_like_cpp`]) against a
-//! locked canonical manager and the caster seam
-//! [`CreatureSpellCastersLikeCpp`]; the legacy entry keeps only its two guards,
-//! in the established canonical -> legacy order.
+//! Moved out of the Session root under #619. #1263 F6-8D3a-1b: the body
+//! ([`validate_and_append_creature_spell_cast_on_manager_like_cpp`]) runs on a
+//! locked canonical manager, where the caster is the canonical incarnation.
 
 use super::*;
-use wow_world_entities::creature_spell_admission::CreatureSpellCastersLikeCpp;
-
-pub(in crate::session) fn validate_and_append_creature_spell_cast_like_cpp(
-    canonical_map_manager: &SharedCanonicalMapManager,
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    command: &CreatureSpellCastPlanLikeCpp,
-    difficulty_id: u8,
-    turret_ai: bool,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-    plan: &mut RuntimePlan,
-) -> CreatureSpellCastValidationResultLikeCpp {
-    let Ok(mut manager) = canonical_map_manager.lock() else {
-        return CreatureSpellCastValidationResultLikeCpp::MissingTarget;
-    };
-    // The canonical update path already establishes canonical -> legacy when
-    // mirroring loaded grids. Use that same order so target/epoch validation,
-    // TurretAI timer mutation and packet-plan construction are serialized
-    // without lock inversion.
-    let mut legacy_guard = legacy_map_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    validate_and_append_creature_spell_cast_on_manager_like_cpp(
-        &mut manager,
-        &mut *legacy_guard,
-        command,
-        difficulty_id,
-        turret_ai,
-        config,
-        plan,
-    )
-}
+use wow_world_entities::creature_spell_admission::CanonicalCreatureSpellCastersLikeCpp;
 
 /// Run one caster operation for `command`; `None` when the caster is gone.
-fn with_command_caster_mut_like_cpp<C, R>(
+fn with_command_caster_mut_like_cpp<R>(
     manager: &mut wow_map::MapManager,
-    casters: &mut C,
+    casters: &mut CanonicalCreatureSpellCastersLikeCpp,
     command: &CreatureSpellCastPlanLikeCpp,
     operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-) -> Option<R>
-where
-    C: CreatureSpellCastersLikeCpp + ?Sized,
-{
+) -> Option<R> {
     casters.with_spell_caster_mut_like_cpp(
         manager,
         command.map_id,
@@ -61,19 +24,16 @@ where
 }
 
 /// The cast validation and append body on a locked canonical manager, with the
-/// caster's engagement, timers and RNG wherever `casters` keeps them.
-pub(in crate::session) fn validate_and_append_creature_spell_cast_on_manager_like_cpp<C>(
+/// caster's engagement, timers and RNG on its canonical incarnation.
+pub(in crate::session) fn validate_and_append_creature_spell_cast_on_manager_like_cpp(
     manager: &mut wow_map::MapManager,
-    casters: &mut C,
+    casters: &mut CanonicalCreatureSpellCastersLikeCpp,
     command: &CreatureSpellCastPlanLikeCpp,
     difficulty_id: u8,
     turret_ai: bool,
     config: &LegacyCreatureAggroConfigLikeCpp,
     plan: &mut RuntimePlan,
-) -> CreatureSpellCastValidationResultLikeCpp
-where
-    C: CreatureSpellCastersLikeCpp + ?Sized,
-{
+) -> CreatureSpellCastValidationResultLikeCpp {
     const SPELL_RANGE_MELEE_LIKE_CPP: u8 = 0x01;
     const SPELL_RANGE_RANGED_LIKE_CPP: u8 = 0x02;
 

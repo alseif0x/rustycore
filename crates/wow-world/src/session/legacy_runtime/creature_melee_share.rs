@@ -2,7 +2,6 @@
 
 use crate::entity_update_bridge::unit_values_update_to_update_object;
 use crate::map_manager::{RecipientRule, RuntimeEvent};
-use crate::session::{CreatureMeleeVictimSyncIdentityLikeCpp, CreatureMeleeVictimSyncStateLikeCpp};
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
 
@@ -31,7 +30,6 @@ struct ShareAuraSnapshotLikeCpp {
 #[derive(Default)]
 pub(super) struct MeleeShareDamageOutcomeLikeCpp {
     pub mutation_events: Vec<RuntimeEvent>,
-    pub creature_syncs: Vec<(ObjectGuid, CreatureMeleeVictimSyncStateLikeCpp)>,
     pub primary_was_share_target: bool,
     /// Intermediate health values C++ sends when a Player primary victim is
     /// also its own share target. They ride the primary session command so
@@ -208,9 +206,6 @@ pub(super) fn apply_melee_share_damage_like_cpp(
         } else {
             result.mutation_events.extend(secondary.mutation_events);
         }
-        if let Some(sync) = secondary.creature_sync {
-            result.creature_syncs.push((aura.caster_guid, sync));
-        }
     }
 
     result
@@ -272,7 +267,6 @@ fn share_aura_still_applied_like_cpp(
 
 struct SecondaryShareDamageOutcomeLikeCpp {
     mutation_events: Vec<RuntimeEvent>,
-    creature_sync: Option<CreatureMeleeVictimSyncStateLikeCpp>,
     player_health_after: Option<u64>,
 }
 
@@ -316,7 +310,6 @@ fn apply_secondary_share_damage_like_cpp(
     if rejected_by_damage_mods {
         return Some(SecondaryShareDamageOutcomeLikeCpp {
             mutation_events: Vec::new(),
-            creature_sync: None,
             player_health_after: None,
         });
     }
@@ -333,7 +326,6 @@ fn apply_secondary_share_damage_like_cpp(
         difficulty_store,
     );
     let mut mutation_events = Vec::new();
-    let mut creature_sync = None;
     let mut player_health_after = None;
     if caster_guid.is_player() {
         let caster = canonical_manager
@@ -364,14 +356,6 @@ fn apply_secondary_share_damage_like_cpp(
             .find_map_mut(u32::from(map_id), instance_id)?
             .map_mut()
             .get_typed_creature_mut(caster_guid)?;
-        let health_before = caster.unit().data().health;
-        let revision_before = caster.unit().health_state_revision_like_cpp();
-        let identity_authority = caster.loot_authority_like_cpp().clone();
-        let health_authority = caster.unit().health_state_revision_authority_like_cpp();
-        let spawn_id = caster.spawn_id();
-        let loot_revision_before = caster.loot_lifecycle_revision_like_cpp();
-        let death_state_before = caster.unit().death_state();
-        let ai_state_before = caster.ai_ownership().state;
         let applied_damage = caster.calculate_damage_for_sparring_like_cpp(
             true,
             attacker_is_player_controlled,
@@ -391,10 +375,8 @@ fn apply_secondary_share_damage_like_cpp(
             );
             caster.unit_mut().set_health(0);
         }
-        let threat = if killed {
-            None
-        } else {
-            super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
+        if !killed {
+            let _ = super::creature_melee_threat::apply_creature_damage_threat_on_map_like_cpp(
                 canonical_manager
                     .find_map_mut(u32::from(map_id), instance_id)?
                     .map_mut(),
@@ -402,32 +384,12 @@ fn apply_secondary_share_damage_like_cpp(
                 attacker_guid,
                 applied_damage,
                 threat_plan,
-            )
-        };
+            );
+        }
         let caster = canonical_manager
             .find_map_mut(u32::from(map_id), instance_id)?
             .map_mut()
             .get_typed_creature_mut(caster_guid)?;
-        let health_after = caster.unit().data().health;
-        creature_sync = Some(CreatureMeleeVictimSyncStateLikeCpp {
-            applied_damage,
-            threat,
-            victim_health_before: health_before,
-            victim_health_after: health_after,
-            victim_health_state_revision_before: revision_before,
-            victim_health_state_revision_after: caster.unit().health_state_revision_like_cpp(),
-            identity: CreatureMeleeVictimSyncIdentityLikeCpp {
-                authority: identity_authority,
-                health_state_revision_authority: health_authority,
-                spawn_id,
-                loot_lifecycle_revision_before: loot_revision_before,
-                loot_lifecycle_revision_after: caster.loot_lifecycle_revision_like_cpp(),
-                death_state_before,
-                death_state_after: caster.unit().death_state(),
-                ai_state_before,
-                ai_state_after: caster.ai_ownership().state,
-            },
-        });
         if let Some(update) =
             unit_values_update_to_update_object(caster_guid, map_id, &caster.unit().values_update())
         {
@@ -444,7 +406,6 @@ fn apply_secondary_share_damage_like_cpp(
 
     Some(SecondaryShareDamageOutcomeLikeCpp {
         mutation_events,
-        creature_sync,
         player_health_after,
     })
 }

@@ -45,38 +45,27 @@ mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
 use legacy_runtime::*;
-// The legacy tick entry points are called from world-server as `wow_world::session::run_legacy_*`; `legacy_runtime` is private, so the original external path is preserved by re-exporting them here.
-pub use legacy_runtime::{
-    run_legacy_creature_aggro_tick_once_like_cpp,
-    run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp,
-    run_legacy_creature_aggro_tick_once_with_config_like_cpp,
-    run_legacy_creature_lifecycle_tick_once_like_cpp, run_legacy_creature_melee_tick_once_like_cpp,
-    run_legacy_creature_movement_tick_once_like_cpp, run_legacy_creature_spell_tick_once_like_cpp,
-    run_legacy_player_melee_tick_once_like_cpp,
-};
-// #1263 F6-8D3a-1: the aggro commit is shared by the legacy bridge and the
-// admitted canonical executor, so world-server calls the same body.
+// #1263 F6-8D3a-1: the aggro commit of the admitted canonical executor;
+// world-server calls the same body.
 pub use legacy_runtime::{
     apply_creature_attack_start_commands_on_manager_like_cpp,
     apply_creature_attack_stop_commands_on_manager_like_cpp,
     committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
 };
-// #1263 F6-8D2/D3b-1: the admitted creature executor, at the path of the legacy
-// tick entries; world-server's `RuntimeTickOwner::CanonicalMap` owner calls it.
+// #1263 F6-8D2/D3b-1: the admitted creature executor; the world-server
+// canonical map loop calls it.
 pub use legacy_runtime::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
     CreatureExecutionLeaseLikeCpp, CreatureExecutionOwnerLikeCpp,
-    CreatureExecutionTransitionLikeCpp, IsolatedCreatureExecutionCompositionOutcomeLikeCpp,
-    IsolatedCreatureExecutionOutcomeLikeCpp, IsolatedLegacyArmOutcomeLikeCpp,
-    IsolatedSessionArmOutcomeLikeCpp, SharedCreatureExecutionLeaseLikeCpp,
+    CreatureExecutionTransitionLikeCpp, IsolatedCreatureExecutionOutcomeLikeCpp,
+    SharedCreatureExecutionLeaseLikeCpp,
     capture_admitted_creature_execution_like_cpp,
     capture_admitted_creature_execution_on_manager_like_cpp,
     run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
-    run_isolated_admitted_creature_execution_composition_like_cpp,
 };
 mod canonical_access;
 mod catalogs;
@@ -244,7 +233,6 @@ pub use creature_spawn_contracts::PendingCreatureSpawn;
 mod creature_spell_admission;
 use creature_spell_admission::CreatureSpellCastValidationResultLikeCpp;
 use creature_spell_admission::TurretRejectedCastAttemptLikeCpp;
-use creature_spell_admission::apply_turret_rejected_cast_attempt_like_cpp;
 use creature_spell_admission::creature_ai_effective_spell_range_like_cpp;
 #[cfg(test)]
 use creature_spell_admission::creature_spell_target_accepts_npc_attack_like_cpp;
@@ -626,7 +614,7 @@ use crate::loot_persistence::{
     DurableLootMoneyPersistenceTrackerLikeCpp, DurableLootMoneySaveFenceLikeCpp,
 };
 use crate::map_manager::{
-    PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
+    PendingRespawn, RecipientRule, RuntimeEvent, RuntimePlan,
     WorldMMapPathfinderWorkerLikeCpp,
 };
 use crate::session::directory::{

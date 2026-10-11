@@ -1,7 +1,7 @@
-//! Legacy creature aggro, threat and victim selection tick.
+//! Creature aggro, threat and victim selection phase.
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! Moved out of the Session root under #619; run by the admitted canonical
+//! executor over the canonical map (#1263 F6-8D3a-1, F6-8E).
 
 use super::*;
 use wow_data::reputation::ReputationRankLikeCpp;
@@ -255,112 +255,18 @@ pub(in crate::session) fn legacy_creature_aggro_candidate_is_accessible_for_crea
         creature.can_walk_like_cpp() || creature.can_fly_like_cpp()
     }
 }
-/// Runs one global legacy creature aggro scan without spawning a loop.
+/// The aggro/threat/assist/evade phase body, over the admitted canonical
+/// selection (#1263 F6-8D3a-1).
 ///
-/// C++ contrast: `CreatureAI::MoveInLineOfSight` checks aggressive creatures
-/// through `Creature::CanStartAttack` and then engages a target. This
-/// transitional Rust slice uses the existing represented `WorldCreature`
-/// `try_aggro` radius model plus the represented C++ targetability,
-/// faction/reputation, accessibility, vertical distance, template `CanFly`
-/// exemption, home leash/NoGrayAggro, and represented `CanSeeOrDetect` gates;
-/// real VMAP-backed LOS remains a later AI fidelity task.
-/// The map owner computes aggro once and returns victim-session `AttackStart`
-/// commands for delivery outside map locks.
-pub fn run_legacy_creature_aggro_tick_once_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
-    run_legacy_creature_aggro_tick_once_with_config_like_cpp(
-        legacy_map_manager,
-        candidates,
-        LegacyCreatureAggroConfigLikeCpp::default(),
-    )
-}
-pub fn run_legacy_creature_aggro_tick_once_with_config_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
-    // The declared legacy-only configuration: no canonical store is configured,
-    // so the legacy representation is the designated owner of every creature
-    // and keeps deciding exactly as before.
-    run_legacy_creature_aggro_tick_once_with_config_and_ownership_like_cpp(
-        legacy_map_manager,
-        CanonicalCreatureOwnershipLikeCpp::LegacyOnlyConfiguration,
-        candidates,
-        config,
-    )
-}
-
-/// Run one global aggro scan against the canonical designated owner.
-///
-/// #1263 F6-8C. With a canonical store configured, the canonical incarnation is
-/// the designated owner of a creature object; a surviving legacy copy decides
-/// nothing by itself. A creature whose exact residence has no incarnation is
-/// refused (`canonical_incarnation_rejections`) instead of being decided from
-/// the legacy representation. The ownership roster is read once, before the
-/// legacy write guard is taken.
-pub fn run_legacy_creature_aggro_tick_once_with_config_and_canonical_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
-    let ownership =
-        canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
-    run_legacy_creature_aggro_tick_once_with_config_and_ownership_like_cpp(
-        legacy_map_manager,
-        ownership,
-        candidates,
-        config,
-    )
-}
-
-pub(in crate::session) fn run_legacy_creature_aggro_tick_once_with_config_and_ownership_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    ownership: CanonicalCreatureOwnershipLikeCpp,
-    candidates: &[LegacyCreatureAggroCandidateLikeCpp],
-    config: LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp {
-    use crate::map_manager::RuntimeTickOwner;
-
-    let mut manager = legacy_map_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let terrain = manager.terrain();
-    if manager.tick_owner() != RuntimeTickOwner::GlobalLegacy {
-        return LegacyCreatureAggroTickOutcomeLikeCpp {
-            skipped_owner_not_global: true,
-            ..Default::default()
-        };
-    }
-    run_creature_aggro_phase_on_store_like_cpp(
-        &mut *manager,
-        terrain.as_deref(),
-        &ownership,
-        candidates,
-        &config,
-    )
-}
-
-/// The aggro/threat/assist/evade phase body, once, over any creature store.
-///
-/// #1263 F6-8D3a-1: the legacy tick runs it over the legacy `MapManager` and
-/// the admitted canonical executor runs it over the admitted canonical
-/// selection; there is one body. C++ anchors are the per-creature
-/// `Creature::Update` → `CreatureAI::UpdateAI` steps the legacy tick already
-/// pinned: taunt expiry, `AssistDelayEvent`, `UpdateVictim` (switch or
+/// C++ anchors are the per-creature `Creature::Update` → `CreatureAI::UpdateAI`
+/// steps: taunt expiry, `AssistDelayEvent`, `UpdateVictim` (switch or
 /// `EnterEvadeMode`), `CallAssistance` and `MoveInLineOfSight`.
-pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp<S>(
-    store: &mut S,
+pub(in crate::session) fn run_creature_aggro_phase_on_store_like_cpp(
+    store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     terrain: Option<&crate::map_manager::LiveTerrainHeights>,
-    ownership: &CanonicalCreatureOwnershipLikeCpp,
     candidates: &[LegacyCreatureAggroCandidateLikeCpp],
     config: &LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureAggroTickOutcomeLikeCpp
-where
-    S: CreaturePhaseStoreLikeCpp + ?Sized,
-{
+) -> LegacyCreatureAggroTickOutcomeLikeCpp {
     let mut outcome = LegacyCreatureAggroTickOutcomeLikeCpp::default();
     let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
@@ -451,13 +357,6 @@ where
         }
         for guid in guids.iter().copied() {
             outcome.creatures_seen += 1;
-            // #1263 F6-8C: the canonical designated owner decides. A creature
-            // with no canonical incarnation at this exact residence is refused
-            // rather than selected from the legacy representation.
-            if !ownership.decides_like_cpp(map_id, instance_id, guid) {
-                outcome.canonical_incarnation_rejections += 1;
-                continue;
-            }
             let Some(creature) = store.phase_creature_mut_like_cpp(map_id, instance_id, guid)
             else {
                 continue;
@@ -503,12 +402,6 @@ where
                     continue;
                 }
                 for assistant_guid in assistant_guids {
-                    // #1263 F6-8C: an assistant's engagement is a selection
-                    // decision too, so it needs the canonical owner as well.
-                    if !ownership.decides_like_cpp(map_id, instance_id, assistant_guid) {
-                        outcome.canonical_incarnation_rejections += 1;
-                        continue;
-                    }
                     let Some(assistant) =
                         store.phase_creature_mut_like_cpp(map_id, instance_id, assistant_guid)
                     else {
@@ -912,14 +805,12 @@ where
                         .combat
                         .add_threat(candidate.player_guid, 0.0);
                     creature.sync_runtime_motion_master_like_cpp();
-                    let mut spline_stopped = false;
                     if creature.runtime_motion_master_current_kind_like_cpp()
                         == Some(wow_movement::MovementGeneratorType::Chase)
                         && let Some(stop) = creature.stop_move_spline_like_cpp()
                     {
                         use crate::map_manager::{RecipientRule, RuntimeEvent};
 
-                        spline_stopped = true;
                         outcome.movement_interrupts += 1;
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: guid,
@@ -975,9 +866,6 @@ where
                             creature.unit().data().faction_template,
                         ));
                     }
-                    if spline_stopped {
-                        store.phase_after_spline_stop_like_cpp(map_id, instance_id, guid);
-                    }
                     break;
                 }
             }
@@ -995,12 +883,6 @@ where
                 }
                 let mut assistant_guids = Vec::new();
                 for assistant_guid in guids.iter().copied().filter(|guid| *guid != caller_guid) {
-                    // #1263 F6-8C: a family-assistance candidate must have a
-                    // canonical owner before it may be selected.
-                    if !ownership.decides_like_cpp(map_id, instance_id, assistant_guid) {
-                        outcome.canonical_incarnation_rejections += 1;
-                        continue;
-                    }
                     let Some(assistant) =
                         store.phase_creature_mut_like_cpp(map_id, instance_id, assistant_guid)
                     else {
@@ -1057,10 +939,6 @@ where
                 }
                 if !assistant_guids.is_empty() {
                     outcome.assistance_scheduled += assistant_guids.len();
-                    if !ownership.decides_like_cpp(map_id, instance_id, caller_guid) {
-                        outcome.canonical_incarnation_rejections += 1;
-                        continue;
-                    }
                     if let Some(caller) =
                         store.phase_creature_mut_like_cpp(map_id, instance_id, caller_guid)
                     {

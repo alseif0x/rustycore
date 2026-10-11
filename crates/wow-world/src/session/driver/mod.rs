@@ -41,7 +41,7 @@ use tracing::{debug, info};
 use wow_packet::WorldPacket;
 
 use super::{
-    ClientOpcodes, RuntimeTickOwner, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,
+    ClientOpcodes, SessionHandlerCatalogsLikeCpp, SessionState, WorldSession,
 };
 
 impl WorldSession {
@@ -148,37 +148,17 @@ impl WorldSession {
             self.core.state = SessionState::Disconnecting;
         }
 
-        // ── Creature / player combat ticks ─────────────────────────
-        // Creature AI is owned by the map runtime when GlobalLegacy is active.
-        // Player auto-attack remains session-owned here: C++ Player::Update
-        // calls DoMeleeAttackIfReady before Map::Update runs ObjectUpdater.
+        // ── Session-owned ticks ────────────────────────────────────
+        // Creature AI and player auto-attack are owned by the canonical map
+        // runtime (#1263 F6-8D3b-2): C++ `Player::Update` calls
+        // `DoMeleeAttackIfReady` from `Map::Update`, which runs the admitted
+        // creature executor's player melee phase.
         if self.core.state == SessionState::LoggedIn {
             self.core
                 .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
             self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
             let _ = crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(true);
-            // Read the tick owner once; the lock is taken and released inside
-            // runtime_tick_owner_like_cpp before any tick work begins.
-            let owner = self.runtime_tick_owner_like_cpp();
             self.world_entities.advance_creature_tick_like_cpp();
-            if self.world_entities.creature_tick_like_cpp() % 4 == 0
-                && owner == RuntimeTickOwner::Session
-            {
-                self.tick_creatures_sync();
-            }
-            // Combat tick every 2 ticks (~100ms), and only when this session
-            // owns the tick.
-            //
-            // Under `GlobalLegacy` the map owns this transition (#28), so the
-            // swing resolves once from the loop's real map diff instead of once
-            // per session on each session's own pass clock. Gated, not deleted:
-            // `RustyCore.LegacyCreatureGlobalRuntime = 0` keeps the owner at
-            // `Session`, and player auto-attack must keep working there.
-            if self.world_entities.creature_tick_like_cpp() % 2 == 0
-                && owner == RuntimeTickOwner::Session
-            {
-                self.tick_combat_sync();
-            }
             // C++ `Player::Update` runs `RegenerateAll()` after
             // `DoMeleeAttackIfReady` for every living in-world player. The
             // canonical Player owns the accumulators; this session pass is the

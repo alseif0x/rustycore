@@ -1,14 +1,10 @@
-//! Legacy creature lifecycle tick, respawn and despawn.
+//! Creature lifecycle phase: respawn and despawn.
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
-//!
-//! #1263 F6-8D3a-3: the lifecycle phase is written once,
-//! [`run_creature_lifecycle_phase_on_store_like_cpp`], against a
-//! [`CreatureLifecycleStoreLikeCpp`]. The legacy bridge runs it over the legacy
-//! `MapManager` (keeping its guard and owner check), and the admitted canonical
-//! executor over the canonical map it holds locked, with the canonical map's
-//! own respawn queue.
+//! Moved out of the Session root under #619. #1263 F6-8D3a-3: the lifecycle
+//! phase is written once, [`run_creature_lifecycle_phase_on_store_like_cpp`],
+//! over the admitted canonical map the executor holds locked
+//! ([`AdmittedCanonicalCreatureLifecycleStoreLikeCpp`]), with the canonical
+//! map's own respawn queue (#1263 F6-8E: the only creature store).
 //!
 //! C++ anchors: `Creature::setDeathState(JUST_DIED)` → `SaveRespawnTime`
 //! (`Creature.cpp:2193-2247, 2651-2667`); `Creature::Update` `CORPSE` →
@@ -59,9 +55,6 @@ pub(in crate::session) struct ReadyRespawnCandidateLikeCpp {
     /// under a different key than the one its queue entry was drained from.
     residence: LifecycleResidenceLikeCpp,
     guid: ObjectGuid,
-    /// The rebuilt incarnation (`creature_from_pending_respawn_like_cpp`, then
-    /// ground-snapped).
-    creature: wow_entities::Creature,
     /// The queue entry this candidate was drained from.
     ///
     /// R7b-1: when no canonical incarnation can admit the candidate yet, this is
@@ -73,13 +66,8 @@ pub(in crate::session) struct ReadyRespawnCandidateLikeCpp {
 
 /// The canonical admission decision for one ready respawn.
 enum ReadyRespawnAdmissionLikeCpp {
-    /// The canonical map admitted the candidate; the store may publish it with
-    /// the authority, the canonical health timeline and the aura provenance
-    /// that admission returned.
-    Admitted(wow_world_entities::CanonicalCreatureInsertOutcomeLikeCpp),
-    /// No canonical map manager is configured, so the legacy store is the only
-    /// store: the previous legacy-only publication path is kept.
-    LegacyOnly,
+    /// The canonical map admitted and installed the candidate.
+    Admitted,
     /// A canonical map manager is configured but no canonical incarnation could
     /// admit the candidate (no canonical map instance for this key, or the
     /// candidate could not be installed), so the candidate has no admitted
@@ -90,70 +78,6 @@ enum ReadyRespawnAdmissionLikeCpp {
     /// The canonical owner already exists and this candidate would be a second
     /// claimable pool, so the store must not publish it at all.
     Refused,
-}
-
-/// Where a lifecycle phase finds the creatures, the respawn queue and the
-/// canonical owner it runs on.
-pub(in crate::session) trait CreatureLifecycleStoreLikeCpp {
-    /// Release the store guard before the canonical-owner stages; the legacy
-    /// bridge never holds its map lock across the canonical admission.
-    fn lifecycle_release_store_like_cpp(&mut self) {}
-    /// Retake the store guard for the publication stage.
-    fn lifecycle_reacquire_store_like_cpp(&mut self) {}
-    fn lifecycle_creature_guids_like_cpp(&self, map_id: u16, instance_id: u32) -> Vec<ObjectGuid>;
-    fn lifecycle_creature_like_cpp(
-        &self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-    ) -> Option<&wow_entities::Creature>;
-    fn lifecycle_creature_mut_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-    ) -> Option<&mut wow_entities::Creature>;
-    /// Take a despawned corpse out of the store. Its canonical map object is
-    /// removed by the canonical stage, exactly as the legacy bridge orders it.
-    fn lifecycle_take_creature_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-    ) -> Option<wow_entities::Creature>;
-    /// Whether the store holds this GUID, or an alive creature of this
-    /// persistent spawn.
-    fn lifecycle_holds_respawn_like_cpp(
-        &self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-        persistent_spawn_id: Option<u64>,
-    ) -> bool;
-    fn lifecycle_respawns_mut_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-    ) -> Option<&mut crate::map_manager::CreatureRespawnQueueLikeCpp>;
-    /// C++ `Creature::Respawn`'s `UpdateAllowedPositionZ` with the store's map
-    /// environment.
-    fn lifecycle_snap_to_ground_like_cpp(&self, creature: &mut wow_entities::Creature, map_id: u16);
-    /// Whether a canonical owner exists for the canonical stages.
-    fn lifecycle_has_canonical_owner_like_cpp(&self) -> bool;
-    /// Run one canonical-owner operation; an unreachable owner yields `R`'s
-    /// default, as each shared-manager adapter does.
-    fn lifecycle_with_canonical_like_cpp<R: Default>(
-        &mut self,
-        operation: impl FnOnce(&mut wow_map::MapManager) -> R,
-    ) -> R;
-    /// Publish one admitted (or legacy-only) respawn in the store. `false`
-    /// means the publication failed and nothing of it stays published.
-    fn lifecycle_publish_respawn_like_cpp(
-        &mut self,
-        candidate: ReadyRespawnCandidateLikeCpp,
-        admitted: Option<wow_world_entities::CanonicalCreatureInsertOutcomeLikeCpp>,
-        outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    ) -> bool;
 }
 
 /// Whether a canonical creature incarnation already exists for this map key.
@@ -173,74 +97,16 @@ fn canonical_creature_incarnation_exists_like_cpp(
         .is_some_and(|map| map.map().with_creature_like_cpp(guid, |_| ()).is_some())
 }
 
-/// Runs one global legacy creature lifecycle tick without spawning a loop.
+/// The creature lifecycle phase (#1263 F6-8D3a-3).
 ///
-/// It covers the parts of the creature tick that change creature existence:
-///
-/// - corpse removal after `corpse_despawn_at`;
-/// - pushing the map-owned respawn queue;
-/// - draining ready respawns and re-adding map/canonical creature state.
-///
-/// Packet delivery remains outside this function. Callers must fan out
-/// `RefreshVisibleWorldCreaturesLikeCpp` for each `refresh_map_keys` entry so
-/// every session runs its own C++-style `Player::UpdateVisibilityOf` seam.
-///
-/// The legacy entry keeps only its guard and owner check; the phase is
-/// [`run_creature_lifecycle_phase_on_store_like_cpp`].
-pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    map_store: &wow_data::MapStore,
-    now: Instant,
-) -> LegacyCreatureLifecycleTickOutcomeLikeCpp {
-    use crate::map_manager::RuntimeTickOwner;
-
-    let mut outcome = LegacyCreatureLifecycleTickOutcomeLikeCpp::default();
-    // `now` is the scheduler's tick deadline and may predate a blocking-worker
-    // stall. Keep it for due checks, but pair conversions to Unix game time
-    // with a fresh monotonic snapshot from the same execution point.
-    let conversion_clock = (Instant::now(), unix_now());
-    let legacy_map_keys = legacy_map_manager
-        .read()
-        .unwrap_or_else(|poisoned| poisoned.into_inner())
-        .active_map_keys();
-    let guard = legacy_map_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    if guard.tick_owner() != RuntimeTickOwner::GlobalLegacy {
-        outcome.skipped_owner_not_global = true;
-        return outcome;
-    }
-    let mut store = LegacyCreatureLifecycleStoreLikeCpp {
-        legacy_map_manager,
-        canonical_map_manager,
-        guard: Some(guard),
-    };
-    run_creature_lifecycle_phase_on_store_like_cpp(
-        &mut store,
-        legacy_map_keys,
-        map_store,
-        now,
-        conversion_clock,
-        &mut outcome,
-    );
-    outcome
-}
-
-/// The creature lifecycle phase, written once over a
-/// [`CreatureLifecycleStoreLikeCpp`] (#1263 F6-8D3a-3).
-///
-/// Stage order, DB statement order and every counter are those of the legacy
-/// tick: JUST_DIED respawn-time saves and corpse despawns per map with the
+/// Stage order and DB statement order: JUST_DIED respawn-time saves and corpse despawns per map with the
 /// ready-respawn drain; the canonical despawns and respawn-time removals; the
 /// canonical admission of each ready respawn; its publication and persisted
 /// row removal. `refresh_map_keys` names the maps whose sessions must
 /// recompute creature visibility. `conversion_clock` is the `(Instant, Unix
 /// seconds)` pair every respawn-time conversion of the tick uses.
-pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
-    S: CreatureLifecycleStoreLikeCpp,
->(
-    store: &mut S,
+pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp(
+    store: &mut AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_>,
     map_keys: Vec<(u16, u32)>,
     map_store: &wow_data::MapStore,
     now: Instant,
@@ -444,23 +310,19 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
             // C++ Creature::Respawn ground-snaps via UpdateAllowedPositionZ
             // (Creature.cpp:461). No-op when terrain is not wired.
             store.lifecycle_snap_to_ground_like_cpp(&mut creature, map_id);
-            let canonical_creature = creature.clone();
             // R1b: build the candidate, but let the canonical admission decide
-            // the incarnation before the store publishes it.
+            // the incarnation.
             respawn_candidates.push((
                 ReadyRespawnCandidateLikeCpp {
                     residence: LifecycleResidenceLikeCpp::observed_like_cpp(map_id, instance_id),
                     guid,
-                    creature,
                     pending: respawn,
                 },
-                canonical_creature,
+                creature,
             ));
         }
     }
-    store.lifecycle_release_store_like_cpp();
-
-    if store.lifecycle_has_canonical_owner_like_cpp() {
+    {
         for (map_id, instance_id, guid) in canonical_plain_despawns {
             store.lifecycle_with_canonical_like_cpp(|manager| {
                 remove_canonical_creature_map_object_on_locked_map_like_cpp(
@@ -517,7 +379,7 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
     let mut respawn_admissions: Vec<(ReadyRespawnCandidateLikeCpp, ReadyRespawnAdmissionLikeCpp)> =
         Vec::with_capacity(respawn_candidates.len());
     for (candidate, canonical_creature) in respawn_candidates {
-        let admission = if store.lifecycle_has_canonical_owner_like_cpp() {
+        let admission = {
             let residence = candidate.residence;
             let guid = candidate.guid;
             let admitted = store.lifecycle_with_canonical_like_cpp(|manager| {
@@ -529,7 +391,7 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
                 )
             });
             match admitted {
-                Some(admitted) => ReadyRespawnAdmissionLikeCpp::Admitted(admitted),
+                Some(_) => ReadyRespawnAdmissionLikeCpp::Admitted,
                 None if store.lifecycle_with_canonical_like_cpp(|manager| {
                     canonical_creature_incarnation_exists_like_cpp(manager, residence, guid)
                 }) =>
@@ -542,19 +404,16 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
                 // publication is deferred.
                 None => ReadyRespawnAdmissionLikeCpp::Deferred,
             }
-        } else {
-            ReadyRespawnAdmissionLikeCpp::LegacyOnly
         };
         respawn_admissions.push((candidate, admission));
     }
 
-    store.lifecycle_reacquire_store_like_cpp();
     for (candidate, admission) in respawn_admissions {
         let residence = candidate.residence;
         let persistent_spawn = candidate.pending.persistent_spawn;
         let spawn_id = candidate.pending.spawn_id;
-        let admitted = match admission {
-            ReadyRespawnAdmissionLikeCpp::Admitted(admitted) => Some(admitted),
+        match admission {
+            ReadyRespawnAdmissionLikeCpp::Admitted => {}
             ReadyRespawnAdmissionLikeCpp::Refused => {
                 // The canonical incarnation already owns this GUID, exactly
                 // like the "already present" branch above: drop the stale
@@ -584,11 +443,13 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
                 }
                 continue;
             }
-            ReadyRespawnAdmissionLikeCpp::LegacyOnly => None,
-        };
-        if !store.lifecycle_publish_respawn_like_cpp(candidate, admitted, outcome) {
-            continue;
         }
+        // The admission installed the canonical incarnation itself; there is
+        // no second representation to publish.
+        store.respawned.push((
+            (residence.map_id, residence.instance_id),
+            candidate.guid,
+        ));
         if persistent_spawn {
             // Applied here rather than in the deferred canonical phase because
             // admission already ran; the mutation, its condition (a successful
@@ -605,8 +466,8 @@ pub(in crate::session) fn run_creature_lifecycle_phase_on_store_like_cpp<
 
 /// Remove one persisted creature respawn row from the store's queue and return
 /// its DB delete statement.
-fn remove_persisted_respawn_time_on_store_like_cpp<S: CreatureLifecycleStoreLikeCpp>(
-    store: &mut S,
+fn remove_persisted_respawn_time_on_store_like_cpp(
+    store: &mut AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_>,
     map_id: u16,
     instance_id: u32,
     spawn_id: u64,
@@ -624,8 +485,8 @@ fn remove_persisted_respawn_time_on_store_like_cpp<S: CreatureLifecycleStoreLike
 
 /// The persisted-row delete and canonical respawn-time removal that follow a
 /// refused or published respawn.
-fn remove_respawn_row_after_publication_like_cpp<S: CreatureLifecycleStoreLikeCpp>(
-    store: &mut S,
+fn remove_respawn_row_after_publication_like_cpp(
+    store: &mut AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_>,
     residence: LifecycleResidenceLikeCpp,
     spawn_id: u64,
     outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
@@ -638,8 +499,7 @@ fn remove_respawn_row_after_publication_like_cpp<S: CreatureLifecycleStoreLikeCp
     ) {
         outcome.respawn_db_mutations.push(stmt);
     }
-    if store.lifecycle_has_canonical_owner_like_cpp()
-        && store.lifecycle_with_canonical_like_cpp(|manager| {
+    if store.lifecycle_with_canonical_like_cpp(|manager| {
             remove_canonical_respawn_time_on_locked_map_like_cpp(
                 manager,
                 u32::from(residence.map_id),
@@ -650,231 +510,6 @@ fn remove_respawn_row_after_publication_like_cpp<S: CreatureLifecycleStoreLikeCp
         })
     {
         outcome.canonical_respawn_removes += 1;
-    }
-}
-
-/// The legacy store: the legacy `MapManager` under its write guard, plus the
-/// shared canonical manager its canonical stages lock per operation.
-struct LegacyCreatureLifecycleStoreLikeCpp<'a> {
-    legacy_map_manager: &'a crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&'a SharedCanonicalMapManager>,
-    guard: Option<std::sync::RwLockWriteGuard<'a, crate::map_manager::MapManager>>,
-}
-
-impl LegacyCreatureLifecycleStoreLikeCpp<'_> {
-    fn manager_like_cpp(&self) -> &crate::map_manager::MapManager {
-        self.guard
-            .as_deref()
-            .expect("the legacy lifecycle store reads only under its guard")
-    }
-
-    fn manager_mut_like_cpp(&mut self) -> &mut crate::map_manager::MapManager {
-        self.guard
-            .as_deref_mut()
-            .expect("the legacy lifecycle store writes only under its guard")
-    }
-}
-
-impl CreatureLifecycleStoreLikeCpp for LegacyCreatureLifecycleStoreLikeCpp<'_> {
-    fn lifecycle_release_store_like_cpp(&mut self) {
-        self.guard = None;
-    }
-
-    fn lifecycle_reacquire_store_like_cpp(&mut self) {
-        self.guard = Some(
-            self.legacy_map_manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()),
-        );
-    }
-
-    fn lifecycle_creature_guids_like_cpp(&self, map_id: u16, instance_id: u32) -> Vec<ObjectGuid> {
-        self.manager_like_cpp().creature_guids(map_id, instance_id)
-    }
-
-    fn lifecycle_creature_like_cpp(
-        &self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-    ) -> Option<&wow_entities::Creature> {
-        self.manager_like_cpp()
-            .find_creature(map_id, instance_id, guid)
-            .map(|creature| &creature.creature)
-    }
-
-    fn lifecycle_creature_mut_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-    ) -> Option<&mut wow_entities::Creature> {
-        self.manager_mut_like_cpp()
-            .find_creature_mut(map_id, instance_id, guid)
-            .map(|creature| &mut creature.creature)
-    }
-
-    fn lifecycle_take_creature_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-    ) -> Option<wow_entities::Creature> {
-        self.manager_mut_like_cpp()
-            .remove_creature_any(map_id, instance_id, guid)
-            .map(|creature| creature.creature)
-    }
-
-    fn lifecycle_holds_respawn_like_cpp(
-        &self,
-        map_id: u16,
-        instance_id: u32,
-        guid: ObjectGuid,
-        persistent_spawn_id: Option<u64>,
-    ) -> bool {
-        let manager = self.manager_like_cpp();
-        manager.find_creature(map_id, instance_id, guid).is_some()
-            || persistent_spawn_id.is_some_and(|spawn_id| {
-                manager
-                    .find_creature_guid_by_spawn_id_like_cpp(map_id, instance_id, spawn_id)
-                    .is_some()
-            })
-    }
-
-    fn lifecycle_respawns_mut_like_cpp(
-        &mut self,
-        map_id: u16,
-        instance_id: u32,
-    ) -> Option<&mut crate::map_manager::CreatureRespawnQueueLikeCpp> {
-        Some(
-            &mut self
-                .manager_mut_like_cpp()
-                .get_or_create_map(map_id, instance_id)
-                .respawns,
-        )
-    }
-
-    fn lifecycle_snap_to_ground_like_cpp(
-        &self,
-        creature: &mut wow_entities::Creature,
-        map_id: u16,
-    ) {
-        if let Some(terrain) = self.manager_like_cpp().terrain() {
-            crate::map_manager::snap_respawn_creature_to_ground_like_cpp(
-                creature, map_id, &terrain,
-            );
-        }
-    }
-
-    fn lifecycle_has_canonical_owner_like_cpp(&self) -> bool {
-        self.canonical_map_manager.is_some()
-    }
-
-    fn lifecycle_with_canonical_like_cpp<R: Default>(
-        &mut self,
-        operation: impl FnOnce(&mut wow_map::MapManager) -> R,
-    ) -> R {
-        let Some(manager) = self.canonical_map_manager else {
-            return R::default();
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return R::default();
-        };
-        operation(&mut manager)
-    }
-
-    fn lifecycle_publish_respawn_like_cpp(
-        &mut self,
-        candidate: ReadyRespawnCandidateLikeCpp,
-        admitted: Option<wow_world_entities::CanonicalCreatureInsertOutcomeLikeCpp>,
-        outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    ) -> bool {
-        let canonical_map_manager = self.canonical_map_manager;
-        let world_creature = crate::map_manager::WorldCreature::from_installed_canonical_like_cpp(
-            candidate.creature,
-            candidate.pending.create_data.clone(),
-        );
-        let expected_legacy_authority = world_creature.creature.loot_authority_like_cpp().clone();
-        let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
-        // A fresh admission installs exactly this candidate, so its own
-        // allocation is the incarnation's authority; a pristine duplicate
-        // instead returns the pre-existing canonical allocation.
-        let fresh_canonical_insert = admitted.as_ref().is_some_and(|admitted| {
-            admitted
-                .loot_authority
-                .shares_storage_like_cpp(&expected_legacy_authority)
-        });
-        let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(
-            candidate.pending.home_pos.x,
-            candidate.pending.home_pos.y,
-        );
-        let manager = self.manager_mut_like_cpp();
-        if !manager.add_creature(
-            candidate.residence.map_id,
-            candidate.residence.instance_id,
-            grid_x,
-            grid_y,
-            world_creature,
-        ) {
-            // A concurrent publication won the GUID, so this candidate's
-            // publication failed after its admission decision was taken and
-            // nothing of it is published. The counter records the failed legacy
-            // publication itself, before the fresh-insertion condition below is
-            // examined, so it also counts failures that installed no canonical
-            // object and have nothing to roll back.
-            outcome.respawn_publications_failed_like_cpp += 1;
-            if fresh_canonical_insert && let Some(canonical_map_manager) = canonical_map_manager {
-                remove_canonical_creature_map_object_on_map_like_cpp(
-                    canonical_map_manager,
-                    u32::from(candidate.residence.map_id),
-                    candidate.residence.instance_id,
-                    candidate.guid,
-                );
-            }
-            return false;
-        }
-        if let Some(admitted) = &admitted
-            && let Some(world_creature) = manager.find_creature_mut(
-                candidate.residence.map_id,
-                candidate.residence.instance_id,
-                candidate.guid,
-            )
-        {
-            // R1b: the published representation consumes the authority, the
-            // canonical health timeline and the aura provenance of the one
-            // admission decision together. The expected-stamp CAS still decides
-            // whether this is that incarnation's representation, so a delayed
-            // publication cannot alter a replacement.
-            world_creature
-                .creature
-                .take_pending_addon_aura_provenance_like_cpp();
-            for (slot, spell_id, provenance) in admitted.aura_provenance.iter() {
-                let auras = &mut world_creature.creature.unit_mut().subsystems_mut().auras;
-                if auras
-                    .visible_auras
-                    .get(slot)
-                    .is_some_and(|aura| aura.spell_id == *spell_id)
-                {
-                    auras.set_aura_cast_provenance_like_cpp(*slot, provenance.clone());
-                }
-            }
-            let rebound = world_creature
-                .creature
-                .rebind_loot_authority_if_current_like_cpp(
-                    &expected_legacy_authority,
-                    expected_legacy_stamp,
-                    admitted.loot_authority.clone(),
-                );
-            if rebound.is_some() {
-                world_creature
-                    .creature
-                    .unit_mut()
-                    .preserve_authoritative_health_state_for_snapshot_like_cpp(
-                        &admitted.health_owner,
-                    );
-            }
-        }
-        true
     }
 }
 
@@ -895,9 +530,7 @@ impl AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_> {
     fn taken_like_cpp(&self, map_id: u16, instance_id: u32, guid: ObjectGuid) -> bool {
         self.taken.contains(&((map_id, instance_id), guid))
     }
-}
 
-impl CreatureLifecycleStoreLikeCpp for AdmittedCanonicalCreatureLifecycleStoreLikeCpp<'_, '_> {
     fn lifecycle_creature_guids_like_cpp(&self, map_id: u16, instance_id: u32) -> Vec<ObjectGuid> {
         self.store
             .phase_creature_guids_like_cpp(map_id, instance_id)
@@ -997,29 +630,10 @@ impl CreatureLifecycleStoreLikeCpp for AdmittedCanonicalCreatureLifecycleStoreLi
         }
     }
 
-    fn lifecycle_has_canonical_owner_like_cpp(&self) -> bool {
-        true
-    }
-
-    fn lifecycle_with_canonical_like_cpp<R: Default>(
+    fn lifecycle_with_canonical_like_cpp<R>(
         &mut self,
         operation: impl FnOnce(&mut wow_map::MapManager) -> R,
     ) -> R {
         operation(self.store.manager_mut_like_cpp())
-    }
-
-    fn lifecycle_publish_respawn_like_cpp(
-        &mut self,
-        candidate: ReadyRespawnCandidateLikeCpp,
-        _admitted: Option<wow_world_entities::CanonicalCreatureInsertOutcomeLikeCpp>,
-        _outcome: &mut LegacyCreatureLifecycleTickOutcomeLikeCpp,
-    ) -> bool {
-        // The admission installed the canonical incarnation itself; there is
-        // no second representation to publish.
-        self.respawned.push((
-            (candidate.residence.map_id, candidate.residence.instance_id),
-            candidate.guid,
-        ));
-        true
     }
 }

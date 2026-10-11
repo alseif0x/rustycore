@@ -1,11 +1,8 @@
-//! Legacy creature melee tick and its damage application.
+//! Creature melee phase and its damage application.
 //!
-//! Moved out of the Session root under #619. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! Moved out of the Session root under #619; run by the admitted canonical
+//! executor over the canonical map (#1263 F6-8D3a-1, F6-8E).
 
-use super::creature_melee_sync::{
-    CreatureVictimCompatibilitySyncLikeCpp, PendingCreatureSwingLikeCpp,
-};
 use super::*;
 
 mod absorption;
@@ -118,16 +115,40 @@ pub(in crate::session) fn apply_player_melee_to_legacy_creature_like_cpp(
         values_update,
     })
 }
-/// Runs one global legacy creature melee tick without spawning a loop.
-///
-/// This is dormant infrastructure for the next runtime slice after movement
-/// and lifecycle. C++ contrast: `Creature::Update` calls
-/// `DoMeleeAttackIfReady()` from the map object update phase. This function
-/// preserves the pre-existing transitional damage bridge while the complete
-/// C++ outcome/proc pipeline remains a later runtime slice. Spell-hit RNG
-/// accreditation must not turn otherwise valid creature swings into no-ops.
-/// The per-swing presentation `run_legacy_creature_melee_tick_once_like_cpp`
-/// resolves before `DealMeleeDamage` and publishes at delivery.
+/// What one creature melee apply resolved on its canonical victim.
+pub(in crate::session) enum CreatureMeleeApplyResultLikeCpp {
+    Ready,
+    Hit {
+        victim_health_after: u64,
+        victim_health_state_revision_after: u64,
+        over_damage: i32,
+        target_level: u8,
+        events: Vec<RuntimeEvent>,
+    },
+    OutOfRange,
+    BadFacing,
+    AttackerStateRejected,
+    LosRejected,
+    AttackerUnavailable,
+    VictimNotAlive,
+    MissingVictim,
+}
+
+/// One creature swing selected by the collect half of the melee phase.
+#[derive(Clone, Copy)]
+pub(super) struct PendingCreatureSwingLikeCpp {
+    pub(super) map_id: u16,
+    pub(super) instance_id: u32,
+    pub(super) attacker_guid: ObjectGuid,
+    pub(super) attacker_position: Position,
+    pub(super) attacker_combat_reach: f32,
+    pub(super) attacker_can_state_update: bool,
+    pub(super) victim_guid: ObjectGuid,
+}
+
+/// C++ `Creature::Update` calls `DoMeleeAttackIfReady()` from the map object
+/// update phase. The per-swing presentation is resolved before
+/// `DealMeleeDamage` and published at delivery.
 ///
 /// C++ `Unit::CalculateMeleeDamage` fills these terms before the health write.
 /// The player-victim phase in `player_victim` writes them and this tick's
@@ -173,81 +194,13 @@ impl MeleeSwingStateLikeCpp {
     }
 }
 
-pub fn run_legacy_creature_melee_tick_once_like_cpp(
-    legacy_map_manager: &crate::map_manager::SharedMapManager,
-    canonical_map_manager: Option<&SharedCanonicalMapManager>,
-    config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
-) -> LegacyCreatureMeleeTickOutcomeLikeCpp {
-    use crate::map_manager::RuntimeTickOwner;
-
-    let mut outcome = LegacyCreatureMeleeTickOutcomeLikeCpp::default();
-    // #1263 F6-8C: the canonical designated owner decides which creature may
-    // swing. Read once, before the legacy write guard.
-    let ownership =
-        canonical_creature_ownership_like_cpp(canonical_map_manager, legacy_map_manager);
-
-    let pending_swings = {
-        let mut manager = legacy_map_manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        if manager.tick_owner() != RuntimeTickOwner::GlobalLegacy {
-            outcome.skipped_owner_not_global = true;
-            return outcome;
-        }
-        collect_creature_melee_swings_on_store_like_cpp(&mut *manager, &ownership, &mut outcome)
-    };
-
-    let Some(canonical_map_manager) = canonical_map_manager else {
-        return outcome;
-    };
-
-    let mut creature_victim_syncs = Vec::new();
-    for swing in pending_swings {
-        // One C++ map update owns attacker validation, RNG consumption, damage,
-        // attacking-aura removal, and timer rearm as one serial operation. Hold
-        // both transitional owners in the established canonical -> legacy order
-        // so a target switch or same-GUID respawn cannot cross that commit.
-        let Ok(mut canonical_manager) = canonical_map_manager.lock() else {
-            outcome.melee_precondition_rejections += 1;
-            continue;
-        };
-        let mut attackers = LegacyCreatureMeleeAttackersLikeCpp {
-            legacy: legacy_map_manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner()),
-            ownership: &ownership,
-        };
-        execute_creature_melee_swing_on_manager_like_cpp(
-            &mut canonical_manager,
-            &mut attackers,
-            swing,
-            config,
-            &mut outcome,
-            &mut creature_victim_syncs,
-        );
-    }
-
-    super::creature_melee_sync::replay_creature_victim_syncs_like_cpp(
-        legacy_map_manager,
-        canonical_map_manager,
-        creature_victim_syncs,
-        &mut outcome,
-    );
-    outcome
-}
-
 /// The selection half of `Creature::Update` → `DoMeleeAttackIfReady`: which
 /// creatures of the store have a swing due against a player or creature
-/// victim. #1263 F6-8D3a-1: one body for the legacy store and the admitted
-/// canonical store.
-pub(super) fn collect_creature_melee_swings_on_store_like_cpp<S>(
-    store: &mut S,
-    ownership: &CanonicalCreatureOwnershipLikeCpp,
+/// victim (#1263 F6-8D3a-1).
+pub(super) fn collect_creature_melee_swings_on_store_like_cpp(
+    store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
-) -> Vec<PendingCreatureSwingLikeCpp>
-where
-    S: CreaturePhaseStoreLikeCpp + ?Sized,
-{
+) -> Vec<PendingCreatureSwingLikeCpp> {
     use wow_entities::CurrentSpellSlot;
 
     let mut pending_swings = Vec::new();
@@ -284,16 +237,6 @@ where
                         .is_some_and(|spell| spell.allow_actions_during_channel))
             {
                 outcome.melee_precondition_rejections += 1;
-                continue;
-            }
-            // #1263 F6-8C: a creature with no canonical incarnation at its
-            // exact residence is not the canonical owner's object, so it
-            // selects no swing from the legacy representation. The gate sits
-            // after C++'s own preconditions (`can_swing`, `CanMelee`, the
-            // charging/channelling state), so their order and their counters
-            // are unchanged.
-            if !ownership.decides_like_cpp(map_id, instance_id, guid) {
-                outcome.canonical_incarnation_rejections += 1;
                 continue;
             }
             let Some(victim_guid) = creature.ai_ownership().combat_target else {
@@ -344,147 +287,18 @@ impl CreatureMeleeAttackerFactsLikeCpp {
     }
 }
 
-/// How one selected swing may begin on its attacker owner.
+/// How one selected swing may begin on its attacker.
 pub(super) enum CreatureMeleeSwingBeginLikeCpp {
     Ready,
     AttackerMissing,
-    /// F6-8C: the attacker is no longer the canonical owner's object.
-    NotCanonicalOwner,
-}
-
-/// Where the swing body finds its attacker. #1263 F6-8D3a-1: the legacy
-/// bridge keeps it on the legacy representation and proves it is the same
-/// incarnation as the canonical record; the admitted executor's attacker *is*
-/// the canonical record.
-pub(super) trait CreatureMeleeAttackersLikeCpp {
-    fn begin_swing_like_cpp(
-        &mut self,
-        canonical_manager: &wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-    ) -> CreatureMeleeSwingBeginLikeCpp;
-    /// One attacker operation; `None` when the attacker is gone.
-    fn with_attacker_like_cpp<R>(
-        &mut self,
-        canonical_manager: &mut wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R>;
-    /// Whether the attacker this swing runs on is the canonical incarnation.
-    fn attacker_is_canonical_incarnation_like_cpp(
-        &mut self,
-        canonical_manager: &wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-    ) -> bool;
-    /// Align the canonical `WorldObject` used by the LOS check to the attacker
-    /// position the swing validated (a no-op where they are one object).
-    fn align_canonical_attacker_position_like_cpp(
-        &mut self,
-        canonical_manager: &mut wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-    );
-}
-
-struct LegacyCreatureMeleeAttackersLikeCpp<'a> {
-    legacy: std::sync::RwLockWriteGuard<'a, crate::map_manager::MapManager>,
-    ownership: &'a CanonicalCreatureOwnershipLikeCpp,
-}
-
-impl CreatureMeleeAttackersLikeCpp for LegacyCreatureMeleeAttackersLikeCpp<'_> {
-    fn begin_swing_like_cpp(
-        &mut self,
-        _canonical_manager: &wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-    ) -> CreatureMeleeSwingBeginLikeCpp {
-        if self
-            .legacy
-            .find_creature(swing.map_id, swing.instance_id, swing.attacker_guid)
-            .is_none()
-        {
-            return CreatureMeleeSwingBeginLikeCpp::AttackerMissing;
-        }
-        // #1263 F6-8C: the re-validation repeats the ownership gate, because
-        // the collect phase released both guards and the incarnation may have
-        // gone.
-        if !self
-            .ownership
-            .decides_like_cpp(swing.map_id, swing.instance_id, swing.attacker_guid)
-        {
-            return CreatureMeleeSwingBeginLikeCpp::NotCanonicalOwner;
-        }
-        CreatureMeleeSwingBeginLikeCpp::Ready
-    }
-
-    fn with_attacker_like_cpp<R>(
-        &mut self,
-        _canonical_manager: &mut wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R> {
-        // #1263 F6-8D1: the swing operation runs against the canonical
-        // attacker type; the legacy store is only the transitional seam.
-        self.legacy
-            .find_creature_mut(swing.map_id, swing.instance_id, swing.attacker_guid)
-            .map(|attacker| operation(&mut attacker.creature))
-    }
-
-    fn attacker_is_canonical_incarnation_like_cpp(
-        &mut self,
-        canonical_manager: &wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-    ) -> bool {
-        let Some(attacker) =
-            self.legacy
-                .find_creature(swing.map_id, swing.instance_id, swing.attacker_guid)
-        else {
-            return false;
-        };
-        let attacker = &attacker.creature;
-        canonical_manager
-            .find_map(u32::from(swing.map_id), swing.instance_id)
-            .and_then(|managed| {
-                managed
-                    .map()
-                    .with_creature_like_cpp(swing.attacker_guid, |canonical_attacker| {
-                        canonical_attacker.spawn_id() == attacker.spawn_id()
-                            && canonical_attacker
-                                .loot_authority_like_cpp()
-                                .shares_storage_like_cpp(attacker.loot_authority_like_cpp())
-                            && canonical_attacker
-                                .unit()
-                                .shares_health_state_revision_authority_like_cpp(
-                                    &attacker.unit().health_state_revision_authority_like_cpp(),
-                                )
-                    })
-            })
-            .unwrap_or(false)
-    }
-
-    fn align_canonical_attacker_position_like_cpp(
-        &mut self,
-        canonical_manager: &mut wow_map::MapManager,
-        swing: &PendingCreatureSwingLikeCpp,
-    ) {
-        // Movement snapshots normally publish this position before melee, but
-        // the two global ticks may overlap between their legacy read and
-        // canonical write phases. With both owners locked and the incarnation
-        // proven equal, align the canonical WorldObject used by the LOS check
-        // to the same live position used for range and facing.
-        if let Some(managed) =
-            canonical_manager.find_map_mut(u32::from(swing.map_id), swing.instance_id)
-        {
-            let _ = managed
-                .map_mut()
-                .relocate_map_object_like_cpp(swing.attacker_guid, swing.attacker_position);
-        }
-    }
 }
 
 /// The admitted canonical executor's attackers: the canonical incarnation
 /// itself, on the manager the executor holds locked.
 pub(super) struct CanonicalCreatureMeleeAttackersLikeCpp;
 
-impl CreatureMeleeAttackersLikeCpp for CanonicalCreatureMeleeAttackersLikeCpp {
-    fn begin_swing_like_cpp(
+impl CanonicalCreatureMeleeAttackersLikeCpp {
+    pub(super) fn begin_swing_like_cpp(
         &mut self,
         canonical_manager: &wow_map::MapManager,
         swing: &PendingCreatureSwingLikeCpp,
@@ -504,7 +318,8 @@ impl CreatureMeleeAttackersLikeCpp for CanonicalCreatureMeleeAttackersLikeCpp {
         }
     }
 
-    fn with_attacker_like_cpp<R>(
+    /// One attacker operation; `None` when the attacker is gone.
+    pub(super) fn with_attacker_like_cpp<R>(
         &mut self,
         canonical_manager: &mut wow_map::MapManager,
         swing: &PendingCreatureSwingLikeCpp,
@@ -516,7 +331,8 @@ impl CreatureMeleeAttackersLikeCpp for CanonicalCreatureMeleeAttackersLikeCpp {
             .with_creature_mut_like_cpp(swing.attacker_guid, operation)
     }
 
-    fn attacker_is_canonical_incarnation_like_cpp(
+    /// Whether the attacker this swing runs on is still on its map.
+    pub(super) fn attacker_is_canonical_incarnation_like_cpp(
         &mut self,
         canonical_manager: &wow_map::MapManager,
         swing: &PendingCreatureSwingLikeCpp,
@@ -530,13 +346,6 @@ impl CreatureMeleeAttackersLikeCpp for CanonicalCreatureMeleeAttackersLikeCpp {
                     .get_typed_creature(swing.attacker_guid)
                     .is_some()
             })
-    }
-
-    fn align_canonical_attacker_position_like_cpp(
-        &mut self,
-        _: &mut wow_map::MapManager,
-        _: &PendingCreatureSwingLikeCpp,
-    ) {
     }
 }
 
@@ -593,21 +402,15 @@ fn creature_melee_apply_rejection_like_cpp(
 
 /// One selected swing: C++ `DoMeleeAttackIfReady` → `AttackerStateUpdate` →
 /// `CalculateMeleeDamage` → `DealMeleeDamage`, on the canonical manager the
-/// caller holds locked and the attacker owner `attackers` resolves.
-///
-/// #1263 F6-8D3a-1: the legacy bridge and the admitted canonical executor run
-/// this one body. Victim-side state is always canonical; the attacker's own
-/// operations (timer, RNG, attacking-interrupt auras) go through `attackers`.
-pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
+/// caller holds locked (#1263 F6-8D3a-1). The attacker's own operations
+/// (timer, RNG, attacking-interrupt auras) go through `attackers`.
+pub(super) fn execute_creature_melee_swing_on_manager_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
-    attackers: &mut A,
+    attackers: &mut CanonicalCreatureMeleeAttackersLikeCpp,
     mut swing: PendingCreatureSwingLikeCpp,
     config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
     outcome: &mut LegacyCreatureMeleeTickOutcomeLikeCpp,
-    creature_victim_syncs: &mut Vec<CreatureVictimCompatibilitySyncLikeCpp>,
-) where
-    A: CreatureMeleeAttackersLikeCpp,
-{
+) {
     use wow_entities::CurrentSpellSlot;
 
     match attackers.begin_swing_like_cpp(canonical_manager, &swing) {
@@ -616,13 +419,8 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
             outcome.melee_precondition_rejections += 1;
             return;
         }
-        CreatureMeleeSwingBeginLikeCpp::NotCanonicalOwner => {
-            outcome.canonical_incarnation_rejections += 1;
-            outcome.melee_precondition_rejections += 1;
-            return;
-        }
     }
-    let rearm = |attackers: &mut A,
+    let rearm = |attackers: &mut CanonicalCreatureMeleeAttackersLikeCpp,
                  canonical_manager: &mut wow_map::MapManager,
                  swing: &PendingCreatureSwingLikeCpp,
                  rearm: CreatureMeleeRearmLikeCpp| {
@@ -673,7 +471,6 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
         outcome.attacker_incarnation_rejections += 1;
         return;
     }
-    attackers.align_canonical_attacker_position_like_cpp(canonical_manager, &swing);
     let primary_threat_plan = canonical_manager
         .find_map(u32::from(swing.map_id), swing.instance_id)
         .map(|managed| {
@@ -822,7 +619,6 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
         config,
         damage,
         &mut state,
-        creature_victim_syncs,
     );
     if !state.outcome_represented {
         outcome.melee_outcomes_unrepresented += 1;
@@ -884,18 +680,7 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
         return;
     }
 
-    let (
-        victim_applied_damage,
-        victim_threat,
-        victim_health_before,
-        victim_health_after,
-        victim_health_state_revision_before,
-        victim_health_state_revision_after,
-        victim_creature_sync_identity,
-        over_damage,
-        target_level,
-        events,
-    ) = match apply(
+    let (victim_health_after, victim_health_state_revision_after, over_damage, target_level, events) = match apply(
         canonical_manager,
         &swing,
         Some(damage),
@@ -907,24 +692,14 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
         (!swing.victim_guid.is_player()).then_some(represented_damage_done),
     ) {
         CreatureMeleeApplyResultLikeCpp::Hit {
-            victim_applied_damage,
-            victim_threat,
-            victim_health_before,
             victim_health_after,
-            victim_health_state_revision_before,
             victim_health_state_revision_after,
-            victim_creature_sync_identity,
             over_damage,
             target_level,
             events,
         } => (
-            victim_applied_damage,
-            victim_threat,
-            victim_health_before,
             victim_health_after,
-            victim_health_state_revision_before,
             victim_health_state_revision_after,
-            victim_creature_sync_identity,
             over_damage,
             target_level,
             events,
@@ -1002,22 +777,5 @@ pub(super) fn execute_creature_melee_swing_on_manager_like_cpp<A>(
         }
         outcome.plan.events.extend(share_mutation_events);
         outcome.plan.events.extend(primary_events);
-        if victim_health_state_revision_after != victim_health_state_revision_before
-            || victim_threat.is_some()
-        {
-            creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
-                swing,
-                state: CreatureMeleeVictimSyncStateLikeCpp {
-                    applied_damage: victim_applied_damage,
-                    threat: victim_threat,
-                    victim_health_before,
-                    victim_health_after,
-                    victim_health_state_revision_before,
-                    victim_health_state_revision_after,
-                    identity: victim_creature_sync_identity
-                        .expect("creature victim commits carry incarnation authority"),
-                },
-            });
-        }
     }
 }

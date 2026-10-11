@@ -1,8 +1,8 @@
-//! Secondary-target split and share damage for the legacy creature melee tick.
+//! Secondary-target split and share damage for the creature melee phase.
 //!
 //! Split out of `creature_melee_tick` as behavior-preserving structure: the
-//! caller keeps the C++ map-update serialization, the established
-//! canonical -> legacy lock order and the delivery of the terms resolved here.
+//! caller keeps the C++ map-update serialization and the delivery of the terms
+//! resolved here.
 
 use super::*;
 
@@ -29,9 +29,7 @@ pub(super) struct MeleeSecondaryTargetsOutcomeLikeCpp {
 /// white swing, followed by the primary's pre-share wire health and the
 /// `damageDone` the primary apply commits.
 ///
-/// Runs against the canonical map the caller holds locked in its established
-/// canonical -> legacy order and appends the secondary compatibility syncs to
-/// the caller's list, so the replay at the end of the tick keeps C++'s order.
+/// Runs against the canonical map the caller holds locked.
 pub(super) fn apply_secondary_targets_damage_like_cpp(
     canonical_manager: &mut wow_map::MapManager,
     attacker: &CreatureMeleeAttackerFactsLikeCpp,
@@ -39,7 +37,6 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
     config: &crate::session::LegacyCreatureAggroConfigLikeCpp,
     damage: u32,
     state: &mut MeleeSwingStateLikeCpp,
-    creature_victim_syncs: &mut Vec<CreatureVictimCompatibilitySyncLikeCpp>,
 ) -> MeleeSecondaryTargetsOutcomeLikeCpp {
     let mut split_mutation_events = Vec::new();
     let mut split_combat_log_packets = Vec::new();
@@ -90,14 +87,6 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
                 }
                 split_mutation_events = split.mutation_events;
                 split_combat_log_packets = split.combat_log_packets;
-                for (split_victim_guid, state) in split.creature_syncs {
-                    let mut split_swing = *swing;
-                    split_swing.victim_guid = split_victim_guid;
-                    creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
-                        swing: split_swing,
-                        state,
-                    });
-                }
                 split.damage
             }
             None => damage,
@@ -167,14 +156,6 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
         share_mutation_events = share.mutation_events;
         primary_was_share_target = share.primary_was_share_target;
         primary_player_share_health_updates = share.primary_player_share_health_updates;
-        for (share_victim_guid, state) in share.creature_syncs {
-            let mut share_swing = *swing;
-            share_swing.victim_guid = share_victim_guid;
-            creature_victim_syncs.push(CreatureVictimCompatibilitySyncLikeCpp {
-                swing: share_swing,
-                state,
-            });
-        }
     }
     MeleeSecondaryTargetsOutcomeLikeCpp {
         damage,

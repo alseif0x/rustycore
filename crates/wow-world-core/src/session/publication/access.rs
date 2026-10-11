@@ -105,7 +105,6 @@ impl PacketPublicationAccessLikeCpp<'_> {
         source_position: Position,
         bytes: Vec<u8>,
         realm_connection: bool,
-        allow_legacy_source_fallback: bool,
     ) {
         let Some(registry) = self.core.player_registry() else {
             return;
@@ -147,9 +146,7 @@ impl PacketPublicationAccessLikeCpp<'_> {
                 instance_id,
                 packet_bytes: bytes.clone(),
             };
-            let command = if realm_connection && allow_legacy_source_fallback {
-                SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command)
-            } else if realm_connection {
+            let command = if realm_connection {
                 SessionCommand::SendRealmIfVisibleLikeCpp(command)
             } else {
                 SessionCommand::SendIfVisibleLikeCpp(command)

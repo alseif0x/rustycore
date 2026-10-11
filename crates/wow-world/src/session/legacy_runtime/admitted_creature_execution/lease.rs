@@ -9,20 +9,13 @@ use super::*;
 
 /// Which runtime owns one admitted creature transition.
 ///
-/// C++ has one `ObjectUpdater` writer per `Map::Update`. Since #1263
-/// F6-8D3b-2 production has one: the canonical admitted execution
-/// (`RuntimeTickOwner::CanonicalMap`). The legacy global runtime and the
-/// per-session runtime remain only as test-fixture owners until F6-8E deletes
-/// them; the retired `RustyCore.LegacyCreatureGlobalRuntime` key no longer
-/// selects either.
+/// C++ has one `ObjectUpdater` writer per `Map::Update`, and so does Rust:
+/// the canonical admitted execution, run by the canonical map update loop
+/// (#1263 F6-8D3b-2). F6-8E deleted the legacy global and per-session owners.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub enum CreatureExecutionOwnerLikeCpp {
     /// The canonical admitted execution path of this module.
     CanonicalAdmitted,
-    /// The global legacy runtime (`RuntimeTickOwner::GlobalLegacy`).
-    LegacyGlobal,
-    /// The per-session runtime (`RuntimeTickOwner::Session`).
-    Session,
 }
 
 impl CreatureExecutionOwnerLikeCpp {
@@ -31,8 +24,6 @@ impl CreatureExecutionOwnerLikeCpp {
     pub const fn label_like_cpp(self) -> &'static str {
         match self {
             Self::CanonicalAdmitted => "canonical-admitted",
-            Self::LegacyGlobal => "legacy-global",
-            Self::Session => "session",
         }
     }
 }
@@ -70,10 +61,8 @@ pub struct CreatureExecutionLeaseLikeCpp {
 ///
 /// Production constructs exactly one, owned by the canonical map loop's
 /// `CanonicalCreatureRuntimeLikeCpp` (#1263 F6-8D3b-1); the isolated path and
-/// test fixtures construct their own. It is **not** shared with the legacy
-/// phase bodies, so it serialises the executor's own claims (one execution per
-/// admitted transition) and is not what keeps the legacy owners out: the single
-/// owner value (`MapManager::tick_owner`) does that.
+/// test fixtures construct their own. It serialises the executor's own claims:
+/// one execution per admitted transition.
 pub type SharedCreatureExecutionLeaseLikeCpp =
     std::sync::Arc<std::sync::Mutex<CreatureExecutionLeaseLikeCpp>>;
 

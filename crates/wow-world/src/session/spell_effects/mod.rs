@@ -16,4 +16,3 @@ mod effects_progress;
 mod execution;
 mod execution_overloads;
 mod threat;
-mod ticks;

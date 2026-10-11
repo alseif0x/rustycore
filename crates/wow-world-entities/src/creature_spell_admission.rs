@@ -9,7 +9,6 @@ use wow_constants::{UnitFlags, UnitState};
 use wow_core::ObjectGuid;
 use wow_world_core::session::{
     LegacyCreatureAggroConfigLikeCpp, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
-    SharedCanonicalMapManager,
 };
 
 use crate::creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
@@ -173,69 +172,15 @@ pub struct TurretRejectedCastAttemptLikeCpp {
 }
 
 /// Where a creature spell cast finds its caster: the creature whose engagement,
-/// clocks, swing timer and runtime RNG the cast consumes.
-///
-/// #1263 F6-8D3a-1b: the legacy bridge keeps that state on the legacy
-/// representation (the legacy `MapManager`, under the write guard the bridge
-/// already holds beside the canonical guard); the admitted canonical executor's
-/// caster *is* the canonical incarnation on the canonical manager. The cast
-/// bodies are written once against this seam. Every map-owned read (range,
-/// LOS, victim, cooldown history, cast GUID sequence) stays on the canonical
-/// manager in both cases.
-pub trait CreatureSpellCastersLikeCpp {
-    /// Read the caster; `None` when it is gone.
-    fn with_spell_caster_like_cpp<R>(
-        &self,
-        canonical_manager: &wow_map::MapManager,
-        map_id: u16,
-        instance_id: u32,
-        caster_guid: ObjectGuid,
-        operation: impl FnOnce(&wow_entities::Creature) -> R,
-    ) -> Option<R>;
-    /// Mutate the caster; `None` when it is gone.
-    fn with_spell_caster_mut_like_cpp<R>(
-        &mut self,
-        canonical_manager: &mut wow_map::MapManager,
-        map_id: u16,
-        instance_id: u32,
-        caster_guid: ObjectGuid,
-        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R>;
-}
-
-/// The legacy bridge's casters: the legacy representation.
-impl CreatureSpellCastersLikeCpp for wow_world_core::map_manager::MapManager {
-    fn with_spell_caster_like_cpp<R>(
-        &self,
-        _: &wow_map::MapManager,
-        map_id: u16,
-        instance_id: u32,
-        caster_guid: ObjectGuid,
-        operation: impl FnOnce(&wow_entities::Creature) -> R,
-    ) -> Option<R> {
-        self.find_creature(map_id, instance_id, caster_guid)
-            .map(|caster| operation(&caster.creature))
-    }
-
-    fn with_spell_caster_mut_like_cpp<R>(
-        &mut self,
-        _: &mut wow_map::MapManager,
-        map_id: u16,
-        instance_id: u32,
-        caster_guid: ObjectGuid,
-        operation: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R> {
-        self.find_creature_mut(map_id, instance_id, caster_guid)
-            .map(|caster| operation(&mut caster.creature))
-    }
-}
-
-/// The admitted canonical executor's casters: the canonical incarnation itself,
-/// on the manager the executor holds locked.
+/// clocks, swing timer and runtime RNG the cast consumes — the canonical
+/// incarnation itself, on the canonical manager the executor holds locked
+/// (#1263 F6-8E: the only creature store). Every map-owned read (range, LOS,
+/// victim, cooldown history, cast GUID sequence) stays on that manager too.
 pub struct CanonicalCreatureSpellCastersLikeCpp;
 
-impl CreatureSpellCastersLikeCpp for CanonicalCreatureSpellCastersLikeCpp {
-    fn with_spell_caster_like_cpp<R>(
+impl CanonicalCreatureSpellCastersLikeCpp {
+    /// Read the caster; `None` when it is gone.
+    pub fn with_spell_caster_like_cpp<R>(
         &self,
         canonical_manager: &wow_map::MapManager,
         map_id: u16,
@@ -249,7 +194,8 @@ impl CreatureSpellCastersLikeCpp for CanonicalCreatureSpellCastersLikeCpp {
             .with_creature_like_cpp(caster_guid, operation)
     }
 
-    fn with_spell_caster_mut_like_cpp<R>(
+    /// Mutate the caster; `None` when it is gone.
+    pub fn with_spell_caster_mut_like_cpp<R>(
         &mut self,
         canonical_manager: &mut wow_map::MapManager,
         map_id: u16,
@@ -271,40 +217,14 @@ impl CreatureSpellCastersLikeCpp for CanonicalCreatureSpellCastersLikeCpp {
 /// `resetAttackTimer` inside that branch. The reset therefore happens even when
 /// `Spell::CheckCast` rejects the cast — for a `disables` row, for instance —
 /// but never when the victim is out of that raw range or exactly on its bound.
-/// Returns whether the swing was consumed.
-pub fn apply_turret_rejected_cast_attempt_like_cpp(
-    canonical_map_manager: &SharedCanonicalMapManager,
-    legacy_map_manager: &wow_world_core::map_manager::SharedMapManager,
+/// Returns whether the swing was consumed. Runs on the locked canonical
+/// manager.
+pub fn apply_turret_rejected_cast_attempt_on_manager_like_cpp(
+    manager: &mut wow_map::MapManager,
+    casters: &mut CanonicalCreatureSpellCastersLikeCpp,
     attempt: &TurretRejectedCastAttemptLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
-    let Ok(mut manager) = canonical_map_manager.lock() else {
-        return false;
-    };
-    // Same canonical -> legacy lock order the cast validation path uses.
-    let mut legacy_guard = legacy_map_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    apply_turret_rejected_cast_attempt_on_manager_like_cpp(
-        &mut manager,
-        &mut *legacy_guard,
-        attempt,
-        config,
-    )
-}
-
-/// The body of [`apply_turret_rejected_cast_attempt_like_cpp`] on a locked
-/// canonical manager, with the caster wherever `casters` keeps it.
-/// #1263 F6-8D3a-1b: one body for the legacy bridge and the admitted executor.
-pub fn apply_turret_rejected_cast_attempt_on_manager_like_cpp<C>(
-    manager: &mut wow_map::MapManager,
-    casters: &mut C,
-    attempt: &TurretRejectedCastAttemptLikeCpp,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> bool
-where
-    C: CreatureSpellCastersLikeCpp + ?Sized,
-{
     let still_engaged = casters.with_spell_caster_like_cpp(
         manager,
         attempt.map_id,

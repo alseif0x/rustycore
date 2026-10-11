@@ -92,9 +92,7 @@ impl WorldEntitiesState {
     }
 
     /// Fan out a creature packet from an interaction snapshot that has
-    /// already been validated against the canonical-or-legacy NPC authority.
-    /// This keeps observer publication working during the transitional map
-    /// split even when the source exists only in the legacy map manager.
+    /// already been validated against the canonical NPC authority.
     pub fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
         &self,
         hub: HubRef<'_>,
@@ -107,7 +105,6 @@ impl WorldEntitiesState {
             source_guid,
             source_position,
             bytes,
-            true,
             true,
         );
     }
@@ -135,7 +132,6 @@ impl WorldEntitiesState {
             source_position,
             bytes,
             true,
-            false,
         );
     }
 
@@ -146,7 +142,6 @@ impl WorldEntitiesState {
         source_position: Position,
         bytes: Vec<u8>,
         realm_connection: bool,
-        allow_legacy_source_fallback: bool,
     ) {
         hub.core
             .packet_publication_access_like_cpp()
@@ -155,7 +150,6 @@ impl WorldEntitiesState {
                 source_position,
                 bytes,
                 realm_connection,
-                allow_legacy_source_fallback,
             );
     }
 }

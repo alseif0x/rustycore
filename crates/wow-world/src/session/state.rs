@@ -81,8 +81,6 @@ pub(in crate::session) struct SessionWorldView {
     pub(in crate::session) is_pvp_realm_like_cpp: bool,
     /// C++ `World::IsFFAPvPRealm()` classification.
     pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
-    /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
-    pub(in crate::session) combat_tick_last_at_like_cpp: Instant,
     /// High-water mark for map-owned creature-melee presentation commands.
     /// Canonical health/death authority lives on `wow-map`; this suppresses
     /// durable FIFO replay without writing delayed values back to that owner.
