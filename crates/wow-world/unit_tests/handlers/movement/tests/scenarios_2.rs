@@ -342,6 +342,7 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
         ),
     );
 
+    install_canonical_player_on_map_zero_for_test(&manager, player_guid, player_position);
     registry.register_or_replace(
         player_guid,
         broadcast_info_with_command(player_guid, self_tx, self_command_tx),

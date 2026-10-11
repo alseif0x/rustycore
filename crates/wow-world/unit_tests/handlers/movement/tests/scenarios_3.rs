@@ -211,6 +211,7 @@ async fn move_time_skipped_updates_and_routes_from_controlled_mover_like_cpp() {
         ),
     );
 
+    install_canonical_player_on_map_zero_for_test(&manager, player_guid, player_position);
     let mut self_info = broadcast_info_with_command(player_guid, self_tx, self_command_tx);
     self_info.placement.position = player_position;
     registry.register_or_replace(player_guid, self_info, Default::default());
@@ -290,6 +291,7 @@ async fn movement_force_acks_validate_and_route_from_controlled_mover_like_cpp()
         .set_movement_force_mod_magnitude_like_cpp(1.25);
     manager.lock().unwrap().add_creature(0, 0, mover);
 
+    install_canonical_player_on_map_zero_for_test(&manager, player_guid, player_position);
     let mut self_info = broadcast_info_with_command(player_guid, self_tx, self_command_tx);
     self_info.placement.position = player_position;
     registry.register_or_replace(player_guid, self_info, Default::default());
@@ -433,4 +435,56 @@ async fn movement_force_acks_validate_and_route_from_controlled_mover_like_cpp()
         "a force ACK for a non-active mover must not publish"
     );
     assert!(self_command_rx.try_recv().is_err());
+}
+
+/// #1263 F6-8E-2: without a canonical Player map key the controlled-mover
+/// queries resolve nothing (base semantics), even though the creature sits on
+/// the bootstrap key `(map, 0)`; with the Player placed they resolve it.
+#[test]
+fn controlled_mover_queries_need_the_canonical_player_map_key_like_cpp() {
+    let mut session = make_session();
+    let player_guid = ObjectGuid::create_player(1, 46);
+    let mover_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 781, 1_246);
+    let mover_position = Position::new(10.0, 20.0, 0.0, 0.0);
+    let manager = shared_canonical_map_manager();
+    session.set_player_guid(Some(player_guid));
+    session.set_canonical_map_manager(Arc::clone(&manager));
+    manager.lock().unwrap().add_creature(
+        0,
+        0,
+        crate::creature_projection::new_runtime_creature_like_cpp(
+            mover_guid,
+            781,
+            mover_position,
+            100,
+            80,
+            1,
+            2,
+            0.0,
+            1,
+            35,
+            0,
+            0,
+        ),
+    );
+
+    let hub = crate::session::hub_ref(&session);
+    assert_eq!(hub.mover_position_like_cpp(mover_guid), None);
+    assert_eq!(hub.mover_spline_finalized_like_cpp(mover_guid), None);
+    assert_eq!(
+        hub.mover_movement_force_mod_magnitude_like_cpp(mover_guid),
+        None
+    );
+
+    install_canonical_player_on_map_zero_for_test(
+        &manager,
+        player_guid,
+        Position::new(1.0, 2.0, 0.0, 0.0),
+    );
+    let hub = crate::session::hub_ref(&session);
+    assert_eq!(
+        hub.mover_position_like_cpp(mover_guid),
+        Some(mover_position)
+    );
+    assert_eq!(hub.mover_spline_finalized_like_cpp(mover_guid), Some(true));
 }
