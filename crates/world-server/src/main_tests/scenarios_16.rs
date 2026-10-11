@@ -22,6 +22,10 @@ use crate::runtime::canonical_creature_runtime::{
 };
 use wow_world::map_manager::RuntimeTickOwner;
 
+// #1263 F6-8D3b-3: chase and the first creature swing, end to end.
+#[path = "scenarios_16/chase.rs"]
+mod chase;
+
 const D3B_TICK_MS_LIKE_CPP: u32 = 20;
 const D3B_CREATURE_HP_LIKE_CPP: u32 = 20;
 const D3B_PLAYER_HP_LIKE_CPP: u64 = 1_000;
@@ -112,7 +116,6 @@ fn d3b_world_like_cpp(base: i64) -> D3bWorldLikeCpp {
     world_creature.creature.set_corpse_delay(1, false);
     world_creature.creature.set_respawn_delay(1);
     world_creature.creature.ai_ownership_mut().respawn_time_secs = 1;
-    world_creature.creature.ai_ownership_mut().swing_timer_ms = 0;
     world_creature.seed_runtime_rng_like_cpp(0xD3B2);
     let mut canonical_creature = world_creature.creature;
     canonical_creature
@@ -240,6 +243,57 @@ fn d3b_server_opcodes_like_cpp(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Server
         .collect()
 }
 
+/// The creature's state on the canonical map when a packet about it is sent.
+fn d3b_packet_stage_like_cpp(world: &D3bWorldLikeCpp, killed: bool) -> D3bStageLikeCpp {
+    match (
+        d3b_canonical_creature_like_cpp(world, wow_entities::Creature::is_alive),
+        killed,
+    ) {
+        (None, _) => D3bStageLikeCpp::Despawned,
+        (Some(false), _) => D3bStageLikeCpp::Corpse,
+        (Some(true), true) => D3bStageLikeCpp::Respawned,
+        (Some(true), false) => D3bStageLikeCpp::Combat,
+    }
+}
+
+/// Drain everything the session sent so far, recording every
+/// `SMSG_UPDATE_OBJECT` and `SMSG_ON_MONSTER_MOVE` that carries the creature's
+/// GUID, whichever session step sent it (the login and respawn CREATE, the
+/// DESTROY, the kill path's own VALUES and the map's VALUES step alike).
+/// `values_step`: the drain right after the map's Unit VALUES step, whose
+/// creature packets are also counted on their own.
+fn d3b_drain_like_cpp(
+    world: &D3bWorldLikeCpp,
+    send_rx: &flume::Receiver<Vec<u8>>,
+    observed: &mut D3bObservedLikeCpp,
+    values_step: bool,
+) -> Vec<ServerOpcodes> {
+    let stage = d3b_packet_stage_like_cpp(world, observed.kills > 0);
+    let packed = d3b_packed_guid_like_cpp(world.creature);
+    let mut opcodes = Vec::new();
+    for bytes in send_rx.try_iter() {
+        let opcode = wow_packet::WorldPacket::from_bytes(&bytes).server_opcode();
+        let about_creature = bytes.windows(packed.len()).any(|window| window == packed);
+        match opcode {
+            Some(ServerOpcodes::UpdateObject) if about_creature => {
+                *observed.creature_update_objects.entry(stage).or_default() += 1;
+                if values_step {
+                    *observed.creature_values_packets.entry(stage).or_default() += 1;
+                }
+                observed
+                    .creature_update_object_payloads
+                    .push((values_step, bytes.clone()));
+            }
+            Some(ServerOpcodes::OnMonsterMove) if about_creature => {
+                observed.creature_monster_moves += 1;
+            }
+            _ => {}
+        }
+        opcodes.extend(opcode);
+    }
+    opcodes
+}
+
 /// The lifecycle stage the run is in, for the per-stage VALUES counts.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum D3bStageLikeCpp {
@@ -260,9 +314,16 @@ struct D3bObservedLikeCpp {
     /// `SendVisibleObjectValuesUpdate` commands for the creature the session
     /// received, per lifecycle stage.
     creature_values_updates: BTreeMap<D3bStageLikeCpp, usize>,
-    /// Creature VALUES `SMSG_UPDATE_OBJECT` packets the session sent, per
-    /// lifecycle stage.
+    /// Creature VALUES `SMSG_UPDATE_OBJECT` packets the session sent from the
+    /// map's Unit VALUES step, per lifecycle stage.
     creature_values_packets: BTreeMap<D3bStageLikeCpp, usize>,
+    /// Every `SMSG_UPDATE_OBJECT` carrying the creature's GUID the session
+    /// sent over the whole run, per lifecycle stage, and their bytes in order.
+    creature_update_objects: BTreeMap<D3bStageLikeCpp, usize>,
+    /// `(from the map's VALUES step, bytes)` of each of them, in order.
+    creature_update_object_payloads: Vec<(bool, Vec<u8>)>,
+    /// `SMSG_ON_MONSTER_MOVE` packets for the creature the session sent.
+    creature_monster_moves: usize,
     destroy_delivered: bool,
     update_after_despawn: bool,
     db_mutations: Vec<RespawnPersistenceMutationLikeCpp>,
@@ -312,17 +373,12 @@ impl D3bObservedLikeCpp {
     }
 }
 
-/// Boot the canonical map loop with the canonical creature owner and drive the
-/// real session until the creature has died, been looted, despawned,
-/// respawned and been re-created at the client, or `deadline` passes.
-async fn d3b_run_like_cpp(
+/// Boot the production canonical map update loop with the canonical creature
+/// owner over `world`.
+fn d3b_spawn_canonical_loop_like_cpp(
     world: &D3bWorldLikeCpp,
-    session: &mut wow_world::session::WorldSession,
-    send_rx: &flume::Receiver<Vec<u8>>,
-    deadline: Duration,
-    mut on_first_creature_melee: impl FnMut(&D3bWorldLikeCpp, &CanonicalCreatureRuntimeProbeLikeCpp),
 ) -> (
-    D3bObservedLikeCpp,
+    tokio::task::JoinHandle<()>,
     Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
 ) {
     let runtime = d3b_canonical_runtime_like_cpp();
@@ -353,6 +409,23 @@ async fn d3b_run_like_cpp(
         Arc::new(Mutex::new(Default::default())),
         Some(runtime),
     );
+    (canonical_handle, probe)
+}
+
+/// Boot the canonical map loop with the canonical creature owner and drive the
+/// real session until the creature has died, been looted, despawned,
+/// respawned and been re-created at the client, or `deadline` passes.
+async fn d3b_run_like_cpp(
+    world: &D3bWorldLikeCpp,
+    session: &mut wow_world::session::WorldSession,
+    send_rx: &flume::Receiver<Vec<u8>>,
+    deadline: Duration,
+    mut on_first_creature_melee: impl FnMut(&D3bWorldLikeCpp, &CanonicalCreatureRuntimeProbeLikeCpp),
+) -> (
+    D3bObservedLikeCpp,
+    Arc<CanonicalCreatureRuntimeProbeLikeCpp>,
+) {
+    let (canonical_handle, probe) = d3b_spawn_canonical_loop_like_cpp(world);
 
     let mut observed = D3bObservedLikeCpp::default();
     let mut seen_creature_melee = false;
@@ -368,33 +441,11 @@ async fn d3b_run_like_cpp(
                 observed.record_like_cpp(creature, stage, command);
             })
             .await;
-        let mut opcodes = d3b_server_opcodes_like_cpp(send_rx);
-        // The driver's logged-in step that publishes the map's Unit VALUES:
-        // every creature VALUES packet this client receives comes from here.
+        let mut opcodes = d3b_drain_like_cpp(world, send_rx, &mut observed, false);
+        // The driver's logged-in step that publishes the map's Unit VALUES.
         // The stage is the creature's state on the canonical map when sent.
         if session.send_map_unit_values_updates_for_test_like_cpp() > 0 {
-            let values_stage = match (
-                d3b_canonical_creature_like_cpp(world, wow_entities::Creature::is_alive),
-                observed.kills > 0,
-            ) {
-                (None, _) => D3bStageLikeCpp::Despawned,
-                (Some(false), _) => D3bStageLikeCpp::Corpse,
-                (Some(true), true) => D3bStageLikeCpp::Respawned,
-                (Some(true), false) => D3bStageLikeCpp::Combat,
-            };
-            let packed = d3b_packed_guid_like_cpp(creature);
-            for bytes in send_rx.try_iter() {
-                let packet = wow_packet::WorldPacket::from_bytes(&bytes);
-                if packet.server_opcode() == Some(ServerOpcodes::UpdateObject)
-                    && bytes.windows(packed.len()).any(|window| window == packed)
-                {
-                    *observed
-                        .creature_values_packets
-                        .entry(values_stage)
-                        .or_default() += 1;
-                }
-                opcodes.extend(packet.server_opcode());
-            }
+            opcodes.extend(d3b_drain_like_cpp(world, send_rx, &mut observed, true));
         }
         if observed.creature_melee > 0 && !seen_creature_melee {
             seen_creature_melee = true;
@@ -417,16 +468,16 @@ async fn d3b_run_like_cpp(
                     d3b_guid_packet_like_cpp(world.creature),
                 )
                 .await;
-            observed.loot_response =
-                d3b_server_opcodes_like_cpp(send_rx).contains(&ServerOpcodes::LootResponse);
+            observed.loot_response = d3b_drain_like_cpp(world, send_rx, &mut observed, false)
+                .contains(&ServerOpcodes::LootResponse);
             session
                 .dispatch_client_packet_for_test_like_cpp(
                     wow_constants::ClientOpcodes::LootRelease,
                     d3b_guid_packet_like_cpp(world.creature),
                 )
                 .await;
-            observed.loot_released =
-                d3b_server_opcodes_like_cpp(send_rx).contains(&ServerOpcodes::LootRelease);
+            observed.loot_released = d3b_drain_like_cpp(world, send_rx, &mut observed, false)
+                .contains(&ServerOpcodes::LootRelease);
         }
         if observed.just_died && alive.is_none() {
             observed.despawned = true;
@@ -483,7 +534,7 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
         "the login visibility pass created the canonical creature"
     );
     d3b_player_attacks_like_cpp(&world, player);
-    let _ = d3b_server_opcodes_like_cpp(&send_rx);
+    // The login CREATE stays queued: the run counts it with everything else.
 
     let mut clock_check = None;
     let (observed, probe) = d3b_run_like_cpp(
@@ -624,6 +675,47 @@ async fn canonical_map_owner_runs_the_session_kill_path_end_to_end_like_cpp() {
     );
     eprintln!(
         "F6-8D3b-2 VALUES: {total} creature VALUES packets over {executed} executor ticks: {packets:?}"
+    );
+
+    // #1263 F6-8D3b-3: every `SMSG_UPDATE_OBJECT` with the creature's GUID the
+    // session delivered over the whole lifecycle — the login CREATE, the kill
+    // path's own VALUES and the loot step's, the despawn DESTROY and the
+    // respawn CREATE, not only the map's VALUES step — stays bounded, and no
+    // packet repeats the previous one's bytes (no republish of unchanged
+    // values).
+    let all = &observed.creature_update_objects;
+    let all_total: usize = all.values().sum();
+    assert!(
+        all_total >= total + 2,
+        "the login and respawn CREATE are counted too: {all:?} vs VALUES {packets:?}"
+    );
+    assert!(
+        all_total * 4 <= usize::try_from(executed).unwrap(),
+        "creature UPDATE_OBJECT bounded over the lifecycle: {all_total} over {executed} ticks ({all:?})"
+    );
+    assert!(
+        all.get(&D3bStageLikeCpp::Despawned).copied().unwrap_or(0) <= 1,
+        "a despawned creature gets at most its DESTROY: {all:?}"
+    );
+    assert!(
+        all.get(&D3bStageLikeCpp::Corpse).copied().unwrap_or(0) <= 4,
+        "an untouched corpse republishes nothing: {all:?}"
+    );
+    // The map's VALUES step never sends a client the creature values it has
+    // just received from another rail (the melee result, the kill path, the
+    // loot-release fanout). A forced resend C++ also makes
+    // (`ForceUpdateFieldChange(DynamicFlags)` on loot release) is its own rail.
+    let payloads = &observed.creature_update_object_payloads;
+    let republished = payloads
+        .windows(2)
+        .filter(|pair| pair[1].0 && pair[0].1 == pair[1].1)
+        .count();
+    assert_eq!(
+        republished, 0,
+        "the map's VALUES step republished unchanged creature values"
+    );
+    eprintln!(
+        "F6-8D3b-3 UPDATE_OBJECT: {all_total} creature UPDATE_OBJECT packets over {executed} executor ticks: {all:?}"
     );
 
     // Login near the respawned creature: a fresh session entering the map

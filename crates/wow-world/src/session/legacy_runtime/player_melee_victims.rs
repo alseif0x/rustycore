@@ -58,6 +58,17 @@ pub(in crate::session) trait PlayerMeleeCreatureVictimsLikeCpp {
 
     /// The swing no longer needs any creature victim (a player victim).
     fn release_creature_victims_like_cpp(&mut self);
+
+    /// Whether the victim's own map publishes the VALUES the swing changed.
+    ///
+    /// #1263 F6-8D3b-3: C++ `Unit::AttackerStateUpdate` → `DealDamage` →
+    /// `SetHealth` only marks the field; `Map::SendObjectUpdates` publishes it
+    /// once at the end of the map update (`Map.cpp:1929-1948`). A canonical
+    /// victim is exactly that map record, so the melee result must not carry a
+    /// second copy to the attacker's client.
+    fn victim_values_published_by_map_like_cpp(&self) -> bool {
+        false
+    }
 }
 
 /// One legacy creature-victim representation the bridge mirrors to its
@@ -222,6 +233,10 @@ impl PlayerMeleeCreatureVictimsLikeCpp for CanonicalPlayerMeleeCreatureVictimsLi
     }
 
     fn release_creature_victims_like_cpp(&mut self) {}
+
+    fn victim_values_published_by_map_like_cpp(&self) -> bool {
+        true
+    }
 }
 
 /// The creature-victim terms one player swing reads before it is resolved.

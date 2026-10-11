@@ -220,7 +220,17 @@ impl SessionCore {
     ///   mutation runs on the legacy representation alone, as before.
     ///
     /// `mutation` refuses by returning `None` (the loot-lifecycle observation
-    /// roots); the incarnation is still re-inserted unchanged. Lock order is
+    /// roots); the incarnation is still re-inserted unchanged.
+    ///
+    /// #1263 F6-8D3b-3: the incarnation always returns to its map. A panic in
+    /// `mutation` is caught, the incarnation is put back into its record and
+    /// cell, the canonical guard is released (so the mutex the map loop needs
+    /// is not poisoned), and the panic resumes; a guard also returns it if
+    /// anything else unwinds. A mutation that rebinds the creature's map is
+    /// refused loudly and the binding it was lent with restored. A position the
+    /// mutation changed is applied as C++ `Unit::UpdatePosition` →
+    /// `Map::CreatureRelocation`, so the grid cell follows (vehicle, possess and
+    /// mind-control movers write it through `set_ai_position`). Lock order is
     /// canonical then legacy; no I/O, delivery, await or manager re-entry
     /// happens inside these guards, and the authority lock a caller's
     /// `mutation` may take stays innermost.
@@ -314,52 +324,62 @@ impl SessionCore {
             );
         }
         let old_threat_guids = creature_threat_guids_on_map_like_cpp(map, guid);
-        let Some(record) = map.remove_map_object(guid) else {
+        let Some((creature, origin)) = map.lend_creature_like_cpp(guid) else {
             return unavailable(
                 CreatureRepresentationAdmissionClauseLikeCpp::IncarnationAbsent,
                 "incarnation_absent",
             );
         };
-        let creature = match record.into_creature() {
-            Ok(creature) => *creature,
-            Err(record) => {
-                let _ = map.insert_map_object_record(record);
-                return unavailable(
-                    CreatureRepresentationAdmissionClauseLikeCpp::IncarnationAbsent,
-                    "incarnation_absent",
-                );
-            }
-        };
         // The incarnation is its own representation: the predicate evaluated
-        // against itself is the admitted decision the capture records.
+        // against itself is the admitted decision the capture records. Since
+        // D3b-2 this is tautological (always `Admitted`); the record is kept
+        // for the C1 capture stream until E retires it.
         let decision = creature_representation_admission_decision_like_cpp(&creature, &creature);
 
-        let mut legacy_guard = legacy_manager.as_ref().map(|legacy| {
+        // A legacy copy exists only under the test-fixture owners. Production
+        // has none, so it pays neither the projection clone nor the legacy
+        // write guard; the read guard here is released before the mutation.
+        let legacy_create_data = legacy_manager.as_ref().and_then(|legacy| {
             legacy
-                .write()
+                .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .find_creature(map_id, instance_id, guid)
+                .map(|legacy| legacy.create_data.clone())
         });
-        let create_data = legacy_guard
-            .as_mut()
-            .and_then(|legacy| legacy.find_creature(map_id, instance_id, guid))
-            .map(|legacy| legacy.create_data.clone())
-            .unwrap_or_else(|| {
-                crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature)
-            });
-        let mut incarnation = crate::map_manager::WorldCreature {
-            creature,
-            create_data,
+        let legacy_copy = legacy_create_data.is_some();
+        let create_data = legacy_create_data.unwrap_or_else(|| {
+            crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(&creature)
+        });
+        let mut lent = LentIncarnationLikeCpp {
+            map,
+            origin,
+            old_threat_guids: Some(old_threat_guids),
+            incarnation: Some(crate::map_manager::WorldCreature {
+                creature,
+                create_data,
+            }),
         };
-        let result = mutation(&mut incarnation);
+        let result = match std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            mutation(lent.incarnation.as_mut().expect("lent until returned"))
+        })) {
+            Ok(result) => result,
+            Err(panic) => {
+                // The guard returns the incarnation to its record and cell, and
+                // the canonical guard is released normally before the panic
+                // resumes: the creature is not lost and the canonical mutex the
+                // map loop needs is not poisoned.
+                drop(lent);
+                drop(canonical_manager);
+                std::panic::resume_unwind(panic);
+            }
+        };
         let crate::map_manager::WorldCreature {
             creature,
             create_data,
-        } = incarnation;
-        let projection = result.is_some().then(|| creature.clone());
-        let reinserted = wow_entities::MapObjectRecord::new_creature(creature)
-            .ok()
-            .is_some_and(|record| map.insert_map_object_record(record).is_ok());
-        if !reinserted {
+        } = lent.incarnation.take().expect("lent until returned");
+        let projection = (legacy_copy && result.is_some()).then(|| creature.clone());
+        let returned = lent.return_like_cpp(creature);
+        if returned != LentIncarnationReturnLikeCpp::Clean {
             return (
                 None,
                 Some(capture(
@@ -370,19 +390,119 @@ impl SessionCore {
                 )),
             );
         }
-        reconcile_creature_threat_references_on_map_like_cpp(map, guid, old_threat_guids);
+        drop(lent);
         let Some(result) = result else {
             return (
                 None,
                 Some(capture(decision, true, "mutation_root_refused", false)),
             );
         };
-        if let (Some(legacy), Some(projection)) = (legacy_guard.as_mut(), projection)
-            && let Some(represented) = legacy.find_creature_mut(map_id, instance_id, guid)
-        {
-            represented.creature = projection;
-            represented.create_data = create_data;
+        if let (Some(legacy), Some(projection)) = (legacy_manager.as_ref(), projection) {
+            let mut legacy = legacy
+                .write()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            if let Some(represented) = legacy.find_creature_mut(map_id, instance_id, guid) {
+                represented.creature = projection;
+                represented.create_data = create_data;
+            }
         }
         (Some(result), Some(capture(decision, true, "applied", true)))
+    }
+}
+
+/// How a lent incarnation went back to its map.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LentIncarnationReturnLikeCpp {
+    /// Back in its record, relocated to where the mutation left it.
+    Clean,
+    /// Back in its record, but only after the binding it was lent with was put
+    /// back: the mutation rebound or unbound its map, which is refused.
+    BindingRestored,
+    /// The record could not be rebuilt and the incarnation is gone.
+    Lost,
+}
+
+/// One canonical incarnation lent out of its map record by the mutation root.
+///
+/// #1263 F6-8D3b-3: it goes back to the map however the lending ends. The
+/// root returns it explicitly; if anything unwinds first, `Drop` returns it,
+/// still under the canonical guard, so the creature is never left out of
+/// `entity_world` with its GUID in a grid cell.
+struct LentIncarnationLikeCpp<'m> {
+    map: &'m mut wow_map::ManagedMapInnerLikeCpp,
+    origin: wow_map::LentCreatureOriginLikeCpp,
+    old_threat_guids: Option<Vec<ObjectGuid>>,
+    incarnation: Option<crate::map_manager::WorldCreature>,
+}
+
+impl LentIncarnationLikeCpp<'_> {
+    /// Put `creature` back (C++ `Map::CreatureRelocation` for a position the
+    /// mutation changed), then bring the other units' `threatened by me`
+    /// references in line with its threat list.
+    fn return_like_cpp(
+        &mut self,
+        creature: wow_entities::Creature,
+    ) -> LentIncarnationReturnLikeCpp {
+        let guid = self.origin.guid;
+        let returned = match self
+            .map
+            .return_lent_creature_like_cpp(creature, self.origin)
+        {
+            wow_map::LentCreatureReturnLikeCpp::Returned {
+                binding_restored,
+                relocation,
+            } => {
+                match relocation {
+                    Some(Ok(outcome)) if !outcome.relocated => tracing::debug!(
+                        ?guid,
+                        ?outcome,
+                        "creature mutation moved the creature into an unloaded grid; it stays at its origin like C++ Map::CreatureRelocation"
+                    ),
+                    Some(Err(error)) => tracing::warn!(
+                        ?guid,
+                        ?error,
+                        "creature mutation left the creature at a position the map refused; it stays at its origin"
+                    ),
+                    _ => {}
+                }
+                if binding_restored {
+                    tracing::error!(
+                        ?guid,
+                        map_id = self.origin.map_id,
+                        instance_id = self.origin.instance_id,
+                        "creature mutation rebound the creature's map; the binding it was lent with was restored and the mutation is refused"
+                    );
+                    LentIncarnationReturnLikeCpp::BindingRestored
+                } else {
+                    LentIncarnationReturnLikeCpp::Clean
+                }
+            }
+            wow_map::LentCreatureReturnLikeCpp::Lost { error } => {
+                tracing::error!(
+                    ?guid,
+                    ?error,
+                    "creature mutation left an incarnation that cannot return to its map record; the creature is lost"
+                );
+                LentIncarnationReturnLikeCpp::Lost
+            }
+        };
+        if returned != LentIncarnationReturnLikeCpp::Lost
+            && let Some(old_threat_guids) = self.old_threat_guids.take()
+        {
+            reconcile_creature_threat_references_on_map_like_cpp(self.map, guid, old_threat_guids);
+        }
+        returned
+    }
+}
+
+impl Drop for LentIncarnationLikeCpp<'_> {
+    fn drop(&mut self) {
+        if let Some(incarnation) = self.incarnation.take() {
+            tracing::error!(
+                guid = ?self.origin.guid,
+                "creature mutation unwound; returning the lent incarnation to its map"
+            );
+            let _ = self.return_like_cpp(incarnation.creature);
+        }
     }
 }

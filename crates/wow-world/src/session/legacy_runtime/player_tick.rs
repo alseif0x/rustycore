@@ -582,7 +582,8 @@ pub(in crate::session) fn execute_player_melee_swing_on_manager_like_cpp<V>(
                 }
             })
             .collect();
-        command.victim_values_update = Some(hit.values_update);
+        command.victim_values_update =
+            (!victims.victim_values_published_by_map_like_cpp()).then_some(hit.values_update);
         if hit.died {
             outcome.creature_kills += 1;
             command.killed_creature =

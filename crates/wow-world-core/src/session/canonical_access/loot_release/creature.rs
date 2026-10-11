@@ -53,8 +53,31 @@ fn looted_creature_lifecycle_like_cpp(
         } else {
             None
         };
-        (marked, creature.creature.unit().values_update())
+        (
+            marked,
+            loot_release_values_for_fanout_like_cpp(&mut creature.creature),
+        )
     }
+}
+
+/// The creature VALUES a loot release fans out to every viewer.
+///
+/// #1263 F6-8D3b-3: the fanout (`SendCreatureLootReleaseValuesUpdateLikeCpp`)
+/// is the one publisher of the viewer-dependent DynamicFlags it carries (C++
+/// `ForceUpdateFieldChange(DynamicFlags)` → one per-viewer VALUES at the next
+/// `Map::SendObjectUpdates`). Since the root mutates the canonical incarnation
+/// (D3b-2), its DynamicFlags mark would otherwise make the map's VALUES step
+/// republish the same field, raw, to the same clients.
+pub(crate) fn loot_release_values_for_fanout_like_cpp(
+    creature: &mut wow_entities::Creature,
+) -> wow_entities::UnitValuesUpdate {
+    let update = creature.unit().values_update();
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .take_dynamic_flags_change_like_cpp();
+    update
 }
 
 impl LootReleaseOwnerAccessLikeCpp<'_> {

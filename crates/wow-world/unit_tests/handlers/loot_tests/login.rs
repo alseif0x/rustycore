@@ -125,7 +125,7 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     let mut loot = authoritative_test_loot_like_cpp(7, false);
     loot.round_robin_player = first_guid;
     loot.allowed_looters = vec![first_guid, second_guid];
-    let (mut first, _first_rx, mut second, _second_rx, owner_guid, _, _) =
+    let (mut first, first_rx, mut second, _second_rx, owner_guid, _, _) =
         two_sessions_with_authoritative_creature_loot_like_cpp(loot);
     // The helper uses its own deterministic player ids; install the exact
     // current round-robin holder from the opened first session.
@@ -165,6 +165,8 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
             .clear_update_mask(false);
     });
 
+    first.core.client_visible_guids_like_cpp.insert(owner_guid);
+    while first_rx.try_recv().is_ok() {}
     assert!(
         first
             .do_loot_release_owner_like_cpp(owner_guid, opened_first)
@@ -188,8 +190,28 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
             .round_robin_player
             .is_empty()
     );
+    // C++ forces DynamicFlags after the release (`LootHandler.cpp:391`) and
+    // publishes it per viewer. #1263 F6-8D3b-3: that per-viewer publication is
+    // the loot-release fanout (the releaser's own VALUES, then every other
+    // viewer's queued command), which takes the forced mark, so the map's raw
+    // VALUES step does not publish the same field a second time.
+    let packed_owner = {
+        let mut packet = wow_packet::WorldPacket::new_empty();
+        packet.write_packed_guid(&owner_guid);
+        packet.data().to_vec()
+    };
     assert!(
-        first
+        first_rx.try_iter().any(|bytes| {
+            wow_packet::WorldPacket::from_bytes(&bytes).server_opcode()
+                == Some(wow_constants::ServerOpcodes::UpdateObject)
+                && bytes
+                    .windows(packed_owner.len())
+                    .any(|window| window == packed_owner)
+        }),
+        "the releaser receives the forced DynamicFlags"
+    );
+    assert!(
+        !first
             .mutate_world_creature(owner_guid, |creature| {
                 creature
                     .creature

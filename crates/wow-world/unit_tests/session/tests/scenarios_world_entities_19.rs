@@ -36,6 +36,9 @@ mod f6_8d3a3_lifecycle_parity;
 // #1263 F6-8D3b-2: the canonical-first root and the canonical R7b-1 deferral.
 #[path = "scenarios_world_entities_19/f6_8d3b2_canonical_first.rs"]
 mod f6_8d3b2_canonical_first;
+// #1263 F6-8D3b-3: the root always returns the lent incarnation and relocates it.
+#[path = "scenarios_world_entities_19/f6_8d3b3_root_hardening.rs"]
+mod f6_8d3b3_root_hardening;
 #[path = "scenarios_world_entities_19/gameobject_use.rs"]
 mod gameobject_use;
 #[path = "scenarios_world_entities_19/legacy_creature_tick_noop.rs"]
