@@ -625,6 +625,12 @@
           "source_class": "production"
         },
         {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::entities::gameobject",
           "trait_path": null,
           "cfg": [],
@@ -1161,6 +1167,12 @@
           "source_class": "test_fixture"
         },
         {
+          "module": "crate::handlers::talent::host",
+          "trait_path": "TalentHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "module": "crate::handlers::talent::state",
           "trait_path": null,
           "cfg": [],
@@ -1225,6 +1237,12 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture"
+        },
+        {
+          "module": "crate::handlers::void_storage::host",
+          "trait_path": "VoidStorageHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "cfg": [],
+          "source_class": "production"
         },
         {
           "module": "crate::handlers::void_storage::items",
@@ -7403,6 +7421,62 @@
           "guards": [
             "external_impl",
             "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_reclaim_corpse_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_reclaim_corpse_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_repop_request_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_repop_request_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_request_cemetery_list_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_request_cemetery_list_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::entities::corpse::host",
+          "trait_path": "CorpseHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_resurrect_response_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_resurrect_response_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
@@ -14598,6 +14672,34 @@
           ]
         },
         {
+          "module": "crate::handlers::talent::host",
+          "trait_path": "TalentHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_confirm_respec_wipe_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_confirm_respec_wipe_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::talent::host",
+          "trait_path": "TalentHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_learn_talent_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_learn_talent_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
           "module": "crate::handlers::talent::state",
           "trait_path": null,
           "kind": "method",
@@ -15339,6 +15441,62 @@
           "source_class": "test_fixture",
           "guards": [
             "external_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::host",
+          "trait_path": "VoidStorageHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_void_storage_query_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_void_storage_query_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::host",
+          "trait_path": "VoidStorageHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_void_storage_swap_item_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_void_storage_swap_item_like_cpp < 'a > (& 'a mut self , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::host",
+          "trait_path": "VoidStorageHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_void_storage_transfer_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_void_storage_transfer_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::handlers::void_storage::host",
+          "trait_path": "VoidStorageHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "handle_void_storage_unlock_with_catalogs_like_cpp",
+          "visibility": "private",
+          "signature": "fn handle_void_storage_unlock_with_catalogs_like_cpp < 'a > (& 'a mut self , catalogs : & 'a SessionHandlerCatalogsLikeCpp , pkt : WorldPacket ,) -> HandlerFuture < 'a , () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "trait_impl"
           ]
         },
         {
