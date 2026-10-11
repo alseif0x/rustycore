@@ -34,7 +34,7 @@ pub use connection_identity::{
 // and its name helper. The production decision points are `instances/map_key.rs`
 // plus the two `wow-world` session roots that report a login attach or a
 // far-transfer detach.
-pub use instances::map_key::{LegacyRuntimeLocationCaptureLikeCpp, session_state_name_like_cpp};
+pub use instances::map_key::{RuntimeLocationCaptureLikeCpp, session_state_name_like_cpp};
 
 mod canonical_access;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -262,8 +262,6 @@ pub use creature_canonical_adapter::{
     remove_canonical_creature_map_object_on_map_like_cpp,
     remove_canonical_respawn_time_on_locked_map_like_cpp,
     remove_canonical_respawn_time_on_map_like_cpp,
-    sync_admitted_creature_representation_on_map_like_cpp,
-    sync_canonical_creature_entity_on_map_like_cpp,
 };
 
 pub mod player_binding;

@@ -47,7 +47,7 @@ impl WorldSession {
         let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
             return Vec::new();
         };
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
+        let (map_id, instance_id) = self.core.current_runtime_map_key_like_cpp();
         manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())

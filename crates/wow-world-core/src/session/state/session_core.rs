@@ -119,12 +119,12 @@ pub struct SessionCore {
     /// constructed. Production reads resolve from that Player after install.
     pub player_identity_bootstrap_like_cpp: Option<PlayerIdentityBootstrapLikeCpp>,
 
-    /// Shared, server-wide map state. When `Some`, creature reads/writes can
-    /// route through here so all sessions on the same map see the same world.
-    /// `None` until the world server injects the manager (see `set_map_manager`).
-    pub map_manager: Option<crate::map_manager::SharedMapManager>,
-    /// Canonical C++-style `wow-map` manager. This is injected separately from
-    /// the legacy `wow-world` manager while handlers migrate to `wow-map`.
+    /// Shared, file-backed terrain height (`DataDir`), injected by the world
+    /// server (`set_live_terrain_like_cpp`). `None` in isolated sessions, where
+    /// height-dependent paths keep their no-terrain behaviour.
+    pub live_terrain: Option<std::sync::Arc<crate::map_manager::LiveTerrainHeights>>,
+    /// Canonical C++-style `wow-map` manager: the one map, creature and
+    /// player store (#1263 F6-8E).
     pub canonical_map_manager: Option<SharedCanonicalMapManager>,
     /// Generation-checked identity of the one canonical Player value owned by
     /// MapManager. It remains resolvable while detached for a far teleport.
@@ -244,7 +244,7 @@ impl SessionCore {
             player_bootstrap_attached_like_cpp: false,
             current_map_id: 0,
             player_identity_bootstrap_like_cpp: None,
-            map_manager: None,
+            live_terrain: None,
             canonical_map_manager: None,
             player_handle_like_cpp: None,
 

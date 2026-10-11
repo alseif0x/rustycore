@@ -83,7 +83,7 @@ pub(in crate::session::tests) fn make_session() -> (
 pub(in crate::session::tests) fn attach_addressed_empty_legacy_loot_store_like_cpp(
     session: &mut WorldSession,
 ) {
-    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let manager = Arc::new(std::sync::RwLock::new(crate::map_manager::MapManager::new()));
     manager
         .write()

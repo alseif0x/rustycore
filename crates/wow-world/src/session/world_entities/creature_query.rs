@@ -55,7 +55,7 @@ impl WorldSession {
         );
 
         if let Some(manager) = &self.core.map_manager {
-            let (_, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
+            let (_, instance_id) = self.core.current_runtime_map_key_like_cpp();
             let visibility_range = self.config.player_map_visibility_range_like_cpp(map_id);
             // Materialize the legacy candidates and release its map-manager
             // read guard before visibility filters consult canonical Player

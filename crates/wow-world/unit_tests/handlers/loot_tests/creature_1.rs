@@ -221,7 +221,7 @@ fn stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp() {
     let canonical_creature = make_canonical_creature_for_session(&session, owner_guid);
     attach_canonical_creature(&mut session, canonical_creature);
 
-    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let map_key = wow_map::MapKey::new(u32::from(map_id), instance_id);
     let legacy_before = session
         .read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)

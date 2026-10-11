@@ -612,7 +612,7 @@ impl WorldEntitiesState {
         hub: &mut HubMut<'_>,
         guid: ObjectGuid,
     ) -> Option<WorldCreature> {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
+        let (map_id, instance_id) = hub.core.current_runtime_map_key_like_cpp();
         let canonical = hub.core.canonical_map_manager.as_ref().and_then(|manager| {
             let mut manager = manager.lock().ok()?;
             let map = manager

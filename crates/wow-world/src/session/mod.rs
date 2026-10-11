@@ -230,8 +230,6 @@ pub(crate) use creature_canonical_adapter::add_canonical_creature_respawn_info_a
 pub(crate) use creature_canonical_adapter::relocate_canonical_creature_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::remove_canonical_creature_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::remove_canonical_respawn_time_on_map_like_cpp;
-pub(crate) use creature_canonical_adapter::sync_admitted_creature_representation_on_map_like_cpp;
-pub(crate) use creature_canonical_adapter::sync_canonical_creature_entity_on_map_like_cpp;
 mod creature_kill_contracts;
 use creature_kill_contracts::PendingCreatureKillRewardLikeCpp;
 #[cfg(test)]

@@ -92,7 +92,7 @@ pub(in crate::session::tests) fn ensure_canonical_test_map_for_session_like_cpp(
     let Some(canonical) = session.core.canonical_map_manager.clone() else {
         return;
     };
-    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let mut guard = canonical
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());

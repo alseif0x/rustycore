@@ -237,22 +237,16 @@ impl WorldSession {
             .remove_current_player_from_canonical_current_map_like_cpp();
         // #1263 C2: the far-transfer detach point. The canonical Player is now
         // detached (residence `Detached`), so the canonical key resolution
-        // below is expected to be absent and the legacy runtime map key falls
+        // below is expected to be absent and the runtime map key falls
         // back. Every guard taken here is released before the event is emitted.
         {
             let old_map_id = self.core.player_map_id_like_cpp();
             let canonical_key = self.core.current_canonical_player_map_key_like_cpp();
             let (resolved_map_id, resolved_instance_id) =
-                self.core.current_legacy_runtime_map_key_like_cpp();
-            let resolved_presence = self
-                .core
-                .legacy_map_presence_capture_like_cpp(resolved_map_id, resolved_instance_id);
+                self.core.current_runtime_map_key_like_cpp();
             let destination_map_id = u16::try_from(new_map).unwrap_or(u16::MAX);
-            let destination_presence = self
-                .core
-                .legacy_map_presence_capture_like_cpp(destination_map_id, 0);
-            self.core.emit_legacy_runtime_location_capture_like_cpp(
-                wow_world_core::session::LegacyRuntimeLocationCaptureLikeCpp {
+            self.core.emit_runtime_location_capture_like_cpp(
+                wow_world_core::session::RuntimeLocationCaptureLikeCpp {
                     capture_id: "C2",
                     root: "WorldSession::teleport_to_with_options::far_transfer_detach",
                     phase: "detach",
@@ -265,8 +259,6 @@ impl WorldSession {
                     canonical_key_present: canonical_key.is_some(),
                     resolved_map_id,
                     resolved_instance_id,
-                    legacy_presence: resolved_presence,
-                    requested_legacy_presence: destination_presence,
                     detail: "far_teleport_detached_before_worldport_response",
                 },
             );

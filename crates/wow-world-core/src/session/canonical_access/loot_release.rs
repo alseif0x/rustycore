@@ -157,12 +157,6 @@ impl LootReleaseOwnerAccessLikeCpp<'_> {
             return;
         };
         if owner_guid.is_creature_or_vehicle() {
-            let _ = self.core.rebind_legacy_creature_loot_authority_like_cpp(
-                owner_guid,
-                &authority,
-                authority.stamp_like_cpp(),
-                authority.clone(),
-            );
             let authority_stamp = authority.stamp_like_cpp();
             let _ = self
                 .transitions_like_cpp()

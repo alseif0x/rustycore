@@ -201,7 +201,7 @@ fn sync_canonical_creature_entity_like_cpp(
 ) -> bool {
     let expected = creature.loot_authority_like_cpp().clone();
     let stamp = expected.stamp_like_cpp();
-    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let Some(manager) = session.core.canonical_map_manager.as_ref().cloned() else {
         return false;
     };

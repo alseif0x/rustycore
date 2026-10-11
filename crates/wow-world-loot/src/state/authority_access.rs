@@ -18,7 +18,7 @@ impl LootState {
         hub: HubRef<'_>,
         guid: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
+        let (map_id, instance_id) = hub.core.current_runtime_map_key_like_cpp();
         self.read_legacy_creature_loot_authority_on_map_like_cpp(
             hub,
             guid,

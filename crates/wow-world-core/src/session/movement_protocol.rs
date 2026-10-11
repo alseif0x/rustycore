@@ -279,18 +279,11 @@ impl crate::session::state::MovementState {
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn player_min_height_like_cpp(&self, position: wow_core::Position) -> f32 {
-        let map_id = self.core.player_map_id_like_cpp();
-        self.core
-            .map_manager
-            .as_ref()
-            .and_then(|manager| {
-                manager
-                    .read()
-                    .ok()
-                    .map(|manager| manager.min_height_like_cpp(map_id, 0, position.x, position.y))
-            })
-            .unwrap_or(crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP)
+    /// The map's minimum height under `position` (C++ `Map::GetMinHeight`).
+    /// No grid minimum-height data is loaded, so this is the C++ default for a
+    /// missing grid, exactly as the former map facade answered for every key.
+    pub fn player_min_height_like_cpp(&self, _position: wow_core::Position) -> f32 {
+        crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP
     }
 
     pub fn trace_anticheat_violation_like_cpp(

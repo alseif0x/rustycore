@@ -557,7 +557,7 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
 /// object: the map instance exists for the resolved legacy key, so the store was
 /// genuinely consulted, and it contains no creature for the owner GUID.
 fn attach_addressed_empty_legacy_loot_store_like_cpp(session: &mut WorldSession) {
-    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
+    let (map_id, instance_id) = session.core.current_runtime_map_key_like_cpp();
     let manager = Arc::new(RwLock::new(crate::map_manager::MapManager::new()));
     manager
         .write()

@@ -153,10 +153,8 @@ impl crate::session::HubRef<'_> {
     ///
     /// `WorldSession::HandleMovementOpcode` rejects a packet while the mover's
     /// spline is still active (`MovementHandler.cpp:305-335`). Player motion
-    /// belongs to the canonical Player; creature/pet motion is still executed
-    /// by the legacy map runtime, whose `movement_finished` method is the
-    /// corresponding `movespline` owner. The canonical creature projection is
-    /// only a fallback for fixtures that do not install the legacy runtime.
+    /// belongs to the canonical Player; creature/pet motion belongs to the
+    /// canonical incarnation's `movespline`.
     pub fn mover_spline_finalized_like_cpp(&self, mover_guid: ObjectGuid) -> Option<bool> {
         if self.core.player_guid() == Some(mover_guid) {
             let canonical = self.core.with_owned_player_like_cpp(|player| {
@@ -169,17 +167,6 @@ impl crate::session::HubRef<'_> {
                 return Some(true);
             }
             return canonical;
-        }
-
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
-                use crate::map_manager::CreatureMovementQueriesLikeCpp as _;
-                return Some(creature.creature.movement_finished());
-            }
         }
 
         let key = self.core.current_canonical_player_map_key_like_cpp()?;
@@ -198,21 +185,10 @@ impl crate::session::HubRef<'_> {
     /// Resolve the active mover's current world position for MovementHandler's
     /// stale transport-packet guard (`MovementHandler.cpp:345-350`). C++
     /// applies the grid-size comparison to every `Unit*`, including a
-    /// controlled creature or pet; keep the legacy map runtime as the first
-    /// authority and the canonical map projection as its bounded fallback.
+    /// controlled creature or pet, read from the canonical map.
     pub fn mover_position_like_cpp(&self, mover_guid: ObjectGuid) -> Option<wow_core::Position> {
         if self.core.player_guid() == Some(mover_guid) {
             return self.player_position_like_cpp();
-        }
-
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
-                return Some(creature.position());
-            }
         }
 
         let key = self.core.current_canonical_player_map_key_like_cpp()?;
@@ -245,21 +221,6 @@ impl crate::session::HubRef<'_> {
                 return Some(self.fixtures.movement.movement_force_mod_magnitude_like_cpp);
             }
             return canonical;
-        }
-
-        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            if let Some(creature) = manager.find_creature(map_id, instance_id, mover_guid) {
-                return Some(
-                    creature
-                        .creature
-                        .unit()
-                        .movement_force_mod_magnitude_like_cpp(),
-                );
-            }
         }
 
         let key = self.core.current_canonical_player_map_key_like_cpp()?;
