@@ -1517,12 +1517,13 @@ pub(crate) fn run_legacy_creature_spell_tick_and_deliver_once_like_cpp(
 
 /// Combined single-shot legacy creature runtime bridge.
 ///
-/// This is the production loop body behind the
-/// `RustyCore.LegacyCreatureGlobalRuntime` flag and the same body used by the
-/// task-boundary tests. It mirrors the current legacy creature tick split while
+/// This was the production loop body behind the retired
+/// `RustyCore.LegacyCreatureGlobalRuntime` flag (#1263 F6-8D3b-2) and is the
+/// body used by the task-boundary tests. It mirrors the current legacy creature tick split while
 /// proving that lifecycle refresh and movement fanout can run without holding
 /// map locks during channel delivery.
 #[derive(Debug)]
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) struct LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp {
     pub boundary: CreatureRuntimeBoundaryOutcomeLikeCpp,
     pub player_melee: wow_world::session::LegacyPlayerMeleeTickOutcomeLikeCpp,
@@ -1691,6 +1692,7 @@ pub(crate) fn run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_
 
 /// Compatibility entry point for focused callers that do not yet own the
 /// loop-level tick envelope. Production uses the explicit-input variant.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
     legacy_map_manager: &SharedMapManager,
     canonical_map_manager: Option<&SharedCanonicalMapManager>,
@@ -1729,14 +1731,18 @@ pub(crate) fn run_legacy_creature_runtime_tick_and_deliver_once_like_cpp(
 ///
 /// C++ contrast: `World::Update` calls `sMapMgr->Update(diff)` and
 /// `MapManager::Update` uses `CONFIG_INTERVAL_MAPUPDATE` / `MapUpdateInterval`.
-/// This Rust bridge uses the same configured interval and is enabled by default
-/// so creature AI is map-owned like C++. Set
-/// `RustyCore.LegacyCreatureGlobalRuntime = 0` only for local diagnostics.
+/// This Rust bridge used the same configured interval; it was the production
+/// creature owner until #1263 F6-8D3b-2 made the canonical map loop the only
+/// one.
 ///
 /// The actual tick is executed via `spawn_blocking` because the legacy manager
 /// uses `std::sync::RwLock` and movement may touch synchronous mmap/pathfinding
 /// state. Packet fanout still happens outside map locks inside the single-shot
 /// bridge.
+// #1263 F6-8D3b-2: production no longer spawns this loop (the canonical map
+// owner is the only creature owner); test fixtures still drive it until F6-8E
+// deletes the legacy runtime.
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
     enabled: bool,
     legacy_map_manager: SharedMapManager,

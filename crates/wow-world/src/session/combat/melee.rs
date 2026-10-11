@@ -128,25 +128,14 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return RepresentedMeleeDamageTakenLikeCpp::NONE;
         };
-        let Some(manager) = self.core.map_manager.as_ref() else {
-            return RepresentedMeleeDamageTakenLikeCpp::NONE;
-        };
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
+        let difficulty_id = self.core.current_map_difficulty_id_like_cpp();
         let victim_effects = {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            manager
-                .find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
-                .map(|creature| {
+            self.core
+                .with_represented_creature_like_cpp(target_guid, |creature| {
                     crate::session_rules::creature_aura_effects_like_cpp(
-                        &creature.creature.unit().subsystems().auras.applied_auras,
+                        &creature.unit().subsystems().auras.applied_auras,
                         spell_store,
-                        self.core.current_map_difficulty_id_like_cpp(),
+                        difficulty_id,
                         self.catalogs.difficulty_store().map(AsRef::as_ref),
                     )
                 })
@@ -268,30 +257,19 @@ impl WorldSession {
                 .sum::<f32>()
                 + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
         };
-        let Some(manager) = self.core.map_manager.as_ref() else {
-            return (attacker, VictimFacts::default());
-        };
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
+        let difficulty_id = self.core.current_map_difficulty_id_like_cpp();
         let victim = {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            manager
-                .find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
-                .map(|creature| {
+            self.core
+                .with_represented_creature_like_cpp(target_guid, |creature| {
                     let victim_position = creature.position();
                     // The victim's avoidance and attacker-facing aura terms
                     // (`Unit::GetUnitDodgeChance` and friends).
                     let victim_aura_sum = |aura_type: i32| -> f32 {
                         self.spell_store().map_or(0.0, |spell_store| {
                             crate::session_rules::creature_aura_effects_like_cpp(
-                                &creature.creature.unit().subsystems().auras.applied_auras,
+                                &creature.unit().subsystems().auras.applied_auras,
                                 spell_store,
-                                self.core.current_map_difficulty_id_like_cpp(),
+                                difficulty_id,
                                 self.catalogs.difficulty_store().map(AsRef::as_ref),
                             )
                             .into_iter()
@@ -306,11 +284,11 @@ impl WorldSession {
                         is_player: false,
                         is_stand_state: true,
                         is_immune_to_damage: false,
-                        is_totem: creature.creature.is_totem_unit_type_like_cpp(),
-                        is_evading_attacks: creature.creature.is_evading_attacks_like_cpp(),
-                        dodge_pct: creature.creature.avoidance_like_cpp().dodge_pct,
-                        parry_pct: creature.creature.avoidance_like_cpp().parry_pct,
-                        block_pct: creature.creature.avoidance_like_cpp().block_pct,
+                        is_totem: creature.is_totem_unit_type_like_cpp(),
+                        is_evading_attacks: creature.is_evading_attacks_like_cpp(),
+                        dodge_pct: creature.avoidance_like_cpp().dodge_pct,
+                        parry_pct: creature.avoidance_like_cpp().parry_pct,
+                        block_pct: creature.avoidance_like_cpp().block_pct,
                         dodge_aura_pct: victim_aura_sum(
                             wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
                         ),
@@ -341,9 +319,9 @@ impl WorldSession {
                             };
                             self.spell_store().map_or(0.0, |spell_store| {
                                 crate::session_rules::creature_aura_effects_like_cpp(
-                                    &creature.creature.unit().subsystems().auras.applied_auras,
+                                    &creature.unit().subsystems().auras.applied_auras,
                                     spell_store,
-                                    self.core.current_map_difficulty_id_like_cpp(),
+                                    difficulty_id,
                                     self.catalogs.difficulty_store().map(AsRef::as_ref),
                                 )
                                 .into_iter()
@@ -361,9 +339,9 @@ impl WorldSession {
                             let attacker_guid = self.player_guid();
                             self.spell_store().map_or(0.0, |spell_store| {
                                 crate::session_rules::creature_aura_effects_like_cpp(
-                                    &creature.creature.unit().subsystems().auras.applied_auras,
+                                    &creature.unit().subsystems().auras.applied_auras,
                                     spell_store,
-                                    self.core.current_map_difficulty_id_like_cpp(),
+                                    difficulty_id,
                                     self.catalogs.difficulty_store().map(AsRef::as_ref),
                                 )
                                 .into_iter()
@@ -381,7 +359,7 @@ impl WorldSession {
                             victim_position,
                             attacker_position,
                         ),
-                        is_controlled: creature.creature.unit().has_unit_state(
+                        is_controlled: creature.unit().has_unit_state(
                             wow_constants::unit::UnitState::CONTROLLED.bits(),
                         ),
                     }
@@ -444,25 +422,10 @@ impl WorldSession {
             .filter(|(misc_value, _)| misc_value & 0x01 != 0)
             .map(|(_, amount)| amount as f32)
             .sum::<f32>();
-        let Some(manager) = self.core.map_manager.as_ref() else {
-            return RepresentedArmorMitigationLikeCpp::NONE;
-        };
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
         let victim = {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            manager
-                .find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
-                .map(|creature| {
-                    (
-                        creature.creature.combat_log_stats_like_cpp().armor,
-                        creature.level(),
-                    )
+            self.core
+                .with_represented_creature_like_cpp(target_guid, |creature| {
+                    (creature.combat_log_stats_like_cpp().armor, creature.level())
                 })
         };
         let Some((victim_armor, victim_level)) = victim else {

@@ -573,6 +573,19 @@ impl MapObjectRecord {
         }
     }
 
+    /// Recover the typed Creature value so its one Map owner can lend it by
+    /// value and insert it back (#1263 F6-8D3b-2: the session mutation root
+    /// mutates the canonical incarnation itself, never a clone of it).
+    pub fn into_creature(self) -> Result<Box<Creature>, Self> {
+        match self.body {
+            MapObjectBody::Creature(creature) => Ok(creature),
+            body => Err(Self {
+                kind: self.kind,
+                body,
+            }),
+        }
+    }
+
     pub fn scene_object(&self) -> Option<&SceneObject> {
         match &self.body {
             MapObjectBody::SceneObject(scene_object) => Some(scene_object),

@@ -123,7 +123,6 @@ fn deferred_visibility_routes_effective_tick_before_respawn_timer_and_survives_f
     let tick = |diff, scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp| {
         canonical_map_update_tick_set_inactive_like_cpp(
             &mut canonical.lock().unwrap(),
-            None,
             diff,
             scheduler,
             &metadata,

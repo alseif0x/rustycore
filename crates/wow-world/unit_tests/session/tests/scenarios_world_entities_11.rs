@@ -455,19 +455,12 @@ fn combat_tick_damage_adds_creature_threat_like_cpp() {
 
     session.tick_combat_sync();
 
+    // #1263 F6-8D3b-2: the legacy copy is a projection of the canonical
+    // incarnation, whose threat (asserted below) is the authority.
     let guard = manager.read().unwrap();
     let world_creature = guard.find_creature(0, 0, guid).unwrap();
     assert!(world_creature.creature.is_tapped_by(player));
     assert!(world_creature.creature.has_loot_recipient());
-    assert_eq!(
-        world_creature
-            .creature
-            .unit()
-            .subsystems()
-            .combat
-            .threat_value(player),
-        Some(7.0)
-    );
     drop(guard);
 
     let canonical = canonical.lock().unwrap();

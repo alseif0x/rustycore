@@ -58,21 +58,9 @@ impl WorldSession {
                 .represented_player_aura_state_mask_like_cpp()
                 .unwrap_or(0);
         }
-        let Some(manager) = self.core.map_manager.as_ref() else {
-            return 0;
-        };
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let manager = manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        manager
-            .find_creature(self.core.player_map_id_like_cpp(), instance_id, unit_guid)
-            .map(|creature| {
-                creature.creature.unit().subsystems().auras.aura_state_mask
+        self.core
+            .with_represented_creature_like_cpp(unit_guid, |creature| {
+                creature.unit().subsystems().auras.aura_state_mask
                     | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
                         u64::from(creature.current_hp()),
                         u64::from(creature.max_hp()),

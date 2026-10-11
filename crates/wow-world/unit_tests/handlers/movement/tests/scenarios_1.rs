@@ -303,7 +303,6 @@ async fn player_movement_loads_active_grid_before_visibility_like_cpp() {
             PlayerGridLoadOutcomeLikeCpp {
                 grid_loaded_now: true,
                 creature_records_added: 7,
-                legacy_creature_mirrors: 7,
                 ..PlayerGridLoadOutcomeLikeCpp::default()
             }
         });

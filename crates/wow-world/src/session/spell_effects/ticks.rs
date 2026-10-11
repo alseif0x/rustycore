@@ -603,6 +603,18 @@ impl WorldSession {
                     .combat
                     .purge_combat_ref_like_cpp(combat_target);
             });
+            // Both ends of the reference go together (C++ `Unit::Kill` →
+            // `CombatStop`). #1263 F6-8D3b-2: the canonical-first mutation root
+            // no longer replaces the incarnation with the legacy copy, which is
+            // what used to drop the creature's end here.
+            let _ = self.core.mutate_world_creature(combat_target, |creature| {
+                creature
+                    .creature
+                    .unit_mut()
+                    .subsystems_mut()
+                    .combat
+                    .purge_combat_ref_like_cpp(player_guid);
+            });
             crate::session::hub_mut(self)
                 .revalidate_canonical_player_combat_refs_like_cpp(player_guid);
             crate::session::hub_mut(self).set_combat_target_like_cpp(None);

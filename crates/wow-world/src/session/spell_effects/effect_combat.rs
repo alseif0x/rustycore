@@ -302,31 +302,14 @@ impl WorldSession {
                 difficulty_store,
             );
         }
-        let Some(manager) = self.core.map_manager.as_ref() else {
-            return 0;
-        };
         let difficulty_id = self.core.current_map_difficulty_id_like_cpp();
-        let instance_id = self
+        let Some(applied_auras) = self
             .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let applied_auras = {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let Some(creature) =
-                manager.find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
-            else {
-                return 0;
-            };
-            creature
-                .creature
-                .unit()
-                .subsystems()
-                .auras
-                .applied_auras
-                .clone()
+            .with_represented_creature_like_cpp(target_guid, |creature| {
+                creature.unit().subsystems().auras.applied_auras.clone()
+            })
+        else {
+            return 0;
         };
         crate::session_rules::applied_aura_mechanic_mask_like_cpp(
             &applied_auras,
@@ -355,19 +338,12 @@ impl WorldSession {
                 crate::session::hub_ref(self).resolved_player_vitals_like_cpp()?;
             return Some(100.0 * health as f32 / max_health.max(1) as f32);
         }
-        let manager = self.core.map_manager.as_ref()?;
-        let instance_id = self
+        let (health, max_health) = self
             .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let manager = manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner());
-        let creature =
-            manager.find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)?;
-        let max_health = creature.max_hp();
-        (max_health > 0).then(|| 100.0 * creature.current_hp() as f32 / max_health as f32)
+            .with_represented_creature_like_cpp(target_guid, |creature| {
+                (creature.current_hp(), creature.max_hp())
+            })?;
+        (max_health > 0).then(|| 100.0 * health as f32 / max_health as f32)
     }
 
     /// C++ `Unit::GetCreatureTypeMask` (`Unit.cpp:8796-8800`): the bit of the
@@ -377,24 +353,11 @@ impl WorldSession {
         &self,
         target_guid: ObjectGuid,
     ) -> u32 {
-        let Some(manager) = self.core.map_manager.as_ref() else {
-            return 0;
-        };
-        let instance_id = self
+        let Some(entry) = self
             .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let entry = {
-            let manager = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let Some(creature) =
-                manager.find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
-            else {
-                return 0;
-            };
-            creature.create_data.entry
+            .with_represented_creature_like_cpp(target_guid, |creature| creature.entry())
+        else {
+            return 0;
         };
         self.catalogs
             .creature_template_lifecycle_store_like_cpp()

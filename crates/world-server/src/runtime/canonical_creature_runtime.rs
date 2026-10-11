@@ -16,13 +16,15 @@
 //! resume already holds.
 //!
 //! Exclusivity. There is one owner value, `MapManager::tick_owner()` on the
-//! shared legacy manager, decided once at startup (`app.rs`). This owner runs
-//! only when that value is `CanonicalMap`, re-read every tick before any guard;
-//! every legacy phase body runs only when it is `GlobalLegacy`, and every
-//! session creature tick only when it is `Session`. Startup also spawns the
-//! legacy creature loop idle and builds this owner only for the selected value
-//! (`creature_tick_owner_loops_like_cpp`), and the executor claims each admitted
-//! transition through its single-owner lease, so no creature is ticked twice.
+//! shared legacy manager, set once at startup (`app.rs`); since F6-8D3b-2
+//! production sets it to `CanonicalMap` unconditionally and spawns no legacy
+//! creature loop. This owner runs only when that value is `CanonicalMap`,
+//! re-read every tick before any guard; every legacy phase body runs only when
+//! it is `GlobalLegacy`, and every session creature tick only when it is
+//! `Session` — both legacy owners are now reachable only from test fixtures
+//! that set the value themselves. The executor's single-owner lease is this
+//! owner's own: it serialises the executor's transition claims, it is not
+//! shared with the legacy bodies and is not what keeps them out.
 //!
 //! Delivery. The executor publishes nothing itself; every output is deferred
 //! and delivered here after all guards are released, through the legacy
@@ -33,27 +35,6 @@
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use super::*;
-
-/// The loops startup spawns for one creature tick owner. Both are derived from
-/// the one owner value, so they cannot both be live.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CreatureTickOwnerLoopsLikeCpp {
-    /// `spawn_legacy_creature_runtime_update_loop_like_cpp` runs its body.
-    pub(crate) legacy_creature_loop: bool,
-    /// The canonical map loop carries a [`CanonicalCreatureRuntimeLikeCpp`].
-    pub(crate) canonical_creature_runtime: bool,
-}
-
-#[must_use]
-pub(crate) const fn creature_tick_owner_loops_like_cpp(
-    owner: wow_world::map_manager::RuntimeTickOwner,
-) -> CreatureTickOwnerLoopsLikeCpp {
-    use wow_world::map_manager::RuntimeTickOwner;
-    CreatureTickOwnerLoopsLikeCpp {
-        legacy_creature_loop: matches!(owner, RuntimeTickOwner::GlobalLegacy),
-        canonical_creature_runtime: matches!(owner, RuntimeTickOwner::CanonicalMap),
-    }
-}
 
 /// Counters a test or an operator can read without touching a map.
 #[derive(Debug, Default)]
@@ -66,8 +47,6 @@ pub(crate) struct CanonicalCreatureRuntimeProbeLikeCpp {
     pub(crate) owner_skipped_ticks: AtomicU64,
     /// The summed `Unit::Update` clock advancement over every creature.
     pub(crate) clock_advanced_ms: AtomicU64,
-    /// R7b-1 deferred registrations adopted from the legacy map queue.
-    pub(crate) adopted_legacy_respawns: AtomicU64,
 }
 
 /// What the canonical creature owner keeps across ticks: the configuration the
@@ -147,46 +126,6 @@ impl CanonicalCreatureRuntimeLikeCpp {
         })
     }
 
-    /// R7b-1 under this owner. A registration deferred while the canonical
-    /// manager had no instance for its key can only join the legacy map's
-    /// queue, and no legacy lifecycle drains it under `CanonicalMap`. Each
-    /// admitted map adopts those entries into its own queue, unchanged and in
-    /// order, before its lifecycle phase drains it, so the deferred creature
-    /// is admitted canonically once its instance exists. Canonical → legacy is
-    /// the established lock order (the mutation root, the respawn-phase mirror).
-    fn adopt_legacy_respawn_queue_like_cpp(
-        &self,
-        manager: &mut wow_map::MapManager,
-        plan: &wow_map::MapTickPlanLikeCpp,
-        legacy_map_manager: &SharedMapManager,
-    ) {
-        // `drain_ready_respawns` keeps an entry due after its argument; the
-        // adoption takes every entry, and each keeps its own due time.
-        let Some(all) = Instant::now().checked_add(Duration::from_secs(1 << 32)) else {
-            return;
-        };
-        for participant in plan.updated_maps_like_cpp() {
-            let key = participant.key;
-            let Ok(map_id) = u16::try_from(key.map_id) else {
-                continue;
-            };
-            let Some(map) = manager.find_map_mut(key.map_id, key.instance_id) else {
-                continue;
-            };
-            let adopted = legacy_map_manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .drain_ready_respawns(map_id, key.instance_id, all);
-            let queue = map.map_mut().creature_respawn_queue_like_cpp_mut();
-            for respawn in adopted {
-                queue.push_respawn(respawn);
-                self.probe
-                    .adopted_legacy_respawns
-                    .fetch_add(1, Ordering::Relaxed);
-            }
-        }
-    }
-
     /// Admit and run every creature phase of one admitted map tick, on the
     /// canonical manager the tick resume holds. Nothing is delivered here.
     pub(crate) fn run_on_locked_manager_like_cpp(
@@ -195,12 +134,10 @@ impl CanonicalCreatureRuntimeLikeCpp {
         plan: &wow_map::MapTickPlanLikeCpp,
         coordinator_id: u64,
         inputs: &CanonicalCreatureTickInputsLikeCpp,
-        legacy_map_manager: &SharedMapManager,
         map_store: &wow_data::MapStore,
         now: Instant,
     ) -> wow_world::session::AdmittedCreatureCombatPhasesOutcomeLikeCpp {
         let diff_ms = plan.effective_diff_ms();
-        self.adopt_legacy_respawn_queue_like_cpp(manager, plan, legacy_map_manager);
         // C++ `Map::Update` visits the cells around players and active objects
         // (`VisitNearbyCellsOf`); the selection is the canonical map's own
         // `NearbyCells` plan, the one its object visitors use, kept to creatures.

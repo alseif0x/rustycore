@@ -168,7 +168,6 @@ fn spawn_group_condition_update_tick_process_respawns_delete_only_removes_inacti
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -239,7 +238,6 @@ fn respawn_db_save_tick_queues_linked_future_reschedule_like_cpp() {
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -334,7 +332,6 @@ fn canonical_gameobject_timer_replace_queues_respawn_save_before_condition_tick_
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -390,7 +387,6 @@ fn canonical_gameobject_compatibility_mode_queues_db_only_respawn_save_like_cpp(
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -454,7 +450,6 @@ fn canonical_gameobject_compatibility_save_skips_instanceable_map_like_cpp() {
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -497,7 +492,6 @@ fn spawn_group_condition_update_tick_pool_timer_uses_canonical_pool_mgr_and_queu
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -556,7 +550,6 @@ fn spawn_group_condition_update_tick_process_respawns_unloaded_grid_queues_delet
 
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata,
@@ -672,7 +665,6 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
     let metadata_guard = metadata.lock().unwrap();
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        Some(&legacy),
         1,
         &mut scheduler,
         &metadata_guard,
@@ -683,7 +675,6 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
     .expect("due persisted timer must run through canonical ProcessRespawns");
 
     assert_eq!(summary.respawn_executed_loaded_grid_respawns, 1);
-    assert_eq!(summary.respawn_legacy_creature_mirrors, 1);
     assert_eq!(summary.respawn_db_delete_queued, 1);
     assert_eq!(summary.respawn_db_deletes.len(), 1);
     assert_del_respawn_params_like_cpp(
@@ -705,7 +696,7 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
             .read()
             .unwrap()
             .find_creature(571, 0, creature_guid)
-            .is_some()
+            .is_none()
     );
     assert_eq!(
         manager
@@ -718,7 +709,6 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
 
     let second = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        Some(&legacy),
         1,
         &mut scheduler,
         &metadata_guard,
@@ -728,7 +718,6 @@ fn persisted_restart_timer_respawns_once_through_canonical_owner_and_mirrors_leg
     )
     .expect("second scheduler tick");
     assert_eq!(second.respawn_executed_loaded_grid_respawns, 0);
-    assert_eq!(second.respawn_legacy_creature_mirrors, 0);
     assert_eq!(second.respawn_db_delete_queued, 0);
     assert_eq!(
         manager
@@ -833,7 +822,6 @@ fn persisted_gameobject_restart_timer_respawns_once_and_queues_delete_like_cpp()
     let metadata_guard = metadata.lock().unwrap();
     let summary = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata_guard,
@@ -871,7 +859,6 @@ fn persisted_gameobject_restart_timer_respawns_once_and_queues_delete_like_cpp()
 
     let second = canonical_map_update_tick_set_inactive_like_cpp(
         &mut manager,
-        None,
         1,
         &mut scheduler,
         &metadata_guard,

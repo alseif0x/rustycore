@@ -745,6 +745,9 @@ fn unresolved_external_authority_glob_remains_rejected_after_parent_import() {
 
 #[test]
 fn moved_pending_respawn_bridge_matches_its_exact_reviewed_record() {
+    // #1263 F6-8D3a-3 moved the rebuild body into
+    // `creature_from_pending_respawn_like_cpp` (the `WorldCreature` wrapper no
+    // longer touches both authorities), so the reviewed record is that body's.
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../..");
     let baseline = crate::session_ownership::repository_syntax_for_tests()
         .expect("the moved function retains complete parent import provenance");
@@ -752,7 +755,7 @@ fn moved_pending_respawn_bridge_matches_its_exact_reviewed_record() {
         .bridge_accesses
         .bridges
         .iter()
-        .filter(|record| record.enclosing == "fn::world_creature_from_pending_respawn_like_cpp")
+        .filter(|record| record.enclosing == "fn::creature_from_pending_respawn_like_cpp")
         .collect::<Vec<_>>();
     assert_eq!(actual.len(), 1);
     let policy: serde_json::Value = serde_json::from_str(
@@ -764,7 +767,7 @@ fn moved_pending_respawn_bridge_matches_its_exact_reviewed_record() {
         .as_array()
         .unwrap()
         .iter()
-        .find(|record| record["enclosing"] == "fn::world_creature_from_pending_respawn_like_cpp")
+        .find(|record| record["enclosing"] == "fn::creature_from_pending_respawn_like_cpp")
         .expect("reviewed bridge remains in the exact inventory");
     assert_eq!(&serde_json::to_value(actual[0]).unwrap(), expected);
 }

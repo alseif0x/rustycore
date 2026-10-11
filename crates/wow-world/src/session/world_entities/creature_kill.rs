@@ -455,11 +455,23 @@ impl WorldSession {
             let (s, mut h) = crate::session::split_world_entities_mut(self);
             s.represented_creature_can_skin_after_death_state_like_cpp(&mut h, creature_guid)
         };
-        let values_update = self.core.mutate_world_creature(creature_guid, |creature| {
-            creature.complete_death_state_after_kill_hooks_like_cpp();
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
-            creature.creature.unit().values_update()
-        })?;
+        // `Unit::Kill` runs `setDeathState(JUST_DIED)` once per kill. #1263
+        // F6-8D3b-2: the canonical-first root no longer refuses a replay on a
+        // stale copy, so the completion itself only proceeds when this call
+        // performs the JUST_DIED transition (AI-dead, unit not yet dead).
+        let values_update = self
+            .core
+            .mutate_world_creature(creature_guid, |creature| {
+                if creature.creature.ai_state() != wow_entities::CreatureAiState::Dead
+                    || creature.creature.unit().is_dead()
+                {
+                    return None;
+                }
+                creature.complete_death_state_after_kill_hooks_like_cpp();
+                creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
+                Some(creature.creature.unit().values_update())
+            })
+            .flatten()?;
         #[cfg(test)]
         self.world_entities
             .record_represented_creature_kill_event_like_cpp(

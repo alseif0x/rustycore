@@ -10,6 +10,13 @@ and the [modularity/ECS plan](../architecture/modularity-and-ecs-plan.md), not t
 or percentage notes below. The [entity-world ADR](adr-map-runtime-entity-world.md) owns the private
 selective-hecs decision; it does not replace the runtime invariants here.
 
+**2026-10-10 update (#1263 F6-8D3b-2):** the creature tick owner is now always
+`RuntimeTickOwner::CanonicalMap` (the canonical map loop runs the admitted creature executor);
+production spawns no legacy creature loop and the `RustyCore.LegacyCreatureGlobalRuntime` /
+`RustyCore.CanonicalCreatureRuntime` keys are retired. Context item 1 below describes the
+state before that change. See §8 of the
+[distribution plan](../architecture/wow-world-distribution-plan.md) (F6-8D3b-2).
+
 ## Context (verified)
 
 The bounded review confirms these source paths, not full runtime parity:

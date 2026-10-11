@@ -114,12 +114,11 @@ fn lethal_kill_operation_fires_each_lifecycle_fact_exactly_once_like_cpp() {
         "the respawn schedule is recorded once"
     );
 
-    // Stale replay: the canonical incarnation advances without the
-    // representation, so the replay is refused and fires nothing.
+    // Replay after the incarnation advanced. #1263 F6-8D3b-2: the root is
+    // canonical-first, so the replay runs on the incarnation itself; the kill
+    // facts stay single because `setDeathState(JUST_DIED)` on an already-dead
+    // creature is a no-op (C++ `Creature::setDeathState` guards on the state).
     let counts_before_replay = lethal_event_counts_like_cpp(&session, guid);
-    let legacy_before_replay = observables_like_cpp(
-        &legacy_creature_like_cpp(&manager, guid).expect("legacy representation"),
-    );
     advance_canonical_max_health_like_cpp(
         &canonical,
         guid,
@@ -127,39 +126,33 @@ fn lethal_kill_operation_fires_each_lifecycle_fact_exactly_once_like_cpp() {
     );
     let canonical_before_replay =
         observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical"));
-    let replay_runs = {
-        let mut replay_runs = 0_usize;
-        let replayed = session
-            .mutate_world_creature(guid, |creature| {
-                replay_runs += 1;
-                creature.complete_death_state_after_kill_hooks_like_cpp();
-            })
-            .is_some();
-        assert!(!replayed, "a stale lethal replay is refused");
-        replay_runs
-    };
-    assert_eq!(replay_runs, 0, "the refused replay is never invoked");
+    let mut replay_runs = 0_usize;
+    let _ = session.mutate_world_creature(guid, |creature| {
+        replay_runs += 1;
+        creature.complete_death_state_after_kill_hooks_like_cpp();
+    });
+    assert_eq!(replay_runs, 1, "the replay runs once, on the incarnation");
     assert!(
         session
             .complete_represented_creature_death_state_after_kill_hooks_like_cpp(attacker, guid)
             .is_none(),
-        "the stale kill-hook completion publishes nothing"
+        "the completion performs no second JUST_DIED transition"
     );
     assert_eq!(
         lethal_event_counts_like_cpp(&session, guid),
         counts_before_replay,
-        "a stale replay fires no kill fact again"
+        "a replay fires no kill fact again"
+    );
+    assert_eq!(
+        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical")),
+        canonical_before_replay,
+        "a replay leaves the incarnation's corpse and timers untouched"
     );
     assert_eq!(
         observables_like_cpp(
             &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
         ),
-        legacy_before_replay,
-        "a stale replay leaves the representation's corpse and timers untouched"
-    );
-    assert_eq!(
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical")),
         canonical_before_replay,
-        "a stale replay leaves the canonical incarnation untouched"
+        "the legacy copy is the incarnation's projection"
     );
 }

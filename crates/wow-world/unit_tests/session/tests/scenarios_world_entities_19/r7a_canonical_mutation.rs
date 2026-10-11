@@ -1,17 +1,16 @@
 //! F6-7 R7a regressions: one canonical application per admitted creature
 //! mutation (reviewer signature §5.3.1 R7, repair order §5.3.2).
 //!
-//! R7a gates the single mutation root `SessionCore::mutate_world_creature`:
-//!
-//! * ownership is admitted against the *current canonical incarnation* before
-//!   the mutation is invoked, so a stale snapshot, an ABA replay, a
-//!   representation from another incarnation and a competing used loot
-//!   allocation are all refused with the callback unexecuted;
-//! * the mutated representation replaces the canonical entity state before the
-//!   caller can observe success, so a successful mutation can no longer survive
-//!   only in the legacy mirror;
-//! * success and its events are exposed only after that canonical application,
-//!   so a refused operation publishes nothing.
+//! R7a gated the single mutation root `SessionCore::mutate_world_creature`
+//! by admitting the legacy representation against the current canonical
+//! incarnation. #1263 F6-8D3b-2 inverted the root to canonical-first: it
+//! mutates the incarnation itself and only projects it over the legacy copy,
+//! so the former refusals (stale snapshot, ABA replay, destroyed incarnation,
+//! competing used allocation) have no subject. The same fixtures now prove
+//! the inverted contract: the callback runs once on the GUID's current
+//! incarnation, the incarnation's own state and authority are never
+//! overwritten by a stale or foreign copy, and the copy is refreshed from the
+//! incarnation, never the reverse.
 //!
 //! These tests drive the production root and two of its direct production
 //! consumers (the represented creature kill-hook completion and the looted
@@ -306,7 +305,7 @@ fn fresh_same_incarnation_non_health_mutation_is_applied_once_to_both_like_cpp()
 /// its earlier state. It passes once the gate admits ownership before invoking
 /// the mutation.
 #[test]
-fn stale_same_incarnation_non_health_mutation_is_refused_before_invocation_like_cpp() {
+fn stale_legacy_copy_cannot_overwrite_the_incarnation_like_cpp() {
     let guid = test_creature_guid(91_601);
     let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
     let canonical_before = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
@@ -324,47 +323,41 @@ fn stale_same_incarnation_non_health_mutation_is_refused_before_invocation_like_
     );
 
     let mut callback_runs = 0_usize;
-    let refused = session
-        .mutate_world_creature(guid, |creature| {
-            callback_runs += 1;
-            creature.creature.ai_ownership_mut().npc_flags = 0x0000_0099;
-        })
-        .is_none();
-
     assert!(
-        refused,
-        "a stale representation must not be reported as a successful mutation"
+        session
+            .mutate_world_creature(guid, |creature| {
+                callback_runs += 1;
+                creature.creature.ai_ownership_mut().npc_flags = 0x0000_0099;
+            })
+            .is_some(),
+        "the canonical-first root mutates the current incarnation"
     );
+    assert_eq!(callback_runs, 1);
+    let canonical_after = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
+    assert_eq!(canonical_after.ai_ownership().npc_flags, 0x0000_0099);
+    let mut expected = canonical_stale;
+    expected.npc_flags = 0x0000_0099;
     assert_eq!(
-        callback_runs, 0,
-        "ownership is refused before the mutation is invoked"
-    );
-    assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        legacy_before,
-        "a refused operation does not mutate the legacy representation"
-    );
-    assert_eq!(
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical")),
-        canonical_stale,
-        "a refused operation does not mutate the canonical incarnation"
+        observables_like_cpp(&canonical_after),
+        expected,
+        "the incarnation's own advanced state is kept, not overwritten by a stale copy"
     );
     assert!(
         canonical_before
             .loot_authority_like_cpp()
-            .shares_storage_like_cpp(
-                canonical_creature_like_cpp(&canonical, guid)
-                    .expect("canonical")
-                    .loot_authority_like_cpp()
-            ),
-        "a refused operation does not displace the incarnation's authority"
+            .shares_storage_like_cpp(canonical_after.loot_authority_like_cpp()),
+        "the incarnation keeps its authority"
     );
+    assert_eq!(
+        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy projection")),
+        expected,
+        "the legacy copy is refreshed from the incarnation, never the reverse"
+    );
+    let _ = legacy_before;
 }
 
 #[test]
-fn aba_health_cycle_cannot_replay_a_stale_non_health_mutation_like_cpp() {
+fn aba_health_cycle_mutates_the_incarnation_once_like_cpp() {
     let guid = test_creature_guid(91_602);
     let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
     // Health leaves and returns to the same tuple while the revision advances:
@@ -394,24 +387,24 @@ fn aba_health_cycle_cannot_replay_a_stale_non_health_mutation_like_cpp() {
                 callback_runs += 1;
                 creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AB;
             })
-            .is_none(),
-        "an ABA replay is a stale snapshot, not a fresh one"
+            .is_some(),
+        "the canonical-first root mutates the current incarnation"
     );
-    assert_eq!(callback_runs, 0);
+    assert_eq!(callback_runs, 1);
+    let canonical_after = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
+    assert_eq!(canonical_after.ai_ownership().npc_flags, 0x0000_00AB);
+    let mut expected = canonical_before;
+    expected.npc_flags = 0x0000_00AB;
+    assert_eq!(observables_like_cpp(&canonical_after), expected);
     assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        legacy_before
+        observables_like_cpp(&legacy_creature_like_cpp(&manager, guid).expect("legacy projection")),
+        expected
     );
-    assert_eq!(
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical")),
-        canonical_before
-    );
+    let _ = legacy_before;
 }
 
 #[test]
-fn different_incarnation_replacement_refuses_the_legacy_representation_like_cpp() {
+fn destroyed_incarnation_copy_cannot_reach_the_replacement_like_cpp() {
     let guid = test_creature_guid(91_603);
     let (mut session, manager, canonical) = mirrored_session_like_cpp(guid, 100);
     let destroyed = legacy_creature_like_cpp(&manager, guid).expect("legacy representation");
@@ -444,25 +437,37 @@ fn different_incarnation_replacement_refuses_the_legacy_representation_like_cpp(
                 callback_runs += 1;
                 creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AC;
             })
-            .is_none(),
-        "a representation of a destroyed incarnation must not mutate the replacement"
+            .is_some(),
+        "the canonical-first root mutates the current incarnation"
     );
-    assert_eq!(callback_runs, 0);
+    assert_eq!(callback_runs, 1);
+    let canonical_after = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
+    assert_eq!(canonical_after.ai_ownership().npc_flags, 0x0000_00AC);
+    let mut expected = canonical_before;
+    expected.npc_flags = 0x0000_00AC;
     assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        legacy_before
+        observables_like_cpp(&canonical_after),
+        expected,
+        "the mutation reaches the GUID's current incarnation, the replacement"
     );
-    assert_eq!(
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("replacement")),
-        canonical_before,
-        "the replacement keeps its own state and lifetime"
+    assert!(
+        canonical_after
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&replacement.loot_authority),
+        "the replacement keeps its own allocation"
     );
+    assert!(
+        legacy_creature_like_cpp(&manager, guid)
+            .expect("legacy projection")
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&replacement.loot_authority),
+        "the destroyed incarnation's copy is replaced by the replacement's projection"
+    );
+    let _ = legacy_before;
 }
 
 #[test]
-fn competing_used_loot_allocation_refuses_the_representation_before_invocation_like_cpp() {
+fn competing_legacy_allocation_cannot_reach_the_incarnation_like_cpp() {
     let guid = test_creature_guid(91_604);
     let player = ObjectGuid::create_player(1, 91_605);
     let manager = shared_map_manager();
@@ -525,27 +530,34 @@ fn competing_used_loot_allocation_refuses_the_representation_before_invocation_l
                 callback_runs += 1;
                 creature.creature.ai_ownership_mut().npc_flags = 0x0000_00AD;
             })
-            .is_none(),
-        "a competing used allocation must not be reconciled into the incarnation"
+            .is_some(),
+        "the canonical-first root mutates the current incarnation"
     );
-    assert_eq!(callback_runs, 0);
-    assert_eq!(
-        observables_like_cpp(
-            &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-        ),
-        legacy_before,
-        "the refused representation keeps its own competing allocation"
+    assert_eq!(callback_runs, 1);
+    let canonical_after = canonical_creature_like_cpp(&canonical, guid).expect("canonical");
+    assert_eq!(canonical_after.ai_ownership().npc_flags, 0x0000_00AD);
+    let mut expected = canonical_before;
+    expected.npc_flags = 0x0000_00AD;
+    assert_eq!(observables_like_cpp(&canonical_after), expected);
+    assert!(
+        canonical_after
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&canonical_authority),
+        "the competing pool is never reconciled into the incarnation"
     );
-    assert_eq!(
-        observables_like_cpp(&canonical_creature_like_cpp(&canonical, guid).expect("canonical")),
-        canonical_before,
-        "the canonical incarnation is untouched"
+    assert!(
+        legacy_creature_like_cpp(&manager, guid)
+            .expect("legacy projection")
+            .loot_authority_like_cpp()
+            .shares_storage_like_cpp(&canonical_authority),
+        "the legacy copy now projects the incarnation's own allocation"
     );
     assert_eq!(
         competing.lifecycle_like_cpp(),
         wow_loot::OwnedLootAuthorityLifecycle::Active,
         "the competing pool is neither quarantined nor retired"
     );
+    let _ = legacy_before;
 }
 
 #[test]

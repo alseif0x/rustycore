@@ -48,12 +48,6 @@ pub(super) struct CuratedAnchor {
 pub(super) const CURATED_ANCHORS: &[CuratedAnchor] = &[
     CuratedAnchor {
         package: "world-server",
-        module: "crate::runtime::game_events::grid",
-        name: "mirror_loaded_grid_creature_to_legacy_like_cpp",
-        direction: BridgeDirection::CanonicalToLegacy,
-    },
-    CuratedAnchor {
-        package: "world-server",
         module: "crate::runtime::delivery",
         name: "run_legacy_creature_movement_tick_and_deliver_once_like_cpp",
         direction: BridgeDirection::LegacyToCanonical,

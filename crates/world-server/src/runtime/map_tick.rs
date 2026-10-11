@@ -80,7 +80,6 @@ pub(crate) fn canonical_map_tick_begin_like_cpp(
 /// split. Runs exactly once per plan.
 pub(crate) fn canonical_map_tick_resume_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     plan: wow_map::MapTickPlanLikeCpp,
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
@@ -90,7 +89,6 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
 ) -> Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp> {
     canonical_map_tick_resume_with_creature_owner_like_cpp(
         manager,
-        legacy_manager,
         plan,
         scheduler,
         canonical_spawn_metadata,
@@ -116,7 +114,6 @@ pub(crate) type CanonicalMapCreaturePhaseLikeCpp<'a> =
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     plan: wow_map::MapTickPlanLikeCpp,
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
@@ -140,7 +137,6 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
     let respawn_summary = canonical_map_tick_respawn_phase_like_cpp(
         manager,
         plan.updated_maps_like_cpp(),
-        legacy_manager,
         effective_diff_ms,
         scheduler,
         canonical_spawn_metadata,
@@ -184,7 +180,6 @@ pub(crate) fn canonical_map_tick_resume_with_creature_owner_like_cpp(
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
     manager: &mut wow_map::MapManager,
-    legacy_manager: Option<&SharedMapManager>,
     diff_ms: u32,
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
@@ -195,7 +190,6 @@ pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
     let plan = canonical_map_tick_begin_like_cpp(manager, diff_ms)?;
     canonical_map_tick_resume_like_cpp(
         manager,
-        legacy_manager,
         plan.plan,
         scheduler,
         canonical_spawn_metadata,
@@ -217,7 +211,6 @@ pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
 fn canonical_map_tick_respawn_phase_like_cpp(
     manager: &mut wow_map::MapManager,
     admitted_maps: &[wow_map::MapTickParticipantLikeCpp],
-    legacy_manager: Option<&SharedMapManager>,
     effective_diff_ms: u32,
     scheduler: &mut CanonicalRespawnConditionSchedulerLikeCpp,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
@@ -318,12 +311,11 @@ fn canonical_map_tick_respawn_phase_like_cpp(
             respawn_summary.processed_unloaded_grid_respawns;
         summary.respawn_executed_loaded_grid_respawns +=
             respawn_summary.executed_loaded_grid_respawns;
-        summary.respawn_legacy_creature_mirrors +=
-            mirror_loaded_grid_primary_records_to_legacy_like_cpp(
-                legacy_manager,
-                canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                &respawn_summary.loaded_grid_primary_records,
-            );
+        initialize_loaded_grid_primary_records_default_motion_like_cpp(
+            managed_map.map_mut(),
+            canonical_spawn_metadata.waypoint_paths_like_cpp(),
+            &respawn_summary.loaded_grid_primary_records,
+        );
         summary.respawn_blocked_loaded_grid_respawn_loads +=
             respawn_summary.blocked_loaded_grid_respawn_loads;
         summary.respawn_blocked_loaded_grid_respawn_add_to_map +=
@@ -373,12 +365,11 @@ fn canonical_map_tick_respawn_phase_like_cpp(
         {
             summary.condition_spawn_executed_loaded_grid_spawns +=
                 spawn.executed_loaded_grid_spawns;
-            summary.condition_spawn_legacy_creature_mirrors +=
-                mirror_loaded_grid_primary_records_to_legacy_like_cpp(
-                    legacy_manager,
-                    canonical_spawn_metadata.waypoint_paths_like_cpp(),
-                    &spawn.loaded_grid_primary_records,
-                );
+            initialize_loaded_grid_primary_records_default_motion_like_cpp(
+                managed_map.map_mut(),
+                canonical_spawn_metadata.waypoint_paths_like_cpp(),
+                &spawn.loaded_grid_primary_records,
+            );
             summary.condition_spawn_blocked_loaded_grid_spawn_loads +=
                 spawn.blocked_loaded_grid_spawn_loads;
             summary.condition_spawn_blocked_loaded_grid_creature_loads +=

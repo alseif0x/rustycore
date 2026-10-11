@@ -4250,7 +4250,6 @@ async fn run_inner(
             })?;
             consume_game_event_live_update_side_effects_like_cpp(
                 &mut manager,
-                Some(&shared_map),
                 &mut canonical_spawn_metadata,
                 &loaded_grid_creature_respawn_caches,
                 Some(battlemaster_list_typed_store.as_ref()),
@@ -4624,7 +4623,6 @@ async fn run_inner(
         ),
     );
     let grid_canonical_map_manager = Arc::clone(&canonical_map_manager);
-    let grid_legacy_manager = Arc::clone(&shared_map);
     let grid_spawn_metadata = Arc::clone(&canonical_spawn_metadata);
     let grid_loaded_caches = loaded_grid_creature_respawn_caches.clone();
     let grid_map_store = Arc::clone(&map_store);
@@ -4632,7 +4630,6 @@ async fn run_inner(
     let player_grid_loader = Arc::new(move |map_id, instance_id, position| {
         ensure_login_player_grid_loaded_like_cpp(
             &grid_canonical_map_manager,
-            &grid_legacy_manager,
             &grid_spawn_metadata,
             &grid_loaded_caches,
             grid_area_trigger_template_store.as_ref(),
@@ -5316,9 +5313,9 @@ async fn run_inner(
 
     let map_update_interval_ms = world_config_u32(&world_configs, "CONFIG_INTERVAL_MAPUPDATE", 10)
         .max(wow_map::MIN_MAP_UPDATE_DELAY_MS);
-    // #1263 F6-8D3b-1: one owner value decides which creature loop is live.
+    // #1263 F6-8D3b-1/D3b-2: one owner value, set once before the canonical
+    // map loop spawns. Production has a single creature owner, `CanonicalMap`.
     let creature_tick_owner = creature_tick_owner_from_config_like_cpp();
-    let creature_tick_owner_loops = creature_tick_owner_loops_like_cpp(creature_tick_owner);
     info!(
         map_update_interval_ms,
         ?creature_tick_owner,
@@ -5357,31 +5354,12 @@ async fn run_inner(
         Arc::clone(&active_session_registry),
         Arc::clone(&battlemaster_list_typed_store),
         Arc::clone(&world_state_mgr),
-        creature_tick_owner_loops
-            .canonical_creature_runtime
-            .then(|| {
-                CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
-                    mmap_runtime_config.clone(),
-                    mmap_pathfinder.clone(),
-                    legacy_creature_aggro_config.clone(),
-                    Some(Arc::clone(&group_registry)),
-                )
-            }),
-    );
-    let mut legacy_creature_runtime_handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
-        creature_tick_owner_loops.legacy_creature_loop,
-        Arc::clone(&shared_map),
-        Arc::clone(&canonical_map_manager),
-        Arc::clone(&map_store),
-        mmap_runtime_config.clone(),
-        mmap_pathfinder.clone(),
-        legacy_creature_aggro_config.clone(),
-        map_update_interval_ms,
-        Some(respawn_db_writer_tx.clone()),
-        Arc::clone(&respawn_db_mutation_order),
-        Arc::clone(&respawn_db_producer_stop),
-        Some(Arc::clone(&group_registry)),
-        Arc::clone(&player_registry),
+        Some(CanonicalCreatureRuntimeLikeCpp::new_like_cpp(
+            mmap_runtime_config.clone(),
+            mmap_pathfinder.clone(),
+            legacy_creature_aggro_config.clone(),
+            Some(Arc::clone(&group_registry)),
+        )),
     );
 
     let mut ready_check_tick_handle = spawn_group_ready_check_tick_loop(
@@ -5403,7 +5381,6 @@ async fn run_inner(
     );
 
     let mut map_update_finished = false;
-    let mut legacy_creature_runtime_finished = false;
     let mut respawn_db_writer_finished = false;
 
     // Wait for shutdown signal or a supervised background task failure.
@@ -5454,19 +5431,6 @@ async fn run_inner(
                 Err(e) => {
                     world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
                     tracing::error!("Map update task failed: {e}");
-                }
-            }
-        }
-        result = &mut legacy_creature_runtime_handle => {
-            legacy_creature_runtime_finished = true;
-            match result {
-                Ok(()) => {
-                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-                    tracing::error!("Legacy creature runtime task stopped unexpectedly");
-                }
-                Err(e) => {
-                    world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-                    tracing::error!("Legacy creature runtime task failed: {e}");
                 }
             }
         }
@@ -5614,19 +5578,13 @@ async fn run_inner(
     // producer observes this flag on its next interval, performs one final
     // tick to consume state such as `save_respawn_requested`, then returns.
     respawn_db_producer_stop.store(true, Ordering::Release);
-    let (map_update_stopped, legacy_runtime_stopped) = tokio::join!(
-        stop_respawn_db_producer_like_cpp(
-            "canonical-map-update",
-            &mut map_update_handle,
-            map_update_finished,
-        ),
-        stop_respawn_db_producer_like_cpp(
-            "legacy-creature-runtime",
-            &mut legacy_creature_runtime_handle,
-            legacy_creature_runtime_finished,
-        ),
-    );
-    if !map_update_stopped || !legacy_runtime_stopped {
+    let map_update_stopped = stop_respawn_db_producer_like_cpp(
+        "canonical-map-update",
+        &mut map_update_handle,
+        map_update_finished,
+    )
+    .await;
+    if !map_update_stopped {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
     }
 

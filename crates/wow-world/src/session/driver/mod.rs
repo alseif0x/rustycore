@@ -21,6 +21,9 @@
 
 mod budget;
 mod callbacks;
+// #1263 F6-8D3b-2: the driver's update steps exposed to world-server tests.
+#[cfg(any(test, feature = "test-fixtures"))]
+mod cross_crate_fixtures;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;

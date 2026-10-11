@@ -60,12 +60,11 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     assert!(expected_rng.gen_range(0..=9_999_u32) < 500);
     let expected_repeat_delay = expected_rng.gen_range(6_000_u64..=12_000_u64);
     let expected_next_roll = expected_rng.gen_range(0..=9_999_u32);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.seed_runtime_rng_like_cpp(miss_seed);
-            creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.seed_runtime_rng_like_cpp(miss_seed);
+        creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+    })
+    .unwrap();
 
     let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
 
@@ -85,8 +84,8 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
             wow_packet::packets::spell::SpellMissReason::Miss as u8,
         )]
     );
-    let (repeat_due_in_ms, actual_next_roll) = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let (repeat_due_in_ms, actual_next_roll) =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0).unwrap(),
                 creature.random_creature_spell_hit_roll_like_cpp(),
@@ -111,15 +110,14 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
         .subsystems_mut()
         .auras
         .invalidate_spell_hit_aura_authority_like_cpp();
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.seed_runtime_rng_like_cpp(0xA11_C105ED);
-            creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            assert!(creature.can_swing());
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.seed_runtime_rng_like_cpp(0xA11_C105ED);
+        creature.backdate_runtime_clock_for_test(Duration::from_secs(120));
+        creature.creature.ai_ownership_mut().last_swing_ms = 0;
+        creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        assert!(creature.can_swing());
+    })
+    .unwrap();
 
     let unrepresented =
         run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
@@ -128,8 +126,8 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     assert_eq!(unrepresented.spell_hit_results_unrepresented, 1);
     assert_eq!(unrepresented.runtime_rng_authority_rejections, 1);
     assert!(unrepresented.plan.events.is_empty());
-    let (repeat_due_in_ms, rng_is_authoritative, actual_next_roll) = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let (repeat_due_in_ms, rng_is_authoritative, actual_next_roll) =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0),
                 creature.runtime_rng_authority_complete_like_cpp(),
@@ -141,27 +139,26 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     assert!(!rng_is_authoritative);
     assert_eq!(actual_next_roll, None);
     assert!(
-        !session
-            .mutate_world_creature(creature_guid, |creature| creature.can_swing())
-            .unwrap(),
+        !mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| creature
+            .can_swing())
+        .unwrap(),
         "a fail-closed hit result still follows C++ Spell::ResetCombatTimers"
     );
 
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            let _ = creature.reset_combat();
-            creature.enter_combat(victim_guid);
-            creature.seed_runtime_rng_like_cpp(0xBEEF);
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        let _ = creature.reset_combat();
+        creature.enter_combat(victim_guid);
+        creature.seed_runtime_rng_like_cpp(0xBEEF);
+    })
+    .unwrap();
     let next_engagement =
         run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(next_engagement.schedules_initialized, 1);
     assert_eq!(next_engagement.runtime_rng_authority_rejections, 1);
     assert_eq!(next_engagement.casts_ready, 0);
     assert!(next_engagement.plan.events.is_empty());
-    let (rng_is_authoritative, due) = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let (rng_is_authoritative, due) =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.runtime_rng_authority_complete_like_cpp(),
                 creature.creature_spell_due_in_ms_for_test(0),
@@ -174,13 +171,12 @@ fn legacy_creature_melee_spell_serializes_cpp_base_miss_target() {
     );
     assert_eq!(due, None);
 
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.creature.ai_ownership_mut().last_swing_ms = 0;
-            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
-            assert!(creature.can_swing());
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.creature.ai_ownership_mut().last_swing_ms = 0;
+        creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        assert!(creature.can_swing());
+    })
+    .unwrap();
     let melee = run_legacy_creature_melee_tick_once_like_cpp(
         &manager,
         Some(&canonical),
@@ -309,11 +305,10 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
     assert!(expected_rng.gen_range(0..=9_999_u32) < 500);
     let expected_initial_delay = expected_rng.gen_range(6_000_u64..=12_000_u64);
     let expected_next_roll = expected_rng.gen_range(0..=9_999_u32);
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.seed_runtime_rng_like_cpp(seed);
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.seed_runtime_rng_like_cpp(seed);
+    })
+    .unwrap();
 
     let engaged = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
 
@@ -322,8 +317,8 @@ fn legacy_creature_aggro_hit_roll_precedes_later_slot_schedule_rng_like_cpp() {
     assert_eq!(engaged.spell_hits, 0);
     assert_eq!(engaged.spell_misses, 1);
     assert_eq!(engaged.plan.events.len(), 1);
-    let (initial_due_in_ms, actual_next_roll) = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let (initial_due_in_ms, actual_next_roll) =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(1).unwrap(),
                 creature.random_creature_spell_hit_roll_like_cpp(),
@@ -648,56 +643,52 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
     assert_eq!(initialized.schedules_initialized, 1);
     assert_eq!(initialized.casts_ready, 0);
     assert!(initialized.plan.events.is_empty());
-    let first_due_in_ms = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let first_due_in_ms =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             creature.creature_spell_due_in_ms_for_test(0).unwrap()
         })
         .unwrap();
     assert!((6_000..=12_000).contains(&first_due_in_ms));
 
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.backdate_runtime_clock_for_test(Duration::from_millis(
-                first_due_in_ms.saturating_sub(1),
-            ));
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.backdate_runtime_clock_for_test(Duration::from_millis(
+            first_due_in_ms.saturating_sub(1),
+        ));
+    })
+    .unwrap();
     let before_minimum =
         run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(before_minimum.casts_ready, 0);
 
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
-            creature
-                .creature
-                .unit_mut()
-                .add_unit_state(UnitState::CASTING.bits());
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.backdate_runtime_clock_for_test(Duration::from_secs(60));
+        creature
+            .creature
+            .unit_mut()
+            .add_unit_state(UnitState::CASTING.bits());
+    })
+    .unwrap();
     let casting = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(casting.unit_state_casting_skips, 1);
     assert_eq!(casting.casts_ready, 0);
     assert!(casting.plan.events.is_empty());
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature
-                .creature
-                .unit_mut()
-                .clear_unit_state(UnitState::CASTING.bits());
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature
+            .creature
+            .unit_mut()
+            .clear_unit_state(UnitState::CASTING.bits());
+    })
+    .unwrap();
     let guaranteed_seed = (0_u64..10_000)
         .find(|seed| {
             let mut cpp_order = StdRng::seed_from_u64(*seed);
             cpp_order.gen_range(0..=9_999_u32) < 500
         })
         .unwrap();
-    session
-        .mutate_world_creature(creature_guid, |creature| {
-            creature.seed_runtime_rng_like_cpp(guaranteed_seed);
-        })
-        .unwrap();
+    mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
+        creature.seed_runtime_rng_like_cpp(guaranteed_seed);
+    })
+    .unwrap();
     let cast = run_legacy_creature_spell_tick_once_like_cpp(&manager, Some(&canonical), &config);
     assert_eq!(cast.casts_ready, 1, "spell tick outcome: {cast:?}");
     assert_eq!(cast.canonical_cast_preconditions_passed, 1);
@@ -754,8 +745,8 @@ fn legacy_creature_combat_ai_no_attack_miss_consumes_roll_then_tombstones_launch
         "M2.6 emits the cast wire without fabricating M3.2 damage"
     );
 
-    let (repeat_due_in_ms, rng_is_authoritative, actual_next_roll) = session
-        .mutate_world_creature(creature_guid, |creature| {
+    let (repeat_due_in_ms, rng_is_authoritative, actual_next_roll) =
+        mutate_legacy_creature_for_test_like_cpp(&manager, creature_guid, |creature| {
             (
                 creature.creature_spell_due_in_ms_for_test(0),
                 creature.runtime_rng_authority_complete_like_cpp(),

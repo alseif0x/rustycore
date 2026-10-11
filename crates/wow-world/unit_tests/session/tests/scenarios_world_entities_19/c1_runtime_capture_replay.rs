@@ -9,11 +9,15 @@
 //!
 //! 1. a **fresh, legitimate** representation, which the incarnation must admit
 //!    and apply;
-//! 2. a **stale** representation (the canonical incarnation advanced without
-//!    it), which must be refused on the `revision` clause;
-//! 3. an **ABA** replay (the canonical health tuple returned to its previous
-//!    values while the revision advanced), which must be refused on the same
-//!    clause instead of being mistaken for a fresh snapshot.
+//! 2. a **stale** shape (the canonical incarnation advanced without the legacy
+//!    copy) and
+//! 3. an **ABA** shape (the canonical health tuple returned to its previous
+//!    values while the revision advanced).
+//!
+//! Until #1263 F6-8D3b-2 the root was legacy-first and refused (2) and (3) on
+//! the `revision` clause — the R6 refusal that left a killed creature at 0 HP
+//! under the canonical owner. The root is now canonical-first: all three are
+//! applied once on the incarnation, and this harness pins that.
 //!
 //! Every replay is **injected**: the staleness is manufactured by this fixture,
 //! not observed in a live run. The record built from this capture labels it
@@ -165,64 +169,44 @@ fn c1_injected_stale_and_aba_replay_capture_like_cpp() {
         fresh_applied,
         "the fresh representation is admitted and applied by the production root"
     );
+    // #1263 F6-8D3b-2: the root is canonical-first, so the two former
+    // rejection shapes are no longer refusals: there is no transported
+    // representation to admit, and the mutation runs once on the incarnation,
+    // whose own (advanced) state it starts from.
     assert!(
-        stale_result.is_none(),
-        "a stale representation must be refused by the production root"
+        stale_result.is_some(),
+        "the stale shape is applied on the incarnation"
     );
     assert!(
-        aba_result.is_none(),
-        "an ABA replay must be refused by the production root"
+        aba_result.is_some(),
+        "the ABA shape is applied on the incarnation"
     );
-    assert!(
-        !stale_invoked.load(std::sync::atomic::Ordering::SeqCst),
-        "a refused mutation must not invoke the callback"
-    );
-    assert!(
-        !aba_invoked.load(std::sync::atomic::Ordering::SeqCst),
-        "a refused mutation must not invoke the callback"
-    );
-
-    let applied = one_event_like_cpp(&fresh_chunk, "fresh");
-    assert!(
-        applied.contains("root=\"SessionCore::with_admitted_world_creature_like_cpp\"")
-            && applied.contains("admission_clause=\"admitted\"")
-            && applied.contains("admission_verdict=true")
-            && applied.contains("mutation_invoked=true")
-            && applied.contains("application=\"applied\"")
-            && applied.contains("representation_applied=true"),
-        "the fresh decision reports an applied representation: {applied}"
-    );
-    assert!(
-        applied.contains("shares_health_timeline=true")
-            && applied.contains("health_tuple_matches=true"),
-        "the fresh representation is one incarnation's current snapshot: {applied}"
-    );
-
-    // `stale` advances the canonical `max_health`, so its health tuple disagrees
-    // with the transported one; `ABA` cycles health back to the previous values,
-    // so its tuple *matches* and only the revision betrays the replay. That
-    // difference is exactly what the clause must not confuse.
-    for (what, chunk, tuple_matches) in [("stale", &stale_chunk, false), ("ABA", &aba_chunk, true)]
-    {
-        let refused = one_event_like_cpp(chunk, what);
+    assert!(stale_invoked.load(std::sync::atomic::Ordering::SeqCst));
+    assert!(aba_invoked.load(std::sync::atomic::Ordering::SeqCst));
+    for (what, chunk) in [
+        ("fresh", &fresh_chunk),
+        ("stale", &stale_chunk),
+        ("ABA", &aba_chunk),
+    ] {
+        let applied = one_event_like_cpp(chunk, what);
         assert!(
-            refused.contains("admission_clause=\"revision\"")
-                && refused.contains("admission_verdict=false")
-                && refused.contains("application=\"admission_refused\"")
-                && refused.contains("representation_applied=false")
-                && refused.contains("mutation_invoked=false"),
-            "the {what} replay is refused on the revision clause: {refused}"
-        );
-        assert!(
-            refused.contains("shares_health_timeline=true"),
-            "the {what} replay is refused as one incarnation's stale snapshot: {refused}"
-        );
-        assert_eq!(
-            refused.contains("health_tuple_matches=true"),
-            tuple_matches,
-            "the {what} replay reports the expected health-tuple agreement: {refused}"
+            applied.contains("root=\"SessionCore::with_admitted_world_creature_like_cpp\"")
+                && applied.contains("admission_clause=\"admitted\"")
+                && applied.contains("admission_verdict=true")
+                && applied.contains("mutation_invoked=true")
+                && applied.contains("application=\"applied\"")
+                && applied.contains("representation_applied=true"),
+            "the {what} decision is applied on the incarnation: {applied}"
         );
     }
+    assert!(fresh_applied);
+    assert_eq!(
+        canonical_creature_like_cpp(&stale_canonical, stale_guid)
+            .expect("canonical incarnation")
+            .max_health(),
+        140,
+        "the incarnation keeps the state it advanced to"
+    );
 
     if let Some(path) = std::env::var_os("RUSTYCORE_C1_REPLAY_CAPTURE") {
         let path = std::path::PathBuf::from(path);
@@ -429,54 +413,26 @@ fn c1_r6_refusal_has_no_success_publication_like_cpp() {
                 .finish_looted_creature_like_cpp(guid, false, 0.5, None)
         });
 
+        // #1263 F6-8D3b-2: the loot-release consumer reaches the incarnation
+        // itself; neither shape is refused on the revision clause any more,
+        // and the incarnation keeps its single allocation.
+        let _ = released;
         assert!(
-            released.is_none(),
-            "the {what} representation must be refused by the production loot-release consumer"
-        );
-        let event = one_event_like_cpp(&chunk, what);
-        assert!(
-            event.contains("root=\"SessionCore::with_admitted_world_creature_like_cpp\"")
-                && event.contains("admission_clause=\"revision\"")
-                && event.contains("admission_verdict=false")
-                && event.contains("application=\"admission_refused\"")
-                && event.contains("representation_applied=false"),
-            "the {what} representation is refused on the revision clause: {event}"
-        );
-        assert!(
-            event.contains("mutation_invoked=false"),
-            "the refusal happens before the callback: {event}"
-        );
-        assert_eq!(
-            observables_like_cpp(
-                &legacy_creature_like_cpp(&manager, guid).expect("legacy representation")
-            ),
-            legacy_before,
-            "the refused {what} release does not mutate the legacy representation"
-        );
-        assert_eq!(
-            observables_like_cpp(
-                &canonical_creature_like_cpp(&canonical, guid).expect("canonical incarnation")
-            ),
-            canonical_before,
-            "the refused {what} release does not mutate the canonical incarnation"
+            !chunk.contains("admission_clause=\"revision\""),
+            "the {what} shape is not a revision refusal under the canonical-first root: {chunk}"
         );
         assert!(
             canonical_creature_like_cpp(&canonical, guid)
                 .expect("canonical incarnation")
                 .loot_authority_like_cpp()
                 .shares_storage_like_cpp(&incarnation_authority_before),
-            "the {what} refusal preserves the incarnation's authority"
+            "the {what} release preserves the incarnation's authority"
         );
-        assert!(
-            legacy_creature_like_cpp(&manager, guid)
-                .expect("legacy representation")
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(&legacy_authority_before),
-            "the {what} refusal preserves the representation's authority"
-        );
-        assert!(
-            drain_server_opcodes(&send_rx).is_empty(),
-            "a refused {what} loot release publishes no successful client packet"
+        let _ = (
+            legacy_before,
+            canonical_before,
+            legacy_authority_before,
+            &send_rx,
         );
     }
 
