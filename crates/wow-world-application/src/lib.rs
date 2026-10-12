@@ -5,15 +5,9 @@
 //! Application-level operations shared by World adapters.
 
 mod character_account_handlers;
-pub mod character_creation;
-pub mod character_enumeration;
 pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
-mod character_handler_families;
-mod character_handlers;
-pub mod character_login_support;
-mod character_query_handlers;
 mod loot_handlers;
 mod loot_release;
 mod player_conditions;
@@ -63,23 +57,6 @@ pub use aura_removal::{
     plan_item_set_aura_refresh_with_access_like_cpp, player_aura_application_cx_like_cpp,
 };
 
-// The exact `ApplicationCharacter` owner facade the handler-contract checker
-// requires: the three canonical exports as one use item. The remaining
-// application-level re-exports of the same owner module follow separately so
-// the facade item stays exact.
-pub use character_handlers::{
-    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, ConnectToFailedStepLikeCpp,
-    CreateCharacterStepLikeCpp, PlayerLoginStepLikeCpp, initial_character_rest_state_like_cpp,
-    parse_equipment_cache, send_represented_cinematic_start_like_cpp,
-};
-pub use character_handlers::{
-    CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,
-};
-pub use character_query_handlers::realm_query_response_like_cpp;
-pub use character_query_handlers::{
-    CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
-    register_character_query_handlers_like_cpp,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 pub use equipment_set_use::{

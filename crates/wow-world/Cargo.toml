@@ -60,6 +60,7 @@ wow-script = { workspace = true }
 wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-world-application = { workspace = true }
+wow-world-character = { workspace = true }
 wow-world-core = { workspace = true }
 wow-world-creature = { workspace = true }
 wow-world-entities = { workspace = true }

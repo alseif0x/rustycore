@@ -3,7 +3,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the character handlers moved to
-//! `wow-world-application` (#1263 F5). They dispatch through the registered
+//! `wow-world-character` (#1263 F5, #1363 A5). They dispatch through the registered
 //! production thunks.
 
 use wow_constants::ClientOpcodes;

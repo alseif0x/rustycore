@@ -14,7 +14,8 @@
     "crates/wow-world-interaction/src/",
     "crates/wow-world-visibility/src/",
     "crates/wow-world-test-support/src/",
-    "crates/wow-world-creature/src/"
+    "crates/wow-world-creature/src/",
+    "crates/wow-world-character/src/"
   ],
   "reviewed_new_code": {
     "budget": 661,

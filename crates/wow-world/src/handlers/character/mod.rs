@@ -20,7 +20,7 @@ mod character_handler_shims;
 mod condition_objects;
 mod creation_support;
 mod entry_zone;
-// Test-only: its production readers moved to `wow-world-application` (#1263 F5).
+// Test-only: its production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 mod enumeration_support;
 mod gossip;
@@ -46,7 +46,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 
 use rand::Rng;
-// Test-only: its production caller moved to `wow-world-application` (#1263 F5).
+// Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 pub(crate) use stats::RepresentedPlayerGearStatsLikeCpp;
 use tracing::{debug, info, trace, warn};
@@ -70,7 +70,7 @@ use wow_core::{ObjectGuid, Position};
 use wow_crypto::rsa_sign::rsa_sign_connect_to;
 #[cfg(test)]
 use wow_data::PlayerCreatePositionLikeCpp;
-// Test-only: its production caller moved to `wow-world-application` (#1263 F5).
+// Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 use wow_data::PlayerStatSystemProjectionLikeCpp;
 use wow_data::{
@@ -147,14 +147,14 @@ use crate::session::{
     SpellCastMetadata, SupportFeaturePolicyLikeCpp,
 };
 use crate::terrain::zone_and_area_for_position_like_cpp;
-// Test-only: its production caller moved to `wow-world-application` (#1263 F5).
+// Test-only: its production caller moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 use crate::session::REST_STATE_RAF_LINKED_LIKE_CPP;
 #[cfg(test)]
 use crate::session::{RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp};
 pub(crate) use creation_support::default_display_id;
 use creation_support::{default_health_mana, restored_saved_health_like_cpp};
-// Test-only: their production callers moved to `wow-world-application` (#1263 F5).
+// Test-only: their production callers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 use creation_support::{default_character_power1_like_cpp, start_position, start_zone};
 #[cfg(test)]
@@ -384,7 +384,7 @@ pub(crate) use wow_constants::character::{
     CHARACTER_FLAG_RENAME_LIKE_CPP, CLASS_DEATH_KNIGHT_LIKE_CPP, CLASS_HUNTER_LIKE_CPP,
     CLASS_WARLOCK_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
 };
-// Test-only: their production readers moved to `wow-world-application` (#1263 F5).
+// Test-only: their production readers moved to `wow-world-character` (#1263 F5, #1363 A5).
 #[cfg(test)]
 pub(crate) use wow_constants::character::{
     AT_LOGIN_CUSTOMIZE_LIKE_CPP, CHARACTER_FLAG_LOCKED_BY_BILLING_LIKE_CPP,
@@ -396,11 +396,11 @@ pub(crate) use wow_constants::character::{
 /// C++ `Player::Create` seeds the represented RAF rest state from the account's
 /// recruiter role.
 ///
-/// The body moved to the `wow-world-application` character owner (#1263 F5);
+/// The body moved to the `wow-world-character` owner (#1263 F5, #1363 A5);
 /// the character scenarios still call this entry point.
 #[cfg(test)]
 fn initial_character_rest_state_like_cpp(is_a_recruiter: bool, recruiter_id: u32) -> u8 {
-    wow_world_application::initial_character_rest_state_like_cpp(is_a_recruiter, recruiter_id)
+    wow_world_character::initial_character_rest_state_like_cpp(is_a_recruiter, recruiter_id)
 }
 
 fn creature_movement_generator_type_from_db_like_cpp(
@@ -544,11 +544,11 @@ fn slot_to_inventory_type(slot: u8) -> Option<u8> {
 /// C++ `EnumCharactersResult::CharacterInfo` parses `equipmentCache` as five
 /// fields per slot: InvType, DisplayID, DisplayEnchantID, Subclass, and
 /// SecondaryItemModifiedAppearanceID. The body moved to the
-/// `wow-world-application` character owner (#1263 F5); the character scenarios
+/// `wow-world-character` owner (#1263 F5, #1363 A5); the character scenarios
 /// still call this entry point.
 #[cfg(test)]
 fn parse_equipment_cache(cache: &str) -> [VisualItemInfo; 34] {
-    wow_world_application::parse_equipment_cache(cache)
+    wow_world_character::parse_equipment_cache(cache)
 }
 
 use wow_world_application::{

@@ -3,13 +3,13 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the character query handlers moved to
-//! `wow-world-application` (#1263 F5).
+//! `wow-world-character` (#1263 F5, #1363 A5).
 
 use wow_packet::packets::query::{
     QueryCorpseLocationFromClient, QueryCorpseTransport, QueryCreature, QueryGameObject,
     QueryPageText, QueryPetName, QueryPlayerNames,
 };
-use wow_world_application::CharacterQueryHandlerCxLikeCpp;
+use wow_world_character::CharacterQueryHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
 
@@ -72,6 +72,6 @@ impl WorldSession {
         &self,
         virtual_realm_address: u32,
     ) -> wow_packet::packets::query::RealmQueryResponse {
-        wow_world_application::realm_query_response_like_cpp(&self.core, virtual_realm_address)
+        wow_world_character::realm_query_response_like_cpp(&self.core, virtual_realm_address)
     }
 }

@@ -27,7 +27,7 @@ impl WorldSession {
     }
 
     /// C++ `Player::Create` -> `InitStatsForLevel`/`UpdateMaxHealth`: the
-    /// creation body moved to the `wow-world-application` character owner
+    /// creation body moved to the `wow-world-character` owner
     /// (#1263 F5); the character scenarios still call this entry point.
     #[cfg(test)]
     pub(super) fn player_stat_system_projection_like_cpp(
