@@ -12,42 +12,6 @@ pub(crate) use wow_world_core::session::MovementTransportMembershipLikeCpp;
 mod spline_progression;
 
 impl WorldSession {
-    pub(crate) fn represented_move_dismiss_vehicle_like_cpp(
-        &mut self,
-        status: &mut wow_packet::packets::movement::MovementInfo,
-    ) -> bool {
-        let vehicle_guid = self.core.represented_player_charmed_guid_like_cpp();
-        if vehicle_guid.is_empty()
-            || crate::session::hub_ref(self)
-                .player_vehicle_seat_state_like_cpp()
-                .is_none()
-        {
-            return false;
-        }
-
-        wow_world_entities::sanitize_movement_info_represented_like_cpp(self, status);
-        crate::session::hub_mut(self).set_player_movement_time_like_cpp(status.time);
-        crate::session::hub_mut(self).set_player_movement_flags_like_cpp(status.flags);
-        crate::session::hub_mut(self).set_player_position_like_cpp(status.position);
-        crate::session::hub_ref(self).update_registry_position();
-        #[cfg(test)]
-        self.fixtures
-            .movement
-            .represented_vehicle_dismiss_movements_like_cpp
-            .push(RepresentedVehicleDismissMovementLikeCpp {
-                vehicle_guid,
-                sanitized_flags: status.flags,
-                position: status.position,
-                time: status.time,
-            });
-
-        if !crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(None, None) {
-            return false;
-        }
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
-
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
         self.remove_player_rest_flag_like_cpp(rest_flag)
     }
@@ -86,58 +50,6 @@ impl WorldSession {
 
     pub(crate) fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         crate::session::hub_mut(self).set_player_moved_unit_guid_like_cpp(guid)
-    }
-
-    pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
-        &mut self,
-        status: &mut wow_packet::packets::movement::MovementInfo,
-        dst_vehicle: ObjectGuid,
-        dst_seat_index: u8,
-    ) -> bool {
-        let Some(vehicle_base_guid) =
-            crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
-        else {
-            return false;
-        };
-        if !crate::session::hub_ref(self)
-            .represented_current_vehicle_seat_can_switch_from_like_cpp()
-        {
-            return false;
-        }
-
-        wow_world_entities::sanitize_movement_info_represented_like_cpp(self, status);
-        if status.guid != vehicle_base_guid {
-            return false;
-        }
-
-        let dst_seat_id = dst_seat_index as i8;
-        let dst_vehicle_exists_with_empty_seat = !dst_vehicle.is_empty()
-            && self.represented_vehicle_seat_spell_click_plan_available_like_cpp(
-                dst_vehicle,
-                dst_seat_id,
-            );
-        let action = crate::handlers::vehicle::move_change_vehicle_seats_action_like_cpp(
-            true,
-            true,
-            vehicle_base_guid,
-            status.guid,
-            dst_vehicle,
-            dst_seat_index,
-            dst_vehicle_exists_with_empty_seat,
-        );
-
-        #[cfg(test)]
-        self.fixtures
-            .movement
-            .represented_vehicle_base_movements_like_cpp
-            .push(RepresentedVehicleBaseMovementLikeCpp {
-                vehicle_guid: vehicle_base_guid,
-                sanitized_flags: status.flags,
-                position: status.position,
-                time: status.time,
-            });
-        let _ = self.record_represented_vehicle_seat_action_like_cpp(action);
-        true
     }
 
     pub(crate) fn remove_represented_at_login_flag_like_cpp(

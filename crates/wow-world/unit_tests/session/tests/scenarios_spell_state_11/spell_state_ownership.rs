@@ -548,7 +548,13 @@ fn represented_vehicle_switch_cross_vehicle_records_spellclick_plan_like_cpp() {
         UNIT_NPC_FLAG_SPELLCLICK_LIKE_CPP as u32,
     );
 
-    assert!(session.represented_request_vehicle_switch_seat_like_cpp(other_vehicle, 3));
+    assert!(
+        wow_world_application::represented_request_vehicle_switch_seat_like_cpp(
+            &mut session,
+            other_vehicle,
+            3
+        )
+    );
     assert_eq!(
         session.represented_vehicle_seat_spell_click_requests_like_cpp(),
         &[RepresentedVehicleSeatSpellClickRequestLikeCpp {

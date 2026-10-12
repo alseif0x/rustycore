@@ -628,7 +628,9 @@ fn represented_move_dismiss_vehicle_uses_charmed_guid_gate_like_cpp() {
         ..wow_packet::packets::movement::MovementInfo::default()
     };
 
-    assert!(session.represented_move_dismiss_vehicle_like_cpp(&mut status));
+    assert!(
+        wow_world_application::represented_move_dismiss_vehicle_like_cpp(&mut session, &mut status)
+    );
 
     assert!(
         session
@@ -709,7 +711,9 @@ fn represented_move_dismiss_vehicle_uses_charm_not_seat_gate_like_cpp() {
         ..wow_packet::packets::movement::MovementInfo::default()
     };
 
-    assert!(session.represented_move_dismiss_vehicle_like_cpp(&mut status));
+    assert!(
+        wow_world_application::represented_move_dismiss_vehicle_like_cpp(&mut session, &mut status)
+    );
     assert_eq!(session.player_movement_time_like_cpp(), 7_777);
     assert_eq!(session.player_position_like_cpp(), Some(dismiss_position));
     assert_eq!(
@@ -756,8 +760,9 @@ async fn move_dismiss_vehicle_handler_copies_status_like_cpp() {
     }
 
     let dismiss_position = Position::new(11.0, 12.0, 13.0, 2.0);
-    session
-        .handle_move_dismiss_vehicle(wow_packet::packets::vehicle::MoveDismissVehicle {
+    wow_world_application::handle_move_dismiss_vehicle(
+        &mut session,
+        wow_packet::packets::vehicle::MoveDismissVehicle {
             status: wow_packet::packets::movement::MovementInfo {
                 guid,
                 flags: MovementFlag::FORWARD,
@@ -765,8 +770,9 @@ async fn move_dismiss_vehicle_handler_copies_status_like_cpp() {
                 position: dismiss_position,
                 ..wow_packet::packets::movement::MovementInfo::default()
             },
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(
         session
@@ -817,7 +823,12 @@ fn represented_move_dismiss_vehicle_rejects_without_charmed_guid_like_cpp() {
         ..wow_packet::packets::movement::MovementInfo::default()
     };
 
-    assert!(!session.represented_move_dismiss_vehicle_like_cpp(&mut status));
+    assert!(
+        !wow_world_application::represented_move_dismiss_vehicle_like_cpp(
+            &mut session,
+            &mut status
+        )
+    );
 
     assert_eq!(
         session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,

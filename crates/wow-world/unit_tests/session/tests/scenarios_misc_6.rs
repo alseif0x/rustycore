@@ -455,7 +455,13 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
-    assert!(session.represented_request_vehicle_switch_seat_like_cpp(base, 4));
+    assert!(
+        wow_world_application::represented_request_vehicle_switch_seat_like_cpp(
+            &mut session,
+            base,
+            4
+        )
+    );
     assert_eq!(
         session.represented_vehicle_seat_change_requests_like_cpp(),
         &[RepresentedVehicleSeatChangeRequestLikeCpp {
@@ -471,11 +477,14 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
         position: Position::new(2.0, 3.0, 4.0, 0.5),
         ..wow_packet::packets::movement::MovementInfo::default()
     };
-    assert!(!session.represented_move_change_vehicle_seats_like_cpp(
-        &mut mismatched_status,
-        ObjectGuid::EMPTY,
-        0,
-    ));
+    assert!(
+        !wow_world_application::represented_move_change_vehicle_seats_like_cpp(
+            &mut session,
+            &mut mismatched_status,
+            ObjectGuid::EMPTY,
+            0,
+        )
+    );
     assert!(!mismatched_status.flags.contains(MovementFlag::ROOT));
     assert!(
         session
@@ -499,11 +508,14 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
         position: move_position,
         ..wow_packet::packets::movement::MovementInfo::default()
     };
-    assert!(session.represented_move_change_vehicle_seats_like_cpp(
-        &mut status,
-        ObjectGuid::EMPTY,
-        u8::MAX,
-    ));
+    assert!(
+        wow_world_application::represented_move_change_vehicle_seats_like_cpp(
+            &mut session,
+            &mut status,
+            ObjectGuid::EMPTY,
+            u8::MAX,
+        )
+    );
     assert_eq!(
         session.represented_vehicle_base_movements_like_cpp(),
         &[RepresentedVehicleBaseMovementLikeCpp {
@@ -535,16 +547,17 @@ async fn vehicle_switch_handlers_record_same_vehicle_change_seat_like_cpp() {
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
-    session
-        .handle_request_vehicle_switch_seat(
-            wow_packet::packets::vehicle::RequestVehicleSwitchSeat {
-                vehicle: base,
-                seat_index: 2,
-            },
-        )
-        .await;
-    session
-        .handle_move_change_vehicle_seats(wow_packet::packets::vehicle::MoveChangeVehicleSeats {
+    wow_world_application::handle_request_vehicle_switch_seat(
+        &mut session,
+        wow_packet::packets::vehicle::RequestVehicleSwitchSeat {
+            vehicle: base,
+            seat_index: 2,
+        },
+    )
+    .await;
+    wow_world_application::handle_move_change_vehicle_seats(
+        &mut session,
+        wow_packet::packets::vehicle::MoveChangeVehicleSeats {
             status: wow_packet::packets::movement::MovementInfo {
                 guid: base,
                 flags: MovementFlag::FORWARD,
@@ -554,8 +567,9 @@ async fn vehicle_switch_handlers_record_same_vehicle_change_seat_like_cpp() {
             },
             dst_vehicle: ObjectGuid::EMPTY,
             dst_seat_index: 1,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert_eq!(
         session.represented_vehicle_base_movements_like_cpp(),
@@ -621,7 +635,12 @@ fn represented_ride_vehicle_interact_requires_cpp_gates() {
         true,
         wow_data::map::MAP_COMMON,
     );
-    assert!(!no_vehicle_kit.represented_ride_vehicle_interact_like_cpp(target));
+    assert!(
+        !wow_world_application::represented_ride_vehicle_interact_like_cpp(
+            &mut no_vehicle_kit,
+            target
+        )
+    );
 
     let mut not_raid_member = represented_vehicle_interact_session_like_cpp(
         target,
@@ -630,7 +649,12 @@ fn represented_ride_vehicle_interact_requires_cpp_gates() {
         false,
         wow_data::map::MAP_COMMON,
     );
-    assert!(!not_raid_member.represented_ride_vehicle_interact_like_cpp(target));
+    assert!(
+        !wow_world_application::represented_ride_vehicle_interact_like_cpp(
+            &mut not_raid_member,
+            target
+        )
+    );
 
     let mut too_far = represented_vehicle_interact_session_like_cpp(
         target,
@@ -639,7 +663,9 @@ fn represented_ride_vehicle_interact_requires_cpp_gates() {
         true,
         wow_data::map::MAP_COMMON,
     );
-    assert!(!too_far.represented_ride_vehicle_interact_like_cpp(target));
+    assert!(
+        !wow_world_application::represented_ride_vehicle_interact_like_cpp(&mut too_far, target)
+    );
 
     let mut arena = represented_vehicle_interact_session_like_cpp(
         target,
@@ -648,7 +674,7 @@ fn represented_ride_vehicle_interact_requires_cpp_gates() {
         true,
         wow_data::map::MAP_ARENA,
     );
-    assert!(!arena.represented_ride_vehicle_interact_like_cpp(target));
+    assert!(!wow_world_application::represented_ride_vehicle_interact_like_cpp(&mut arena, target));
 }
 #[tokio::test]
 async fn ride_vehicle_interact_handler_records_enter_vehicle_plan_like_cpp() {
@@ -661,11 +687,11 @@ async fn ride_vehicle_interact_handler_records_enter_vehicle_plan_like_cpp() {
         wow_data::map::MAP_COMMON,
     );
 
-    session
-        .handle_ride_vehicle_interact(wow_packet::packets::vehicle::RideVehicleInteract {
-            vehicle: target,
-        })
-        .await;
+    wow_world_application::handle_ride_vehicle_interact(
+        &mut session,
+        wow_packet::packets::vehicle::RideVehicleInteract { vehicle: target },
+    )
+    .await;
 
     assert_eq!(
         session.represented_vehicle_enter_requests_like_cpp(),
