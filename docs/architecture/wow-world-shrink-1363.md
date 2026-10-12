@@ -1854,3 +1854,151 @@ SHA).
   destination at A6 (they can follow `registry_sync`, or stay in
   application), or make the fixture hydration quest-agnostic in a separate
   behaviour-neutral change before moving them to inventory.
+
+## A5 result (profession, spell acquisition → spell; character family → new `wow-world-character`)
+
+Branch `1363-sA5-spell-character`, base `989b99b6c` (A4 merged). Move-only
+(R2): all 29 moved files (12 spell, 17 character) are 100% renames; only
+`use` lines, caller crate prefixes, crate-root re-exports and adapter
+comments change. Opcode registration and dispatch order and every
+processing flag are unchanged (`handler_composition.rs` changes only the
+two character registrar paths).
+
+### Re-measure and pre-check
+
+- **Base.** `wow-world-application/src` is 36,164 lines in 139 files on
+  `989b99b6c`, as A4 reported. The two units total 5,782 file lines
+  (profession 340, spell acquisition 2,388; character family 3,054:
+  handlers 700, handler families 1,127, query handlers 754, login support
+  286, enumeration 105, creation 82), below the ~6k split threshold, so A5
+  is one PR.
+- **Nothing stays.** No unit names `registry_sync`, `inventory_scaling`,
+  `equipment_set_use` or `SessionQuestState` (the A4 holdbacks). The only
+  in-crate edges are inside the units (`spell_acquisition` →
+  `profession`; the families → `character_handlers`,
+  `character_creation`, `character_enumeration`); the character family's
+  stat dependency is `wow_world_inventory` since A4. Their `wow_world_*`
+  uses: profession/spell acquisition → core, lifecycle; character →
+  core, entities, inventory, lifecycle.
+- **Who calls them.** In application only `trainer_purchase` (spell
+  acquisition and profession); nothing in application names the
+  character family, so **application does not depend on the new crate**
+  (the planned application → character edge is not needed). In
+  `wow-world`: `handler_composition.rs`, the character host/query
+  adapters and shims, `publication/operations.rs`, `profession.rs` and
+  `spell_acquisition/{application,effect_learning}.rs`.
+- **Closure check before moving**, with every planned edge simulated
+  (`--add` spell → lifecycle; character → core, entities, inventory,
+  lifecycle; application → character; wow-world → character), lock and
+  metadata modes: PASS. The check now also enforces the plan's
+  *`wow-world-character` sits high* rule: only `wow-world-application`
+  and `wow-world` may reach it (new self-test case: a direct and a
+  transitive violation). Head closures: spell → core, lifecycle,
+  visibility; character → core, entities, interaction, inventory,
+  lifecycle, visibility; nothing but `wow-world` reaches character.
+
+### What moved
+
+- **To `wow-world-spell`** (2,728 `src` lines + 469 test lines):
+  `profession.rs` (340) and `spell_acquisition.rs` + `spell_acquisition/`
+  (2,388) as **`spell_acquisition_application`** (spell already owns a
+  `spell_acquisition` module, the `SessionSpellState` adapter); the
+  `#[path]` test mounts keep their relative paths, so
+  `unit_tests/profession.rs` (11 tests) and
+  `unit_tests/spell_acquisition/persistence.rs` (2 tests) move beside
+  them unchanged. Spell re-exports exactly the names application
+  exported.
+- **To the new `wow-world-character`** (3,054): `character_handlers.rs`,
+  `character_handler_families/` (12 files), `character_creation.rs`,
+  `character_enumeration.rs`, `character_login_support.rs`,
+  `character_query_handlers.rs`, module names unchanged. Its `lib.rs`
+  holds the same module declarations and the same re-export items
+  (including the exact `ApplicationCharacter` facade item and its
+  comment) that application had. The family has no tests.
+- **Callers.** Application's trainer purchase names `wow_world_spell::…`
+  (the five `crate::…` profession calls in `trainer_purchase/projection.rs`
+  become `wow_world_spell::…` and rustfmt rewraps them, +3 lines).
+  `wow-world` names `wow_world_spell` / `wow_world_character`; the
+  character adapter and shim comments name the new owner crate.
+- **Checker.** `CHARACTER_REGISTRAR` and `CHARACTER_QUERY_REGISTRAR` move
+  to package `wow-world-character`; the composer test mounts both files
+  at their new paths plus the character crate root; the handler
+  contract's reviewed production-package set adds `wow-world-character`;
+  `handler-module-policy.json` follows both registrars. The
+  session-ownership scan gains a `WorldCharacter` package role (scanned
+  like the other extracted packages, never a Session contract owner, and
+  included in the three role-list tests and the real-root load test), so
+  the two `character_query_handlers` registry rows stay inventoried.
+  Owner labels are unchanged (rename is the A2 follow-up).
+
+### Accounting
+
+- **`wow-world-application/src`: 36,164 → 30,330 lines (−5,834), 139 →
+  112 files.** 5,782 lines leave as files; `lib.rs` loses 55 (234 → 179);
+  the projection rewrap adds 3. `unit_tests/`: 708 → 241 (the two moved
+  test files; the trainer-purchase test import is rewrapped, +2).
+- **Destinations.** `wow-world-spell/src` 6,204 → 8,964 (+2,760: 2,728
+  moved, 32 `lib.rs`); `unit_tests/` 218 → 687 (+469).
+  `wow-world-character/src` 0 → 3,088 (3,054 moved, 34 `lib.rs`).
+- **`crates/wow-world`**: +38 −40 (paths and comments; rustfmt folds one
+  shorter `wow_world_spell` import). `net_move.py check`: S 2, G 14, 0
+  duplicate bodies, PASS.
+- **Edges.** Added: spell → lifecycle (+ `wow-persistence`, `wow-config`,
+  external `rand`, dev `tokio`); character → core, entities, inventory,
+  lifecycle (+ `wow-constants`, `wow-core`, `wow-data`, `wow-entities`,
+  `wow-handler`, `wow-packet`, `wow-persistence`, external `tracing`);
+  `wow-world` → character. Removed: application → `wow-config` and
+  external `rand` (no remaining user).
+- **Policy (`dependency-policy.json`).** `wow-world-character` joins the
+  `application` category with the other `wow-world-*` crates, restricted
+  to its 11 actual dependencies, external `tracing` only. Spell +=
+  `wow-config`, `wow-persistence`, `wow-world-lifecycle`, external
+  `rand`; application −= `wow-config`, external `rand`. New fixtures
+  `forbidden-character-to-wow-world.json` and
+  `forbidden-character-to-world-application.json` (self-test: 24
+  fixtures). `net-move-policy.json` adds the character `src/` destination
+  root (14; `test_net_move.py` pins it). No `test-fixtures` feature is
+  added: the character family has no fixture-gated code, and spell's
+  existing feature already covers the moved `commit.rs` fixture argument
+  (application's feature forwards it). `cargo tree -p world-server -e
+  normal,build -e features` shows no `test-fixtures` and no
+  `wow-world-test-support`.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`;
+  the delta is the two `character_query_handlers` registry rows
+  (package and source path) and the resulting sort order. With
+  `wow-world-application` / `wow-world-character` masked the old and new
+  policies are equal (10,581 entries).
+- **Ceilings.** None raised, none to tighten: every hotspot owner
+  (Session 42,629 / 142,049 / 184,678; character 15,088 / 15,708 /
+  30,796) is at its live value, and every physical row is unchanged. No
+  moved file is above 1,000 lines (largest `character_query_handlers.rs`,
+  754).
+- **Warnings.** `wow-world` `dead_code` is 0 in the production lib, the
+  lib with `test-fixtures` and the lib test build; `unused_imports` is
+  152 and 161 in the first two (as in A4), and no changed wow-world line
+  warns. No warning falls in a moved file in its new crate
+  (`wow-world-character` has none; spell's five are pre-existing, in
+  unmoved files).
+- **Tests.** The Rust test-name multiset is unchanged (10,214 `#[test]`
+  functions, 5 ignored, same names on base and head). The 13 profession
+  and persistence tests run in spell (application 35 → 22, spell 12 →
+  25). The closure self-test gains one Python case (8).
+
+### Validation
+
+`final --architecture --timings` runs on the committed head that includes
+this section; its manifest path, dirty flag and duration are in the PR body
+(this section is not edited after that run, so the PR head is the validated
+SHA).
+
+### Next
+
+- A6 (`wow-world-quest`): re-run the quest-cluster scan on the A5 merge
+  (expected application ~30.3k). `registry_sync` goes with the cluster;
+  re-plan `inventory_scaling` and `equipment_set_use` there (see A4
+  *Next*). Trainer purchase now reaches spell acquisition and profession
+  in `wow-world-spell`, so a later trainer split needs no application
+  module beyond `aura_removal` and the quest state.
+- Slice 8 (character login load and handlers → `wow-world-character`)
+  needs its own closure check; the tracked check now rejects any edge
+  from a domain crate or `wow-world-core` back to character.
