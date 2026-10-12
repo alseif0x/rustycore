@@ -1,5 +1,6 @@
 //! Session instance state and its operations.
 
+mod battleground_handlers;
 mod binding;
 mod constants;
 mod contracts;
@@ -8,6 +9,7 @@ mod difficulty;
 mod fixture_access;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
+mod group_handlers;
 mod handlers;
 mod instance;
 mod map_key;
@@ -16,6 +18,10 @@ mod operations;
 mod pending_raid_lock;
 mod state;
 
+pub use battleground_handlers::{
+    BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp,
+    register_battleground_handlers_like_cpp,
+};
 pub use binding::create_map_instance_lock_token_like_cpp;
 pub use constants::{
     DIFFICULTY_10_N_LIKE_CPP, DIFFICULTY_NORMAL_LIKE_CPP, DIFFICULTY_NORMAL_RAID_LIKE_CPP,
@@ -26,6 +32,11 @@ pub use contracts::{RepresentedAdventureMapStartQuestLikeCpp, RepresentedPending
 pub use difficulty::SessionDifficultyKindLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use fixtures::InstanceTestFixtureLikeCpp;
+pub use group_handlers::GroupPublicationTailLikeCpp;
+pub use group_handlers::resolved_group_guid_like_cpp;
+pub use group_handlers::{
+    GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
+};
 pub use handlers::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,

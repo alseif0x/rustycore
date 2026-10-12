@@ -119,7 +119,6 @@
       "wow-persistence",
       "wow-progression",
       "wow-script",
-      "wow-social",
       "wow-spell-acquisition",
       "wow-world-core",
       "wow-world-entities",
@@ -205,7 +204,9 @@
       "wow-persistence",
       "wow-social",
       "wow-world-core",
+      "wow-world-entities",
       "wow-world-lifecycle",
+      "wow-world-loot",
       "wow-world-social"
     ],
     "wow-world-inventory": [
@@ -256,7 +257,10 @@
       "wow-packet",
       "wow-persistence",
       "wow-social",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-entities",
+      "wow-world-inventory",
+      "wow-world-spell"
     ],
     "wow-world-spell": [
       "wow-combat",
@@ -659,6 +663,7 @@
       },
       "wow-world-instances": {
         "normal": [
+          "rand",
           "tracing"
         ],
         "build": []

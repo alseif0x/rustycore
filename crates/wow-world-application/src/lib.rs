@@ -5,7 +5,6 @@
 //! Application-level operations shared by World adapters.
 
 mod battle_pet_handlers;
-mod battleground_handlers;
 pub use battle_pet_handlers::{
     BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp, register_battle_pet_handlers_like_cpp,
 };
@@ -30,8 +29,6 @@ mod corpse_handlers;
 mod data_service_handlers;
 mod dungeon_finding_handlers;
 mod gameobject_handlers;
-mod group_handlers;
-mod guild_bank_handlers;
 mod loot_handlers;
 mod loot_release;
 mod npc_handlers;
@@ -46,11 +43,9 @@ mod quest;
 mod quest_handlers;
 mod quest_query_handlers;
 mod registry_sync;
-mod reputation;
 mod spell_acquisition;
 mod spell_handlers;
 mod talent_handlers;
-mod trade_handlers;
 mod travel_handlers;
 pub mod vendor;
 pub use loot_release::{
@@ -98,10 +93,6 @@ pub use aura_removal::{
     plan_item_set_aura_refresh_with_access_like_cpp, player_aura_application_cx_like_cpp,
 };
 
-pub use battleground_handlers::{
-    BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp,
-    register_battleground_handlers_like_cpp,
-};
 // The exact `ApplicationCharacter` owner facade the handler-contract checker
 // requires: the three canonical exports as one use item. The remaining
 // application-level re-exports of the same owner module follow separately so
@@ -146,14 +137,6 @@ pub use equipment_set_use::{
 };
 pub use gameobject_handlers::{
     GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp, register_gameobject_handlers_like_cpp,
-};
-pub use group_handlers::GroupPublicationTailLikeCpp;
-pub use group_handlers::resolved_group_guid_like_cpp;
-pub use group_handlers::{
-    GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, register_group_handlers_like_cpp,
-};
-pub use guild_bank_handlers::{
-    GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp, register_guild_bank_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
@@ -256,9 +239,6 @@ pub use quest_query_handlers::{
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use registry_sync::PlayerRegistrySyncContext;
 pub use registry_sync::sync_player_registry_state_like_cpp;
-pub use reputation::{
-    ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp, register_reputation_handlers_like_cpp,
-};
 pub use spell_acquisition::{
     EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
     PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
@@ -290,13 +270,6 @@ pub use spell_handlers::{
 pub use stats::{
     CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
     primary_max_power_for_class_like_cpp, stats_application_cx_from_hub_like_cpp,
-};
-pub use trade_handlers::{
-    TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp, register_trade_handlers_like_cpp,
-};
-pub use trade_handlers::{
-    player_trade_state_snapshot_like_cpp, resolved_represented_duel_arbiter_guid_like_cpp,
-    set_represented_duel_arbiter_guid_like_cpp, set_represented_duel_state_like_cpp,
 };
 pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]

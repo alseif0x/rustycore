@@ -46,7 +46,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-social",
       "module": "crate::reputation",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -60,7 +60,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-social",
       "module": "crate::trade_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -74,7 +74,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-social",
       "module": "crate::guild_bank_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -116,7 +116,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-instances",
       "module": "crate::battleground_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -158,7 +158,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-instances",
       "module": "crate::group_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263

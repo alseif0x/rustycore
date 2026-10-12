@@ -5,14 +5,14 @@
 //! Progression (reputation) command handlers.
 //!
 //! The reputation handlers and their registration moved to
-//! `wow-world-application` under #1263 F5. The session keeps only these
+//! `wow-world-social` (#1263 F5; #1363 slice A2). The session keeps only these
 //! test-only entry points so the existing scenario module can drive one
 //! handler without composing a dispatch table.
 
 #[cfg(test)]
 mod session_shims {
     use wow_packet::WorldPacket;
-    use wow_world_application::ReputationHandlerCxLikeCpp;
+    use wow_world_social::ReputationHandlerCxLikeCpp;
 
     use crate::session::WorldSession;
 

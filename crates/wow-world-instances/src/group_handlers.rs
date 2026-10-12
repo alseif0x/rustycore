@@ -14,6 +14,7 @@
 //! convert/subgroup handlers and their registry-sync helper stay in the World
 //! shell for later slices.
 
+use crate::InstanceState;
 use rand::Rng;
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -44,7 +45,6 @@ use wow_world_core::session::state::hub_support::player_team_for_race_cpp;
 use wow_world_core::session::{
     GroupInvitePolicyLikeCpp, HubMut, HubRef, PacketPublicationAccessLikeCpp,
 };
-use wow_world_instances::InstanceState;
 use wow_world_lifecycle::SessionLifecycleState;
 use wow_world_loot::LootState;
 use wow_world_social::SessionSocialLimits;

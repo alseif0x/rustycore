@@ -4,11 +4,11 @@
 //! Private guild capability handlers extracted from the legacy misc owner.
 //!
 //! Every guild opcode is registered by its owner under #1263 F5: the guild-bank
-//! family by `wow-world-application::guild_bank_handlers` and the invitation and
+//! family by `wow-world-social::guild_bank_handlers` and the invitation and
 //! auto-decline handlers by `wow-world-social::guild_handlers`. This module only
 //! lends the World session's state to the guild-bank context.
 
-use wow_world_application::{GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp};
+use wow_world_social::{GuildBankHandlerCxLikeCpp, GuildBankHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

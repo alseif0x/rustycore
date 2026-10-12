@@ -14,6 +14,7 @@
 //! the World session only lends the hub, inventory, social and world-entity
 //! state (#1263 F5). Bodies are moved unchanged from the World shell.
 
+use crate::SessionSocialLimits;
 use tracing::warn;
 use wow_constants::{ClientOpcodes, InventoryResult};
 use wow_core::ObjectGuid;
@@ -36,7 +37,6 @@ use wow_world_inventory::{
     RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp,
     RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp,
 };
-use wow_world_social::SessionSocialLimits;
 
 /// Borrowed inputs of one guild bank handler invocation.
 pub struct GuildBankHandlerCxLikeCpp<'a> {
@@ -68,7 +68,7 @@ impl<'a> GuildBankHandlerCxLikeCpp<'a> {
     }
 
     fn resolved_represented_guild_id_like_cpp(&self) -> Option<u64> {
-        wow_world_social::resolved_represented_guild_id_like_cpp(&self.hub.shared(), self.social)
+        crate::resolved_represented_guild_id_like_cpp(&self.hub.shared(), self.social)
     }
 
     /// C++ `Player::GetGameObjectIfCanInteractWith(guid, GAMEOBJECT_TYPE_GUILD_BANK)`.
