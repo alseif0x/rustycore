@@ -4,8 +4,8 @@
 //! Map admission: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::trinity_sprintf_like_cpp;
 use super::TRANSFER_ABORT_DIFFICULTY_LIKE_CPP;
+use super::trinity_sprintf_like_cpp;
 use super::{TRANSFER_ABORT_ERROR_LIKE_CPP, Team, WorldSession};
 use super::{is_player_meeting_condition_like_cpp, player_team_for_race_cpp};
 

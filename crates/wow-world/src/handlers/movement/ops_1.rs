@@ -76,6 +76,11 @@ impl WorldSession {
             speed = pkt.speed,
             "MovementSpeedAck"
         );
-        wow_world_entities::handle_force_speed_change_ack_like_cpp(self, opcode, &mut pkt.ack, pkt.speed);
+        wow_world_entities::handle_force_speed_change_ack_like_cpp(
+            self,
+            opcode,
+            &mut pkt.ack,
+            pkt.speed,
+        );
     }
 }

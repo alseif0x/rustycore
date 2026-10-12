@@ -77,7 +77,9 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         ack: &mut MovementAck,
         speed: f32,
     ) -> bool {
-        wow_world_entities::handle_movement_force_mod_magnitude_ack_like_cpp(self, opcode, ack, speed)
+        wow_world_entities::handle_movement_force_mod_magnitude_ack_like_cpp(
+            self, opcode, ack, speed,
+        )
     }
 
     fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
@@ -116,7 +118,9 @@ impl MovementHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession 
         opcode: ClientOpcodes,
         ack: MovementAckMessage,
     ) -> HandlerFuture<'a, ()> {
-        Box::pin(async move { wow_world_entities::handle_movement_ack_message(self, opcode, ack).await })
+        Box::pin(
+            async move { wow_world_entities::handle_movement_ack_message(self, opcode, ack).await },
+        )
     }
 
     fn handle_movement_speed_ack_like_cpp<'a>(

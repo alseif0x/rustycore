@@ -5,6 +5,7 @@
 
 use super::*;
 
+#[cfg(test)]
 pub(crate) use wow_world_core::session::MovementTransportMembershipLikeCpp;
 
 #[path = "state/spline_progression.rs"]
@@ -138,8 +139,6 @@ impl WorldSession {
         let _ = self.record_represented_vehicle_seat_action_like_cpp(action);
         true
     }
-
-
 
     pub(crate) fn remove_represented_at_login_flag_like_cpp(
         &mut self,
