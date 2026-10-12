@@ -24,6 +24,7 @@ mod social_contacts_handlers;
 mod state;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
+mod text_emote;
 mod trade;
 
 pub use arena_team_handlers::{
@@ -72,6 +73,10 @@ pub use social_contacts_handlers::{
     register_social_contacts_handlers_like_cpp,
 };
 pub use state::SessionSocialLimits;
+pub use text_emote::{
+    ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
+    TextEmoteHostLikeCpp, handle_text_emote_with_catalogs_like_cpp,
+};
 
 pub const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
 pub const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;

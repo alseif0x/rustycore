@@ -15,15 +15,23 @@
 //! Reference: C++ `Handlers/ChatHandler.cpp`, `Entities/Player/Player.cpp`,
 //! and `Server/Packets/ChatPackets.cpp`.
 
+#[cfg(test)]
 use tracing::debug;
 
+#[cfg(test)]
 use crate::session::mailbox::{SendAddonIfRegisteredLikeCppCommand, SessionCommand};
+#[cfg(test)]
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
+#[cfg(test)]
 use wow_chat::validation::validate_message_like_cpp;
+#[cfg(test)]
 use wow_constants::UnitState;
+#[cfg(test)]
 use wow_core::ObjectGuid;
+#[cfg(test)]
 use wow_core::guid::HighGuid;
 
+#[cfg(test)]
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
@@ -31,34 +39,32 @@ use wow_packet::packets::chat::{
     ChatReportIgnored, EmoteClient, EmoteMessage, PrintNotification, STextEmote, UpdateAadcStatus,
     UpdateAadcStatusResponse,
 };
+#[cfg(test)]
 use wow_packet::{ClientPacket, ServerPacket};
+#[cfg(test)]
 use wow_social::group::GroupInfo;
 
+#[cfg(test)]
 use crate::session::{
-    ChatFloodThrottleIndexLikeCpp, ChatPolicyCatalogsLikeCpp, PlayerAwayModeLikeCpp,
-    SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP, WorldSession, player_team_for_race_cpp,
+    ChatFloodThrottleIndexLikeCpp, ChatPolicyCatalogsLikeCpp, PlayerAwayModeLikeCpp, WorldSession,
+    player_team_for_race_cpp,
 };
 
 /// Chat constants consumed by the moved handlers and their scenario module.
+#[cfg(test)]
 pub(crate) use wow_world_social::{
     GM_SILENCE_AURA_LIKE_CPP, LANG_ADDON_LIKE_CPP, LANG_ADDON_LOGGED_LIKE_CPP,
     LANG_UNIVERSAL_LIKE_CPP, secs_to_full_time_string_like_cpp,
 };
 
-/// Emote ids and states used only by the emote handlers that remain here.
-pub(crate) const EMOTE_ONESHOT_NONE_LIKE_CPP: i32 = 0;
-pub(crate) const EMOTE_STATE_DANCE_LIKE_CPP: i32 = 10;
-pub(crate) const EMOTE_STATE_SLEEP_LIKE_CPP: i32 = 12;
-pub(crate) const EMOTE_STATE_SIT_LIKE_CPP: i32 = 13;
-pub(crate) const EMOTE_STATE_KNEEL_LIKE_CPP: i32 = 68;
-pub(crate) const EMOTE_STATE_READ_LIKE_CPP: i32 = 483;
-pub(crate) const ANIM_MOUNT_SPECIAL_LIKE_CPP: i32 = 94;
-pub(crate) const ANIM_MOUNT_SELF_SPECIAL_LIKE_CPP: i32 = 636;
+/// Emote ids used by the chat scenarios; the text-emote body moved to
+/// `wow_world_social::text_emote` (#1363 slice 4a).
+#[cfg(test)]
+pub(crate) use wow_world_social::{
+    ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
+};
 
-mod ops_1;
 mod ops_2;
-#[allow(unused_imports)]
-pub use ops_1::*;
 #[allow(unused_imports)]
 pub use ops_2::*;
 

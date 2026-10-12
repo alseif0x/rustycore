@@ -148,4 +148,25 @@ impl WorldSession {
             .handle_chat_unregister_all_addon_prefixes(pkt)
             .await;
     }
+
+    #[cfg(test)]
+    pub(crate) async fn handle_text_emote(&mut self, pkt: wow_packet::WorldPacket) {
+        let emotes_text = self
+            .emotes_text_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_data::EmotesTextStore::from_entries([])));
+        let emotes = self
+            .emotes_store_for_test_like_cpp()
+            .cloned()
+            .unwrap_or_else(|| std::sync::Arc::new(wow_data::EmotesStore::from_entries([])));
+        let chat_policy = self.chat_policy_catalogs_for_test_like_cpp();
+        wow_world_social::handle_text_emote_with_catalogs_like_cpp(
+            self,
+            emotes_text.as_ref(),
+            emotes.as_ref(),
+            &chat_policy,
+            pkt,
+        )
+        .await;
+    }
 }

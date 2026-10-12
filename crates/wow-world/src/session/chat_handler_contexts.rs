@@ -13,7 +13,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_social::{ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp};
+use wow_world_social::{ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp, TextEmoteHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
@@ -32,7 +32,7 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
         pkt: WorldPacket,
     ) -> HandlerFuture<'a, ()> {
         Box::pin(async move {
-            WorldSession::handle_text_emote_with_catalogs_like_cpp(
+            wow_world_social::handle_text_emote_with_catalogs_like_cpp(
                 self,
                 catalogs.emotes_text.as_ref(),
                 catalogs.emotes.as_ref(),
@@ -41,5 +41,11 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
             )
             .await
         })
+    }
+}
+
+impl TextEmoteHostLikeCpp for WorldSession {
+    crate::session::forward_to_world_session_like_cpp! {
+        fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize;
     }
 }

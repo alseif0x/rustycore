@@ -197,6 +197,7 @@ use connection_identity::PacketSpoofPendingBanLikeCpp;
 use connection_identity::PacketSpoofPendingBanTargetLikeCpp;
 pub use connection_identity::SessionState;
 pub(crate) use connection_identity::{ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, AccountDataLikeCpp};
+#[cfg(test)]
 pub(crate) use connection_identity::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 use connection_identity::{trinity_sprintf_like_cpp, unix_now};
 mod construction;
@@ -982,7 +983,6 @@ pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffect
 pub(crate) use wow_world_core::session::AFLAG_NOCASTER_LIKE_CPP;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
-pub(crate) const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP: u32 = 0x0000_0010;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
