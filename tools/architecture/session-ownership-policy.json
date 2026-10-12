@@ -58467,32 +58467,6 @@
         },
         {
           "package": "wow-world-application",
-          "module": "crate::character_query_handlers",
-          "source": "crates/wow-world-application/src/character_query_handlers.rs",
-          "enclosing": "impl CharacterQueryHandlerCxLikeCpp::handle_query_player_names",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
-          "module": "crate::character_query_handlers",
-          "source": "crates/wow-world-application/src/character_query_handlers.rs",
-          "enclosing": "impl CharacterQueryHandlerCxLikeCpp::handle_query_player_names",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "connected",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "connected:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
           "module": "crate::loot_handlers::master_loot",
           "source": "crates/wow-world-application/src/loot_handlers/master_loot.rs",
           "enclosing": "fn handle_master_loot_item_with_generator_like_cpp",
@@ -58788,6 +58762,32 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::character_query_handlers",
+          "source": "crates/wow-world-character/src/character_query_handlers.rs",
+          "enclosing": "impl CharacterQueryHandlerCxLikeCpp::handle_query_player_names",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-character",
+          "module": "crate::character_query_handlers",
+          "source": "crates/wow-world-character/src/character_query_handlers.rs",
+          "enclosing": "impl CharacterQueryHandlerCxLikeCpp::handle_query_player_names",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "connected",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "connected:PlayerRegistry",
           "count": 1
         },
         {

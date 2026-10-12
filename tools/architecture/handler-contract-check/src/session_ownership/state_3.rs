@@ -38,6 +38,7 @@ pub(super) fn collect_units(
                         | PackageRole::WorldEntities
                         | PackageRole::WorldInventory
                         | PackageRole::WorldLifecycle
+                        | PackageRole::WorldCharacter
                         | PackageRole::WorldApplication
                         | PackageRole::Server
                 )
@@ -289,6 +290,12 @@ pub(super) fn collect_repository_baseline_with_persistence(
         PackageRole::WorldLifecycle,
         WORLD_LIFECYCLE_PACKAGE_ROOT,
         WORLD_LIFECYCLE_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldCharacter,
+        WORLD_CHARACTER_PACKAGE_ROOT,
+        WORLD_CHARACTER_CRATE_ROOT,
     )?);
     units.extend(repository_units(
         repository_root,

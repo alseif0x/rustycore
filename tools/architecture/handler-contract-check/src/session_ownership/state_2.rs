@@ -372,6 +372,7 @@ fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
         | PackageRole::WorldEntities
         | PackageRole::WorldInventory
         | PackageRole::WorldLifecycle
+        | PackageRole::WorldCharacter
         | PackageRole::WorldApplication => false,
         PackageRole::Server => false,
     }
@@ -487,6 +488,7 @@ pub(super) fn collect_items(
                 | PackageRole::WorldEntities
                 | PackageRole::WorldInventory
                 | PackageRole::WorldLifecycle
+                | PackageRole::WorldCharacter
                 | PackageRole::WorldApplication
         ) {
             match item {

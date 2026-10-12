@@ -53,7 +53,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-character",
       "module": "crate::character_query_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -81,7 +81,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-character",
       "module": "crate::character_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
