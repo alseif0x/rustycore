@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    #[allow(dead_code)]
-    pub(crate) fn record_represented_gameobject_owner_guid_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        owner_guid: ObjectGuid,
-    ) {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.record_represented_gameobject_owner_guid_like_cpp(&mut hub, guid, owner_guid)
-    }
     pub(crate) fn record_represented_gameobject_db_phase_shift_like_cpp(
         &mut self,
         guid: ObjectGuid,

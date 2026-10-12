@@ -11,6 +11,8 @@ use wow_core::ObjectGuid;
 use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
 use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
+use crate::gameobject_use_support::apply_represented_new_flag_state_command_like_cpp;
+use crate::gameobject_use_support::send_represented_gameobject_despawn_to_visible_set_like_cpp;
 use crate::{
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
     RepresentedNewFlagStateRequest,
@@ -191,7 +193,8 @@ pub fn apply_represented_gameobject_post_use_spell_like_cpp_internal<
         && go_type == wow_entities::GAMEOBJECT_TYPE_NEW_FLAG
         && caster == RepresentedGameObjectSpellCaster::GameObject
     {
-        host.apply_represented_new_flag_state_command_like_cpp(
+        apply_represented_new_flag_state_command_like_cpp(
+            host,
             gameobject_guid,
             Some(player_guid),
             RepresentedNewFlagStateRequest::Taken,
@@ -257,7 +260,7 @@ pub fn apply_represented_gameobject_goober_just_deactivated_like_cpp<
     }
 
     if send_despawn_at_action {
-        host.send_represented_gameobject_despawn_to_visible_set_like_cpp(gameobject_guid);
+        send_represented_gameobject_despawn_to_visible_set_like_cpp(host, gameobject_guid);
     }
 
     if source.spell_id != 0 {

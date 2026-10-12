@@ -439,7 +439,11 @@ fn gameobject_use_fishing_node_wrong_owner_keeps_canonical_spell_id_like_cpp() {
     canonical.lock().unwrap().create_world_map(571, 0);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.core.current_map_id = 571;
-    session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
+    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
+        &mut session,
+        gameobject_guid,
+        owner_guid,
+    );
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         gameobject_guid,

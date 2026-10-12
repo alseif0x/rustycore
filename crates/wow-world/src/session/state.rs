@@ -30,6 +30,7 @@ mod fixtures;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
+pub(crate) use hub::forward_to_world_session_like_cpp;
 pub(crate) use hub::{
     HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef, PetsCx, PetsCxRef,
     QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot,

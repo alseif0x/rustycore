@@ -1,12 +1,9 @@
-//! Represented use of scripted gameobjects: goobers, rituals, fishing nodes and meeting stones.
-//!
-//! Moved out of the Session root under #599. Behaviour is preserved; the
-//! canonical owner of this state is unchanged.
+//! Test entry point for the scripted gameobject use whose bodies moved to
+//! `wow_world_entities::gameobject_use_scripted` (#1363 slice 4a).
 
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
     pub(crate) async fn use_represented_gameobject_goober_preamble_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,

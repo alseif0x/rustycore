@@ -19,42 +19,7 @@ impl WorldSession {
             &mut hub, map_id, guid, entry, position, go_type,
         )
     }
-    pub(crate) fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-    ) {
-        use wow_packet::ServerPacket;
 
-        let packet = wow_packet::packets::misc::GameObjectDespawn {
-            object_guid: gameobject_guid,
-        };
-        self.send_packet(&packet);
-        let _ = {
-            let (s, h) = crate::session::split_loot_ref(self);
-            s.queue_visible_gameobject_packet_for_same_map_like_cpp(
-                h,
-                gameobject_guid,
-                packet.to_bytes(),
-            )
-        };
-    }
-    pub(crate) fn send_represented_gameobject_delete_packets_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-    ) {
-        self.send_represented_gameobject_despawn_to_visible_set_like_cpp(gameobject_guid);
-        self.world_entities
-            .restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
-        let map_id = self
-            .world_entities
-            .represented_gameobject_use_state_like_cpp(gameobject_guid)
-            .and_then(|state| state.map_id)
-            .unwrap_or_else(|| self.core.player_map_id_like_cpp());
-        self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
-            vec![gameobject_guid],
-            map_id,
-        ));
-    }
     pub(crate) fn send_represented_gameobject_visibility_on_destroy_from_last_update_like_cpp(
         &mut self,
     ) -> usize {

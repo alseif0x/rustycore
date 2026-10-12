@@ -130,13 +130,7 @@ impl WorldSession {
         )
         .await;
     }
-    pub(crate) fn represented_gameobject_is_friendly_to_player_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_gameobject_is_friendly_to_player_like_cpp(hub, gameobject_guid)
-    }
+
     pub(in crate::session) fn tick_represented_gameobject_update_like_cpp(&mut self) {
         let now = Instant::now();
         let current_player_guid = self.player_guid();
@@ -488,7 +482,7 @@ impl WorldSession {
             }
             self.core.client_visible_guids_like_cpp.remove(&guid);
             self.loot.remove_cached_loot_for_owner_like_cpp(guid);
-            self.send_represented_gameobject_delete_packets_like_cpp(guid);
+            wow_world_entities::send_represented_gameobject_delete_packets_like_cpp(self, guid);
         }
         for guid in expired_respawn_guids {
             if let Some(state) = self
@@ -672,7 +666,8 @@ impl WorldSession {
                 go_state.capture_point_last_team_capture = capture_team;
                 go_state.capture_point_assault_until = None;
             }
-            self.record_represented_capture_point_update_like_cpp(
+            wow_world_entities::record_represented_capture_point_update_like_cpp(
+                self,
                 guid,
                 source,
                 state,
@@ -776,13 +771,15 @@ impl WorldSession {
             }
             let send_despawn_at_action = is_despawn_at_action || go_anim_progress > 0;
             if send_despawn_at_action && !delete_after_clear && !schedule_respawn {
-                self.send_represented_gameobject_despawn_to_visible_set_like_cpp(guid);
+                wow_world_entities::send_represented_gameobject_despawn_to_visible_set_like_cpp(
+                    self, guid,
+                );
                 self.world_entities
                     .restore_represented_gameobject_override_flags_like_cpp(guid);
             }
             if delete_after_clear || schedule_respawn {
                 self.core.client_visible_guids_like_cpp.remove(&guid);
-                self.send_represented_gameobject_delete_packets_like_cpp(guid);
+                wow_world_entities::send_represented_gameobject_delete_packets_like_cpp(self, guid);
             }
             self.world_entities
                 .record_represented_gameobject_use_effect_like_cpp(

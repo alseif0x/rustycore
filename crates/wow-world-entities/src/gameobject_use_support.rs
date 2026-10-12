@@ -7,12 +7,15 @@
 //! battleground-object gates, the item forge, the fishing skill base and the
 //! stealth/invisibility removal, each moved from its World session module.
 
+use std::time::{Duration, Instant};
+
 use wow_constants::unit::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_entities::RepresentedAuraEffectLikeCpp;
 
 use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::{RepresentedBattlegroundObjectUseRejection, RepresentedGameObjectUseEffect};
+use crate::{RepresentedCapturePointStateLikeCpp, RepresentedNewFlagStateRequest};
 
 pub fn represented_player_can_use_battleground_object_like_cpp<H: GameObjectUseHostLikeCpp>(
     host: &mut H,
@@ -198,4 +201,142 @@ pub fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp<
         let _ = host.remove_aura(slot);
     }
     Some(removed)
+}
+
+pub fn record_represented_capture_point_update_like_cpp<H: GameObjectUseHostLikeCpp>(
+    host: &mut H,
+    gameobject_guid: ObjectGuid,
+    source: wow_entities::CapturePointUseSource,
+    state: RepresentedCapturePointStateLikeCpp,
+    broadcast_text_id: u32,
+    event_id: u32,
+    assault_timer_ms: u32,
+) {
+    let (custom_anim, spell_visual_id) = state.custom_anim_and_spell_visual_like_cpp(source);
+    if let Some(position) = host
+        .world_entities()
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .and_then(|state| state.position)
+    {
+        host.send_packet(&wow_packet::packets::misc::UpdateCapturePoint {
+            guid: gameobject_guid,
+            position,
+            state: state.packet_state_like_cpp(),
+            capture_time_ms: assault_timer_ms,
+            capture_total_duration_ms: source.capture_time_ms,
+        });
+    }
+    host.world_entities_mut()
+        .record_represented_gameobject_use_effect_like_cpp(
+            RepresentedGameObjectUseEffect::CapturePointUpdated {
+                gameobject_guid,
+                state,
+                broadcast_text_id,
+                event_id,
+                world_state_id: source.world_state_id,
+                spell_visual_id,
+                custom_anim,
+                assault_timer_ms,
+            },
+        );
+}
+
+pub fn apply_represented_new_flag_state_command_like_cpp<H: GameObjectUseHostLikeCpp>(
+    host: &mut H,
+    gameobject_guid: ObjectGuid,
+    player_guid: Option<ObjectGuid>,
+    new_state: RepresentedNewFlagStateRequest,
+    respawn_time_ms: u32,
+) -> bool {
+    let state = host
+        .world_entities_mut()
+        .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
+    let old_state = state
+        .new_flag_state
+        .unwrap_or(RepresentedNewFlagStateRequest::InBase);
+    if old_state == new_state {
+        return false;
+    }
+
+    state.new_flag_state = Some(new_state);
+    state.new_flag_carrier_guid = if new_state == RepresentedNewFlagStateRequest::Taken {
+        player_guid
+    } else {
+        None
+    };
+
+    if new_state == RepresentedNewFlagStateRequest::Taken
+        && old_state == RepresentedNewFlagStateRequest::InBase
+    {
+        state.new_flag_taken_from_base_game_time_ms =
+            Some(wow_world_core::session::game_time_ms_like_cpp());
+    } else if matches!(
+        new_state,
+        RepresentedNewFlagStateRequest::InBase | RepresentedNewFlagStateRequest::Respawning
+    ) {
+        state.new_flag_taken_from_base_game_time_ms = None;
+    }
+
+    state.new_flag_respawn_until = (new_state == RepresentedNewFlagStateRequest::Respawning)
+        .then(|| Instant::now() + Duration::from_millis(u64::from(respawn_time_ms)));
+
+    host.world_entities_mut()
+        .record_represented_gameobject_use_effect_like_cpp(
+            RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
+                gameobject_guid,
+                player_guid: player_guid.unwrap_or(ObjectGuid::EMPTY),
+                state: new_state,
+            },
+        );
+    true
+}
+
+#[allow(dead_code)]
+pub fn record_represented_gameobject_owner_guid_like_cpp<H: GameObjectUseHostLikeCpp>(
+    host: &mut H,
+    guid: ObjectGuid,
+    owner_guid: ObjectGuid,
+) {
+    let (state, mut hub) = host.split_world_entities_mut();
+    state.record_represented_gameobject_owner_guid_like_cpp(&mut hub, guid, owner_guid)
+}
+
+pub fn represented_gameobject_is_friendly_to_player_like_cpp<H: GameObjectUseHostLikeCpp>(
+    host: &H,
+    gameobject_guid: ObjectGuid,
+) -> Option<bool> {
+    let (state, hub) = host.split_world_entities_ref();
+    state.represented_gameobject_is_friendly_to_player_like_cpp(hub, gameobject_guid)
+}
+
+pub fn send_represented_gameobject_despawn_to_visible_set_like_cpp<H: GameObjectUseHostLikeCpp>(
+    host: &mut H,
+    gameobject_guid: ObjectGuid,
+) {
+    use wow_packet::ServerPacket;
+
+    let packet = wow_packet::packets::misc::GameObjectDespawn {
+        object_guid: gameobject_guid,
+    };
+    host.send_packet(&packet);
+    let _ = host
+        .queue_visible_gameobject_packet_for_same_map_like_cpp(gameobject_guid, packet.to_bytes());
+}
+
+pub fn send_represented_gameobject_delete_packets_like_cpp<H: GameObjectUseHostLikeCpp>(
+    host: &mut H,
+    gameobject_guid: ObjectGuid,
+) {
+    send_represented_gameobject_despawn_to_visible_set_like_cpp(host, gameobject_guid);
+    host.world_entities_mut()
+        .restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
+    let map_id = host
+        .world_entities()
+        .represented_gameobject_use_state_like_cpp(gameobject_guid)
+        .and_then(|state| state.map_id)
+        .unwrap_or_else(|| host.core().player_map_id_like_cpp());
+    host.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
+        vec![gameobject_guid],
+        map_id,
+    ));
 }

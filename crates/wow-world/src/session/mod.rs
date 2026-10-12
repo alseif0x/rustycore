@@ -150,6 +150,7 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePet
 mod battleground_adapter;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlefieldListLikeCpp;
+#[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlegroundQueueTypeIdLikeCpp;
 #[cfg(test)]
 pub(crate) use battleground_adapter::RepresentedBattlemasterHelloLikeCpp;
@@ -499,6 +500,7 @@ pub(crate) use stand_state_adapter::RepresentedStandChannelCancellationBoundary;
 pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
+pub(crate) use state::forward_to_world_session_like_cpp;
 pub(crate) use state::{
     HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef, PetsCx, PetsCxRef,
     QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot,

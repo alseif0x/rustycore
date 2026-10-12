@@ -4,11 +4,9 @@
 //! Battleground adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::RepresentedCapturePointStateLikeCpp;
 #[cfg(test)]
 use super::RepresentedWargameInviteAcceptanceLikeCpp;
-use super::{BattlemasterListStore, DISABLE_TYPE_BATTLEGROUND, Duration, Instant, ObjectGuid};
-use super::{RepresentedGameObjectUseEffect, RepresentedNewFlagStateRequest, WorldSession};
+use super::{BattlemasterListStore, DISABLE_TYPE_BATTLEGROUND, WorldSession};
 
 pub(crate) use wow_world_core::session::RepresentedBattlegroundQueueTypeIdLikeCpp;
 #[cfg(test)]
@@ -173,94 +171,6 @@ impl WorldSession {
                 inviter_group_guid,
                 group_size: player_group_size,
             });
-    }
-
-    pub(crate) fn record_represented_capture_point_update_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        source: wow_entities::CapturePointUseSource,
-        state: RepresentedCapturePointStateLikeCpp,
-        broadcast_text_id: u32,
-        event_id: u32,
-        assault_timer_ms: u32,
-    ) {
-        let (custom_anim, spell_visual_id) = state.custom_anim_and_spell_visual_like_cpp(source);
-        if let Some(position) = self
-            .world_entities
-            .represented_gameobject_use_state_like_cpp(gameobject_guid)
-            .and_then(|state| state.position)
-        {
-            self.send_packet(&wow_packet::packets::misc::UpdateCapturePoint {
-                guid: gameobject_guid,
-                position,
-                state: state.packet_state_like_cpp(),
-                capture_time_ms: assault_timer_ms,
-                capture_total_duration_ms: source.capture_time_ms,
-            });
-        }
-        self.world_entities
-            .record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::CapturePointUpdated {
-                    gameobject_guid,
-                    state,
-                    broadcast_text_id,
-                    event_id,
-                    world_state_id: source.world_state_id,
-                    spell_visual_id,
-                    custom_anim,
-                    assault_timer_ms,
-                },
-            );
-    }
-
-    pub(crate) fn apply_represented_new_flag_state_command_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: Option<ObjectGuid>,
-        new_state: RepresentedNewFlagStateRequest,
-        respawn_time_ms: u32,
-    ) -> bool {
-        let state = self
-            .world_entities
-            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
-        let old_state = state
-            .new_flag_state
-            .unwrap_or(RepresentedNewFlagStateRequest::InBase);
-        if old_state == new_state {
-            return false;
-        }
-
-        state.new_flag_state = Some(new_state);
-        state.new_flag_carrier_guid = if new_state == RepresentedNewFlagStateRequest::Taken {
-            player_guid
-        } else {
-            None
-        };
-
-        if new_state == RepresentedNewFlagStateRequest::Taken
-            && old_state == RepresentedNewFlagStateRequest::InBase
-        {
-            state.new_flag_taken_from_base_game_time_ms =
-                Some(crate::session::game_time_ms_like_cpp());
-        } else if matches!(
-            new_state,
-            RepresentedNewFlagStateRequest::InBase | RepresentedNewFlagStateRequest::Respawning
-        ) {
-            state.new_flag_taken_from_base_game_time_ms = None;
-        }
-
-        state.new_flag_respawn_until = (new_state == RepresentedNewFlagStateRequest::Respawning)
-            .then(|| Instant::now() + Duration::from_millis(u64::from(respawn_time_ms)));
-
-        self.world_entities
-            .record_represented_gameobject_use_effect_like_cpp(
-                RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
-                    gameobject_guid,
-                    player_guid: player_guid.unwrap_or(ObjectGuid::EMPTY),
-                    state: new_state,
-                },
-            );
-        true
     }
 }
 

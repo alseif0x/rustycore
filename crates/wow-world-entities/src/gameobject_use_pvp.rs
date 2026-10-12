@@ -16,10 +16,14 @@ use wow_world_core::session::player_team_for_race_cpp;
 use crate::gameobject_use_host::GameObjectUseHostLikeCpp;
 use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp;
 use crate::gameobject_use_preamble::apply_represented_gameobject_post_use_spell_like_cpp_internal;
+use crate::gameobject_use_support::apply_represented_new_flag_state_command_like_cpp;
+use crate::gameobject_use_support::record_represented_capture_point_update_like_cpp;
 use crate::gameobject_use_support::remove_represented_stealth_or_invisibility_auras_by_type_like_cpp;
+use crate::gameobject_use_support::represented_gameobject_is_friendly_to_player_like_cpp;
 use crate::gameobject_use_support::represented_player_battleground_type_id_or_reject_like_cpp;
 use crate::gameobject_use_support::represented_player_can_use_battleground_object_like_cpp;
 use crate::gameobject_use_support::represented_player_reject_battleground_object_vehicle_like_cpp;
+use crate::gameobject_use_support::send_represented_gameobject_delete_packets_like_cpp;
 use crate::{
     BattlegroundFlagDropClickTarget, RepresentedCapturePointStateLikeCpp,
     RepresentedGameObjectSpellCaster, RepresentedGameObjectUseEffect,
@@ -159,7 +163,8 @@ pub fn use_represented_gameobject_capture_point_like_cpp<H: GameObjectUseHostLik
             state.capture_point_last_team_capture = last_team_capture;
         }
     }
-    host.record_represented_capture_point_update_like_cpp(
+    record_represented_capture_point_update_like_cpp(
+        host,
         gameobject_guid,
         source,
         next_state,
@@ -290,7 +295,7 @@ pub fn use_represented_gameobject_flagdrop_like_cpp<H: GameObjectUseHostLikeCpp>
                 },
             );
     }
-    host.send_represented_gameobject_delete_packets_like_cpp(gameobject_guid);
+    send_represented_gameobject_delete_packets_like_cpp(host, gameobject_guid);
     host.world_entities_mut()
         .record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::GameObjectDeleted { gameobject_guid },
@@ -386,7 +391,7 @@ pub fn use_represented_gameobject_new_flag_drop_like_cpp<H: GameObjectUseHostLik
             .world_entities()
             .represented_gameobject_use_state_like_cpp(owner_guid)
         else {
-            host.send_represented_gameobject_delete_packets_like_cpp(gameobject_guid);
+            send_represented_gameobject_delete_packets_like_cpp(host, gameobject_guid);
             host.world_entities_mut()
                 .record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::GameObjectDeleted { gameobject_guid },
@@ -404,17 +409,18 @@ pub fn use_represented_gameobject_new_flag_drop_like_cpp<H: GameObjectUseHostLik
             .unwrap_or(false);
         let owner_pickup_spell_id = owner_state.new_flag_pickup_spell_id.unwrap_or(0);
         let owner_entry = owner_state.new_flag_entry.unwrap_or(0);
-        let defender_interact = host
-            .represented_gameobject_is_friendly_to_player_like_cpp(owner_guid)
-            .map(|friendly| !friendly)
-            .unwrap_or(false);
+        let defender_interact =
+            represented_gameobject_is_friendly_to_player_like_cpp(host, owner_guid)
+                .map(|friendly| !friendly)
+                .unwrap_or(false);
         if defender_interact && return_on_defender_interact {
-            host.send_represented_gameobject_delete_packets_like_cpp(gameobject_guid);
+            send_represented_gameobject_delete_packets_like_cpp(host, gameobject_guid);
             host.world_entities_mut()
                 .record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::GameObjectDeleted { gameobject_guid },
                 );
-            host.apply_represented_new_flag_state_command_like_cpp(
+            apply_represented_new_flag_state_command_like_cpp(
+                host,
                 owner_guid,
                 Some(player_guid),
                 RepresentedNewFlagStateRequest::InBase,
@@ -435,12 +441,13 @@ pub fn use_represented_gameobject_new_flag_drop_like_cpp<H: GameObjectUseHostLik
             owner_guid,
             false,
         ) {
-            host.send_represented_gameobject_delete_packets_like_cpp(gameobject_guid);
+            send_represented_gameobject_delete_packets_like_cpp(host, gameobject_guid);
             host.world_entities_mut()
                 .record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::GameObjectDeleted { gameobject_guid },
                 );
-            host.apply_represented_new_flag_state_command_like_cpp(
+            apply_represented_new_flag_state_command_like_cpp(
+                host,
                 owner_guid,
                 Some(player_guid),
                 RepresentedNewFlagStateRequest::Taken,
@@ -450,7 +457,7 @@ pub fn use_represented_gameobject_new_flag_drop_like_cpp<H: GameObjectUseHostLik
         }
     }
 
-    host.send_represented_gameobject_delete_packets_like_cpp(gameobject_guid);
+    send_represented_gameobject_delete_packets_like_cpp(host, gameobject_guid);
     host.world_entities_mut()
         .record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::GameObjectDeleted { gameobject_guid },

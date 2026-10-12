@@ -27,6 +27,26 @@ pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
     }
 }
 
+/// Implements host-trait methods (#1363 slice 4) that forward unchanged to the
+/// same-named inherent `WorldSession` operation: each entry is the trait
+/// signature and its body is `WorldSession::name(self, args..)`.
+macro_rules! forward_to_world_session_like_cpp {
+    () => {};
+    (fn $name:ident(&mut self $(, $arg:ident: $ty:ty)*) $(-> $ret:ty)?; $($rest:tt)*) => {
+        fn $name(&mut self $(, $arg: $ty)*) $(-> $ret)? {
+            crate::session::WorldSession::$name(self $(, $arg)*)
+        }
+        crate::session::forward_to_world_session_like_cpp!($($rest)*);
+    };
+    (fn $name:ident(&self $(, $arg:ident: $ty:ty)*) $(-> $ret:ty)?; $($rest:tt)*) => {
+        fn $name(&self $(, $arg: $ty)*) $(-> $ret)? {
+            crate::session::WorldSession::$name(self $(, $arg)*)
+        }
+        crate::session::forward_to_world_session_like_cpp!($($rest)*);
+    };
+}
+pub(crate) use forward_to_world_session_like_cpp;
+
 /// The hub that moved handler bodies borrow (#1363 slice 4).
 impl wow_world_core::session::SessionHubHostLikeCpp for WorldSession {
     fn hub_ref(&self) -> HubRef<'_> {

@@ -107,11 +107,17 @@ pub use gameobject_use_scripted::{
     use_represented_gameobject_meeting_stone_like_cpp, use_represented_gameobject_ritual_like_cpp,
 };
 pub use gameobject_use_support::{
+    apply_represented_new_flag_state_command_like_cpp,
+    record_represented_capture_point_update_like_cpp,
+    record_represented_gameobject_owner_guid_like_cpp,
     remove_represented_stealth_or_invisibility_auras_by_type_like_cpp,
     represented_fishing_base_skill_level_like_cpp,
+    represented_gameobject_is_friendly_to_player_like_cpp,
     represented_player_battleground_type_id_or_reject_like_cpp,
     represented_player_can_use_battleground_object_like_cpp,
     represented_player_reject_battleground_object_vehicle_like_cpp,
+    send_represented_gameobject_delete_packets_like_cpp,
+    send_represented_gameobject_despawn_to_visible_set_like_cpp,
     use_represented_gameobject_item_forge_like_cpp,
 };
 pub use state::WorldEntitiesState;

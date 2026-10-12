@@ -25,7 +25,7 @@ impl WorldSession {
         }
         self.core.client_visible_guids_like_cpp.remove(&trap_guid);
         self.loot.remove_cached_loot_for_owner_like_cpp(trap_guid);
-        self.send_represented_gameobject_delete_packets_like_cpp(trap_guid);
+        wow_world_entities::send_represented_gameobject_delete_packets_like_cpp(self, trap_guid);
     }
 }
 

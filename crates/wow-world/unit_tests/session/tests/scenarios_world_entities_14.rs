@@ -13,7 +13,11 @@ fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 37);
     let owner_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 36);
     let map_id = session.core.player_map_id_like_cpp();
-    session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
+    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
+        &mut session,
+        gameobject_guid,
+        owner_guid,
+    );
     {
         let owner_state = session
             .world_entities
@@ -99,7 +103,11 @@ fn gameobject_use_new_flag_drop_returns_owner_flag_on_defender_interact_like_cpp
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 37);
     let owner_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 36);
-    session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
+    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
+        &mut session,
+        gameobject_guid,
+        owner_guid,
+    );
     session.set_player_faction_template_like_cpp(1);
     session.record_represented_gameobject_faction_template_like_cpp(owner_guid, 2);
     session.set_faction_template_store(Arc::new(
@@ -158,7 +166,11 @@ fn gameobject_use_new_flag_drop_deletes_without_taken_when_owner_cast_fails_like
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 37);
     let owner_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 36);
-    session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
+    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
+        &mut session,
+        gameobject_guid,
+        owner_guid,
+    );
     session.set_spell_store(std::sync::Arc::new(wow_data::SpellStore::new()));
     {
         let owner_state = session
@@ -259,18 +271,24 @@ fn new_flag_state_command_tracks_cpp_state_carrier_and_respawn_timer() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 38);
 
-    assert!(session.apply_represented_new_flag_state_command_like_cpp(
-        gameobject_guid,
-        Some(player_guid),
-        RepresentedNewFlagStateRequest::Taken,
-        0,
-    ));
-    assert!(!session.apply_represented_new_flag_state_command_like_cpp(
-        gameobject_guid,
-        Some(player_guid),
-        RepresentedNewFlagStateRequest::Taken,
-        0,
-    ));
+    assert!(
+        wow_world_entities::apply_represented_new_flag_state_command_like_cpp(
+            &mut session,
+            gameobject_guid,
+            Some(player_guid),
+            RepresentedNewFlagStateRequest::Taken,
+            0,
+        )
+    );
+    assert!(
+        !wow_world_entities::apply_represented_new_flag_state_command_like_cpp(
+            &mut session,
+            gameobject_guid,
+            Some(player_guid),
+            RepresentedNewFlagStateRequest::Taken,
+            0,
+        )
+    );
     {
         let state = session
             .world_entities
@@ -285,12 +303,15 @@ fn new_flag_state_command_tracks_cpp_state_carrier_and_respawn_timer() {
         assert!(state.new_flag_respawn_until.is_none());
     }
 
-    assert!(session.apply_represented_new_flag_state_command_like_cpp(
-        gameobject_guid,
-        Some(player_guid),
-        RepresentedNewFlagStateRequest::Respawning,
-        5000,
-    ));
+    assert!(
+        wow_world_entities::apply_represented_new_flag_state_command_like_cpp(
+            &mut session,
+            gameobject_guid,
+            Some(player_guid),
+            RepresentedNewFlagStateRequest::Respawning,
+            5000,
+        )
+    );
     let state = session
         .world_entities
         .represented_gameobject_use_state_like_cpp(gameobject_guid)
