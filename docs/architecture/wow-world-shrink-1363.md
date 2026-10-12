@@ -1693,3 +1693,163 @@ SHA).
   edges simulated with `--add`, the three rules above) should become a
   tracked `tools/architecture/` check with a self-test, so each later slice
   runs the same command.
+
+## A4 result (support layer → inventory: stats, bank, vendor, collections, battle pets)
+
+Branch `1363-sA4-support-inventory`, base `453affb6a` (A3 merged). Move-only
+(R2): every moved body is byte-identical; only `use` lines, self-crate
+imports (`wow_world_inventory::InventoryState` → `crate::InventoryState`),
+caller crate prefixes and crate-root re-exports change. Opcode registration
+and dispatch order and every processing flag are unchanged
+(`handler_composition.rs` changes only the three registrar paths).
+
+### Re-measure and pre-check
+
+- **Base.** `wow-world-application/src` is 38,833 lines in 144 files on
+  `453affb6a`, as A3 reported. The eight planned units total 3,587 file
+  lines (stats 677, registry sync 211, inventory scaling 220, equipment-set
+  use 503 with its registration test, bank 173, vendor 541, collections 394,
+  battle pets 868), matching the plan.
+- **Three units stay in application.** `registry_sync` names
+  `super::SessionQuestState` (the quest cluster, still in application) in
+  its fixture-gated `PlayerRegistryHydrationContext` and in the
+  `cfg(any(test, feature = "test-fixtures"))` argument of
+  `sync_player_registry_state_like_cpp`. Moving it would need inventory →
+  application (forbidden, and a cycle even as an optional dependency), or a
+  generic hydration context (not move-only). `inventory_scaling` and
+  `equipment_set_use` both construct `PlayerRegistrySyncContext` and take a
+  `PlayerRegistryHydrationContext`, so they stay with it. All three are
+  used by the quest cluster, loot release, trainer runtime install, aura
+  removal and the inventory swap; the natural home of `registry_sync` is
+  the A6 `wow-world-quest` crate (beside `SessionQuestState`). The other
+  two stay until that boundary is re-planned (see *Next*). 934 lines.
+- **The five that move** name no other application module (`crate::` /
+  `super::` scan finds nothing). Their `wow_world_*` uses: stats → core,
+  inventory; bank → core, interaction, inventory; vendor → core;
+  collections → core, inventory; battle pets → core, lifecycle. So the new
+  inventory edges are only `wow-world-interaction` (bank) and
+  `wow-world-lifecycle` (battle pets); the planned loot and spell edges came
+  from the three units that stay.
+- **Closure check before moving**
+  (`/home/ubuntu/rustycore-wip/wow_world_closure.py`, Cargo.lock and
+  `cargo metadata` modes) with the whole planned set simulated
+  (`--add wow-world-inventory->wow-world-{interaction,lifecycle,loot,spell}`):
+  no package reaches itself, no domain crate reaches `wow-world-application`
+  or `wow-world`, and inventory, spell, entities and loot never reach social
+  or instances. The same tracked check (below) on the head lock and head
+  metadata passes with the two real edges: inventory → core, interaction,
+  lifecycle (closure + visibility); social → core, entities, interaction,
+  inventory, lifecycle, spell, visibility; instances → core, entities,
+  interaction, inventory, lifecycle, loot, social, spell, visibility.
+
+### What moved
+
+- **To `wow-world-inventory`** (2,653 `src` lines + 651 test lines):
+  `stats.rs` (677) as **`stats_application.rs`** and `bank.rs` (173) as
+  **`bank_handlers.rs`** (inventory already owns `stats` and `bank`
+  modules); `vendor.rs` (541, still `pub mod vendor`) with its
+  `unit_tests/vendor_rules.rs` (651, 23 tests; the `#[path]` mount is
+  unchanged); `collections_handlers.rs` (394); `battle_pet_handlers.rs`
+  (868). `vendor.rs`, `vendor_rules.rs` and `battle_pet_handlers.rs` are
+  100% renames; the other three change one import line each.
+- **Root exports.** Inventory re-exports exactly the names application
+  exported (the bank names as one exact facade item; the battle-pet and
+  collections facades keep their shape).
+- **Callers.** Application's remaining users of the stat application
+  (`aura_removal`, `quest/reward`, `loot_release`, `inventory_swap`,
+  `inventory_scaling`, `equipment_set_use`, `character_creation`, the
+  character creation family) name `wow_world_inventory::…`; rustfmt
+  rewraps two longer call heads in `quest/reward/{removals,xp_grants}.rs`.
+  `wow-world` (`handler_composition.rs`, the bank, collections and
+  battle-pet host adapters, `session/pets/battle_pet{,_journal}.rs`,
+  `session/player_items/bank.rs`, `handlers/character/{mod,stats}.rs`, the
+  vendor rules re-export, `void_storage/transfer.rs`, four test shims,
+  `unit_tests/handler_contract_tests.rs`, `character_tests/item_4.rs` and
+  the source scan in `character_tests/loot.rs`) names the new paths, and
+  the adapter comments name the new owner crate. The application
+  account-handler module comment names `wow_world_inventory` for vendor
+  and bank.
+- **Checker.** The handler-contract checker's `BANK_REGISTRAR`,
+  `COLLECTIONS_REGISTRAR` and `BATTLE_PET_REGISTRAR` packages and source
+  mounts, and `handler-module-policy.json`, follow the three registrars;
+  the bank module/facade child is `bank_handlers`, and the composer test's
+  bank facade case targets the inventory crate root (index 2). Owner labels
+  are unchanged (rename is the A2 follow-up).
+
+### Tracked closure check
+
+The A3 operator script is now `tools/architecture/wow_world_closure.py`
+with the self-test `tools/architecture/test_wow_world_closure.py` (seven
+fixture-graph cases: lock parsing and self-dependency drop, metadata
+dev-edge exclusion, a simulated cycle, a domain crate reaching the top, a
+transitive low → instances path, a malformed `--add`, and the CLI exit
+status). Run it before each slice with the planned edges:
+
+```
+python3 tools/architecture/wow_world_closure.py check \
+  --add 'wow-world-inventory->wow-world-lifecycle'   # repeatable
+python3 tools/architecture/wow_world_closure.py check --source metadata
+python3 -m unittest discover -s tools/architecture -p test_wow_world_closure.py
+```
+
+`validation-v2 final` plans the lock-only check (no Cargo call) for a
+`Cargo.lock` or `crates/wow-world*/Cargo.toml` change and the self-test when
+the check changes; `tools/test_validation_v2.py` pins both, and
+`docs/operations/validation-v2.md` documents it.
+
+### Accounting
+
+- **`wow-world-application/src`: 38,833 → 36,164 lines (−2,669), 144 → 139
+  files.** 2,653 lines leave as files; `lib.rs` loses 24; the rewraps and
+  the account-handler comment add 8. `unit_tests/`: 1,359 → 708.
+- **Destination.** `wow-world-inventory/src` 10,990 → 13,668 (+2,678: 2,653
+  moved, 25 `lib.rs`); `unit_tests/` 0 → 651.
+- **`crates/wow-world`**: +34 −34 (paths and comments). `net_move.py check`:
+  not a move for the wow-world root (shrink 0), growth charged 0 outside the
+  internal-crate moves, 0 duplicate bodies; exit 0.
+- **Policy (`dependency-policy.json`).** `wow-world-inventory` +=
+  `wow-world-interaction`, `wow-world-lifecycle`. No edge removed:
+  application still names every dependency it declares. Inventory's
+  `test-fixtures` feature is unchanged: the moved fixture blocks
+  (`stats_application`, `battle_pet_handlers`) name only `wow-world-core`
+  fixtures, which it already forwards; `cargo check -p wow-world-inventory
+  --all-targets` and its tests build alone. `cargo tree -p world-server -e
+  normal,build -e features` shows no `test-fixtures` and no
+  `wow-world-test-support`.
+- **`session-ownership-policy.json`** is reprinted with `print-baseline`;
+  the delta is the `BankHandlerHostLikeCpp` trait path, the bank and stat
+  application types in three method signatures and the collections direct
+  registry rows (`wow_world_application` → `wow_world_inventory`), with the
+  resulting sort order. With those two crate names masked the old and new
+  policies are equal (10,581 entries).
+- **Ceilings.** None raised, none to tighten: every hotspot owner (Session
+  42,629 / 142,049 / 184,678) and physical row is at its live value, because
+  the wow-world edits are same-length path and comment changes.
+- **Warnings.** `wow-world` `dead_code` is 0 in the production lib, the lib
+  with `test-fixtures` and the lib test build; `unused_imports` is 152 and
+  161 in the first two (as in A3), and no changed wow-world line warns. No
+  warning falls in a moved file in its new crate.
+- **Tests.** The Rust test-name multiset is unchanged (10,214 `#[test]`
+  functions, 5 ignored, same names on base and head). The 23 vendor tests
+  run in inventory (application 58 → 35, inventory 0 → 23). The new
+  closure self-test adds 7 Python cases.
+
+### Validation
+
+`final --architecture --timings` runs on the committed head that includes
+this section; its manifest path, dirty flag and duration are in the PR body
+(this section is not edited after that run, so the PR head is the validated
+SHA).
+
+### Next
+
+- A5 (profession + spell acquisition → spell; character family → new
+  `wow-world-character`): the character family's `stats` dependency is now
+  in inventory, so A5 is unblocked. Run the tracked closure check with the
+  planned edges first.
+- A6 must take `registry_sync` with the quest cluster (its fixture
+  hydration names `SessionQuestState`). `inventory_scaling` and
+  `equipment_set_use` then depend on a crate above inventory; re-plan their
+  destination at A6 (they can follow `registry_sync`, or stay in
+  application), or make the fixture hydration quest-agnostic in a separate
+  behaviour-neutral change before moving them to inventory.
