@@ -145,8 +145,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             BANK_REGISTRAR.package,
             BANK_REGISTRAR.module,
-            "crates/wow-world-application/src/bank.rs",
-            include_str!("../../../../../crates/wow-world-application/src/bank.rs"),
+            "crates/wow-world-inventory/src/bank_handlers.rs",
+            include_str!("../../../../../crates/wow-world-inventory/src/bank_handlers.rs"),
         ),
         mount(
             REPUTATION_REGISTRAR.package,
@@ -213,8 +213,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             BATTLE_PET_REGISTRAR.package,
             BATTLE_PET_REGISTRAR.module,
-            "crates/wow-world-application/src/battle_pet_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/battle_pet_handlers.rs"),
+            "crates/wow-world-inventory/src/battle_pet_handlers.rs",
+            include_str!("../../../../../crates/wow-world-inventory/src/battle_pet_handlers.rs"),
         ),
         mount(
             MOVEMENT_REGISTRAR.package,
@@ -309,8 +309,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             COLLECTIONS_REGISTRAR.package,
             COLLECTIONS_REGISTRAR.module,
-            "crates/wow-world-application/src/collections_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/collections_handlers.rs"),
+            "crates/wow-world-inventory/src/collections_handlers.rs",
+            include_str!("../../../../../crates/wow-world-inventory/src/collections_handlers.rs"),
         ),
         mount(
             PLAYER_REGISTRAR.package,
@@ -611,7 +611,7 @@ fn composition_guard_accepts_actual_production_fixture_and_both_exact_facades() 
 fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
     let actual = actual_mounts();
     let authority = authority_index(&actual);
-    for index in [authority, 5] {
+    for index in [authority, 2] {
         let mut missing = actual.clone();
         missing[index].source = mutate_fixture(
             &missing[index].source,
@@ -623,15 +623,15 @@ fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
     let mut aliased = actual.clone();
     aliased[authority].source = mutate_fixture(
         &aliased[authority].source,
-        "wow_world_application::register_bank_handlers_like_cpp",
-        "other_application::register_bank_handlers_like_cpp",
+        "wow_world_inventory::register_bank_handlers_like_cpp",
+        "other_inventory::register_bank_handlers_like_cpp",
     );
     assert_rejected(&aliased, "aliased Bank provider");
     let mut duplicate = actual;
     duplicate[authority].source = mutate_fixture(
         &duplicate[authority].source,
         "    register_remaining_handlers_like_cpp(&mut builder)?;",
-        "    wow_world_application::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
+        "    wow_world_inventory::register_bank_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>(&mut builder)?;\n    register_remaining_handlers_like_cpp(&mut builder)?;",
     );
     assert_rejected(&duplicate, "duplicate Bank registrar call");
 }
@@ -741,8 +741,8 @@ fn composition_guard_rejects_a_reordered_authority_list() {
     let authority = authority_index(&reordered);
     reordered[authority].source = mutate_fixture(
         &reordered[authority].source,
-        "    wow_world_application::register_bank_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;\n    wow_world_social::register_social_inspect_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;",
-        "    wow_world_social::register_social_inspect_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;\n    wow_world_application::register_bank_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;",
+        "    wow_world_inventory::register_bank_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;\n    wow_world_social::register_social_inspect_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;",
+        "    wow_world_social::register_social_inspect_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;\n    wow_world_inventory::register_bank_handlers_like_cpp::<\n        WorldSession,\n        SessionHandlerCatalogsLikeCpp,\n    >(&mut builder)?;",
     );
     assert_rejected(&reordered, "reordered authority registrar list");
 }
