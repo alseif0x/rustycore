@@ -34,8 +34,8 @@ mod trade_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::CR_ARMOR_PENETRATION_LIKE_CPP;
+pub(crate) use combat::PlayerAttackStartLikeCppResult;
 mod account_data_handler_contexts;
-mod creature_runtime;
 mod effect_learning;
 mod instance_handler_contexts;
 mod instances;
@@ -44,17 +44,16 @@ mod reputation_handler_contexts;
 mod social_contacts_handler_contexts;
 mod social_handler_contexts;
 mod support_handler_contexts;
-use creature_runtime::*;
 // #1263 F6-8D3a-1: the aggro commit of the admitted canonical executor;
 // world-server calls the same body.
-pub use creature_runtime::{
+pub use wow_world_creature::{
     apply_creature_attack_start_commands_on_manager_like_cpp,
     apply_creature_attack_stop_commands_on_manager_like_cpp,
     committed_creature_combat_commands_like_cpp, retain_committed_creature_combat_events_like_cpp,
 };
 // #1263 F6-8D2/D3b-1: the admitted creature executor; the world-server
 // canonical map loop calls it.
-pub use creature_runtime::{
+pub use wow_world_creature::{
     AdmittedCreatureCombatPhaseInputsLikeCpp, AdmittedCreatureCombatPhasesOutcomeLikeCpp,
     AdmittedCreatureExecutionLikeCpp, AdmittedCreatureExecutionMapLikeCpp,
     AdmittedCreatureExecutionObjectLikeCpp, CreatureExecutionAdmissionLikeCpp,
@@ -65,6 +64,16 @@ pub use creature_runtime::{
     run_admitted_creature_combat_phases_isolated_like_cpp,
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
+};
+// #1363 slice 3: the single-phase entries and store the unit tests drive.
+#[cfg(test)]
+use wow_world_creature::{
+    AdmittedCanonicalCreatureStoreLikeCpp, creature_ai_can_attack_decision_like_cpp,
+    creature_melee_spell_miss_threshold_3_3_5_like_cpp, is_creature_melee_los_clear_like_cpp,
+    run_creature_aggro_phase_on_store_like_cpp, run_creature_lifecycle_phase_on_manager_like_cpp,
+    run_creature_melee_phase_on_manager_like_cpp, run_creature_movement_phase_on_manager_like_cpp,
+    run_creature_spell_phase_on_manager_like_cpp, run_player_melee_phase_on_manager_like_cpp,
+    step_creature_movement_on_view_like_cpp,
 };
 mod canonical_access;
 mod catalogs;
@@ -197,69 +206,37 @@ mod construction;
 mod creature_aggro_contracts;
 pub use creature_aggro_contracts::CreatureAggroCandidateLikeCpp;
 pub use creature_aggro_contracts::CreatureAggroConfigLikeCpp;
-use creature_aggro_contracts::CreatureAggroOwnerSnapshotLikeCpp;
 pub use creature_aggro_contracts::CreatureAggroTickOutcomeLikeCpp;
-use creature_aggro_contracts::CreatureAggroVisibilityDecisionLikeCpp;
-use creature_aggro_contracts::CreatureAiCanAttackDecisionLikeCpp;
-use creature_aggro_contracts::CreatureAiSelectionDecisionLikeCpp;
-use creature_aggro_contracts::CreatureCanAttackLeashDecisionLikeCpp;
 pub use creature_aggro_contracts::CreatureLifecycleTickOutcomeLikeCpp;
 pub use creature_aggro_contracts::CreatureMeleeTickOutcomeLikeCpp;
 pub use creature_aggro_contracts::CreatureMovementTickOutcomeLikeCpp;
-use creature_aggro_contracts::CreatureSpellTargetHitResultLikeCpp;
 pub use creature_aggro_contracts::CreatureSpellTickOutcomeLikeCpp;
-use creature_aggro_contracts::CreatureThreatUpdateLikeCpp;
-use creature_aggro_contracts::check_no_gray_aggro_config_like_cpp;
-use creature_aggro_contracts::creature_ai_spell_disable_decision_like_cpp;
 mod creature_canonical_adapter;
 pub(crate) use creature_canonical_adapter::relocate_canonical_creature_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::remove_canonical_creature_map_object_on_map_like_cpp;
 mod creature_kill_contracts;
 #[cfg(test)]
 pub(crate) use creature_kill_contracts::RepresentedCreatureKillEventLikeCpp;
+// #1363 slice 3: only the unit tests read these names since the creature
+// runtime moved to `wow-world-creature`.
+#[cfg(test)]
 mod creature_movement_adapter;
-use creature_movement_adapter::creature_path_request_like_cpp;
-use creature_movement_adapter::resolve_creature_detour_path_like_cpp;
-use creature_movement_adapter::trace_monster_move_packet_like_cpp;
 mod creature_spawn_contracts;
 pub(crate) use creature_spawn_contracts::CreatureCreateStatsLikeCpp;
 pub use creature_spawn_contracts::PendingCreatureSpawn;
+#[cfg(test)]
 mod creature_spell_admission;
-use creature_spell_admission::CreatureSpellCastValidationResultLikeCpp;
-use creature_spell_admission::TurretRejectedCastAttemptLikeCpp;
-use creature_spell_admission::creature_ai_effective_spell_range_like_cpp;
 #[cfg(test)]
 use creature_spell_admission::creature_spell_target_accepts_npc_attack_like_cpp;
-use creature_spell_admission::creature_spell_target_is_valid_attack_target_like_cpp;
 mod creature_spell_metadata;
-use creature_spell_metadata::CreatureAiSpellConditionLikeCpp;
-use creature_spell_metadata::creature_ai_effective_spell_info_like_cpp;
-use creature_spell_metadata::creature_ai_has_temporally_unrepresented_noninstant_spell_like_cpp;
-use creature_spell_metadata::creature_ai_spell_condition_like_cpp;
-use creature_spell_metadata::creature_ai_spell_cooldown_profile_like_cpp;
+use creature_spell_metadata::CreatureAiSpellTargetLikeCpp;
 use creature_spell_metadata::creature_ai_spell_difficulty_chain_like_cpp;
-use creature_spell_metadata::creature_ai_spell_has_represented_cooldown_semantics_like_cpp;
-use creature_spell_metadata::creature_ai_spell_has_unrepresented_target_restrictions_like_cpp;
-use creature_spell_metadata::creature_ai_spell_initial_cooldown_like_cpp;
-use creature_spell_metadata::creature_ai_spell_is_combat_forbidden_like_cpp;
-use creature_spell_metadata::creature_ai_spell_repeat_cooldown_like_cpp;
 #[cfg(test)]
 use creature_spell_metadata::creature_ai_spell_x_spell_visual_id_like_cpp;
-use creature_spell_metadata::{CreatureAiSpellTargetLikeCpp, creature_ai_spell_target_like_cpp};
+#[cfg(test)]
 mod creature_spell_planning;
-use creature_spell_planning::CreatureAiSpellRepresentationRejectionLikeCpp;
-use creature_spell_planning::CreatureSpellCastPlanLikeCpp;
-use creature_spell_planning::creature_ai_spell_plan_like_cpp;
-use creature_spell_planning::creature_ai_spell_requires_projectile_payload_like_cpp;
-use creature_spell_planning::creature_ai_spell_single_unit_topology_like_cpp;
-use creature_spell_planning::creature_ai_successful_untriggered_spell_resets_combat_timers_like_cpp;
-use creature_spell_planning::creature_ai_zero_power_rows_have_unrepresented_implicit_cost_like_cpp;
 mod creature_spell_publication;
 use creature_spell_publication::CreatureSpellHitProfileLikeCpp;
-use creature_spell_publication::append_committed_creature_spell_packets_like_cpp;
-use creature_spell_publication::creature_spell_cast_log_data_like_cpp;
-use creature_spell_publication::represented_creature_spell_hit_profile_like_cpp;
-use creature_spell_publication::resolve_creature_spell_hit_profile_like_cpp;
 mod currency_adapter;
 pub(crate) use currency_adapter::PlayerCurrencyDelta;
 pub(crate) use currency_adapter::RepresentedQuestObjectiveProgressEventLikeCpp;
@@ -408,21 +385,19 @@ pub(crate) use player_condition_values::RepresentedPlayerConditionContextLikeCpp
 mod player_load_values;
 use player_load_values::{gender_from_u8, unix_secs_to_ms_like_cpp};
 use player_load_values::{player_team_id_for_race_cpp, represented_pet_aura_slot_like_cpp};
-mod player_melee_application;
-use player_melee_application::PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
-use player_melee_application::PendingPlayerSwingLikeCpp;
-pub(crate) use player_melee_application::PlayerAttackStartLikeCppResult;
-pub use player_melee_application::PlayerMeleeAttackerSnapshotLikeCpp;
-pub(crate) use player_melee_application::PlayerMeleeCreatureHitLikeCpp;
-pub use player_melee_application::PlayerMeleePhaseStateLikeCpp;
-pub use player_melee_application::PlayerMeleeTickOutcomeLikeCpp;
-pub(in crate::session) use player_melee_application::RepresentedMeleeDamageBonusLikeCpp;
-use player_melee_application::apply_player_melee_to_canonical_player_like_cpp;
-use player_melee_application::is_unit_facing_target_for_melee_like_cpp;
-use player_melee_application::is_within_melee_range_like_cpp;
-use player_melee_application::is_within_target_boundary_radius_like_cpp;
-pub(in crate::session) use player_melee_application::legacy_attack_power_multiplier_like_cpp;
-pub(in crate::session) use player_melee_application::take_canonical_player_attack_swings_like_cpp;
+// #1363 slice 3: the player melee phase moved to `wow-world-creature`;
+// world-server and the unit tests keep these Session paths.
+pub use wow_world_creature::PlayerMeleeAttackerSnapshotLikeCpp;
+pub use wow_world_creature::PlayerMeleePhaseStateLikeCpp;
+pub use wow_world_creature::PlayerMeleeTickOutcomeLikeCpp;
+#[cfg(test)]
+pub(in crate::session) use wow_world_creature::RepresentedMeleeDamageBonusLikeCpp;
+#[cfg(test)]
+use wow_world_creature::is_unit_facing_target_for_melee_like_cpp;
+#[cfg(test)]
+pub(in crate::session) use wow_world_creature::legacy_attack_power_multiplier_like_cpp;
+#[cfg(test)]
+pub(in crate::session) use wow_world_creature::take_canonical_player_attack_swings_like_cpp;
 mod player_presentation;
 use player_presentation::RepresentedMountSpellCheckOutcomeLikeCpp;
 mod player_registry_binding;
@@ -565,7 +540,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::sync::{
-    Arc, Mutex,
+    Arc,
     atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -582,11 +557,11 @@ use crate::battle_pet_account::{
 use crate::entity_update_bridge::{
     dynamic_object_values_update_to_update_object, item_values_update_to_update_object,
     player_values_update_to_update_object, unit_values_update_to_packet,
-    unit_values_update_to_update_object,
 };
 use crate::loot_persistence::{
     DurableLootMoneyCompletionLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp,
 };
+use crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp;
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
@@ -601,28 +576,50 @@ use crate::session_policy::{
     LootDropRatesLikeCpp, PacketSpoofConfigLikeCpp, PlayerRegenerationRatesLikeCpp,
     ReputationRatesLikeCpp,
 };
-use crate::{
-    pathfinder::WorldMMapPathfinderWorkerLikeCpp,
-    runtime_plan::{RecipientRule, RuntimeEvent, RuntimePlan},
+use wow_ai::max_level_for_expansion_like_cpp;
+// #1363 slice 3: names the creature runtime used through this root; since it
+// moved to `wow-world-creature` only the unit tests still read them here.
+#[cfg(test)]
+use crate::runtime_plan::RuntimeEvent;
+#[cfg(test)]
+use creature_aggro_contracts::{
+    CreatureAiCanAttackDecisionLikeCpp, CreatureSpellTargetHitResultLikeCpp,
 };
-use wow_ai::{
-    CreatureAiCanAttackInputLikeCpp, CreatureAiKindLikeCpp, CreatureAiSelectionInputLikeCpp,
-    CreatureAttackDistanceInputLikeCpp, creature_ai_can_attack_like_cpp,
-    creature_ai_uses_base_move_in_line_of_sight_like_cpp, creature_attack_distance_like_cpp,
-    max_level_for_expansion_like_cpp, select_creature_ai_like_cpp,
+#[cfg(test)]
+use creature_spell_admission::creature_spell_target_is_valid_attack_target_like_cpp;
+#[cfg(test)]
+use creature_spell_metadata::{
+    creature_ai_spell_has_unrepresented_target_restrictions_like_cpp,
+    creature_ai_spell_is_combat_forbidden_like_cpp, creature_ai_spell_target_like_cpp,
 };
+#[cfg(test)]
+use creature_spell_planning::{
+    CreatureAiSpellRepresentationRejectionLikeCpp,
+    creature_ai_spell_requires_projectile_payload_like_cpp,
+    creature_ai_spell_single_unit_topology_like_cpp,
+};
+#[cfg(test)]
+use creature_spell_publication::{
+    creature_spell_cast_log_data_like_cpp, represented_creature_spell_hit_profile_like_cpp,
+    resolve_creature_spell_hit_profile_like_cpp,
+};
+#[cfg(test)]
+use std::sync::Mutex;
+#[cfg(test)]
+use wow_ai::CreatureAiKindLikeCpp;
 #[cfg(test)]
 use wow_constants::ItemEnchantmentType;
 #[cfg(test)]
 use wow_constants::creature::CreatureTypeFlags;
-use wow_constants::creature::{CreatureFlagsExtra, CreatureType};
 #[cfg(test)]
 use wow_constants::item::ItemBonusType;
 use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
 use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
+#[cfg(test)]
+use wow_constants::unit::UnitFlags2;
 use wow_constants::unit::{
-    Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitFlags2, UnitPvpFlags, UnitStandStateType,
+    Gender, NPCFlags1, PowerType, Team, UnitFlags, UnitPvpFlags, UnitStandStateType,
     WeaponAttackType,
 };
 use wow_constants::{
@@ -653,13 +650,13 @@ use wow_data::{
     AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore, BattlemasterListStore,
     ChrSpecializationStore, CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore,
     CreatureDisplayInfoExtraStore, CreatureDisplayInfoStore, CreatureModelDataStore,
-    CreatureSpellDisableDecisionLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
-    CreatureTemplateMountStoreLikeCpp, CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND,
-    DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, EmotesStore, EmotesTextStore, FishingBaseSkillStoreLikeCpp,
-    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore,
-    GlyphPropertiesStore, GraveyardStore, HeirloomStore, HotfixBlobCache, ItemAppearanceStore,
-    ItemBonusDb2Store, ItemChildEquipmentStore, ItemEffectStore, ItemExtendedCostStore,
+    CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountStoreLikeCpp, CurrencyTypesStore,
+    DISABLE_TYPE_BATTLEGROUND, DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore,
+    DurabilityCostsStore, DurabilityQualityStore, EmotesStore, EmotesTextStore,
+    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
+    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
+    GraveyardStore, HeirloomStore, HotfixBlobCache, ItemAppearanceStore, ItemBonusDb2Store,
+    ItemChildEquipmentStore, ItemEffectStore, ItemExtendedCostStore,
     ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
     ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore, ItemRandomSuffixStore,
     ItemSearchNameStore, ItemSetSpellStore, ItemSetStore, ItemSpecOverrideStore, ItemStatsStore,
@@ -726,6 +723,8 @@ use wow_data::{
 use wow_entities::PetStable;
 #[cfg(test)]
 use wow_entities::TitanGripPenaltyAction;
+#[cfg(test)]
+use wow_entities::Unit;
 use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
 // Test-only: the session admission fixtures compare against the player slot end.
 #[cfg(test)]
@@ -752,7 +751,7 @@ use wow_entities::{
     PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp,
     PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK,
     QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
-    SendNewItemDisplayText, SendNewItemPlan, SwapItemPreflightPlan, TYPEID_ITEM, Unit, UpdateMask,
+    SendNewItemDisplayText, SendNewItemPlan, SwapItemPreflightPlan, TYPEID_ITEM, UpdateMask,
     Vehicle, VisibleItemValues, WorldObject, is_equipment_packed_pos, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
 };
@@ -773,7 +772,6 @@ use wow_loot::{LootStores, OwnedLootAuthority};
 // Test-only: the session fixtures still read these through this prelude.
 #[cfg(test)]
 pub(crate) use wow_loot::LootStoreKind;
-use wow_map::coords::SIZE_OF_GRID_CELL;
 use wow_network::SocketTimeoutsLikeCpp;
 use wow_network::session_mgr::SessionManager;
 #[cfg(test)]
@@ -896,9 +894,6 @@ pub(crate) const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
 pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
 #[allow(dead_code)]
 pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
-const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
-const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
-const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 #[cfg(test)]
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
 #[cfg(test)]

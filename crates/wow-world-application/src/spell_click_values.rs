@@ -5,13 +5,13 @@
 //!
 //! Session-independent: moved out of `wow-world` under #1263 F5.
 
-use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, Position};
+pub use wow_world_spell::spell_cast_adapter::{
+    SPELL_CAST_SOURCE_NORMAL_LIKE_CPP, represented_spell_cast_guid_for_map_like_cpp,
+};
 
 /// C++ `MAX_GAMEOBJECT_SLOT`.
 pub const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
-/// C++ `SPELL_CAST_SOURCE_NORMAL` encoded in a Cast GUID subtype.
-pub const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 
 pub fn spell_effect_is_represented_summon_object_slot_like_cpp(effect: u32) -> bool {
     let slot_base = wow_data::spell::spell_effect_types::SPELL_EFFECT_SUMMON_OBJECT_SLOT1;
@@ -30,27 +30,6 @@ pub fn spell_effect_has_non_or_db_nearby_entry_destination_like_cpp(
         effect.implicit_target_2,
         wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY
             | wow_data::spell::implicit_targets::TARGET_DEST_NEARBY_ENTRY_2
-    )
-}
-
-// C++ `ObjectGuid::Create<HighGuid::Cast>` passes realm id 0 to
-// `CreateWorldObject`, then `ObjectGuidFactory.cpp:GetRealmIdForObjectGuid(0)`
-// substitutes `realm.Id.Realm`. Rust passes that already-resolved local realm
-// explicitly; using the caster realm preserves the same visible GUID bits.
-pub fn represented_spell_cast_guid_for_map_like_cpp(
-    realm_id: u16,
-    map_id: u16,
-    spell_id: i32,
-    counter: i64,
-) -> ObjectGuid {
-    ObjectGuid::create_world_object(
-        HighGuid::Cast,
-        SPELL_CAST_SOURCE_NORMAL_LIKE_CPP,
-        realm_id,
-        map_id,
-        0,
-        u32::try_from(spell_id).unwrap_or_default(),
-        counter,
     )
 }
 

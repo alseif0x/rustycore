@@ -1,0 +1,28 @@
+[package]
+name = "wow-world-creature"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+# Test-only inspection accessors the wow-world scenario tests call.
+test-fixtures = []
+
+[dependencies]
+wow-constants = { workspace = true }
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-map = { workspace = true }
+wow-movement = { workspace = true }
+wow-packet = { workspace = true }
+wow-persistence = { workspace = true }
+wow-world-core = { workspace = true }
+wow-world-entities = { workspace = true }
+wow-world-spell = { workspace = true }
+wow-ai = { workspace = true }
+
+[lints]
+workspace = true

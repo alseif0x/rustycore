@@ -271,8 +271,9 @@ class NetMoveTests(unittest.TestCase):
         policy = net_move.load_move_policy(HERE.parent.parent)
         self.assertTrue(policy["reviewed"])
         self.assertEqual(policy["shrink_root"], net_move.SHRINK_ROOT)
-        # Eleven wow-world-* domain crates plus the dev-only wow-world-test-support (#1363).
-        self.assertEqual(len(policy["destination_roots"]), 12)
+        # Eleven wow-world-* domain crates, the dev-only wow-world-test-support and
+        # the creature runtime crate wow-world-creature (#1363).
+        self.assertEqual(len(policy["destination_roots"]), 13)
         # The reviewed budget is the measured requirement against the current
         # merge-base; it restarts at each integration (0 right after #1266).
         self.assertGreaterEqual(policy["reviewed_new_code"], 0)

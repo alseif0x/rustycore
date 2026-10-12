@@ -1,0 +1,522 @@
+//! Player melee phase (`Player::Update` → `DoMeleeAttackIfReady`).
+//!
+//! Moved out of the Session root under #619; run by the admitted canonical
+//! executor as its phase 0 (#1263 F6-8D3a-1, F6-8E). C++ anchor:
+//! `Player::Update` calls `DoMeleeAttackIfReady` before `Map::Update` runs
+//! `ObjectUpdater`; the swing timer is consumed after the range and facing
+//! checks, as it is here.
+
+use super::*;
+
+/// Step 2 of the player melee phase: the combat-reference sweep and the
+/// victim resolution, on the canonical manager the caller holds locked.
+///
+/// #1263 F6-8D3a-1. Returns the pending swings and each map's
+/// difficulty (the victim's applied-aura mechanics are read at the map's own
+/// difficulty, exactly as the session reads its target's).
+pub(crate) fn collect_player_melee_swings_on_manager_like_cpp(
+    manager: &mut wow_map::MapManager,
+    attackers: &[PlayerMeleeAttackerSnapshotLikeCpp],
+    diff_ms: u32,
+    phase_state: &mut PlayerMeleePhaseStateLikeCpp,
+    outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
+) -> (Vec<PendingPlayerSwingLikeCpp>, HashMap<(u16, u32), u8>) {
+    let mut pending: Vec<PendingPlayerSwingLikeCpp> = Vec::new();
+    let mut map_difficulties: HashMap<(u16, u32), u8> = HashMap::new();
+    let mut map_keys: Vec<(u16, u32)> = attackers
+        .iter()
+        .map(|attacker| (attacker.map_id, attacker.instance_id))
+        .collect();
+    map_keys.sort_unstable();
+    map_keys.dedup();
+    outcome.maps_seen = map_keys.len();
+
+    for (map_id, instance_id) in map_keys {
+        let accumulated = phase_state
+            .revalidate_accumulated_ms
+            .entry((map_id, instance_id))
+            .or_insert(0);
+        *accumulated = accumulated.saturating_add(diff_ms);
+        let sweep_due = *accumulated >= PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
+        if sweep_due {
+            *accumulated = 0;
+        }
+        let Some(managed) = manager.find_map_mut(u32::from(map_id), instance_id) else {
+            continue;
+        };
+        map_difficulties.insert((map_id, instance_id), managed.difficulty());
+        if sweep_due {
+            let _ = managed.map_mut().revalidate_all_combat_refs_like_cpp();
+            outcome.combat_ref_revalidations += 1;
+        }
+    }
+
+    for attacker in attackers {
+        let Some(managed) = manager.find_map_mut(u32::from(attacker.map_id), attacker.instance_id)
+        else {
+            outcome.attacker_unavailable += 1;
+            continue;
+        };
+        let Some(player) = managed.map().get_typed_player(attacker.player_guid) else {
+            outcome.attacker_unavailable += 1;
+            continue;
+        };
+        let victim = player.unit().attacking();
+        let has_combat = player.unit().subsystems().combat.has_combat();
+
+        // The session used to reconcile its mirror on every combat tick,
+        // including the branch that found no victim. Without this the
+        // mirror stops being corrected, which is "stops resolving".
+        if has_combat != attacker.in_combat_mirror {
+            outcome.in_combat_reconciles += 1;
+            outcome.commands.push(
+                wow_world_core::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand {
+                    attacker_guid: attacker.player_guid,
+                    map_id: attacker.map_id,
+                    instance_id: attacker.instance_id,
+                    victim_guid: None,
+                    swing_error_after: None,
+                    combat_target_after: victim.is_none().then_some(None),
+                    in_combat_after: Some(has_combat),
+                    swings: Vec::new(),
+                    target_level: 0,
+                    victim_values_update: None,
+                    killed_creature: None,
+                },
+            );
+        }
+
+        let Some(victim_guid) = victim else {
+            continue;
+        };
+        outcome.victims_resolved += 1;
+        pending.push(PendingPlayerSwingLikeCpp {
+            attacker: attacker.clone(),
+            victim_guid,
+        });
+    }
+    (pending, map_difficulties)
+}
+
+/// Step 3 of the player melee phase: one swing, on the canonical manager the
+/// caller holds locked, with its creature victims resolved through `victims`.
+///
+/// C++ anchor: `Player::Update` → `DoMeleeAttackIfReady` →
+/// `AttackerStateUpdate`; the swing timer is consumed after the range and
+/// facing checks.
+pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
+    canonical_manager: &mut wow_map::MapManager,
+    victims: &mut CanonicalPlayerMeleeCreatureVictimsLikeCpp,
+    swing: &PendingPlayerSwingLikeCpp,
+    map_difficulties: &HashMap<(u16, u32), u8>,
+    diff_ms: u32,
+    config: &CreatureAggroConfigLikeCpp,
+    outcome: &mut PlayerMeleeTickOutcomeLikeCpp,
+) {
+    let attacker = &swing.attacker;
+    let Some(managed) =
+        canonical_manager.find_map_mut(u32::from(attacker.map_id), attacker.instance_id)
+    else {
+        outcome.attacker_unavailable += 1;
+        return;
+    };
+    let map = managed.map_mut();
+
+    // Re-read the attacker live: the collect phase released the lock, so a
+    // logout, a death or a target switch may have landed since.
+    let Some(player) = map.get_typed_player(attacker.player_guid) else {
+        outcome.attacker_unavailable += 1;
+        return;
+    };
+    if !player.unit().is_alive() || player.unit().attacking() != Some(swing.victim_guid) {
+        outcome.attacker_unavailable += 1;
+        return;
+    }
+    let attacker_unit_data = player.unit().data();
+    let attacker_position = player.unit().world().position();
+    let attacker_combat_reach = attacker_unit_data.combat_reach;
+
+    // Resolve the victim from live state, canonical player first, then the
+    // creature. Geometry comes from whichever side owns it.
+    let map_difficulty_id = map_difficulties
+        .get(&(attacker.map_id, attacker.instance_id))
+        .copied()
+        .unwrap_or(0);
+    let mut victim_creature_type_mask = 0_u32;
+    let mut victim_aura_state_mask = 0_u32;
+    let mut victim_mechanic_mask = 0_u64;
+    // A canonical-player victim's own snapshot belongs to that player's
+    // session, so only a creature victim contributes `GetArmor()` here; the
+    // session owner applies the same creature-only rule.
+    let mut victim_armor = 0_i32;
+    let mut victim_level = 0_u8;
+    // C++ `Unit::MeleeDamageBonusTaken` reads the victim's applied auras.
+    let mut creature_applied_auras = Vec::new();
+    let mut victim_outcome_facts =
+        wow_world_spell::melee_rules::RepresentedMeleeVictimFactsLikeCpp::default();
+    let victim_runtime = match victims.read_creature_victim_like_cpp(
+        map,
+        attacker.map_id,
+        attacker.instance_id,
+        swing.victim_guid,
+        |creature| {
+            player_melee_creature_victim_facts_like_cpp(
+                creature,
+                config,
+                map_difficulty_id,
+                attacker.player_guid,
+            )
+        },
+    ) {
+        CreatureVictimReadLikeCpp::Read(None) => {
+            outcome.victim_not_alive += 1;
+            return;
+        }
+        CreatureVictimReadLikeCpp::Read(Some(facts)) => {
+            victim_creature_type_mask = facts.creature_type_mask;
+            victim_aura_state_mask = facts.aura_state_mask;
+            victim_mechanic_mask = facts.mechanic_mask;
+            victim_armor = facts.armor;
+            victim_level = facts.level;
+            creature_applied_auras = facts.applied_auras;
+            victim_outcome_facts = facts.outcome_facts;
+            Some((
+                true,
+                facts.position,
+                facts.combat_reach,
+                facts.bounding_radius,
+            ))
+        }
+        CreatureVictimReadLikeCpp::NotACreature => {
+            map.get_typed_player(swing.victim_guid).map(|victim| {
+                let unit_data = victim.unit().data();
+                (
+                    false,
+                    victim.unit().world().position(),
+                    unit_data.combat_reach,
+                    unit_data.bounding_radius,
+                )
+            })
+        }
+    };
+    let Some((victim_is_creature, victim_position, victim_combat_reach, victim_bounding_radius)) =
+        victim_runtime
+    else {
+        outcome.victim_missing += 1;
+        return;
+    };
+
+    // C++ `Unit::AttackerStateUpdate`'s `getAutoAttackError` (`Unit.cpp:2107-2114`):
+    // `!IsWithinMeleeRange(victim)` is NotInRange; inside it, a victim within
+    // `IsWithinBoundaryRadius` needs no facing, otherwise `HasInArc(2pi/3)`
+    // decides BadFacing.
+    let in_melee_range = is_within_melee_range_like_cpp(
+        attacker_position,
+        attacker_combat_reach,
+        victim_position,
+        victim_combat_reach,
+    );
+    let facing_target =
+        is_within_target_boundary_radius_like_cpp(
+            attacker_position,
+            attacker_combat_reach,
+            victim_position,
+            victim_combat_reach,
+            victim_bounding_radius,
+        ) || is_unit_facing_target_for_melee_like_cpp(attacker_position, victim_position);
+    // C++ `canParryOrBlock`: `victim->HasInArc(M_PI, attacker)`.
+    victim_outcome_facts.faces_attacker =
+        is_unit_facing_target_for_melee_like_cpp(victim_position, attacker_position);
+
+    // The timer is consumed here, after range and facing, exactly where the
+    // session consumed it. C++ `Unit::MeleeDamageBonusDone`'s auto-attack
+    // percentage term is read from the Player-owned multiplier the owning
+    // session keeps in sync with its auras.
+    // C++ `Unit::MeleeDamageBonusDone` resolves the victim-creature-type
+    // terms per swing from the attacker's auras; the map-owned path uses the
+    // same receiver-free rule as the session.
+    let (melee_damage_bonus, armor_mitigation, outcome_facts, damage_taken) = match (
+        map.get_typed_player(attacker.player_guid),
+        config.spell_store.as_deref(),
+    ) {
+        (Some(attacker_player), Some(spell_store)) => {
+            let auras = attacker_player
+                .unit()
+                .subsystems()
+                .auras
+                .runtime_applications_like_cpp();
+            let base_attack_speed = attacker_player.unit().base_attack_speed();
+            // C++ `CalcArmorReducedDamage`: the attacker's
+            // `SPELL_AURA_MOD_TARGET_RESISTANCE` and
+            // `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` normal-school sums and
+            // its live CR_ARMOR_PENETRATION rating bonus, over the creature
+            // victim's `GetArmor()`.
+            let target_resistance_normal_aura =
+                wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                    auras,
+                    spell_store,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+                )
+                .into_iter()
+                .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                .map(|(_, amount)| amount)
+                .sum::<i32>();
+            let ignore_target_resist_normal_pct =
+                wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                    auras,
+                    spell_store,
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                )
+                .into_iter()
+                .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                .map(|(_, amount)| amount as f32)
+                .sum::<f32>();
+            let armor_mitigation = crate::RepresentedArmorMitigationLikeCpp {
+                attacker_level: attacker_player.level_like_cpp(),
+                victim_level,
+                victim_armor,
+                armor_penetration_pct: attacker_player
+                    .effective_combat_stats_like_cpp()
+                    .armor_penetration_pct,
+                target_resistance_normal_aura,
+                ignore_target_resist_normal_pct,
+                // `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` is a victim aura; a
+                // creature victim's auras have no represented producer.
+                bypass_armor_pct_by_caster: 0.0,
+            };
+            let bonus = std::array::from_fn(|index| {
+                let (flat, pct) = wow_world_spell::melee_damage::melee_damage_bonus_done_like_cpp(
+                    auras,
+                    spell_store,
+                    victim_creature_type_mask,
+                    victim_aura_state_mask,
+                    victim_mechanic_mask,
+                    false,
+                    crate::legacy_attack_power_multiplier_like_cpp(base_attack_speed[index]),
+                );
+                crate::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
+            });
+            let stats = attacker_player.effective_combat_stats_like_cpp();
+            let aura_sum = |aura_type: i32| -> f32 {
+                wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                    auras,
+                    spell_store,
+                    aura_type,
+                )
+                .into_iter()
+                .map(|(_, amount)| amount as f32)
+                .sum()
+            };
+            let attacker_outcome_facts =
+                wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                    level: attacker_player.level_like_cpp(),
+                    // C++ excludes player-controlled attackers from the
+                    // crushing band (`Unit.cpp:2364-2369`).
+                    is_controlled_by_player: true,
+                    no_crushing_blows: true,
+                    dual_wielding: attacker_player.has_offhand_weapon_for_attack_like_cpp()
+                        && !attacker_player.is_in_feral_form_like_cpp(),
+                    crit_damage_multiplier:
+                        wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                            auras,
+                            spell_store,
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
+                        )
+                        .into_iter()
+                        .filter(|(misc_value, _)| misc_value & 0x01 != 0)
+                        .fold(1.0_f32, |total, (_, amount)| {
+                            total * (1.0 + amount as f32 / 100.0)
+                        }),
+                    ignores_dual_wield_hit_penalty:
+                        !wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                            auras,
+                            spell_store,
+                            wow_data::spell::aura_types::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY,
+                        )
+                        .is_empty(),
+                    melee_hit_chance_pct: stats.melee_hit_chance_pct,
+                    hit_chance_aura_pct: aura_sum(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+                    ),
+                    crit_pct: [stats.crit_pct, stats.offhand_crit_pct],
+                    autoattack_crit_aura_pct: aura_sum(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
+                    ),
+                    expertise_reduction_pct: [
+                        stats.mainhand_expertise / 4.0,
+                        stats.offhand_expertise / 4.0,
+                    ],
+                    // `GetUnitDodgeChance`'s attacker-side reductions.
+                    dodge_reduction_pct:
+                        wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                            auras,
+                            spell_store,
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE,
+                        )
+                        .into_iter()
+                        .filter(|(misc_value, _)| *misc_value == 2)
+                        .map(|(_, amount)| amount as f32)
+                        .sum::<f32>()
+                            + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
+                };
+            (
+                bonus,
+                armor_mitigation,
+                (attacker_outcome_facts, victim_outcome_facts),
+                wow_world_spell::melee_rules::melee_damage_taken_flat_pct_like_cpp(
+                    &wow_world_spell::aura_effects::creature_aura_effects_like_cpp(
+                        &creature_applied_auras,
+                        spell_store,
+                        map_difficulty_id,
+                        config.difficulty_store.as_deref(),
+                    ),
+                    &wow_world_spell::aura_effects::player_aura_effects_by_spell_aura_type_like_cpp(
+                        auras,
+                        spell_store,
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
+                    ),
+                    attacker.player_guid,
+                    0x01,
+                ),
+            )
+        }
+        _ => (
+            [crate::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+            crate::RepresentedArmorMitigationLikeCpp::NONE,
+            Default::default(),
+            wow_world_spell::melee_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
+        ),
+    };
+    let Some(player) = map.get_typed_player_mut(attacker.player_guid) else {
+        outcome.attacker_unavailable += 1;
+        return;
+    };
+    let swing_result = take_canonical_player_attack_swings_like_cpp(
+        player,
+        diff_ms,
+        in_melee_range,
+        facing_target,
+        true,
+        melee_damage_bonus,
+        armor_mitigation,
+        outcome_facts,
+        damage_taken,
+    );
+    let Some((damages, swing_error_update)) = swing_result else {
+        return;
+    };
+
+    let mut command = wow_world_core::session::mailbox::ApplyPlayerMeleeResultLikeCppCommand {
+        attacker_guid: attacker.player_guid,
+        map_id: attacker.map_id,
+        instance_id: attacker.instance_id,
+        victim_guid: Some(swing.victim_guid),
+        swing_error_after: swing_error_update,
+        combat_target_after: None,
+        in_combat_after: None,
+        swings: Vec::new(),
+        target_level: 0,
+        victim_values_update: None,
+        killed_creature: None,
+    };
+
+    if victim_is_creature {
+        let hit = match victims.apply_to_creature_victim_like_cpp(
+            map,
+            attacker.map_id,
+            attacker.instance_id,
+            swing.victim_guid,
+            attacker.player_guid,
+            &attacker.tap_group_guids,
+            &damages,
+        ) {
+            CreatureVictimApplyLikeCpp::Hit(hit) => hit,
+            CreatureVictimApplyLikeCpp::Missing => {
+                outcome.victim_missing += 1;
+                outcome.commands.push(command);
+                return;
+            }
+            CreatureVictimApplyLikeCpp::NotApplied => {
+                outcome.commands.push(command);
+                return;
+            }
+        };
+        outcome.creature_hits += 1;
+        command.target_level = hit.level;
+        command.swings = hit
+            .swings
+            .iter()
+            .enumerate()
+            .map(|(index, (damage, _killed, over_damage))| {
+                let (hit_info, victim_state, blocked, original_damage) = hit
+                    .swing_presentations
+                    .get(index)
+                    .copied()
+                    .unwrap_or((0, 0, 0, *damage));
+                wow_world_core::session::mailbox::PlayerMeleeSwingLikeCpp {
+                    damage: *damage,
+                    original_damage,
+                    over_damage: *over_damage,
+                    blocked: blocked as i32,
+                    hit_info,
+                    victim_state,
+                }
+            })
+            .collect();
+        command.victim_values_update =
+            (!victims.victim_values_published_by_map_like_cpp()).then_some(hit.values_update);
+        if hit.died {
+            outcome.creature_kills += 1;
+            command.killed_creature = Some(
+                wow_world_core::session::mailbox::PlayerMeleeCreatureKillLikeCpp {
+                    creature_guid: swing.victim_guid,
+                    creature_entry: hit.entry,
+                    creature_level: hit.level,
+                    move_stop: hit.move_stop,
+                },
+            );
+            command.combat_target_after = Some(None);
+            command.in_combat_after = Some(false);
+        }
+    } else {
+        victims.release_creature_victims_like_cpp();
+        let Some(victim) = map.get_typed_player_mut(swing.victim_guid) else {
+            outcome.victim_missing += 1;
+            outcome.commands.push(command);
+            return;
+        };
+        let Some((swings, target_level)) =
+            apply_player_melee_to_canonical_player_like_cpp(victim, &damages)
+        else {
+            outcome.victim_not_alive += 1;
+            outcome.commands.push(command);
+            return;
+        };
+        outcome.player_hits += 1;
+        command.target_level = target_level;
+        command.swings = swings
+            .into_iter()
+            .enumerate()
+            .map(|(index, (damage, over_damage))| {
+                let (hit_info, victim_state, blocked, original_damage) =
+                    damages.get(index).map_or((0, 0, 0, damage), |swing| {
+                        (
+                            swing.hit_info,
+                            swing.victim_state,
+                            swing.blocked,
+                            swing.original_damage,
+                        )
+                    });
+                wow_world_core::session::mailbox::PlayerMeleeSwingLikeCpp {
+                    damage,
+                    original_damage,
+                    over_damage,
+                    blocked: blocked as i32,
+                    hit_info,
+                    victim_state,
+                }
+            })
+            .collect();
+    }
+    outcome.commands.push(command);
+}

@@ -13,7 +13,7 @@ mod regeneration;
 mod state;
 mod vitals;
 
-pub(in crate::session) use damage::write_absorbed_shield_amount_like_cpp;
-pub(in crate::session) use melee::{
-    RepresentedArmorMitigationLikeCpp, RepresentedMeleeSwingLikeCpp,
-};
+pub(crate) use melee::PlayerAttackStartLikeCppResult;
+#[cfg(test)]
+pub(in crate::session) use wow_world_creature::RepresentedArmorMitigationLikeCpp;
+pub(in crate::session) use wow_world_spell::aura_effects::write_absorbed_shield_amount_like_cpp;

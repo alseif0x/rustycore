@@ -60,6 +60,7 @@ wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-world-application = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-creature = { workspace = true }
 wow-world-entities = { workspace = true }
 wow-world-interaction = { workspace = true }
 wow-world-instances = { workspace = true }
@@ -74,6 +75,7 @@ wow-world-visibility = { workspace = true }
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-creature = { workspace = true, features = ["test-fixtures"] }
 wow-world-entities = { workspace = true, features = ["test-fixtures"] }
 wow-world-interaction = { workspace = true, features = ["test-fixtures"] }
 wow-world-instances = { workspace = true, features = ["test-fixtures"] }
