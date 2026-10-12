@@ -48,10 +48,12 @@ fn uncage_item_state_seam_no_longer_names_statement_or_driver_errors() {
         .split_once("pub(crate) async fn uncage_item_state_like_cpp")
         .expect("uncage state helper starts");
     let (helper, _) = helper_and_tail
-        // #1363 slice 4a moved the next item operation (the item forge use) to
-        // `wow_world_entities`; the helper now ends the impl block.
-        .split_once("\n}\n")
-        .expect("uncage state helper ends before the next item operation");
+        // The helper ends at its own closing brace: the first line that is
+        // exactly four spaces and `}` closes an impl-level fn, whatever item
+        // follows it (#1363 slice 4a moved the item forge use that used to be
+        // the delimiter; this marker no longer depends on the next item).
+        .split_once("\n    }\n")
+        .expect("uncage state helper ends at its own closing brace");
 
     assert!(helper.contains("load_uncage_item_state_like_cpp"));
     for concrete in ["CharStatements", "DatabaseError", "SEL_UNCAGE_ITEM_STATE"] {

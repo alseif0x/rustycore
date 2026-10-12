@@ -93,7 +93,6 @@ pub use gameobject_use_preamble::{
     apply_represented_gameobject_goober_just_deactivated_like_cpp,
     apply_represented_gameobject_player_use_preamble_like_cpp,
     apply_represented_gameobject_post_use_spell_like_cpp,
-    apply_represented_gameobject_post_use_spell_like_cpp_internal,
     represented_gameobject_can_interact_with_like_cpp,
     represented_gameobject_use_allowed_by_mover_like_cpp,
 };
