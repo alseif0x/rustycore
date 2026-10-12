@@ -190,7 +190,9 @@
       "wow-persistence",
       "wow-progression",
       "wow-recastdetour",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-interaction",
+      "wow-world-lifecycle"
     ],
     "wow-world-instances": [
       "wow-constants",

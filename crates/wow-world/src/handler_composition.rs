@@ -101,7 +101,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_combat_handlers_like_cpp::<
+    wow_world_entities::register_combat_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
@@ -113,7 +113,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_travel_handlers_like_cpp::<
+    wow_world_entities::register_travel_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
@@ -125,7 +125,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_gameobject_handlers_like_cpp::<
+    wow_world_entities::register_gameobject_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
@@ -193,7 +193,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_corpse_handlers_like_cpp::<
+    wow_world_entities::register_corpse_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;

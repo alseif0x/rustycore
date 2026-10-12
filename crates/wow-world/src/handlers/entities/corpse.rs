@@ -4,7 +4,7 @@
 //! Private corpse capability handlers extracted from the legacy misc owner.
 //!
 //! `#1263 F5 deferred families`: the four registrations moved unchanged to
-//! `wow_world_application::register_corpse_handlers_like_cpp`; `corpse/host.rs`
+//! `wow_world_entities::register_corpse_handlers_like_cpp`; `corpse/host.rs`
 //! lends that registrar these operations. #1363 slice 4b moved the four
 //! bodies to `wow_world_entities::corpse_handlers`; the graveyard condition
 //! check stays here because it needs the World player-condition context.

@@ -5,7 +5,7 @@
 //! families).
 //!
 //! The four `MiscHandler.cpp` death/corpse opcodes left the legacy inventory
-//! path for `wow_world_application::register_corpse_handlers_like_cpp`. This
+//! path for `wow_world_entities::register_corpse_handlers_like_cpp`. This
 //! adapter lends that registrar the same `WorldSession` operations with the
 //! same catalog destructuring the legacy closures used; the alive/ghost state,
 //! the resurrection request, the teleport/transfer path and every publication
@@ -13,7 +13,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::CorpseHandlerHostLikeCpp;
+use wow_world_entities::CorpseHandlerHostLikeCpp;
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

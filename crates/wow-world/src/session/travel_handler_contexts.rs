@@ -4,7 +4,7 @@
 
 //! World-side construction of the travel handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session
+//! The entities crate owns the handlers and their context; the session
 //! splits its lifecycle state from the hub, so no session reference crosses
 //! into the handler.
 //!
@@ -17,7 +17,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp};
+use wow_world_entities::{TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

@@ -29,6 +29,8 @@ wow-recastdetour = { workspace = true }
 wow-persistence = { workspace = true }
 wow-progression = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-interaction = { workspace = true }
+wow-world-lifecycle = { workspace = true }
 
 [dev-dependencies]
 wow-world-core = { workspace = true, features = ["test-fixtures"] }

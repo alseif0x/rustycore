@@ -8,7 +8,7 @@
 //! C++ refs: `WorldSession::HandleRequestCemeteryList`,
 //! `HandleResurrectResponse`, `HandleRepopRequest` and `HandleReclaimCorpse`
 //! (`Handlers/MiscHandler.cpp`). The four registrations stay in the
-//! application `register_corpse_handlers_like_cpp` registrar. The graveyard
+//! `register_corpse_handlers_like_cpp` registrar (`corpse_registrations`). The graveyard
 //! condition check, the resurrection request, the teleport and the ghost flag
 //! stay with the host; the former `#[cfg(test)]` fixture step runs through
 //! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.

@@ -4,7 +4,7 @@
 
 //! World-side construction of the combat handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The entities crate owns the handlers and their context; the session only
 //! lends its hub, so no session reference crosses into the handler.
 //!
 //! `#1263 F5 remaining families`: the adapter also lends `CMSG_ATTACKSWING`,
@@ -12,7 +12,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp};
+use wow_world_entities::{CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

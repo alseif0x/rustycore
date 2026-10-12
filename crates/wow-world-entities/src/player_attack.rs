@@ -9,7 +9,7 @@
 //!
 //! C++ refs: `WorldSession::HandleAttackSwingOpcode`
 //! (`Handlers/CombatHandler.cpp`) and `Unit::Attack`. The registration stays in
-//! the application `ApplicationCombat` area registrar.
+//! the `ApplicationCombat` area registrar (`combat_handlers`).
 
 use tracing::{debug, warn};
 use wow_constants::unit::{UnitFlags, UnitPvpFlags};

@@ -24,11 +24,8 @@ pub mod character_login_support;
 mod character_query_handlers;
 mod client_state;
 mod collections_handlers;
-mod combat_handlers;
-mod corpse_handlers;
 mod data_service_handlers;
 mod dungeon_finding_handlers;
-mod gameobject_handlers;
 mod loot_handlers;
 mod loot_release;
 mod npc_handlers;
@@ -46,7 +43,6 @@ mod registry_sync;
 mod spell_acquisition;
 mod spell_handlers;
 mod talent_handlers;
-mod travel_handlers;
 pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
@@ -118,9 +114,6 @@ pub use collections_handlers::{
     CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
     register_collections_handlers_like_cpp,
 };
-pub use combat_handlers::{
-    CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp, register_combat_handlers_like_cpp,
-};
 pub use data_service_handlers::{
     DataServiceHandlerCxLikeCpp, DataServiceHandlerHostLikeCpp,
     register_data_service_handlers_like_cpp,
@@ -134,9 +127,6 @@ pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 pub use equipment_set_use::{
     EquipmentSetUseContextLikeCpp, EquipmentSetUseHandlerHostLikeCpp,
     EquipmentSetUseItemModsStoresLikeCpp, register_equipment_set_use_handler_like_cpp,
-};
-pub use gameobject_handlers::{
-    GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp, register_gameobject_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use inventory_swap::InventoryEquipFixtureRefsLikeCpp;
@@ -225,9 +215,8 @@ pub use quest_query_handlers::{
 // requires: the two canonical exports as one use item (#1263 F5 remaining
 // families).
 pub use quest_handlers::{QuestHandlerHostLikeCpp, register_quest_handlers_like_cpp};
-// The exact `ApplicationTalent` and `ApplicationCorpse` owner facades the
-// handler-contract checker requires (#1263 F5 deferred families).
-pub use corpse_handlers::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
+// The exact `ApplicationTalent` owner facade the handler-contract checker
+// requires (#1263 F5 deferred families).
 pub use talent_handlers::{TalentHandlerHostLikeCpp, register_talent_handlers_like_cpp};
 // The moved quest-completion body and the two quest helpers it owns are exported
 // as a separate item so the owner's exact three-name facade above stays unchanged.
@@ -294,7 +283,4 @@ pub use trainer_purchase::{
     publish_spell_acquisition_action_like_cpp, resolve_creature_trainer_like_cpp,
     trainer_condition_admission_proof_like_cpp, trainer_list_required_npc_flags_like_cpp,
     trainer_price_like_cpp, trainer_spell_class_race_fit_like_cpp, trainer_spell_product_like_cpp,
-};
-pub use travel_handlers::{
-    TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
 };

@@ -489,7 +489,7 @@ const COMBAT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 
 pub(crate) const COMBAT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationCombat",
-    package: "wow-world-application",
+    package: "wow-world-entities",
     module: "crate::combat_handlers",
     registrar: "register_combat_handlers_like_cpp",
     host_trait: "CombatHandlerHostLikeCpp",
@@ -552,7 +552,7 @@ const TRAVEL_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 
 pub(crate) const TRAVEL_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationTravel",
-    package: "wow-world-application",
+    package: "wow-world-entities",
     module: "crate::travel_handlers",
     registrar: "register_travel_handlers_like_cpp",
     host_trait: "TravelHandlerHostLikeCpp",
@@ -615,7 +615,7 @@ const GAMEOBJECT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract
 
 pub(crate) const GAMEOBJECT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationGameObject",
-    package: "wow-world-application",
+    package: "wow-world-entities",
     module: "crate::gameobject_handlers",
     registrar: "register_gameobject_handlers_like_cpp",
     host_trait: "GameObjectHandlerHostLikeCpp",
@@ -992,7 +992,7 @@ const CORPSE_ROOT_EXPORTS: &[&str] = &[
 ];
 const CORPSE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
     module: "crate",
-    child: "corpse_handlers",
+    child: "corpse_registrations",
     exports: CORPSE_ROOT_EXPORTS,
 }];
 
@@ -1004,8 +1004,8 @@ const CORPSE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 /// `graveyards`, so the host receives the catalog view.
 pub(crate) const CORPSE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationCorpse",
-    package: "wow-world-application",
-    module: "crate::corpse_handlers",
+    package: "wow-world-entities",
+    module: "crate::corpse_registrations",
     registrar: "register_corpse_handlers_like_cpp",
     host_trait: "CorpseHandlerHostLikeCpp",
     production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
