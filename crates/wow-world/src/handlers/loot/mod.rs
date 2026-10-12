@@ -286,8 +286,6 @@ struct RepresentedGameObjectLootInstallObservationLikeCpp {
 // `wow-world-entities`.
 #[cfg(test)]
 pub(crate) use wow_world_entities::represented_gameobject_display_box_contains_like_cpp;
-#[cfg(test)]
-pub(crate) use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
 
 #[cfg(test)]
 fn represented_loot_object_guid_like_cpp(owner: ObjectGuid) -> ObjectGuid {

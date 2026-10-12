@@ -14,24 +14,19 @@
 //!
 //! Reference: C++ `Handlers/ChatHandler.cpp`, `Entities/Player/Player.cpp`,
 //! and `Server/Packets/ChatPackets.cpp`.
+//!
+//! Every handler body now lives in `wow-world-social`; this module is mounted
+//! only for the test build and keeps the scenario entry points.
 
-#[cfg(test)]
 use tracing::debug;
 
-#[cfg(test)]
 use crate::session::mailbox::{SendAddonIfRegisteredLikeCppCommand, SessionCommand};
-#[cfg(test)]
 use wow_chat::hyperlinks::check_all_links_shape_like_cpp;
-#[cfg(test)]
 use wow_chat::validation::validate_message_like_cpp;
-#[cfg(test)]
 use wow_constants::UnitState;
-#[cfg(test)]
 use wow_core::ObjectGuid;
-#[cfg(test)]
 use wow_core::guid::HighGuid;
 
-#[cfg(test)]
 use wow_packet::packets::chat::{
     CTextEmote, ChatAddonMessage, ChatAddonMessageTargeted, ChatAddonMessageWhisper, ChatMessage,
     ChatMessageAfk, ChatMessageChannel, ChatMessageDnd, ChatMessageEmote, ChatMessageWhisper,
@@ -39,29 +34,20 @@ use wow_packet::packets::chat::{
     ChatReportIgnored, EmoteClient, EmoteMessage, PrintNotification, STextEmote, UpdateAadcStatus,
     UpdateAadcStatusResponse,
 };
-#[cfg(test)]
 use wow_packet::{ClientPacket, ServerPacket};
-#[cfg(test)]
 use wow_social::group::GroupInfo;
 
-#[cfg(test)]
 use crate::session::{
     ChatFloodThrottleIndexLikeCpp, ChatPolicyCatalogsLikeCpp, PlayerAwayModeLikeCpp, WorldSession,
     player_team_for_race_cpp,
 };
 
-/// Chat constants consumed by the moved handlers and their scenario module.
-#[cfg(test)]
-pub(crate) use wow_world_social::{
-    GM_SILENCE_AURA_LIKE_CPP, LANG_ADDON_LIKE_CPP, LANG_ADDON_LOGGED_LIKE_CPP,
-    LANG_UNIVERSAL_LIKE_CPP, secs_to_full_time_string_like_cpp,
-};
-
-/// Emote ids used by the chat scenarios; the text-emote body moved to
-/// `wow_world_social::text_emote` (#1363 slice 4a).
-#[cfg(test)]
+/// Chat constants and emote ids consumed by the chat scenario module; the
+/// text-emote body moved to `wow_world_social::text_emote` (#1363 slice 4a).
 pub(crate) use wow_world_social::{
     ANIM_MOUNT_SPECIAL_LIKE_CPP, EMOTE_STATE_DANCE_LIKE_CPP, EMOTE_STATE_SIT_LIKE_CPP,
+    GM_SILENCE_AURA_LIKE_CPP, LANG_ADDON_LIKE_CPP, LANG_ADDON_LOGGED_LIKE_CPP,
+    LANG_UNIVERSAL_LIKE_CPP, secs_to_full_time_string_like_cpp,
 };
 
 mod ops_2;
@@ -69,10 +55,8 @@ mod ops_2;
 pub use ops_2::*;
 
 /// Test-only entry points for the moved chat handlers.
-#[cfg(test)]
 mod test_shims;
 
-#[cfg(test)]
 #[path = "../../unit_tests/handlers/chat/tests/mod.rs"]
 mod tests;
 

@@ -10,6 +10,7 @@ use wow_persistence::{
     GossipCreatureMenuRequestLikeCpp, GossipMenuCatalogRequestLikeCpp,
     GossipNpcTextCatalogRequestLikeCpp,
 };
+use wow_world_entities::represented_gameobject_gossip_can_interact_with_like_cpp;
 
 use super::*;
 
@@ -650,10 +651,7 @@ impl WorldSession {
                 .represented_npc_can_interact_with_like_cpp(npc_guid, required_flags, 0)
                 .is_some()
         } else if npc_guid.is_game_object() {
-            wow_world_entities::represented_gameobject_gossip_can_interact_with_like_cpp(
-                self, npc_guid,
-            )
-            .is_some()
+            represented_gameobject_gossip_can_interact_with_like_cpp(self, npc_guid).is_some()
         } else {
             false
         };

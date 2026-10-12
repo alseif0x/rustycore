@@ -273,19 +273,16 @@ fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
         .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .linked_trap_entry = Some(190_015);
 
-    assert!(
-        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
-            &mut session,
-            gameobject_guid,
-            player_guid,
-            777,
-            wow_entities::GooberUseSource {
-                auto_close_ms: 3_000,
-                linked_trap_entry: 190_015,
-                ..Default::default()
-            },
-        )
-    );
+    assert!(session.use_represented_gameobject_goober_state_like_cpp(
+        gameobject_guid,
+        player_guid,
+        777,
+        wow_entities::GooberUseSource {
+            auto_close_ms: 3_000,
+            linked_trap_entry: 190_015,
+            ..Default::default()
+        },
+    ));
 
     let command = match same_command_rx.try_recv() {
         Ok(SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command)) => command,

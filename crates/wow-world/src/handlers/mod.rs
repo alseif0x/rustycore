@@ -10,6 +10,7 @@ pub mod battlegrounds;
 pub mod battlenet;
 pub mod calendar;
 pub mod character;
+#[cfg(test)]
 pub mod chat;
 pub mod collections;
 pub mod combat;

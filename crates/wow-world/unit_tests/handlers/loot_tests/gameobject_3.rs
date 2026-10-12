@@ -155,11 +155,7 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
         go_position,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
-        &mut session,
-        loot_guid,
-        player_guid,
-    );
+    session.record_represented_gameobject_owner_guid_like_cpp(loot_guid, player_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {
@@ -445,11 +441,7 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
         go_position,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
-        &mut session,
-        loot_guid,
-        player_guid,
-    );
+    session.record_represented_gameobject_owner_guid_like_cpp(loot_guid, player_guid);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         loot_guid,
         CreatureLoot {

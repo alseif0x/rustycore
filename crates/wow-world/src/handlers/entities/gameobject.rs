@@ -28,4 +28,47 @@ impl crate::session::WorldSession {
         )
         .await;
     }
+
+    // Method-call entry points the loot and character scenarios keep using.
+    pub(crate) fn use_represented_gameobject_goober_state_like_cpp(
+        &mut self,
+        gameobject_guid: wow_core::ObjectGuid,
+        player_guid: wow_core::ObjectGuid,
+        gameobject_entry: u32,
+        source: wow_entities::GooberUseSource,
+    ) -> bool {
+        wow_world_entities::use_represented_gameobject_goober_state_like_cpp(
+            self,
+            gameobject_guid,
+            player_guid,
+            gameobject_entry,
+            source,
+        )
+    }
+
+    pub(crate) fn record_represented_gameobject_owner_guid_like_cpp(
+        &mut self,
+        guid: wow_core::ObjectGuid,
+        owner_guid: wow_core::ObjectGuid,
+    ) {
+        wow_world_entities::record_represented_gameobject_owner_guid_like_cpp(
+            self, guid, owner_guid,
+        )
+    }
+
+    pub(crate) fn use_represented_gameobject_barber_chair_like_cpp(
+        &mut self,
+        gameobject_guid: wow_core::ObjectGuid,
+        player_guid: wow_core::ObjectGuid,
+        gameobject_position: wow_core::Position,
+        source: wow_entities::BarberChairUseSource,
+    ) -> bool {
+        wow_world_entities::use_represented_gameobject_barber_chair_like_cpp(
+            self,
+            gameobject_guid,
+            player_guid,
+            gameobject_position,
+            source,
+        )
+    }
 }

@@ -16,6 +16,4 @@ mod vitals;
 
 #[cfg(test)]
 pub(in crate::session) use wow_world_creature::RepresentedArmorMitigationLikeCpp;
-#[cfg(test)]
-pub(crate) use wow_world_entities::PlayerAttackStartLikeCppResult;
 pub(in crate::session) use wow_world_spell::aura_effects::write_absorbed_shield_amount_like_cpp;

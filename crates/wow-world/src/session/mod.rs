@@ -34,8 +34,6 @@ mod trade_handler_contexts;
 mod travel_handler_contexts;
 mod vehicle_handler_contexts;
 pub(crate) use combat::CR_ARMOR_PENETRATION_LIKE_CPP;
-#[cfg(test)]
-pub(crate) use combat::PlayerAttackStartLikeCppResult;
 mod account_data_handler_contexts;
 mod effect_learning;
 mod instance_handler_contexts;
@@ -251,16 +249,15 @@ pub(crate) use faction_reactions::RepresentedFactionReactionInputLikeCpp;
 pub(crate) use faction_reactions::RepresentedGetReactionInputLikeCpp;
 pub(crate) use faction_reactions::ReputationGainSourceLikeCpp;
 mod gameobject_interaction;
-#[cfg(test)]
-pub(crate) use gameobject_interaction::BattlegroundFlagDropClickTarget;
-#[cfg(test)]
-pub(crate) use gameobject_interaction::RepresentedBattlegroundObjectUseRejection;
 pub(crate) use gameobject_interaction::RepresentedCapturePointStateLikeCpp;
-#[cfg(test)]
-pub(crate) use gameobject_interaction::RepresentedGameObjectCriteriaEvent;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseEffect;
 pub(crate) use gameobject_interaction::RepresentedGameObjectUseState;
 pub(crate) use gameobject_interaction::RepresentedNewFlagStateRequest;
+#[cfg(test)]
+pub(crate) use gameobject_interaction::{
+    BattlegroundFlagDropClickTarget, RepresentedBattlegroundObjectUseRejection,
+    RepresentedGameObjectCriteriaEvent,
+};
 mod guild_inventory_contracts;
 pub(crate) use guild_inventory_contracts::RepresentedBankItemMoveLikeCpp;
 #[cfg(test)]
@@ -502,7 +499,6 @@ pub(crate) use stand_state_adapter::RepresentedStandChannelCancellationBoundary;
 pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
 pub use state::WorldSession;
-pub(crate) use state::forward_to_world_session_like_cpp;
 pub(crate) use state::{
     HubMut, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef, PetsCx, PetsCxRef,
     QuestStateCx, QuestStateCxRef, cx_inventory_ref, cx_lifecycle, cx_lifecycle_ref, cx_loot,
@@ -819,8 +815,6 @@ pub(crate) use wow_world_application::spell_click_values::MAX_GAMEOBJECT_SLOT_LI
 #[cfg(test)]
 pub(crate) use wow_world_application::spell_click_values::SPELL_CAST_SOURCE_NORMAL_LIKE_CPP;
 pub(crate) use wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP;
-#[cfg(test)]
-use wow_world_entities::PLAYER_FLAGS_UBER_LIKE_CPP;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 pub(crate) use wow_world_core::session::{
@@ -926,11 +920,7 @@ pub(crate) const CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP: u32 = 0x08000;
 /// C++ `CAST_FLAG_PENDING` (`Spells/Spell.h:78`); `SendSpellStart` and `SendSpellGo` set it for a triggered cast that is not `m_fromClient`.
 pub(crate) const CAST_FLAG_PENDING_LIKE_CPP: u32 = 0x0000_0001;
 
-#[cfg(test)]
-use wow_data::battlemaster_list::{BATTLEGROUND_EY_LIKE_CPP, BATTLEGROUND_WS_LIKE_CPP};
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
-#[cfg(test)]
-use wow_world_entities::SKILL_FISHING_LIKE_CPP;
 
 #[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP;

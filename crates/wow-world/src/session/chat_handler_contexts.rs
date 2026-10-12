@@ -50,14 +50,35 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
 }
 
 impl SocialSessionHostLikeCpp for WorldSession {
-    crate::session::forward_to_world_session_like_cpp! {
-        fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize;
-        fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool;
-        fn lfg_has_active_instance_lock_like_cpp(&self, map_id: u32, difficulty_id: u8) -> bool;
-        fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState>;
-        fn quest_money_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32;
-        fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32;
-        fn represented_average_item_level_like_cpp(&self) -> Option<f32>;
-        fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool;
+    fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
+        WorldSession::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
+    }
+
+    fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool {
+        WorldSession::access_requirement_leader_has_achievement_like_cpp(self, achievement_id)
+    }
+
+    fn lfg_has_active_instance_lock_like_cpp(&self, map_id: u32, difficulty_id: u8) -> bool {
+        WorldSession::lfg_has_active_instance_lock_like_cpp(self, map_id, difficulty_id)
+    }
+
+    fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState> {
+        WorldSession::player_quest_gameplay_snapshot_like_cpp(self)
+    }
+
+    fn quest_money_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
+        WorldSession::quest_money_reward_like_cpp(self, quest)
+    }
+
+    fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
+        WorldSession::quest_xp_reward_like_cpp(self, quest)
+    }
+
+    fn represented_average_item_level_like_cpp(&self) -> Option<f32> {
+        WorldSession::represented_average_item_level_like_cpp(self)
+    }
+
+    fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
+        WorldSession::represented_has_item_count_like_cpp(self, item_entry, count)
     }
 }
