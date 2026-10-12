@@ -1607,13 +1607,13 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_application :: VehicleSessionHostLikeCpp",
+          "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
+          "trait_path": "wow_world_entities :: VehicleSessionHostLikeCpp",
           "cfg": [],
           "source_class": "production"
         },
@@ -44589,32 +44589,6 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_application :: VehicleSessionHostLikeCpp",
-          "kind": "method",
-          "name": "represented_handle_spell_click_plan_with_seat_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_handle_spell_click_plan_with_seat_like_cpp (& self , creature_guid : wow_core :: ObjectGuid , seat_id : Option < i8 > ,) -> wow_world_application :: spell_click_values :: RepresentedSpellClickPlanLikeCpp",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": "wow_world_application :: VehicleSessionHostLikeCpp",
-          "kind": "method",
-          "name": "represented_player_is_same_raid_with_like_cpp",
-          "visibility": "private",
-          "signature": "fn represented_player_is_same_raid_with_like_cpp (& self , player_guid : wow_core :: ObjectGuid , owner_guid : wow_core :: ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
           "trait_path": "wow_world_core :: session :: SessionHubHostLikeCpp",
           "kind": "method",
           "name": "hub_mut",
@@ -44650,6 +44624,32 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: VehicleSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_handle_spell_click_plan_with_seat_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_handle_spell_click_plan_with_seat_like_cpp (& self , creature_guid : wow_core :: ObjectGuid , seat_id : Option < i8 > ,) -> wow_world_entities :: spell_click_values :: RepresentedSpellClickPlanLikeCpp",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_entities :: VehicleSessionHostLikeCpp",
+          "kind": "method",
+          "name": "represented_player_is_same_raid_with_like_cpp",
+          "visibility": "private",
+          "signature": "fn represented_player_is_same_raid_with_like_cpp (& self , player_guid : wow_core :: ObjectGuid , owner_guid : wow_core :: ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
           "guards": [
             "trait_impl"
           ]
@@ -60140,32 +60140,6 @@
           "count": 1
         },
         {
-          "package": "wow-world-application",
-          "module": "crate::vehicle_session",
-          "source": "crates/wow-world-application/src/vehicle_session.rs",
-          "enclosing": "fn represented_ride_vehicle_interact_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
-          "module": "crate::vehicle_session",
-          "source": "crates/wow-world-application/src/vehicle_session.rs",
-          "enclosing": "fn represented_ride_vehicle_interact_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
           "package": "wow-world-core",
           "module": "crate::player::directory_canonical_queries",
           "source": "crates/wow-world-core/src/player/directory_canonical_queries.rs",
@@ -61437,6 +61411,32 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::vehicle_session",
+          "source": "crates/wow-world-entities/src/vehicle_session.rs",
+          "enclosing": "fn represented_ride_vehicle_interact_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-entities",
+          "module": "crate::vehicle_session",
+          "source": "crates/wow-world-entities/src/vehicle_session.rs",
+          "enclosing": "fn represented_ride_vehicle_interact_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {

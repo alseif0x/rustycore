@@ -4,7 +4,7 @@
 
 //! WorldSession's borrowed adapters for the application-owned instance handlers.
 
-use wow_world_application::{
+use wow_world_instances::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceRaidInfoHandlerCxLikeCpp, InstancesHandlerHostLikeCpp,
 };

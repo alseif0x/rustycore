@@ -381,12 +381,12 @@ fn assert_migrated_family_like_cpp(
 #[test]
 fn duplicated_migrated_tail_registration_is_rejected_without_replacement() {
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world_application::register_movement_tail_handlers_like_cpp::<
+    wow_world_entities::register_movement_tail_handlers_like_cpp::<
         crate::session::WorldSession,
         crate::session::SessionHandlerCatalogsLikeCpp,
     >(&mut builder)
     .expect("the first tail registration succeeds");
-    let error = wow_world_application::register_movement_tail_handlers_like_cpp::<
+    let error = wow_world_entities::register_movement_tail_handlers_like_cpp::<
         crate::session::WorldSession,
         crate::session::SessionHandlerCatalogsLikeCpp,
     >(&mut builder)
@@ -447,7 +447,7 @@ fn movement_tail_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "movement tail",
         |builder| {
-            wow_world_application::register_movement_tail_handlers_like_cpp::<
+            wow_world_entities::register_movement_tail_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1565,7 +1565,7 @@ fn vehicle_seat_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "vehicle seat",
         |builder| {
-            wow_world_application::register_vehicle_handlers_like_cpp::<
+            wow_world_entities::register_vehicle_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1698,7 +1698,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "vehicle",
-            wow_world_application::register_vehicle_handlers_like_cpp::<
+            wow_world_entities::register_vehicle_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

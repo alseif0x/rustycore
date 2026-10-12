@@ -11,13 +11,13 @@
 //! - `WorldSession::HandleRequestVehicleExit`
 //!
 //! `#1263 F5 remaining families`: all eight registrations now live in the
-//! `ApplicationVehicle` area registrar (`wow-world-application`). #1363 slice
-//! 4b moved the four remaining bodies to `wow_world_application::vehicle_session`.
+//! `ApplicationVehicle` area registrar (`wow-world-entities` since #1363 slice
+//! A1). Slice 4b moved the four remaining bodies to `vehicle_session`.
 
 #[cfg(test)]
 use wow_core::ObjectGuid;
 
-pub use wow_world_application::{
+pub use wow_world_entities::{
     VehicleHandlerAction, eject_passenger_action_like_cpp,
     move_change_vehicle_seats_action_like_cpp, move_dismiss_vehicle_action_like_cpp,
     request_adjacent_vehicle_seat_action_like_cpp, request_vehicle_exit_action_like_cpp,

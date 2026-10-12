@@ -129,7 +129,7 @@ impl QuestObjectiveProgressCx<'_, '_> {
     fn completion_can_see_spell_click_like_cpp(
         &self,
         creature_guid: ObjectGuid,
-    ) -> crate::quest::RepresentedCanSeeSpellClickOutcomeLikeCpp {
+    ) -> wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp {
         let core = self.reward.player.core_ref_like_cpp();
         let catalogs = self.reward.catalogs;
         let owner = core.quest_objective_access_like_cpp();

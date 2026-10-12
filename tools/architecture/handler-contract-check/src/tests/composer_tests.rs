@@ -113,18 +113,28 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             include_str!("../../../../../crates/wow-world-application/src/lib.rs"),
         ),
         mount(
-            "wow-world-application",
-            "crate::instances",
-            "crates/wow-world-application/src/instances/mod.rs",
-            include_str!("../../../../../crates/wow-world-application/src/instances/mod.rs"),
+            "wow-world-instances",
+            "crate::handlers",
+            "crates/wow-world-instances/src/handlers/mod.rs",
+            include_str!("../../../../../crates/wow-world-instances/src/handlers/mod.rs"),
         ),
         mount(
-            "wow-world-application",
-            "crate::instances::registration",
-            "crates/wow-world-application/src/instances/registration.rs",
-            include_str!(
-                "../../../../../crates/wow-world-application/src/instances/registration.rs"
-            ),
+            "wow-world-instances",
+            "crate::handlers::registration",
+            "crates/wow-world-instances/src/handlers/registration.rs",
+            include_str!("../../../../../crates/wow-world-instances/src/handlers/registration.rs"),
+        ),
+        mount(
+            "wow-world-instances",
+            "crate",
+            "crates/wow-world-instances/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-instances/src/lib.rs"),
+        ),
+        mount(
+            "wow-world-entities",
+            "crate",
+            "crates/wow-world-entities/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/lib.rs"),
         ),
         mount(
             EQUIPMENT_SET_USE_REGISTRAR.package,
@@ -209,15 +219,15 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             MOVEMENT_REGISTRAR.package,
             MOVEMENT_REGISTRAR.module,
-            "crates/wow-world-application/src/movement_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/movement_handlers.rs"),
+            "crates/wow-world-entities/src/movement_handlers.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/movement_handlers.rs"),
         ),
         mount(
             MOVEMENT_TAIL_REGISTRAR.package,
             MOVEMENT_TAIL_REGISTRAR.module,
-            "crates/wow-world-application/src/movement_handlers/tail_registrations.rs",
+            "crates/wow-world-entities/src/movement_handlers/tail_registrations.rs",
             include_str!(
-                "../../../../../crates/wow-world-application/src/movement_handlers/tail_registrations.rs"
+                "../../../../../crates/wow-world-entities/src/movement_handlers/tail_registrations.rs"
             ),
         ),
         mount(
@@ -267,8 +277,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             VEHICLE_REGISTRAR.package,
             VEHICLE_REGISTRAR.module,
-            "crates/wow-world-application/src/vehicle_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/vehicle_handlers.rs"),
+            "crates/wow-world-entities/src/vehicle_handlers.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/vehicle_handlers.rs"),
         ),
         mount(
             GAMEOBJECT_REGISTRAR.package,
@@ -628,7 +638,7 @@ fn composition_guard_requires_bank_once_in_the_authority_with_exact_facade() {
 fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() {
     for registrar in [
         "wow_world_application::register_trainer_handlers_like_cpp",
-        "wow_world_application::register_movement_tail_handlers_like_cpp",
+        "wow_world_entities::register_movement_tail_handlers_like_cpp",
         "wow_world_application::register_character_account_handlers_like_cpp",
         "wow_world_application::register_quest_handlers_like_cpp",
         "wow_world_inventory::register_void_storage_handlers_like_cpp",
@@ -697,10 +707,10 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
         assert_rejected(&inexact_facade, label);
     }
 
-    // Index 5 is the Application crate root holding both exact facades.
+    // Index 9 is the Entities crate root holding the movement tail facade.
     let mut aliased_tail_facade = actual_mounts();
-    aliased_tail_facade[5].source = mutate_fixture(
-        &aliased_tail_facade[5].source,
+    aliased_tail_facade[9].source = mutate_fixture(
+        &aliased_tail_facade[9].source,
         "pub use movement_handlers::register_movement_tail_handlers_like_cpp;",
         "pub use movement_handlers::register_movement_tail_handlers_like_cpp as register_tail;",
     );
@@ -715,8 +725,8 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
     assert_rejected(&inexact_trainer_facade, "inexact trainer root facade");
 
     let mut missing_tail_facade = actual_mounts();
-    missing_tail_facade[5].source = mutate_fixture(
-        &missing_tail_facade[5].source,
+    missing_tail_facade[9].source = mutate_fixture(
+        &missing_tail_facade[9].source,
         "pub use movement_handlers::register_movement_tail_handlers_like_cpp;\n",
         "",
     );
@@ -777,7 +787,7 @@ fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls()
     wrong_owner[authority].source = mutate_fixture(
         &wrong_owner[authority].source,
         "wow_world_application::register_equipment_set_use_handler_like_cpp",
-        "wow_world_application::register_instance_handlers_like_cpp",
+        "wow_world_instances::register_instance_handlers_like_cpp",
     );
     assert_rejected(
         &wrong_owner,
@@ -978,16 +988,16 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     assert_rejected(&extra_handler_alias, "extra alias in handlers facade");
 
     let mut missing_instances_root_facade = actual_mounts();
-    // The Application root facade lists this export on the same line as the next
-    // one, so the mutation has to match the real formatting to remove anything.
-    missing_instances_root_facade[5].source = mutate_fixture(
-        &missing_instances_root_facade[5].source,
+    // The Instances root facade (index 8) lists this export on the same line as
+    // the next one, so the mutation has to match the real formatting to remove anything.
+    missing_instances_root_facade[8].source = mutate_fixture(
+        &missing_instances_root_facade[8].source,
         "    register_instance_handlers_like_cpp, reset_represented_instances_like_cpp,\n",
         "    reset_represented_instances_like_cpp,\n",
     );
     assert_rejected(
         &missing_instances_root_facade,
-        "missing Application root facade export",
+        "missing Instances root facade export",
     );
 
     let mut aliased_instances_module_facade = actual_mounts();
@@ -998,7 +1008,7 @@ fn composition_guard_rejects_fixture_gate_changes_and_inexact_facades() {
     );
     assert_rejected(
         &aliased_instances_module_facade,
-        "aliased Application registration facade",
+        "aliased Instances registration facade",
     );
 }
 
@@ -1014,8 +1024,8 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
     let authority = authority_index(&missing);
     missing[authority].source = mutate_fixture(
         &missing[authority].source,
-        "wow_world_application::register_instance_handlers_like_cpp",
-        "wow_world_application::unowned_instance_registration",
+        "wow_world_instances::register_instance_handlers_like_cpp",
+        "wow_world_instances::unowned_instance_registration",
     );
     assert!(validate_composition_mounts_with_contracts(&missing, contracts).is_err());
 
@@ -1033,20 +1043,20 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
     aliased[authority].source = mutate_fixture(
         &mutate_fixture(
             &aliased[authority].source,
-            "wow_world_application::register_instance_handlers_like_cpp",
-            "application_alias::register_instance_handlers_like_cpp",
+            "wow_world_instances::register_instance_handlers_like_cpp",
+            "instances_alias::register_instance_handlers_like_cpp",
         ),
         "use std::sync::Arc;",
-        "use std::sync::Arc;\nuse wow_world_application as application_alias;",
+        "use std::sync::Arc;\nuse wow_world_instances as instances_alias;",
     );
     assert!(validate_composition_mounts_with_contracts(&aliased, contracts).is_err());
 
     let mut outside_composer = actual_mounts();
     outside_composer.push(mount(
-        "wow-world-application",
-        "crate::instances::other",
-        "crates/wow-world-application/src/instances/other.rs",
-        "fn extra() { let _ = wow_world_application::register_instance_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>; }",
+        "wow-world-instances",
+        "crate::handlers::other",
+        "crates/wow-world-instances/src/handlers/other.rs",
+        "fn extra() { let _ = wow_world_instances::register_instance_handlers_like_cpp::<WorldSession, SessionHandlerCatalogsLikeCpp>; }",
     ));
     assert!(validate_composition_mounts_with_contracts(&outside_composer, contracts).is_err());
 
@@ -1063,12 +1073,12 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
     let owner_source = conditional_owner_mount
         .iter_mut()
         .find(|mount| {
-            mount.package == "wow-world-application"
-                && mount.source_path.ends_with("instances/registration.rs")
+            mount.package == "wow-world-instances"
+                && mount.source_path.ends_with("handlers/registration.rs")
         })
-        .expect("Application Instances registrar mount exists");
+        .expect("Instances registrar mount exists");
     owner_source.contexts = BTreeSet::from([SourceMountContext {
-        logical_module_path: "crate::instances::registration".to_owned(),
+        logical_module_path: "crate::handlers::registration".to_owned(),
         cfg: vec!["test".to_owned()],
         production_possible: true,
         test_possible: true,
@@ -1094,8 +1104,8 @@ fn composition_guard_derives_two_owner_call_set_and_rejects_partial_or_alternate
 
     let mut missing_registrar_source = actual_mounts();
     missing_registrar_source.retain(|mount| {
-        !(mount.package == "wow-world-application"
-            && mount.source_path.ends_with("instances/registration.rs"))
+        !(mount.package == "wow-world-instances"
+            && mount.source_path.ends_with("handlers/registration.rs"))
     });
     assert!(
         validate_composition_mounts_with_contracts(&missing_registrar_source, contracts).is_err()

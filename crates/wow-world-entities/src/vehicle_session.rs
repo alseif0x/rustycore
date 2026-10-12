@@ -16,6 +16,7 @@
 //! `#[cfg(test)]` fixture steps run through
 //! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.
 
+use crate::PlayerMovementHostLikeCpp;
 use wow_core::ObjectGuid;
 use wow_packet::packets::vehicle::{
     MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleSwitchSeat, RideVehicleInteract,
@@ -26,7 +27,6 @@ use wow_world_core::session::{
     RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp,
     RepresentedVehicleSeatSpellClickRequestLikeCpp,
 };
-use wow_world_entities::PlayerMovementHostLikeCpp;
 
 use crate::spell_click_values::RepresentedSpellClickPlanLikeCpp;
 use crate::vehicle_handlers::{
@@ -104,7 +104,7 @@ pub fn represented_move_dismiss_vehicle_like_cpp<H: VehicleSessionHostLikeCpp>(
         return false;
     }
 
-    wow_world_entities::sanitize_movement_info_represented_like_cpp(host, status);
+    crate::sanitize_movement_info_represented_like_cpp(host, status);
     host.hub_mut()
         .set_player_movement_time_like_cpp(status.time);
     host.hub_mut()
@@ -153,7 +153,7 @@ pub fn represented_move_change_vehicle_seats_like_cpp<H: VehicleSessionHostLikeC
         return false;
     }
 
-    wow_world_entities::sanitize_movement_info_represented_like_cpp(host, status);
+    crate::sanitize_movement_info_represented_like_cpp(host, status);
     if status.guid != vehicle_base_guid {
         return false;
     }

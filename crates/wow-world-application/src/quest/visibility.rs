@@ -37,16 +37,10 @@ use wow_world_core::session::{
 };
 use wow_world_entities::RepresentedGameObjectUseState;
 use wow_world_entities::WorldEntitiesState;
+use wow_world_entities::spell_click_values::RepresentedCanSeeSpellClickOutcomeLikeCpp;
 use wow_world_social::SessionSocialLimits;
 
 use super::{SessionQuestState, objective_progress::current_quest_gameplay_snapshot_like_cpp};
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RepresentedCanSeeSpellClickOutcomeLikeCpp {
-    Visible,
-    Hidden,
-    ExactContextUnrepresented,
-}
 
 impl PlayerConditionProjectionCxLikeCpp<'_> {
     /// Evaluate one quest's ungrouped availability conditions at the selected

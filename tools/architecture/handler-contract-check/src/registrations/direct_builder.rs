@@ -97,11 +97,11 @@ const INSTANCES_REGISTRATION_EXPORTS: &[&str] = &["register_instance_handlers_li
 const INSTANCES_FACADES: &[RegistrarFacadeContract] = &[
     RegistrarFacadeContract {
         module: "crate",
-        child: "instances",
+        child: "handlers",
         exports: INSTANCES_ROOT_EXPORTS,
     },
     RegistrarFacadeContract {
-        module: "crate::instances",
+        module: "crate::handlers",
         child: "registration",
         exports: INSTANCES_REGISTRATION_EXPORTS,
     },
@@ -109,8 +109,8 @@ const INSTANCES_FACADES: &[RegistrarFacadeContract] = &[
 
 pub(crate) const INSTANCES_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationInstances",
-    package: "wow-world-application",
-    module: "crate::instances::registration",
+    package: "wow-world-instances",
+    module: "crate::handlers::registration",
     registrar: "register_instance_handlers_like_cpp",
     host_trait: "InstancesHandlerHostLikeCpp",
     production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
@@ -636,7 +636,7 @@ const VEHICLE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 
 pub(crate) const VEHICLE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationVehicle",
-    package: "wow-world-application",
+    package: "wow-world-entities",
     module: "crate::vehicle_handlers",
     registrar: "register_vehicle_handlers_like_cpp",
     host_trait: "VehicleHandlerHostLikeCpp",
@@ -815,7 +815,7 @@ const MOVEMENT_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 
 pub(crate) const MOVEMENT_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationMovement",
-    package: "wow-world-application",
+    package: "wow-world-entities",
     module: "crate::movement_handlers",
     registrar: "register_movement_handlers_like_cpp",
     host_trait: "MovementHandlerHostLikeCpp",
@@ -853,7 +853,7 @@ const MOVEMENT_TAIL_FACADES: &[RegistrarFacadeContract] = &[
 
 pub(crate) const MOVEMENT_TAIL_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationMovementTail",
-    package: "wow-world-application",
+    package: "wow-world-entities",
     module: MOVEMENT_TAIL_OWNER_MODULE,
     registrar: MOVEMENT_TAIL_REGISTRAR_NAME,
     host_trait: "MovementHandlerHostLikeCpp",

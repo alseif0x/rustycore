@@ -17,7 +17,7 @@ use wow_packet::WorldPacket;
 use wow_packet::packets::movement::{
     MoveSplineDone, MovementAck, MovementAckMessage, MovementForce, MovementSpeedAck,
 };
-use wow_world_application::{MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp};
+use wow_world_entities::{MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

@@ -18,8 +18,8 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
-      "module": "crate::instances::registration",
+      "package": "wow-world-instances",
+      "module": "crate::handlers::registration",
       "allow_descendants": false,
       "tracking_issue": 1263
     },
@@ -95,7 +95,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-entities",
       "module": "crate::vehicle_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -263,7 +263,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-entities",
       "module": "crate::movement_handlers",
       "allow_descendants": false,
       "tracking_issue": 1263
@@ -277,7 +277,7 @@
     },
     {
       "capability": "handler_registration",
-      "package": "wow-world-application",
+      "package": "wow-world-entities",
       "module": "crate::movement_handlers::tail_registrations",
       "allow_descendants": false,
       "tracking_issue": 1263

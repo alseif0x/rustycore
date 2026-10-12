@@ -75,9 +75,8 @@ pub use self::session_state::{
 };
 pub use self::visibility::QuestEligibilityCx;
 pub use self::visibility::{
-    RepresentedCanSeeSpellClickOutcomeLikeCpp, VisibilityRefreshCxLikeCpp,
-    VisibilityRefreshHostLikeCpp, represented_can_see_spell_click_on_like_cpp,
-    represented_gameobject_activate_to_quest_like_cpp,
+    VisibilityRefreshCxLikeCpp, VisibilityRefreshHostLikeCpp,
+    represented_can_see_spell_click_on_like_cpp, represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,
     represented_gameobject_dynamic_flags_update_like_cpp,
     represented_gameobject_go_state_for_viewer_like_cpp,

@@ -30,7 +30,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_instance_handlers_like_cpp::<
+    wow_world_instances::register_instance_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
@@ -129,7 +129,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_vehicle_handlers_like_cpp::<
+    wow_world_entities::register_vehicle_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
@@ -165,11 +165,11 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_movement_handlers_like_cpp::<
+    wow_world_entities::register_movement_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_movement_tail_handlers_like_cpp::<
+    wow_world_entities::register_movement_tail_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;

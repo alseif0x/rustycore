@@ -55,7 +55,7 @@ impl WorldSession {
     ) {
         if matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck) {
             let mut step =
-                wow_world_application::MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+                wow_world_entities::MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
                     .handle_move_set_mod_movement_force_magnitude_ack(opcode, pkt.ack, pkt.speed)
                     .await;
             let accepted = wow_world_entities::handle_movement_force_mod_magnitude_ack_like_cpp(
@@ -64,7 +64,7 @@ impl WorldSession {
                 &mut step.ack,
                 step.speed,
             );
-            wow_world_application::MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
+            wow_world_entities::MovementHandlerCxLikeCpp::new(crate::session::hub_mut(self))
                 .finish_move_set_mod_movement_force_magnitude_ack(step, accepted)
                 .await;
             return;

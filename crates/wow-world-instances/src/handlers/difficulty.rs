@@ -2,6 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use crate::SessionDifficultyKindLikeCpp;
 use tracing::{debug, warn};
 use wow_constants::shared::DifficultyFlags;
 use wow_packet::ClientPacket;
@@ -14,10 +15,9 @@ use wow_persistence::{
     RepresentedGroupPersistenceRequestLikeCpp,
 };
 use wow_social::group::GroupDifficultyKindLikeCpp;
-use wow_world_instances::SessionDifficultyKindLikeCpp;
 
-use crate::instances::lock_operations::reset_locks_with_access_like_cpp;
-use crate::instances::{InstanceDifficultyHandlerCxLikeCpp, InstanceResetMethodLikeCpp};
+use crate::handlers::lock_operations::reset_locks_with_access_like_cpp;
+use crate::handlers::{InstanceDifficultyHandlerCxLikeCpp, InstanceResetMethodLikeCpp};
 
 impl InstanceDifficultyHandlerCxLikeCpp<'_> {
     pub fn apply_group_difficulty_like_cpp(

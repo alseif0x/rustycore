@@ -3504,7 +3504,6 @@ dependencies = [
  "wow-data",
  "wow-entities",
  "wow-handler",
- "wow-instances",
  "wow-loot",
  "wow-map",
  "wow-packet",
@@ -3593,6 +3592,7 @@ dependencies = [
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-handler",
  "wow-loot",
  "wow-map",
  "wow-movement",
@@ -3607,15 +3607,20 @@ dependencies = [
 name = "wow-world-instances"
 version = "0.1.0"
 dependencies = [
+ "tracing",
  "wow-constants",
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-handler",
  "wow-instances",
  "wow-map",
  "wow-packet",
+ "wow-persistence",
  "wow-social",
  "wow-world-core",
+ "wow-world-lifecycle",
+ "wow-world-social",
 ]
 
 [[package]]

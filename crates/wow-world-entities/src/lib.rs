@@ -36,13 +36,17 @@ mod gameobject_use_scripted;
 mod gameobject_use_support;
 mod gameobject_use_types;
 mod movement_acks;
+mod movement_handlers;
 mod movement_host;
 mod movement_opcodes;
 mod pending_runtime;
 mod player_attack;
 mod spawn;
 mod spell_click;
+pub mod spell_click_values;
 mod state;
+mod vehicle_handlers;
+mod vehicle_session;
 mod world_entities_host;
 
 pub use aggro::{
@@ -130,6 +134,10 @@ pub use movement_acks::{
     record_remove_movement_force_ack_like_cpp, record_validated_movement_ack_like_cpp,
     sanitize_movement_info_flags_represented_like_cpp, sanitize_movement_info_represented_like_cpp,
 };
+pub use movement_handlers::register_movement_tail_handlers_like_cpp;
+pub use movement_handlers::{
+    MovementHandlerCxLikeCpp, MovementHandlerHostLikeCpp, register_movement_handlers_like_cpp,
+};
 pub use movement_host::PlayerMovementHostLikeCpp;
 pub use movement_opcodes::{
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP,
@@ -143,4 +151,19 @@ pub use player_attack::{
     start_player_attack_like_cpp,
 };
 pub use state::WorldEntitiesState;
+pub use vehicle_handlers::{
+    VehicleHandlerAction, eject_passenger_action_like_cpp,
+    move_change_vehicle_seats_action_like_cpp, move_dismiss_vehicle_action_like_cpp,
+    request_adjacent_vehicle_seat_action_like_cpp, request_vehicle_exit_action_like_cpp,
+    request_vehicle_switch_seat_action_like_cpp, ride_vehicle_interact_action_like_cpp,
+};
+pub use vehicle_handlers::{
+    VehicleHandlerCxLikeCpp, VehicleHandlerHostLikeCpp, register_vehicle_handlers_like_cpp,
+};
+pub use vehicle_session::{
+    VehicleSessionHostLikeCpp, handle_move_change_vehicle_seats, handle_move_dismiss_vehicle,
+    handle_request_vehicle_switch_seat, handle_ride_vehicle_interact,
+    represented_move_change_vehicle_seats_like_cpp, represented_move_dismiss_vehicle_like_cpp,
+    represented_request_vehicle_switch_seat_like_cpp, represented_ride_vehicle_interact_like_cpp,
+};
 pub use world_entities_host::WorldEntitiesHostLikeCpp;
