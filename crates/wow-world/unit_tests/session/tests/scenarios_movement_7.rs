@@ -638,7 +638,8 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
 
-    let fall = wow_world_entities::handle_fall_like_cpp(&mut session, &fall_land)
+    let fall = session
+        .handle_fall_like_cpp(&fall_land)
         .expect("fall damage should apply");
     assert!(fall.final_damage > 0);
     let damaged_health = session.player_health_like_cpp();
@@ -701,7 +702,8 @@ fn fall_death_applies_item_durability_loss_message_like_cpp() {
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
 
-    let fall = wow_world_entities::handle_fall_like_cpp(&mut session, &fall_land)
+    let fall = session
+        .handle_fall_like_cpp(&fall_land)
         .expect("lethal fall damage should apply");
 
     assert!(fall.final_damage > 0);

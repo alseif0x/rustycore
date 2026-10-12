@@ -5,6 +5,7 @@
 
 use super::*;
 use wow_constants::unit::NPCFlags1;
+use wow_world_social::handle_accept_wargame_invite;
 
 #[tokio::test]
 async fn request_rated_pvp_info_sends_empty_cpp_default_packet_to_realm() {
@@ -750,11 +751,7 @@ async fn accept_wargame_invite_missing_inviter_is_silent_like_cpp() {
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    wow_world_social::handle_accept_wargame_invite(
-        &mut session,
-        accept_wargame_invite_packet("Missing"),
-    )
-    .await;
+    handle_accept_wargame_invite(&mut session, accept_wargame_invite_packet("Missing")).await;
 
     assert!(
         session
@@ -797,11 +794,7 @@ async fn accept_wargame_invite_records_ready_to_queue_when_groups_match_like_cpp
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    wow_world_social::handle_accept_wargame_invite(
-        &mut session,
-        accept_wargame_invite_packet("inviter"),
-    )
-    .await;
+    handle_accept_wargame_invite(&mut session, accept_wargame_invite_packet("inviter")).await;
 
     assert_eq!(
         session.represented_wargame_invite_acceptances_like_cpp(),

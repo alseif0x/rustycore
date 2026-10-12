@@ -79,8 +79,6 @@ mod loot;
 pub mod mailbox;
 mod money;
 mod movement;
-#[cfg(test)]
-pub(crate) use movement::state::MovementTransportMembershipLikeCpp;
 mod object_updates;
 pub(crate) use object_updates::dynamic_object_create_data_from_canonical_like_cpp;
 pub(crate) use wow_world_application::represented_gameobject_dynamic_flags_update_like_cpp;
@@ -331,23 +329,13 @@ use money_persistence_contracts::RepresentedTalentResetStatePlanLikeCpp;
 use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp;
 mod movement_protocol;
 #[cfg(test)]
-pub(crate) use movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
-pub(crate) use movement_protocol::MoveTeleportAckActionLikeCpp;
-#[cfg(test)]
-pub(crate) use movement_protocol::MovementAckEventLikeCpp;
-#[cfg(test)]
-pub(crate) use movement_protocol::RepresentedAreaZoneCriteriaLikeCpp;
-#[cfg(test)]
-pub(crate) use movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
-#[cfg(test)]
-pub(crate) use movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
-pub(crate) use movement_protocol::UnitMoveTypeLikeCpp;
-#[cfg(test)]
-pub(crate) use movement_protocol::{MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp};
-#[cfg(test)]
-pub(crate) use movement_protocol::{MovementFallDamageEvent, MovementUnderMapDamageEvent};
-#[cfg(test)]
-pub(crate) use movement_protocol::{MovementSpeedAckActionLikeCpp, MovementSpeedAckEventLikeCpp};
+pub(crate) use movement_protocol::{
+    MoveSplineDoneTaxiActionLikeCpp, MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp,
+    MovementAckEventLikeCpp, MovementFallDamageEvent, MovementSpeedAckActionLikeCpp,
+    MovementSpeedAckEventLikeCpp, MovementUnderMapDamageEvent, RepresentedAreaZoneCriteriaLikeCpp,
+    RepresentedTaxiFlightNodeLikeCpp, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP,
+};
+pub(crate) use movement_protocol::{MoveTeleportAckActionLikeCpp, UnitMoveTypeLikeCpp};
 mod npc_interaction;
 mod persistence_capabilities;
 pub use persistence_capabilities::CatalogPersistenceCapabilitiesLikeCpp;
@@ -608,11 +596,7 @@ use wow_ai::CreatureAiKindLikeCpp;
 use wow_constants::ItemEnchantmentType;
 #[cfg(test)]
 use wow_constants::creature::CreatureTypeFlags;
-#[cfg(test)]
-use wow_constants::item::ItemBonusType;
 use wow_constants::item::{CurrencyTypes, EnchantmentSlot, ItemFieldFlags2};
-#[cfg(test)]
-use wow_constants::movement::MovementFlag;
 use wow_constants::shared::DifficultyFlags;
 #[cfg(test)]
 use wow_constants::unit::UnitFlags2;
@@ -625,6 +609,8 @@ use wow_constants::{
     ItemFlags2, ItemFlags3, ItemModifier, ItemQuality, ItemSpelltriggerType, ItemSubClassArmor,
     ItemSubClassWeapon, SellResult, ServerOpcodes, SpellCastResult, TypeId, UnitState,
 };
+#[cfg(test)]
+use wow_constants::{item::ItemBonusType, movement::MovementFlag};
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
@@ -983,10 +969,6 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP: u32 = 0x0000_0008;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
     SPELL_AURA_INTERRUPT_FLAG_MOVING_LIKE_CPP | SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
 pub(crate) use wow_world_entities::SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP;
-#[cfg(test)]
-pub(crate) use wow_world_entities::{
-    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
-};
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP: u32 = 0x0000_4000;
 pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 

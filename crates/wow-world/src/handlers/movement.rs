@@ -22,12 +22,12 @@ use wow_constants::unit::UnitStandStateType;
 
 use crate::session::WorldSession;
 #[cfg(test)]
-use crate::session::{
-    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
-};
-#[cfg(test)]
 use wow_packet::packets::movement::MovementInfo;
 use wow_packet::packets::movement::MovementSpeedAck;
+#[cfg(test)]
+use wow_world_entities::{
+    SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
+};
 
 mod ops_1;
 mod state;

@@ -5,9 +5,6 @@
 
 use super::*;
 
-#[cfg(test)]
-pub(crate) use wow_world_core::session::MovementTransportMembershipLikeCpp;
-
 #[path = "state/spline_progression.rs"]
 mod spline_progression;
 

@@ -7,6 +7,12 @@
 
 use wow_world_application::VehicleHandlerCxLikeCpp;
 
+use wow_core::ObjectGuid;
+use wow_packet::packets::movement::MovementInfo;
+use wow_packet::packets::vehicle::{
+    MoveChangeVehicleSeats, MoveDismissVehicle, RequestVehicleSwitchSeat, RideVehicleInteract,
+};
+
 use crate::session::WorldSession;
 
 impl WorldSession {
@@ -48,5 +54,71 @@ impl WorldSession {
             self.sync_player_registry_state_like_cpp();
         }
         changed
+    }
+}
+
+/// #1363 slice 4b moved these bodies to `wow_world_application::vehicle_session`;
+/// the session-hotspot scenarios keep their method syntax through these shims.
+impl WorldSession {
+    pub(crate) async fn handle_move_dismiss_vehicle(&mut self, packet: MoveDismissVehicle) {
+        wow_world_application::handle_move_dismiss_vehicle(self, packet).await
+    }
+
+    pub(crate) async fn handle_move_change_vehicle_seats(
+        &mut self,
+        packet: MoveChangeVehicleSeats,
+    ) {
+        wow_world_application::handle_move_change_vehicle_seats(self, packet).await
+    }
+
+    pub(crate) async fn handle_request_vehicle_switch_seat(
+        &mut self,
+        packet: RequestVehicleSwitchSeat,
+    ) {
+        wow_world_application::handle_request_vehicle_switch_seat(self, packet).await
+    }
+
+    pub(crate) async fn handle_ride_vehicle_interact(&mut self, packet: RideVehicleInteract) {
+        wow_world_application::handle_ride_vehicle_interact(self, packet).await
+    }
+
+    pub(crate) fn represented_move_dismiss_vehicle_like_cpp(
+        &mut self,
+        status: &mut MovementInfo,
+    ) -> bool {
+        wow_world_application::represented_move_dismiss_vehicle_like_cpp(self, status)
+    }
+
+    pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
+        &mut self,
+        status: &mut MovementInfo,
+        dst_vehicle: ObjectGuid,
+        dst_seat_index: u8,
+    ) -> bool {
+        wow_world_application::represented_move_change_vehicle_seats_like_cpp(
+            self,
+            status,
+            dst_vehicle,
+            dst_seat_index,
+        )
+    }
+
+    pub(crate) fn represented_request_vehicle_switch_seat_like_cpp(
+        &mut self,
+        requested_vehicle: ObjectGuid,
+        seat_index: u8,
+    ) -> bool {
+        wow_world_application::represented_request_vehicle_switch_seat_like_cpp(
+            self,
+            requested_vehicle,
+            seat_index,
+        )
+    }
+
+    pub(crate) fn represented_ride_vehicle_interact_like_cpp(
+        &mut self,
+        vehicle: ObjectGuid,
+    ) -> bool {
+        wow_world_application::represented_ride_vehicle_interact_like_cpp(self, vehicle)
     }
 }

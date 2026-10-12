@@ -4,8 +4,5 @@
 //! canonical owner of this state is unchanged.
 
 #[cfg(test)]
-use super::*;
-
-#[cfg(test)]
 #[path = "../../../unit_tests/session/movement/fall/f3_shims.rs"]
 mod f3_shims;
