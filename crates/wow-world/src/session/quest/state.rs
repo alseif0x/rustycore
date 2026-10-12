@@ -276,16 +276,6 @@ impl WorldSession {
         self.player_resurrection_state_snapshot_like_cpp()
             .and_then(|state| state.request)
     }
-    pub(crate) fn request_jump_proc_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.fixtures.movement.movement_jump_proc_requests_like_cpp = self
-                .fixtures
-                .movement
-                .movement_jump_proc_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
     #[cfg(test)]
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
         self.social.represented_duel_requests_for_test_like_cpp()

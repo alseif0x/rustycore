@@ -3,8 +3,7 @@
 
 //! World-side adapter for the movement bodies that moved to
 //! `wow_world_entities` (#1363 slice 4b). Each method delegates to the
-//! same-named session operation; the fall-damage hook keeps the cfg(test)
-//! fixture push the moved body ran before the move.
+//! same-named session operation.
 
 use std::collections::HashMap;
 use std::future::Future;
@@ -32,17 +31,6 @@ impl PlayerMovementHostLikeCpp for WorldSession {
 
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize {
         WorldSession::remove_auras_with_interrupt_flags_like_cpp(self, flags, flags2)
-    }
-
-    fn request_jump_proc_like_cpp(&mut self) {
-        WorldSession::request_jump_proc_like_cpp(self)
-    }
-
-    fn handle_under_map_like_cpp(
-        &mut self,
-        movement_info: &wow_packet::packets::movement::MovementInfo,
-    ) -> Option<MovementUnderMapDamageEvent> {
-        WorldSession::handle_under_map_like_cpp(self, movement_info)
     }
 
     fn update_zone_represented_like_cpp(&mut self, new_zone: u32, new_area: u32) -> bool {
@@ -79,6 +67,10 @@ impl PlayerMovementHostLikeCpp for WorldSession {
         WorldSession::sync_player_registry_state_like_cpp(self)
     }
 
+    fn set_player_alive_like_cpp(&mut self, alive: bool) {
+        WorldSession::set_player_alive_like_cpp(self, alive)
+    }
+
     fn apply_represented_durability_loss_all_like_cpp(
         &mut self,
         percent: f64,
@@ -89,34 +81,5 @@ impl PlayerMovementHostLikeCpp for WorldSession {
 
     fn taxi_node_map_ids_like_cpp(&self) -> &HashMap<u32, u16> {
         &self.view.taxi_node_map_ids_like_cpp
-    }
-
-    fn record_move_spline_done_taxi_event_like_cpp(
-        &mut self,
-        spline_id: i32,
-        action: MoveSplineDoneTaxiActionLikeCpp,
-        destination_node_id: Option<u32>,
-        teleport_map_id: Option<u16>,
-        teleport_position: Option<wow_core::Position>,
-        honorless_target_cast: bool,
-    ) -> MoveSplineDoneTaxiActionLikeCpp {
-        WorldSession::record_move_spline_done_taxi_event_like_cpp(
-            self,
-            spline_id,
-            action,
-            destination_node_id,
-            teleport_map_id,
-            teleport_position,
-            honorless_target_cast,
-        )
-    }
-
-    fn record_movement_fall_damage_event_like_cpp(&mut self, event: MovementFallDamageEvent) {
-        #[cfg(test)]
-        self.fixtures
-            .movement
-            .fall_damage_events_like_cpp
-            .push(event);
-        let _ = event;
     }
 }

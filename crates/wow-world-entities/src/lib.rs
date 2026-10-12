@@ -122,9 +122,9 @@ pub use movement_acks::{
     apply_knock_back_ack_like_cpp, apply_move_set_vehicle_rec_id_ack_like_cpp,
     handle_fall_like_cpp, handle_force_speed_change_ack_like_cpp,
     handle_move_spline_done_taxi_like_cpp, handle_movement_force_mod_magnitude_ack_like_cpp,
-    record_apply_movement_force_ack_like_cpp, record_remove_movement_force_ack_like_cpp,
-    record_validated_movement_ack_like_cpp, sanitize_movement_info_flags_represented_like_cpp,
-    sanitize_movement_info_represented_like_cpp,
+    handle_under_map_like_cpp, record_apply_movement_force_ack_like_cpp,
+    record_remove_movement_force_ack_like_cpp, record_validated_movement_ack_like_cpp,
+    sanitize_movement_info_flags_represented_like_cpp, sanitize_movement_info_represented_like_cpp,
 };
 pub use movement_host::PlayerMovementHostLikeCpp;
 pub use movement_opcodes::{

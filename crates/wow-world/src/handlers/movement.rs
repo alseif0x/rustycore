@@ -25,9 +25,9 @@ use crate::session::WorldSession;
 use crate::session::{
     SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP, SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
 };
-use wow_packet::packets::movement::MovementSpeedAck;
 #[cfg(test)]
 use wow_packet::packets::movement::MovementInfo;
+use wow_packet::packets::movement::MovementSpeedAck;
 
 mod ops_1;
 mod state;

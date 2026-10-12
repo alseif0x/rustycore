@@ -16,11 +16,11 @@ use wow_constants::ClientOpcodes;
 use wow_constants::movement::MovementFlag;
 use wow_core::ObjectGuid;
 use wow_entities::RepresentedAuraEffectLikeCpp;
-use wow_world_core::session::DAMAGE_FALL_LIKE_CPP;
 use wow_world_core::session::movement_protocol::{
     MoveSplineDoneTaxiActionLikeCpp, MovementAckEventLikeCpp, MovementFallDamageEvent,
-    MovementSpeedAckActionLikeCpp, MovementSpeedAckEventLikeCpp,
+    MovementSpeedAckActionLikeCpp, MovementSpeedAckEventLikeCpp, MovementUnderMapDamageEvent,
 };
+use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
 
 use crate::movement_host::PlayerMovementHostLikeCpp;
 
@@ -122,7 +122,10 @@ pub fn handle_fall_like_cpp<H: PlayerMovementHostLikeCpp>(
         damage,
         final_damage,
     };
-    host.record_movement_fall_damage_event_like_cpp(event);
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures.movement.fall_damage_events_like_cpp.push(event);
+    }
     Some(event)
 }
 
@@ -571,7 +574,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
     spline_id: i32,
 ) -> MoveSplineDoneTaxiActionLikeCpp {
     if !record_move_spline_done_like_cpp(host, status, spline_id) {
-        return host.record_move_spline_done_taxi_event_like_cpp(
+        return record_move_spline_done_taxi_event_like_cpp(
+            host,
             spline_id,
             MoveSplineDoneTaxiActionLikeCpp::InvalidMovement,
             None,
@@ -582,7 +586,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
     }
 
     let Some(taxi_state) = host.hub_ref().player_taxi_state_snapshot_like_cpp() else {
-        return host.record_move_spline_done_taxi_event_like_cpp(
+        return record_move_spline_done_taxi_event_like_cpp(
+            host,
             spline_id,
             MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
             None,
@@ -594,7 +599,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
     let current_destination = taxi_state.taxi_destination_like_cpp();
     if let Some(destination_node_id) = current_destination {
         let Some(flight) = taxi_state.flight_like_cpp() else {
-            return host.record_move_spline_done_taxi_event_like_cpp(
+            return record_move_spline_done_taxi_event_like_cpp(
+                host,
                 spline_id,
                 MoveSplineDoneTaxiActionLikeCpp::InProgressNoFlightGenerator,
                 Some(destination_node_id),
@@ -620,7 +626,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
                     .advance_player_taxi_flight_after_teleport_like_cpp()
                     .is_none()
                 {
-                    return host.record_move_spline_done_taxi_event_like_cpp(
+                    return record_move_spline_done_taxi_event_like_cpp(
+                        host,
                         spline_id,
                         MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
                         Some(destination_node_id),
@@ -631,7 +638,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
                 }
                 host.hub_mut()
                     .set_player_map_position_like_cpp(map_id, node.position);
-                return host.record_move_spline_done_taxi_event_like_cpp(
+                return record_move_spline_done_taxi_event_like_cpp(
+                    host,
                     spline_id,
                     MoveSplineDoneTaxiActionLikeCpp::TeleportRequested,
                     Some(destination_node_id),
@@ -642,7 +650,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
             }
         }
 
-        return host.record_move_spline_done_taxi_event_like_cpp(
+        return record_move_spline_done_taxi_event_like_cpp(
+            host,
             spline_id,
             MoveSplineDoneTaxiActionLikeCpp::InProgressNoTeleport,
             Some(destination_node_id),
@@ -653,7 +662,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
     }
 
     if taxi_state.destinations_like_cpp().len() != 1 {
-        return host.record_move_spline_done_taxi_event_like_cpp(
+        return record_move_spline_done_taxi_event_like_cpp(
+            host,
             spline_id,
             MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
             None,
@@ -664,7 +674,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
     }
 
     if !host.hub_mut().cleanup_player_after_taxi_flight_like_cpp() {
-        return host.record_move_spline_done_taxi_event_like_cpp(
+        return record_move_spline_done_taxi_event_like_cpp(
+            host,
             spline_id,
             MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
             None,
@@ -684,7 +695,8 @@ pub fn handle_move_spline_done_taxi_like_cpp<H: PlayerMovementHostLikeCpp>(
         .player_world_local_state_like_cpp()
         .is_some_and(|state| state.is_pvp_hostile_like_cpp());
 
-    host.record_move_spline_done_taxi_event_like_cpp(
+    record_move_spline_done_taxi_event_like_cpp(
+        host,
         spline_id,
         MoveSplineDoneTaxiActionLikeCpp::FinalCleanup,
         None,
@@ -738,4 +750,122 @@ pub fn sanitize_movement_info_represented_like_cpp<H: PlayerMovementHostLikeCpp>
             is_player_security: host.hub_ref().player_is_game_master_like_cpp() != Some(true),
         },
     )
+}
+
+pub fn handle_under_map_like_cpp<H: PlayerMovementHostLikeCpp>(
+    host: &mut H,
+    movement_info: &wow_packet::packets::movement::MovementInfo,
+) -> Option<MovementUnderMapDamageEvent> {
+    let min_height = host
+        .hub_ref()
+        .player_min_height_like_cpp(movement_info.position);
+    if movement_info.position.z >= min_height {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if let Some(fixtures) = host.test_fixtures_like_cpp() {
+            fixtures.movement.player_out_of_bounds_like_cpp = false;
+        }
+        return None;
+    }
+
+    let (original_health, max_health, player_is_alive) =
+        host.hub_ref().resolved_player_vitals_like_cpp()?;
+    if !player_is_alive {
+        return None;
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures.movement.player_out_of_bounds_like_cpp = true;
+    }
+    let damage = max_health;
+    let (_, health_after, _, _, killed_player) = host
+        .hub_mut()
+        .apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
+    if health_after != original_health
+        && let Some(player_guid) = host.player_guid()
+    {
+        host.core()
+            .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
+        host.core().send_environmental_damage_log_like_cpp(
+            player_guid,
+            DAMAGE_FALL_TO_VOID_LIKE_CPP,
+            damage,
+            0,
+            0,
+        );
+        if killed_player {
+            host.core()
+                .send_player_health_values_update_like_cpp(player_guid, 0);
+        }
+    }
+
+    // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.
+    if host.hub_ref().resolved_player_is_alive_like_cpp() == Some(true) {
+        host.set_player_alive_like_cpp(false);
+    } else {
+        host.sync_player_registry_state_like_cpp();
+    }
+
+    let event = MovementUnderMapDamageEvent {
+        z: movement_info.position.z,
+        min_height,
+        damage,
+    };
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures
+            .movement
+            .under_map_damage_events_like_cpp
+            .push(event);
+    }
+    Some(event)
+}
+
+pub(crate) fn request_jump_proc_like_cpp<H: PlayerMovementHostLikeCpp>(host: &mut H) {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures.movement.movement_jump_proc_requests_like_cpp = fixtures
+            .movement
+            .movement_jump_proc_requests_like_cpp
+            .saturating_add(1);
+    }
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = host;
+}
+
+pub(crate) fn record_move_spline_done_taxi_event_like_cpp<H: PlayerMovementHostLikeCpp>(
+    host: &mut H,
+    spline_id: i32,
+    action: MoveSplineDoneTaxiActionLikeCpp,
+    destination_node_id: Option<u32>,
+    teleport_map_id: Option<u16>,
+    teleport_position: Option<wow_core::Position>,
+    honorless_target_cast: bool,
+) -> MoveSplineDoneTaxiActionLikeCpp {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if let Some(fixtures) = host.test_fixtures_like_cpp() {
+        fixtures
+            .teleport
+            .move_spline_done_taxi_events_like_cpp
+            .push(
+                wow_world_core::session::movement_protocol::MoveSplineDoneTaxiEventLikeCpp {
+                    spline_id,
+                    action,
+                    destination_node_id,
+                    teleport_map_id,
+                    teleport_position,
+                    honorless_target_cast,
+                },
+            );
+    }
+    #[cfg(not(any(test, feature = "test-fixtures")))]
+    let _ = (
+        host,
+        spline_id,
+        destination_node_id,
+        teleport_map_id,
+        teleport_position,
+        honorless_target_cast,
+    );
+    action
 }

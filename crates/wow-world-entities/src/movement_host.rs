@@ -9,18 +9,14 @@
 //! Their Rust bodies now live in this crate; each method below is the
 //! same-named `WorldSession` operation, called at the exact point the body
 //! called it before the move. Aura queries, zone, exploration, visibility,
-//! area-trigger, durability and registry updates, the under-map step and the
-//! cfg(test) fixture steps stay with the host.
+//! area-trigger, durability, vitals and registry updates stay with the host.
+//! The former `#[cfg(test)]` fixture steps run through
+//! `SessionHubHostLikeCpp::test_fixtures_like_cpp`.
 
 use std::collections::HashMap;
 use std::future::Future;
 
-use wow_core::Position;
 use wow_entities::RepresentedAuraEffectLikeCpp;
-use wow_packet::packets::movement::MovementInfo;
-use wow_world_core::session::movement_protocol::{
-    MoveSplineDoneTaxiActionLikeCpp, MovementFallDamageEvent, MovementUnderMapDamageEvent,
-};
 use wow_world_core::session::{ProgressionCatalogsLikeCpp, SessionHubHostLikeCpp};
 
 use crate::CreatureSpawnCatalogsLikeCpp;
@@ -39,11 +35,6 @@ pub trait PlayerMovementHostLikeCpp: SessionHubHostLikeCpp {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<f32>;
     fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize;
-    fn request_jump_proc_like_cpp(&mut self);
-    fn handle_under_map_like_cpp(
-        &mut self,
-        movement_info: &MovementInfo,
-    ) -> Option<MovementUnderMapDamageEvent>;
     fn update_zone_represented_like_cpp(&mut self, new_zone: u32, new_area: u32) -> bool;
     fn check_area_explore_and_outdoor_represented_with_catalogs_like_cpp(
         &mut self,
@@ -59,22 +50,11 @@ pub trait PlayerMovementHostLikeCpp: SessionHubHostLikeCpp {
         catalogs: &Self::AreaTriggerCatalogsLikeCpp,
     ) -> impl Future<Output = ()> + Send;
     fn sync_player_registry_state_like_cpp(&self);
+    fn set_player_alive_like_cpp(&mut self, alive: bool);
     fn apply_represented_durability_loss_all_like_cpp(
         &mut self,
         percent: f64,
         inventory: bool,
     ) -> usize;
     fn taxi_node_map_ids_like_cpp(&self) -> &HashMap<u32, u16>;
-    #[allow(clippy::too_many_arguments)]
-    fn record_move_spline_done_taxi_event_like_cpp(
-        &mut self,
-        spline_id: i32,
-        action: MoveSplineDoneTaxiActionLikeCpp,
-        destination_node_id: Option<u32>,
-        teleport_map_id: Option<u16>,
-        teleport_position: Option<Position>,
-        honorless_target_cast: bool,
-    ) -> MoveSplineDoneTaxiActionLikeCpp;
-    /// cfg(test) fixture step of `Player::HandleFall`; a no-op in production.
-    fn record_movement_fall_damage_event_like_cpp(&mut self, event: MovementFallDamageEvent);
 }

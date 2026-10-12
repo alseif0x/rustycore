@@ -33,4 +33,12 @@ pub trait SessionHubHostLikeCpp {
     fn state(&self) -> SessionState {
         self.core().state
     }
+    /// The World session's fixtures inside the World crate's own `cfg(test)`
+    /// build, `None` everywhere else. A moved body runs a former `#[cfg(test)]`
+    /// fixture step only when this is `Some`, so the step keeps meaning the
+    /// World test build rather than the destination crate's (#1363 slice 4b).
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn test_fixtures_like_cpp(&mut self) -> Option<&mut super::state::SessionFixtures> {
+        None
+    }
 }

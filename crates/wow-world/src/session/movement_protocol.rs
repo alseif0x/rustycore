@@ -9,6 +9,7 @@ use super::WorldSession;
 #[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::MovementAckEventLikeCpp;
 
+#[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
 
 #[cfg(test)]
@@ -36,6 +37,7 @@ pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckEvent
 #[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
 
+#[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::{
     MovementFallDamageEvent, MovementUnderMapDamageEvent,
 };

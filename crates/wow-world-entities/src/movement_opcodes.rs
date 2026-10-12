@@ -30,8 +30,9 @@ use wow_world_core::terrain::zone_and_area_for_position_like_cpp;
 
 use crate::CreatureSpawnCatalogsLikeCpp;
 use crate::movement_acks::{
-    handle_fall_like_cpp, handle_move_spline_done_taxi_like_cpp,
-    record_validated_movement_ack_like_cpp, sanitize_movement_info_represented_like_cpp,
+    handle_fall_like_cpp, handle_move_spline_done_taxi_like_cpp, handle_under_map_like_cpp,
+    record_validated_movement_ack_like_cpp, request_jump_proc_like_cpp,
+    sanitize_movement_info_represented_like_cpp,
 };
 use crate::movement_host::PlayerMovementHostLikeCpp;
 
@@ -589,14 +590,14 @@ pub fn apply_movement_side_effects_like_cpp<H: PlayerMovementHostLikeCpp>(
             0,
             SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP,
         );
-        host.request_jump_proc_like_cpp();
+        request_jump_proc_like_cpp(host);
     }
 
     host.hub_mut().update_fall_information_if_needed_like_cpp(
         info,
         matches!(opcode, Some(ClientOpcodes::MoveFallLand)),
     );
-    host.handle_under_map_like_cpp(info);
+    handle_under_map_like_cpp(host, info);
 }
 
 pub(crate) fn apply_movement_pre_position_side_effects_like_cpp<H: PlayerMovementHostLikeCpp>(

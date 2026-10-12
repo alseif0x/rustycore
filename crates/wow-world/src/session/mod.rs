@@ -330,6 +330,7 @@ pub(crate) use money_persistence_contracts::PlayerMoneyCommitCancellationFenceLi
 use money_persistence_contracts::RepresentedTalentResetStatePlanLikeCpp;
 use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp;
 mod movement_protocol;
+#[cfg(test)]
 pub(crate) use movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
 pub(crate) use movement_protocol::MoveTeleportAckActionLikeCpp;
 #[cfg(test)]
@@ -343,6 +344,7 @@ pub(crate) use movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
 pub(crate) use movement_protocol::UnitMoveTypeLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp};
+#[cfg(test)]
 pub(crate) use movement_protocol::{MovementFallDamageEvent, MovementUnderMapDamageEvent};
 #[cfg(test)]
 pub(crate) use movement_protocol::{MovementSpeedAckActionLikeCpp, MovementSpeedAckEventLikeCpp};
@@ -938,7 +940,6 @@ pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
-use wow_world_core::session::DAMAGE_FALL_TO_VOID_LIKE_CPP;
 const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
 const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32 = 0x0000_0080;
 const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
