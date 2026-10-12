@@ -4,7 +4,7 @@
 
 //! World-side construction of the character handler context (#1263 F5).
 //!
-//! The application crate owns the bodies and their context; the session only
+//! The character crate owns the bodies and their context; the session only
 //! lends its hub, inventory and world-entity state. The character-delete,
 //! rename, enumeration and create bodies also need the character-administration
 //! and enumeration ports, the rename callback rail, the login-DB
@@ -22,7 +22,7 @@ use wow_packet::packets::auth::ConnectToSerial;
 use wow_persistence::{
     CharacterAdministrationPersistencePortLikeCpp, CharacterEnumerationPersistencePortLikeCpp,
 };
-use wow_world_application::{CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp};
+use wow_world_character::{CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp};
 use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};

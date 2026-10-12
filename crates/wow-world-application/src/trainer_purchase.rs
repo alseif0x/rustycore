@@ -9,8 +9,9 @@
 
 use std::future::Future;
 
-use crate::PrimaryProfessionCapacityPlanLikeCpp;
-use crate::spell_acquisition::{
+use wow_spell_acquisition::{PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionPlanLikeCpp};
+use wow_world_spell::PrimaryProfessionCapacityPlanLikeCpp;
+use wow_world_spell::{
     PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
     PreparedPlayerSpellAcquisitionLikeCpp, PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
     apply_prepared_player_spell_acquisition_actions_like_cpp,
@@ -20,7 +21,6 @@ use crate::spell_acquisition::{
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
-use wow_spell_acquisition::{PlayerSpellAcquisitionSnapshotLikeCpp, SpellAcquisitionPlanLikeCpp};
 
 mod buy_admission;
 mod buy_spell;

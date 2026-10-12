@@ -143,7 +143,7 @@ impl WorldSession {
             )
     }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
-        wow_world_application::send_represented_cinematic_start_like_cpp(
+        wow_world_character::send_represented_cinematic_start_like_cpp(
             &mut crate::session::hub_mut(self),
             cinematic_id,
         );

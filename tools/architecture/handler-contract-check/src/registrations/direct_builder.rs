@@ -678,7 +678,7 @@ const CHARACTER_QUERY_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeCon
 
 pub(crate) const CHARACTER_QUERY_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationCharacterQuery",
-    package: "wow-world-application",
+    package: "wow-world-character",
     module: "crate::character_query_handlers",
     registrar: "register_character_query_handlers_like_cpp",
     host_trait: "CharacterQueryHandlerHostLikeCpp",
@@ -762,7 +762,7 @@ const CHARACTER_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract 
 
 pub(crate) const CHARACTER_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationCharacter",
-    package: "wow-world-application",
+    package: "wow-world-character",
     module: "crate::character_handlers",
     registrar: "register_character_handlers_like_cpp",
     host_trait: "CharacterHandlerHostLikeCpp",

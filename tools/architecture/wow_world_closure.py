@@ -18,7 +18,9 @@ Rules (exit 1 on any violation):
   * no wow-world* package reaches itself (cycle);
   * no domain crate reaches wow-world-application or wow-world;
   * inventory, spell, entities and loot never reach social or instances
-    (social depends on inventory and spell, instances on social).
+    (social depends on inventory and spell, instances on social);
+  * wow-world-character sits high: only wow-world-application and wow-world
+    may reach it (no domain crate below it, including wow-world-core).
 """
 from __future__ import annotations
 
@@ -33,6 +35,7 @@ PREFIX = "wow-world"
 TOP = frozenset({"wow-world", "wow-world-application"})
 LOW = ("wow-world-inventory", "wow-world-spell", "wow-world-entities", "wow-world-loot")
 HIGH = frozenset({"wow-world-social", "wow-world-instances"})
+CHARACTER = "wow-world-character"
 
 Edges = dict[str, set[str]]
 
@@ -85,6 +88,8 @@ def violations(edges: Edges) -> list[str]:
             found.append(f"{name} reaches {sorted(reach & TOP)}")
         if name in LOW and reach & HIGH:
             found.append(f"{name} reaches {sorted(reach & HIGH)}")
+        if name not in TOP and name != CHARACTER and CHARACTER in reach:
+            found.append(f"{name} reaches ['{CHARACTER}']")
     return found
 
 

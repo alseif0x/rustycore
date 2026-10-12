@@ -37,7 +37,7 @@ use super::{
     TRAINER_BUY_NPC_FLAGS_LIKE_CPP, TrainerAcquisitionPublicationLikeCpp,
     TrainerAcquisitionResultLikeCpp, TrainerBuyAdmissionLikeCpp, TrainerOfferDecisionLikeCpp,
 };
-use crate::spell_acquisition::snapshot_has_pending_durable_save_like_cpp;
+use wow_world_spell::snapshot_has_pending_durable_save_like_cpp;
 
 /// Capabilities of the existing admitted trainer purchase that the World shell
 /// still owns: the session hub, the admission/projection contexts built from

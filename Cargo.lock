@@ -3476,6 +3476,7 @@ dependencies = [
  "wow-spell-acquisition",
  "wow-world",
  "wow-world-application",
+ "wow-world-character",
  "wow-world-core",
  "wow-world-creature",
  "wow-world-entities",
@@ -3494,11 +3495,9 @@ dependencies = [
 name = "wow-world-application"
 version = "0.1.0"
 dependencies = [
- "rand",
  "tokio",
  "tracing",
  "wow-conditions",
- "wow-config",
  "wow-constants",
  "wow-core",
  "wow-data",
@@ -3522,6 +3521,24 @@ dependencies = [
  "wow-world-social",
  "wow-world-spell",
  "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-character"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-handler",
+ "wow-packet",
+ "wow-persistence",
+ "wow-world-core",
+ "wow-world-entities",
+ "wow-world-inventory",
+ "wow-world-lifecycle",
 ]
 
 [[package]]
@@ -3730,16 +3747,21 @@ name = "wow-world-spell"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "rand",
+ "tokio",
  "tracing",
  "wow-combat",
+ "wow-config",
  "wow-constants",
  "wow-core",
  "wow-data",
  "wow-entities",
  "wow-map",
  "wow-packet",
+ "wow-persistence",
  "wow-spell-acquisition",
  "wow-world-core",
+ "wow-world-lifecycle",
  "wow-world-spell",
 ]
 

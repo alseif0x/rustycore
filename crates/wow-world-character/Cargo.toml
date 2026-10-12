@@ -1,0 +1,24 @@
+[package]
+name = "wow-world-character"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[dependencies]
+tracing = { workspace = true }
+wow-constants = { workspace = true }
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-handler = { workspace = true }
+wow-packet = { workspace = true }
+wow-persistence = { workspace = true }
+wow-world-core = { workspace = true }
+wow-world-entities = { workspace = true }
+wow-world-inventory = { workspace = true }
+wow-world-lifecycle = { workspace = true }
+
+[lints]
+workspace = true

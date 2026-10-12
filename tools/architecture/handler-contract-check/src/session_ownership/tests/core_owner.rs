@@ -572,6 +572,7 @@ fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
         (PackageRole::WorldEntities, "wow-world-entities"),
         (PackageRole::WorldInventory, "wow-world-inventory"),
         (PackageRole::WorldLifecycle, "wow-world-lifecycle"),
+        (PackageRole::WorldCharacter, "wow-world-character"),
     ] {
         let baseline = baseline_with_world_domain(
             role,
@@ -612,6 +613,7 @@ fn world_spell_and_interaction_cannot_define_or_impl_the_core_owner() {
         PackageRole::WorldEntities,
         PackageRole::WorldInventory,
         PackageRole::WorldLifecycle,
+        PackageRole::WorldCharacter,
     ] {
         let error = baseline_with_world_domain(role, "pub struct SessionCore;")
             .expect_err("domain packages cannot define SessionCore");
@@ -640,6 +642,7 @@ fn world_session_remains_owned_by_world_across_all_extracted_packages() {
         PackageRole::WorldEntities,
         PackageRole::WorldInventory,
         PackageRole::WorldLifecycle,
+        PackageRole::WorldCharacter,
     ] {
         let error = baseline_with_world_domain(role, "pub struct WorldSession;")
             .expect_err("an extracted package cannot define WorldSession");
@@ -728,6 +731,13 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         WORLD_LIFECYCLE_CRATE_ROOT,
     )
     .expect("the actual WorldLifecycle root and its declared modules are loadable");
+    let character = repository_units(
+        &repository_root,
+        PackageRole::WorldCharacter,
+        WORLD_CHARACTER_PACKAGE_ROOT,
+        WORLD_CHARACTER_CRATE_ROOT,
+    )
+    .expect("the actual WorldCharacter root and its declared modules are loadable");
 
     assert!(
         spell
@@ -850,5 +860,15 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         lifecycle
             .iter()
             .any(|unit| unit.logical_module_path == "crate::finalization")
+    );
+    assert!(
+        character
+            .iter()
+            .all(|unit| unit.role == PackageRole::WorldCharacter)
+    );
+    assert!(
+        character
+            .iter()
+            .any(|unit| unit.logical_module_path == "crate::character_query_handlers")
     );
 }

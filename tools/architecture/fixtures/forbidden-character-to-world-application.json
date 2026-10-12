@@ -1,0 +1,6 @@
+{
+  "name": "the character crate may not depend on wow-world-application; nothing it names lives there (#1363 A5)",
+  "source": "wow-world-character",
+  "target": "wow-world-application",
+  "expected": "forbidden"
+}

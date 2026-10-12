@@ -175,9 +175,9 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             CHARACTER_QUERY_REGISTRAR.package,
             CHARACTER_QUERY_REGISTRAR.module,
-            "crates/wow-world-application/src/character_query_handlers.rs",
+            "crates/wow-world-character/src/character_query_handlers.rs",
             include_str!(
-                "../../../../../crates/wow-world-application/src/character_query_handlers.rs"
+                "../../../../../crates/wow-world-character/src/character_query_handlers.rs"
             ),
         ),
         mount(
@@ -195,8 +195,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             CHARACTER_REGISTRAR.package,
             CHARACTER_REGISTRAR.module,
-            "crates/wow-world-application/src/character_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/character_handlers.rs"),
+            "crates/wow-world-character/src/character_handlers.rs",
+            include_str!("../../../../../crates/wow-world-character/src/character_handlers.rs"),
         ),
         mount(
             GUILD_BANK_REGISTRAR.package,
@@ -407,6 +407,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "crate",
             "crates/wow-world-interaction/src/lib.rs",
             include_str!("../../../../../crates/wow-world-interaction/src/lib.rs"),
+        ),
+        mount(
+            CHARACTER_REGISTRAR.package,
+            "crate",
+            "crates/wow-world-character/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-character/src/lib.rs"),
         ),
         mount(
             "wow-world",

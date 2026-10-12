@@ -1,5 +1,4 @@
 use super::*;
-use crate::{PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp};
 use std::collections::BTreeSet;
 use std::future::Future;
 use std::sync::{Arc, Mutex};
@@ -7,6 +6,9 @@ use wow_spell_acquisition::test_fixtures::*;
 use wow_spell_acquisition::{
     SpellAcquisitionPostCommitActionLikeCpp, SpellAcquisitionRootLikeCpp,
     project_spell_acquisition_like_cpp,
+};
+use wow_world_spell::{
+    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
 };
 
 struct Exclusion(Arc<Mutex<Vec<&'static str>>>);

@@ -62,6 +62,10 @@ pub(super) const WORLD_LIFECYCLE_PACKAGE_ROOT: &str = "crates/wow-world-lifecycl
 
 pub(super) const WORLD_LIFECYCLE_CRATE_ROOT: &str = "crates/wow-world-lifecycle/src/lib.rs";
 
+pub(super) const WORLD_CHARACTER_PACKAGE_ROOT: &str = "crates/wow-world-character";
+
+pub(super) const WORLD_CHARACTER_CRATE_ROOT: &str = "crates/wow-world-character/src/lib.rs";
+
 pub(super) const WORLD_APPLICATION_PACKAGE_ROOT: &str = "crates/wow-world-application";
 
 pub(super) const WORLD_APPLICATION_CRATE_ROOT: &str = "crates/wow-world-application/src/lib.rs";
@@ -315,6 +319,9 @@ pub(super) enum PackageRole {
     WorldEntities,
     WorldInventory,
     WorldLifecycle,
+    /// The character handler operations (#1363 A5); like the domain packages it
+    /// never owns a Session contract.
+    WorldCharacter,
     /// The extracted application layer between `wow-world` and `wow-world-core`.
     ///
     /// It owns session-independent domain operations (`<X>CxLikeCpp`) and is the
@@ -349,6 +356,7 @@ impl PackageRole {
             Self::WorldEntities => "wow-world-entities",
             Self::WorldInventory => "wow-world-inventory",
             Self::WorldLifecycle => "wow-world-lifecycle",
+            Self::WorldCharacter => "wow-world-character",
             Self::WorldApplication => "wow-world-application",
             Self::Server => "world-server",
             Self::Network => "wow-network",

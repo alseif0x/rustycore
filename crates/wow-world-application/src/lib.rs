@@ -5,25 +5,17 @@
 //! Application-level operations shared by World adapters.
 
 mod character_account_handlers;
-pub mod character_creation;
-pub mod character_enumeration;
 pub use character_account_handlers::{
     CharacterAccountHandlerHostLikeCpp, register_character_account_handlers_like_cpp,
 };
-mod character_handler_families;
-mod character_handlers;
-pub mod character_login_support;
-mod character_query_handlers;
 mod loot_handlers;
 mod loot_release;
 mod player_conditions;
 mod player_handlers;
-mod profession;
 mod quest;
 mod quest_handlers;
 mod quest_query_handlers;
 mod registry_sync;
-mod spell_acquisition;
 mod spell_handlers;
 mod talent_handlers;
 pub use loot_release::{
@@ -65,23 +57,6 @@ pub use aura_removal::{
     plan_item_set_aura_refresh_with_access_like_cpp, player_aura_application_cx_like_cpp,
 };
 
-// The exact `ApplicationCharacter` owner facade the handler-contract checker
-// requires: the three canonical exports as one use item. The remaining
-// application-level re-exports of the same owner module follow separately so
-// the facade item stays exact.
-pub use character_handlers::{
-    CharDeleteStepLikeCpp, CharRenameStepLikeCpp, ConnectToFailedStepLikeCpp,
-    CreateCharacterStepLikeCpp, PlayerLoginStepLikeCpp, initial_character_rest_state_like_cpp,
-    parse_equipment_cache, send_represented_cinematic_start_like_cpp,
-};
-pub use character_handlers::{
-    CharacterHandlerCxLikeCpp, CharacterHandlerHostLikeCpp, register_character_handlers_like_cpp,
-};
-pub use character_query_handlers::realm_query_response_like_cpp;
-pub use character_query_handlers::{
-    CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
-    register_character_query_handlers_like_cpp,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 pub use equipment_set_use::{
@@ -101,15 +76,6 @@ pub use player_conditions::{
     PlayerConditionProjectionCxLikeCpp, PlayerConditionProjectionInputsLikeCpp,
     RepresentedPlayerConditionContextLikeCpp, meets_player_condition_id_like_cpp,
     player_condition_projection_cx_like_cpp,
-};
-pub use profession::{
-    DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
-    NO_PRIMARY_PROFESSION_EQUIPMENT_SLOT_LIKE_CPP, PlannedPrimaryProfessionLikeCpp,
-    PlayerSkillProfessionSnapshotLikeCpp, PrimaryProfessionCapacityAnalysisLikeCpp,
-    PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
-    PrimaryProfessionEquipmentSlotLikeCpp, PrimaryProfessionSlotNormalizationLikeCpp,
-    PrimaryProfessionSlotNormalizationReasonLikeCpp, analyze_primary_professions_like_cpp,
-    plan_primary_professions_like_cpp,
 };
 pub use quest::QuestEligibilityCx;
 pub use quest::QuestRewardDurablePlanLikeCpp;
@@ -180,27 +146,6 @@ pub use quest_query_handlers::{
 pub use registry_sync::PlayerRegistryHydrationContext;
 pub use registry_sync::PlayerRegistrySyncContext;
 pub use registry_sync::sync_player_registry_state_like_cpp;
-pub use spell_acquisition::{
-    EffectLearningRuntimeLikeCpp, PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
-    PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
-    PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp, PlayerSpellAcquisitionRuntimeLikeCpp,
-    PreparedPlayerSpellAcquisitionActionsLikeCpp, PreparedPlayerSpellAcquisitionLikeCpp,
-    PreparedPlayerSpellAcquisitionOutcomeLikeCpp, apply_base_learning_like_cpp,
-    apply_prepared_player_spell_acquisition_actions_like_cpp,
-    apply_prepared_player_spell_acquisition_before_save_like_cpp,
-    apply_prepared_player_spell_acquisition_like_cpp,
-    apply_prepared_player_spell_acquisition_with_before_actions_like_cpp,
-    apply_prepared_player_spell_acquisition_with_fault_like_cpp,
-    commit_exclusive_player_money_and_spell_acquisition_like_cpp, execute_effect_learning_like_cpp,
-    install_prepared_player_spell_acquisition_actions_runtime_like_cpp,
-    install_prepared_player_spell_acquisition_runtime_like_cpp,
-    may_shallow_fallback_after_profession_plan_error_like_cpp,
-    persist_player_spell_acquisition_through_port_like_cpp,
-    player_spell_acquisition_persistence_request_like_cpp,
-    prepare_player_spell_acquisition_like_cpp, snapshot_has_pending_durable_save_like_cpp,
-    validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
-    validate_prepared_player_spell_acquisition_runtime_like_cpp,
-};
 pub use spell_handlers::{
     SpellHandlerCxLikeCpp, SpellHandlerHostLikeCpp, register_spell_handlers_like_cpp,
 };

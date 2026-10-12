@@ -12,14 +12,14 @@ use std::collections::{BTreeMap, HashMap};
 
 use wow_data::reputation::ReputationRankLikeCpp;
 
-use crate::profession::{
-    PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
-};
 use wow_spell_acquisition::{
     SpellAcquisitionIndeterminateLikeCpp, SpellAcquisitionOutcomeLikeCpp,
     SpellAcquisitionPlanLikeCpp, SpellAcquisitionRootLikeCpp,
 };
 use wow_world_core::session::RepresentedPlayerSkillLikeCpp;
+use wow_world_spell::{
+    PrimaryProfessionCapacityPlanErrorLikeCpp, PrimaryProfessionCapacityPlanLikeCpp,
+};
 use wow_world_spell::{RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellStateLikeCpp};
 
 use super::PreparedTrainerOfferLikeCpp;
