@@ -3572,9 +3572,11 @@ dependencies = [
  "wow-movement",
  "wow-packet",
  "wow-persistence",
+ "wow-recastdetour",
  "wow-world-core",
  "wow-world-entities",
  "wow-world-spell",
+ "wow-world-test-support",
 ]
 
 [[package]]

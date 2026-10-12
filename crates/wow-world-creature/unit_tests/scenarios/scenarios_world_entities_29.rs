@@ -41,7 +41,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
 
     let now = Instant::now();
     let guid = test_creature_guid(90_011);
-    let mut world_creature = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let mut world_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9001,
         Position::new(5.0, 6.0, 7.0, 1.0),
@@ -62,7 +62,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_ready_queue_and_syncs_canonical_
         .add_phase_like_cpp(77, wow_constants::PhaseFlags::empty(), 1);
     world_creature.ai_ownership_mut().phase_id = 77;
     world_creature.set_spawn_id(90_011);
-    let mut pending = wow_world_core::creature_respawn::pending_respawn_from_creature_like_cpp(
+    let mut pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &world_creature,
         now - Duration::from_secs(1),
         0,

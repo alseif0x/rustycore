@@ -15,7 +15,7 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
     let now = Instant::now();
     let queued_guid = test_creature_guid(90_012);
     let live_guid = test_creature_guid(90_013);
-    let mut queued_world_creature = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let mut queued_world_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         queued_guid,
         9002,
         Position::new(8.0, 9.0, 10.0, 1.5),
@@ -30,13 +30,13 @@ fn legacy_creature_lifecycle_tick_once_clears_timer_when_canonical_won_like_cpp(
         0,
     );
     queued_world_creature.set_spawn_id(90_012);
-    let pending = wow_world_core::creature_respawn::pending_respawn_from_creature_like_cpp(
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &queued_world_creature,
         now - Duration::from_secs(1),
         0,
     );
     let spawn_id = pending.spawn_id;
-    let mut live_world_creature = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let mut live_world_creature = crate::creature_projection::new_runtime_creature_like_cpp(
         live_guid,
         9002,
         Position::new(8.0, 9.0, 10.0, 1.5),
@@ -123,7 +123,7 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
     let queued_guid = test_creature_guid(90_017);
     let dead_guid = test_creature_guid(90_018);
     let spawn_id = 90_017;
-    let mut queued = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let mut queued = crate::creature_projection::new_runtime_creature_like_cpp(
         queued_guid,
         9006,
         Position::new(20.0, 21.0, 22.0, 1.25),
@@ -138,13 +138,13 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
         0,
     );
     queued.set_spawn_id(spawn_id);
-    let pending = wow_world_core::creature_respawn::pending_respawn_from_creature_like_cpp(
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &queued,
         now - Duration::from_secs(1),
         0,
     );
 
-    let mut dead = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let mut dead = crate::creature_projection::new_runtime_creature_like_cpp(
         dead_guid,
         9006,
         Position::new(23.0, 24.0, 25.0, 1.5),
@@ -161,7 +161,7 @@ fn legacy_creature_lifecycle_tick_once_ignores_dead_spawn_id_duplicate_like_cpp(
     dead.set_spawn_id(spawn_id);
     assert!(dead.take_damage(55));
     dead.runtime_state_mut().save_respawn_requested = false;
-    wow_world_core::creature_projection::test_support::set_corpse_despawn_at(
+    crate::creature_projection::test_support::set_corpse_despawn_at(
         &mut dead,
         Some(now + Duration::from_secs(60)),
     );
@@ -204,7 +204,7 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
     let now = Instant::now();
     let synthetic_guid = test_creature_guid(90_014);
     let persistent_guid = test_creature_guid(90_015);
-    let synthetic = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let synthetic = crate::creature_projection::new_runtime_creature_like_cpp(
         synthetic_guid,
         9003,
         Position::new(11.0, 12.0, 13.0, 0.5),
@@ -218,14 +218,14 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
         0,
         0,
     );
-    let pending = wow_world_core::creature_respawn::pending_respawn_from_creature_like_cpp(
+    let pending = crate::creature_respawn::pending_respawn_from_creature_like_cpp(
         &synthetic,
         now - Duration::from_secs(1),
         0,
     );
     assert!(!pending.persistent_spawn);
 
-    let mut persistent = wow_world_core::creature_projection::new_runtime_creature_like_cpp(
+    let mut persistent = crate::creature_projection::new_runtime_creature_like_cpp(
         persistent_guid,
         9004,
         Position::new(14.0, 15.0, 16.0, 0.75),
@@ -280,7 +280,7 @@ fn step_creature_movement_random_should_wander_returns_monster_move_and_state_wa
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    wow_world_core::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false, // disable pathfinding → simple straight-line spline
         ..Default::default()
@@ -328,7 +328,7 @@ fn step_creature_movement_chase_priority_interrupts_active_random_spline_like_cp
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    wow_world_core::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x2013);
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x2013);
     let config = MMapRuntimeConfigLikeCpp {
         enabled: false,
         ..Default::default()
@@ -404,13 +404,13 @@ fn step_creature_movement_chase_paths_around_real_navmesh_obstacle_like_cpp() {
     creature.set_ai_home_position(start);
     creature.enter_combat(victim_guid);
 
-    let worker = wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,
         ..Default::default()
     };
-    let target = wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp {
+    let target = crate::creature_movement::ChaseTargetSnapshotLikeCpp {
         guid: victim_guid,
         position: victim_position,
         combat_reach: 1.0,
@@ -513,7 +513,7 @@ fn step_creature_movement_home_paths_around_real_navmesh_obstacle_like_cpp() {
     creature.set_ai_position(away);
     creature.set_ai_state(wow_entities::CreatureAiState::Returning);
 
-    let worker = wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,

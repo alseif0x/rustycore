@@ -90,7 +90,7 @@ pub fn run_canonical_creature_aggro_phase_for_test_like_cpp(
 /// environment for the family-assistance LOS check.
 pub fn run_canonical_creature_aggro_phase_with_terrain_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
-    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
     candidates: &[CreatureAggroCandidateLikeCpp],
     config: CreatureAggroConfigLikeCpp,
 ) -> CreatureAggroTickOutcomeLikeCpp {
@@ -98,9 +98,7 @@ pub fn run_canonical_creature_aggro_phase_with_terrain_for_test_like_cpp(
     let (maps, objects) = all_canonical_creatures_selection_like_cpp(&manager);
     let mut store =
         AdmittedCanonicalCreatureStoreLikeCpp::new_like_cpp(&mut manager, &maps, &objects);
-    crate::run_creature_aggro_phase_on_store_like_cpp(
-        &mut store, terrain, candidates, &config,
-    )
+    crate::run_creature_aggro_phase_on_store_like_cpp(&mut store, terrain, candidates, &config)
 }
 
 /// The creature melee phase (`DoMeleeAttackIfReady`).
@@ -164,10 +162,10 @@ pub fn run_canonical_creature_lifecycle_phase_for_test_like_cpp(
 pub fn run_canonical_creature_movement_phase_for_test_like_cpp(
     canonical: &SharedCanonicalMapManager,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
     chase_targets: &HashMap<
         (u16, u32, ObjectGuid),
-        wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp,
+        crate::creature_movement::ChaseTargetSnapshotLikeCpp,
     >,
     diff_ms: u32,
 ) -> CreatureMovementTickOutcomeLikeCpp {
@@ -216,13 +214,13 @@ pub fn step_creature_movement_like_cpp(
     creature: &mut wow_entities::Creature,
     guid: ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
-    mmap_pathfinder: Option<&wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
-    terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
-    chase_target: Option<wow_world_core::creature_movement::ChaseTargetSnapshotLikeCpp>,
+    mmap_pathfinder: Option<&crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp>,
+    terrain: Option<&crate::terrain::LiveTerrainHeights>,
+    chase_target: Option<crate::creature_movement::ChaseTargetSnapshotLikeCpp>,
     diff_ms: u32,
 ) -> Option<Vec<u8>> {
     crate::step_creature_movement_on_view_like_cpp(
-        &mut wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature),
+        &mut crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(creature),
         guid,
         mmap_config,
         mmap_pathfinder,

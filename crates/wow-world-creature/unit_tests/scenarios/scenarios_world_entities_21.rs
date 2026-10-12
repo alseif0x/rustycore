@@ -108,7 +108,7 @@ fn creature_aggro_tick_once_uses_template_required_expansion_cap_like_cpp() {
         addon: None,
     });
     let mut world_creature = creature;
-    wow_world_core::creature_projection::install_creature_runtime_like_cpp(
+    crate::creature_projection::install_creature_runtime_like_cpp(
         &mut world_creature,
         &test_creature_create_data(creature_guid, 9001, 100),
     );

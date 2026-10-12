@@ -42,7 +42,6 @@ mod visibility_fixtures;
 pub(super) use crate::canonical_creature_fixtures::*;
 // #1363 slice 3b: the session-free single-phase drivers moved next to the
 // runtime they drive.
-pub(super) use wow_world_creature::canonical_creatures::*;
 pub(super) use canonical_creature_fixtures::*;
 pub(super) use creature_ai_fixtures::*;
 pub(super) use creature_fixtures::*;
@@ -59,6 +58,7 @@ pub(super) use session_fixtures::*;
 pub(super) use spell_catalog_fixtures::*;
 pub(super) use summon_fixtures::*;
 pub(super) use visibility_fixtures::*;
+pub(super) use wow_world_creature::canonical_creatures::*;
 // #1363 slice 0: the session-free builders of these modules live in the dev-only
 // `wow-world-test-support` crate; the scenario modules keep reaching them here.
 pub(super) use wow_world_test_support::creature_ai::{
@@ -67,14 +67,11 @@ pub(super) use wow_world_test_support::creature_ai::{
     aggro_hostile_config_like_cpp, aggro_relation_config_like_cpp,
     creature_ai_spell_test_config_like_cpp, creature_ai_test_spell_info_like_cpp,
     decode_creature_spell_full_log_like_cpp, decode_creature_spell_wire_header_like_cpp,
-    faction_template_entry, represented_creature_spell_test_attributes_like_cpp, spell_misc_entry_like_cpp,
-    spell_range_entry_like_cpp,
+    faction_template_entry, represented_creature_spell_test_attributes_like_cpp,
+    spell_misc_entry_like_cpp, spell_range_entry_like_cpp,
 };
 // #1363 slice 3b: the session-free lifecycle builders moved there too.
-pub(super) use wow_world_test_support::lifecycle::{
-    CreatureMeleeLosTestEnvironment, lifecycle_test_map_store_like_cpp, make_test_world_creature,
-    melee_los_test_world_object,
-};
+pub(super) use wow_world_test_support::lifecycle::lifecycle_test_map_store_like_cpp;
 pub(super) use wow_world_test_support::map_objects::{
     add_canonical_capture_point_delete_gameobject_like_cpp,
     add_canonical_lifecycle_gameobject_on_map,
@@ -87,7 +84,8 @@ pub(super) use wow_world_test_support::map_objects::{
     add_canonical_test_player_on_map, add_canonical_test_player_on_map_with_difficulty,
     add_canonical_visibility_on_destroy_gameobject_like_cpp,
     add_canonical_visual_despawn_gameobject_like_cpp, canonical_party_type_for_test,
-    shared_map_manager, test_creature_create_data, test_creature_guid, test_gameobject_guid, test_pet_guid, test_vehicle_guid,
+    shared_map_manager, test_creature_create_data, test_creature_guid, test_gameobject_guid,
+    test_pet_guid, test_vehicle_guid,
 };
 pub(super) use wow_world_test_support::packets::{
     QuestGiverRequestItemsSummaryLikeCpp, drain_server_opcodes, drain_server_packet_bytes,

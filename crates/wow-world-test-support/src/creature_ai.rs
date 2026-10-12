@@ -11,10 +11,11 @@ use wow_constants::UnitFlags;
 use wow_core::ObjectGuid;
 use wow_core::Position;
 use wow_data::progression_rewards::FactionEntry;
-use wow_data::{
-    ConditionEntriesByTypeStore, SpellCategoryStore, SpellChainStoreLikeCpp, SpellLinkedStoreLikeCpp,
-};
 use wow_data::progression_rewards::FactionStore;
+use wow_data::{
+    ConditionEntriesByTypeStore, SpellCategoryStore, SpellChainStoreLikeCpp,
+    SpellLinkedStoreLikeCpp,
+};
 use wow_entities::PhaseShift;
 use wow_entities::UnitVisibilityDetectionStateLikeCpp;
 use wow_packet::WorldPacket;

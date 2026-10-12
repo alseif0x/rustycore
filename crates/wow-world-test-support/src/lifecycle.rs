@@ -80,9 +80,7 @@ pub fn lifecycle_test_map_store_like_cpp(
 
 // ── step_creature_movement_like_cpp unit tests (no WorldSession) ──────────
 
-pub fn make_test_world_creature(
-    guid: ObjectGuid,
-) -> wow_entities::Creature {
+pub fn make_test_world_creature(guid: ObjectGuid) -> wow_entities::Creature {
     wow_world_core::creature_projection::new_runtime_creature_like_cpp(
         guid,
         9999,

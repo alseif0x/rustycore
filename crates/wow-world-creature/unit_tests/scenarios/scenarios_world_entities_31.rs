@@ -12,12 +12,12 @@ use super::*;
 fn step_creature_movement_advances_spline_and_generator_from_one_diff_like_cpp() {
     let guid = test_creature_guid(200_025);
     let mut creature = make_test_world_creature(guid);
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         Duration::from_secs(1),
     );
     let (_, spline) =
-        wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .begin_move_spline_like_cpp(Position::new(20.0, 0.0, 0.0, 0.0))
             .expect("a non-zero move must launch a spline");
     assert!(spline.duration_ms() > 17);
@@ -65,8 +65,8 @@ fn step_creature_movement_random_keeps_wandering_over_many_ticks_like_cpp() {
         ai.move_start_ms = 0;
         ai.wander_radius = 5.0;
     }
-    wow_world_core::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x1234);
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x1234);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         Duration::from_secs(3600),
     );
@@ -124,8 +124,8 @@ fn step_creature_movement_random_rearms_next_leg_after_spline_finalizes_like_cpp
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    wow_world_core::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         Duration::from_secs(10),
     );
@@ -144,7 +144,7 @@ fn step_creature_movement_random_rearms_next_leg_after_spline_finalizes_like_cpp
 
     // Advance the creature clock past the spline duration so the next
     // `update_move_spline_like_cpp` finalizes it (mirrors real time passing).
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         Duration::from_secs(10) + Duration::from_millis(u64::from(duration_u) + 1),
     );
@@ -193,8 +193,8 @@ fn step_creature_movement_random_waits_when_diff_undershoots_spline_duration_lik
         ai.move_start_ms = 0;
         ai.wander_radius = 3.0;
     }
-    wow_world_core::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::seed_runtime_rng_like_cpp(&mut creature, 0x5757);
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         Duration::from_secs(10),
     );
@@ -213,7 +213,7 @@ fn step_creature_movement_random_waits_when_diff_undershoots_spline_duration_lik
     let duration_u = duration as u32;
 
     // Finalize the spline by the real clock...
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         Duration::from_secs(10) + Duration::from_millis(u64::from(duration_u) + 1),
     );
@@ -261,7 +261,7 @@ fn step_creature_movement_walking_waypoint_launches_monster_move_like_cpp() {
     );
 
     assert_eq!(
-        wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
@@ -354,12 +354,12 @@ fn step_creature_movement_waypoint_paths_around_real_navmesh_obstacle_like_cpp()
         )],
     );
     assert_eq!(
-        wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
 
-    let worker = wow_world_core::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
+    let worker = crate::pathfinder::WorldMMapPathfinderWorkerLikeCpp::spawn(&root);
     let config = MMapRuntimeConfigLikeCpp {
         data_dir: root.display().to_string(),
         enabled: true,
@@ -425,7 +425,7 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
     let guid = test_creature_guid(200_023);
     let mut creature = make_test_world_creature(guid);
     let mut clock_elapsed = Duration::from_secs(10);
-    wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+    crate::creature_projection::test_support::backdate_runtime_clock_for_test(
         &mut creature,
         clock_elapsed,
     );
@@ -437,7 +437,7 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
         ],
     );
     assert_eq!(
-        wow_world_core::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
+        crate::creature_movement::CreatureMovementLikeCpp::canonical_like_cpp(&mut creature)
             .initialize_default_waypoint_movement_like_cpp(Some(path)),
         wow_movement::WaypointMovementAction::StopMoving
     );
@@ -471,7 +471,7 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
             .duration_ms
             .max(1) as u32;
         clock_elapsed += Duration::from_millis(u64::from(duration) + 1);
-        wow_world_core::creature_projection::test_support::backdate_runtime_clock_for_test(
+        crate::creature_projection::test_support::backdate_runtime_clock_for_test(
             &mut creature,
             clock_elapsed,
         );
@@ -512,7 +512,7 @@ fn step_creature_movement_dead_ready_respawn_waits_for_lifecycle_owner_like_cpp(
         "creature must be dead before the call"
     );
     assert!(
-        wow_world_core::creature_projection::test_support::should_respawn(&creature),
+        crate::creature_projection::test_support::should_respawn(&creature),
         "creature must be ready to respawn"
     );
 

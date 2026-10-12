@@ -65,15 +65,11 @@ pub use wow_world_creature::{
     run_admitted_creature_combat_phases_on_locked_manager_like_cpp,
     run_admitted_creature_execution_isolated_like_cpp,
 };
-// #1363 slice 3: the single-phase entries and store the unit tests drive.
+// #1363 slice 3: the runtime decisions the unit tests still call; the
+// single-phase entries moved with their drivers to `wow-world-creature` (3b).
 #[cfg(test)]
 use wow_world_creature::{
-    AdmittedCanonicalCreatureStoreLikeCpp, creature_ai_can_attack_decision_like_cpp,
-    creature_melee_spell_miss_threshold_3_3_5_like_cpp, is_creature_melee_los_clear_like_cpp,
-    run_creature_aggro_phase_on_store_like_cpp, run_creature_lifecycle_phase_on_manager_like_cpp,
-    run_creature_melee_phase_on_manager_like_cpp, run_creature_movement_phase_on_manager_like_cpp,
-    run_creature_spell_phase_on_manager_like_cpp, run_player_melee_phase_on_manager_like_cpp,
-    step_creature_movement_on_view_like_cpp,
+    creature_ai_can_attack_decision_like_cpp, creature_melee_spell_miss_threshold_3_3_5_like_cpp,
 };
 mod canonical_access;
 mod catalogs;
@@ -224,10 +220,6 @@ mod creature_movement_adapter;
 mod creature_spawn_contracts;
 pub(crate) use creature_spawn_contracts::CreatureCreateStatsLikeCpp;
 pub use creature_spawn_contracts::PendingCreatureSpawn;
-#[cfg(test)]
-mod creature_spell_admission;
-#[cfg(test)]
-use creature_spell_admission::creature_spell_target_accepts_npc_attack_like_cpp;
 mod creature_spell_metadata;
 use creature_spell_metadata::CreatureAiSpellTargetLikeCpp;
 use creature_spell_metadata::creature_ai_spell_difficulty_chain_like_cpp;
@@ -585,8 +577,6 @@ use crate::runtime_plan::RuntimeEvent;
 use creature_aggro_contracts::{
     CreatureAiCanAttackDecisionLikeCpp, CreatureSpellTargetHitResultLikeCpp,
 };
-#[cfg(test)]
-use creature_spell_admission::creature_spell_target_is_valid_attack_target_like_cpp;
 #[cfg(test)]
 use creature_spell_metadata::{
     creature_ai_spell_has_unrepresented_target_restrictions_like_cpp,
