@@ -1805,8 +1805,9 @@ the check changes; `tools/test_validation_v2.py` pins both, and
 - **Destination.** `wow-world-inventory/src` 10,990 → 13,668 (+2,678: 2,653
   moved, 25 `lib.rs`); `unit_tests/` 0 → 651.
 - **`crates/wow-world`**: +34 −34 (paths and comments). `net_move.py check`:
-  not a move for the wow-world root (shrink 0), growth charged 0 outside the
-  internal-crate moves, 0 duplicate bodies; exit 0.
+  shrink 0, growth charged 9 (the `lib.rs` export delta and the two
+  rewraps; the moved files are accounted as moves between internal crates),
+  0 duplicate bodies; exit 0.
 - **Policy (`dependency-policy.json`).** `wow-world-inventory` +=
   `wow-world-interaction`, `wow-world-lifecycle`. No edge removed:
   application still names every dependency it declares. Inventory's
