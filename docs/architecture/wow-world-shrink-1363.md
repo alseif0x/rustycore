@@ -1114,7 +1114,7 @@ method per step.
 
 ### Host surface
 
-- **`PlayerMovementHostLikeCpp`** (entities, 13 methods plus an associated
+- **`PlayerMovementHostLikeCpp`** (entities, 11 methods plus an associated
   type for the World area-trigger catalogs, whose script dispatcher takes the
   session): aura queries and interrupts, zone, exploration, visibility and
   area-trigger updates, durability loss, alive state, registry sync and the
