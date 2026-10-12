@@ -1207,3 +1207,105 @@ movable body yet:
 - `wow-world-application`: **51,225** physical lines (49,716 production, 170
   files). The vehicle module (`vehicle_handlers.rs` 529 + `vehicle_session.rs`
   357) is one obvious unit for the split.
+
+## Slice A plan (split `wow-world-application` by domain)
+
+Measured on `465f3791a` (slice 4b merged) before anything moved:
+`wow-world-application` is 51,225 physical lines in 170 files (49,716
+production). The scan is lexical: for every top-level module of the crate it
+resolves `crate::…` paths (including names re-exported from `lib.rs`) to the
+owning module, and lists the `wow_*` crates the module names.
+
+### Internal graph
+
+- **One strongly connected cluster, held together by inherent impls.**
+  `PlayerConditionProjectionCxLikeCpp` is defined in `player_conditions` and
+  extended by `impl` blocks in `quest/visibility.rs` and
+  `inventory_valuation{,/direct_storage}.rs`. Rust only allows those impls in
+  the defining crate, so `quest` (10,778), `player_conditions` (690) and
+  `inventory_valuation` (1,280) can only move together. `player_conditions`
+  also names `TrainerAdmissionProofLikeCpp` and
+  `trainer_condition_admission_proof_like_cpp` (`trainer_purchase/offer.rs`);
+  that one enum and function are the only edge back from the cluster to the
+  trainer family, and they move down with the cluster.
+- **Shared support leaves** used by the cluster and by its consumers: `stats`
+  (677, 8 dependents), `registry_sync` (211, 7 dependents), `inventory_scaling`
+  (220). They have no in-crate dependencies except each other.
+- **Quest consumers.** Modules that name the cluster:
+  - `loot_release` (2,470, used by `loot_handlers` 1,957);
+  - `aura_removal` (1,586; quest state and condition inputs);
+  - `trainer_purchase` (3,699; aura removal, conditions, quest events,
+    spell acquisition, profession);
+  - `spell_handlers` (896) and `player_handlers` (644), which only borrow
+    `SessionQuestState`;
+  - `quest_handlers` (373) and `quest_query_handlers` (937);
+  - `inventory_move_planning` (323) and `inventory_swap` (2,566), through the
+    condition context and the valuation functions;
+  - `spell_click_values` (133), through one five-line enum
+    (`RepresentedCanSeeSpellClickOutcomeLikeCpp`, defined in
+    `quest/visibility.rs`).
+- **Leaves.** Every other module has no dependency on another application
+  module, or only on `stats` / a sibling of its own family: all handler
+  registrars outside the families above, `instances`, `movement_handlers`,
+  the vehicle pair, `client_state`, the character family, `player_save`,
+  `profession` and `spell_acquisition` (which only uses `profession`).
+
+### Destinations
+
+A domain crate may not depend on `wow-world-application` or `wow-world`; every
+new edge below was checked against the current manifests for a cycle (none of
+the targets depends on the source). Lines are physical.
+
+| Module(s) | Lines | Destination | New edges |
+|---|---:|---|---|
+| `vehicle_handlers`, `vehicle_session`, `spell_click_values` (+ the spell-click outcome enum from `quest/visibility.rs`) | 1,019 | `wow-world-entities` (spell click, movement host and vehicle state already live there) | entities → `wow-handler` |
+| `movement_handlers` (+ `tail_registrations`) | 1,176 | `wow-world-entities` (the movement bodies moved there in 4b) | (same) |
+| `instances` | 1,245 | `wow-world-instances` (as `crate::handlers`) | instances → `wow-handler`, `wow-persistence`, `wow-world-lifecycle`, `wow-world-social` |
+| `trade_handlers`, `group_handlers`, `battleground_handlers`, `guild_bank_handlers`, `reputation` | 5,342 | `wow-world-social` | social → `wow-world-inventory`, `wow-world-spell`, `wow-world-instances`, `wow-world-lifecycle`, `wow-world-loot`, `wow-world-entities` |
+| `travel_handlers`, `combat_handlers`, `corpse_handlers`, `gameobject_handlers` | 969 | `wow-world-entities` | entities → `wow-world-lifecycle`, `wow-world-interaction` |
+| `dungeon_finding_handlers` | 222 | `wow-world-instances` | — |
+| `client_state`, `data_service_handlers`, `player_save` | 2,101 | `wow-world-lifecycle` | — |
+| `npc_handlers` | 207 | `wow-world-interaction` | interaction → `wow-handler` |
+| `stats`, `registry_sync`, `inventory_scaling`, `equipment_set_use`, `bank`, `vendor`, `collections_handlers`, `battle_pet_handlers` | 3,587 | `wow-world-inventory` | inventory → `wow-world-loot`, `wow-world-spell`, `wow-world-lifecycle`, `wow-world-interaction` |
+| `profession`, `spell_acquisition` | 2,728 | `wow-world-spell` | spell → `wow-world-lifecycle`, `wow-persistence`, `wow-config` |
+| `character_handlers`, `character_handler_families`, `character_creation`, `character_enumeration`, `character_login_support`, `character_query_handlers` | 3,054 | **new `wow-world-character`** (slice 8 adds ~12.5k; > 3k and one C++ family, `CharacterHandler.cpp` plus login) | — |
+| `quest`, `quest_handlers`, `quest_query_handlers`, `player_conditions`, `inventory_valuation` (+ the trainer admission proof) | 14,058 | **new `wow-world-quest`** (no existing crate fits; one cluster) | — |
+| `loot_handlers`, `loot_release` | 4,427 | **new `wow-world-looting`**: loot *operations* above the quest crate. `wow-world-loot` stays the loot *state* owner; it cannot take them, because `loot_release` calls the quest cluster and the quest cluster depends on `wow-world-loot`. | — |
+| `aura_removal`, `trainer_purchase`, `trainer_handlers`, `talent_handlers`, `spell_handlers`, `player_handlers`, `inventory_swap`, `inventory_move_planning`, `character_account_handlers`, `lib.rs` | ~11.1k | **stays** in `wow-world-application` | — |
+
+What stays is cross-domain orchestration: the aura-removal pipeline (item
+effects, shapeshift, threat, mount, quest state), trainer purchase (money,
+quest events, aura, spell acquisition, conditions), the inventory swap and
+move planner (equip rules, quest item counts, conditions, stats), the
+spell/player handlers that lend quest state, and the account-handler registrar
+that composes bank, vendor, inventory and trainer. A later `wow-world-trainer`
+(trainer + talent, ~3.9k) becomes possible once `aura_removal` no longer needs
+the quest state; that is re-measured after A6, not planned now.
+
+### PR sequence
+
+Each PR is move-only (R2), passes `net_move.py check`, keeps the test-name
+multiset, and updates the handler-contract checker's registrar package/paths
+and `handler-module-policy.json` for every moved registrar.
+
+| PR | Content | Lines | Risk |
+|---|---|---:|---|
+| **A1** | vehicle + spell-click values + movement registrars → entities; instances → instances | ~3.4k | low: leaves, no new crate |
+| A2 | social registrars (trade, group, battleground, guild bank, reputation) | ~5.3k | low–medium: six new social edges |
+| A3 | travel/combat/corpse/gameobject → entities, dungeon finding → instances, client state/data service/player save → lifecycle, npc → interaction | ~3.5k | low |
+| A4 | support layer → inventory (stats, registry sync, scaling, equipment-set use, bank, vendor, collections, battle pets) | ~3.6k | medium: shared by the quest cluster and every consumer |
+| A5 | spell acquisition + profession → spell; character family → new `wow-world-character` | ~5.8k | medium |
+| A6 | new `wow-world-quest` | ~14.1k | medium: one large mechanical move, like 3a |
+| A7 | new `wow-world-looting` | ~4.4k | medium |
+
+After A7 the application is ~11k lines of orchestration.
+
+### Where the remaining wow-world slices land
+
+- **Slice 5 (loot)**: loot handler bodies and release/roll operations →
+  `wow-world-looting`; pure loot state → `wow-world-loot`. Needs A6 and A7.
+- **Slice 6 (quest)**: → `wow-world-quest`. Needs A6.
+- **Slice 8 (character)**: login load and character handlers →
+  `wow-world-character`; inventory moves and vendor → `wow-world-inventory`;
+  visibility, gossip and transports → `wow-world-visibility`,
+  `wow-world-interaction` and `wow-world-entities`. Needs A4 and A5.
