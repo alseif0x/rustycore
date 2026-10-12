@@ -3,6 +3,7 @@
 mod aggro;
 mod catalogs;
 mod contracts;
+mod corpse_handlers;
 mod creature;
 pub mod creature_aggro_contracts;
 mod creature_aura_tracking;
@@ -54,6 +55,10 @@ pub use contracts::{
     CreatureCreateStatsLikeCpp, MaterializedCreatureSpawnLikeCpp, PendingCreatureKillRewardLikeCpp,
     PendingCreatureSpawn, RepresentedCreatureAuraLikeCpp,
     RepresentedSpellClickCreatureSnapshotLikeCpp,
+};
+pub use corpse_handlers::{
+    CorpseHostLikeCpp, handle_reclaim_corpse, handle_repop_request,
+    handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 pub use creature_publication::represented_creature_aura_info_like_cpp;

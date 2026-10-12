@@ -94,9 +94,11 @@ async fn resurrect_response_accepts_matching_request_like_cpp() {
         },
     );
 
-    session
-        .handle_resurrect_response(resurrect_response_packet(resurrecter, 0))
-        .await;
+    wow_world_entities::handle_resurrect_response(
+        &mut session,
+        resurrect_response_packet(resurrecter, 0),
+    )
+    .await;
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(
@@ -151,9 +153,11 @@ async fn resurrect_response_decline_clears_request_like_cpp() {
         },
     );
 
-    session
-        .handle_resurrect_response(resurrect_response_packet(resurrecter, 1))
-        .await;
+    wow_world_entities::handle_resurrect_response(
+        &mut session,
+        resurrect_response_packet(resurrecter, 1),
+    )
+    .await;
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(
@@ -180,12 +184,11 @@ async fn resurrect_response_ignores_mismatched_resurrecter_like_cpp() {
         },
     );
 
-    session
-        .handle_resurrect_response(resurrect_response_packet(
-            ObjectGuid::create_player(1, 80),
-            0,
-        ))
-        .await;
+    wow_world_entities::handle_resurrect_response(
+        &mut session,
+        resurrect_response_packet(ObjectGuid::create_player(1, 80), 0),
+    )
+    .await;
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(
@@ -212,9 +215,11 @@ async fn resurrect_response_ignores_alive_player_like_cpp() {
         },
     );
 
-    session
-        .handle_resurrect_response(resurrect_response_packet(resurrecter, 0))
-        .await;
+    wow_world_entities::handle_resurrect_response(
+        &mut session,
+        resurrect_response_packet(resurrecter, 0),
+    )
+    .await;
 
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 777);
@@ -243,9 +248,7 @@ async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
     );
     session.set_player_alive_like_cpp(false);
 
-    session
-        .handle_repop_request(repop_request_packet(true))
-        .await;
+    wow_world_entities::handle_repop_request(&mut session, repop_request_packet(true)).await;
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
@@ -273,9 +276,7 @@ async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
     );
 
     session.set_player_alive_like_cpp(true);
-    session
-        .handle_repop_request(repop_request_packet(false))
-        .await;
+    wow_world_entities::handle_repop_request(&mut session, repop_request_packet(false)).await;
     assert_eq!(
         session.fixtures.combat.represented_repop_at_graveyard_count,
         0
@@ -284,9 +285,7 @@ async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
 
     session.set_player_alive_like_cpp(false);
     session.set_player_ghost_flag_like_cpp(true);
-    session
-        .handle_repop_request(repop_request_packet(false))
-        .await;
+    wow_world_entities::handle_repop_request(&mut session, repop_request_packet(false)).await;
     assert_eq!(
         session.fixtures.combat.represented_repop_at_graveyard_count,
         0
@@ -397,8 +396,7 @@ async fn reclaim_corpse_dead_ghost_resurrects_and_clears_ghost_like_cpp() {
     session.set_player_ghost_flag_like_cpp(true);
     let _ = crate::session::hub_mut(&mut session).sync_canonical_player_health_like_cpp(0, 100);
 
-    session
-        .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
+    wow_world_entities::handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid))
         .await;
 
     assert!(session.player_is_alive_like_cpp());
@@ -428,15 +426,13 @@ async fn reclaim_corpse_alive_or_not_ghost_returns_like_cpp() {
     );
 
     session.set_player_alive_like_cpp(true);
-    session
-        .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
+    wow_world_entities::handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid))
         .await;
     assert!(session.player_is_alive_like_cpp());
     assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 
     session.set_player_alive_like_cpp(false);
-    session
-        .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
+    wow_world_entities::handle_reclaim_corpse(&mut session, reclaim_corpse_packet(corpse_guid))
         .await;
     assert!(!session.player_is_alive_like_cpp());
     assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
