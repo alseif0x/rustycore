@@ -16,9 +16,10 @@
 //!
 //! **Owner.** The application crate owns this family because it is the area that
 //! coordinates the logged-in character's interaction and self-service surface for
-//! these opcodes, and it already owns their application-side rules
-//! ([`crate::vendor`], [`crate::bank`], [`crate::inventory_move_planning`],
-//! [`crate::inventory_swap`], [`crate::trainer_purchase`]). C++ source of truth at
+//! these opcodes, and it composes their application-side rules
+//! ([`wow_world_inventory::vendor`], the `wow_world_inventory` bank registrar,
+//! [`crate::inventory_move_planning`], [`crate::inventory_swap`],
+//! [`crate::trainer_purchase`]). C++ source of truth at
 //! reference SHA `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`; the C++ opcode table
 //! (`src/server/game/Server/Protocol/Opcodes.cpp`) fixes `STATUS_LOGGEDIN` and
 //! `PROCESS_INPLACE`/`PROCESS_THREADUNSAFE` for all 23, and the Rust entries

@@ -35,7 +35,6 @@ mod registry_sync;
 mod spell_acquisition;
 mod spell_handlers;
 mod talent_handlers;
-pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
     durable_loot_item_fanout_viewers_like_cpp,
