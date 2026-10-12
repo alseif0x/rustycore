@@ -94,7 +94,7 @@ fn corpse_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "corpse",
         |builder| {
-            wow_world_application::register_corpse_handlers_like_cpp::<
+            wow_world_entities::register_corpse_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -179,7 +179,7 @@ fn duplicated_deferred_family_registrations_are_rejected_without_replacement() {
         ),
         (
             "corpse",
-            wow_world_application::register_corpse_handlers_like_cpp::<
+            wow_world_entities::register_corpse_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

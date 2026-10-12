@@ -4,7 +4,7 @@
 
 //! World-side construction of the client-state handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The lifecycle crate owns the handlers and their context; the session only
 //! hands over the mutable hub view, so no session reference crosses into the
 //! handler.
 //!
@@ -14,7 +14,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp};
+use wow_world_lifecycle::{ClientStateHandlerCxLikeCpp, ClientStateHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

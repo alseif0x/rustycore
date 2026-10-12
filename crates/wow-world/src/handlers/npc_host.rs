@@ -4,11 +4,11 @@
 
 //! World-side construction of the NPC handler context (#1263 F5).
 //!
-//! The application crate owns the C++ `NPCHandler.cpp` handlers and their
+//! The interaction crate owns the C++ `NPCHandler.cpp` handlers and their
 //! context; the session only lends its hub, so no session reference crosses
 //! into the handler.
 
-use wow_world_application::{NpcHandlerCxLikeCpp, NpcHandlerHostLikeCpp};
+use wow_world_interaction::{NpcHandlerCxLikeCpp, NpcHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

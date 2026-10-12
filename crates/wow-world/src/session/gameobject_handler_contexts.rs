@@ -4,7 +4,7 @@
 
 //! World-side construction of the gameobject handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The entities crate owns the handlers and their context; the session only
 //! splits its interaction and world-entity state from the hub.
 //!
 //! `#1263 F5 remaining families`: the adapter also lends `CMSG_GAMEOBJ_USE`,
@@ -12,7 +12,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp};
+use wow_world_entities::{GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

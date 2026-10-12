@@ -3,10 +3,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 //! Test-only entry points for the gameobject interaction handlers moved to
-//! `wow-world-application` (#1263 F5).
+//! `wow-world-entities` (#1263 F5; #1363 slice A3).
 
 use wow_packet::WorldPacket;
-use wow_world_application::GameObjectHandlerCxLikeCpp;
+use wow_world_entities::GameObjectHandlerCxLikeCpp;
 
 use crate::session::WorldSession;
 

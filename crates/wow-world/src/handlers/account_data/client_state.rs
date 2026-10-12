@@ -4,7 +4,7 @@
 //! Client-state handlers that remain in the World shell.
 //!
 //! The client-state, telemetry, cinematic and inert movement-ack handlers and
-//! their registration moved to `wow-world-application` under #1263 F5. The
+//! their registration moved to `wow-world-lifecycle` (#1263 F5; #1363 slice A3). The
 //! currency-flags handler body and the typed `Ping` entry (registered by the
 //! character/account world-query family) stay here: the former publishes
 //! through the currency/condition chain that still lives in the shell, and
@@ -39,7 +39,7 @@ impl crate::session::WorldSession {
 #[cfg(test)]
 mod session_shims {
     use wow_packet::WorldPacket;
-    use wow_world_application::ClientStateHandlerCxLikeCpp;
+    use wow_world_lifecycle::ClientStateHandlerCxLikeCpp;
 
     use crate::session::WorldSession;
 

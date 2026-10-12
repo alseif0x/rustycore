@@ -84,7 +84,7 @@ impl WorldSession {
     /// the C++ Invalid branch and lets the client use its local DB2 cache.
 
     /// Test-only entry point for the DB2 bulk-query handler owned by
-    /// `wow-world-application` (#1263 F5).
+    /// `wow-world-lifecycle` (#1263 F5; #1363 slice A3).
     #[cfg(test)]
     pub(crate) async fn handle_db_query_bulk(
         &mut self,
@@ -95,7 +95,7 @@ impl WorldSession {
             .cloned()
             .unwrap_or_else(|| Arc::new(wow_data::TactKeyStore::from_entries([])));
         let hotfixes = wow_data::HotfixBlobCache::new();
-        wow_world_application::DataServiceHandlerCxLikeCpp::new(
+        wow_world_lifecycle::DataServiceHandlerCxLikeCpp::new(
             crate::session::hub_mut(self),
             &hotfixes,
             tact_keys.as_ref(),

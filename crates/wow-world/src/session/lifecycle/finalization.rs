@@ -133,7 +133,7 @@ impl WorldSession {
                     .await
             }
             CharacterSave => {
-                match wow_world_application::save_current_player_to_db_with_generator_like_cpp(
+                match wow_world_lifecycle::save_current_player_to_db_with_generator_like_cpp(
                     self,
                     item_guid_generator,
                 )

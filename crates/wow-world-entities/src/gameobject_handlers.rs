@@ -22,12 +22,12 @@ use wow_handler::{
 use wow_packet::packets::misc::CloseInteraction;
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::{HubMut, RepresentedGameObjectAccessLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_world_entities::RepresentedGameObjectCriteriaEvent;
-use wow_world_entities::WorldEntitiesState;
 use wow_world_interaction::InteractionState;
 
-use wow_world_entities::represented_gameobject_interaction_distance_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedGameObjectCriteriaEvent;
+use crate::WorldEntitiesState;
+use crate::represented_gameobject_interaction_distance_like_cpp;
 
 /// Borrowed inputs of one gameobject interaction handler invocation.
 pub struct GameObjectHandlerCxLikeCpp<'a> {

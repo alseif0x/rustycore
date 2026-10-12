@@ -157,8 +157,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             CLIENT_STATE_REGISTRAR.package,
             CLIENT_STATE_REGISTRAR.module,
-            "crates/wow-world-application/src/client_state.rs",
-            include_str!("../../../../../crates/wow-world-application/src/client_state.rs"),
+            "crates/wow-world-lifecycle/src/client_state.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/client_state.rs"),
         ),
         mount(
             CALENDAR_REGISTRAR.package,
@@ -265,14 +265,14 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             CORPSE_REGISTRAR.package,
             CORPSE_REGISTRAR.module,
-            "crates/wow-world-application/src/corpse_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/corpse_handlers.rs"),
+            "crates/wow-world-entities/src/corpse_registrations.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/corpse_registrations.rs"),
         ),
         mount(
             NPC_REGISTRAR.package,
             NPC_REGISTRAR.module,
-            "crates/wow-world-application/src/npc_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/npc_handlers.rs"),
+            "crates/wow-world-interaction/src/npc_handlers.rs",
+            include_str!("../../../../../crates/wow-world-interaction/src/npc_handlers.rs"),
         ),
         mount(
             VEHICLE_REGISTRAR.package,
@@ -283,15 +283,15 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             GAMEOBJECT_REGISTRAR.package,
             GAMEOBJECT_REGISTRAR.module,
-            "crates/wow-world-application/src/gameobject_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/gameobject_handlers.rs"),
+            "crates/wow-world-entities/src/gameobject_handlers.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/gameobject_handlers.rs"),
         ),
         mount(
             DUNGEON_FINDING_REGISTRAR.package,
             DUNGEON_FINDING_REGISTRAR.module,
-            "crates/wow-world-application/src/dungeon_finding_handlers.rs",
+            "crates/wow-world-instances/src/dungeon_finding_handlers.rs",
             include_str!(
-                "../../../../../crates/wow-world-application/src/dungeon_finding_handlers.rs"
+                "../../../../../crates/wow-world-instances/src/dungeon_finding_handlers.rs"
             ),
         ),
         mount(
@@ -303,8 +303,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             TRAVEL_REGISTRAR.package,
             TRAVEL_REGISTRAR.module,
-            "crates/wow-world-application/src/travel_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/travel_handlers.rs"),
+            "crates/wow-world-entities/src/travel_handlers.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/travel_handlers.rs"),
         ),
         mount(
             COLLECTIONS_REGISTRAR.package,
@@ -321,8 +321,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             COMBAT_REGISTRAR.package,
             COMBAT_REGISTRAR.module,
-            "crates/wow-world-application/src/combat_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/combat_handlers.rs"),
+            "crates/wow-world-entities/src/combat_handlers.rs",
+            include_str!("../../../../../crates/wow-world-entities/src/combat_handlers.rs"),
         ),
         mount(
             QUEST_QUERY_REGISTRAR.package,
@@ -351,10 +351,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             DATA_SERVICE_REGISTRAR.package,
             DATA_SERVICE_REGISTRAR.module,
-            "crates/wow-world-application/src/data_service_handlers.rs",
-            include_str!(
-                "../../../../../crates/wow-world-application/src/data_service_handlers.rs"
-            ),
+            "crates/wow-world-lifecycle/src/data_service_handlers.rs",
+            include_str!("../../../../../crates/wow-world-lifecycle/src/data_service_handlers.rs"),
         ),
         mount(
             BATTLENET_REGISTRAR.package,
@@ -403,6 +401,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             SUPPORT_REGISTRAR.module,
             "crates/wow-world-lifecycle/src/support.rs",
             include_str!("../../../../../crates/wow-world-lifecycle/src/support.rs"),
+        ),
+        mount(
+            NPC_REGISTRAR.package,
+            "crate",
+            "crates/wow-world-interaction/src/lib.rs",
+            include_str!("../../../../../crates/wow-world-interaction/src/lib.rs"),
         ),
         mount(
             "wow-world",
@@ -641,7 +645,7 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
         "wow_world_application::register_quest_handlers_like_cpp",
         "wow_world_inventory::register_void_storage_handlers_like_cpp",
         "wow_world_application::register_talent_handlers_like_cpp",
-        "wow_world_application::register_corpse_handlers_like_cpp",
+        "wow_world_entities::register_corpse_handlers_like_cpp",
     ] {
         let mut missing = actual_mounts();
         let authority = authority_index(&missing);
@@ -677,8 +681,8 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
     assert_rejected(&inexact_quest_facade, "inexact quest root facade");
 
     // The three deferred families (#1263 F5 deferred families) must also keep
-    // their exact root facades: index 2 is the Inventory crate root and index 5
-    // the Application crate root.
+    // their exact root facades: index 2 is the Inventory crate root, index 5
+    // the Application crate root and index 9 the Entities crate root.
     for (index, exact, inexact, label) in [
         (
             2,
@@ -693,9 +697,9 @@ fn composition_guard_requires_the_migrated_trainer_and_tail_calls_and_facades() 
             "inexact talent root facade",
         ),
         (
-            5,
-            "pub use corpse_handlers::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};",
-            "pub use corpse_handlers::{CorpseHandlerHostLikeCpp};",
+            9,
+            "pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};",
+            "pub use corpse_registrations::{CorpseHandlerHostLikeCpp};",
             "inexact corpse root facade",
         ),
     ] {

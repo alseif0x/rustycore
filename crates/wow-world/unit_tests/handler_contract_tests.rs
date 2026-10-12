@@ -1197,7 +1197,7 @@ fn travel_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "travel",
         |builder| {
-            wow_world_application::register_travel_handlers_like_cpp::<
+            wow_world_entities::register_travel_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1302,12 +1302,12 @@ fn duplicated_migrated_spell_family_registration_is_rejected_without_replacement
 #[test]
 fn duplicated_migrated_travel_family_registration_is_rejected_without_replacement() {
     let mut builder = crate::session::registry::WorldPacketHandlerRegistryBuilder::new();
-    wow_world_application::register_travel_handlers_like_cpp::<
+    wow_world_entities::register_travel_handlers_like_cpp::<
         crate::session::WorldSession,
         crate::session::SessionHandlerCatalogsLikeCpp,
     >(&mut builder)
     .expect("the first travel registration succeeds");
-    let error = wow_world_application::register_travel_handlers_like_cpp::<
+    let error = wow_world_entities::register_travel_handlers_like_cpp::<
         crate::session::WorldSession,
         crate::session::SessionHandlerCatalogsLikeCpp,
     >(&mut builder)
@@ -1336,7 +1336,7 @@ fn combat_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "combat",
         |builder| {
-            wow_world_application::register_combat_handlers_like_cpp::<
+            wow_world_entities::register_combat_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1360,7 +1360,7 @@ fn client_state_currency_flags_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "client-state currency flags",
         |builder| {
-            wow_world_application::register_client_state_handlers_like_cpp::<
+            wow_world_lifecycle::register_client_state_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1408,7 +1408,7 @@ fn gameobject_use_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "gameobject use",
         |builder| {
-            wow_world_application::register_gameobject_handlers_like_cpp::<
+            wow_world_entities::register_gameobject_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1432,7 +1432,7 @@ fn dungeon_finding_system_info_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "dungeon-finding system info",
         |builder| {
-            wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+            wow_world_instances::register_dungeon_finding_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1617,7 +1617,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
     let registrars: &[(&str, Registrar, wow_constants::ClientOpcodes, &str)] = &[
         (
             "combat",
-            wow_world_application::register_combat_handlers_like_cpp::<
+            wow_world_entities::register_combat_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,
@@ -1626,7 +1626,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "client-state",
-            wow_world_application::register_client_state_handlers_like_cpp::<
+            wow_world_lifecycle::register_client_state_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,
@@ -1644,7 +1644,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "gameobject",
-            wow_world_application::register_gameobject_handlers_like_cpp::<
+            wow_world_entities::register_gameobject_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,
@@ -1653,7 +1653,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "dungeon-finding",
-            wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+            wow_world_instances::register_dungeon_finding_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

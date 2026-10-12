@@ -2,8 +2,10 @@
 
 mod aggro;
 mod catalogs;
+mod combat_handlers;
 mod contracts;
 mod corpse_handlers;
+mod corpse_registrations;
 mod creature;
 pub mod creature_aggro_contracts;
 mod creature_aura_tracking;
@@ -23,6 +25,7 @@ mod fixtures;
 mod gameobject;
 mod gameobject_access;
 mod gameobject_contracts;
+mod gameobject_handlers;
 mod gameobject_interaction;
 mod gameobject_overrides;
 mod gameobject_query;
@@ -45,6 +48,7 @@ mod spawn;
 mod spell_click;
 pub mod spell_click_values;
 mod state;
+mod travel_handlers;
 mod vehicle_handlers;
 mod vehicle_session;
 mod world_entities_host;
@@ -53,6 +57,9 @@ pub use aggro::{
     creature_threat_value_on_map_like_cpp, mirror_creature_threat_from_attacker_on_map_like_cpp,
 };
 pub use catalogs::CreatureSpawnCatalogsLikeCpp;
+pub use combat_handlers::{
+    CombatHandlerCxLikeCpp, CombatHandlerHostLikeCpp, register_combat_handlers_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use contracts::RepresentedCreatureKillEventLikeCpp;
 pub use contracts::{
@@ -64,6 +71,9 @@ pub use corpse_handlers::{
     CorpseHostLikeCpp, handle_reclaim_corpse, handle_repop_request,
     handle_request_cemetery_list_with_catalog_like_cpp, handle_resurrect_response,
 };
+// The exact `ApplicationCorpse` owner facade the handler-contract checker
+// requires (#1263 F5 deferred families).
+pub use corpse_registrations::{CorpseHandlerHostLikeCpp, register_corpse_handlers_like_cpp};
 pub use creature::creature_message_to_set_target_allows_like_cpp;
 pub use creature_publication::represented_creature_aura_info_like_cpp;
 pub use creature_registry::{
@@ -78,6 +88,9 @@ pub use gameobject_contracts::{
     BattlegroundFlagDropClickTarget, RepresentedBattlegroundObjectUseRejection,
     RepresentedCapturePointStateLikeCpp, RepresentedGameObjectSpellCaster,
     RepresentedGameObjectUseEffect, RepresentedGameObjectUseState, RepresentedNewFlagStateRequest,
+};
+pub use gameobject_handlers::{
+    GameObjectHandlerCxLikeCpp, GameObjectHandlerHostLikeCpp, register_gameobject_handlers_like_cpp,
 };
 pub use gameobject_interaction::{
     represented_gameobject_display_box_contains_like_cpp,
@@ -151,6 +164,9 @@ pub use player_attack::{
     start_player_attack_like_cpp,
 };
 pub use state::WorldEntitiesState;
+pub use travel_handlers::{
+    TravelHandlerCxLikeCpp, TravelHandlerHostLikeCpp, register_travel_handlers_like_cpp,
+};
 pub use vehicle_handlers::{
     VehicleHandlerAction, eject_passenger_action_like_cpp,
     move_change_vehicle_seats_action_like_cpp, move_dismiss_vehicle_action_like_cpp,

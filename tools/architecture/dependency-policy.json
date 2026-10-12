@@ -169,8 +169,10 @@
       "wow-world-spell"
     ],
     "wow-world-interaction": [
+      "wow-constants",
       "wow-core",
       "wow-entities",
+      "wow-handler",
       "wow-packet",
       "wow-world-core"
     ],
@@ -190,7 +192,9 @@
       "wow-persistence",
       "wow-progression",
       "wow-recastdetour",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-interaction",
+      "wow-world-lifecycle"
     ],
     "wow-world-instances": [
       "wow-constants",
@@ -658,7 +662,9 @@
         "build": []
       },
       "wow-world-interaction": {
-        "normal": [],
+        "normal": [
+          "tracing"
+        ],
         "build": []
       },
       "wow-world-instances": {

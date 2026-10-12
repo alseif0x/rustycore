@@ -475,7 +475,7 @@ fn full_save_receipt_intersects_committed_groups_before_acknowledging_rows_and_t
     drop(owner);
 
     assert!(
-        !wow_world_application::apply_player_save_acknowledgement_like_cpp(
+        !wow_world_lifecycle::apply_player_save_acknowledgement_like_cpp(
             &mut session.lifecycle,
             Some(&acknowledged),
         )
@@ -526,15 +526,14 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
     let (request, header, receipt) = captured.into_parts_like_cpp();
     assert!(request.committed_groups_like_cpp().tutorials_changed);
 
-    let result = wow_world_application::persist_player_save_request_like_cpp(
+    let result = wow_world_lifecycle::persist_player_save_request_like_cpp(
         &session.lifecycle,
         &mut owner,
         header.guid,
         request,
     )
     .await;
-    let wow_world_application::PlayerSavePersistenceResultLikeCpp::Applied { committed, .. } =
-        result
+    let wow_world_lifecycle::PlayerSavePersistenceResultLikeCpp::Applied { committed, .. } = result
     else {
         panic!("the recording lifecycle port applies the captured request");
     };
@@ -544,7 +543,7 @@ async fn full_save_receipt_preserves_tutorials_changed_after_capture() {
     let acknowledged = owner.acknowledge_like_cpp(receipt, &committed);
     drop(owner);
     assert!(
-        wow_world_application::apply_player_save_acknowledgement_like_cpp(
+        wow_world_lifecycle::apply_player_save_acknowledgement_like_cpp(
             &mut session.lifecycle,
             acknowledged.as_ref(),
         )
