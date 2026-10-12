@@ -1459,3 +1459,88 @@ order, through their new crate paths).
 
 A2 (social registrars) per the PR sequence above. Re-measure application
 before it; the plan's line figures are from `465f3791a`.
+
+## A2 result (trade, guild bank, reputation → social; group, battleground → instances)
+
+Branch `1363-sA2-social-split`, base `1c5c277cc` (A1 merged). Move-only (R2):
+every moved body is byte-identical; only `use` lines, self-crate prefixes
+(`wow_world_social::` / `wow_world_instances::` → `crate::`) and crate-root
+re-exports change, and rustfmt re-sorts the two moved `use crate::InstanceState`
+lines. Opcode registration and dispatch order are unchanged
+(`handler_composition.rs` calls the same registrars in the same order, through
+their new crate paths). The plan was fixed first (*Plan fixes* above): group and
+battleground go to instances, not social.
+
+### What moved
+
+- **To `wow-world-social`** (2,529 file lines): `trade_handlers.rs` (1,363),
+  `guild_bank_handlers.rs` (859) and `reputation.rs` (307), with their root
+  re-exports (the trade/duel helpers `player_trade_state_snapshot_like_cpp`,
+  `set_represented_duel_state_like_cpp`,
+  `set_represented_duel_arbiter_guid_like_cpp` and
+  `resolved_represented_duel_arbiter_guid_like_cpp` included).
+- **To `wow-world-instances`** (2,813 file lines): `group_handlers.rs` (1,834)
+  and `battleground_handlers.rs` (979), with `GroupPublicationTailLikeCpp` and
+  `resolved_group_guid_like_cpp` (battleground calls it as
+  `crate::resolved_group_guid_like_cpp`, which now resolves inside instances).
+- **Callers.** `wow-world` (`handler_composition.rs`, the battleground, guild,
+  trade, reputation and group host adapters, `session/social/{trade,duel,group}.rs`,
+  four test shims, `unit_tests/handler_contract_tests.rs` and the duel
+  `f3_shims.rs`) name the new crate paths. The handler-contract checker's five
+  registrar packages and source mounts, and `handler-module-policy.json`,
+  follow the moved registrars (`ApplicationTrade`, `ApplicationGuildBank`,
+  `ApplicationReputation`, `ApplicationGroup`, `ApplicationBattleground`; the
+  owner labels are unchanged).
+- **A1 follow-ups.** The stale "moved to `wow-world-application`" module
+  comments in `handlers/vehicle/test_shims.rs` and
+  `session/spell_click_values.rs` now name `wow-world-entities`; the A2 host
+  adapters' comments name their new owner crate.
+
+### Accounting
+
+- **`wow-world-application/src`: 47,743 → 42,374 lines (−5,369), 158 → 153
+  files.** 5,342 lines leave as files; `lib.rs` loses 27 (mounts and exports).
+- **Destinations.** `wow-world-social/src` 8,764 → 11,309 (+2,545: 2,529 moved,
+  16 `lib.rs`). `wow-world-instances/src` 2,524 → 5,348 (+2,824: 2,813 moved,
+  11 `lib.rs`).
+- **`crates/wow-world`**: +35 −35 (paths and comments only; no line-count
+  change). `net_move.py check`: shrink 0, growth charged 0 (not a move for the
+  wow-world root; the moved files are accounted as moves between internal
+  crates), 0 duplicate bodies.
+- **Policy (`dependency-policy.json`).** `wow-world-social` +=
+  `wow-world-entities`, `wow-world-inventory`, `wow-world-spell`.
+  `wow-world-instances` += `wow-world-entities`, `wow-world-loot` and external
+  `rand`. `wow-world-application` −= `wow-social` (only `group_handlers` used
+  it). Social's `test-fixtures` feature (and its dev-dependencies) also
+  enables the inventory and spell fixtures, which the moved guild-bank and
+  trade `cfg(any(test, feature = "test-fixtures"))` blocks name; in
+  application the same blocks were enabled through application's own feature
+  list. `session-ownership-policy.json` is reprinted; the delta is only the
+  `package`/`source` of 101 entries (96 `group_handlers`, 5
+  `battleground_handlers`), application → instances; with those two keys
+  masked the old and new policies are equal.
+- **Cycle check.** Transitive closures over the head `Cargo.lock`
+  (self dev-dependencies excluded): no `wow-world-*` package reaches itself,
+  and no domain crate reaches `wow-world-application` or `wow-world`.
+  `wow-world-social` → core, entities, inventory, spell;
+  `wow-world-instances` → core, entities, inventory, lifecycle, loot, social,
+  spell, visibility. Neither reaches the other's dependents.
+- **Ceilings.** None raised and none to tighten: the Session logical owner
+  (`session/mod.rs` 42,629 / 142,050 / 184,679) and every physical row are
+  unchanged, because the wow-world edits are same-length path and comment
+  changes.
+- **Warnings.** `wow-world` `dead_code` is 0 in the production lib, the lib
+  with `test-fixtures` and the lib test build; `unused_imports` stays 152 and
+  161 in the first two, and no changed wow-world line warns. The warnings
+  inside the moved files (`trade_handlers.rs` `spell_state` never read outside
+  fixtures; `group_handlers.rs` two unused `vra` and one unused
+  `send_result` macro) are on the same unchanged lines as in application; the
+  modules were leaves there (no other application module named them), so no
+  lint depends on the crate they live in.
+- **Tests.** The test-name multiset is unchanged: none of the five modules
+  contains a test, so application stays at 58 library tests and no `#[test]`
+  or `#[ignore]` is added or removed. The checker suite passes (453).
+
+### Next
+
+A3 per the PR sequence, re-measured on the A2 merge.
