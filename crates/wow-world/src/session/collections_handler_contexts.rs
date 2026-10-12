@@ -4,7 +4,7 @@
 
 //! World-side construction of the collections handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The inventory crate owns the handlers and their context; the session only
 //! lends its hub, so no session reference crosses into the handler.
 //!
 //! `#1263 F5 remaining families`: the adapter also lends `CMSG_ADD_TOY`
@@ -13,7 +13,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp};
+use wow_world_inventory::{CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

@@ -53,7 +53,7 @@ use wow_world_inventory::{
 use wow_world_lifecycle::SessionLifecycleState;
 
 use crate::inventory_move_planning::InventoryMovePlanningCxLikeCpp;
-use crate::stats::CharacterStatsApplicationCxLikeCpp;
+use wow_world_inventory::CharacterStatsApplicationCxLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::InventoryEquipFixtureRefsLikeCpp;

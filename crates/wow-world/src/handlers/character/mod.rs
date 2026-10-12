@@ -352,7 +352,7 @@ fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
 }
 
 fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
-    wow_world_application::primary_max_power_for_class_like_cpp(class_id, max_mana)
+    wow_world_inventory::primary_max_power_for_class_like_cpp(class_id, max_mana)
 }
 
 fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {

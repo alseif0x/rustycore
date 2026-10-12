@@ -128,7 +128,7 @@ impl crate::session::WorldSession {
     }
     pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
         let (lifecycle, hub) = crate::session::split_battle_pet_handler_mut(self);
-        wow_world_application::BattlePetHandlerCxLikeCpp::new(hub, lifecycle, cfg!(test))
+        wow_world_inventory::BattlePetHandlerCxLikeCpp::new(hub, lifecycle, cfg!(test))
             .battle_pet_summon_toggle_like_cpp(pet_guid)
     }
     pub(crate) fn represented_battle_pet_query_companion_like_cpp(

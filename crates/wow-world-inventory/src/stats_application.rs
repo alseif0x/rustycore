@@ -5,6 +5,7 @@
 
 //! Character stat application operations.
 
+use crate::InventoryState;
 use wow_constants::WeaponAttackType;
 use wow_data::PlayerStatsStore;
 use wow_data::{
@@ -18,7 +19,6 @@ use wow_world_core::session::{
     PacketPublicationAccessLikeCpp, PlayerStatsAccessLikeCpp,
     primary_power_type_for_player_class_like_cpp,
 };
-use wow_world_inventory::InventoryState;
 
 /// The borrowed participants for a character-stat application operation.
 /// Catalog, aura, canonical-player and fixture access remains inside Core's

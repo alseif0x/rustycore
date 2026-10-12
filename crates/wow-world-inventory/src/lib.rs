@@ -6,8 +6,11 @@
 mod appearance;
 mod auction_contracts;
 mod bank;
+mod bank_handlers;
+mod battle_pet_handlers;
 mod buyback;
 mod catalog;
+mod collections_handlers;
 mod contracts;
 mod currency;
 mod durability;
@@ -33,6 +36,7 @@ mod quest_reward;
 mod scaling;
 mod state;
 mod stats;
+mod stats_application;
 mod storage;
 mod storage_bags;
 mod storage_slots;
@@ -48,10 +52,27 @@ mod collection_adapter;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
 pub mod loaded_item_support;
+pub mod vendor;
 
 pub use auction_contracts::{
     RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionRemoveItemLikeCpp,
     RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
+};
+// The exact bank owner facade the handler-contract checker requires.
+pub use bank_handlers::{
+    BankHandlerHostLikeCpp, BankSlotFlagApplicationCxLikeCpp,
+    can_use_current_bank_with_access_like_cpp, register_bank_handlers_like_cpp,
+};
+pub use battle_pet_handlers::{
+    BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp, register_battle_pet_handlers_like_cpp,
+};
+pub use battle_pet_handlers::{
+    has_represented_battle_pet_journal_lock_like_cpp, represented_battle_pet_journal_like_cpp,
+    represented_battle_pet_like_cpp, send_battle_pet_journal_lock_status_like_cpp,
+};
+pub use collections_handlers::{
+    CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
+    register_collections_handlers_like_cpp,
 };
 pub use contracts::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
@@ -99,6 +120,10 @@ pub use quest_reward::{
     item_push_result_from_send_new_item_plan, make_inventory_item_object_like_cpp,
 };
 pub use stats::CR_HIT_MELEE_LIKE_CPP;
+pub use stats_application::{
+    CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
+    primary_max_power_for_class_like_cpp, stats_application_cx_from_hub_like_cpp,
+};
 pub use storage::{CR_ARMOR_PENETRATION_LIKE_CPP, DirectInventoryStorageOverlayLikeCpp};
 pub use turnins::ExtendedCostItemTurninChange;
 // The exact void-storage owner facade the handler-contract checker requires

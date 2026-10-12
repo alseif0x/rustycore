@@ -146,7 +146,7 @@ impl<'a> InventoryScalingApplicationCxLikeCpp<'a> {
             }
         }
         if publish && !targets.is_empty() {
-            let mut stats = crate::stats::CharacterStatsApplicationCxLikeCpp::new(
+            let mut stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
                 self.player,
                 &*self.inventory,
                 self.publication,

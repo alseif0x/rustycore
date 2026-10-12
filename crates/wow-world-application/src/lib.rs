@@ -4,14 +4,6 @@
 
 //! Application-level operations shared by World adapters.
 
-mod battle_pet_handlers;
-pub use battle_pet_handlers::{
-    BattlePetHandlerCxLikeCpp, BattlePetHandlerHostLikeCpp, register_battle_pet_handlers_like_cpp,
-};
-pub use battle_pet_handlers::{
-    has_represented_battle_pet_journal_lock_like_cpp, represented_battle_pet_journal_like_cpp,
-    represented_battle_pet_like_cpp, send_battle_pet_journal_lock_status_like_cpp,
-};
 mod character_account_handlers;
 pub mod character_creation;
 pub mod character_enumeration;
@@ -22,7 +14,6 @@ mod character_handler_families;
 mod character_handlers;
 pub mod character_login_support;
 mod character_query_handlers;
-mod collections_handlers;
 mod loot_handlers;
 mod loot_release;
 mod player_conditions;
@@ -35,7 +26,6 @@ mod registry_sync;
 mod spell_acquisition;
 mod spell_handlers;
 mod talent_handlers;
-pub mod vendor;
 pub use loot_release::{
     LootReleaseCxLikeCpp, direct_item_count_after_loot_release_like_cpp,
     durable_loot_item_fanout_viewers_like_cpp,
@@ -49,7 +39,6 @@ pub use player_handlers::{
 mod equipment_set_use;
 mod inventory_scaling;
 mod inventory_valuation;
-mod stats;
 mod trainer_handlers;
 mod trainer_purchase;
 pub use inventory_scaling::InventoryScalingApplicationCxLikeCpp;
@@ -67,11 +56,6 @@ pub use inventory_swap::{
     execute_inventory_storage_move_like_cpp, inventory_storage_move_quest_directions_like_cpp,
     item_dynamic_flags_changed_like_cpp, item_spell_charges_db_string,
     item_storage_mutable_persistence_like_cpp, plan_inventory_storage_move_like_cpp,
-};
-mod bank;
-pub use bank::{
-    BankHandlerHostLikeCpp, BankSlotFlagApplicationCxLikeCpp,
-    can_use_current_bank_with_access_like_cpp, register_bank_handlers_like_cpp,
 };
 mod aura_removal;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -97,10 +81,6 @@ pub use character_query_handlers::realm_query_response_like_cpp;
 pub use character_query_handlers::{
     CharacterQueryHandlerCxLikeCpp, CharacterQueryHandlerHostLikeCpp,
     register_character_query_handlers_like_cpp,
-};
-pub use collections_handlers::{
-    CollectionsHandlerCxLikeCpp, CollectionsHandlerHostLikeCpp,
-    register_collections_handlers_like_cpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
@@ -227,10 +207,6 @@ pub use spell_handlers::{
 pub use spell_handlers::{
     cancel_pending_spell_cast_request_like_cpp, interrupt_player_cast_like_cpp,
     mutate_cast_execution_like_cpp, remove_represented_cancelable_auras_by_effect_like_cpp,
-};
-pub use stats::{
-    CharacterStatsApplicationCxLikeCpp, level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
-    primary_max_power_for_class_like_cpp, stats_application_cx_from_hub_like_cpp,
 };
 pub use trainer_handlers::{TrainerHandlerHostLikeCpp, register_trainer_handlers_like_cpp};
 #[cfg(any(test, feature = "test-fixtures"))]

@@ -1589,12 +1589,6 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_application :: BankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "module": "crate::session",
           "trait_path": "wow_world_application :: EquipmentSetUseHandlerHostLikeCpp < crate :: session :: SessionHandlerCatalogsLikeCpp , >",
           "cfg": [],
           "source_class": "production"
@@ -1608,6 +1602,12 @@
         {
           "module": "crate::session",
           "trait_path": "wow_world_entities :: VehicleSessionHostLikeCpp",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
           "cfg": [],
           "source_class": "production"
         },
@@ -5179,7 +5179,7 @@
           "kind": "method",
           "name": "stats_application_cx_like_cpp",
           "visibility": "pub (super)",
-          "signature": "fn stats_application_cx_like_cpp (& mut self ,) -> wow_world_application :: CharacterStatsApplicationCxLikeCpp < '_ >",
+          "signature": "fn stats_application_cx_like_cpp (& mut self ,) -> wow_world_inventory :: CharacterStatsApplicationCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -18970,7 +18970,7 @@
           "kind": "method",
           "name": "build_bank_slot_flag_handler_cx_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn build_bank_slot_flag_handler_cx_like_cpp (& mut self ,) -> wow_world_application :: BankSlotFlagApplicationCxLikeCpp < '_ >",
+          "signature": "fn build_bank_slot_flag_handler_cx_like_cpp (& mut self ,) -> wow_world_inventory :: BankSlotFlagApplicationCxLikeCpp < '_ >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -44442,19 +44442,6 @@
         },
         {
           "module": "crate::session",
-          "trait_path": "wow_world_application :: BankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
-          "kind": "method",
-          "name": "bank_slot_flag_handler_cx_like_cpp",
-          "visibility": "private",
-          "signature": "fn bank_slot_flag_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_application :: BankSlotFlagApplicationCxLikeCpp < 'a >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "trait_impl"
-          ]
-        },
-        {
-          "module": "crate::session",
           "trait_path": "wow_world_application :: EquipmentSetUseHandlerHostLikeCpp < crate :: session :: SessionHandlerCatalogsLikeCpp , >",
           "kind": "method",
           "name": "equipment_set_use_handler_cx_like_cpp",
@@ -44527,6 +44514,19 @@
           "name": "represented_player_is_same_raid_with_like_cpp",
           "visibility": "private",
           "signature": "fn represented_player_is_same_raid_with_like_cpp (& self , player_guid : wow_core :: ObjectGuid , owner_guid : wow_core :: ObjectGuid ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "trait_impl"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": "wow_world_inventory :: BankHandlerHostLikeCpp < SessionHandlerCatalogsLikeCpp >",
+          "kind": "method",
+          "name": "bank_slot_flag_handler_cx_like_cpp",
+          "visibility": "private",
+          "signature": "fn bank_slot_flag_handler_cx_like_cpp < 'a > (& 'a mut self , _catalogs : & 'a SessionHandlerCatalogsLikeCpp ,) -> wow_world_inventory :: BankSlotFlagApplicationCxLikeCpp < 'a >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -58493,32 +58493,6 @@
         },
         {
           "package": "wow-world-application",
-          "module": "crate::collections_handlers",
-          "source": "crates/wow-world-application/src/collections_handlers.rs",
-          "enclosing": "impl CollectionsHandlerCxLikeCpp::send_mount_special_anim_to_visible_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
-          "module": "crate::collections_handlers",
-          "source": "crates/wow-world-application/src/collections_handlers.rs",
-          "enclosing": "impl CollectionsHandlerCxLikeCpp::send_mount_special_anim_to_visible_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world-application",
           "module": "crate::loot_handlers::master_loot",
           "source": "crates/wow-world-application/src/loot_handlers/master_loot.rs",
           "enclosing": "fn handle_master_loot_item_with_generator_like_cpp",
@@ -61437,6 +61411,32 @@
           "visibility": "pub",
           "cfg": [],
           "fingerprint": "& group_reg",
+          "count": 1
+        },
+        {
+          "package": "wow-world-inventory",
+          "module": "crate::collections_handlers",
+          "source": "crates/wow-world-inventory/src/collections_handlers.rs",
+          "enclosing": "impl CollectionsHandlerCxLikeCpp::send_mount_special_anim_to_visible_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world-inventory",
+          "module": "crate::collections_handlers",
+          "source": "crates/wow-world-inventory/src/collections_handlers.rs",
+          "enclosing": "impl CollectionsHandlerCxLikeCpp::send_mount_special_anim_to_visible_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
           "count": 1
         },
         {

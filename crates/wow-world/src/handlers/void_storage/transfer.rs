@@ -361,7 +361,7 @@ impl WorldSession {
                 if let Some(template) = template.as_ref() {
                     item_object.set_bonding(template.bonding);
                 }
-                let flags = wow_world_application::vendor::vendor_stored_new_item_flags_like_cpp(
+                let flags = wow_world_inventory::vendor::vendor_stored_new_item_flags_like_cpp(
                     template.as_ref(),
                     bag,
                     slot,

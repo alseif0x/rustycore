@@ -203,7 +203,7 @@ impl<'a> LootReleaseCxLikeCpp<'a> {
     }
 
     fn send_stat_update(&mut self) {
-        let mut stats = crate::CharacterStatsApplicationCxLikeCpp::new(
+        let mut stats = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
             self.owner.stats_like_cpp(
                 &mut self.stats_inputs,
                 #[cfg(any(test, feature = "test-fixtures"))]

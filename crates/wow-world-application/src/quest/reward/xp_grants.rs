@@ -442,8 +442,11 @@ impl QuestRewardCx<'_> {
             fixtures.stats.reborrow_like_cpp(),
         );
         let publication = self.player.packet_publication_access_like_cpp();
-        let application =
-            crate::CharacterStatsApplicationCxLikeCpp::new(stats, self.inventory, publication);
+        let application = wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
+            stats,
+            self.inventory,
+            publication,
+        );
         application.level_up_stat_deltas_like_cpp(new_level)
     }
 

@@ -58,7 +58,7 @@ impl crate::session::WorldSession {
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
-        wow_world_application::represented_battle_pet_journal_like_cpp(
+        wow_world_inventory::represented_battle_pet_journal_like_cpp(
             crate::session::hub_ref(self),
             &self.lifecycle,
             cfg!(test),

@@ -717,6 +717,22 @@ def validation_commands(
         "tools/architecture/test_ignored_sources.py",
     } for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_ignored_sources.py"])
+    # #1363 slice A: the wow-world* crate graph stays acyclic and layered. The
+    # check reads Cargo.lock only (no Cargo call). Final only, for a lock or
+    # wow-world* manifest change or a change to the check itself.
+    closure_files = {
+        "tools/architecture/wow_world_closure.py",
+        "tools/architecture/test_wow_world_closure.py",
+    }
+    if profile == "final" and any(
+        path == "Cargo.lock"
+        or (path.startswith("crates/wow-world") and path.endswith("/Cargo.toml"))
+        or path in closure_files
+        for path in all_paths
+    ):
+        add_command(planned, ["python3", "tools/architecture/wow_world_closure.py", "check"])
+    if profile == "final" and any(path in closure_files for path in all_paths):
+        add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_closure.py"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
     text_files = existing(
         sorted(

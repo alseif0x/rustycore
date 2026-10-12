@@ -147,14 +147,14 @@ const BANK_ROOT_EXPORTS: &[&str] = &[
 ];
 const BANK_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
     module: "crate",
-    child: "bank",
+    child: "bank_handlers",
     exports: BANK_ROOT_EXPORTS,
 }];
 
 pub(crate) const BANK_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationBank",
-    package: "wow-world-application",
-    module: "crate::bank",
+    package: "wow-world-inventory",
+    module: "crate::bank_handlers",
     registrar: "register_bank_handlers_like_cpp",
     host_trait: "BankHandlerHostLikeCpp",
     production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
@@ -531,7 +531,7 @@ const COLLECTIONS_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContrac
 
 pub(crate) const COLLECTIONS_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationCollections",
-    package: "wow-world-application",
+    package: "wow-world-inventory",
     module: "crate::collections_handlers",
     registrar: "register_collections_handlers_like_cpp",
     host_trait: "CollectionsHandlerHostLikeCpp",
@@ -783,7 +783,7 @@ const BATTLE_PET_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract
 
 pub(crate) const BATTLE_PET_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationBattlePet",
-    package: "wow-world-application",
+    package: "wow-world-inventory",
     module: "crate::battle_pet_handlers",
     registrar: "register_battle_pet_handlers_like_cpp",
     host_trait: "BattlePetHandlerHostLikeCpp",

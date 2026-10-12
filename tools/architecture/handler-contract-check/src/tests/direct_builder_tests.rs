@@ -14,11 +14,12 @@ const INVENTORY_PACKAGE: &str = "wow-world-inventory";
 
 #[test]
 fn direct_bank_registrar_requires_exact_owner_host_and_unaliased_entry() {
-    const SOURCE: &str = include_str!("../../../../../crates/wow-world-application/src/bank.rs");
+    const SOURCE: &str =
+        include_str!("../../../../../crates/wow-world-inventory/src/bank_handlers.rs");
     let report = analyze_owner_source_with_contracts(
         BANK_REGISTRAR.package,
         BANK_REGISTRAR.module,
-        Path::new("bank.rs"),
+        Path::new("bank_handlers.rs"),
         SOURCE,
         DIRECT_REGISTRAR_CONTRACTS,
     )
@@ -28,7 +29,7 @@ fn direct_bank_registrar_requires_exact_owner_host_and_unaliased_entry() {
     assert_eq!(report.contract, Some(BANK_REGISTRAR));
     for (module, source, contracts) in [
         (
-            "crate::bank::other",
+            "crate::bank_handlers::other",
             SOURCE.to_owned(),
             DIRECT_REGISTRAR_CONTRACTS,
         ),
@@ -57,7 +58,7 @@ fn direct_bank_registrar_requires_exact_owner_host_and_unaliased_entry() {
             analyze_owner_source_with_contracts(
                 BANK_REGISTRAR.package,
                 module,
-                Path::new("bank.rs"),
+                Path::new("bank_handlers.rs"),
                 &source,
                 contracts,
             )

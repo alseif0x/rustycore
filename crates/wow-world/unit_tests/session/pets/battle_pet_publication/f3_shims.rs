@@ -40,7 +40,7 @@ impl crate::session::WorldSession {
     }
     pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
         let (lifecycle, hub) = crate::session::split_battle_pet_handler_mut(self);
-        wow_world_application::BattlePetHandlerCxLikeCpp::new(hub, lifecycle, cfg!(test))
+        wow_world_inventory::BattlePetHandlerCxLikeCpp::new(hub, lifecycle, cfg!(test))
             .battle_pet_update_notify_like_cpp(pet_guid)
     }
 }

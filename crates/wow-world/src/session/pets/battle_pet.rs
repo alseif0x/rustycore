@@ -767,7 +767,7 @@ impl crate::session::PetsCxRef<'_> {
         &self,
         pet_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        wow_world_application::represented_battle_pet_like_cpp(
+        wow_world_inventory::represented_battle_pet_like_cpp(
             self.hub,
             self.lifecycle,
             cfg!(test),

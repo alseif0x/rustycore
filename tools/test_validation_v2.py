@@ -697,6 +697,25 @@ def test_planner_contract(repo: Path) -> None:
         suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
         suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
         assert ignored_suite in suite_final and ignored_suite not in suite_quick, changed
+    # wow-world closure (#1363 slice A): final plans the lock-only check for a
+    # Cargo.lock or wow-world* manifest change and for the check itself; quick
+    # never does; its suite follows its own files.
+    closure_check = ["python3", "tools/architecture/wow_world_closure.py", "check"]
+    closure_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_wow_world_closure.py"]
+    assert closure_check not in final
+    for changed in ("Cargo.lock", "crates/wow-world/Cargo.toml", "crates/wow-world-inventory/Cargo.toml"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert closure_check in planned and closure_check not in quick_planned, changed
+        assert closure_suite not in planned, changed
+    for changed in ("crates/wow-world/src/lib.rs", "crates/wow-map/Cargo.toml", "docs/state.md"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert closure_check not in planned, changed
+    for changed in ("tools/architecture/wow_world_closure.py", "tools/architecture/test_wow_world_closure.py"):
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert closure_suite in suite_final and closure_check in suite_final, changed
+        assert closure_suite not in suite_quick and closure_check not in suite_quick, changed
     # The F3-4 situation: a committed mount whose shim a `skills/` rule hides fails the check.
     spec = importlib.util.spec_from_file_location(
         "ignored_sources", Path(__file__).resolve().parent / "architecture/ignored_sources.py")

@@ -155,6 +155,15 @@ each path with its `git check-ignore -v` rule. Fix it by moving the file to a pa
 (the F3 codemod does this for its shims), not by force-adding it. Quick does not plan it; run it
 manually with `python3 tools/architecture/ignored_sources.py check`.
 
+A `final` run whose diff touches `Cargo.lock` or a `crates/wow-world*/Cargo.toml` also plans the
+wow-world closure check (#1363 slice A): over the `wow-world*` packages of `Cargo.lock`, no
+package may reach itself, no domain crate may reach `wow-world-application` or `wow-world`, and
+inventory, spell, entities and loot may never reach social or instances. It reads only the lock
+file. Before moving code, simulate the planned edges with
+`python3 tools/architecture/wow_world_closure.py check --add 'wow-world-inventory->wow-world-lifecycle'`
+(repeatable; quote the arrow); `--source metadata` reads `cargo metadata` normal/build edges
+instead. Changing the check plans its self-test `tools/architecture/test_wow_world_closure.py`.
+
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone

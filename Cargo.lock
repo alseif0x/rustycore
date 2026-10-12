@@ -3655,7 +3655,9 @@ dependencies = [
  "wow-persistence",
  "wow-progression",
  "wow-world-core",
+ "wow-world-interaction",
  "wow-world-inventory",
+ "wow-world-lifecycle",
 ]
 
 [[package]]

@@ -222,7 +222,9 @@
       "wow-packet",
       "wow-persistence",
       "wow-progression",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-interaction",
+      "wow-world-lifecycle"
     ],
     "wow-world-lifecycle": [
       "wow-constants",

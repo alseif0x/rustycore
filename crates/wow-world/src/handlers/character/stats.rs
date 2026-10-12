@@ -21,9 +21,9 @@ use crate::session::hub_support::{
 impl WorldSession {
     pub(super) fn stats_application_cx_like_cpp(
         &mut self,
-    ) -> wow_world_application::CharacterStatsApplicationCxLikeCpp<'_> {
+    ) -> wow_world_inventory::CharacterStatsApplicationCxLikeCpp<'_> {
         let (inventory, hub) = crate::session::split_inventory_mut(self);
-        wow_world_application::stats_application_cx_from_hub_like_cpp(hub, inventory)
+        wow_world_inventory::stats_application_cx_from_hub_like_cpp(hub, inventory)
     }
 
     /// C++ `Player::Create` -> `InitStatsForLevel`/`UpdateMaxHealth`: the

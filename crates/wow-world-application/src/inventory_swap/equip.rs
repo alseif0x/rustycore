@@ -297,7 +297,7 @@ impl<'a> InventoryEquipCxLikeCpp<'a> {
             );
     }
     fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
-        if crate::stats::CharacterStatsApplicationCxLikeCpp::new(
+        if wow_world_inventory::CharacterStatsApplicationCxLikeCpp::new(
             self.stats.reborrow_like_cpp(),
             self.inventory,
             self.publication.reborrow_like_cpp(),
