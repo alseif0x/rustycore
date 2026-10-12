@@ -103,14 +103,13 @@ use wow_conditions::{
     QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
 };
 
-fn quest_giver_creature_id_from_source_like_cpp(source_guid: ObjectGuid) -> i32 {
-    wow_world_application::quest_giver_creature_id_from_source_like_cpp(source_guid)
-}
+use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
 
 pub(crate) const QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP: u32 = 0x0001_0000;
 #[cfg(test)]
 pub(crate) use wow_constants::quest::QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
 pub(crate) const QUEST_FLAGS_SHARABLE_LIKE_CPP: u32 = 0x0000_0008;
+#[cfg(test)]
 const QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP: u32 = 0x0000_0400;
 pub(crate) use wow_constants::quest::{
     QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,

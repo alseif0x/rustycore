@@ -51,25 +51,6 @@ impl WorldSession {
         .is_some()
     }
 
-    /// C++ `Player::CompleteQuest` moving one incomplete quest to complete and
-    /// reporting the status it replaced.
-    pub(crate) fn complete_represented_quest_status_like_cpp(
-        &mut self,
-        quest_id: u32,
-        incomplete_status: u8,
-        complete_status: u8,
-    ) -> Option<u8> {
-        self.mutate_player_quest_gameplay_like_cpp(|state| {
-            let status = state.status_mut_like_cpp(quest_id)?;
-            (status.status == incomplete_status).then(|| {
-                let old_status = status.status;
-                status.status = complete_status;
-                old_status
-            })
-        })
-        .flatten()
-    }
-
     /// Mark one quest explored, reporting whether the record existed and
     /// whether the client must be told.
     pub(crate) fn mark_represented_quest_explored_like_cpp(

@@ -119,12 +119,14 @@ impl WorldSession {
         gameobject_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_GAMEOBJECT.
-        self.update_represented_storing_value_quest_objective_progress_like_cpp(
+        self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            2,
-            gameobject_entry as i32,
-            1,
-            gameobject_guid,
+            crate::session::QuestObjectiveOperationLikeCpp::StoringValue {
+                objective_type: 2,
+                object_id: gameobject_entry as i32,
+                add_count: 1,
+                credit_guid: gameobject_guid,
+            },
         )
         .await;
     }

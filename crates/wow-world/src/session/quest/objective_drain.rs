@@ -167,17 +167,57 @@ pub(crate) fn quest_reward_fixture_refs_like_cpp<'a>(
     }
 }
 
+/// One operation of the App quest-objective owner
+/// (`wow-world-application/src/quest/objectives.rs`): C++
+/// `Player::UpdateQuestObjectiveProgress` and `Player::CompleteQuest`. The
+/// World shell only lends the selected owners; it keeps no copy of either body.
+pub(crate) enum QuestObjectiveOperationLikeCpp<'q> {
+    /// Recorded money/currency/reputation events, in order.
+    Drain,
+    /// Storing-value objectives (kill, talk-to, gameobject, player kill).
+    StoringValue {
+        objective_type: u8,
+        object_id: i32,
+        add_count: i32,
+        credit_guid: ObjectGuid,
+    },
+    /// Storing-flag objectives (criteria tree).
+    #[cfg(test)]
+    StoringFlag {
+        objective_type: u8,
+        object_id: i32,
+        add_count: i32,
+    },
+    /// Completion of a quest whose objectives are met, ignoring one objective.
+    Complete {
+        quest: &'q wow_data::quest::QuestTemplate,
+        ignored_objective_id: u32,
+    },
+}
+
 impl WorldSession {
     /// C++ `Player::MoneyChanged` / `CurrencyChanged` / `ReputationChanged` →
     /// `UpdateQuestObjectiveProgress` (`Player.cpp:16162`–`:16176`), drained in
     /// recorded order by the App owner
     /// `QuestObjectiveProgressCx::drain_represented_quest_objective_progress_like_cpp`,
     /// whose completions run the `SendQuestUpdate` visibility refresh themselves.
-    /// This adapter only lends the selected owners.
     pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
+        self.quest_objective_operation_like_cpp(
+            item_guid_generator,
+            QuestObjectiveOperationLikeCpp::Drain,
+        )
+        .await;
+    }
+
+    /// Run one App quest-objective operation; only `Complete` reports a result.
+    pub(crate) async fn quest_objective_operation_like_cpp(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
+        operation: QuestObjectiveOperationLikeCpp<'_>,
+    ) -> bool {
         #[cfg(any(test, feature = "test-fixtures"))]
         let mut fixtures = quest_reward_fixture_refs_like_cpp(
             &mut self.fixtures,
@@ -231,8 +271,55 @@ impl WorldSession {
                 fixtures.vehicle_and_pet.3,
             ),
         );
-        progress
-            .drain_represented_quest_objective_progress_like_cpp()
-            .await;
+        match operation {
+            QuestObjectiveOperationLikeCpp::Drain => {
+                progress
+                    .drain_represented_quest_objective_progress_like_cpp()
+                    .await;
+                true
+            }
+            QuestObjectiveOperationLikeCpp::StoringValue {
+                objective_type,
+                object_id,
+                add_count,
+                credit_guid,
+            } => {
+                progress
+                    .update_storing_value_quest_objective_progress_like_cpp(
+                        objective_type,
+                        object_id,
+                        add_count,
+                        credit_guid,
+                    )
+                    .await;
+                true
+            }
+            #[cfg(test)]
+            QuestObjectiveOperationLikeCpp::StoringFlag {
+                objective_type,
+                object_id,
+                add_count,
+            } => {
+                progress
+                    .update_storing_flag_quest_objective_progress_like_cpp(
+                        objective_type,
+                        object_id,
+                        add_count,
+                    )
+                    .await;
+                true
+            }
+            QuestObjectiveOperationLikeCpp::Complete {
+                quest,
+                ignored_objective_id,
+            } => {
+                progress
+                    .complete_represented_quest_after_objective_like_cpp(
+                        quest,
+                        ignored_objective_id,
+                    )
+                    .await
+            }
+        }
     }
 }

@@ -43,12 +43,14 @@ impl WorldSession {
         creature_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_TALKTO.
-        self.update_represented_storing_value_quest_objective_progress_like_cpp(
+        self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            3,
-            creature_entry as i32,
-            1,
-            creature_guid,
+            crate::session::QuestObjectiveOperationLikeCpp::StoringValue {
+                objective_type: 3,
+                object_id: creature_entry as i32,
+                add_count: 1,
+                credit_guid: creature_guid,
+            },
         )
         .await;
     }

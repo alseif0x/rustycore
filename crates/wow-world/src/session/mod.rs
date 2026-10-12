@@ -87,6 +87,7 @@ mod player_items;
 mod progression;
 mod publication;
 mod quest;
+pub(crate) use quest::QuestObjectiveOperationLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest::quest_reward_fixture_refs_like_cpp;
 pub mod registry;
@@ -469,12 +470,13 @@ pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
 pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
 use quest_dialog::active_state_from_db_like_cpp;
+use quest_dialog::react_state_from_db_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
-use quest_dialog::{quest_giver_creature_id_from_source_like_cpp, react_state_from_db_like_cpp};
 use quest_dialog::{quest_has_represented_item_objective_like_cpp, quest_rewards_block_like_cpp};
+use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
 mod quest_interaction;
 mod raid_profile_values;
 use raid_profile_values::player_cuf_profile_from_packet_like_cpp;
@@ -491,7 +493,7 @@ pub(crate) use social_requests::RepresentedSignPetitionLikeCpp;
 pub(crate) use social_requests::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(test)]
 pub(crate) use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
-use social_requests::party_member_power_kind_from_u8_like_cpp;
+use wow_world_core::session::power_type_from_u8_like_cpp as party_member_power_kind_from_u8_like_cpp;
 mod spell_click_values;
 use spell_click_values::NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP;
 use spell_click_values::NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP;
@@ -810,6 +812,7 @@ const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 #[cfg(test)]
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
+#[cfg(test)]
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 #[cfg(test)]
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
