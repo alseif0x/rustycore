@@ -1,6 +1,5 @@
-//! #1363 slice 2 / #1359: a focal drain through the App quest-objective owner,
-//! the only implementation of C++ `Player::UpdateQuestObjectiveProgress`
-//! (`Player.cpp:16162`–`:16176`): recorded events apply in order.
+//! #1363 slice 2 / #1359: focal drain through the App owner of C++
+//! `Player::UpdateQuestObjectiveProgress` (`Player.cpp:16181`): events apply in order.
 
 use super::*;
 
@@ -61,7 +60,8 @@ async fn app_owner_drain_applies_reputation_then_currency_in_recorded_order_like
     let incomplete = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
     assert_eq!(progress(13_632), Some((incomplete, 30)));
     assert_eq!(progress(13_631), Some((incomplete, 40)));
-    let credited = drain_server_packet_bytes(&send_rx).iter().map(|bytes| {
+    let packets = drain_server_packet_bytes(&send_rx);
+    let credited = packets.iter().map(|bytes| {
         let mut packet = WorldPacket::from_bytes(bytes);
         let opcode = packet.read_uint16().unwrap();
         assert_eq!(opcode, ServerOpcodes::QuestUpdateAddCredit as u16);
