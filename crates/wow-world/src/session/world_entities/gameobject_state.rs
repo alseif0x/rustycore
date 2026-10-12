@@ -19,22 +19,6 @@ impl WorldSession {
             &mut hub, map_id, guid, entry, position, go_type,
         )
     }
-    pub(in crate::session) fn represented_gameobject_go_state_for_viewer_like_cpp(
-        &self,
-        state: &RepresentedGameObjectUseState,
-        now: Instant,
-    ) -> wow_entities::GoState {
-        if state.per_player_state_player_guid == self.player_guid()
-            && state
-                .per_player_go_state_until
-                .is_none_or(|until| until > now)
-            && let Some(per_player_go_state) = state.per_player_go_state
-        {
-            return per_player_go_state;
-        }
-
-        state.go_state.unwrap_or(wow_entities::GoState::Ready)
-    }
     pub(in crate::session) fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,

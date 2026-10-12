@@ -69,32 +69,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn bank_interaction_access_like_cpp(
-        &self,
-    ) -> wow_world_core::session::NpcInteractionAccessLikeCpp<'_> {
-        self.core
-            .npc_interaction_access_with_selected_refs_like_cpp(
-                self.catalogs.factions.store.as_deref(),
-                self.catalogs.factions.template_store.as_deref(),
-                self.catalogs.friendship_rep_reaction_store.as_deref(),
-                #[cfg(any(test, feature = "test-fixtures"))]
-                wow_world_core::session::NpcInteractionFixtureRefsLikeCpp::new(
-                    &self.fixtures.movement.player_position,
-                    &self.fixtures.identity.player_faction_template_like_cpp,
-                    &self.fixtures.identity.player_race,
-                    &self.fixtures.identity.player_class,
-                    &self.fixtures.combat.player_health_like_cpp,
-                    &self.fixtures.combat.player_max_health_like_cpp,
-                    &self.fixtures.combat.player_alive_like_cpp,
-                    &self.fixtures.progression.reputation_state_like_cpp,
-                    &self.fixtures.vehicles.taxi_destinations_like_cpp,
-                    &self.fixtures.vehicles.taxi_flight_state_like_cpp,
-                    &self.fixtures.vehicles.taxi_unit_flags_like_cpp,
-                    &self.fixtures.vehicles.taxi_mounted_like_cpp,
-                ),
-            )
-    }
-
     pub(crate) fn build_item_enchantment_handler_cx_like_cpp(
         &mut self,
     ) -> wow_world_inventory::ItemEnchantmentApplicationCxLikeCpp<'_> {

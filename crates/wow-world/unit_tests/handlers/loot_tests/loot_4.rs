@@ -831,6 +831,7 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
         .loot
         .insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     owner_session
+        .loot_release_cx_like_cpp()
         .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
         .expect("the fixture loot must be installed into the object-owned authority");
     let installed = expect_found_like_cpp(

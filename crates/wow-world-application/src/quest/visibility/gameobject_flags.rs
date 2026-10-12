@@ -25,7 +25,7 @@ use crate::quest::represented_gameobject_loot_ids_have_quest_loot_for_player_lik
 use super::super::objectives::QuestObjectiveProgressCx;
 
 /// Resolve per-player state with the original viewer identity and expiry checks.
-pub(crate) fn represented_gameobject_go_state_for_viewer_like_cpp(
+pub fn represented_gameobject_go_state_for_viewer_like_cpp(
     state: &RepresentedGameObjectUseState,
     player_guid: Option<ObjectGuid>,
     now: Instant,

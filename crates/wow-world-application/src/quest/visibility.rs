@@ -16,10 +16,10 @@ pub use self::refresh::{
     update_visible_gameobjects_or_spell_clicks_like_cpp, update_visible_spell_clicks_like_cpp,
 };
 
-pub(crate) use self::gameobject_flags::represented_gameobject_go_state_for_viewer_like_cpp;
 pub use self::gameobject_flags::{
     represented_gameobject_activate_to_quest_like_cpp,
     represented_gameobject_dynamic_flags_for_player_like_cpp,
+    represented_gameobject_go_state_for_viewer_like_cpp,
     represented_meets_player_condition_id_like_cpp,
 };
 

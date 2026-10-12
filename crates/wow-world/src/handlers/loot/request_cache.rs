@@ -56,9 +56,11 @@ impl WorldSession {
     ) {
         if owner_guid.is_game_object() {
             let _ = self
+                .loot_release_cx_like_cpp()
                 .sync_represented_gameobject_loot_to_canonical_like_cpp(owner_guid, player_guid);
         } else if owner_guid.is_creature_or_vehicle()
             && self
+                .loot_release_cx_like_cpp()
                 .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
                 .is_none()
         {

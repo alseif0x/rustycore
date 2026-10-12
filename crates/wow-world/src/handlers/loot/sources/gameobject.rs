@@ -288,6 +288,7 @@ impl WorldSession {
         }
 
         if self
+            .loot_release_cx_like_cpp()
             .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
             .is_none()
         {

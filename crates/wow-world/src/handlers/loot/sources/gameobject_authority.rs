@@ -1,55 +1,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::handlers::loot) fn sync_represented_gameobject_loot_to_canonical_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> Option<()> {
-        let authority =
-            match self.represented_owned_loot_authority_outcome_like_cpp(gameobject_guid) {
-                OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
-                // F6-7 R2: an unreadable designated owner abandons the attempt; it
-                // neither reconstructs from the session cache nor disposes it.
-                OwnedLootAuthorityLookupOutcomeLikeCpp::Unavailable => return None,
-                OwnedLootAuthorityLookupOutcomeLikeCpp::Absent => {
-                    return (represented_local_loot_fixture_allowed_like_cpp()
-                        && self
-                            .loot
-                            .cached_loot_contains_owner_like_cpp(gameobject_guid))
-                    .then_some(());
-                }
-            };
-        let loot = self
-            .loot
-            .cached_loot_for_owner_like_cpp(gameobject_guid)?
-            .clone();
-        let is_personal = self.loot.is_personal_loot_owner_like_cpp(gameobject_guid);
-        let (shared, personal) = self.represented_loot_authority_pools_like_cpp(
-            gameobject_guid,
-            player_guid,
-            loot,
-            is_personal,
-        )?;
-        let installed = authority
-            .initialize_pristine_like_cpp(shared, personal)
-            .installed();
-        if !installed
-            && authority
-                .snapshot_for_player_like_cpp(player_guid)
-                .is_none()
-        {
-            self.loot
-                .remove_cached_loot_for_owner_like_cpp(gameobject_guid);
-            self.loot
-                .remove_cached_loot_generation_like_cpp(gameobject_guid);
-            return None;
-        }
-        self.refresh_owned_loot_summary_like_cpp(gameobject_guid);
-        let _ = self.reconcile_represented_loot_cache_like_cpp(gameobject_guid, player_guid);
-        Some(())
-    }
-
     pub(in crate::handlers::loot) fn upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
