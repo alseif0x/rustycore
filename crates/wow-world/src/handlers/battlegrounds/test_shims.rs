@@ -4,11 +4,11 @@
 
 //! Test-only entry points for the arena-team handlers moved to
 //! `wow-world-social` and the battleground handlers moved to
-//! `wow-world-application` (#1263 F5).
+//! `wow-world-instances` (#1263 F5; #1363 slice A2).
 
 use wow_constants::ClientOpcodes;
 use wow_packet::WorldPacket;
-use wow_world_application::BattlegroundHandlerCxLikeCpp;
+use wow_world_instances::BattlegroundHandlerCxLikeCpp;
 use wow_world_social::ArenaTeamHandlerCxLikeCpp;
 
 use crate::session::WorldSession;

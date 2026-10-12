@@ -4,7 +4,7 @@
 
 //! World-side construction of the battleground/PvP handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The instances crate owns the handlers and their context; the session only
 //! lends its hub, so no session reference crosses into the handler.
 //!
 //! `#1263 F5 remaining families`: the host also lends `CMSG_BATTLEMASTER_JOIN_SKIRMISH`
@@ -13,7 +13,7 @@
 
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_application::{BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp};
+use wow_world_instances::{BattlegroundHandlerCxLikeCpp, BattlegroundHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

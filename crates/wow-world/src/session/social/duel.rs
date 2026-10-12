@@ -8,7 +8,7 @@ use super::*;
 impl WorldSession {
     pub(crate) fn set_represented_duel_arbiter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         let (state, mut hub) = crate::session::split_social_mut(self);
-        wow_world_application::set_represented_duel_arbiter_guid_like_cpp(&mut hub, state, guid);
+        wow_world_social::set_represented_duel_arbiter_guid_like_cpp(&mut hub, state, guid);
     }
     fn set_represented_duel_state_like_cpp(
         &mut self,
@@ -17,7 +17,7 @@ impl WorldSession {
         state: wow_entities::PlayerDuelStateLikeCpp,
     ) {
         let mut hub = crate::session::hub_mut(self);
-        wow_world_application::set_represented_duel_state_like_cpp(
+        wow_world_social::set_represented_duel_state_like_cpp(
             &mut hub,
             player_guid,
             opponent_guid,

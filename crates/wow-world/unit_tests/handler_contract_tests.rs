@@ -1504,7 +1504,7 @@ fn pvp_skirmish_and_wargame_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "pvp skirmish/wargame",
         |builder| {
-            wow_world_application::register_battleground_handlers_like_cpp::<
+            wow_world_instances::register_battleground_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1680,7 +1680,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "battleground",
-            wow_world_application::register_battleground_handlers_like_cpp::<
+            wow_world_instances::register_battleground_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

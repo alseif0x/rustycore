@@ -2,12 +2,12 @@
 //!
 //! Moved out of the Session root under #615 and reduced to the Session-side
 //! adapter under #1263 F5: the trade bodies and their canonical/represented
-//! transitions now live in `wow-world-application::trade_handlers`, and this
+//! transitions now live in `wow-world-social::trade_handlers`, and this
 //! module only builds the borrowed context for the World callers that still
 //! need it.
 
 use super::*;
-use wow_world_application::TradeHandlerCxLikeCpp;
+use wow_world_social::TradeHandlerCxLikeCpp;
 
 impl WorldSession {
     fn trade_handler_cx_like_cpp(&mut self) -> TradeHandlerCxLikeCpp<'_> {
@@ -18,7 +18,7 @@ impl WorldSession {
     pub(in crate::session) fn player_trade_state_snapshot_like_cpp(
         &self,
     ) -> Option<Option<wow_entities::PlayerTradeStateLikeCpp>> {
-        wow_world_application::player_trade_state_snapshot_like_cpp(&self.core, &self.social)
+        wow_world_social::player_trade_state_snapshot_like_cpp(&self.core, &self.social)
     }
 
     pub(crate) fn resolved_represented_active_trade_partner_like_cpp(

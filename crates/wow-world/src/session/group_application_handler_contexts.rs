@@ -4,10 +4,10 @@
 
 //! World-side construction of the cross-domain group handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The instances crate owns the handlers and their context; the session only
 //! splits its social and lifecycle state from the hub.
 
-use wow_world_application::{
+use wow_world_instances::{
     GroupHandlerCxLikeCpp, GroupHandlerHostLikeCpp, GroupPublicationTailLikeCpp,
 };
 

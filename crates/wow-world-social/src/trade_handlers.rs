@@ -13,6 +13,7 @@
 //! F5). The spell-trade body, the duel handlers and the petition handlers stay
 //! in the World shell while they need its spell store and pet state.
 
+use crate::SessionSocialLimits;
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_core::ObjectGuid;
@@ -39,7 +40,6 @@ use wow_world_core::session::mailbox::{
 };
 use wow_world_core::session::{HubMut, SessionCore};
 use wow_world_inventory::InventoryState;
-use wow_world_social::SessionSocialLimits;
 use wow_world_spell::SessionSpellState;
 
 /// Reads the canonical trade snapshot, falling back to the represented fixture
@@ -816,7 +816,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         self.social
             .record_represented_sign_petition_for_test_like_cpp(
-                wow_world_social::RepresentedSignPetitionLikeCpp {
+                crate::RepresentedSignPetitionLikeCpp {
                     petition_guid: packet.petition_guid,
                     choice: packet.choice,
                 },
@@ -841,7 +841,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         self.social
             .record_represented_decline_petition_for_test_like_cpp(
-                wow_world_social::RepresentedDeclinePetitionLikeCpp {
+                crate::RepresentedDeclinePetitionLikeCpp {
                     petition_guid: packet.petition_guid,
                 },
             );
@@ -865,7 +865,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         self.social
             .record_represented_query_petition_for_test_like_cpp(
-                wow_world_social::RepresentedQueryPetitionLikeCpp {
+                crate::RepresentedQueryPetitionLikeCpp {
                     petition_id: packet.petition_id,
                     item_guid: packet.item_guid,
                 },
@@ -977,7 +977,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
         #[cfg(any(test, feature = "test-fixtures"))]
         self.social
             .record_represented_duel_accept_for_test_like_cpp(
-                wow_world_social::RepresentedDuelAcceptedLikeCpp {
+                crate::RepresentedDuelAcceptedLikeCpp {
                     opponent_guid,
                     arbiter_guid,
                     countdown_ms: duel_countdown_ms_like_cpp(),
@@ -989,7 +989,7 @@ impl<'a> TradeHandlerCxLikeCpp<'a> {
 
 /// C++ `DUEL_COUNTDOWN` before `SMSG_DUEL_COUNTDOWN`.
 fn duel_countdown_ms_like_cpp() -> u32 {
-    wow_world_social::DUEL_COUNTDOWN_MS_LIKE_CPP
+    crate::DUEL_COUNTDOWN_MS_LIKE_CPP
 }
 
 /// Builds a trade handler context from a host's social and inventory state.

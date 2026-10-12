@@ -22,6 +22,7 @@
 //! orchestration, and the host lends them. Hearth-and-resurrect also stays in
 //! the World shell.
 
+use crate::InstanceState;
 use tracing::debug;
 use tracing::warn;
 use wow_constants::ClientOpcodes;
@@ -43,7 +44,6 @@ use wow_world_core::session::{
     RepresentedBattlegroundQueueTypeIdLikeCpp,
 };
 use wow_world_entities::WorldEntitiesState;
-use wow_world_instances::InstanceState;
 use wow_world_social::SessionSocialLimits;
 
 /// C++ `PLAYER_FLAGS_PVP_TIMER` (private in `wow-entities`).

@@ -151,8 +151,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             REPUTATION_REGISTRAR.package,
             REPUTATION_REGISTRAR.module,
-            "crates/wow-world-application/src/reputation.rs",
-            include_str!("../../../../../crates/wow-world-application/src/reputation.rs"),
+            "crates/wow-world-social/src/reputation.rs",
+            include_str!("../../../../../crates/wow-world-social/src/reputation.rs"),
         ),
         mount(
             CLIENT_STATE_REGISTRAR.package,
@@ -183,8 +183,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             TRADE_REGISTRAR.package,
             TRADE_REGISTRAR.module,
-            "crates/wow-world-application/src/trade_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/trade_handlers.rs"),
+            "crates/wow-world-social/src/trade_handlers.rs",
+            include_str!("../../../../../crates/wow-world-social/src/trade_handlers.rs"),
         ),
         mount(
             SPELL_REGISTRAR.package,
@@ -201,8 +201,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             GUILD_BANK_REGISTRAR.package,
             GUILD_BANK_REGISTRAR.module,
-            "crates/wow-world-application/src/guild_bank_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/guild_bank_handlers.rs"),
+            "crates/wow-world-social/src/guild_bank_handlers.rs",
+            include_str!("../../../../../crates/wow-world-social/src/guild_bank_handlers.rs"),
         ),
         mount(
             LOOT_REGISTRAR.package,
@@ -297,10 +297,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             BATTLEGROUND_REGISTRAR.package,
             BATTLEGROUND_REGISTRAR.module,
-            "crates/wow-world-application/src/battleground_handlers.rs",
-            include_str!(
-                "../../../../../crates/wow-world-application/src/battleground_handlers.rs"
-            ),
+            "crates/wow-world-instances/src/battleground_handlers.rs",
+            include_str!("../../../../../crates/wow-world-instances/src/battleground_handlers.rs"),
         ),
         mount(
             TRAVEL_REGISTRAR.package,
@@ -341,8 +339,8 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             APPLICATION_GROUP_REGISTRAR.package,
             APPLICATION_GROUP_REGISTRAR.module,
-            "crates/wow-world-application/src/group_handlers.rs",
-            include_str!("../../../../../crates/wow-world-application/src/group_handlers.rs"),
+            "crates/wow-world-instances/src/group_handlers.rs",
+            include_str!("../../../../../crates/wow-world-instances/src/group_handlers.rs"),
         ),
         mount(
             SOCIAL_GROUP_REGISTRAR.package,

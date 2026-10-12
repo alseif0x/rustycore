@@ -4,11 +4,11 @@
 
 //! World-side construction of the trade handler context (#1263 F5).
 //!
-//! The application crate owns the bodies and their context; the session only
+//! The social crate owns the bodies and their context; the session only
 //! lends its hub, social state and inventory state, so no session reference
 //! crosses into the handler.
 
-use wow_world_application::{TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp};
+use wow_world_social::{TradeHandlerCxLikeCpp, TradeHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

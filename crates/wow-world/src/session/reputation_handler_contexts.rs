@@ -4,11 +4,11 @@
 
 //! World-side construction of the reputation handler context (#1263 F5).
 //!
-//! The application crate owns the handlers and their context; the session only
+//! The social crate owns the handlers and their context; the session only
 //! splits the hub from the faction catalogs so both disjoint borrows reach the
 //! context and no session reference crosses into the handler.
 
-use wow_world_application::{ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp};
+use wow_world_social::{ReputationHandlerCxLikeCpp, ReputationHandlerHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 

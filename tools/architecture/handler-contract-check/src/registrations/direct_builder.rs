@@ -216,7 +216,7 @@ const REPUTATION_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract
 
 pub(crate) const REPUTATION_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationReputation",
-    package: "wow-world-application",
+    package: "wow-world-social",
     module: "crate::reputation",
     registrar: "register_reputation_handlers_like_cpp",
     host_trait: "ReputationHandlerHostLikeCpp",
@@ -426,7 +426,7 @@ const APPLICATION_GROUP_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeC
 
 pub(crate) const APPLICATION_GROUP_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationGroup",
-    package: "wow-world-application",
+    package: "wow-world-instances",
     module: "crate::group_handlers",
     registrar: "register_group_handlers_like_cpp",
     host_trait: "GroupHandlerHostLikeCpp",
@@ -573,7 +573,7 @@ const BATTLEGROUND_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContra
 
 pub(crate) const BATTLEGROUND_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationBattleground",
-    package: "wow-world-application",
+    package: "wow-world-instances",
     module: "crate::battleground_handlers",
     registrar: "register_battleground_handlers_like_cpp",
     host_trait: "BattlegroundHandlerHostLikeCpp",
@@ -699,7 +699,7 @@ const TRADE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
 
 pub(crate) const TRADE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationTrade",
-    package: "wow-world-application",
+    package: "wow-world-social",
     module: "crate::trade_handlers",
     registrar: "register_trade_handlers_like_cpp",
     host_trait: "TradeHandlerHostLikeCpp",
@@ -741,7 +741,7 @@ const GUILD_BANK_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract
 
 pub(crate) const GUILD_BANK_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationGuildBank",
-    package: "wow-world-application",
+    package: "wow-world-social",
     module: "crate::guild_bank_handlers",
     registrar: "register_guild_bank_handlers_like_cpp",
     host_trait: "GuildBankHandlerHostLikeCpp",

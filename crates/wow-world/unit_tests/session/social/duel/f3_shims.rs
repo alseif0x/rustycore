@@ -22,6 +22,6 @@ impl WorldSession {
         &self,
     ) -> Option<Option<ObjectGuid>> {
         let (state, hub) = crate::session::split_social_ref(self);
-        wow_world_application::resolved_represented_duel_arbiter_guid_like_cpp(hub, state)
+        wow_world_social::resolved_represented_duel_arbiter_guid_like_cpp(hub, state)
     }
 }

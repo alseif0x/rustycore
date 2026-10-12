@@ -20,10 +20,10 @@ use crate::session::WorldSession;
 fn group_test_cx_like_cpp<'a>(
     session: &'a mut WorldSession,
     policy: &'a crate::session::GroupInvitePolicyLikeCpp,
-) -> wow_world_application::GroupHandlerCxLikeCpp<'a> {
+) -> wow_world_instances::GroupHandlerCxLikeCpp<'a> {
     let (social, lifecycle, loot, instances, hub) =
         crate::session::split_group_handler_states_mut(session);
-    wow_world_application::GroupHandlerCxLikeCpp::new(
+    wow_world_instances::GroupHandlerCxLikeCpp::new(
         social,
         lifecycle,
         loot,
