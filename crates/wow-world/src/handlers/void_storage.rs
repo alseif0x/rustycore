@@ -105,22 +105,6 @@ enum PlannedVoidDestinationTargetLikeCpp {
     Planned(usize),
 }
 
-fn void_withdrawal_initial_item_flags_like_cpp(
-    template: Option<&wow_entities::ItemStorageTemplate>,
-    bag: u8,
-    slot: u8,
-) -> u32 {
-    let mut item = wow_entities::Item::new(0);
-    if let Some(template) = template {
-        item.set_bonding(template.bonding);
-    }
-    item.set_item_flag(ItemFieldFlags::NEW_ITEM);
-    item.bind_if_stored(wow_entities::is_bag_pos(wow_entities::make_item_pos(
-        bag, slot,
-    )));
-    item.item_flags_bits()
-}
-
 fn void_withdrawal_item_create_data_like_cpp(
     item: &wow_entities::Item,
     create_dynamic_flags: u32,

@@ -8,41 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    fn complete_represented_quest_like_cpp(
-        &mut self,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        self.invalidate_player_quest_status_authority_like_cpp();
-        let Some(old_status) = self.complete_represented_quest_status_like_cpp(
-            quest.id,
-            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            QUEST_STATUS_COMPLETE_LIKE_CPP,
-        ) else {
-            return false;
-        };
-        self.quest_state
-            .record_represented_quest_complete_status_update_like_cpp(
-                RepresentedQuestCompleteStatusUpdateLikeCpp {
-                    quest_id: quest.id,
-                    old_status,
-                    new_status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-                    send_quest_update_called: true,
-                    quest_slot_state_complete_represented: true,
-                    quest_slot_state_live_update_unrepresented: true,
-                    visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
-                    spell_area_runtime_unrepresented: true,
-                    tracking_event_auto_reward_unrepresented: (quest.flags
-                        & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP)
-                        != 0,
-                    quest_tracker_complete_time_unrepresented: true,
-                    script_status_change_unrepresented: true,
-                },
-            );
-        let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
-        self.sync_player_registry_state_like_cpp();
-        true
-    }
-
     #[cfg(test)]
     pub(crate) async fn complete_represented_quest_after_add_if_ready_like_cpp(
         &mut self,
@@ -66,64 +31,6 @@ impl WorldSession {
             0,
         )
         .await
-    }
-
-    pub(crate) async fn complete_represented_quest_after_objective_with_generator_like_cpp(
-        &mut self,
-        item_guid_generator: &wow_core::ObjectGuidGenerator,
-        quest: &wow_data::quest::QuestTemplate,
-        ignored_objective_id: u32,
-    ) -> bool {
-        let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return false;
-        };
-        let Some(status) = state.statuses_like_cpp().get(&quest.id) else {
-            return false;
-        };
-        let quest_already_rewarded = state.rewarded_quest_ids_like_cpp().contains(&quest.id);
-        if !wow_entities::represented_can_complete_quest_after_objective_like_cpp(
-            status,
-            &quest.objective_rules_like_cpp(),
-            ignored_objective_id,
-            quest_already_rewarded,
-        ) {
-            return false;
-        }
-
-        if !self.complete_represented_quest_like_cpp(quest) {
-            return false;
-        }
-
-        if (quest.flags & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP) != 0 {
-            let quest_giver_guid = self
-                .player_guid()
-                .unwrap_or(wow_core::ObjectGuid::new(0, 0));
-            let choice = QuestChoiceItemLikeCpp {
-                loot_item_type: QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-                item_id: 0,
-                quantity: 0,
-            };
-            let rewarded = self
-                .reward_represented_quest_with_generator_like_cpp(
-                    item_guid_generator,
-                    quest,
-                    quest_giver_guid,
-                    choice,
-                )
-                .await;
-            if rewarded {
-                self.quest_state
-                    .mark_latest_tracking_event_auto_reward_like_cpp(quest.id);
-                Box::pin(
-                    self.drain_represented_quest_objective_progress_with_generator_like_cpp(
-                        item_guid_generator,
-                    ),
-                )
-                .await;
-            }
-        }
-
-        true
     }
 
     pub(crate) fn remove_represented_active_rewarded_duplicates_like_cpp(&mut self) -> Vec<u32> {

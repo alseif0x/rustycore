@@ -1,4 +1,7 @@
 use super::*;
+use wow_constants::quest::{
+    QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP, QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
+};
 
 #[tokio::test]
 async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {

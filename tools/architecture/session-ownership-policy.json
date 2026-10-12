@@ -8587,6 +8587,34 @@
           ]
         },
         {
+          "module": "crate::handlers::loot::claims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "sync_represented_creature_loot_to_canonical_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn sync_represented_creature_loot_to_canonical_like_cpp (& mut self , creature_guid : ObjectGuid , player_guid : ObjectGuid ,) -> Option < () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::handlers::loot::claims",
+          "trait_path": null,
+          "kind": "method",
+          "name": "sync_represented_gameobject_loot_to_canonical_like_cpp",
+          "visibility": "pub (super)",
+          "signature": "fn sync_represented_gameobject_loot_to_canonical_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid ,) -> Option < () >",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "external_impl",
+            "visible"
+          ]
+        },
+        {
           "module": "crate::handlers::loot::claims::f3_shims",
           "trait_path": null,
           "kind": "method",
@@ -10626,20 +10654,6 @@
           ]
         },
         {
-          "module": "crate::handlers::loot::sources::creature",
-          "trait_path": null,
-          "kind": "method",
-          "name": "sync_represented_creature_loot_to_canonical_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "fn sync_represented_creature_loot_to_canonical_like_cpp (& mut self , creature_guid : ObjectGuid , _player_guid : ObjectGuid ,) -> Option < () >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
           "module": "crate::handlers::loot::sources::creature_conditions",
           "trait_path": null,
           "kind": "method",
@@ -10861,20 +10875,6 @@
           "name": "represented_gameobject_can_autostore_loot_item_like_cpp",
           "visibility": "pub (in crate :: handlers :: loot)",
           "signature": "fn represented_gameobject_can_autostore_loot_item_like_cpp (& self , guid : ObjectGuid , player_guid : ObjectGuid ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::loot::sources::gameobject_authority",
-          "trait_path": null,
-          "kind": "method",
-          "name": "sync_represented_gameobject_loot_to_canonical_like_cpp",
-          "visibility": "pub (in crate :: handlers :: loot)",
-          "signature": "fn sync_represented_gameobject_loot_to_canonical_like_cpp (& mut self , gameobject_guid : ObjectGuid , player_guid : ObjectGuid ,) -> Option < () >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -13087,33 +13087,6 @@
           "guards": [
             "external_impl",
             "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_quest_after_objective_with_generator_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "async fn complete_represented_quest_after_objective_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , ignored_objective_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::handlers::quest::state",
-          "trait_path": null,
-          "kind": "method",
-          "name": "complete_represented_quest_like_cpp",
-          "visibility": "private",
-          "signature": "fn complete_represented_quest_like_cpp (& mut self , quest : & wow_data :: quest :: QuestTemplate ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "external_impl"
           ]
         },
         {
@@ -18171,19 +18144,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "bank_interaction_access_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn bank_interaction_access_like_cpp (& self ,) -> wow_world_core :: session :: NpcInteractionAccessLikeCpp < '_ >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "battle_pet_account_owner_lease_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_account_owner_lease_like_cpp (& self ,) -> Option < (Arc < crate :: battle_pet_account :: BattlePetAccountOwnerLikeCpp > , crate :: battle_pet_account :: BattlePetLeaseIdLikeCpp ,) >",
@@ -20039,9 +19999,9 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "complete_represented_quest_status_like_cpp",
+          "name": "complete_represented_quest_after_objective_with_generator_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn complete_represented_quest_status_like_cpp (& mut self , quest_id : u32 , incomplete_status : u8 , complete_status : u8 ,) -> Option < u8 >",
+          "signature": "async fn complete_represented_quest_after_objective_with_generator_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , quest : & wow_data :: quest :: QuestTemplate , ignored_objective_id : u32 ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -27003,6 +26963,19 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
+          "name": "quest_objective_operation_like_cpp",
+          "visibility": "pub (crate)",
+          "signature": "async fn quest_objective_operation_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , operation : QuestObjectiveOperationLikeCpp < '_ > ,) -> bool",
+          "cfg": [],
+          "source_class": "production",
+          "guards": [
+            "visible"
+          ]
+        },
+        {
+          "module": "crate::session",
+          "trait_path": null,
+          "kind": "method",
           "name": "quest_xp_gain_context_like_cpp",
           "visibility": "private",
           "signature": "fn quest_xp_gain_context_like_cpp (& mut self ,) -> (wow_world_application :: QuestRewardCx < '_ > , wow_world_application :: QuestXpGainFixtureRefsLikeCpp < '_ > ,)",
@@ -30161,19 +30134,6 @@
           "name": "represented_gameobject_dynamic_flags_for_player_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_gameobject_dynamic_flags_for_player_like_cpp (& self , gameobject_entry : u32 , state : & RepresentedGameObjectUseState ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "represented_gameobject_go_state_for_viewer_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_gameobject_go_state_for_viewer_like_cpp (& self , state : & RepresentedGameObjectUseState , now : Instant ,) -> wow_entities :: GoState",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42653,34 +42613,6 @@
           "name": "update_represented_rest_flag_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn update_represented_rest_flag_like_cpp (& mut self , rest_flag : u32 , active : bool ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_storing_flag_quest_objective_progress_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn update_represented_storing_flag_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , objective_type : u8 , object_id : i32 , add_count : i32 ,)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_storing_value_quest_objective_progress_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "async fn update_represented_storing_value_quest_objective_progress_like_cpp (& mut self , item_guid_generator : & wow_core :: ObjectGuidGenerator , objective_type : u8 , object_id : i32 , add_count : i32 , credit_guid : wow_core :: ObjectGuid ,)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -58107,32 +58039,6 @@
           "visibility": "",
           "cfg": [],
           "fingerprint": "super::{Arc,PlayerRegistry,PlayerSessionRegistrationLikeCpp}",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::quest::objectives",
-          "source": "crates/wow-world/src/session/quest/objectives.rs",
-          "enclosing": "impl WorldSession::update_represented_storing_value_quest_objective_progress_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "member",
-          "symbol": "player_registry",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "fingerprint": "self . core . player_registry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::quest::objectives",
-          "source": "crates/wow-world/src/session/quest/objectives.rs",
-          "enclosing": "impl WorldSession::update_represented_storing_value_quest_objective_progress_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "victim_team",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "fingerprint": "victim_team:PlayerRegistry",
           "count": 1
         },
         {

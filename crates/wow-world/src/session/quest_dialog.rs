@@ -22,16 +22,6 @@ pub(in crate::session) fn quest_rewards_block_like_cpp(
     wow_world_application::represented_quest_rewards_block_like_cpp(quest)
 }
 
-pub(in crate::session) fn quest_giver_creature_id_from_source_like_cpp(
-    source_guid: ObjectGuid,
-) -> i32 {
-    if source_guid.is_any_type_creature() {
-        i32::try_from(source_guid.entry()).unwrap_or(0)
-    } else {
-        0
-    }
-}
-
 pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
     menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
 ) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
@@ -51,6 +41,7 @@ pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
         .collect()
 }
 
+pub(in crate::session) use wow_world_application::quest_giver_creature_id_from_source_like_cpp;
 pub(in crate::session) use wow_world_core::session::react_state_from_db_like_cpp;
 
 pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {

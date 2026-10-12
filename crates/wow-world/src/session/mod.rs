@@ -491,7 +491,7 @@ pub(crate) use social_requests::RepresentedSignPetitionLikeCpp;
 pub(crate) use social_requests::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(test)]
 pub(crate) use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
-use social_requests::party_member_power_kind_from_u8_like_cpp;
+use wow_world_core::session::power_type_from_u8_like_cpp as party_member_power_kind_from_u8_like_cpp;
 mod spell_click_values;
 use spell_click_values::NPC_CLICK_CAST_CASTER_CLICKER_LIKE_CPP;
 use spell_click_values::NPC_CLICK_CAST_ORIG_CASTER_OWNER_LIKE_CPP;
@@ -810,7 +810,6 @@ const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 #[cfg(test)]
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
-const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 #[cfg(test)]
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 #[cfg(test)]
@@ -819,7 +818,6 @@ const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
 const QUEST_OBJECTIVE_INCREASE_REPUTATION_LIKE_CPP: u8 = 18;
 #[cfg(test)]
 const DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP: u32 = 100;
-pub(crate) use wow_constants::quest::QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP;
 const QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP: u32 = 0x1;
 const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;

@@ -761,3 +761,5 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
 }
 #[path = "f4_loot_money_quest_drain.rs"]
 mod f4_loot_money_quest_drain;
+#[path = "s2_quest_objective_owner_drain.rs"]
+mod s2_quest_objective_owner_drain;

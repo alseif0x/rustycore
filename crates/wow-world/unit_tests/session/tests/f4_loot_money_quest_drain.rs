@@ -159,15 +159,16 @@ fn quest_status_like_cpp(session: &WorldSession) -> Option<u8> {
 }
 
 /// Loot `coins` through the registered consumer and return the final copper,
-/// quest status and the published server opcodes.
+/// quest status, the published server opcodes and their raw packets.
 async fn loot_money_outcome_like_cpp(
     coins: u32,
     creature_visible: bool,
-) -> (Option<u64>, Option<u8>, Vec<ServerOpcodes>) {
+) -> (Option<u64>, Option<u8>, Vec<ServerOpcodes>, Vec<Vec<u8>>) {
     let (mut session, send_rx) = loot_money_quest_session_like_cpp(coins, creature_visible);
     let _ = drain_server_packet_bytes(&send_rx);
     dispatch_registered_loot_money_like_cpp(&mut session).await;
-    let opcodes = drain_server_packet_bytes(&send_rx)
+    let packets = drain_server_packet_bytes(&send_rx);
+    let opcodes = packets
         .iter()
         .filter_map(|bytes| wow_packet::WorldPacket::from_bytes(bytes).server_opcode())
         .collect();
@@ -175,14 +176,15 @@ async fn loot_money_outcome_like_cpp(
         session.resolved_player_money_like_cpp(),
         quest_status_like_cpp(&session),
         opcodes,
+        packets,
     )
 }
 
 #[tokio::test]
 async fn loot_money_completing_a_money_objective_refreshes_visibility_before_quest_update_complete_like_cpp()
  {
-    let (money, status, opcodes) = loot_money_outcome_like_cpp(10, true).await;
-    let (control_money, control_status, control_opcodes) =
+    let (money, status, opcodes, packets) = loot_money_outcome_like_cpp(10, true).await;
+    let (control_money, control_status, control_opcodes, control_packets) =
         loot_money_outcome_like_cpp(10, false).await;
 
     assert_eq!(money, Some(100));
@@ -226,12 +228,26 @@ async fn loot_money_completing_a_money_objective_refreshes_visibility_before_que
         control_opcodes[control_complete..],
         "nothing after the completion notice depends on the refresh"
     );
+    // #1359: that update carries the viewer-filtered NpcFlags. The spell-click
+    // condition (aura 999999) fails, so C++ `ViewerDependentValue<NpcFlagsTag>`
+    // clears UNIT_NPC_FLAG_SPELLCLICK: both NpcFlags words are zero.
+    let mut update = wow_packet::packets::update::UnitDataValuesDeltaUpdate::default();
+    update.changed_object_type_mask = 1 << TYPEID_UNIT;
+    update.unit_data_mask[3] |= (1 << (113 % 32)) | (1 << (114 % 32));
+    let refresh = wow_packet::packets::update::UpdateObject::unit_values_update(
+        test_creature_guid(132),
+        571,
+        update,
+    );
+    let refresh = refresh.to_bytes();
+    assert_eq!(packets.iter().filter(|p| **p == refresh).count(), 1);
+    assert!(!control_packets.contains(&refresh));
 }
 
 #[tokio::test]
 async fn loot_money_below_a_money_objective_neither_completes_nor_refreshes_like_cpp() {
-    let (money, status, opcodes) = loot_money_outcome_like_cpp(5, true).await;
-    let (_, _, control_opcodes) = loot_money_outcome_like_cpp(5, false).await;
+    let (money, status, opcodes, _) = loot_money_outcome_like_cpp(5, true).await;
+    let (_, _, control_opcodes, _) = loot_money_outcome_like_cpp(5, false).await;
 
     assert_eq!(money, Some(95));
     assert_eq!(

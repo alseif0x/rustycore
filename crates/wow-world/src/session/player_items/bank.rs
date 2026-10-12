@@ -108,7 +108,7 @@ impl WorldSession {
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
         wow_world_application::can_use_current_bank_with_access_like_cpp(
             &self.interaction,
-            &self.bank_interaction_access_like_cpp(),
+            &crate::session::hub_ref(self).trainer_npc_interaction_access_like_cpp(),
             &self.core.owned_inventory_access_like_cpp(),
         )
     }

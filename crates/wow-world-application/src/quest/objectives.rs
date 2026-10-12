@@ -304,7 +304,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
             .finish_represented_quest_objective_progress_drain_like_cpp();
     }
 
-    async fn update_storing_value_quest_objective_progress_like_cpp(
+    pub async fn update_storing_value_quest_objective_progress_like_cpp(
         &mut self,
         objective_type: u8,
         object_id: i32,
@@ -495,7 +495,7 @@ impl<'cx, 'session> QuestObjectiveProgressCx<'cx, 'session> {
         self.sync_player_registry_state_like_cpp(&owner);
     }
 
-    async fn update_storing_flag_quest_objective_progress_like_cpp(
+    pub async fn update_storing_flag_quest_objective_progress_like_cpp(
         &mut self,
         objective_type: u8,
         object_id: i32,

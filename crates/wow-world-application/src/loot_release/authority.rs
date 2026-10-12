@@ -87,7 +87,7 @@ impl LootReleaseCxLikeCpp<'_> {
     /// object-owned authority exactly once, and reports the explicit lookup
     /// outcome so the caller can tell "no authority" from "the designated owner
     /// could not be read" (F6-7 R2).
-    pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+    pub fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
@@ -128,7 +128,7 @@ impl LootReleaseCxLikeCpp<'_> {
         OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
     }
 
-    pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(
+    pub fn sync_represented_gameobject_loot_to_canonical_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
@@ -178,7 +178,7 @@ impl LootReleaseCxLikeCpp<'_> {
         Some(())
     }
 
-    pub(super) fn sync_represented_creature_loot_to_canonical_like_cpp(
+    pub fn sync_represented_creature_loot_to_canonical_like_cpp(
         &mut self,
         creature_guid: ObjectGuid,
         _player_guid: ObjectGuid,

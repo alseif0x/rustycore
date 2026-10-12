@@ -653,7 +653,7 @@ async fn quest_confirm_accept_tracking_event_auto_rewards_like_cpp() {
     let sender_guid = ObjectGuid::create_player(1, 201);
     let quest_id = 7121;
     let mut quest = quest_template(quest_id);
-    quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP | QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP;
+    quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP | 0x0000_0400; // C++ QUEST_FLAGS_TRACKING_EVENT.
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session.set_represented_pending_quest_sharing_like_cpp(sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(

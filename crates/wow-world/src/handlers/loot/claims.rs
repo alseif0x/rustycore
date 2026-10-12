@@ -46,49 +46,37 @@ impl WorldSession {
             .represented_owned_loot_authority_outcome_like_cpp(owner_guid)
     }
 
-    /// Bridge pre-authority represented fixtures (and the equivalent first
-    /// live generation) into the object-owned source of truth exactly once.
-    /// A retired non-zero generation is never reinstalled from session cache.
-    /// Same bridge and same order as before, but every caller now sees whether
-    /// the authority was absent or the designated owner was unreadable.
+    /// Owned by the App release context
+    /// (`wow-world-application/src/loot_release/authority.rs`); the shell only
+    /// lends the borrowed participants.
     pub(super) fn prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
     ) -> OwnedLootAuthorityLookupOutcomeLikeCpp {
-        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
-            other => return other,
-        };
-        let can_install_first_generation = represented_local_loot_fixture_allowed_like_cpp()
-            && authority.is_retired_like_cpp()
-            && authority.generation_like_cpp() == 0
-            && self.loot.cached_loot_contains_owner_like_cpp(owner_guid)
-            && (self.loot.has_active_loot_view_owner_like_cpp(owner_guid)
-                || self.loot.is_active_loot_guid(owner_guid));
-        if !can_install_first_generation {
-            return OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority);
-        }
+        self.loot_release_cx_like_cpp()
+            .prepare_owned_loot_authority_for_active_request_outcome_like_cpp(
+                owner_guid,
+                scope_player,
+            )
+    }
 
-        if owner_guid.is_game_object() {
-            let _ = self
-                .sync_represented_gameobject_loot_to_canonical_like_cpp(owner_guid, scope_player);
-        } else if owner_guid.is_creature_or_vehicle() {
-            let _ =
-                self.sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, scope_player);
-        }
+    pub(super) fn sync_represented_gameobject_loot_to_canonical_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> Option<()> {
+        self.loot_release_cx_like_cpp()
+            .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
+    }
 
-        let authority = match self.represented_owned_loot_authority_outcome_like_cpp(owner_guid) {
-            OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority) => authority,
-            other => return other,
-        };
-        if let Some(snapshot) = authority.snapshot_for_player_like_cpp(scope_player) {
-            self.loot
-                .ensure_active_loot_view_generation_like_cpp(owner_guid, snapshot.generation);
-            self.loot
-                .insert_active_loot_view_authority_if_absent_like_cpp(owner_guid, &authority);
-        }
-        OwnedLootAuthorityLookupOutcomeLikeCpp::Found(authority)
+    pub(super) fn sync_represented_creature_loot_to_canonical_like_cpp(
+        &mut self,
+        creature_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> Option<()> {
+        self.loot_release_cx_like_cpp()
+            .sync_represented_creature_loot_to_canonical_like_cpp(creature_guid, player_guid)
     }
 
     pub(super) fn refresh_owned_loot_summary_like_cpp(&mut self, owner_guid: ObjectGuid) {

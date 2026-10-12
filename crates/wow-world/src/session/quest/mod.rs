@@ -6,6 +6,7 @@ use super::*;
 
 mod giver;
 mod objective_drain;
+pub(crate) use objective_drain::QuestObjectiveOperationLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use objective_drain::quest_reward_fixture_refs_like_cpp;
 mod objectives;

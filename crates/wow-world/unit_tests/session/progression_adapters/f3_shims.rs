@@ -87,12 +87,14 @@ impl WorldSession {
         victim_guid: wow_core::ObjectGuid,
     ) {
         // C++ QUEST_OBJECTIVE_PLAYERKILLS with ObjectID 0.
-        self.update_represented_storing_value_quest_objective_progress_like_cpp(
+        self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
-            0,
-            1,
-            victim_guid,
+            crate::session::quest::QuestObjectiveOperationLikeCpp::StoringValue {
+                objective_type: QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP,
+                object_id: 0,
+                add_count: 1,
+                credit_guid: victim_guid,
+            },
         )
         .await;
     }
@@ -102,11 +104,13 @@ impl WorldSession {
         criteria_tree_id: u32,
     ) {
         // C++ QUEST_OBJECTIVE_CRITERIA_TREE.
-        self.update_represented_storing_flag_quest_objective_progress_like_cpp(
+        self.quest_objective_operation_like_cpp(
             item_guid_generator,
-            14,
-            criteria_tree_id as i32,
-            1,
+            crate::session::quest::QuestObjectiveOperationLikeCpp::StoringFlag {
+                objective_type: 14,
+                object_id: criteria_tree_id as i32,
+                add_count: 1,
+            },
         )
         .await;
     }

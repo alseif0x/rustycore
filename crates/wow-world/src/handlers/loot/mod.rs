@@ -165,8 +165,10 @@ const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;
-const ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP: u32 = 0x0004;
-const ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP: u32 = 0x0002;
+use wow_world_lifecycle::loot_template_rules::{
+    ItemTemplateAddonLootMetadataLikeCpp, player_class_mask_like_cpp,
+    referenced_loot_max_count_like_cpp, roll_chance_with_rate_like_cpp,
+};
 const MAX_LOOT_REFERENCE_FRAMES_LIKE_CPP: u32 = 64;
 const CONDITION_OBJECT_ENTRY_GUID_LIKE_CPP: i32 = 51;
 const CONDITION_TYPE_MASK_LIKE_CPP: i32 = 52;
@@ -193,30 +195,6 @@ fn master_loot_error_for_inventory_result_like_cpp(result: InventoryResult) -> O
 }
 
 // ── Loot generation ───────────────────────────────────────────────
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-struct ItemTemplateAddonLootMetadataLikeCpp {
-    flags_cu: u32,
-    quest_log_item_id: i32,
-}
-
-impl ItemTemplateAddonLootMetadataLikeCpp {
-    fn ignores_quest_status(self) -> bool {
-        self.flags_cu & ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP != 0
-    }
-
-    fn follows_loot_rules(self) -> bool {
-        self.flags_cu & ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP != 0
-    }
-}
-
-fn player_class_mask_like_cpp(class_id: u8) -> Option<u32> {
-    if (1..=13).contains(&class_id) {
-        Some(1_u32 << (class_id - 1))
-    } else {
-        None
-    }
-}
 
 fn player_team_for_race_cpp_representable(race: u8) -> u32 {
     match race {
@@ -534,17 +512,6 @@ use wow_world_loot::{
     LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_LOCKED_LIKE_CPP,
     LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, loot_roll_broadcast_item_like_cpp,
 };
-
-fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(chance: f32, rate: f32, rng: &mut R) -> bool {
-    if chance >= 100.0 {
-        return true;
-    }
-    rng.gen_range(0.0f32..100.0f32) < chance * rate
-}
-
-fn referenced_loot_max_count_like_cpp(max_count: u8, rate: f32) -> u32 {
-    ((max_count as f32) * rate) as u32
-}
 
 fn represented_disenchant_loot_plain_row_can_roll_like_cpp(
     row: &LootStoreItem,

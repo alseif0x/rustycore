@@ -6,9 +6,9 @@
 
 #[cfg(test)]
 use super::Arc;
-#[cfg(test)]
-use super::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP;
 use super::{WorldSession, catalogs};
+#[cfg(test)]
+use wow_constants::quest::QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP;
 
 impl WorldSession {
     #[cfg(test)]
