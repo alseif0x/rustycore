@@ -122,9 +122,7 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "wow-world-instances",
             "crate::handlers::registration",
             "crates/wow-world-instances/src/handlers/registration.rs",
-            include_str!(
-                "../../../../../crates/wow-world-instances/src/handlers/registration.rs"
-            ),
+            include_str!("../../../../../crates/wow-world-instances/src/handlers/registration.rs"),
         ),
         mount(
             "wow-world-instances",
