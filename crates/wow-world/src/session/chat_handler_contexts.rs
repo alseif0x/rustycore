@@ -10,10 +10,15 @@
 //!
 //! `#1263 F5 remaining families`: the adapter also lends `CMSG_SEND_TEXT_EMOTE`,
 //! whose body stays in the World shell and needs the session catalog view.
+//!
+//! `#1363 slice 4a`: the text-emote and LFG lock-info bodies moved to
+//! `wow_world_social`; `SocialSessionHostLikeCpp` lends them the session
+//! operations they still call.
 
+use wow_entities::PlayerQuestGameplayState;
 use wow_handler::HandlerFuture;
 use wow_packet::WorldPacket;
-use wow_world_social::{ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp, TextEmoteHostLikeCpp};
+use wow_world_social::{ChatHandlerCxLikeCpp, ChatHandlerHostLikeCpp, SocialSessionHostLikeCpp};
 
 use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
@@ -44,8 +49,15 @@ impl ChatHandlerHostLikeCpp<SessionHandlerCatalogsLikeCpp> for WorldSession {
     }
 }
 
-impl TextEmoteHostLikeCpp for WorldSession {
+impl SocialSessionHostLikeCpp for WorldSession {
     crate::session::forward_to_world_session_like_cpp! {
         fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize;
+        fn access_requirement_leader_has_achievement_like_cpp(&self, achievement_id: u32) -> bool;
+        fn lfg_has_active_instance_lock_like_cpp(&self, map_id: u32, difficulty_id: u8) -> bool;
+        fn player_quest_gameplay_snapshot_like_cpp(&self) -> Option<PlayerQuestGameplayState>;
+        fn quest_money_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32;
+        fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32;
+        fn represented_average_item_level_like_cpp(&self) -> Option<f32>;
+        fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool;
     }
 }

@@ -5,8 +5,7 @@
 
 //! `CMSG_SEND_TEXT_EMOTE` (#1363 slice 4a; moved from the World
 //! `handlers/chat/ops_1.rs`). C++ ref: `WorldSession::HandleTextEmoteOpcode`.
-//! The registration stays in `chat_handlers`; the aura interrupt is the one
-//! World operation the body still calls.
+//! The registration stays in `chat_handlers`.
 
 use tracing::debug;
 use wow_constants::UnitState;
@@ -14,12 +13,9 @@ use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
 use wow_packet::packets::chat::{CTextEmote, EmoteMessage, STextEmote};
 use wow_packet::{ClientPacket, ServerPacket};
-use wow_world_core::session::{ChatPolicyCatalogsLikeCpp, SessionHubHostLikeCpp};
+use wow_world_core::session::ChatPolicyCatalogsLikeCpp;
 
-/// The World operation the moved text-emote body still calls.
-pub trait TextEmoteHostLikeCpp: SessionHubHostLikeCpp {
-    fn remove_auras_with_interrupt_flags_like_cpp(&mut self, flags: u32, flags2: u32) -> usize;
-}
+use crate::social_host::SocialSessionHostLikeCpp;
 
 /// Emote ids and states used by the text-emote handler.
 pub const EMOTE_ONESHOT_NONE_LIKE_CPP: i32 = 0;
@@ -61,7 +57,7 @@ pub const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;
 /// Handle CMSG_SEND_TEXT_EMOTE — player performs a text emote (/wave, /dance…).
 ///
 /// C++ ref: `WorldSession::HandleTextEmoteOpcode`.
-pub async fn handle_text_emote_with_catalogs_like_cpp<H: TextEmoteHostLikeCpp>(
+pub async fn handle_text_emote_with_catalogs_like_cpp<H: SocialSessionHostLikeCpp>(
     host: &mut H,
     emotes_text: &wow_data::EmotesTextStore,
     emotes: &wow_data::EmotesStore,
@@ -182,7 +178,7 @@ pub fn spell_visual_kit_ids_for_emote_command_like_cpp(
     }
 }
 
-pub fn publish_player_emote_state_like_cpp<H: TextEmoteHostLikeCpp>(
+pub fn publish_player_emote_state_like_cpp<H: SocialSessionHostLikeCpp>(
     host: &mut H,
     emote_state: u32,
 ) {
