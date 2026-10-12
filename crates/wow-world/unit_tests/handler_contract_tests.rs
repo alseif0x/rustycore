@@ -1432,7 +1432,7 @@ fn dungeon_finding_system_info_family_is_migrated_off_the_legacy_inventory() {
     assert_migrated_family_like_cpp(
         "dungeon-finding system info",
         |builder| {
-            wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+            wow_world_instances::register_dungeon_finding_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >(builder)
@@ -1653,7 +1653,7 @@ fn duplicated_migrated_remaining_family_registrations_are_rejected_without_repla
         ),
         (
             "dungeon-finding",
-            wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+            wow_world_instances::register_dungeon_finding_handlers_like_cpp::<
                 crate::session::WorldSession,
                 crate::session::SessionHandlerCatalogsLikeCpp,
             >,

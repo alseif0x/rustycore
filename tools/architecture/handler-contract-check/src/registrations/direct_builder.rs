@@ -594,7 +594,7 @@ const DUNGEON_FINDING_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeCon
 
 pub(crate) const DUNGEON_FINDING_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
     owner: "ApplicationDungeonFinding",
-    package: "wow-world-application",
+    package: "wow-world-instances",
     module: "crate::dungeon_finding_handlers",
     registrar: "register_dungeon_finding_handlers_like_cpp",
     host_trait: "DungeonFindingHandlerHostLikeCpp",

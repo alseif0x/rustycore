@@ -5,6 +5,7 @@ mod binding;
 mod constants;
 mod contracts;
 mod difficulty;
+mod dungeon_finding_handlers;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixture_access;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -30,6 +31,10 @@ pub use constants::{
 pub use contracts::RepresentedAreaZoneCriteriaLikeCpp;
 pub use contracts::{RepresentedAdventureMapStartQuestLikeCpp, RepresentedPendingBind};
 pub use difficulty::SessionDifficultyKindLikeCpp;
+pub use dungeon_finding_handlers::{
+    DungeonFindingHandlerCxLikeCpp, DungeonFindingHandlerHostLikeCpp,
+    register_dungeon_finding_handlers_like_cpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use fixtures::InstanceTestFixtureLikeCpp;
 pub use group_handlers::GroupPublicationTailLikeCpp;

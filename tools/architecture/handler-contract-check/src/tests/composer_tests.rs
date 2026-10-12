@@ -289,9 +289,9 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
         mount(
             DUNGEON_FINDING_REGISTRAR.package,
             DUNGEON_FINDING_REGISTRAR.module,
-            "crates/wow-world-application/src/dungeon_finding_handlers.rs",
+            "crates/wow-world-instances/src/dungeon_finding_handlers.rs",
             include_str!(
-                "../../../../../crates/wow-world-application/src/dungeon_finding_handlers.rs"
+                "../../../../../crates/wow-world-instances/src/dungeon_finding_handlers.rs"
             ),
         ),
         mount(

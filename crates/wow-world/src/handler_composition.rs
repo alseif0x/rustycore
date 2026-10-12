@@ -121,7 +121,7 @@ pub fn compose_packet_handlers_like_cpp()
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
-    wow_world_application::register_dungeon_finding_handlers_like_cpp::<
+    wow_world_instances::register_dungeon_finding_handlers_like_cpp::<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
