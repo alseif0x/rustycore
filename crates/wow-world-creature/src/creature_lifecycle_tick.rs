@@ -113,13 +113,13 @@ pub(crate) fn run_creature_lifecycle_phase_on_store_like_cpp(
     conversion_clock: (Instant, i64),
     outcome: &mut CreatureLifecycleTickOutcomeLikeCpp,
 ) {
+    use std::collections::BTreeSet;
     use wow_world_core::creature_respawn::{
         creature_corpse_despawn_due_like_cpp, creature_from_pending_respawn_like_cpp,
         creature_respawn_at_from_death_at_game_time_like_cpp,
         pending_respawn_from_creature_like_cpp, respawn_time_from_instant_like_cpp,
         save_pending_respawn_time_on_queue_like_cpp,
     };
-    use std::collections::BTreeSet;
 
     let (conversion_now, conversion_now_secs) = conversion_clock;
     let mut affected_maps = BTreeSet::new();
@@ -474,12 +474,14 @@ fn remove_persisted_respawn_time_on_store_like_cpp(
     store
         .lifecycle_respawns_mut_like_cpp(map_id, instance_id)?
         .remove_persisted_respawn_time_like_cpp(wow_map::SpawnObjectType::Creature, spawn_id)?;
-    Some(wow_world_core::creature_respawn::respawn_delete_mutation_like_cpp(
-        wow_map::SpawnObjectType::Creature,
-        spawn_id,
-        map_id,
-        instance_id,
-    ))
+    Some(
+        wow_world_core::creature_respawn::respawn_delete_mutation_like_cpp(
+            wow_map::SpawnObjectType::Creature,
+            spawn_id,
+            map_id,
+            instance_id,
+        ),
+    )
 }
 
 /// The persisted-row delete and canonical respawn-time removal that follow a

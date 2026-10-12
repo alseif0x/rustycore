@@ -25,7 +25,7 @@ pub(crate) fn apply_player_melee_to_creature_like_cpp(
     creature: &mut wow_entities::Creature,
     player_guid: ObjectGuid,
     tap_group_guids: &[ObjectGuid],
-    canonical_swings: Option<&[wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp]>,
+    canonical_swings: Option<&[crate::RepresentedMeleeSwingLikeCpp]>,
 ) -> Option<PlayerMeleeCreatureHitLikeCpp> {
     if !creature.is_alive() {
         return None;
@@ -34,18 +34,15 @@ pub(crate) fn apply_player_melee_to_creature_like_cpp(
     // the swing engages the creature (threat 0) without choosing its victim;
     // the aggro tick's `UpdateVictim` then publishes the reaction (#1344).
     creature.engage_with_target_like_cpp(player_guid);
-    let damages: Vec<wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp> = match canonical_swings
-    {
+    let damages: Vec<crate::RepresentedMeleeSwingLikeCpp> = match canonical_swings {
         Some(swings) => swings.to_vec(),
         None => {
             if !creature.can_swing() {
                 return None;
             }
-            vec![
-                wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp::hit_like_cpp(
-                    creature.roll_damage()?.max(1),
-                ),
-            ]
+            vec![crate::RepresentedMeleeSwingLikeCpp::hit_like_cpp(
+                creature.roll_damage()?.max(1),
+            )]
         }
     };
     let entry = creature.entry();
@@ -158,7 +155,8 @@ struct MeleeSwingStateLikeCpp {
     pub(super) hit_info: u32,
     pub(super) victim_state: u8,
     pub(super) original_damage: u32,
-    pub(super) avoided_outcome: Option<wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp>,
+    pub(super) avoided_outcome:
+        Option<wow_world_spell::melee_rules::RepresentedMeleeOutcomeLikeCpp>,
     // The creature-victim branch publishes through the compatibility
     // bridge, so it carries its own presentation and avoid flag.
     pub(super) creature_victim_presentation: Option<(u32, u8, i32)>,

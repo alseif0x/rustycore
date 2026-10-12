@@ -65,45 +65,46 @@ pub(super) fn creature_victim_damage_like_cpp(
             };
             let expertise_reduction_pct =
                 aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE) / 4.0;
-            let attacker_facts = wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp {
-                level: attacker.level,
-                is_controlled_by_player: attacker.is_charmed_owned_by_player_or_player,
-                no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
-                    attacker.flags_extra,
-                )
-                .contains(wow_constants::CreatureFlagsExtra::NO_CRUSHING_BLOWS),
-                dual_wielding: false,
-                crit_damage_multiplier: attacker_effects
-                    .iter()
-                    .filter(|effect| {
-                        effect.aura_type
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS
-                            && effect.misc_value & 0x01 != 0
-                    })
-                    .fold(1.0_f32, |total, effect| {
-                        total * (1.0 + effect.amount as f32 / 100.0)
-                    }),
-                ignores_dual_wield_hit_penalty: false,
-                melee_hit_chance_pct: 0.0,
-                hit_chance_aura_pct: aura_sum(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
-                ),
-                crit_pct: [creature_crit_pct, creature_crit_pct],
-                autoattack_crit_aura_pct: aura_sum(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
-                ),
-                expertise_reduction_pct: [expertise_reduction_pct, expertise_reduction_pct],
-                dodge_reduction_pct: attacker_effects
-                    .iter()
-                    .filter(|effect| {
-                        effect.aura_type
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE
-                            && effect.misc_value == 2
-                    })
-                    .map(|effect| effect.amount as f32)
-                    .sum::<f32>()
-                    + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
-            };
+            let attacker_facts =
+                wow_world_spell::melee_rules::RepresentedMeleeAttackerFactsLikeCpp {
+                    level: attacker.level,
+                    is_controlled_by_player: attacker.is_charmed_owned_by_player_or_player,
+                    no_crushing_blows: wow_constants::CreatureFlagsExtra::from_bits_truncate(
+                        attacker.flags_extra,
+                    )
+                    .contains(wow_constants::CreatureFlagsExtra::NO_CRUSHING_BLOWS),
+                    dual_wielding: false,
+                    crit_damage_multiplier: attacker_effects
+                        .iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS
+                                && effect.misc_value & 0x01 != 0
+                        })
+                        .fold(1.0_f32, |total, effect| {
+                            total * (1.0 + effect.amount as f32 / 100.0)
+                        }),
+                    ignores_dual_wield_hit_penalty: false,
+                    melee_hit_chance_pct: 0.0,
+                    hit_chance_aura_pct: aura_sum(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+                    ),
+                    crit_pct: [creature_crit_pct, creature_crit_pct],
+                    autoattack_crit_aura_pct: aura_sum(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_CRIT_CHANCE,
+                    ),
+                    expertise_reduction_pct: [expertise_reduction_pct, expertise_reduction_pct],
+                    dodge_reduction_pct: attacker_effects
+                        .iter()
+                        .filter(|effect| {
+                            effect.aura_type
+                                == wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE
+                                && effect.misc_value == 2
+                        })
+                        .map(|effect| effect.amount as f32)
+                        .sum::<f32>()
+                        + aura_sum(wow_data::spell::aura_types::SPELL_AURA_MOD_ENEMY_DODGE),
+                };
             // C++ `MeleeDamageBonusTaken`'s Sanctified Wrath bypass.
             let attacker_ignore_resist: Vec<(i32, i32)> = attacker_effects
                 .iter()
@@ -280,7 +281,7 @@ pub(super) fn creature_victim_damage_like_cpp(
                             victim_aura_state_mask,
                             victim_mechanic_mask,
                             false,
-                            wow_world_spell::melee_rules::legacy_attack_power_multiplier_like_cpp(
+                            crate::legacy_attack_power_multiplier_like_cpp(
                                 attacker.base_attack_speed[0],
                             ),
                         );
@@ -291,13 +292,14 @@ pub(super) fn creature_victim_damage_like_cpp(
                         // C++ `SPELL_SCHOOL_MASK_NORMAL` (0x01).
                         0x01,
                     );
-                    let after_taken = wow_world_spell::melee_rules::melee_damage_taken_apply_like_cpp(
-                        taken,
-                        wow_world_spell::melee_damage::melee_damage_bonus_done_apply_like_cpp(
-                            damage,
-                            creature_attacker_damage_bonus,
-                        ),
-                    );
+                    let after_taken =
+                        wow_world_spell::melee_rules::melee_damage_taken_apply_like_cpp(
+                            taken,
+                            wow_world_spell::melee_damage::melee_damage_bonus_done_apply_like_cpp(
+                                damage,
+                                creature_attacker_damage_bonus,
+                            ),
+                        );
                     let mitigated = wow_world_spell::melee_damage::armor_reduced_damage_like_cpp(
                         after_taken,
                         attacker.level,
@@ -322,9 +324,12 @@ pub(super) fn creature_victim_damage_like_cpp(
                         &attacker_facts,
                         &victim_facts,
                     );
-                    let rolled = wow_world_spell::melee_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
+                    let rolled =
+                        wow_world_spell::melee_rules::rolled_melee_outcome_like_cpp(&inputs[0]);
                     let (mut info, state) =
-                        wow_world_spell::melee_rules::melee_outcome_presentation_like_cpp(rolled, false);
+                        wow_world_spell::melee_rules::melee_outcome_presentation_like_cpp(
+                            rolled, false,
+                        );
                     let (outcome_damage, blocked, _original) =
                         wow_world_spell::melee_rules::melee_outcome_damage_like_cpp(
                             rolled,

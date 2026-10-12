@@ -31,7 +31,6 @@ use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_data::CreatureSpellDisableDecisionLikeCpp;
 use wow_entities::Unit;
 use wow_map::coords::SIZE_OF_GRID_CELL;
-use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 use wow_world_core::entity_update_bridge::unit_values_update_to_update_object;
 use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent, RuntimePlan};
 use wow_world_core::session::connection_identity::unix_now;
@@ -78,6 +77,7 @@ use wow_world_entities::creature_spell_publication::{
     append_committed_creature_spell_packets_like_cpp, creature_spell_cast_log_data_like_cpp,
     represented_creature_spell_hit_profile_like_cpp, resolve_creature_spell_hit_profile_like_cpp,
 };
+use wow_world_spell::spell_cast_adapter::represented_spell_cast_guid_for_map_like_cpp;
 
 const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
 const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
@@ -86,16 +86,19 @@ const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 mod player_melee_application;
 use player_melee_application::PLAYER_MELEE_COMBAT_REF_REVALIDATE_INTERVAL_MS;
 use player_melee_application::PendingPlayerSwingLikeCpp;
-use player_melee_application::PlayerAttackStartLikeCppResult;
 pub use player_melee_application::PlayerMeleeAttackerSnapshotLikeCpp;
 use player_melee_application::PlayerMeleeCreatureHitLikeCpp;
 pub use player_melee_application::PlayerMeleePhaseStateLikeCpp;
 pub use player_melee_application::PlayerMeleeTickOutcomeLikeCpp;
 use player_melee_application::apply_player_melee_to_canonical_player_like_cpp;
-use player_melee_application::is_unit_facing_target_for_melee_like_cpp;
+pub use player_melee_application::is_unit_facing_target_for_melee_like_cpp;
 use player_melee_application::is_within_melee_range_like_cpp;
 use player_melee_application::is_within_target_boundary_radius_like_cpp;
-use player_melee_application::take_canonical_player_attack_swings_like_cpp;
+pub use player_melee_application::take_canonical_player_attack_swings_like_cpp;
+pub use player_melee_application::{
+    RepresentedArmorMitigationLikeCpp, RepresentedMeleeDamageBonusLikeCpp,
+    RepresentedMeleeSwingLikeCpp, legacy_attack_power_multiplier_like_cpp,
+};
 mod admitted_creature_execution;
 mod creature_aggro_tick;
 mod creature_combat_commit;
@@ -133,11 +136,7 @@ pub use admitted_creature_execution::{
 // The single-phase entries the executor composes; the unit tests drive one
 // phase at a time through them.
 #[allow(unused_imports)]
-pub(crate) use admitted_creature_execution::{
-    run_creature_aggro_phase_on_manager_like_cpp, run_creature_lifecycle_phase_on_manager_like_cpp,
-    run_creature_melee_phase_on_manager_like_cpp, run_creature_movement_phase_on_manager_like_cpp,
-    run_creature_spell_phase_on_manager_like_cpp, run_player_melee_phase_on_manager_like_cpp,
-};
+pub(crate) use admitted_creature_execution::run_creature_aggro_phase_on_manager_like_cpp;
 #[allow(unused_imports)]
 pub(crate) use creature_aggro_tick::*;
 pub use creature_combat_commit::*;
@@ -147,6 +146,7 @@ pub(crate) use creature_lifecycle_tick::*;
 pub(crate) use creature_melee_tick::*;
 #[allow(unused_imports)]
 pub(crate) use creature_movement_tick::*;
+#[allow(unused_imports)]
 pub(crate) use creature_phase_store::*;
 use creature_spell_actions::*;
 #[allow(unused_imports)]
@@ -161,3 +161,21 @@ pub(crate) use creature_tick::*;
 pub(crate) use player_melee_victims::*;
 #[allow(unused_imports)]
 pub(crate) use player_tick::*;
+// #1363 slice 3: entries only the `wow-world` scenario tests drive directly.
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use admitted_creature_execution::{
+    run_creature_lifecycle_phase_on_manager_like_cpp, run_creature_melee_phase_on_manager_like_cpp,
+    run_creature_movement_phase_on_manager_like_cpp, run_creature_spell_phase_on_manager_like_cpp,
+    run_player_melee_phase_on_manager_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use creature_aggro_tick::run_creature_aggro_phase_on_store_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use creature_movement_tick::{
+    creature_melee_spell_miss_threshold_3_3_5_like_cpp, is_creature_melee_los_clear_like_cpp,
+    step_creature_movement_on_view_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use creature_phase_store::AdmittedCanonicalCreatureStoreLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use creature_tick::creature_ai_can_attack_decision_like_cpp;

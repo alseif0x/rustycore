@@ -1,9 +1,9 @@
 //! Secondary-target side of creature white-swing split damage.
 
-use wow_world_core::entity_update_bridge::unit_values_update_to_update_object;
-use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 use wow_core::ObjectGuid;
 use wow_packet::ServerPacket;
+use wow_world_core::entity_update_bridge::unit_values_update_to_update_object;
+use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
 #[derive(Default)]
 pub(super) struct MeleeSplitDamageOutcomeLikeCpp {

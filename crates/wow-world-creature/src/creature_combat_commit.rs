@@ -89,27 +89,29 @@ pub fn retain_committed_creature_combat_events_like_cpp(
 ) {
     use wow_packet::ServerPacket as _;
 
-    let start_signature = |command: &wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand| {
-        (
-            command.attacker_guid,
-            wow_packet::packets::combat::AttackStart {
-                attacker: command.attacker_guid,
-                victim: command.victim_guid,
-            }
-            .to_bytes(),
-        )
-    };
-    let stop_signature = |command: &wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand| {
-        (
-            command.attacker_guid,
-            wow_packet::packets::combat::SAttackStop {
-                attacker: command.attacker_guid,
-                victim: command.victim_guid,
-                now_dead: false,
-            }
-            .to_bytes(),
-        )
-    };
+    let start_signature =
+        |command: &wow_world_core::session::mailbox::CreatureAttackStartLikeCppCommand| {
+            (
+                command.attacker_guid,
+                wow_packet::packets::combat::AttackStart {
+                    attacker: command.attacker_guid,
+                    victim: command.victim_guid,
+                }
+                .to_bytes(),
+            )
+        };
+    let stop_signature =
+        |command: &wow_world_core::session::mailbox::CreatureAttackStopLikeCppCommand| {
+            (
+                command.attacker_guid,
+                wow_packet::packets::combat::SAttackStop {
+                    attacker: command.attacker_guid,
+                    victim: command.victim_guid,
+                    now_dead: false,
+                }
+                .to_bytes(),
+            )
+        };
     // The hostile `SMSG_AI_REACTION` that precedes a creature's own attack
     // start (C++ `Unit::Attack`) commits or drops together with it (#1344).
     let reaction_signature =

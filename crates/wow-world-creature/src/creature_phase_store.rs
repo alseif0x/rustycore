@@ -20,7 +20,7 @@ use super::*;
 
 /// The admitted selection of one canonical tick, resolved on the canonical
 /// manager the executor holds locked.
-pub(crate) struct AdmittedCanonicalCreatureStoreLikeCpp<'a> {
+pub struct AdmittedCanonicalCreatureStoreLikeCpp<'a> {
     manager: &'a mut wow_map::MapManager,
     /// `(residence, creatures)` in admission order.
     selection: Vec<((u16, u32), Vec<ObjectGuid>)>,
@@ -35,7 +35,7 @@ impl<'a> AdmittedCanonicalCreatureStoreLikeCpp<'a> {
     /// selected objects, as C++ `Map::Update` runs every active map —
     /// the lifecycle phase drains a map's respawn queue after its last creature
     /// despawned.
-    pub(crate) fn new_like_cpp(
+    pub fn new_like_cpp(
         manager: &'a mut wow_map::MapManager,
         maps: &[AdmittedCreatureExecutionMapLikeCpp],
         objects: &[AdmittedCreatureExecutionObjectLikeCpp],

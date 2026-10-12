@@ -3477,6 +3477,7 @@ dependencies = [
  "wow-world",
  "wow-world-application",
  "wow-world-core",
+ "wow-world-creature",
  "wow-world-entities",
  "wow-world-instances",
  "wow-world-interaction",

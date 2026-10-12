@@ -83,7 +83,7 @@ pub(crate) fn creature_ai_selection_decision_like_cpp(
 
     CreatureAiSelectionDecisionLikeCpp::Selected(select_creature_ai_like_cpp(&input))
 }
-pub(crate) fn creature_ai_can_attack_decision_like_cpp(
+pub fn creature_ai_can_attack_decision_like_cpp(
     ai_kind: &CreatureAiKindLikeCpp,
     creature: &wow_entities::Creature,
     candidate: &CreatureAggroCandidateLikeCpp,

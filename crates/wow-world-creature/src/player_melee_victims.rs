@@ -57,7 +57,7 @@ impl CanonicalPlayerMeleeCreatureVictimsLikeCpp {
         victim_guid: ObjectGuid,
         player_guid: ObjectGuid,
         tap_group_guids: &[ObjectGuid],
-        damages: &[wow_world_spell::melee_rules::RepresentedMeleeSwingLikeCpp],
+        damages: &[crate::RepresentedMeleeSwingLikeCpp],
     ) -> CreatureVictimApplyLikeCpp {
         match map.with_creature_mut_like_cpp(victim_guid, |creature| {
             apply_player_melee_to_creature_like_cpp(

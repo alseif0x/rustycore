@@ -5,6 +5,12 @@
 
 use super::*;
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum PlayerAttackStartLikeCppResult {
+    Rejected,
+    Accepted { send_attack_start: bool },
+}
+
 impl WorldSession {
     fn canonical_unit_attack_target_state_like_cpp(
         &self,

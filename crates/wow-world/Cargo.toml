@@ -75,6 +75,7 @@ wow-world-visibility = { workspace = true }
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-creature = { workspace = true, features = ["test-fixtures"] }
 wow-world-entities = { workspace = true, features = ["test-fixtures"] }
 wow-world-interaction = { workspace = true, features = ["test-fixtures"] }
 wow-world-instances = { workspace = true, features = ["test-fixtures"] }

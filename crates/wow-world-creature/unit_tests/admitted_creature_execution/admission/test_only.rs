@@ -9,7 +9,7 @@ use super::*;
 impl IsolatedCreatureExecutionOutcomeLikeCpp {
     /// Number of publication events this transition produced.
     #[must_use]
-    pub(crate) fn publication_events_like_cpp(&self) -> usize {
+    pub fn publication_events_like_cpp(&self) -> usize {
         self.deferred_publication.len()
     }
 }

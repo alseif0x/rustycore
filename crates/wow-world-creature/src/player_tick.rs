@@ -271,7 +271,7 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
                 .filter(|(misc_value, _)| misc_value & 0x01 != 0)
                 .map(|(_, amount)| amount as f32)
                 .sum::<f32>();
-            let armor_mitigation = wow_world_spell::melee_rules::RepresentedArmorMitigationLikeCpp {
+            let armor_mitigation = crate::RepresentedArmorMitigationLikeCpp {
                 attacker_level: attacker_player.level_like_cpp(),
                 victim_level,
                 victim_armor,
@@ -292,11 +292,9 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
                     victim_aura_state_mask,
                     victim_mechanic_mask,
                     false,
-                    wow_world_spell::melee_rules::legacy_attack_power_multiplier_like_cpp(
-                        base_attack_speed[index],
-                    ),
+                    crate::legacy_attack_power_multiplier_like_cpp(base_attack_speed[index]),
                 );
-                wow_world_spell::melee_rules::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
+                crate::RepresentedMeleeDamageBonusLikeCpp { flat, pct }
             });
             let stats = attacker_player.effective_combat_stats_like_cpp();
             let aura_sum = |aura_type: i32| -> f32 {
@@ -383,8 +381,8 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
             )
         }
         _ => (
-            [wow_world_spell::melee_rules::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
-            wow_world_spell::melee_rules::RepresentedArmorMitigationLikeCpp::NONE,
+            [crate::RepresentedMeleeDamageBonusLikeCpp::NONE; 2],
+            crate::RepresentedArmorMitigationLikeCpp::NONE,
             Default::default(),
             wow_world_spell::melee_rules::RepresentedMeleeDamageTakenLikeCpp::NONE,
         ),
@@ -469,13 +467,14 @@ pub(crate) fn execute_player_melee_swing_on_manager_like_cpp(
             (!victims.victim_values_published_by_map_like_cpp()).then_some(hit.values_update);
         if hit.died {
             outcome.creature_kills += 1;
-            command.killed_creature =
-                Some(wow_world_core::session::mailbox::PlayerMeleeCreatureKillLikeCpp {
+            command.killed_creature = Some(
+                wow_world_core::session::mailbox::PlayerMeleeCreatureKillLikeCpp {
                     creature_guid: swing.victim_guid,
                     creature_entry: hit.entry,
                     creature_level: hit.level,
                     move_stop: hit.move_stop,
-                });
+                },
+            );
             command.combat_target_after = Some(None);
             command.in_combat_after = Some(false);
         }

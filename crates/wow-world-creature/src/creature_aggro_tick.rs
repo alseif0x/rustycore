@@ -259,7 +259,7 @@ pub(crate) fn creature_aggro_candidate_is_accessible_for_creature_like_cpp(
 /// C++ anchors are the per-creature `Creature::Update` → `CreatureAI::UpdateAI`
 /// steps: taunt expiry, `AssistDelayEvent`, `UpdateVictim` (switch or
 /// `EnterEvadeMode`), `CallAssistance` and `MoveInLineOfSight`.
-pub(crate) fn run_creature_aggro_phase_on_store_like_cpp(
+pub fn run_creature_aggro_phase_on_store_like_cpp(
     store: &mut AdmittedCanonicalCreatureStoreLikeCpp<'_>,
     terrain: Option<&wow_world_core::terrain::LiveTerrainHeights>,
     candidates: &[CreatureAggroCandidateLikeCpp],
@@ -361,8 +361,8 @@ pub(crate) fn run_creature_aggro_phase_on_store_like_cpp(
             };
             let expired_taunt_slots = creature.expire_taunt_auras_if_due_like_cpp();
             if !expired_taunt_slots.is_empty() {
-                use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                 use wow_packet::ServerPacket;
+                use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
                 outcome.plan.events.push(RuntimeEvent {
                     source_guid: guid,
@@ -454,8 +454,8 @@ pub(crate) fn run_creature_aggro_phase_on_store_like_cpp(
                             .add_threat(victim_guid, 0.0);
                         outcome.assistance_starts += 1;
                         outcome.aggro_starts += 1;
-                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
+                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
                         outcome.plan.events.push(RuntimeEvent {
                             source_guid: assistant_guid,
@@ -500,8 +500,8 @@ pub(crate) fn run_creature_aggro_phase_on_store_like_cpp(
                 CreatureThreatUpdateLikeCpp::Switched { previous_victim } => {
                     outcome.victim_switches += 1;
                     if let Some(victim_guid) = creature.ai_ownership().combat_target {
-                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                         use wow_packet::ServerPacket;
+                        use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                         let recipients = RecipientRule::NearbyVisibleDurable {
                             source_guid: guid,
                             map_id,
@@ -549,8 +549,8 @@ pub(crate) fn run_creature_aggro_phase_on_store_like_cpp(
                     participant_guids,
                     removed_taunt_slots,
                 } => {
-                    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
                     use wow_packet::ServerPacket;
+                    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
                     if let Some(previous_victim) = previous_victim {
                         use wow_packet::packets::combat::SAttackStop;

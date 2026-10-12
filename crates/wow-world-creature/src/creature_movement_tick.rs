@@ -14,7 +14,7 @@ use wow_world_core::creature_movement::CreatureMovementQueriesLikeCpp as _;
 /// This is a pure function of `creature`, `guid`, and the two mmap resources;
 /// it does NOT touch any `WorldSession` state.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn step_creature_movement_on_view_like_cpp(
+pub fn step_creature_movement_on_view_like_cpp(
     creature: &mut wow_world_core::creature_movement::CreatureMovementLikeCpp<'_>,
     guid: wow_core::ObjectGuid,
     mmap_config: &MMapRuntimeConfigLikeCpp,
@@ -91,7 +91,10 @@ pub(crate) fn step_creature_movement_on_view_like_cpp(
                 }
                 .to_bytes(),
             ),
-            wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+            wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Launched(
+                from,
+                move_spline,
+            ) => {
                 let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
                 let pkt = MonsterMove {
                     mover_guid: guid,
@@ -319,7 +322,10 @@ pub(crate) fn step_creature_movement_on_view_like_cpp(
                         .to_bytes(),
                     );
                 }
-                wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Launched(from, move_spline) => {
+                wow_world_core::creature_movement::ChaseTickOutcomeLikeCpp::Launched(
+                    from,
+                    move_spline,
+                ) => {
                     let packet_spline = MovementMonsterSpline::from_move_spline(&move_spline);
                     let pkt = MonsterMove {
                         mover_guid: guid,
@@ -363,8 +369,8 @@ pub(crate) fn run_creature_movement_phase_on_store_like_cpp(
     diff_ms: u32,
     outcome: &mut CreatureMovementTickOutcomeLikeCpp,
 ) {
-    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
     use wow_packet::ServerPacket;
+    use wow_world_core::runtime_plan::{RecipientRule, RuntimeEvent};
 
     let map_keys = store.phase_map_keys_like_cpp();
     outcome.maps_seen = map_keys.len();
@@ -452,11 +458,11 @@ pub(crate) fn run_creature_movement_phase_on_store_like_cpp(
         }
     }
 }
-#[cfg(test)]
-pub(crate) fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn creature_melee_spell_miss_threshold_3_3_5_like_cpp() -> u32 {
     wow_world_entities::creature_spell_publication::creature_melee_spell_miss_threshold_3_3_5_like_cpp()
 }
-pub(crate) fn is_creature_melee_los_clear_like_cpp(
+pub fn is_creature_melee_los_clear_like_cpp(
     attacker: &wow_entities::WorldObject,
     victim: &wow_entities::WorldObject,
     environment: &impl wow_entities::WorldObjectEnvironment,
